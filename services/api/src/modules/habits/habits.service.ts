@@ -15,43 +15,44 @@ export const habitsService = {
   ): Promise<void> {
     // Record frequent foods
     for (const food of extraction.foods) {
-      await prisma.userHabit.upsert({
+      const existing = await prisma.userHabit.findFirst({
         where: {
-          // We'd need a unique constraint, so do a findFirst + upsert
-          id: (
-            await prisma.userHabit.findFirst({
-              where: {
-                userId,
-                habitType: HabitType.FREQUENT_FOOD,
-                data: { path: ['name'], equals: food.name },
-              },
-              select: { id: true },
-            })
-          )?.id ?? 'non-existent',
-        },
-        create: {
           userId,
           habitType: HabitType.FREQUENT_FOOD,
-          data: {
-            name: food.name,
-            unit: food.unit,
-            typicalQuantity: food.quantity,
-            mealType: extraction.mealType,
-          },
-          frequency: 1,
-          lastSeenAt: timestamp,
-        },
-        update: {
-          frequency: { increment: 1 },
-          lastSeenAt: timestamp,
-          data: {
-            name: food.name,
-            unit: food.unit,
-            typicalQuantity: food.quantity,
-            mealType: extraction.mealType,
-          },
+          data: { path: ['name'], equals: food.name },
         },
       });
+
+      if (existing) {
+        await prisma.userHabit.update({
+          where: { id: existing.id },
+          data: {
+            frequency: { increment: 1 },
+            lastSeenAt: timestamp,
+            data: {
+              name: food.name,
+              unit: food.unit,
+              typicalQuantity: food.quantity,
+              mealType: extraction.mealType,
+            },
+          },
+        });
+      } else {
+        await prisma.userHabit.create({
+          data: {
+            userId,
+            habitType: HabitType.FREQUENT_FOOD,
+            data: {
+              name: food.name,
+              unit: food.unit,
+              typicalQuantity: food.quantity,
+              mealType: extraction.mealType,
+            },
+            frequency: 1,
+            lastSeenAt: timestamp,
+          },
+        });
+      }
     }
 
     // Record meal time pattern

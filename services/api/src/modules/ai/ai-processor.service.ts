@@ -171,7 +171,7 @@ export const aiProcessorService = {
 
       if (extraction.needsConfirmation) {
         // Ask for confirmation with buttons
-        await sendWhatsAppQueue.add('send-buttons', {
+        await sendWhatsAppQueue.add('send', {
           to: user.phone,
           text:
             `🤔 *Confirme sua refeição:*\n\n` +

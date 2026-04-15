@@ -1,3 +1,4 @@
+import OpenAI from 'openai';
 import { openaiClient } from './openai.client';
 import { config } from '../../config';
 import { logger } from '../../shared/logger/logger';
@@ -100,6 +101,3 @@ Regras:
     }
   },
 };
-
-// Import OpenAI types
-import OpenAI from 'openai';
