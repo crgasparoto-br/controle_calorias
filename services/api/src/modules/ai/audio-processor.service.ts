@@ -1,3 +1,4 @@
+import { toFile } from 'openai';
 import { openaiClient } from './openai.client';
 import { config } from '../../config';
 import { logger } from '../../shared/logger/logger';
@@ -23,12 +24,8 @@ export const audioProcessorService = {
       // Determine file extension from mime type
       const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
 
-      // Whisper requires a File-like object; copy buffer into a proper ArrayBuffer
-      const arrayBuffer = audioBuffer.buffer.slice(
-        audioBuffer.byteOffset,
-        audioBuffer.byteOffset + audioBuffer.byteLength,
-      ) as ArrayBuffer;
-      const file = new File([arrayBuffer], `audio.${ext}`, { type: mimeType });
+      // Use OpenAI's toFile helper for cross-platform Buffer → Uploadable conversion
+      const file = await toFile(audioBuffer, `audio.${ext}`, { type: mimeType });
 
       const response = await openaiClient.audio.transcriptions.create({
         model: config.openaiModelAudio,

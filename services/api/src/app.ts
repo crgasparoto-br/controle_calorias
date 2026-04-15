@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyError } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyJwt from '@fastify/jwt';
@@ -117,7 +117,7 @@ app.register(mealsRoutes, { prefix: '/api/v1/meals' });
 // -----------------------------------------------------------------------
 // Error handler
 // -----------------------------------------------------------------------
-app.setErrorHandler((error, request, reply) => {
+app.setErrorHandler((error: FastifyError, request, reply) => {
   logger.error({ error, requestId: request.id }, 'Unhandled error');
 
   if (error.statusCode) {
