@@ -1,0 +1,409 @@
+// =============================================================================
+// Prisma Schema - Controle Calorias SaaS
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector"), uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
+}
+
+// =============================================================================
+// USER & AUTH
+// =============================================================================
+
+model User {
+  id          String   @id @default(uuid())
+  phone       String   @unique // WhatsApp phone number in E.164 format (+5511999999999)
+  name        String?
+  email       String?  @unique
+  timezone    String   @default("America/Sao_Paulo")
+  locale      String   @default("pt-BR")
+  isActive    Boolean  @default(true)
+  isVerified  Boolean  @default(false)
+  onboardingCompleted Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  goal        UserGoal?
+  meals       Meal[]
+  habits      UserHabit[]
+  messageLogs MessageLog[]
+  auditLogs   AuditLog[]
+  embeddings  UserEmbedding[]
+  sessions    UserSession[]
+  subscription Subscription?
+
+  @@map("users")
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+model UserGoal {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  caloriesPerDay  Int      @default(2000)  // kcal
+  proteinPerDay   Float    @default(50)    // grams
+  carbsPerDay     Float    @default(250)   // grams
+  fatPerDay       Float    @default(65)    // grams
+  fiberPerDay     Float    @default(25)    // grams
+  waterPerDay     Float    @default(2000)  // ml
+  weightGoalKg    Float?                   // target weight in kg
+  currentWeightKg Float?                   // current weight in kg
+  heightCm        Float?                   // height in cm
+  age             Int?
+  gender          Gender?
+  activityLevel   ActivityLevel @default(SEDENTARY)
+  goalType        GoalType      @default(MAINTAIN)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_goals")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum ActivityLevel {
+  SEDENTARY        // little or no exercise
+  LIGHTLY_ACTIVE   // light exercise 1-3 days/week
+  MODERATELY_ACTIVE // moderate exercise 3-5 days/week
+  VERY_ACTIVE      // hard exercise 6-7 days/week
+  EXTRA_ACTIVE     // very hard exercise, physical job
+}
+
+enum GoalType {
+  LOSE_WEIGHT
+  MAINTAIN
+  GAIN_WEIGHT
+  BUILD_MUSCLE
+}
+
+// =============================================================================
+// SUBSCRIPTION
+// =============================================================================
+
+model Subscription {
+  id         String             @id @default(uuid())
+  userId     String             @unique
+  plan       SubscriptionPlan   @default(FREE)
+  status     SubscriptionStatus @default(ACTIVE)
+  startedAt  DateTime           @default(now())
+  expiresAt  DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  TRIAL
+}
+
+// =============================================================================
+// MEALS & NUTRITION
+// =============================================================================
+
+model Meal {
+  id          String    @id @default(uuid())
+  userId      String
+  date        DateTime  // date only (stored as YYYY-MM-DD 00:00:00)
+  mealType    MealType
+  notes       String?
+  totalCalories Float   @default(0)
+  totalProtein  Float   @default(0)
+  totalCarbs    Float   @default(0)
+  totalFat      Float   @default(0)
+  totalFiber    Float   @default(0)
+  confirmedByUser Boolean @default(false)
+  sourceType    MessageMediaType @default(TEXT)
+  messageLogId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       MealItem[]
+  messageLog  MessageLog? @relation(fields: [messageLogId], references: [id])
+
+  @@index([userId, date])
+  @@map("meals")
+}
+
+enum MealType {
+  BREAKFAST
+  MORNING_SNACK
+  LUNCH
+  AFTERNOON_SNACK
+  DINNER
+  EVENING_SNACK
+  OTHER
+}
+
+model MealItem {
+  id              String   @id @default(uuid())
+  mealId          String
+  foodItemId      String?  // reference to nutritional DB entry
+  foodName        String   // raw name as identified
+  quantity        Float
+  unit            String   // g, ml, unit, scoop, cup, tbsp, etc.
+  quantityGrams   Float?   // normalized quantity in grams for calculation
+  calories        Float
+  protein         Float    @default(0)
+  carbs           Float    @default(0)
+  fat             Float    @default(0)
+  fiber           Float    @default(0)
+  sodium          Float    @default(0)  // mg
+  sugar           Float    @default(0)
+  confidenceScore Float    @default(1.0) // 0-1 confidence of AI inference
+  source          NutritionSource @default(AI_ESTIMATED)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  meal            Meal      @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  foodItem        FoodItem? @relation(fields: [foodItemId], references: [id])
+
+  @@map("meal_items")
+}
+
+enum NutritionSource {
+  AI_ESTIMATED     // estimated by LLM
+  NUTRITIONAL_DB   // from structured food database
+  USER_CONFIRMED   // confirmed / corrected by user
+  USER_CUSTOM      // custom entry by user
+}
+
+// =============================================================================
+// FOOD DATABASE
+// =============================================================================
+
+model FoodItem {
+  id              String   @id @default(uuid())
+  externalId      String?  // USDA FDC ID or other external reference
+  externalSource  String?  // "USDA", "TACO", "custom"
+  name            String
+  nameNormalized  String   // lowercase, accent-stripped for search
+  category        String?
+  calories        Float    // per 100g
+  protein         Float    @default(0) // per 100g
+  carbs           Float    @default(0) // per 100g
+  fat             Float    @default(0) // per 100g
+  fiber           Float    @default(0) // per 100g
+  sodium          Float    @default(0) // mg per 100g
+  sugar           Float    @default(0) // per 100g
+  servingSizeG    Float?   // typical serving size in grams
+  servingUnit     String?  // "porção", "fatia", "colher", etc.
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  mealItems       MealItem[]
+  aliases         FoodAlias[]
+
+  @@unique([externalId, externalSource])
+  @@index([nameNormalized])
+  @@map("food_items")
+}
+
+model FoodAlias {
+  id         String   @id @default(uuid())
+  foodItemId String
+  alias      String   // alternative name (e.g. "frango" for "peito de frango grelhado")
+  locale     String   @default("pt-BR")
+  createdAt  DateTime @default(now())
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+
+  @@index([alias])
+  @@map("food_aliases")
+}
+
+// =============================================================================
+// USER HABITS & PERSONALIZATION
+// =============================================================================
+
+model UserHabit {
+  id             String   @id @default(uuid())
+  userId         String
+  habitType      HabitType
+  data           Json     // flexible habit data
+  frequency      Int      @default(0) // how many times this habit occurred
+  lastSeenAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, habitType])
+  @@map("user_habits")
+}
+
+enum HabitType {
+  FREQUENT_FOOD        // food eaten often
+  MEAL_PATTERN         // typical meal at a specific time
+  NAMED_MEAL           // "meu café da manhã de sempre"
+  CORRECTION_PATTERN   // common correction the user makes
+  PREFERRED_UNIT       // user's preferred unit for a food
+}
+
+model UserEmbedding {
+  id         String   @id @default(uuid())
+  userId     String
+  content    String   // the text that was embedded
+  type       EmbeddingType
+  metadata   Json?    // mealId, date, etc.
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("user_embeddings")
+}
+
+enum EmbeddingType {
+  MEAL_DESCRIPTION   // embedding of a meal description
+  NAMED_MEAL         // embedding for "meu café da manhã"
+  CORRECTION         // embedding of a user correction
+}
+
+// =============================================================================
+// MESSAGING & AUDIT
+// =============================================================================
+
+model MessageLog {
+  id                 String           @id @default(uuid())
+  userId             String
+  whatsappMessageId  String           @unique
+  direction          MessageDirection
+  mediaType          MessageMediaType
+  rawContent         String?          // original text content
+  mediaUrl           String?          // S3 URL for audio/image
+  mediaStorageKey    String?          // S3 key
+  transcription      String?          // audio transcription
+  processingStatus   ProcessingStatus @default(PENDING)
+  processingError    String?
+  responseText       String?          // text sent back to user
+  confidenceScore    Float?
+  processingMs       Int?             // processing time in ms
+  promptVersionId    String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meals        Meal[]
+  promptVersion PromptVersion? @relation(fields: [promptVersionId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("message_logs")
+}
+
+enum MessageDirection {
+  INBOUND   // from user to system
+  OUTBOUND  // from system to user
+}
+
+enum MessageMediaType {
+  TEXT
+  AUDIO
+  IMAGE
+  DOCUMENT
+  LOCATION
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  AWAITING_CONFIRMATION
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  data      Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// AI / PROMPT VERSIONING
+// =============================================================================
+
+model PromptVersion {
+  id          String   @id @default(uuid())
+  name        String   // e.g. "food-extraction-v1"
+  version     String
+  content     String   // the prompt template
+  model       String   // e.g. "gpt-4o"
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messageLogs MessageLog[]
+
+  @@unique([name, version])
+  @@map("prompt_versions")
+}
+
+// =============================================================================
+// DAILY SUMMARY (pre-computed for performance)
+// =============================================================================
+
+model DailySummary {
+  id              String   @id @default(uuid())
+  userId          String
+  date            DateTime // YYYY-MM-DD
+  totalCalories   Float    @default(0)
+  totalProtein    Float    @default(0)
+  totalCarbs      Float    @default(0)
+  totalFat        Float    @default(0)
+  totalFiber      Float    @default(0)
+  totalWaterMl    Float    @default(0)
+  mealsCount      Int      @default(0)
+  goalCalories    Float    @default(0)
+  goalProtein     Float    @default(0)
+  goalCarbs       Float    @default(0)
+  goalFat         Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("daily_summaries")
+}

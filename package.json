@@ -1,0 +1,31 @@
+{
+  "name": "controle-calorias",
+  "version": "1.0.0",
+  "description": "SaaS de controle de calorias e nutrientes com WhatsApp como frontend principal",
+  "private": true,
+  "workspaces": [
+    "services/api",
+    "services/admin"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=services/api",
+    "dev:admin": "npm run dev --workspace=services/admin",
+    "build:api": "npm run build --workspace=services/api",
+    "build:admin": "npm run build --workspace=services/admin",
+    "build": "npm run build:api && npm run build:admin",
+    "test:api": "npm run test --workspace=services/api",
+    "test": "npm run test:api",
+    "lint:api": "npm run lint --workspace=services/api",
+    "lint": "npm run lint:api",
+    "db:migrate": "npm run db:migrate --workspace=services/api",
+    "db:generate": "npm run db:generate --workspace=services/api",
+    "db:seed": "npm run db:seed --workspace=services/api",
+    "docker:up": "docker compose -f infra/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infra/docker-compose.yml down",
+    "docker:logs": "docker compose -f infra/docker-compose.yml logs -f"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
