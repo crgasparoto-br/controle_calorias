@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1776697202958,
+      "tag": "0000_icy_wilson_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1776699384658,
+      "tag": "0001_remarkable_molten_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1776705007573,
+      "tag": "0002_purple_stature",
+      "breakpoints": true
+    }
+  ]
+}

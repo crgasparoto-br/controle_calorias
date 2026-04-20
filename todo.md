@@ -1,0 +1,61 @@
+# Project TODO
+
+- [x] Definir e implementar o modelo de dados para usuários, metas nutricionais, refeições, itens de refeição, inferências multimodais, memória de hábitos, integrações de canal e logs administrativos
+- [x] Implementar dashboard do usuário com histórico de refeições, calorias consumidas versus meta diária, macronutrientes e evolução semanal
+- [x] Implementar cadastro e gerenciamento de metas nutricionais por usuário para calorias, proteínas, carboidratos e gorduras
+- [x] Implementar registro manual de refeições via interface web com texto livre, upload de imagem e upload de áudio
+- [x] Implementar processamento multimodal com IA para interpretar texto, transcrever áudio e analisar imagens para identificar alimentos, estimar porções e calcular calorias e macronutrientes
+- [x] Implementar motor nutricional estruturado com banco de alimentos, normalização de porções e cálculo determinístico do saldo diário
+- [x] Implementar memória de hábitos do usuário com histórico recorrente, alimentos frequentes, horários e preferências para personalização
+- [x] Implementar fluxo de confirmação e correção das inferências antes de salvar o registro de refeição
+- [x] Implementar integração com WhatsApp Business Cloud API via webhook para entrada e resposta por texto, áudio e imagem
+- [x] Implementar painel administrativo para gestão de usuários, logs de inferências e monitoramento de uso da plataforma
+- [x] Implementar relatórios e resumos diários e semanais com gráficos de progresso, desvios de meta e tendências de consumo
+- [x] Definir e aplicar direção visual adequada a um produto digital de saúde e nutrição voltado ao consumidor final
+- [x] Escrever testes de backend e frontend para os fluxos críticos do produto
+- [x] Validar a aplicação em execução, revisar qualidade da experiência e preparar a primeira entrega funcional
+- [x] Refinar a experiência web com página de status operacional da integração WhatsApp e orientações de configuração
+- [x] Cobrir com testes vitest o motor nutricional, o dashboard e o fluxo de confirmação de refeições
+- [x] Gerar a migração inicial do esquema Drizzle e revisar o SQL produzido para futura aplicação no banco
+- [x] Persistir metas, refeições, itens, hábitos, inferências e logs no banco real via Drizzle em vez de stores em memória
+- [x] Completar ingestão multimodal do canal WhatsApp para texto, áudio e imagem com download e processamento de mídia
+- [x] Substituir o catálogo hardcoded por uso persistido de foodCatalog no banco de dados
+- [x] Adicionar testes de frontend para dashboard, metas, registro de refeição e página de canais
+- [x] Executar validação funcional completa dos fluxos principais do produto e registrar correções encontradas
+- [x] Criar a primeira entrega formal com checkpoint somente após concluir as pendências críticas de persistência real, catálogo persistido e ingestão multimodal completa do WhatsApp
+- [x] Validar em ambiente real o webhook multimodal do WhatsApp com mídia de texto, imagem e áudio após o recebimento das credenciais oficiais
+- [x] Migrar leituras principais de metas, refeições, hábitos e visão administrativa para consultas reais ao banco com fallback seguro em memória
+- [x] Corrigir o runtime do catálogo persistido para eliminar o erro de inicialização do servidor e manter a sincronização automática estável
+- [x] Consolidar o motor nutricional para usar uma única referência de catálogo, evitando duplicação hardcoded e reduzindo risco de inconsistência entre runtime e inferência
+- [x] Vincular os itens confirmados das refeições ao foodCatalog persistido para manter consistência entre catálogo, inferência e gravação no banco
+- [x] Adicionar testes para o webhook do WhatsApp cobrindo verificação do endpoint e processamento básico de mensagens de texto sem credenciais finais
+- [x] Expandir os testes do webhook do WhatsApp para cobrir mensagens não suportadas sem falhar o processamento do endpoint
+- [x] Cobrir em teste o cenário de verificação negada do webhook do WhatsApp quando o token informado é inválido
+- [x] Refinar a página de canais com checklist explícito de credenciais e validação operacional do WhatsApp antes da ativação real
+- [x] Preparar o schema e a compatibilidade da persistência de inferências pendentes para futura reidratação em banco, com migração gerada e fallback preservado até a aplicação
+- [x] Preparar a reidratação de inferências pendentes a partir do banco para reduzir a dependência de memória, preservando compatibilidade com ambientes ainda não migrados
+- [x] Adaptar a confirmação de refeições para consultar também o rascunho persistido no banco quando ele não estiver mais disponível em memória
+- [x] Evoluir o webhook do WhatsApp para resolver o usuário pelo número vinculado em whatsappConnections, reduzindo a dependência do usuário padrão fixo
+- [x] Expandir os testes do webhook do WhatsApp para cobrir payloads vazios sem mensagens, garantindo resposta estável do endpoint
+- [x] Validar em teste automatizado o webhook do WhatsApp para mensagens com imagem e áudio, cobrindo download de mídia, persistência em storage e transcrição
+- [x] Concluir a ativação real da integração WhatsApp Business Cloud API com credenciais oficiais e evidenciar processamento e resposta para texto, imagem e áudio
+- [x] Executar validação ponta a ponta do canal WhatsApp multimodal e corrigir falhas de operação e tratamento de erro
+- [x] Adicionar testes automatizados do webhook do WhatsApp para cenários multimodais com imagem e áudio usando mocks de download, storage e transcrição
+- [x] Diagnosticar e corrigir a falha de validação da URL de callback e do verify token do webhook do WhatsApp na Meta
+- [x] Configurar as credenciais oficiais do WhatsApp Business Cloud API no projeto e validar a verificação real do webhook na Meta
+- [x] Homologar em ambiente real o canal WhatsApp para mensagens de texto, imagem e áudio com o número oficial configurado
+- [x] Aplicar a migração 0002 no banco e confirmar que mealInferences persiste draftId, sourceText, transcript e mediaJson sem fallback legado nem erro nos logs
+- [x] Expandir validation_notes.md com evidências da validação funcional completa dos fluxos web restantes e registrar as correções executadas
+- [x] Adicionar tratamento e logging explícitos para falhas no envio de respostas do WhatsApp e revalidar cenários de erro operacionais
+- [x] Documentar a causa raiz e a correção da falha anterior de validação do webhook na Meta
+- [x] Padronizar a mensagem automática do WhatsApp para informar a refeição identificada, a descrição do alimento e os totais de proteínas, carboidratos, gorduras e calorias
+- [x] Atualizar os testes do webhook do WhatsApp para validar o novo formato padronizado da resposta automática
+- [x] Detalhar a página de relatórios para listar todos os alimentos de cada refeição com proteínas, carboidratos, gorduras, calorias e horário do registro
+- [x] Atualizar os testes de relatórios para validar a exibição dos itens nutricionais por refeição e do horário do registro
+- [x] Reformular a mensagem automática do WhatsApp para seguir a estrutura textual da imagem de referência, com cabeçalho da refeição, lista de alimentos, horário e macros por item
+- [x] Atualizar os testes do webhook do WhatsApp para validar o novo formato inspirado na imagem de referência
+- [x] Avaliar e, se viável tecnicamente, gerar uma versão visual da imagem recebida com as informações nutricionais anotadas por alimento
+- [x] Ajustar a página de relatórios para considerar a segunda-feira como início da semana em agregações e exibições semanais
+- [x] Corrigir a visualização da lista de alimentos por refeição para exibir claramente cada item com suas informações nutricionais no relatório web
+- [ ] Verificar se o repositório GitHub contém os desenvolvimentos mais recentes do projeto local
+- [ ] Exportar a versão mais recente do projeto para o GitHub e confirmar a sincronização remota
