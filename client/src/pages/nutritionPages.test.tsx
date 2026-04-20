@@ -48,7 +48,7 @@ vi.mock("@/lib/trpc", () => ({
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
         list: {
-          useQuery: () => ({ data: [] }),
+          useQuery: () => ({ data: overviewData.meals }),
         },
       },
       reports: {
@@ -95,7 +95,7 @@ const overviewData = {
       mealLabel: "Almoço",
       occurredAt: Date.now(),
       source: "web",
-      items: [{ foodName: "Frango grelhado", portionText: "150 g" }],
+      items: [{ foodName: "Frango grelhado", portionText: "150 g", calories: 420, protein: 38, carbs: 30, fat: 12 }],
       totals: { calories: 420, protein: 38, carbs: 30, fat: 12 },
     },
   ],
@@ -142,6 +142,20 @@ describe("nutrition pages", () => {
     expect(html).toContain("Registrar refeição com IA multimodal");
     expect(html).toContain("Imagem do prato ou rótulo");
     expect(html).toContain("Fluxo de confirmação");
+  });
+
+  it("renderiza a página de relatórios com detalhamento por refeição e itens nutricionais", async () => {
+    const { default: ReportsPage } = await import("./ReportsPage");
+    const html = renderToString(React.createElement(ReportsPage));
+
+    expect(html).toContain("Detalhamento das refeições registradas");
+    expect(html).toContain("Almoço");
+    expect(html).toContain("Frango grelhado");
+    expect(html).toContain("Porção:");
+    expect(html).toContain("150 g");
+    expect(html).toContain("Calorias");
+    expect(html).toContain("420");
+    expect(html).toContain("Horário do registro:");
   });
 
   it("renderiza a página de canais com status do WhatsApp", async () => {

@@ -50,3 +50,5 @@
 - [x] Documentar a causa raiz e a correção da falha anterior de validação do webhook na Meta
 - [x] Padronizar a mensagem automática do WhatsApp para informar a refeição identificada, a descrição do alimento e os totais de proteínas, carboidratos, gorduras e calorias
 - [x] Atualizar os testes do webhook do WhatsApp para validar o novo formato padronizado da resposta automática
+- [x] Detalhar a página de relatórios para listar todos os alimentos de cada refeição com proteínas, carboidratos, gorduras, calorias e horário do registro
+- [x] Atualizar os testes de relatórios para validar a exibição dos itens nutricionais por refeição e do horário do registro
