@@ -76,21 +76,57 @@ function formatMacro(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
 }
 
-function buildWhatsAppReplyMessage(processed: MealProcessingResult) {
-  const mealLabel = processed.detectedMealLabel || "Refeição";
-  const foodDescription = processed.items.length
-    ? processed.items.map((item) => `${item.foodName} (${item.portionText})`).join(", ")
-    : processed.sourceText || "Não identificado";
+function formatReplyTime(date: Date) {
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+}
 
-  return [
-    "Análise nutricional registrada com sucesso.",
-    `Refeição: ${mealLabel}`,
-    `Alimento(s): ${foodDescription}`,
-    `Proteínas: ${formatMacro(processed.totals.protein)} g`,
-    `Carboidratos: ${formatMacro(processed.totals.carbs)} g`,
-    `Gorduras: ${formatMacro(processed.totals.fat)} g`,
-    `Calorias: ${formatMacro(processed.totals.calories)} kcal`,
-  ].join("\n");
+function getMealEmoji(mealLabel: string) {
+  const normalized = mealLabel.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  if (normalized.includes("cafe")) return "☕";
+  if (normalized.includes("almoco")) return "🍽️";
+  if (normalized.includes("jantar")) return "🌙";
+  if (normalized.includes("lanche")) return "🥪";
+  return "🍎";
+}
+
+function formatFoodDescription(item: MealProcessingResult["items"][number]) {
+  const portionHasGrams = /\d\s*g\b/i.test(item.portionText);
+  const gramsLabel = !portionHasGrams && item.estimatedGrams > 0 ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)` : "";
+  return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
+}
+
+function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date()) {
+  const mealLabel = processed.detectedMealLabel || "Refeição";
+  const mealHeader = `${getMealEmoji(mealLabel)} ${mealLabel}:`;
+  const timeLabel = formatReplyTime(registeredAt);
+
+  if (!processed.items.length) {
+    return [
+      mealHeader,
+      processed.sourceText || "Alimento não identificado.",
+      `• Às ${timeLabel}`,
+      `• Proteínas: ${formatMacro(processed.totals.protein)}g`,
+      `• Carboidratos: ${formatMacro(processed.totals.carbs)}g`,
+      `• Gorduras: ${formatMacro(processed.totals.fat)}g`,
+      `• ${formatMacro(processed.totals.calories)}kcal`,
+    ].join("\n");
+  }
+
+  const itemBlocks = processed.items.map((item) => [
+    formatFoodDescription(item),
+    `• Às ${timeLabel}`,
+    `• Proteínas: ${formatMacro(item.protein)}g`,
+    `• Carboidratos: ${formatMacro(item.carbs)}g`,
+    `• Gorduras: ${formatMacro(item.fat)}g`,
+    `• ${formatMacro(item.calories)}kcal`,
+  ].join("\n"));
+
+  return [mealHeader, "", itemBlocks.join("\n\n")].join("\n");
 }
 
 async function sendWhatsAppTextMessage(to: string, body: string) {
@@ -315,7 +351,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const replyResult = await sendWhatsAppTextMessage(
         sourcePhone,
-        buildWhatsAppReplyMessage(processed),
+        buildWhatsAppReplyMessage(processed, new Date()),
       );
 
       if (!replyResult.ok) {

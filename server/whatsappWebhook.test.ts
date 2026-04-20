@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./storage", () => ({
   storagePut: vi.fn(async (key: string) => ({
@@ -84,6 +84,8 @@ function createResponse(): MockResponse {
 
 describe("whatsappWebhook", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-20T08:52:00-03:00"));
     process.env.WHATSAPP_VERIFY_TOKEN = "verify-token-test";
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
@@ -121,6 +123,10 @@ describe("whatsappWebhook", () => {
         json: async () => ({}),
       } as Response;
     }) as typeof fetch;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("valida o webhook quando o token informado confere", () => {
@@ -167,7 +173,7 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 0 });
   });
 
-  it("processa uma mensagem de texto e envia uma resposta padronizada com refeição, alimentos e macros", async () => {
+  it("processa uma mensagem de texto e envia uma resposta no formato detalhado inspirado na imagem de referência", async () => {
     const req = {
       body: {
         entry: [
@@ -198,13 +204,14 @@ describe("whatsappWebhook", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(lastSentWhatsAppBody).toBe([
-      "Análise nutricional registrada com sucesso.",
-      "Refeição: Almoço",
-      "Alimento(s): arroz (100 g)",
-      "Proteínas: 2.7 g",
-      "Carboidratos: 28 g",
-      "Gorduras: 0.3 g",
-      "Calorias: 130 kcal",
+      "🍽️ Almoço:",
+      "",
+      "100 g arroz",
+      "• Às 08:52",
+      "• Proteínas: 2.7g",
+      "• Carboidratos: 28g",
+      "• Gorduras: 0.3g",
+      "• 130kcal",
     ].join("\n"));
   });
 

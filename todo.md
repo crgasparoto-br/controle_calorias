@@ -52,3 +52,6 @@
 - [x] Atualizar os testes do webhook do WhatsApp para validar o novo formato padronizado da resposta automática
 - [x] Detalhar a página de relatórios para listar todos os alimentos de cada refeição com proteínas, carboidratos, gorduras, calorias e horário do registro
 - [x] Atualizar os testes de relatórios para validar a exibição dos itens nutricionais por refeição e do horário do registro
+- [x] Reformular a mensagem automática do WhatsApp para seguir a estrutura textual da imagem de referência, com cabeçalho da refeição, lista de alimentos, horário e macros por item
+- [x] Atualizar os testes do webhook do WhatsApp para validar o novo formato inspirado na imagem de referência
+- [x] Avaliar e, se viável tecnicamente, gerar uma versão visual da imagem recebida com as informações nutricionais anotadas por alimento
