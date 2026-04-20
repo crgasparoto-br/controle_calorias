@@ -55,3 +55,5 @@
 - [x] Reformular a mensagem automática do WhatsApp para seguir a estrutura textual da imagem de referência, com cabeçalho da refeição, lista de alimentos, horário e macros por item
 - [x] Atualizar os testes do webhook do WhatsApp para validar o novo formato inspirado na imagem de referência
 - [x] Avaliar e, se viável tecnicamente, gerar uma versão visual da imagem recebida com as informações nutricionais anotadas por alimento
+- [x] Ajustar a página de relatórios para considerar a segunda-feira como início da semana em agregações e exibições semanais
+- [x] Corrigir a visualização da lista de alimentos por refeição para exibir claramente cada item com suas informações nutricionais no relatório web

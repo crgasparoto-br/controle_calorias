@@ -2,7 +2,7 @@ import React from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { BarChart3, Clock3, TrendingUp } from "lucide-react";
+import { BarChart3, Clock3, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 function formatMacro(value: number) {
@@ -27,7 +27,7 @@ export default function ReportsPage() {
     carbs: Math.round(day.carbs),
     fat: Math.round(day.fat),
   }));
-  const detailedMeals = meals.data ?? [];
+  const detailedMeals = (meals.data ?? []).filter(meal => meal.items?.length);
 
   return (
     <DashboardLayout>
@@ -49,6 +49,59 @@ export default function ReportsPage() {
             description="Pico calórico identificado na janela semanal atual."
           />
         </div>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UtensilsCrossed className="h-5 w-5 text-primary" />
+              Alimentos registrados por refeição
+            </CardTitle>
+            <CardDescription>
+              Visualização detalhada dos alimentos confirmados, com horário do registro e composição nutricional de cada item.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {detailedMeals.length ? (
+              detailedMeals.map(meal => (
+                <div key={meal.id} className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold tracking-tight text-foreground">{meal.mealLabel}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Total da refeição: {formatMacro(meal.totals.calories)} kcal · {formatMacro(meal.totals.protein)} g proteína · {formatMacro(meal.totals.carbs)} g carboidratos · {formatMacro(meal.totals.fat)} g gorduras
+                      </p>
+                    </div>
+                    <div className="inline-flex w-fit items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm font-medium text-foreground">
+                      <Clock3 className="h-4 w-4" />
+                      Registro às {formatMealTime(meal.occurredAt)}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {meal.items.map((item, index) => (
+                      <div key={`${meal.id}-${item.foodName}-${index}`} className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-foreground">{item.foodName}</p>
+                          <p className="text-sm font-medium text-muted-foreground">Porção: {item.portionText}</p>
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-foreground">
+                          <div className="flex items-center justify-between gap-3"><span>Proteínas</span><span className="font-medium">{formatMacro(item.protein)} g</span></div>
+                          <div className="flex items-center justify-between gap-3"><span>Carboidratos</span><span className="font-medium">{formatMacro(item.carbs)} g</span></div>
+                          <div className="flex items-center justify-between gap-3"><span>Gorduras</span><span className="font-medium">{formatMacro(item.fat)} g</span></div>
+                          <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-2"><span>Calorias</span><span className="font-semibold">{formatMacro(item.calories)} kcal</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
+                Nenhuma refeição confirmada foi encontrada para detalhamento no relatório.
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
           <Card className="border-0 shadow-sm">
@@ -128,52 +181,6 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle>Detalhamento das refeições registradas</CardTitle>
-            <CardDescription>
-              Lista completa das refeições com horário do registro e composição nutricional de cada alimento confirmado.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {detailedMeals.length ? (
-              detailedMeals.map(meal => (
-                <div key={meal.id} className="rounded-2xl border bg-muted/20 p-4">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="font-semibold tracking-tight">{meal.mealLabel}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Total da refeição: {formatMacro(meal.totals.calories)} kcal · {formatMacro(meal.totals.protein)} g proteína · {formatMacro(meal.totals.carbs)} g carboidratos · {formatMacro(meal.totals.fat)} g gorduras
-                      </p>
-                    </div>
-                    <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                      <Clock3 className="h-4 w-4" />
-                      Horário do registro: {formatMealTime(meal.occurredAt)}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {meal.items.map((item, index) => (
-                      <div key={`${meal.id}-${item.foodName}-${index}`} className="rounded-xl bg-background p-3 shadow-sm">
-                        <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                          <p className="font-medium">{item.foodName}</p>
-                          <p className="text-sm text-muted-foreground">Porção: {item.portionText}</p>
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Proteínas {formatMacro(item.protein)} g · Carboidratos {formatMacro(item.carbs)} g · Gorduras {formatMacro(item.fat)} g · Calorias {formatMacro(item.calories)} kcal
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
-                Nenhuma refeição confirmada foi encontrada para detalhamento no relatório.
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );

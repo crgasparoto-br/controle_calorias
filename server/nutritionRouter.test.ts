@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 vi.mock("./nutritionEngine", async () => {
@@ -79,6 +79,15 @@ function createNutritionContext(userId: number, role: "user" | "admin" = "user")
 }
 
 describe("nutrition router", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-22T12:00:00-03:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("atualiza metas e reflete o novo saldo no dashboard", async () => {
     const caller = appRouter.createCaller(createNutritionContext(501));
 
@@ -122,6 +131,8 @@ describe("nutrition router", () => {
     expect(overview.meals.length).toBeGreaterThan(0);
     expect(overview.habits.length).toBeGreaterThan(0);
     expect(weekly).toHaveLength(7);
+    expect(weekly[0]?.label).toBe("seg.");
+    expect(weekly[6]?.label).toBe("dom.");
     expect(admin.usage.mealsCount).toBeGreaterThan(0);
   });
 });

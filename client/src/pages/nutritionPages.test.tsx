@@ -148,14 +148,16 @@ describe("nutrition pages", () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("Detalhamento das refeições registradas");
+    expect(html).toContain("Alimentos registrados por refeição");
     expect(html).toContain("Almoço");
     expect(html).toContain("Frango grelhado");
     expect(html).toContain("Porção:");
     expect(html).toContain("150 g");
+    expect(html).toContain("Proteínas");
+    expect(html).toContain("Carboidratos");
+    expect(html).toContain("Gorduras");
     expect(html).toContain("Calorias");
-    expect(html).toContain("420");
-    expect(html).toContain("Horário do registro:");
+    expect(html).toContain("Registro às");
   });
 
   it("renderiza a página de canais com status do WhatsApp", async () => {

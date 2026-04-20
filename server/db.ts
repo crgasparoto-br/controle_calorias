@@ -791,9 +791,14 @@ export async function listUserMeals(userId: number) {
 export async function getWeeklySummary(userId: number) {
   const goal = await getUserNutritionGoal(userId);
   const mealsForUser = await listUserMeals(userId);
+  const today = startOfDay(new Date());
+  const mondayOffset = (today.getDay() + 6) % 7;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - mondayOffset);
+
   const days = Array.from({ length: 7 }).map((_, index) => {
-    const current = startOfDay(new Date());
-    current.setDate(current.getDate() - (6 - index));
+    const current = new Date(monday);
+    current.setDate(monday.getDate() + index);
     return current;
   });
 
