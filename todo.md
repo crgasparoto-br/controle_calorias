@@ -22,7 +22,7 @@
 - [x] Substituir o catálogo hardcoded por uso persistido de foodCatalog no banco de dados
 - [x] Adicionar testes de frontend para dashboard, metas, registro de refeição e página de canais
 - [x] Executar validação funcional completa dos fluxos principais do produto e registrar correções encontradas
-- [ ] Criar a primeira entrega formal com checkpoint somente após concluir as pendências críticas de persistência real, catálogo persistido e ingestão multimodal completa do WhatsApp
+- [x] Criar a primeira entrega formal com checkpoint somente após concluir as pendências críticas de persistência real, catálogo persistido e ingestão multimodal completa do WhatsApp
 - [x] Validar em ambiente real o webhook multimodal do WhatsApp com mídia de texto, imagem e áudio após o recebimento das credenciais oficiais
 - [x] Migrar leituras principais de metas, refeições, hábitos e visão administrativa para consultas reais ao banco com fallback seguro em memória
 - [x] Corrigir o runtime do catálogo persistido para eliminar o erro de inicialização do servidor e manter a sincronização automática estável
