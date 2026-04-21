@@ -58,4 +58,8 @@
 - [x] Ajustar a página de relatórios para considerar a segunda-feira como início da semana em agregações e exibições semanais
 - [x] Corrigir a visualização da lista de alimentos por refeição para exibir claramente cada item com suas informações nutricionais no relatório web
 - [ ] Verificar se o repositório GitHub contém os desenvolvimentos mais recentes do projeto local
-- [ ] Exportar a versão mais recente do projeto para o GitHub e confirmar a sincronização remota
+- [x] Exportar a versão mais recente do projeto para o GitHub e confirmar a sincronização remota
+- [x] Analisar as demais branches do repositório GitHub para identificar definições relevantes ainda não consolidadas na solução atual
+- [x] Atualizar o README do projeto com a descrição consolidada da solução após a revisão das branches
+- [ ] Validar o README consolidado no projeto principal para confirmar que reflete exatamente o estado atual da solução
+- [ ] Sincronizar novamente para o GitHub o estado final mais recente após a criação do README e confirmar o commit remoto resultante
