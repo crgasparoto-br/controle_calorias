@@ -66,7 +66,7 @@ export default function Home() {
                       {overview.data ? Math.round(overview.data.today.consumed.calories) : "--"}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      de {overview.data?.goal.calories ?? "--"} kcal planejadas
+                      de {overview.data?.today.goal.calories ?? "--"} kcal planejadas
                     </p>
                   </div>
                   <Badge variant="secondary">{overview.data?.today.adherence ?? 0}% da meta</Badge>
@@ -214,17 +214,17 @@ export default function Home() {
               <MacroBar
                 label="Proteínas"
                 consumed={overview.data?.today.consumed.protein ?? 0}
-                goal={overview.data?.goal.proteinGrams ?? 0}
+                goal={overview.data?.today.goal.protein ?? 0}
               />
               <MacroBar
                 label="Carboidratos"
                 consumed={overview.data?.today.consumed.carbs ?? 0}
-                goal={overview.data?.goal.carbsGrams ?? 0}
+                goal={overview.data?.today.goal.carbs ?? 0}
               />
               <MacroBar
                 label="Gorduras"
                 consumed={overview.data?.today.consumed.fat ?? 0}
-                goal={overview.data?.goal.fatGrams ?? 0}
+                goal={overview.data?.today.goal.fat ?? 0}
               />
             </CardContent>
           </Card>

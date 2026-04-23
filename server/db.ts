@@ -103,12 +103,43 @@ export async function getUserByOpenId(openId: string) {
   }
 }
 
-type GoalInput = {
+type GoalDayInput = {
+  weekday: number;
   calories: number;
   proteinGrams: number;
   carbsGrams: number;
   fatGrams: number;
 };
+
+type GoalInput = {
+  days: GoalDayInput[];
+};
+
+type GoalDayView = NutritionGoal & {
+  label: string;
+  shortLabel: string;
+};
+
+type GoalSummary = {
+  days: GoalDayView[];
+  today: GoalDayView;
+  weeklyTotals: {
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatGrams: number;
+  };
+};
+
+const WEEKDAY_META = [
+  { weekday: 0, label: "Segunda-feira", shortLabel: "seg." },
+  { weekday: 1, label: "Terça-feira", shortLabel: "ter." },
+  { weekday: 2, label: "Quarta-feira", shortLabel: "qua." },
+  { weekday: 3, label: "Quinta-feira", shortLabel: "qui." },
+  { weekday: 4, label: "Sexta-feira", shortLabel: "sex." },
+  { weekday: 5, label: "Sábado", shortLabel: "sáb." },
+  { weekday: 6, label: "Domingo", shortLabel: "dom." },
+] as const;
 
 type SavedMedia = {
   id: number;
@@ -163,7 +194,7 @@ type AdminLogEntry = {
   createdAt: number;
 };
 
-const goalStore = new Map<number, NutritionGoal>();
+const goalStore = new Map<number, NutritionGoal[]>();
 const mealStore = new Map<number, SavedMeal[]>();
 const habitStore = new Map<number, HabitMemoryState[]>();
 const inferenceStore = new Map<string, PendingInference>();
@@ -172,9 +203,14 @@ let mealIdSequence = 1;
 let mediaIdSequence = 1;
 let goalIdSequence = 1;
 
-const defaultGoal = (userId: number): NutritionGoal => ({
+function getWeekdayIndex(date: Date) {
+  return (date.getDay() + 6) % 7;
+}
+
+const defaultGoal = (userId: number, weekday: number): NutritionGoal => ({
   id: goalIdSequence++,
   userId,
+  weekday,
   calories: 2200,
   proteinGrams: 160,
   carbsGrams: 240,
@@ -183,6 +219,50 @@ const defaultGoal = (userId: number): NutritionGoal => ({
   createdAt: new Date(),
   updatedAt: new Date(),
 });
+
+function buildDefaultGoals(userId: number) {
+  return WEEKDAY_META.map(day => defaultGoal(userId, day.weekday));
+}
+
+function normalizeGoalRows(userId: number, rows: NutritionGoal[]) {
+  const latestByDay = new Map<number, NutritionGoal>();
+
+  rows
+    .slice()
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .forEach(row => {
+      if (!latestByDay.has(row.weekday)) {
+        latestByDay.set(row.weekday, row);
+      }
+    });
+
+  return WEEKDAY_META.map(day => latestByDay.get(day.weekday) ?? defaultGoal(userId, day.weekday));
+}
+
+function buildGoalSummary(rows: NutritionGoal[], referenceDate = new Date()): GoalSummary {
+  const normalized = normalizeGoalRows(rows[0]?.userId ?? 0, rows);
+  const days = normalized.map(row => ({
+    ...row,
+    label: WEEKDAY_META[row.weekday]?.label ?? "Dia",
+    shortLabel: WEEKDAY_META[row.weekday]?.shortLabel ?? "dia",
+  }));
+  const today = days[getWeekdayIndex(referenceDate)] ?? days[0];
+
+  return {
+    days,
+    today,
+    weeklyTotals: days.reduce(
+      (acc, day) => {
+        acc.calories += day.calories;
+        acc.proteinGrams += day.proteinGrams;
+        acc.carbsGrams += day.carbsGrams;
+        acc.fatGrams += day.fatGrams;
+        return acc;
+      },
+      { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
+    ),
+  };
+}
 
 function startOfDay(date: Date) {
   const value = new Date(date);
@@ -280,19 +360,23 @@ async function resolveFoodCatalogIds(items: MealDraftItem[]) {
   }
 }
 
-async function persistGoalToDb(goal: NutritionGoal) {
+async function persistGoalToDb(goals: NutritionGoal[]) {
   const db = await getDb();
-  if (!db) return;
+  if (!db || !goals.length) return;
 
   try {
-    await db.insert(nutritionGoals).values({
-      userId: goal.userId,
-      calories: goal.calories,
-      proteinGrams: goal.proteinGrams,
-      carbsGrams: goal.carbsGrams,
-      fatGrams: goal.fatGrams,
-      effectiveFrom: goal.effectiveFrom,
-    });
+    await db.delete(nutritionGoals).where(eq(nutritionGoals.userId, goals[0].userId));
+    await db.insert(nutritionGoals).values(
+      goals.map(goal => ({
+        userId: goal.userId,
+        weekday: goal.weekday,
+        calories: goal.calories,
+        proteinGrams: goal.proteinGrams,
+        carbsGrams: goal.carbsGrams,
+        fatGrams: goal.fatGrams,
+        effectiveFrom: goal.effectiveFrom,
+      })),
+    );
   } catch (error) {
     logPersistenceWarning("Goal persistence skipped", error);
   }
@@ -434,8 +518,8 @@ async function loadGoalFromDb(userId: number) {
   if (!db) return null;
 
   try {
-    const rows = await db.select().from(nutritionGoals).where(eq(nutritionGoals.userId, userId)).orderBy(desc(nutritionGoals.updatedAt)).limit(1);
-    return rows[0] ?? null;
+    const rows = await db.select().from(nutritionGoals).where(eq(nutritionGoals.userId, userId)).orderBy(desc(nutritionGoals.updatedAt));
+    return rows;
   } catch (error) {
     logPersistenceWarning("Goal read skipped", error);
     return null;
@@ -570,33 +654,54 @@ async function loadRecentLogsFromDb() {
   }
 }
 
-export async function getUserNutritionGoal(userId: number) {
-  const dbGoal = await loadGoalFromDb(userId);
-  if (dbGoal) {
-    goalStore.set(userId, dbGoal);
-    return dbGoal;
+async function getStoredNutritionGoals(userId: number) {
+  const dbGoals = await loadGoalFromDb(userId);
+  if (dbGoals?.length) {
+    const normalized = normalizeGoalRows(userId, dbGoals);
+    goalStore.set(userId, normalized);
+    return normalized;
   }
 
   const stored = goalStore.get(userId);
-  if (stored) {
-    return stored;
+  if (stored?.length) {
+    return normalizeGoalRows(userId, stored);
   }
 
-  const created = defaultGoal(userId);
+  const created = buildDefaultGoals(userId);
   goalStore.set(userId, created);
   return created;
 }
 
+export async function getUserNutritionGoal(userId: number) {
+  const goals = await getStoredNutritionGoals(userId);
+  return buildGoalSummary(goals);
+}
+
 export async function upsertNutritionGoal(userId: number, input: GoalInput) {
-  const current = await getUserNutritionGoal(userId);
-  const updated: NutritionGoal = {
-    ...current,
-    calories: input.calories,
-    proteinGrams: input.proteinGrams,
-    carbsGrams: input.carbsGrams,
-    fatGrams: input.fatGrams,
-    updatedAt: new Date(),
-  };
+  const current = await getStoredNutritionGoals(userId);
+  const currentByDay = new Map(current.map(goal => [goal.weekday, goal]));
+  const updatedAt = new Date();
+  const updated = WEEKDAY_META.map(day => {
+    const existing = currentByDay.get(day.weekday) ?? defaultGoal(userId, day.weekday);
+    const incoming = input.days.find(item => item.weekday === day.weekday) ?? {
+      weekday: day.weekday,
+      calories: existing.calories,
+      proteinGrams: existing.proteinGrams,
+      carbsGrams: existing.carbsGrams,
+      fatGrams: existing.fatGrams,
+    };
+
+    return {
+      ...existing,
+      weekday: day.weekday,
+      calories: incoming.calories,
+      proteinGrams: incoming.proteinGrams,
+      carbsGrams: incoming.carbsGrams,
+      fatGrams: incoming.fatGrams,
+      updatedAt,
+    } satisfies NutritionGoal;
+  });
+
   goalStore.set(userId, updated);
   await persistGoalToDb(updated);
   logInferenceEvent({
@@ -604,9 +709,9 @@ export async function upsertNutritionGoal(userId: number, input: GoalInput) {
     origin: "web",
     status: "success",
     eventType: "goal.updated",
-    detail: "Metas nutricionais atualizadas pelo usuário.",
+    detail: "Metas nutricionais semanais atualizadas pelo usuário.",
   });
-  return updated;
+  return buildGoalSummary(updated);
 }
 
 export async function getHabitSnapshots(userId: number): Promise<HabitSnapshot[]> {
@@ -792,7 +897,7 @@ export async function getWeeklySummary(userId: number) {
   const goal = await getUserNutritionGoal(userId);
   const mealsForUser = await listUserMeals(userId);
   const today = startOfDay(new Date());
-  const mondayOffset = (today.getDay() + 6) % 7;
+  const mondayOffset = getWeekdayIndex(today);
   const monday = new Date(today);
   monday.setDate(today.getDate() - mondayOffset);
 
@@ -802,7 +907,7 @@ export async function getWeeklySummary(userId: number) {
     return current;
   });
 
-  return days.map(day => {
+  return days.map((day, index) => {
     const key = dateKey(day);
     const dailyMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === key);
     const totals = dailyMeals.reduce(
@@ -816,15 +921,19 @@ export async function getWeeklySummary(userId: number) {
       },
       { calories: 0, protein: 0, carbs: 0, fat: 0 },
     );
+    const planned = goal.days[index] ?? goal.today;
 
     return {
       date: key,
-      label: day.toLocaleDateString("pt-BR", { weekday: "short" }),
+      label: planned.shortLabel,
       calories: round(totals.calories),
       protein: round(totals.protein),
       carbs: round(totals.carbs),
       fat: round(totals.fat),
-      goalCalories: goal.calories,
+      goalCalories: planned.calories,
+      goalProtein: planned.proteinGrams,
+      goalCarbs: planned.carbsGrams,
+      goalFat: planned.fatGrams,
     };
   });
 }
@@ -851,17 +960,51 @@ export async function getDashboardSnapshot(userId: number) {
     getHabitSnapshots(userId),
   ]);
 
+  const weeklyConsumed = weekly.reduce(
+    (acc, day) => {
+      acc.calories += day.calories;
+      acc.protein += day.protein;
+      acc.carbs += day.carbs;
+      acc.fat += day.fat;
+      return acc;
+    },
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+
   return {
     goal,
     today: {
+      goal: {
+        calories: goal.today.calories,
+        protein: goal.today.proteinGrams,
+        carbs: goal.today.carbsGrams,
+        fat: goal.today.fatGrams,
+        label: goal.today.label,
+      },
       consumed: Object.fromEntries(Object.entries(todayTotals).map(([key, value]) => [key, round(value)])),
       remaining: {
-        calories: round(goal.calories - todayTotals.calories),
-        protein: round(goal.proteinGrams - todayTotals.protein),
-        carbs: round(goal.carbsGrams - todayTotals.carbs),
-        fat: round(goal.fatGrams - todayTotals.fat),
+        calories: round(goal.today.calories - todayTotals.calories),
+        protein: round(goal.today.proteinGrams - todayTotals.protein),
+        carbs: round(goal.today.carbsGrams - todayTotals.carbs),
+        fat: round(goal.today.fatGrams - todayTotals.fat),
       },
-      adherence: round(Math.min((todayTotals.calories / goal.calories) * 100, 100)),
+      adherence: round(goal.today.calories ? Math.min((todayTotals.calories / goal.today.calories) * 100, 100) : 0),
+    },
+    week: {
+      planned: {
+        calories: round(goal.weeklyTotals.calories),
+        protein: round(goal.weeklyTotals.proteinGrams),
+        carbs: round(goal.weeklyTotals.carbsGrams),
+        fat: round(goal.weeklyTotals.fatGrams),
+      },
+      consumed: Object.fromEntries(Object.entries(weeklyConsumed).map(([key, value]) => [key, round(value)])),
+      remaining: {
+        calories: round(goal.weeklyTotals.calories - weeklyConsumed.calories),
+        protein: round(goal.weeklyTotals.proteinGrams - weeklyConsumed.protein),
+        carbs: round(goal.weeklyTotals.carbsGrams - weeklyConsumed.carbs),
+        fat: round(goal.weeklyTotals.fatGrams - weeklyConsumed.fat),
+      },
+      adherence: round(goal.weeklyTotals.calories ? Math.min((weeklyConsumed.calories / goal.weeklyTotals.calories) * 100, 100) : 0),
     },
     weekly,
     meals: mealsForUser.slice(0, 8),

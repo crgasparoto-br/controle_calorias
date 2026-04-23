@@ -20,11 +20,19 @@ import {
 import { MealDraftItem, processMealInput } from "./nutritionEngine";
 import { storagePut } from "./storage";
 
-const goalSchema = z.object({
+const goalDaySchema = z.object({
+  weekday: z.number().int().min(0).max(6),
   calories: z.number().int().min(800).max(8000),
   proteinGrams: z.number().min(20).max(500),
   carbsGrams: z.number().min(20).max(1000),
   fatGrams: z.number().min(10).max(300),
+});
+
+const goalSchema = z.object({
+  days: z
+    .array(goalDaySchema)
+    .length(7)
+    .refine(days => new Set(days.map(day => day.weekday)).size === 7, "Informe exatamente um conjunto de metas para cada dia da semana."),
 });
 
 const mediaInputSchema = z

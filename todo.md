@@ -63,3 +63,10 @@
 - [x] Atualizar o README do projeto com a descrição consolidada da solução após a revisão das branches
 - [x] Validar o README consolidado no projeto principal para confirmar que reflete exatamente o estado atual da solução
 - [x] Sincronizar novamente para o GitHub o estado final mais recente após a criação do README e confirmar o commit remoto resultante
+- [x] Evoluir as metas nutricionais para permitir configuração específica por dia da semana
+- [x] Exibir no módulo de metas o planejamento diário e o acumulado semanal de calorias, proteínas, carboidratos e gorduras
+- [x] Atualizar a lógica de relatórios e acompanhamento para comparar consumo diário e total semanal contra as metas planejadas por dia
+- [x] Cobrir com testes o novo comportamento de metas diárias e soma semanal
+- [x] Aplicar e validar em banco real a migração de metas por dia da semana, eliminando o erro `Unknown column 'weekday' in 'field list'` no ambiente em execução
+- [x] Revalidar manualmente a página de metas no ambiente web após a migração para confirmar a exibição do planejamento diário e do acumulado semanal
+- [x] Expandir testes e evidências do dashboard e dos relatórios para comprovar a comparação entre consumo diário, acumulado semanal e metas planejadas por dia

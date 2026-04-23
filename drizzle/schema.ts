@@ -1,4 +1,4 @@
-import { double, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { double, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -12,17 +12,24 @@ export const users = mysqlTable("users", {
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
-export const nutritionGoals = mysqlTable("nutritionGoals", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  calories: int("calories").notNull(),
-  proteinGrams: double("proteinGrams").notNull(),
-  carbsGrams: double("carbsGrams").notNull(),
-  fatGrams: double("fatGrams").notNull(),
-  effectiveFrom: timestamp("effectiveFrom").defaultNow().notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const nutritionGoals = mysqlTable(
+  "nutritionGoals",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    weekday: int("weekday").notNull(),
+    calories: int("calories").notNull(),
+    proteinGrams: double("proteinGrams").notNull(),
+    carbsGrams: double("carbsGrams").notNull(),
+    fatGrams: double("fatGrams").notNull(),
+    effectiveFrom: timestamp("effectiveFrom").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userWeekdayUnique: uniqueIndex("nutritionGoals_user_weekday_idx").on(table.userId, table.weekday),
+  }),
+);
 
 export const foodCatalog = mysqlTable("foodCatalog", {
   id: int("id").autoincrement().primaryKey(),

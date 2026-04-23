@@ -75,15 +75,29 @@ vi.mock("@/lib/trpc", () => ({
 
 const overviewData = {
   goal: {
-    calories: 2200,
-    proteinGrams: 160,
-    carbsGrams: 240,
-    fatGrams: 70,
+    days: [
+      { weekday: 0, label: "Segunda-feira", shortLabel: "seg.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70 },
+      { weekday: 1, label: "Terça-feira", shortLabel: "ter.", calories: 2100, proteinGrams: 150, carbsGrams: 220, fatGrams: 65 },
+      { weekday: 2, label: "Quarta-feira", shortLabel: "qua.", calories: 2300, proteinGrams: 165, carbsGrams: 250, fatGrams: 72 },
+      { weekday: 3, label: "Quinta-feira", shortLabel: "qui.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70 },
+      { weekday: 4, label: "Sexta-feira", shortLabel: "sex.", calories: 2400, proteinGrams: 170, carbsGrams: 270, fatGrams: 74 },
+      { weekday: 5, label: "Sábado", shortLabel: "sáb.", calories: 2500, proteinGrams: 175, carbsGrams: 290, fatGrams: 78 },
+      { weekday: 6, label: "Domingo", shortLabel: "dom.", calories: 2000, proteinGrams: 145, carbsGrams: 210, fatGrams: 60 },
+    ],
+    today: { weekday: 0, label: "Segunda-feira", shortLabel: "seg.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70 },
+    weeklyTotals: { calories: 15700, proteinGrams: 1125, carbsGrams: 1720, fatGrams: 489 },
   },
   today: {
+    goal: { label: "Segunda-feira", calories: 2200, protein: 160, carbs: 240, fat: 70 },
     consumed: { calories: 1240, protein: 92, carbs: 134, fat: 38 },
     remaining: { calories: 960, protein: 68, carbs: 106, fat: 32 },
     adherence: 56,
+  },
+  week: {
+    planned: { calories: 15700, protein: 1125, carbs: 1720, fat: 489 },
+    consumed: { calories: 4000, protein: 290, carbs: 425, fat: 118 },
+    remaining: { calories: 11700, protein: 835, carbs: 1295, fat: 371 },
+    adherence: 25,
   },
   weekly: [
     { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, goalCalories: 2200 },
@@ -104,14 +118,7 @@ const overviewData = {
 
 beforeEach(() => {
   dashboardOverviewMock.mockReturnValue({ data: overviewData });
-  goalGetMock.mockReturnValue({
-    data: {
-      calories: 2200,
-      proteinGrams: 160,
-      carbsGrams: 240,
-      fatGrams: 70,
-    },
-  });
+  goalGetMock.mockReturnValue({ data: overviewData.goal });
   weeklyMock.mockReturnValue({ data: overviewData.weekly });
   whatsappStatusMock.mockReturnValue({ data: { configured: false, webhookPath: "/api/whatsapp/webhook" } });
 });
@@ -126,13 +133,15 @@ describe("nutrition pages", () => {
     expect(html).toContain("1240");
   });
 
-  it("renderiza a página de metas com formulário nutricional", async () => {
+  it("renderiza a página de metas com planejamento diário e soma semanal", async () => {
     const { default: GoalsPage } = await import("./GoalsPage");
     const html = renderToString(React.createElement(GoalsPage));
 
-    expect(html).toContain("Metas nutricionais por usuário");
-    expect(html).toContain("Calorias diárias");
-    expect(html).toContain("Proteínas");
+    expect(html).toContain("Planejamento nutricional por dia da semana");
+    expect(html).toContain("Segunda-feira");
+    expect(html).toContain("Soma planejada da semana");
+    expect(html).toContain("Calorias semanais");
+    expect(html).toContain("15400 kcal");
   });
 
   it("renderiza a página de registro multimodal", async () => {
