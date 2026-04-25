@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { formatCalories, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
+import { formatCalories, formatGrams, formatIntegerPtBr, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarRange, Goal, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +59,11 @@ function buildException(weekday: number): GoalExceptionForm {
     durationType: "always",
     ...DEFAULT_GOAL,
   };
+}
+
+function parseIntegerInputPtBr(rawValue: string) {
+  const digitsOnly = rawValue.replace(/\D/g, "");
+  return digitsOnly ? Number(digitsOnly) : 0;
 }
 
 export default function GoalsPage() {
@@ -179,10 +184,10 @@ export default function GoalsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Field label="Calorias" value={defaultGoal.calories} onChange={value => updateDefaultGoal("calories", value)} suffix="kcal" />
-              <Field label="Proteínas" value={defaultGoal.proteinGrams} onChange={value => updateDefaultGoal("proteinGrams", value)} suffix="g" />
-              <Field label="Carboidratos" value={defaultGoal.carbsGrams} onChange={value => updateDefaultGoal("carbsGrams", value)} suffix="g" />
-              <Field label="Gorduras" value={defaultGoal.fatGrams} onChange={value => updateDefaultGoal("fatGrams", value)} suffix="g" />
+              <FormattedField label="Calorias" value={defaultGoal.calories} onChange={value => updateDefaultGoal("calories", value)} suffix="kcal" />
+              <FormattedField label="Proteínas" value={defaultGoal.proteinGrams} onChange={value => updateDefaultGoal("proteinGrams", value)} suffix="g" />
+              <FormattedField label="Carboidratos" value={defaultGoal.carbsGrams} onChange={value => updateDefaultGoal("carbsGrams", value)} suffix="g" />
+              <FormattedField label="Gorduras" value={defaultGoal.fatGrams} onChange={value => updateDefaultGoal("fatGrams", value)} suffix="g" />
             </CardContent>
           </Card>
 
@@ -339,6 +344,33 @@ function Field({
       <Label>{label}</Label>
       <div className="flex items-center gap-3">
         <Input type="number" value={value} onChange={event => onChange(Number(event.target.value))} />
+        <span className="text-sm text-muted-foreground">{suffix}</span>
+      </div>
+    </div>
+  );
+}
+
+function FormattedField({
+  label,
+  value,
+  onChange,
+  suffix,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  suffix: string;
+}) {
+  return (
+    <div className="space-y-2 rounded-2xl border bg-background p-4">
+      <Label>{label}</Label>
+      <div className="flex items-center gap-3">
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={formatIntegerPtBr(value)}
+          onChange={event => onChange(parseIntegerInputPtBr(event.target.value))}
+        />
         <span className="text-sm text-muted-foreground">{suffix}</span>
       </div>
     </div>

@@ -78,3 +78,4 @@
 - [x] Aplicar formatação de números no padrão pt-BR nas telas e resumos da plataforma, ajustando exibição de calorias, macronutrientes, percentuais e totais onde fizer sentido visual
 - [x] Aplicar o utilitário central de formatação pt-BR também aos componentes compartilhados que exibem números, especialmente tooltips e legendas de gráficos
 - [x] Revisar as telas e componentes reutilizáveis restantes para remover exibições numéricas sem locale explícito, validando percentuais, contagens, calorias e gramas em toda a UI
+- [x] Formatar em pt-BR os campos de entrada do bloco de meta geral na tela de metas nutricionais, exibindo a digitação com separadores locais sem quebrar a gravação da regra padrão

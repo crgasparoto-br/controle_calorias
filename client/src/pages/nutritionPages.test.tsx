@@ -178,6 +178,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Sexta-feira");
     expect(html).toContain("Soma planejada da semana");
     expect(html).toContain("Calorias semanais");
+    expect(html).toContain("value=\"2.200\"");
     expect(html).toContain("15.600 kcal");
   });
 
