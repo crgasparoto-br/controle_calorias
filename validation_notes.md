@@ -47,3 +47,9 @@ O webhook foi refinado para registrar explicitamente o evento `whatsapp.reply_fa
 ## Situação atual e próximos acompanhamentos
 
 A plataforma encontra-se apta para **primeira entrega formal**, com backend, frontend, persistência principal e canal multimodal do WhatsApp homologados. Permanecem como próximos acompanhamentos recomendados a ampliação do catálogo alimentar, o vínculo automático mais amplo entre números de telefone e usuários, o enriquecimento contínuo das notas de validação funcional e eventuais melhorias de observabilidade operacional.
+
+## Síntese adicional da rodada de validação de 2026-04-25
+
+Após a aplicação da migração `0004_married_solo.sql` e do script idempotente de compatibilização, a rota `/goals` voltou a carregar sem erro no ambiente em execução. A interface passou a exibir corretamente a nova organização com **meta geral da semana**, **exceções por dia da semana**, **soma planejada da semana** e **foco do dia atual**.
+
+Na validação manual observada nesta rodada, o usuário consultado ainda não possuía exceções cadastradas, portanto a regra geral de **2200 kcal**, **160 g de proteínas**, **240 g de carboidratos** e **70 g de gorduras** foi aplicada uniformemente aos sete dias da semana. O resumo semanal apresentado na tela ficou consistente com esse cenário, exibindo **15400 kcal**, **1120 g de proteínas**, **1680 g de carboidratos** e **490 g de gorduras**.

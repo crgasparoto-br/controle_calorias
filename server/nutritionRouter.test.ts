@@ -88,20 +88,46 @@ describe("nutrition router", () => {
     vi.useRealTimers();
   });
 
-  it("atualiza metas e reflete o novo saldo no dashboard", async () => {
+  it("atualiza a meta padrão com exceções e reflete a regra efetiva no dashboard", async () => {
     const caller = appRouter.createCaller(createNutritionContext(501));
 
     await caller.nutrition.goals.update({
-      calories: 2500,
-      proteinGrams: 180,
-      carbsGrams: 260,
-      fatGrams: 80,
+      defaultGoal: {
+        calories: 2300,
+        proteinGrams: 170,
+        carbsGrams: 240,
+        fatGrams: 76,
+      },
+      exceptions: [
+        {
+          weekday: 2,
+          durationType: "2_weeks",
+          calories: 2500,
+          proteinGrams: 180,
+          carbsGrams: 260,
+          fatGrams: 80,
+        },
+        {
+          weekday: 4,
+          durationType: "always",
+          calories: 2600,
+          proteinGrams: 185,
+          carbsGrams: 280,
+          fatGrams: 82,
+        },
+      ],
     });
 
     const overview = await caller.nutrition.dashboard.overview();
 
-    expect(overview.goal.calories).toBe(2500);
-    expect(overview.goal.proteinGrams).toBe(180);
+    expect(overview.goal.days).toHaveLength(7);
+    expect(overview.goal.defaultGoal.calories).toBe(2300);
+    expect(overview.goal.exceptions).toHaveLength(2);
+    expect(overview.goal.today.calories).toBe(2500);
+    expect(overview.goal.today.proteinGrams).toBe(180);
+    expect(overview.goal.today.source).toBe("exception");
+    expect(overview.goal.weeklyTotals.calories).toBe(16600);
+    expect(overview.today.goal.calories).toBe(2500);
     expect(overview.today.remaining.calories).toBe(2500);
   });
 

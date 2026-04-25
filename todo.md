@@ -57,9 +57,21 @@
 - [x] Avaliar e, se viável tecnicamente, gerar uma versão visual da imagem recebida com as informações nutricionais anotadas por alimento
 - [x] Ajustar a página de relatórios para considerar a segunda-feira como início da semana em agregações e exibições semanais
 - [x] Corrigir a visualização da lista de alimentos por refeição para exibir claramente cada item com suas informações nutricionais no relatório web
-- [ ] Verificar se o repositório GitHub contém os desenvolvimentos mais recentes do projeto local
+- [x] Verificar se o repositório GitHub contém os desenvolvimentos mais recentes do projeto local
 - [x] Exportar a versão mais recente do projeto para o GitHub e confirmar a sincronização remota
 - [x] Analisar as demais branches do repositório GitHub para identificar definições relevantes ainda não consolidadas na solução atual
 - [x] Atualizar o README do projeto com a descrição consolidada da solução após a revisão das branches
-- [ ] Validar o README consolidado no projeto principal para confirmar que reflete exatamente o estado atual da solução
-- [ ] Sincronizar novamente para o GitHub o estado final mais recente após a criação do README e confirmar o commit remoto resultante
+- [x] Validar o README consolidado no projeto principal para confirmar que reflete exatamente o estado atual da solução
+- [x] Sincronizar novamente para o GitHub o estado final mais recente após a criação do README e confirmar o commit remoto resultante
+- [x] Evoluir as metas nutricionais para permitir configuração específica por dia da semana
+- [x] Exibir no módulo de metas o planejamento diário e o acumulado semanal de calorias, proteínas, carboidratos e gorduras
+- [x] Atualizar a lógica de relatórios e acompanhamento para comparar consumo diário e total semanal contra as metas planejadas por dia
+- [x] Cobrir com testes o novo comportamento de metas diárias e soma semanal
+- [x] Aplicar e validar em banco real a migração de metas por dia da semana, eliminando o erro `Unknown column 'weekday' in 'field list'` no ambiente em execução
+- [x] Revalidar manualmente a página de metas no ambiente web após a migração para confirmar a exibição do planejamento diário e do acumulado semanal
+- [x] Expandir testes e evidências do dashboard e dos relatórios para comprovar a comparação entre consumo diário, acumulado semanal e metas planejadas por dia
+- [x] Implementar uma meta geral padrão válida para todos os dias da semana
+- [x] Permitir exceções opcionais por dia da semana, com escolha simples de quais dias terão meta diferente da regra geral
+- [x] Permitir configurar a duração da exceção por uma semana, duas semanas, três semanas ou de forma permanente
+- [x] Atualizar dashboard, relatórios e cálculos para aplicar a meta geral quando não houver exceção ativa e a meta excepcional quando houver vigência válida
+- [x] Cobrir com testes a combinação entre meta padrão, exceções por dia e duração das exceções
