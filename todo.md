@@ -79,3 +79,15 @@
 - [x] Aplicar o utilitário central de formatação pt-BR também aos componentes compartilhados que exibem números, especialmente tooltips e legendas de gráficos
 - [x] Revisar as telas e componentes reutilizáveis restantes para remover exibições numéricas sem locale explícito, validando percentuais, contagens, calorias e gramas em toda a UI
 - [x] Formatar em pt-BR os campos de entrada do bloco de meta geral na tela de metas nutricionais, exibindo a digitação com separadores locais sem quebrar a gravação da regra padrão
+- [ ] Incluir criação e manutenção de refeições para que o usuário possa criar, editar e excluir refeições manualmente dentro da plataforma
+- [ ] Incluir consumo e meta de água no acompanhamento diário e semanal do usuário
+- [x] Incluir registro de exercícios para capturar os gastos energéticos por atividade
+- [x] Calcular e exibir o saldo líquido de calorias diárias e semanais considerando consumo alimentar e gasto energético por exercícios
+- [x] Ajustar a experiência visual para destacar a visão **Meta - Alimentos (Consumo) + Exercícios (Gastos)**, evidenciando claramente o balanço entre ingestão, meta planejada e gasto energético
+- [ ] Definir a priorização do roadmap dos próximos passos, ordenando criação e manutenção de refeições, água, exercícios, saldo líquido de calorias e a visão visual de meta versus consumo e gastos
+- [x] Definir e implementar o modelo de dados para registro de exercícios com tipo de atividade, data, duração e gasto energético
+- [x] Criar procedures e helpers para cadastrar, listar e remover exercícios do usuário
+- [x] Exibir exercícios no fluxo principal do produto com resumo diário e semanal de gasto energético
+- [x] Incorporar o gasto energético dos exercícios no cálculo do saldo líquido diário e semanal de calorias
+- [x] Adicionar testes de backend para criar, listar e remover exercícios e validar o cálculo de calorias líquidas diárias e semanais no dashboard e nos relatórios
+- [x] Cobrir com testes a persistência de exercícios e o novo cálculo de saldo líquido

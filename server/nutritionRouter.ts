@@ -6,6 +6,7 @@ import {
   buildSavedMedia,
   confirmPendingMeal,
   createPendingMealInference,
+  createUserExercise,
   getAdminSnapshot,
   getDashboardSnapshot,
   getHabitSnapshots,
@@ -13,8 +14,10 @@ import {
   getPendingInferenceFromDb,
   getUserNutritionGoal,
   getWeeklySummary,
+  listUserExercises,
   listUserMeals,
   logInferenceEvent,
+  removeUserExercise,
   upsertNutritionGoal,
 } from "./db";
 import { MealDraftItem, processMealInput } from "./nutritionEngine";
@@ -60,6 +63,14 @@ const mealItemSchema = z.object({
   fat: z.number().min(0).max(1000),
   confidence: z.number().min(0).max(1),
   source: z.enum(["catalog", "hybrid", "heuristic"]),
+});
+
+const exerciseSchema = z.object({
+  activityType: z.string().min(2).max(120),
+  durationMinutes: z.number().int().min(1).max(1440),
+  caloriesBurned: z.number().min(1).max(10000),
+  occurredAt: z.string().min(1),
+  notes: z.string().max(500).optional(),
 });
 
 function extractBase64Payload(value: string) {
@@ -189,6 +200,14 @@ export const nutritionRouter = router({
           items: ensureMealItems(input.items),
         });
       }),
+  }),
+
+  exercises: router({
+    list: protectedProcedure.query(async ({ ctx }) => listUserExercises(ctx.user.id)),
+    create: protectedProcedure.input(exerciseSchema).mutation(async ({ ctx, input }) => createUserExercise(ctx.user.id, input)),
+    remove: protectedProcedure
+      .input(z.object({ exerciseId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => removeUserExercise(ctx.user.id, input.exerciseId)),
   }),
 
   reports: router({

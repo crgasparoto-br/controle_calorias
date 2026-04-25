@@ -161,4 +161,67 @@ describe("nutrition router", () => {
     expect(weekly[6]?.label).toBe("dom.");
     expect(admin.usage.mealsCount).toBeGreaterThan(0);
   });
+
+  it("cria, lista e remove exercícios refletindo o saldo líquido diário e semanal", async () => {
+    const userId = 880000 + Math.floor(Math.random() * 10000);
+    const caller = appRouter.createCaller(createNutritionContext(userId));
+
+    const existingExercises = await caller.nutrition.exercises.list();
+    for (const exercise of existingExercises) {
+      await caller.nutrition.exercises.remove({ exerciseId: exercise.id });
+    }
+
+    await caller.nutrition.goals.update({
+      defaultGoal: {
+        calories: 2200,
+        proteinGrams: 160,
+        carbsGrams: 240,
+        fatGrams: 70,
+      },
+      exceptions: [],
+    });
+
+    const simulated = await caller.nutrition.whatsapp.simulateInbound({
+      userId,
+      text: "almocei arroz, feijão e frango grelhado",
+    });
+
+    await caller.nutrition.meals.confirm({
+      draftId: simulated.draftId,
+      mealLabel: simulated.processed.detectedMealLabel,
+      occurredAt: new Date().toISOString(),
+      items: simulated.processed.items,
+    });
+
+    const createdExercise = await caller.nutrition.exercises.create({
+      activityType: "Corrida leve",
+      durationMinutes: 45,
+      caloriesBurned: 320,
+      occurredAt: new Date().toISOString(),
+      notes: "Rodagem de recuperação",
+    });
+
+    const exerciseList = await caller.nutrition.exercises.list();
+    const overview = await caller.nutrition.dashboard.overview();
+    const weekly = await caller.nutrition.reports.weekly();
+
+    expect(exerciseList).toHaveLength(1);
+    expect(exerciseList[0]?.activityType).toBe("Corrida leve");
+    expect(createdExercise.caloriesBurned).toBe(320);
+    expect(overview.today.burned.calories).toBe(320);
+    expect(overview.today.net.calories).toBe(57.5);
+    expect(overview.week.burned.calories).toBe(320);
+    expect(overview.week.net.calories).toBe(57.5);
+    expect(weekly[2]?.exerciseCalories).toBe(320);
+    expect(weekly[2]?.netCalories).toBe(57.5);
+
+    const removal = await caller.nutrition.exercises.remove({ exerciseId: createdExercise.id });
+    const updatedList = await caller.nutrition.exercises.list();
+    const updatedOverview = await caller.nutrition.dashboard.overview();
+
+    expect(removal.success).toBe(true);
+    expect(updatedList).toHaveLength(0);
+    expect(updatedOverview.today.burned.calories).toBe(0);
+    expect(updatedOverview.today.net.calories).toBe(377.5);
+  });
 });

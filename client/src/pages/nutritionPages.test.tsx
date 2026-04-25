@@ -12,6 +12,7 @@ const useUtilsMock = vi.fn(() => ({
     meals: { list: { invalidate: vi.fn() } },
     reports: { weekly: { invalidate: vi.fn() } },
     goals: { get: { invalidate: vi.fn() } },
+    exercises: { list: { invalidate: vi.fn() } },
   },
 }));
 
@@ -49,6 +50,17 @@ vi.mock("@/lib/trpc", () => ({
         },
         list: {
           useQuery: () => ({ data: overviewData.meals }),
+        },
+      },
+      exercises: {
+        create: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        remove: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        list: {
+          useQuery: () => ({ data: overviewData.exercises }),
         },
       },
       reports: {
@@ -125,18 +137,22 @@ const overviewData = {
   today: {
     goal: { label: "Segunda-feira", calories: 2200, protein: 160, carbs: 240, fat: 70 },
     consumed: { calories: 1240, protein: 92, carbs: 134, fat: 38 },
+    burned: { calories: 320 },
+    net: { calories: 920, remainingToGoal: 1280 },
     remaining: { calories: 960, protein: 68, carbs: 106, fat: 32 },
     adherence: 56,
   },
   week: {
     planned: { calories: 15700, protein: 1125, carbs: 1720, fat: 489 },
     consumed: { calories: 4000, protein: 290, carbs: 425, fat: 118 },
+    burned: { calories: 870 },
+    net: { calories: 3130, remainingToGoal: 12570 },
     remaining: { calories: 11700, protein: 835, carbs: 1295, fat: 371 },
     adherence: 25,
   },
   weekly: [
-    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, goalCalories: 2200 },
-    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, goalCalories: 2200 },
+    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, goalCalories: 2200 },
+    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, goalCalories: 2200 },
   ],
   meals: [
     {
@@ -149,6 +165,16 @@ const overviewData = {
     },
   ],
   habits: [{ foodName: "Café com leite", typicalTimeLabel: "Café da manhã", notes: "Sem açúcar", occurrenceCount: 4 }],
+  exercises: [
+    {
+      id: 99,
+      activityType: "Corrida",
+      durationMinutes: 45,
+      caloriesBurned: 320,
+      occurredAt: Date.now(),
+      notes: "Rodagem leve",
+    },
+  ],
 };
 
 beforeEach(() => {
@@ -163,9 +189,11 @@ describe("nutrition pages", () => {
     const { default: Home } = await import("./Home");
     const html = renderToString(React.createElement(Home));
 
-    expect(html).toContain("Acompanhe calorias, macronutrientes e hábitos alimentares em um só painel");
+    expect(html).toContain("Acompanhe calorias, macronutrientes, exercícios e saldo energético em um só painel");
     expect(html).toContain("Resumo de hoje");
-    expect(html).toContain("1.240");
+    expect(html).toContain("Equação energética do dia");
+    expect(html).toContain("Registrar exercício");
+    expect(html).toContain("920 kcal");
   });
 
   it("renderiza a página de metas com meta geral, exceções por dia e soma semanal", async () => {

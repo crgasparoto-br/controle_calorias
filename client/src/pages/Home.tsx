@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { formatCalories, formatCountPtBr, formatGrams, formatIntegerPtBr, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, BrainCircuit, Flame, Salad, Target } from "lucide-react";
+import { Activity, ArrowRight, BrainCircuit, Dumbbell, Flame, Salad, Target, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 
 function macroProgress(consumed: number, goal: number) {
@@ -14,8 +14,50 @@ function macroProgress(consumed: number, goal: number) {
   return Math.min((consumed / goal) * 100, 100);
 }
 
+function buildDefaultExerciseForm() {
+  return {
+    activityType: "Corrida",
+    durationMinutes: "45",
+    caloriesBurned: "450",
+    occurredAt: new Date().toISOString().slice(0, 16),
+    notes: "",
+  };
+}
+
 export default function Home() {
+  const utils = trpc.useUtils();
   const overview = trpc.nutrition.dashboard.overview.useQuery();
+  const [exerciseForm, setExerciseForm] = React.useState(buildDefaultExerciseForm);
+
+  const createExercise = trpc.nutrition.exercises.create.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+      ]);
+      setExerciseForm(buildDefaultExerciseForm());
+    },
+  });
+
+  const removeExercise = trpc.nutrition.exercises.remove.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+      ]);
+    },
+  });
+
+  const handleExerciseSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    createExercise.mutate({
+      activityType: exerciseForm.activityType.trim(),
+      durationMinutes: Number(exerciseForm.durationMinutes || 0),
+      caloriesBurned: Number(exerciseForm.caloriesBurned || 0),
+      occurredAt: new Date(exerciseForm.occurredAt).toISOString(),
+      notes: exerciseForm.notes.trim() || undefined,
+    });
+  };
 
   return (
     <DashboardLayout>
@@ -28,10 +70,11 @@ export default function Home() {
                 <Badge className="bg-white/12 text-white hover:bg-white/12">IA multimodal ativa</Badge>
                 <div className="space-y-2">
                   <h1 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
-                    Acompanhe calorias, macronutrientes e hábitos alimentares em um só painel.
+                    Acompanhe calorias, macronutrientes, exercícios e saldo energético em um só painel.
                   </h1>
                   <p className="max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
-                    Registre refeições por texto, imagem ou áudio, confirme a inferência da IA e acompanhe sua aderência nutricional em tempo real.
+                    Registre refeições por texto, imagem ou áudio, inclua exercícios manualmente e acompanhe a equação
+                    entre meta planejada, consumo alimentar e gasto energético ao longo da semana.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -56,7 +99,7 @@ export default function Home() {
                 <Target className="h-5 w-5 text-primary" />
                 Resumo de hoje
               </CardTitle>
-              <CardDescription>Saldo diário com base nas metas cadastradas.</CardDescription>
+              <CardDescription>Saldo diário com base na meta planejada e no consumo registrado.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-2xl bg-muted/50 p-4">
@@ -96,18 +139,55 @@ export default function Home() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={Flame} title="Calorias" value={formatCalories(overview.data?.today.consumed.calories ?? 0)} description="Consumidas hoje" />
+          <MetricCard icon={Flame} title="Líquido de hoje" value={formatCalories(overview.data?.today.net.calories ?? 0)} description="Consumo menos exercícios" />
+          <MetricCard icon={Dumbbell} title="Gasto com exercícios" value={formatCalories(overview.data?.today.burned.calories ?? 0)} description="Queimadas hoje" />
           <MetricCard icon={Salad} title="Refeições" value={formatCountPtBr(overview.data?.meals.length ?? 0)} description="Últimos registros" />
           <MetricCard icon={BrainCircuit} title="Hábitos lembrados" value={formatCountPtBr(overview.data?.habits.length ?? 0)} description="Preferências aprendidas" />
-          <MetricCard icon={Activity} title="Evolução semanal" value={formatCountPtBr(overview.data?.weekly.length ?? 0, " dias")} description="Janela de monitoramento" />
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.4fr,1fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.2fr,1fr]">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Equação energética do dia</CardTitle>
+              <CardDescription>Visão direta de Meta - Alimentos (Consumo) + Exercícios (Gastos).</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4">
+                <StatBlock label="Meta" value={formatCalories(overview.data?.today.goal.calories ?? 0)} sublabel="Planejamento do dia" />
+                <StatBlock label="Alimentos" value={formatCalories(overview.data?.today.consumed.calories ?? 0)} sublabel="Consumo alimentar" />
+                <StatBlock label="Exercícios" value={formatCalories(overview.data?.today.burned.calories ?? 0)} sublabel="Gasto energético" />
+                <StatBlock label="Saldo líquido" value={formatCalories(overview.data?.today.net.calories ?? 0)} sublabel={`Restam ${formatCalories(overview.data?.today.net.remainingToGoal ?? 0)}`} />
+              </div>
+              <div className="rounded-2xl border bg-muted/30 p-4">
+                <p className="text-sm font-medium tracking-tight">Leitura do balanço</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  O saldo líquido considera o consumo alimentar descontado do gasto com exercícios. Assim, a meta fica mais
+                  legível quando você quer entender se o dia terminou acima, abaixo ou dentro do planejado.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Resumo líquido da semana</CardTitle>
+              <CardDescription>Consolidação semanal entre meta, consumo e gasto acumulado.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <StatBlock label="Meta semanal" value={formatCalories(overview.data?.week.planned.calories ?? 0)} sublabel="Soma das metas planejadas" />
+              <StatBlock label="Consumo semanal" value={formatCalories(overview.data?.week.consumed.calories ?? 0)} sublabel="Alimentos confirmados" />
+              <StatBlock label="Exercícios" value={formatCalories(overview.data?.week.burned.calories ?? 0)} sublabel="Gasto energético acumulado" />
+              <StatBlock label="Saldo líquido" value={formatCalories(overview.data?.week.net.calories ?? 0)} sublabel={`Restam ${formatCalories(overview.data?.week.net.remainingToGoal ?? 0)}`} />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[1.35fr,1fr]">
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
                 <CardTitle>Evolução semanal de calorias</CardTitle>
-                <CardDescription>Comparação entre consumo diário e meta calórica.</CardDescription>
+                <CardDescription>Comparação entre consumo diário, exercícios e meta calórica.</CardDescription>
               </div>
               <Link href="/reports">
                 <Button variant="ghost" className="gap-2">
@@ -124,7 +204,7 @@ export default function Home() {
                     <div key={day.date} className="rounded-2xl border bg-muted/30 p-4">
                       <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{day.label}</p>
                       <p className="mt-3 text-2xl font-semibold tracking-tight">{formatIntegerPtBr(day.calories)}</p>
-                      <p className="text-xs text-muted-foreground">kcal</p>
+                      <p className="text-xs text-muted-foreground">kcal consumidas</p>
                       <div className="mt-4 h-28 rounded-full bg-background px-3 py-2">
                         <div className="flex h-full items-end justify-center">
                           <div className="w-full rounded-full bg-primary/15">
@@ -136,6 +216,8 @@ export default function Home() {
                         </div>
                       </div>
                       <p className="mt-3 text-xs text-muted-foreground">Meta {formatCalories(day.goalCalories)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Exercícios {formatCalories(day.exerciseCalories ?? 0)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Líquido {formatCalories(day.netCalories ?? 0)}</p>
                     </div>
                   );
                 })}
@@ -145,26 +227,98 @@ export default function Home() {
 
           <Card className="border-0 shadow-sm">
             <CardHeader>
-              <CardTitle>Memória de hábitos</CardTitle>
-              <CardDescription>Alimentos e padrões que a IA já pode reaproveitar nas próximas inferências.</CardDescription>
+              <CardTitle>Registrar exercício</CardTitle>
+              <CardDescription>Primeira versão do registro manual de gasto energético.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {overview.data?.habits.length ? (
-                overview.data.habits.map(habit => (
-                  <div key={habit.foodName} className="rounded-2xl border bg-muted/30 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium tracking-tight">{habit.foodName}</p>
-                        <p className="text-sm text-muted-foreground">{habit.typicalTimeLabel || "Horário livre"}</p>
+            <CardContent className="space-y-4">
+              <form className="space-y-3" onSubmit={handleExerciseSubmit}>
+                <label className="block space-y-2 text-sm">
+                  <span className="text-muted-foreground">Atividade</span>
+                  <input
+                    className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                    value={exerciseForm.activityType}
+                    onChange={event => setExerciseForm(current => ({ ...current, activityType: event.target.value }))}
+                    placeholder="Ex.: Corrida leve"
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block space-y-2 text-sm">
+                    <span className="text-muted-foreground">Duração (min)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                      value={exerciseForm.durationMinutes}
+                      onChange={event => setExerciseForm(current => ({ ...current, durationMinutes: event.target.value }))}
+                    />
+                  </label>
+                  <label className="block space-y-2 text-sm">
+                    <span className="text-muted-foreground">Gasto estimado (kcal)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                      value={exerciseForm.caloriesBurned}
+                      onChange={event => setExerciseForm(current => ({ ...current, caloriesBurned: event.target.value }))}
+                    />
+                  </label>
+                </div>
+                <label className="block space-y-2 text-sm">
+                  <span className="text-muted-foreground">Data e hora</span>
+                  <input
+                    type="datetime-local"
+                    className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                    value={exerciseForm.occurredAt}
+                    onChange={event => setExerciseForm(current => ({ ...current, occurredAt: event.target.value }))}
+                  />
+                </label>
+                <label className="block space-y-2 text-sm">
+                  <span className="text-muted-foreground">Observações</span>
+                  <textarea
+                    rows={3}
+                    className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                    value={exerciseForm.notes}
+                    onChange={event => setExerciseForm(current => ({ ...current, notes: event.target.value }))}
+                    placeholder="Opcional: pace, modalidade, intensidade, local..."
+                  />
+                </label>
+                <Button type="submit" className="w-full" disabled={createExercise.isPending}>
+                  {createExercise.isPending ? "Salvando exercício..." : "Salvar exercício"}
+                </Button>
+              </form>
+
+              <div className="space-y-3">
+                <p className="text-sm font-medium tracking-tight">Exercícios recentes</p>
+                {overview.data?.exercises?.length ? (
+                  overview.data.exercises.map(exercise => (
+                    <div key={exercise.id} className="rounded-2xl border bg-muted/30 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium tracking-tight">{exercise.activityType}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatCountPtBr(exercise.durationMinutes, " min")} · {formatCalories(exercise.caloriesBurned)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")}
+                          </p>
+                          {exercise.notes ? <p className="mt-2 text-sm text-muted-foreground">{exercise.notes}</p> : null}
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => removeExercise.mutate({ exerciseId: exercise.id })}
+                          disabled={removeExercise.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Badge variant="secondary">{formatCountPtBr(habit.occurrenceCount, "x")}</Badge>
                     </div>
-                    <p className="mt-3 text-sm text-muted-foreground">{habit.notes || "Sem observações adicionais."}</p>
-                  </div>
-                ))
-              ) : (
-                <EmptyCopy text="As preferências alimentares aparecerão aqui depois das primeiras confirmações de refeições." />
-              )}
+                  ))
+                ) : (
+                  <EmptyCopy text="Nenhum exercício foi registrado ainda. Use o formulário acima para começar a calcular o saldo líquido do dia e da semana." />
+                )}
+              </div>
             </CardContent>
           </Card>
         </section>
@@ -182,9 +336,7 @@ export default function Home() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="font-medium tracking-tight">{meal.mealLabel}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(meal.occurredAt).toLocaleString("pt-BR")}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">{meal.source === "web" ? "Web" : "WhatsApp"}</Badge>
@@ -212,21 +364,9 @@ export default function Home() {
               <CardDescription>Comparação direta entre consumo atual e objetivo definido.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              <MacroBar
-                label="Proteínas"
-                consumed={overview.data?.today.consumed.protein ?? 0}
-                goal={overview.data?.today.goal.protein ?? 0}
-              />
-              <MacroBar
-                label="Carboidratos"
-                consumed={overview.data?.today.consumed.carbs ?? 0}
-                goal={overview.data?.today.goal.carbs ?? 0}
-              />
-              <MacroBar
-                label="Gorduras"
-                consumed={overview.data?.today.consumed.fat ?? 0}
-                goal={overview.data?.today.goal.fat ?? 0}
-              />
+              <MacroBar label="Proteínas" consumed={overview.data?.today.consumed.protein ?? 0} goal={overview.data?.today.goal.protein ?? 0} />
+              <MacroBar label="Carboidratos" consumed={overview.data?.today.consumed.carbs ?? 0} goal={overview.data?.today.goal.carbs ?? 0} />
+              <MacroBar label="Gorduras" consumed={overview.data?.today.consumed.fat ?? 0} goal={overview.data?.today.goal.fat ?? 0} />
             </CardContent>
           </Card>
         </section>

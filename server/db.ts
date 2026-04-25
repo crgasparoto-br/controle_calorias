@@ -1,6 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
+  exercises,
   habitMemories,
   inferenceLogs,
   InsertUser,
@@ -212,14 +213,28 @@ type AdminLogEntry = {
   createdAt: number;
 };
 
+type ExerciseEntry = {
+  id: number;
+  userId: number;
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  notes?: string | null;
+  occurredAt: number;
+  createdAt: number;
+  updatedAt: Date;
+};
+
 const goalStore = new Map<number, NutritionGoal[]>();
 const mealStore = new Map<number, SavedMeal[]>();
+const exerciseStore = new Map<number, ExerciseEntry[]>();
 const habitStore = new Map<number, HabitMemoryState[]>();
 const inferenceStore = new Map<string, PendingInference>();
 const adminLogStore: AdminLogEntry[] = [];
 let mealIdSequence = 1;
 let mediaIdSequence = 1;
 let goalIdSequence = 1;
+let exerciseIdSequence = 1;
 
 function getWeekdayIndex(date: Date) {
   return (date.getDay() + 6) % 7;
@@ -371,6 +386,10 @@ function sumItems(items: MealDraftItem[]) {
     },
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
+}
+
+function sumExercises(items: ExerciseEntry[]) {
+  return items.reduce((acc, item) => acc + Number(item.caloriesBurned ?? 0), 0);
 }
 
 function round(value: number) {
@@ -564,6 +583,40 @@ async function persistMealToDb(meal: SavedMeal) {
   }
 }
 
+async function persistExerciseToDb(exercise: ExerciseEntry) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const exerciseInsert = await db.insert(exercises).values({
+      userId: exercise.userId,
+      activityType: exercise.activityType,
+      durationMinutes: exercise.durationMinutes,
+      caloriesBurned: exercise.caloriesBurned,
+      notes: exercise.notes ?? null,
+      occurredAt: new Date(exercise.occurredAt),
+    });
+
+    const insertedExerciseId = Number((exerciseInsert as any)?.[0]?.insertId ?? (exerciseInsert as any)?.insertId ?? 0);
+    if (insertedExerciseId) {
+      exercise.id = insertedExerciseId;
+    }
+  } catch (error) {
+    logPersistenceWarning("Exercise persistence skipped", error);
+  }
+}
+
+async function deleteExerciseFromDb(userId: number, exerciseId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.delete(exercises).where(and(eq(exercises.userId, userId), eq(exercises.id, exerciseId)));
+  } catch (error) {
+    logPersistenceWarning("Exercise deletion skipped", error);
+  }
+}
+
 async function persistHabitsToDb(userId: number, habits: HabitMemoryState[]) {
   const db = await getDb();
   if (!db) return;
@@ -677,6 +730,23 @@ async function loadMealsFromDb(userId: number) {
     return builtMeals;
   } catch (error) {
     logPersistenceWarning("Meal read skipped", error);
+    return null;
+  }
+}
+
+async function loadExercisesFromDb(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db.select().from(exercises).where(eq(exercises.userId, userId)).orderBy(desc(exercises.occurredAt));
+    return rows.map(row => ({
+      ...row,
+      occurredAt: new Date(row.occurredAt).getTime(),
+      createdAt: new Date(row.createdAt).getTime(),
+    }));
+  } catch (error) {
+    logPersistenceWarning("Exercise read skipped", error);
     return null;
   }
 }
@@ -993,9 +1063,76 @@ export async function listUserMeals(userId: number) {
     }));
 }
 
+async function getStoredExercises(userId: number) {
+  const dbExercises = await loadExercisesFromDb(userId);
+  if (dbExercises) {
+    exerciseStore.set(userId, dbExercises);
+    return dbExercises;
+  }
+
+  return exerciseStore.get(userId) ?? [];
+}
+
+export async function listUserExercises(userId: number) {
+  const exercisesForUser = await getStoredExercises(userId);
+  return exercisesForUser.slice().sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
+}
+
+export async function createUserExercise(userId: number, input: {
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  occurredAt: string;
+  notes?: string;
+}) {
+  const created: ExerciseEntry = {
+    id: exerciseIdSequence++,
+    userId,
+    activityType: input.activityType,
+    durationMinutes: input.durationMinutes,
+    caloriesBurned: input.caloriesBurned,
+    notes: input.notes ?? null,
+    occurredAt: new Date(input.occurredAt).getTime(),
+    createdAt: Date.now(),
+    updatedAt: new Date(),
+  };
+
+  const current = await listUserExercises(userId);
+  exerciseStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
+  await persistExerciseToDb(created);
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "exercise.created",
+    detail: `Exercício ${created.activityType} registrado com gasto de ${round(created.caloriesBurned)} kcal.`,
+  });
+  return created;
+}
+
+export async function removeUserExercise(userId: number, exerciseId: number) {
+  const current = await listUserExercises(userId);
+  const existing = current.find(item => item.id === exerciseId);
+  if (!existing) {
+    throw new Error("Exercício não encontrado.");
+  }
+
+  exerciseStore.set(userId, current.filter(item => item.id !== exerciseId));
+  await deleteExerciseFromDb(userId, exerciseId);
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "exercise.deleted",
+    detail: `Exercício ${existing.activityType} removido pelo usuário.`,
+  });
+  return { success: true };
+}
+
 export async function getWeeklySummary(userId: number) {
   const goal = await getUserNutritionGoal(userId);
   const mealsForUser = await listUserMeals(userId);
+  const exercisesForUser = await listUserExercises(userId);
   const today = startOfDay(new Date());
   const mondayOffset = getWeekdayIndex(today);
   const monday = new Date(today);
@@ -1010,6 +1147,7 @@ export async function getWeeklySummary(userId: number) {
   return days.map((day, index) => {
     const key = dateKey(day);
     const dailyMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === key);
+    const dailyExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt))) === key);
     const totals = dailyMeals.reduce(
       (acc, meal) => {
         const mealTotals = sumItems(meal.items);
@@ -1021,6 +1159,7 @@ export async function getWeeklySummary(userId: number) {
       },
       { calories: 0, protein: 0, carbs: 0, fat: 0 },
     );
+    const burnedCalories = sumExercises(dailyExercises);
     const planned = goal.days[index] ?? goal.today;
 
     return {
@@ -1030,6 +1169,8 @@ export async function getWeeklySummary(userId: number) {
       protein: round(totals.protein),
       carbs: round(totals.carbs),
       fat: round(totals.fat),
+      exerciseCalories: round(burnedCalories),
+      netCalories: round(totals.calories - burnedCalories),
       goalCalories: planned.calories,
       goalProtein: planned.proteinGrams,
       goalCarbs: planned.carbsGrams,
@@ -1041,8 +1182,10 @@ export async function getWeeklySummary(userId: number) {
 export async function getDashboardSnapshot(userId: number) {
   const goal = await getUserNutritionGoal(userId);
   const mealsForUser = await listUserMeals(userId);
+  const exercisesForUser = await listUserExercises(userId);
   const todayKey = dateKey(new Date());
   const todaysMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === todayKey);
+  const todaysExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt))) === todayKey);
   const todayTotals = todaysMeals.reduce(
     (acc, meal) => {
       const totals = sumItems(meal.items);
@@ -1054,6 +1197,7 @@ export async function getDashboardSnapshot(userId: number) {
     },
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
+  const todayBurnedCalories = sumExercises(todaysExercises);
 
   const [weekly, habits] = await Promise.all([
     getWeeklySummary(userId),
@@ -1070,6 +1214,7 @@ export async function getDashboardSnapshot(userId: number) {
     },
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
+  const weeklyBurnedCalories = weekly.reduce((acc, day) => acc + Number(day.exerciseCalories ?? 0), 0);
 
   return {
     goal,
@@ -1082,6 +1227,13 @@ export async function getDashboardSnapshot(userId: number) {
         label: goal.today.label,
       },
       consumed: Object.fromEntries(Object.entries(todayTotals).map(([key, value]) => [key, round(value)])),
+      burned: {
+        calories: round(todayBurnedCalories),
+      },
+      net: {
+        calories: round(todayTotals.calories - todayBurnedCalories),
+        remainingToGoal: round(goal.today.calories - (todayTotals.calories - todayBurnedCalories)),
+      },
       remaining: {
         calories: round(goal.today.calories - todayTotals.calories),
         protein: round(goal.today.proteinGrams - todayTotals.protein),
@@ -1098,6 +1250,13 @@ export async function getDashboardSnapshot(userId: number) {
         fat: round(goal.weeklyTotals.fatGrams),
       },
       consumed: Object.fromEntries(Object.entries(weeklyConsumed).map(([key, value]) => [key, round(value)])),
+      burned: {
+        calories: round(weeklyBurnedCalories),
+      },
+      net: {
+        calories: round(weeklyConsumed.calories - weeklyBurnedCalories),
+        remainingToGoal: round(goal.weeklyTotals.calories - (weeklyConsumed.calories - weeklyBurnedCalories)),
+      },
       remaining: {
         calories: round(goal.weeklyTotals.calories - weeklyConsumed.calories),
         protein: round(goal.weeklyTotals.proteinGrams - weeklyConsumed.protein),
@@ -1108,6 +1267,7 @@ export async function getDashboardSnapshot(userId: number) {
     },
     weekly,
     meals: mealsForUser.slice(0, 8),
+    exercises: exercisesForUser.slice(0, 8),
     habits,
   };
 }
