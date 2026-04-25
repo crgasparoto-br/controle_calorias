@@ -7,17 +7,25 @@ import {
   confirmPendingMeal,
   createPendingMealInference,
   createUserExercise,
+  createUserManualMeal,
+  createUserWaterLog,
   getAdminSnapshot,
   getDashboardSnapshot,
   getHabitSnapshots,
   getPendingInference,
   getPendingInferenceFromDb,
   getUserNutritionGoal,
+  getUserWaterGoal,
   getWeeklySummary,
   listUserExercises,
   listUserMeals,
+  listUserWaterLogs,
   logInferenceEvent,
   removeUserExercise,
+  removeUserMeal,
+  removeUserWaterLog,
+  updateUserMeal,
+  updateUserWaterGoal,
   upsertNutritionGoal,
 } from "./db";
 import { MealDraftItem, processMealInput } from "./nutritionEngine";
@@ -63,6 +71,22 @@ const mealItemSchema = z.object({
   fat: z.number().min(0).max(1000),
   confidence: z.number().min(0).max(1),
   source: z.enum(["catalog", "hybrid", "heuristic"]),
+});
+
+const manualMealSchema = z.object({
+  mealLabel: z.string().min(1).max(80),
+  occurredAt: z.string().min(1),
+  notes: z.string().max(500).optional(),
+  items: z.array(mealItemSchema).min(1),
+});
+
+const waterGoalSchema = z.object({
+  dailyTargetMl: z.number().int().min(250).max(10000),
+});
+
+const waterLogSchema = z.object({
+  amountMl: z.number().int().min(50).max(5000),
+  occurredAt: z.string().min(1),
 });
 
 const exerciseSchema = z.object({
@@ -121,6 +145,13 @@ export const nutritionRouter = router({
 
   meals: router({
     list: protectedProcedure.query(async ({ ctx }) => listUserMeals(ctx.user.id)),
+    createManual: protectedProcedure.input(manualMealSchema).mutation(async ({ ctx, input }) => createUserManualMeal({ userId: ctx.user.id, ...input, items: ensureMealItems(input.items) })),
+    update: protectedProcedure
+      .input(manualMealSchema.extend({ mealId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => updateUserMeal({ userId: ctx.user.id, mealId: input.mealId, mealLabel: input.mealLabel, occurredAt: input.occurredAt, notes: input.notes, items: ensureMealItems(input.items) })),
+    remove: protectedProcedure
+      .input(z.object({ mealId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => removeUserMeal(ctx.user.id, input.mealId)),
     processDraft: protectedProcedure
       .input(
         z.object({
@@ -208,6 +239,16 @@ export const nutritionRouter = router({
     remove: protectedProcedure
       .input(z.object({ exerciseId: z.number().int().positive() }))
       .mutation(async ({ ctx, input }) => removeUserExercise(ctx.user.id, input.exerciseId)),
+  }),
+
+  water: router({
+    goal: protectedProcedure.query(async ({ ctx }) => getUserWaterGoal(ctx.user.id)),
+    updateGoal: protectedProcedure.input(waterGoalSchema).mutation(async ({ ctx, input }) => updateUserWaterGoal(ctx.user.id, input.dailyTargetMl)),
+    list: protectedProcedure.query(async ({ ctx }) => listUserWaterLogs(ctx.user.id)),
+    create: protectedProcedure.input(waterLogSchema).mutation(async ({ ctx, input }) => createUserWaterLog(ctx.user.id, input)),
+    remove: protectedProcedure
+      .input(z.object({ waterLogId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => removeUserWaterLog(ctx.user.id, input.waterLogId)),
   }),
 
   reports: router({

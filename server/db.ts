@@ -14,6 +14,8 @@ import {
   nutritionGoals,
   User,
   users,
+  waterGoals,
+  waterLogs,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
@@ -225,9 +227,28 @@ type ExerciseEntry = {
   updatedAt: Date;
 };
 
+type WaterGoalEntry = {
+  id: number;
+  userId: number;
+  dailyTargetMl: number;
+  createdAt: number;
+  updatedAt: Date;
+};
+
+type WaterLogEntry = {
+  id: number;
+  userId: number;
+  amountMl: number;
+  occurredAt: number;
+  createdAt: number;
+  updatedAt: Date;
+};
+
 const goalStore = new Map<number, NutritionGoal[]>();
 const mealStore = new Map<number, SavedMeal[]>();
 const exerciseStore = new Map<number, ExerciseEntry[]>();
+const waterGoalStore = new Map<number, WaterGoalEntry>();
+const waterLogStore = new Map<number, WaterLogEntry[]>();
 const habitStore = new Map<number, HabitMemoryState[]>();
 const inferenceStore = new Map<string, PendingInference>();
 const adminLogStore: AdminLogEntry[] = [];
@@ -235,6 +256,8 @@ let mealIdSequence = 1;
 let mediaIdSequence = 1;
 let goalIdSequence = 1;
 let exerciseIdSequence = 1;
+let waterGoalIdSequence = 1;
+let waterLogIdSequence = 1;
 
 function getWeekdayIndex(date: Date) {
   return (date.getDay() + 6) % 7;
@@ -390,6 +413,10 @@ function sumItems(items: MealDraftItem[]) {
 
 function sumExercises(items: ExerciseEntry[]) {
   return items.reduce((acc, item) => acc + Number(item.caloriesBurned ?? 0), 0);
+}
+
+function sumWater(items: WaterLogEntry[]) {
+  return items.reduce((acc, item) => acc + Number(item.amountMl ?? 0), 0);
 }
 
 function round(value: number) {
@@ -617,6 +644,115 @@ async function deleteExerciseFromDb(userId: number, exerciseId: number) {
   }
 }
 
+async function updateMealInDb(meal: SavedMeal) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db
+      .update(meals)
+      .set({
+        mealLabel: meal.mealLabel,
+        notes: meal.notes ?? null,
+        confidence: meal.confidence,
+        occurredAt: new Date(meal.occurredAt),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)));
+
+    await db.delete(mealItems).where(eq(mealItems.mealId, meal.id));
+
+    if (meal.items.length) {
+      const resolvedCatalogIds = await resolveFoodCatalogIds(meal.items);
+      await db.insert(mealItems).values(
+        meal.items.map(item => ({
+          mealId: meal.id,
+          foodCatalogId: resolvedCatalogIds.get(item.canonicalName) ?? resolvedCatalogIds.get(item.foodName) ?? null,
+          foodName: item.foodName,
+          canonicalName: item.canonicalName,
+          portionText: item.portionText,
+          servings: item.servings,
+          estimatedGrams: item.estimatedGrams,
+          calories: item.calories,
+          protein: item.protein,
+          carbs: item.carbs,
+          fat: item.fat,
+          source: item.source,
+        })),
+      );
+    }
+  } catch (error) {
+    logPersistenceWarning("Meal update skipped", error);
+  }
+}
+
+async function deleteMealFromDb(userId: number, mealId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.delete(mealItems).where(eq(mealItems.mealId, mealId));
+    await db.delete(mealMedia).where(eq(mealMedia.mealId, mealId));
+    await db.delete(meals).where(and(eq(meals.userId, userId), eq(meals.id, mealId)));
+  } catch (error) {
+    logPersistenceWarning("Meal deletion skipped", error);
+  }
+}
+
+async function persistWaterGoalToDb(goal: WaterGoalEntry) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const existing = await db.select().from(waterGoals).where(eq(waterGoals.userId, goal.userId)).limit(1);
+    if (existing.length) {
+      await db
+        .update(waterGoals)
+        .set({ dailyTargetMl: goal.dailyTargetMl, updatedAt: new Date() })
+        .where(eq(waterGoals.userId, goal.userId));
+      return;
+    }
+
+    const insertResult = await db.insert(waterGoals).values({ userId: goal.userId, dailyTargetMl: goal.dailyTargetMl });
+    const insertedId = Number((insertResult as any)?.[0]?.insertId ?? (insertResult as any)?.insertId ?? 0);
+    if (insertedId) {
+      goal.id = insertedId;
+    }
+  } catch (error) {
+    logPersistenceWarning("Water goal persistence skipped", error);
+  }
+}
+
+async function persistWaterLogToDb(log: WaterLogEntry) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const insertResult = await db.insert(waterLogs).values({
+      userId: log.userId,
+      amountMl: log.amountMl,
+      occurredAt: new Date(log.occurredAt),
+    });
+    const insertedId = Number((insertResult as any)?.[0]?.insertId ?? (insertResult as any)?.insertId ?? 0);
+    if (insertedId) {
+      log.id = insertedId;
+    }
+  } catch (error) {
+    logPersistenceWarning("Water log persistence skipped", error);
+  }
+}
+
+async function deleteWaterLogFromDb(userId: number, waterLogId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.delete(waterLogs).where(and(eq(waterLogs.userId, userId), eq(waterLogs.id, waterLogId)));
+  } catch (error) {
+    logPersistenceWarning("Water log deletion skipped", error);
+  }
+}
+
 async function persistHabitsToDb(userId: number, habits: HabitMemoryState[]) {
   const db = await getDb();
   if (!db) return;
@@ -747,6 +883,43 @@ async function loadExercisesFromDb(userId: number) {
     }));
   } catch (error) {
     logPersistenceWarning("Exercise read skipped", error);
+    return null;
+  }
+}
+
+async function loadWaterGoalFromDb(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db.select().from(waterGoals).where(eq(waterGoals.userId, userId)).limit(1);
+    if (!rows.length) return null;
+    const row = rows[0];
+    return {
+      ...row,
+      createdAt: new Date(row.createdAt).getTime(),
+      updatedAt: new Date(row.updatedAt),
+    } satisfies WaterGoalEntry;
+  } catch (error) {
+    logPersistenceWarning("Water goal read skipped", error);
+    return null;
+  }
+}
+
+async function loadWaterLogsFromDb(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db.select().from(waterLogs).where(eq(waterLogs.userId, userId)).orderBy(desc(waterLogs.occurredAt));
+    return rows.map(row => ({
+      ...row,
+      occurredAt: new Date(row.occurredAt).getTime(),
+      createdAt: new Date(row.createdAt).getTime(),
+      updatedAt: new Date(row.updatedAt),
+    } satisfies WaterLogEntry));
+  } catch (error) {
+    logPersistenceWarning("Water log read skipped", error);
     return null;
   }
 }
@@ -1063,6 +1236,204 @@ export async function listUserMeals(userId: number) {
     }));
 }
 
+export async function createUserManualMeal(input: {
+  userId: number;
+  mealLabel: string;
+  occurredAt: string;
+  notes?: string;
+  items: MealDraftItem[];
+}) {
+  const savedMeal: SavedMeal = {
+    id: mealIdSequence++,
+    userId: input.userId,
+    source: "web",
+    mealLabel: input.mealLabel,
+    status: "confirmed",
+    occurredAt: new Date(input.occurredAt).getTime(),
+    notes: input.notes,
+    sourceText: input.notes ?? "Registro manual",
+    transcript: undefined,
+    confidence: 1,
+    items: input.items,
+    media: [],
+    createdAt: Date.now(),
+  };
+
+  const current = await listUserMeals(input.userId);
+  mealStore.set(input.userId, [savedMeal, ...current.filter(meal => meal.id !== savedMeal.id)]);
+  await persistMealToDb(savedMeal);
+  await updateHabitsFromMeal(savedMeal);
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "web",
+    status: "success",
+    eventType: "meal.manual_created",
+    detail: `Refeição manual ${savedMeal.mealLabel} criada com ${savedMeal.items.length} itens.`,
+  });
+  return { ...savedMeal, totals: sumItems(savedMeal.items) };
+}
+
+export async function updateUserMeal(input: {
+  userId: number;
+  mealId: number;
+  mealLabel: string;
+  occurredAt: string;
+  notes?: string;
+  items: MealDraftItem[];
+}) {
+  const current = await listUserMeals(input.userId);
+  const existing = current.find(meal => meal.id === input.mealId);
+  if (!existing) {
+    throw new Error("Refeição não encontrada.");
+  }
+
+  const updatedMeal: SavedMeal = {
+    ...existing,
+    mealLabel: input.mealLabel,
+    occurredAt: new Date(input.occurredAt).getTime(),
+    notes: input.notes,
+    sourceText: existing.sourceText || input.notes || "Registro manual",
+    items: input.items,
+  };
+
+  mealStore.set(
+    input.userId,
+    current.map(meal => (meal.id === input.mealId ? updatedMeal : meal)).sort((a, b) => b.occurredAt - a.occurredAt),
+  );
+  await updateMealInDb(updatedMeal);
+  await updateHabitsFromMeal(updatedMeal);
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "web",
+    status: "success",
+    eventType: "meal.manual_updated",
+    detail: `Refeição ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
+  });
+  return { ...updatedMeal, totals: sumItems(updatedMeal.items) };
+}
+
+export async function removeUserMeal(userId: number, mealId: number) {
+  const current = await listUserMeals(userId);
+  const existing = current.find(meal => meal.id === mealId);
+  if (!existing) {
+    throw new Error("Refeição não encontrada.");
+  }
+
+  mealStore.set(userId, current.filter(meal => meal.id !== mealId));
+  await deleteMealFromDb(userId, mealId);
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "meal.manual_deleted",
+    detail: `Refeição ${existing.mealLabel} removida pelo usuário.`,
+  });
+  return { success: true };
+}
+
+async function getStoredWaterGoal(userId: number) {
+  const dbGoal = await loadWaterGoalFromDb(userId);
+  if (dbGoal) {
+    waterGoalStore.set(userId, dbGoal);
+    return dbGoal;
+  }
+
+  const stored = waterGoalStore.get(userId);
+  if (stored) {
+    return stored;
+  }
+
+  const created: WaterGoalEntry = {
+    id: waterGoalIdSequence++,
+    userId,
+    dailyTargetMl: 2500,
+    createdAt: Date.now(),
+    updatedAt: new Date(),
+  };
+  waterGoalStore.set(userId, created);
+  return created;
+}
+
+async function getStoredWaterLogs(userId: number) {
+  const dbLogs = await loadWaterLogsFromDb(userId);
+  if (dbLogs) {
+    waterLogStore.set(userId, dbLogs);
+    return dbLogs;
+  }
+
+  return waterLogStore.get(userId) ?? [];
+}
+
+export async function getUserWaterGoal(userId: number) {
+  return getStoredWaterGoal(userId);
+}
+
+export async function listUserWaterLogs(userId: number) {
+  const logs = await getStoredWaterLogs(userId);
+  return logs.slice().sort((a, b) => b.occurredAt - a.occurredAt);
+}
+
+export async function updateUserWaterGoal(userId: number, dailyTargetMl: number) {
+  const current = await getStoredWaterGoal(userId);
+  const updated: WaterGoalEntry = {
+    ...current,
+    dailyTargetMl,
+    updatedAt: new Date(),
+  };
+  waterGoalStore.set(userId, updated);
+  await persistWaterGoalToDb(updated);
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "water.goal_updated",
+    detail: `Meta diária de água atualizada para ${dailyTargetMl} ml.`,
+  });
+  return updated;
+}
+
+export async function createUserWaterLog(userId: number, input: { amountMl: number; occurredAt: string }) {
+  const created: WaterLogEntry = {
+    id: waterLogIdSequence++,
+    userId,
+    amountMl: input.amountMl,
+    occurredAt: new Date(input.occurredAt).getTime(),
+    createdAt: Date.now(),
+    updatedAt: new Date(),
+  };
+
+  const current = await listUserWaterLogs(userId);
+  waterLogStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
+  await persistWaterLogToDb(created);
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "water.logged",
+    detail: `Consumo de ${created.amountMl} ml de água registrado.`,
+  });
+  return created;
+}
+
+export async function removeUserWaterLog(userId: number, waterLogId: number) {
+  const current = await listUserWaterLogs(userId);
+  const existing = current.find(item => item.id === waterLogId);
+  if (!existing) {
+    throw new Error("Registro de água não encontrado.");
+  }
+
+  waterLogStore.set(userId, current.filter(item => item.id !== waterLogId));
+  await deleteWaterLogFromDb(userId, waterLogId);
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "water.deleted",
+    detail: `Registro de água de ${existing.amountMl} ml removido pelo usuário.`,
+  });
+  return { success: true };
+}
+
 async function getStoredExercises(userId: number) {
   const dbExercises = await loadExercisesFromDb(userId);
   if (dbExercises) {
@@ -1131,8 +1502,10 @@ export async function removeUserExercise(userId: number, exerciseId: number) {
 
 export async function getWeeklySummary(userId: number) {
   const goal = await getUserNutritionGoal(userId);
+  const waterGoal = await getUserWaterGoal(userId);
   const mealsForUser = await listUserMeals(userId);
   const exercisesForUser = await listUserExercises(userId);
+  const waterLogsForUser = await listUserWaterLogs(userId);
   const today = startOfDay(new Date());
   const mondayOffset = getWeekdayIndex(today);
   const monday = new Date(today);
@@ -1148,6 +1521,7 @@ export async function getWeeklySummary(userId: number) {
     const key = dateKey(day);
     const dailyMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === key);
     const dailyExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt))) === key);
+    const dailyWaterLogs = waterLogsForUser.filter(log => dateKey(new Date(Number(log.occurredAt))) === key);
     const totals = dailyMeals.reduce(
       (acc, meal) => {
         const mealTotals = sumItems(meal.items);
@@ -1160,6 +1534,7 @@ export async function getWeeklySummary(userId: number) {
       { calories: 0, protein: 0, carbs: 0, fat: 0 },
     );
     const burnedCalories = sumExercises(dailyExercises);
+    const waterConsumedMl = sumWater(dailyWaterLogs);
     const planned = goal.days[index] ?? goal.today;
 
     return {
@@ -1171,6 +1546,8 @@ export async function getWeeklySummary(userId: number) {
       fat: round(totals.fat),
       exerciseCalories: round(burnedCalories),
       netCalories: round(totals.calories - burnedCalories),
+      waterConsumedMl: round(waterConsumedMl),
+      waterGoalMl: waterGoal.dailyTargetMl,
       goalCalories: planned.calories,
       goalProtein: planned.proteinGrams,
       goalCarbs: planned.carbsGrams,
@@ -1181,11 +1558,14 @@ export async function getWeeklySummary(userId: number) {
 
 export async function getDashboardSnapshot(userId: number) {
   const goal = await getUserNutritionGoal(userId);
+  const waterGoal = await getUserWaterGoal(userId);
   const mealsForUser = await listUserMeals(userId);
   const exercisesForUser = await listUserExercises(userId);
+  const waterLogsForUser = await listUserWaterLogs(userId);
   const todayKey = dateKey(new Date());
   const todaysMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === todayKey);
   const todaysExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt))) === todayKey);
+  const todaysWaterLogs = waterLogsForUser.filter(log => dateKey(new Date(Number(log.occurredAt))) === todayKey);
   const todayTotals = todaysMeals.reduce(
     (acc, meal) => {
       const totals = sumItems(meal.items);
@@ -1198,6 +1578,7 @@ export async function getDashboardSnapshot(userId: number) {
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
   const todayBurnedCalories = sumExercises(todaysExercises);
+  const todayWaterMl = sumWater(todaysWaterLogs);
 
   const [weekly, habits] = await Promise.all([
     getWeeklySummary(userId),
@@ -1215,6 +1596,7 @@ export async function getDashboardSnapshot(userId: number) {
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
   const weeklyBurnedCalories = weekly.reduce((acc, day) => acc + Number(day.exerciseCalories ?? 0), 0);
+  const weeklyWaterMl = weekly.reduce((acc, day) => acc + Number(day.waterConsumedMl ?? 0), 0);
 
   return {
     goal,
@@ -1229,6 +1611,11 @@ export async function getDashboardSnapshot(userId: number) {
       consumed: Object.fromEntries(Object.entries(todayTotals).map(([key, value]) => [key, round(value)])),
       burned: {
         calories: round(todayBurnedCalories),
+      },
+      water: {
+        consumedMl: round(todayWaterMl),
+        goalMl: waterGoal.dailyTargetMl,
+        remainingMl: Math.max(waterGoal.dailyTargetMl - round(todayWaterMl), 0),
       },
       net: {
         calories: round(todayTotals.calories - todayBurnedCalories),
@@ -1253,6 +1640,11 @@ export async function getDashboardSnapshot(userId: number) {
       burned: {
         calories: round(weeklyBurnedCalories),
       },
+      water: {
+        consumedMl: round(weeklyWaterMl),
+        goalMl: waterGoal.dailyTargetMl * 7,
+        remainingMl: Math.max(waterGoal.dailyTargetMl * 7 - round(weeklyWaterMl), 0),
+      },
       net: {
         calories: round(weeklyConsumed.calories - weeklyBurnedCalories),
         remainingToGoal: round(goal.weeklyTotals.calories - (weeklyConsumed.calories - weeklyBurnedCalories)),
@@ -1268,6 +1660,10 @@ export async function getDashboardSnapshot(userId: number) {
     weekly,
     meals: mealsForUser.slice(0, 8),
     exercises: exercisesForUser.slice(0, 8),
+    water: {
+      goal: waterGoal,
+      logs: waterLogsForUser.slice(0, 8),
+    },
     habits,
   };
 }

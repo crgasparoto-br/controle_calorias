@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { formatCalories, formatCountPtBr, formatGrams, formatIntegerPtBr, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, BrainCircuit, Dumbbell, Flame, Salad, Target, Trash2 } from "lucide-react";
+import { Activity, ArrowRight, BrainCircuit, Droplets, Dumbbell, Flame, Salad, Target, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 
 function macroProgress(consumed: number, goal: number) {
@@ -24,10 +24,26 @@ function buildDefaultExerciseForm() {
   };
 }
 
+function buildDefaultWaterForm() {
+  return {
+    amountMl: "300",
+    occurredAt: new Date().toISOString().slice(0, 16),
+    dailyTargetMl: "2500",
+  };
+}
+
 export default function Home() {
   const utils = trpc.useUtils();
   const overview = trpc.nutrition.dashboard.overview.useQuery();
+  const waterGoal = trpc.nutrition.water.goal.useQuery();
   const [exerciseForm, setExerciseForm] = React.useState(buildDefaultExerciseForm);
+  const [waterForm, setWaterForm] = React.useState(buildDefaultWaterForm);
+
+  React.useEffect(() => {
+    if (waterGoal.data?.dailyTargetMl) {
+      setWaterForm(current => ({ ...current, dailyTargetMl: String(waterGoal.data.dailyTargetMl) }));
+    }
+  }, [waterGoal.data?.dailyTargetMl]);
 
   const createExercise = trpc.nutrition.exercises.create.useMutation({
     onSuccess: async () => {
@@ -48,6 +64,36 @@ export default function Home() {
     },
   });
 
+  const createWaterLog = trpc.nutrition.water.create.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+        utils.nutrition.water.list.invalidate(),
+      ]);
+      setWaterForm(current => ({ ...current, amountMl: "300", occurredAt: new Date().toISOString().slice(0, 16) }));
+    },
+  });
+
+  const updateWaterGoal = trpc.nutrition.water.updateGoal.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.water.goal.invalidate(),
+      ]);
+    },
+  });
+
+  const removeWaterLog = trpc.nutrition.water.remove.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+        utils.nutrition.water.list.invalidate(),
+      ]);
+    },
+  });
+
   const handleExerciseSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     createExercise.mutate({
@@ -56,6 +102,14 @@ export default function Home() {
       caloriesBurned: Number(exerciseForm.caloriesBurned || 0),
       occurredAt: new Date(exerciseForm.occurredAt).toISOString(),
       notes: exerciseForm.notes.trim() || undefined,
+    });
+  };
+
+  const handleWaterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    createWaterLog.mutate({
+      amountMl: Number(waterForm.amountMl || 0),
+      occurredAt: new Date(waterForm.occurredAt).toISOString(),
     });
   };
 
@@ -141,7 +195,7 @@ export default function Home() {
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={Flame} title="Líquido de hoje" value={formatCalories(overview.data?.today.net.calories ?? 0)} description="Consumo menos exercícios" />
           <MetricCard icon={Dumbbell} title="Gasto com exercícios" value={formatCalories(overview.data?.today.burned.calories ?? 0)} description="Queimadas hoje" />
-          <MetricCard icon={Salad} title="Refeições" value={formatCountPtBr(overview.data?.meals.length ?? 0)} description="Últimos registros" />
+          <MetricCard icon={Droplets} title="Água hoje" value={formatCountPtBr(overview.data?.today.water.consumedMl ?? 0, " ml")} description={`Meta ${formatCountPtBr(overview.data?.today.water.goalMl ?? 0, " ml")}`} />
           <MetricCard icon={BrainCircuit} title="Hábitos lembrados" value={formatCountPtBr(overview.data?.habits.length ?? 0)} description="Preferências aprendidas" />
         </section>
 
@@ -182,7 +236,7 @@ export default function Home() {
           </Card>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.35fr,1fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.35fr,1fr,1fr]">
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
@@ -317,6 +371,96 @@ export default function Home() {
                   ))
                 ) : (
                   <EmptyCopy text="Nenhum exercício foi registrado ainda. Use o formulário acima para começar a calcular o saldo líquido do dia e da semana." />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Água do dia</CardTitle>
+              <CardDescription>Meta diária e registros rápidos de consumo para acompanhar hidratação diária e semanal.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <StatBlock label="Consumido" value={formatCountPtBr(overview.data?.today.water.consumedMl ?? 0, " ml")} sublabel="Registrado hoje" />
+                <StatBlock label="Meta" value={formatCountPtBr(overview.data?.today.water.goalMl ?? 0, " ml")} sublabel="Objetivo diário" />
+                <StatBlock label="Restante" value={formatCountPtBr(overview.data?.today.water.remainingMl ?? 0, " ml")} sublabel="Para bater a meta" />
+              </div>
+
+              <form className="space-y-3" onSubmit={handleWaterSubmit}>
+                <label className="block space-y-2 text-sm">
+                  <span className="text-muted-foreground">Meta diária (ml)</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={250}
+                      step={50}
+                      className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                      value={waterForm.dailyTargetMl}
+                      onChange={event => setWaterForm(current => ({ ...current, dailyTargetMl: event.target.value }))}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => updateWaterGoal.mutate({ dailyTargetMl: Number(waterForm.dailyTargetMl || 0) })}
+                      disabled={updateWaterGoal.isPending}
+                    >
+                      {updateWaterGoal.isPending ? "Salvando..." : "Salvar meta"}
+                    </Button>
+                  </div>
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block space-y-2 text-sm">
+                    <span className="text-muted-foreground">Consumo (ml)</span>
+                    <input
+                      type="number"
+                      min={50}
+                      step={50}
+                      className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                      value={waterForm.amountMl}
+                      onChange={event => setWaterForm(current => ({ ...current, amountMl: event.target.value }))}
+                    />
+                  </label>
+                  <label className="block space-y-2 text-sm">
+                    <span className="text-muted-foreground">Data e hora</span>
+                    <input
+                      type="datetime-local"
+                      className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                      value={waterForm.occurredAt}
+                      onChange={event => setWaterForm(current => ({ ...current, occurredAt: event.target.value }))}
+                    />
+                  </label>
+                </div>
+                <Button type="submit" className="w-full" disabled={createWaterLog.isPending}>
+                  {createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}
+                </Button>
+              </form>
+
+              <div className="space-y-3">
+                <p className="text-sm font-medium tracking-tight">Registros recentes</p>
+                {overview.data?.water.logs?.length ? (
+                  overview.data.water.logs.map(log => (
+                    <div key={log.id} className="rounded-2xl border bg-muted/30 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium tracking-tight">{formatCountPtBr(log.amountMl, " ml")}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(Number(log.occurredAt)).toLocaleString("pt-BR")}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => removeWaterLog.mutate({ waterLogId: log.id })}
+                          disabled={removeWaterLog.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyCopy text="Nenhum consumo de água foi registrado ainda. Use o formulário acima para iniciar o acompanhamento diário." />
                 )}
               </div>
             </CardContent>

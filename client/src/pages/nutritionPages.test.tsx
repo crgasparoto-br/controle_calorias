@@ -13,6 +13,7 @@ const useUtilsMock = vi.fn(() => ({
     reports: { weekly: { invalidate: vi.fn() } },
     goals: { get: { invalidate: vi.fn() } },
     exercises: { list: { invalidate: vi.fn() } },
+    water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
   },
 }));
 
@@ -48,6 +49,15 @@ vi.mock("@/lib/trpc", () => ({
         confirm: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
+        createManual: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        update: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        remove: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         list: {
           useQuery: () => ({ data: overviewData.meals }),
         },
@@ -61,6 +71,23 @@ vi.mock("@/lib/trpc", () => ({
         },
         list: {
           useQuery: () => ({ data: overviewData.exercises }),
+        },
+      },
+      water: {
+        goal: {
+          useQuery: () => ({ data: overviewData.water.goal }),
+        },
+        list: {
+          useQuery: () => ({ data: overviewData.water.logs }),
+        },
+        create: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        updateGoal: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        remove: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
       },
       reports: {
@@ -138,6 +165,7 @@ const overviewData = {
     goal: { label: "Segunda-feira", calories: 2200, protein: 160, carbs: 240, fat: 70 },
     consumed: { calories: 1240, protein: 92, carbs: 134, fat: 38 },
     burned: { calories: 320 },
+    water: { consumedMl: 1200, goalMl: 2500, remainingMl: 1300 },
     net: { calories: 920, remainingToGoal: 1280 },
     remaining: { calories: 960, protein: 68, carbs: 106, fat: 32 },
     adherence: 56,
@@ -146,13 +174,14 @@ const overviewData = {
     planned: { calories: 15700, protein: 1125, carbs: 1720, fat: 489 },
     consumed: { calories: 4000, protein: 290, carbs: 425, fat: 118 },
     burned: { calories: 870 },
+    water: { consumedMl: 7600, goalMl: 17500, remainingMl: 9900 },
     net: { calories: 3130, remainingToGoal: 12570 },
     remaining: { calories: 11700, protein: 835, carbs: 1295, fat: 371 },
     adherence: 25,
   },
   weekly: [
-    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, goalCalories: 2200 },
-    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, goalCalories: 2200 },
+    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, waterConsumedMl: 900, waterGoalMl: 2500, goalCalories: 2200 },
+    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, waterConsumedMl: 1300, waterGoalMl: 2500, goalCalories: 2200 },
   ],
   meals: [
     {
@@ -165,6 +194,12 @@ const overviewData = {
     },
   ],
   habits: [{ foodName: "Café com leite", typicalTimeLabel: "Café da manhã", notes: "Sem açúcar", occurrenceCount: 4 }],
+  water: {
+    goal: { id: 7, userId: 1, dailyTargetMl: 2500, createdAt: Date.now(), updatedAt: new Date() },
+    logs: [
+      { id: 1, userId: 1, amountMl: 500, occurredAt: Date.now(), createdAt: Date.now(), updatedAt: new Date() },
+    ],
+  },
   exercises: [
     {
       id: 99,
@@ -193,6 +228,8 @@ describe("nutrition pages", () => {
     expect(html).toContain("Resumo de hoje");
     expect(html).toContain("Equação energética do dia");
     expect(html).toContain("Registrar exercício");
+    expect(html).toContain("Água do dia");
+    expect(html).toContain("1.200 ml");
     expect(html).toContain("920 kcal");
   });
 
@@ -217,6 +254,8 @@ describe("nutrition pages", () => {
     expect(html).toContain("Registrar refeição com IA multimodal");
     expect(html).toContain("Imagem do prato ou rótulo");
     expect(html).toContain("Fluxo de confirmação");
+    expect(html).toContain("Criar ou editar refeição manualmente");
+    expect(html).toContain("Refeições registradas");
   });
 
   it("renderiza a página de relatórios com detalhamento por refeição e itens nutricionais", async () => {

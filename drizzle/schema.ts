@@ -146,6 +146,23 @@ export const exercises = mysqlTable("exercises", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const waterGoals = mysqlTable("waterGoals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  dailyTargetMl: int("dailyTargetMl").default(2500).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const waterLogs = mysqlTable("waterLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  amountMl: int("amountMl").notNull(),
+  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export const whatsappConnections = mysqlTable("whatsappConnections", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
@@ -180,5 +197,9 @@ export type HabitMemory = typeof habitMemories.$inferSelect;
 export type InsertHabitMemory = typeof habitMemories.$inferInsert;
 export type Exercise = typeof exercises.$inferSelect;
 export type InsertExercise = typeof exercises.$inferInsert;
+export type WaterGoal = typeof waterGoals.$inferSelect;
+export type InsertWaterGoal = typeof waterGoals.$inferInsert;
+export type WaterLog = typeof waterLogs.$inferSelect;
+export type InsertWaterLog = typeof waterLogs.$inferInsert;
 export type InferenceLog = typeof inferenceLogs.$inferSelect;
 export type InsertInferenceLog = typeof inferenceLogs.$inferInsert;

@@ -53,3 +53,9 @@ A plataforma encontra-se apta para **primeira entrega formal**, com backend, fro
 Após a aplicação da migração `0004_married_solo.sql` e do script idempotente de compatibilização, a rota `/goals` voltou a carregar sem erro no ambiente em execução. A interface passou a exibir corretamente a nova organização com **meta geral da semana**, **exceções por dia da semana**, **soma planejada da semana** e **foco do dia atual**.
 
 Na validação manual observada nesta rodada, o usuário consultado ainda não possuía exceções cadastradas, portanto a regra geral de **2200 kcal**, **160 g de proteínas**, **240 g de carboidratos** e **70 g de gorduras** foi aplicada uniformemente aos sete dias da semana. O resumo semanal apresentado na tela ficou consistente com esse cenário, exibindo **15400 kcal**, **1120 g de proteínas**, **1680 g de carboidratos** e **490 g de gorduras**.
+
+## Síntese adicional da rodada de validação de 2026-04-25 — refeições manuais e hidratação
+
+A rota `/log-meal` carregou sem erro após a evolução do produto com **criação, edição e exclusão manual de refeições**. Na inspeção visual da interface, o bloco **Registrar refeição com IA multimodal** permaneceu íntegro com os campos de texto, imagem e áudio, enquanto o novo bloco **Criar ou editar refeição manualmente** apareceu com formulário próprio, totais nutricionais e ação explícita para adicionar itens na refeição.
+
+Também foi observada a seção **Refeições registradas** com ações visuais de **Editar manualmente** e **Excluir refeição**, confirmando que a manutenção manual passou a fazer parte da experiência principal do produto. Em paralelo, a verificação de saúde do ambiente foi concluída sem erros de TypeScript após a inclusão do acompanhamento de água e dos novos contratos de backend.
