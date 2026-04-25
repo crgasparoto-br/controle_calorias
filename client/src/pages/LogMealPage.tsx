@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { BrainCircuit, ImagePlus, Mic, Save, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -208,9 +209,9 @@ export default function LogMealPage() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm text-muted-foreground">Confiança estimada</p>
-                      <p className="text-2xl font-semibold tracking-tight">{Math.round(draft.processed.confidence * 100)}%</p>
+                      <p className="text-2xl font-semibold tracking-tight">{formatPercentPtBr(draft.processed.confidence * 100)}%</p>
                     </div>
-                    <Badge>{draft.processed.items.length} itens identificados</Badge>
+                    <Badge>{formatCountPtBr(draft.processed.items.length, " itens identificados")}</Badge>
                   </div>
                   <p className="mt-4 text-sm leading-6 text-muted-foreground">{draft.processed.reasoning}</p>
                   {draft.processed.transcript ? (
@@ -280,10 +281,10 @@ export default function LogMealPage() {
                 <div className="rounded-2xl border bg-muted/30 p-4">
                   <p className="text-sm text-muted-foreground">Totais após revisão</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                    <SummaryPill label="Calorias" value={`${Math.round(previewTotals.calories)} kcal`} />
-                    <SummaryPill label="Proteínas" value={`${Math.round(previewTotals.protein)} g`} />
-                    <SummaryPill label="Carboidratos" value={`${Math.round(previewTotals.carbs)} g`} />
-                    <SummaryPill label="Gorduras" value={`${Math.round(previewTotals.fat)} g`} />
+                    <SummaryPill label="Calorias" value={formatCalories(previewTotals.calories)} />
+                    <SummaryPill label="Proteínas" value={formatGrams(previewTotals.protein)} />
+                    <SummaryPill label="Carboidratos" value={formatGrams(previewTotals.carbs)} />
+                    <SummaryPill label="Gorduras" value={formatGrams(previewTotals.fat)} />
                   </div>
                 </div>
 

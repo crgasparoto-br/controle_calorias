@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatCalories, formatCountPtBr, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { MessageCircle, Send, Webhook } from "lucide-react";
 import { useState } from "react";
@@ -97,6 +98,7 @@ export default function ChannelsPage() {
               <div className="space-y-2">
                 <Label htmlFor="simulation-user">ID interno do usuário</Label>
                 <Input id="simulation-user" type="number" value={userId} onChange={event => setUserId(Number(event.target.value))} />
+                <p className="text-xs text-muted-foreground">ID atual: {formatCountPtBr(userId)}</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="simulation-message">Mensagem simulada</Label>
@@ -126,11 +128,11 @@ export default function ChannelsPage() {
                       <p className="text-sm text-muted-foreground">Rascunho gerado</p>
                       <p className="font-mono text-sm text-foreground">{lastSimulation.draftId}</p>
                     </div>
-                    <Badge>{Math.round(lastSimulation.processed.confidence * 100)}% de confiança</Badge>
+                    <Badge>{formatPercentPtBr(lastSimulation.processed.confidence * 100)}% de confiança</Badge>
                   </div>
                   <div>
                     <p className="font-medium tracking-tight">{lastSimulation.processed.detectedMealLabel}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Total estimado: {Math.round(lastSimulation.processed.totals.calories)} kcal</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Total estimado: {formatCalories(lastSimulation.processed.totals.calories)}</p>
                   </div>
                   <div className="space-y-2">
                     {lastSimulation.processed.items.map((item, index) => (

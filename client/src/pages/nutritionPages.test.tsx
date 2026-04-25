@@ -165,7 +165,7 @@ describe("nutrition pages", () => {
 
     expect(html).toContain("Acompanhe calorias, macronutrientes e hábitos alimentares em um só painel");
     expect(html).toContain("Resumo de hoje");
-    expect(html).toContain("1240");
+    expect(html).toContain("1.240");
   });
 
   it("renderiza a página de metas com meta geral, exceções por dia e soma semanal", async () => {
@@ -178,7 +178,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Sexta-feira");
     expect(html).toContain("Soma planejada da semana");
     expect(html).toContain("Calorias semanais");
-    expect(html).toContain("15600 kcal");
+    expect(html).toContain("15.600 kcal");
   });
 
   it("renderiza a página de registro multimodal", async () => {

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { formatCalories, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarRange, Goal, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -273,16 +274,16 @@ export default function GoalsPage() {
                       <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
                     </div>
                     <p className="mt-3 text-sm text-muted-foreground">
-                      {Math.round(day.calories)} kcal · {Math.round(day.proteinGrams)} g proteína · {Math.round(day.carbsGrams)} g carbo · {Math.round(day.fatGrams)} g gordura
+                      {formatCalories(day.calories)} · {formatGrams(day.proteinGrams)} proteína · {formatGrams(day.carbsGrams)} carbo · {formatGrams(day.fatGrams)} gordura
                     </p>
                   </div>
                 ))}
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <SummaryTile label="Calorias semanais" value={`${Math.round(weeklyTotals.calories)} kcal`} />
-                <SummaryTile label="Proteínas na semana" value={`${Math.round(weeklyTotals.proteinGrams)} g`} />
-                <SummaryTile label="Carboidratos na semana" value={`${Math.round(weeklyTotals.carbsGrams)} g`} />
-                <SummaryTile label="Gorduras na semana" value={`${Math.round(weeklyTotals.fatGrams)} g`} />
+                <SummaryTile label="Calorias semanais" value={formatCalories(weeklyTotals.calories)} />
+                <SummaryTile label="Proteínas na semana" value={formatGrams(weeklyTotals.proteinGrams)} />
+                <SummaryTile label="Carboidratos na semana" value={formatGrams(weeklyTotals.carbsGrams)} />
+                <SummaryTile label="Gorduras na semana" value={formatGrams(weeklyTotals.fatGrams)} />
               </div>
             </CardContent>
           </Card>
@@ -299,7 +300,7 @@ export default function GoalsPage() {
                 <p className="text-sm text-muted-foreground">Meta ativa hoje</p>
                 <p className="mt-2 text-3xl font-semibold tracking-tight">{todayGoal.label}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {Math.round(todayGoal.calories)} kcal planejadas para o dia {todayGoal.source === "exception" ? "com exceção ativa" : "pela regra geral"}.
+                  {formatCalories(todayGoal.calories)} planejadas para o dia {todayGoal.source === "exception" ? "com exceção ativa" : "pela regra geral"}.
                 </p>
               </div>
               <div className="grid gap-3">
@@ -309,10 +310,10 @@ export default function GoalsPage() {
               </div>
               <div className="rounded-3xl border bg-background p-4 shadow-sm">
                 <p className="text-sm text-muted-foreground">Consistência energética da semana</p>
-                <p className="mt-2 text-3xl font-semibold tracking-tight">{Math.round(weeklyMacroCalories)} kcal</p>
+                <p className="mt-2 text-3xl font-semibold tracking-tight">{formatCalories(weeklyMacroCalories)}</p>
                 <p className="mt-2 text-sm text-muted-foreground">Equivalente calórico estimado a partir dos macronutrientes planejados para a semana atual.</p>
                 <Progress className="mt-4 h-2" value={alignment} />
-                <p className="mt-3 text-sm text-muted-foreground">{Math.round(alignment)}% de alinhamento entre macros e calorias planejadas.</p>
+                <p className="mt-3 text-sm text-muted-foreground">{formatPercentPtBr(alignment)}% de alinhamento entre macros e calorias planejadas.</p>
               </div>
             </CardContent>
           </Card>
@@ -398,9 +399,9 @@ function MacroSplit({
           <div className={`h-3 w-3 rounded-full ${accent}`} />
           <p className="font-medium tracking-tight">{label}</p>
         </div>
-        <p className="text-sm text-muted-foreground">{Math.round(value)} g</p>
+        <p className="text-sm text-muted-foreground">{formatGrams(value)}</p>
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">{Math.round(value * calorieFactor)} kcal atribuídas a este macronutriente.</p>
+      <p className="mt-2 text-sm text-muted-foreground">{formatCalories(value * calorieFactor)} atribuídas a este macronutriente.</p>
     </div>
   );
 }

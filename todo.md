@@ -75,3 +75,6 @@
 - [x] Permitir configurar a duração da exceção por uma semana, duas semanas, três semanas ou de forma permanente
 - [x] Atualizar dashboard, relatórios e cálculos para aplicar a meta geral quando não houver exceção ativa e a meta excepcional quando houver vigência válida
 - [x] Cobrir com testes a combinação entre meta padrão, exceções por dia e duração das exceções
+- [x] Aplicar formatação de números no padrão pt-BR nas telas e resumos da plataforma, ajustando exibição de calorias, macronutrientes, percentuais e totais onde fizer sentido visual
+- [x] Aplicar o utilitário central de formatação pt-BR também aos componentes compartilhados que exibem números, especialmente tooltips e legendas de gráficos
+- [x] Revisar as telas e componentes reutilizáveis restantes para remover exibições numéricas sem locale explícito, validando percentuais, contagens, calorias e gramas em toda a UI

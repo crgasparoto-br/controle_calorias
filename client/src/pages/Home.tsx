@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { formatCalories, formatCountPtBr, formatGrams, formatIntegerPtBr, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Activity, ArrowRight, BrainCircuit, Flame, Salad, Target } from "lucide-react";
 import { Link } from "wouter";
@@ -63,31 +64,31 @@ export default function Home() {
                 <div className="mt-2 flex items-end justify-between gap-4">
                   <div>
                     <p className="text-3xl font-semibold tracking-tight">
-                      {overview.data ? Math.round(overview.data.today.consumed.calories) : "--"}
+                      {overview.data ? formatIntegerPtBr(overview.data.today.consumed.calories) : "--"}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      de {overview.data?.today.goal.calories ?? "--"} kcal planejadas
+                      de {overview.data ? formatCalories(overview.data.today.goal.calories) : "--"} planejadas
                     </p>
                   </div>
-                  <Badge variant="secondary">{overview.data?.today.adherence ?? 0}% da meta</Badge>
+                  <Badge variant="secondary">{formatPercentPtBr(overview.data?.today.adherence ?? 0)}% da meta</Badge>
                 </div>
                 <Progress className="mt-4 h-2" value={overview.data?.today.adherence ?? 0} />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <StatBlock
                   label="Proteínas"
-                  value={`${Math.round(overview.data?.today.consumed.protein ?? 0)} g`}
-                  sublabel={`Restam ${Math.round(overview.data?.today.remaining.protein ?? 0)} g`}
+                  value={formatGrams(overview.data?.today.consumed.protein ?? 0)}
+                  sublabel={`Restam ${formatGrams(overview.data?.today.remaining.protein ?? 0)}`}
                 />
                 <StatBlock
                   label="Carboidratos"
-                  value={`${Math.round(overview.data?.today.consumed.carbs ?? 0)} g`}
-                  sublabel={`Restam ${Math.round(overview.data?.today.remaining.carbs ?? 0)} g`}
+                  value={formatGrams(overview.data?.today.consumed.carbs ?? 0)}
+                  sublabel={`Restam ${formatGrams(overview.data?.today.remaining.carbs ?? 0)}`}
                 />
                 <StatBlock
                   label="Gorduras"
-                  value={`${Math.round(overview.data?.today.consumed.fat ?? 0)} g`}
-                  sublabel={`Restam ${Math.round(overview.data?.today.remaining.fat ?? 0)} g`}
+                  value={formatGrams(overview.data?.today.consumed.fat ?? 0)}
+                  sublabel={`Restam ${formatGrams(overview.data?.today.remaining.fat ?? 0)}`}
                 />
               </div>
             </CardContent>
@@ -95,10 +96,10 @@ export default function Home() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={Flame} title="Calorias" value={`${Math.round(overview.data?.today.consumed.calories ?? 0)} kcal`} description="Consumidas hoje" />
-          <MetricCard icon={Salad} title="Refeições" value={`${overview.data?.meals.length ?? 0}`} description="Últimos registros" />
-          <MetricCard icon={BrainCircuit} title="Hábitos lembrados" value={`${overview.data?.habits.length ?? 0}`} description="Preferências aprendidas" />
-          <MetricCard icon={Activity} title="Evolução semanal" value={`${overview.data?.weekly.length ?? 0} dias`} description="Janela de monitoramento" />
+          <MetricCard icon={Flame} title="Calorias" value={formatCalories(overview.data?.today.consumed.calories ?? 0)} description="Consumidas hoje" />
+          <MetricCard icon={Salad} title="Refeições" value={formatCountPtBr(overview.data?.meals.length ?? 0)} description="Últimos registros" />
+          <MetricCard icon={BrainCircuit} title="Hábitos lembrados" value={formatCountPtBr(overview.data?.habits.length ?? 0)} description="Preferências aprendidas" />
+          <MetricCard icon={Activity} title="Evolução semanal" value={formatCountPtBr(overview.data?.weekly.length ?? 0, " dias")} description="Janela de monitoramento" />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.4fr,1fr]">
@@ -122,7 +123,7 @@ export default function Home() {
                   return (
                     <div key={day.date} className="rounded-2xl border bg-muted/30 p-4">
                       <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{day.label}</p>
-                      <p className="mt-3 text-2xl font-semibold tracking-tight">{Math.round(day.calories)}</p>
+                      <p className="mt-3 text-2xl font-semibold tracking-tight">{formatIntegerPtBr(day.calories)}</p>
                       <p className="text-xs text-muted-foreground">kcal</p>
                       <div className="mt-4 h-28 rounded-full bg-background px-3 py-2">
                         <div className="flex h-full items-end justify-center">
@@ -134,7 +135,7 @@ export default function Home() {
                           </div>
                         </div>
                       </div>
-                      <p className="mt-3 text-xs text-muted-foreground">Meta {day.goalCalories} kcal</p>
+                      <p className="mt-3 text-xs text-muted-foreground">Meta {formatCalories(day.goalCalories)}</p>
                     </div>
                   );
                 })}
@@ -156,7 +157,7 @@ export default function Home() {
                         <p className="font-medium tracking-tight">{habit.foodName}</p>
                         <p className="text-sm text-muted-foreground">{habit.typicalTimeLabel || "Horário livre"}</p>
                       </div>
-                      <Badge variant="secondary">{habit.occurrenceCount}x</Badge>
+                      <Badge variant="secondary">{formatCountPtBr(habit.occurrenceCount, "x")}</Badge>
                     </div>
                     <p className="mt-3 text-sm text-muted-foreground">{habit.notes || "Sem observações adicionais."}</p>
                   </div>
@@ -187,7 +188,7 @@ export default function Home() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">{meal.source === "web" ? "Web" : "WhatsApp"}</Badge>
-                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{Math.round(meal.totals.calories)} kcal</Badge>
+                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(meal.totals.calories)}</Badge>
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -278,11 +279,11 @@ function MacroBar({ label, consumed, goal }: { label: string; consumed: number; 
       <div className="flex items-center justify-between gap-3">
         <p className="font-medium tracking-tight">{label}</p>
         <p className="text-sm text-muted-foreground">
-          {Math.round(consumed)} g / {Math.round(goal)} g
+          {formatGrams(consumed)} / {formatGrams(goal)}
         </p>
       </div>
       <Progress value={progress} className="h-2" />
-      <p className="text-xs text-muted-foreground">{Math.round(progress)}% da meta atingida hoje.</p>
+      <p className="text-xs text-muted-foreground">{formatPercentPtBr(progress)}% da meta atingida hoje.</p>
     </div>
   );
 }

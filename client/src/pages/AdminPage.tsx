@@ -1,6 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Shield, Users } from "lucide-react";
 
@@ -13,10 +14,10 @@ export default function AdminPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-4">
-          <AdminMetric title="Usuários" value={String(admin.data?.usage.usersCount ?? 0)} />
-          <AdminMetric title="Refeições confirmadas" value={String(admin.data?.usage.mealsCount ?? 0)} />
-          <AdminMetric title="Inferências pendentes" value={String(admin.data?.usage.pendingInferences ?? 0)} />
-          <AdminMetric title="Logs registrados" value={String(admin.data?.usage.logsCount ?? 0)} />
+          <AdminMetric title="Usuários" value={formatCountPtBr(admin.data?.usage.usersCount ?? 0)} />
+          <AdminMetric title="Refeições confirmadas" value={formatCountPtBr(admin.data?.usage.mealsCount ?? 0)} />
+          <AdminMetric title="Inferências pendentes" value={formatCountPtBr(admin.data?.usage.pendingInferences ?? 0)} />
+          <AdminMetric title="Logs registrados" value={formatCountPtBr(admin.data?.usage.logsCount ?? 0)} />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">

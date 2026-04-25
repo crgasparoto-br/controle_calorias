@@ -1,12 +1,16 @@
 import React from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCalories, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { BarChart3, Clock3, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 function formatMacro(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+  return formatNumberPtBr(value, {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+    maximumFractionDigits: 1,
+  });
 }
 
 function formatMealTime(timestamp: number) {
@@ -35,17 +39,17 @@ export default function ReportsPage() {
         <div className="grid gap-4 lg:grid-cols-3">
           <HighlightCard
             title="Consumo semanal"
-            value={`${Math.round(caloricTrend.reduce((acc, day) => acc + day.calories, 0))} kcal`}
+            value={formatCalories(caloricTrend.reduce((acc, day) => acc + day.calories, 0))}
             description="Soma do período monitorado nos últimos sete dias."
           />
           <HighlightCard
             title="Média diária"
-            value={`${Math.round(caloricTrend.reduce((acc, day) => acc + day.calories, 0) / Math.max(caloricTrend.length, 1))} kcal`}
+            value={formatCalories(caloricTrend.reduce((acc, day) => acc + day.calories, 0) / Math.max(caloricTrend.length, 1))}
             description="Média simples de calorias ingeridas por dia."
           />
           <HighlightCard
             title="Maior consumo"
-            value={`${Math.round(Math.max(...caloricTrend.map(day => day.calories), 0))} kcal`}
+            value={formatCalories(Math.max(...caloricTrend.map(day => day.calories), 0))}
             description="Pico calórico identificado na janela semanal atual."
           />
         </div>
@@ -145,11 +149,11 @@ export default function ReportsPage() {
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-medium tracking-tight">{day.label}</p>
                       <p className={`text-sm font-medium ${delta > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                        {delta > 0 ? `+${Math.round(delta)}` : Math.round(delta)} kcal
+                        {delta > 0 ? `+${formatNumberPtBr(Math.round(delta))}` : formatNumberPtBr(Math.round(delta))} kcal
                       </p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Proteínas {Math.round(day.protein)} g · Carboidratos {Math.round(day.carbs)} g · Gorduras {Math.round(day.fat)} g
+                      Proteínas {formatMacro(day.protein)} g · Carboidratos {formatMacro(day.carbs)} g · Gorduras {formatMacro(day.fat)} g
                     </p>
                   </div>
                 );
