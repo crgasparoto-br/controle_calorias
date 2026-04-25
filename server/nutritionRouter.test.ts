@@ -88,28 +88,47 @@ describe("nutrition router", () => {
     vi.useRealTimers();
   });
 
-  it("atualiza metas e reflete o novo saldo no dashboard", async () => {
+  it("atualiza a meta padrão com exceções e reflete a regra efetiva no dashboard", async () => {
     const caller = appRouter.createCaller(createNutritionContext(501));
 
     await caller.nutrition.goals.update({
-      days: [
-        { weekday: 0, calories: 2500, proteinGrams: 180, carbsGrams: 260, fatGrams: 80 },
-        { weekday: 1, calories: 2400, proteinGrams: 175, carbsGrams: 250, fatGrams: 78 },
-        { weekday: 2, calories: 2300, proteinGrams: 170, carbsGrams: 240, fatGrams: 76 },
-        { weekday: 3, calories: 2200, proteinGrams: 165, carbsGrams: 230, fatGrams: 74 },
-        { weekday: 4, calories: 2600, proteinGrams: 185, carbsGrams: 280, fatGrams: 82 },
-        { weekday: 5, calories: 2700, proteinGrams: 190, carbsGrams: 295, fatGrams: 84 },
-        { weekday: 6, calories: 2100, proteinGrams: 160, carbsGrams: 220, fatGrams: 72 },
+      defaultGoal: {
+        calories: 2300,
+        proteinGrams: 170,
+        carbsGrams: 240,
+        fatGrams: 76,
+      },
+      exceptions: [
+        {
+          weekday: 2,
+          durationType: "2_weeks",
+          calories: 2500,
+          proteinGrams: 180,
+          carbsGrams: 260,
+          fatGrams: 80,
+        },
+        {
+          weekday: 4,
+          durationType: "always",
+          calories: 2600,
+          proteinGrams: 185,
+          carbsGrams: 280,
+          fatGrams: 82,
+        },
       ],
     });
 
     const overview = await caller.nutrition.dashboard.overview();
 
     expect(overview.goal.days).toHaveLength(7);
-    expect(overview.goal.today.calories).toBe(2300);
-    expect(overview.goal.today.proteinGrams).toBe(170);
-    expect(overview.goal.weeklyTotals.calories).toBe(16800);
-    expect(overview.today.remaining.calories).toBe(2300);
+    expect(overview.goal.defaultGoal.calories).toBe(2300);
+    expect(overview.goal.exceptions).toHaveLength(2);
+    expect(overview.goal.today.calories).toBe(2500);
+    expect(overview.goal.today.proteinGrams).toBe(180);
+    expect(overview.goal.today.source).toBe("exception");
+    expect(overview.goal.weeklyTotals.calories).toBe(16600);
+    expect(overview.today.goal.calories).toBe(2500);
+    expect(overview.today.remaining.calories).toBe(2500);
   });
 
   it("simula entrada por WhatsApp e confirma a refeição revisada", async () => {

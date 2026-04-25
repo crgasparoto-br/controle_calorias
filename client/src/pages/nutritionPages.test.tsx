@@ -75,17 +75,52 @@ vi.mock("@/lib/trpc", () => ({
 
 const overviewData = {
   goal: {
-    days: [
-      { weekday: 0, label: "Segunda-feira", shortLabel: "seg.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70 },
-      { weekday: 1, label: "Terça-feira", shortLabel: "ter.", calories: 2100, proteinGrams: 150, carbsGrams: 220, fatGrams: 65 },
-      { weekday: 2, label: "Quarta-feira", shortLabel: "qua.", calories: 2300, proteinGrams: 165, carbsGrams: 250, fatGrams: 72 },
-      { weekday: 3, label: "Quinta-feira", shortLabel: "qui.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70 },
-      { weekday: 4, label: "Sexta-feira", shortLabel: "sex.", calories: 2400, proteinGrams: 170, carbsGrams: 270, fatGrams: 74 },
-      { weekday: 5, label: "Sábado", shortLabel: "sáb.", calories: 2500, proteinGrams: 175, carbsGrams: 290, fatGrams: 78 },
-      { weekday: 6, label: "Domingo", shortLabel: "dom.", calories: 2000, proteinGrams: 145, carbsGrams: 210, fatGrams: 60 },
+    defaultGoal: {
+      id: 10,
+      userId: 1,
+      ruleType: "default",
+      weekday: -1,
+      durationType: "always",
+      calories: 2200,
+      proteinGrams: 160,
+      carbsGrams: 240,
+      fatGrams: 70,
+      effectiveFrom: new Date("2026-04-14T00:00:00.000Z"),
+      effectiveUntil: null,
+      createdAt: new Date("2026-04-14T00:00:00.000Z"),
+      updatedAt: new Date("2026-04-14T00:00:00.000Z"),
+    },
+    exceptions: [
+      {
+        id: 11,
+        userId: 1,
+        ruleType: "exception",
+        weekday: 4,
+        durationType: "always",
+        calories: 2400,
+        proteinGrams: 170,
+        carbsGrams: 270,
+        fatGrams: 74,
+        effectiveFrom: new Date("2026-04-14T00:00:00.000Z"),
+        effectiveUntil: null,
+        createdAt: new Date("2026-04-14T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-14T00:00:00.000Z"),
+        label: "Sexta-feira",
+        shortLabel: "sex.",
+        isActive: true,
+      },
     ],
-    today: { weekday: 0, label: "Segunda-feira", shortLabel: "seg.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70 },
-    weeklyTotals: { calories: 15700, proteinGrams: 1125, carbsGrams: 1720, fatGrams: 489 },
+    days: [
+      { weekday: 0, label: "Segunda-feira", shortLabel: "seg.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
+      { weekday: 1, label: "Terça-feira", shortLabel: "ter.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
+      { weekday: 2, label: "Quarta-feira", shortLabel: "qua.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
+      { weekday: 3, label: "Quinta-feira", shortLabel: "qui.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
+      { weekday: 4, label: "Sexta-feira", shortLabel: "sex.", calories: 2400, proteinGrams: 170, carbsGrams: 270, fatGrams: 74, source: "exception", exceptionId: 11 },
+      { weekday: 5, label: "Sábado", shortLabel: "sáb.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
+      { weekday: 6, label: "Domingo", shortLabel: "dom.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
+    ],
+    today: { weekday: 4, label: "Sexta-feira", shortLabel: "sex.", calories: 2400, proteinGrams: 170, carbsGrams: 270, fatGrams: 74, source: "exception", exceptionId: 11 },
+    weeklyTotals: { calories: 15600, proteinGrams: 1130, carbsGrams: 1710, fatGrams: 494 },
   },
   today: {
     goal: { label: "Segunda-feira", calories: 2200, protein: 160, carbs: 240, fat: 70 },
@@ -133,15 +168,17 @@ describe("nutrition pages", () => {
     expect(html).toContain("1240");
   });
 
-  it("renderiza a página de metas com planejamento diário e soma semanal", async () => {
+  it("renderiza a página de metas com meta geral, exceções por dia e soma semanal", async () => {
     const { default: GoalsPage } = await import("./GoalsPage");
     const html = renderToString(React.createElement(GoalsPage));
 
-    expect(html).toContain("Planejamento nutricional por dia da semana");
+    expect(html).toContain("Meta geral da semana");
+    expect(html).toContain("Exceções por dia da semana");
     expect(html).toContain("Segunda-feira");
+    expect(html).toContain("Sexta-feira");
     expect(html).toContain("Soma planejada da semana");
     expect(html).toContain("Calorias semanais");
-    expect(html).toContain("15400 kcal");
+    expect(html).toContain("15600 kcal");
   });
 
   it("renderiza a página de registro multimodal", async () => {

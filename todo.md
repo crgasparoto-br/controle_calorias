@@ -70,3 +70,8 @@
 - [x] Aplicar e validar em banco real a migração de metas por dia da semana, eliminando o erro `Unknown column 'weekday' in 'field list'` no ambiente em execução
 - [x] Revalidar manualmente a página de metas no ambiente web após a migração para confirmar a exibição do planejamento diário e do acumulado semanal
 - [x] Expandir testes e evidências do dashboard e dos relatórios para comprovar a comparação entre consumo diário, acumulado semanal e metas planejadas por dia
+- [x] Implementar uma meta geral padrão válida para todos os dias da semana
+- [x] Permitir exceções opcionais por dia da semana, com escolha simples de quais dias terão meta diferente da regra geral
+- [x] Permitir configurar a duração da exceção por uma semana, duas semanas, três semanas ou de forma permanente
+- [x] Atualizar dashboard, relatórios e cálculos para aplicar a meta geral quando não houver exceção ativa e a meta excepcional quando houver vigência válida
+- [x] Cobrir com testes a combinação entre meta padrão, exceções por dia e duração das exceções

@@ -17,17 +17,20 @@ export const nutritionGoals = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("userId").notNull(),
-    weekday: int("weekday").notNull(),
+    ruleType: mysqlEnum("ruleType", ["default", "exception"]).default("default").notNull(),
+    weekday: int("weekday").default(-1).notNull(),
+    durationType: mysqlEnum("durationType", ["1_week", "2_weeks", "3_weeks", "always"]).default("always").notNull(),
     calories: int("calories").notNull(),
     proteinGrams: double("proteinGrams").notNull(),
     carbsGrams: double("carbsGrams").notNull(),
     fatGrams: double("fatGrams").notNull(),
     effectiveFrom: timestamp("effectiveFrom").defaultNow().notNull(),
+    effectiveUntil: timestamp("effectiveUntil"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
-    userWeekdayUnique: uniqueIndex("nutritionGoals_user_weekday_idx").on(table.userId, table.weekday),
+    userRuleWindowUnique: uniqueIndex("nutritionGoals_user_rule_window_idx").on(table.userId, table.ruleType, table.weekday, table.effectiveFrom),
   }),
 );
 
