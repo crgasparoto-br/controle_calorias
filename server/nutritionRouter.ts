@@ -24,6 +24,7 @@ import {
   removeUserExercise,
   removeUserMeal,
   removeUserWaterLog,
+  updateUserExercise,
   updateUserMeal,
   updateUserWaterGoal,
   upsertNutritionGoal,
@@ -236,6 +237,9 @@ export const nutritionRouter = router({
   exercises: router({
     list: protectedProcedure.query(async ({ ctx }) => listUserExercises(ctx.user.id)),
     create: protectedProcedure.input(exerciseSchema).mutation(async ({ ctx, input }) => createUserExercise(ctx.user.id, input)),
+    update: protectedProcedure
+      .input(exerciseSchema.extend({ exerciseId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => updateUserExercise(ctx.user.id, input)),
     remove: protectedProcedure
       .input(z.object({ exerciseId: z.number().int().positive() }))
       .mutation(async ({ ctx, input }) => removeUserExercise(ctx.user.id, input.exerciseId)),

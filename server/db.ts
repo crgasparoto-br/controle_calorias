@@ -633,6 +633,26 @@ async function persistExerciseToDb(exercise: ExerciseEntry) {
   }
 }
 
+async function updateExerciseInDb(exercise: ExerciseEntry) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db
+      .update(exercises)
+      .set({
+        activityType: exercise.activityType,
+        durationMinutes: exercise.durationMinutes,
+        caloriesBurned: exercise.caloriesBurned,
+        notes: exercise.notes ?? null,
+        occurredAt: new Date(exercise.occurredAt),
+      })
+      .where(and(eq(exercises.userId, exercise.userId), eq(exercises.id, exercise.id)));
+  } catch (error) {
+    logPersistenceWarning("Exercise update skipped", error);
+  }
+}
+
 async function deleteExerciseFromDb(userId: number, exerciseId: number) {
   const db = await getDb();
   if (!db) return;
@@ -1479,6 +1499,47 @@ export async function createUserExercise(userId: number, input: {
     detail: `Exercício ${created.activityType} registrado com gasto de ${round(created.caloriesBurned)} kcal.`,
   });
   return created;
+}
+
+export async function updateUserExercise(userId: number, input: {
+  exerciseId: number;
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  occurredAt: string;
+  notes?: string;
+}) {
+  const current = await listUserExercises(userId);
+  const existing = current.find(item => item.id === input.exerciseId);
+  if (!existing) {
+    throw new Error("Exercício não encontrado.");
+  }
+
+  const updated: ExerciseEntry = {
+    ...existing,
+    activityType: input.activityType,
+    durationMinutes: input.durationMinutes,
+    caloriesBurned: input.caloriesBurned,
+    occurredAt: new Date(input.occurredAt).getTime(),
+    notes: input.notes ?? null,
+    updatedAt: new Date(),
+  };
+
+  exerciseStore.set(
+    userId,
+    current
+      .map(item => (item.id === input.exerciseId ? updated : item))
+      .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt)),
+  );
+  await updateExerciseInDb(updated);
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "exercise.updated",
+    detail: `Exercício ${updated.activityType} atualizado pelo usuário.`,
+  });
+  return updated;
 }
 
 export async function removeUserExercise(userId: number, exerciseId: number) {

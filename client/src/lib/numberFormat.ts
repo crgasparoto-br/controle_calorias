@@ -39,3 +39,13 @@ export function formatGrams(value: number, fractionDigits = 0) {
 export function formatCountPtBr(value: number, suffix = "") {
   return `${formatIntegerPtBr(value)}${suffix}`;
 }
+
+export function parseIntegerInputPtBr(value: string) {
+  const digitsOnly = value.replace(/\D/g, "");
+  return digitsOnly ? Number(digitsOnly) : 0;
+}
+
+export function formatIntegerInputPtBr(value: string | number) {
+  const numericValue = typeof value === "number" ? value : parseIntegerInputPtBr(value);
+  return numericValue ? formatIntegerPtBr(numericValue) : "";
+}

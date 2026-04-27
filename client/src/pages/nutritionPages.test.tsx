@@ -66,6 +66,9 @@ vi.mock("@/lib/trpc", () => ({
         create: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
+        update: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         remove: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
@@ -229,6 +232,9 @@ describe("nutrition pages", () => {
     expect(html).toContain("Equação energética do dia");
     expect(html).toContain("Registrar exercício");
     expect(html).toContain("Água do dia");
+    expect(html).toContain("Visão semanal combinada");
+    expect(html).toContain("value=\"2.500\"");
+    expect(html).toContain("200 ml");
     expect(html).toContain("1.200 ml");
     expect(html).toContain("920 kcal");
   });

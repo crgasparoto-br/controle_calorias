@@ -215,6 +215,29 @@ describe("nutrition router", () => {
     expect(weekly[2]?.exerciseCalories).toBe(320);
     expect(weekly[2]?.netCalories).toBe(57.5);
 
+    const updatedExercise = await caller.nutrition.exercises.update({
+      exerciseId: createdExercise.id,
+      activityType: "Corrida moderada",
+      durationMinutes: 50,
+      caloriesBurned: 410,
+      occurredAt: new Date().toISOString(),
+      notes: "Treino com progressão",
+    });
+    const updatedListAfterEdit = await caller.nutrition.exercises.list();
+    const overviewAfterEdit = await caller.nutrition.dashboard.overview();
+    const weeklyAfterEdit = await caller.nutrition.reports.weekly();
+
+    expect(updatedExercise.activityType).toBe("Corrida moderada");
+    expect(updatedExercise.caloriesBurned).toBe(410);
+    expect(updatedListAfterEdit[0]?.durationMinutes).toBe(50);
+    expect(updatedListAfterEdit[0]?.notes).toBe("Treino com progressão");
+    expect(overviewAfterEdit.today.burned.calories).toBe(410);
+    expect(overviewAfterEdit.today.net.calories).toBe(-32.5);
+    expect(overviewAfterEdit.week.burned.calories).toBe(410);
+    expect(overviewAfterEdit.week.net.calories).toBe(-32.5);
+    expect(weeklyAfterEdit[2]?.exerciseCalories).toBe(410);
+    expect(weeklyAfterEdit[2]?.netCalories).toBe(-32.5);
+
     const removal = await caller.nutrition.exercises.remove({ exerciseId: createdExercise.id });
     const updatedList = await caller.nutrition.exercises.list();
     const updatedOverview = await caller.nutrition.dashboard.overview();

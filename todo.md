@@ -91,3 +91,8 @@
 - [x] Incorporar o gasto energético dos exercícios no cálculo do saldo líquido diário e semanal de calorias
 - [x] Adicionar testes de backend para criar, listar e remover exercícios e validar o cálculo de calorias líquidas diárias e semanais no dashboard e nos relatórios
 - [x] Cobrir com testes a persistência de exercícios e o novo cálculo de saldo líquido
+- [x] Adicionar atalhos rápidos de água com ações diretas de 200 ml, 300 ml e 500 ml no dashboard
+- [x] Permitir edição inline dos exercícios registrados sem exigir exclusão e recriação manual
+- [x] Criar uma visão semanal combinada com calorias líquidas, consumo de água e adesão à meta em um único bloco visual
+- [x] Aplicar formatação pt-BR no campo de entrada da meta diária da água no dashboard, preservando a gravação numérica correta do valor salvo
+- [x] Revisar os campos numéricos recém-adicionados de hidratação para garantir consistência com a regra de formatação pt-BR em entradas de dados

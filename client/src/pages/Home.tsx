@@ -4,9 +4,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { formatCalories, formatCountPtBr, formatGrams, formatIntegerPtBr, formatPercentPtBr } from "@/lib/numberFormat";
+import {
+  formatCalories,
+  formatCountPtBr,
+  formatGrams,
+  formatIntegerInputPtBr,
+  formatIntegerPtBr,
+  formatPercentPtBr,
+  parseIntegerInputPtBr,
+} from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, BrainCircuit, Droplets, Dumbbell, Flame, Salad, Target, Trash2 } from "lucide-react";
+import { Activity, ArrowRight, BrainCircuit, Droplets, Dumbbell, Flame, PencilLine, Salad, Target, Trash2, X } from "lucide-react";
 import { Link } from "wouter";
 
 function macroProgress(consumed: number, goal: number) {
@@ -26,9 +34,25 @@ function buildDefaultExerciseForm() {
 
 function buildDefaultWaterForm() {
   return {
-    amountMl: "300",
+    amountMl: formatIntegerInputPtBr(300),
     occurredAt: new Date().toISOString().slice(0, 16),
-    dailyTargetMl: "2500",
+    dailyTargetMl: formatIntegerInputPtBr(2500),
+  };
+}
+
+function buildExerciseEditForm(exercise: {
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  occurredAt: number;
+  notes?: string | null;
+}) {
+  return {
+    activityType: exercise.activityType,
+    durationMinutes: String(exercise.durationMinutes),
+    caloriesBurned: String(exercise.caloriesBurned),
+    occurredAt: new Date(Number(exercise.occurredAt)).toISOString().slice(0, 16),
+    notes: exercise.notes ?? "",
   };
 }
 
@@ -38,10 +62,12 @@ export default function Home() {
   const waterGoal = trpc.nutrition.water.goal.useQuery();
   const [exerciseForm, setExerciseForm] = React.useState(buildDefaultExerciseForm);
   const [waterForm, setWaterForm] = React.useState(buildDefaultWaterForm);
+  const [editingExerciseId, setEditingExerciseId] = React.useState<number | null>(null);
+  const [editingExerciseForm, setEditingExerciseForm] = React.useState(buildDefaultExerciseForm);
 
   React.useEffect(() => {
     if (waterGoal.data?.dailyTargetMl) {
-      setWaterForm(current => ({ ...current, dailyTargetMl: String(waterGoal.data.dailyTargetMl) }));
+      setWaterForm(current => ({ ...current, dailyTargetMl: formatIntegerInputPtBr(waterGoal.data.dailyTargetMl) }));
     }
   }, [waterGoal.data?.dailyTargetMl]);
 
@@ -52,6 +78,17 @@ export default function Home() {
         utils.nutrition.reports.weekly.invalidate(),
       ]);
       setExerciseForm(buildDefaultExerciseForm());
+    },
+  });
+
+  const updateExercise = trpc.nutrition.exercises.update.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+      ]);
+      setEditingExerciseId(null);
+      setEditingExerciseForm(buildDefaultExerciseForm());
     },
   });
 
@@ -71,7 +108,7 @@ export default function Home() {
         utils.nutrition.reports.weekly.invalidate(),
         utils.nutrition.water.list.invalidate(),
       ]);
-      setWaterForm(current => ({ ...current, amountMl: "300", occurredAt: new Date().toISOString().slice(0, 16) }));
+      setWaterForm(current => ({ ...current, amountMl: formatIntegerInputPtBr(300), occurredAt: new Date().toISOString().slice(0, 16) }));
     },
   });
 
@@ -108,10 +145,19 @@ export default function Home() {
   const handleWaterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     createWaterLog.mutate({
-      amountMl: Number(waterForm.amountMl || 0),
+      amountMl: parseIntegerInputPtBr(waterForm.amountMl),
       occurredAt: new Date(waterForm.occurredAt).toISOString(),
     });
   };
+
+  const handleQuickWater = (amountMl: number) => {
+    createWaterLog.mutate({
+      amountMl,
+      occurredAt: new Date().toISOString(),
+    });
+  };
+
+  const weeklyCombined = overview.data?.weekly ?? [];
 
   return (
     <DashboardLayout>
@@ -240,8 +286,8 @@ export default function Home() {
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
-                <CardTitle>Evolução semanal de calorias</CardTitle>
-                <CardDescription>Comparação entre consumo diário, exercícios e meta calórica.</CardDescription>
+                <CardTitle>Visão semanal combinada</CardTitle>
+                <CardDescription>Leitura unificada de calorias líquidas, hidratação e adesão diária à meta.</CardDescription>
               </div>
               <Link href="/reports">
                 <Button variant="ghost" className="gap-2">
@@ -252,26 +298,20 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-7">
-                {overview.data?.weekly.map(day => {
-                  const value = macroProgress(day.calories, day.goalCalories);
+                {weeklyCombined.map(day => {
+                  const calorieProgress = macroProgress(day.netCalories ?? 0, day.goalCalories);
+                  const waterProgress = macroProgress(day.waterConsumedMl ?? 0, day.waterGoalMl ?? 0);
+                  const adherenceProgress = macroProgress(day.calories, day.goalCalories);
                   return (
                     <div key={day.date} className="rounded-2xl border bg-muted/30 p-4">
                       <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{day.label}</p>
-                      <p className="mt-3 text-2xl font-semibold tracking-tight">{formatIntegerPtBr(day.calories)}</p>
-                      <p className="text-xs text-muted-foreground">kcal consumidas</p>
-                      <div className="mt-4 h-28 rounded-full bg-background px-3 py-2">
-                        <div className="flex h-full items-end justify-center">
-                          <div className="w-full rounded-full bg-primary/15">
-                            <div
-                              className="rounded-full bg-gradient-to-t from-emerald-500 to-teal-400 transition-all"
-                              style={{ height: `${Math.max(value, 6)}%` }}
-                            />
-                          </div>
-                        </div>
+                      <p className="mt-3 text-lg font-semibold tracking-tight">{formatCalories(day.netCalories ?? 0)}</p>
+                      <p className="text-xs text-muted-foreground">saldo líquido do dia</p>
+                      <div className="mt-4 space-y-3">
+                        <MiniProgress label="Líquido" value={formatCalories(day.netCalories ?? 0)} progress={calorieProgress} helper={`Meta ${formatCalories(day.goalCalories)}`} />
+                        <MiniProgress label="Água" value={formatCountPtBr(day.waterConsumedMl ?? 0, " ml")} progress={waterProgress} helper={`Meta ${formatCountPtBr(day.waterGoalMl ?? 0, " ml")}`} />
+                        <MiniProgress label="Adesão" value={`${formatPercentPtBr(adherenceProgress)}%`} progress={adherenceProgress} helper={`Exercícios ${formatCalories(day.exerciseCalories ?? 0)}`} />
                       </div>
-                      <p className="mt-3 text-xs text-muted-foreground">Meta {formatCalories(day.goalCalories)}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Exercícios {formatCalories(day.exerciseCalories ?? 0)}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Líquido {formatCalories(day.netCalories ?? 0)}</p>
                     </div>
                   );
                 })}
@@ -349,23 +389,111 @@ export default function Home() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-medium tracking-tight">{exercise.activityType}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatCountPtBr(exercise.durationMinutes, " min")} · {formatCalories(exercise.caloriesBurned)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")}
-                          </p>
-                          {exercise.notes ? <p className="mt-2 text-sm text-muted-foreground">{exercise.notes}</p> : null}
+                          {editingExerciseId === exercise.id ? (
+                            <div className="mt-3 space-y-3">
+                              <input
+                                className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary"
+                                value={editingExerciseForm.activityType}
+                                onChange={event => setEditingExerciseForm(current => ({ ...current, activityType: event.target.value }))}
+                              />
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary"
+                                  value={editingExerciseForm.durationMinutes}
+                                  onChange={event => setEditingExerciseForm(current => ({ ...current, durationMinutes: event.target.value }))}
+                                />
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary"
+                                  value={editingExerciseForm.caloriesBurned}
+                                  onChange={event => setEditingExerciseForm(current => ({ ...current, caloriesBurned: event.target.value }))}
+                                />
+                              </div>
+                              <input
+                                type="datetime-local"
+                                className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary"
+                                value={editingExerciseForm.occurredAt}
+                                onChange={event => setEditingExerciseForm(current => ({ ...current, occurredAt: event.target.value }))}
+                              />
+                              <textarea
+                                rows={2}
+                                className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary"
+                                value={editingExerciseForm.notes}
+                                onChange={event => setEditingExerciseForm(current => ({ ...current, notes: event.target.value }))}
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                {formatCountPtBr(exercise.durationMinutes, " min")} · {formatCalories(exercise.caloriesBurned)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")}
+                              </p>
+                              {exercise.notes ? <p className="mt-2 text-sm text-muted-foreground">{exercise.notes}</p> : null}
+                            </>
+                          )}
                         </div>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => removeExercise.mutate({ exerciseId: exercise.id })}
-                          disabled={removeExercise.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                          {editingExerciseId === exercise.id ? (
+                            <>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                  updateExercise.mutate({
+                                    exerciseId: exercise.id,
+                                    activityType: editingExerciseForm.activityType.trim(),
+                                    durationMinutes: Number(editingExerciseForm.durationMinutes || 0),
+                                    caloriesBurned: Number(editingExerciseForm.caloriesBurned || 0),
+                                    occurredAt: new Date(editingExerciseForm.occurredAt).toISOString(),
+                                    notes: editingExerciseForm.notes.trim() || undefined,
+                                  })
+                                }
+                                disabled={updateExercise.isPending}
+                              >
+                                {updateExercise.isPending ? "Salvando..." : "Salvar"}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingExerciseId(null);
+                                  setEditingExerciseForm(buildDefaultExerciseForm());
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingExerciseId(exercise.id);
+                                  setEditingExerciseForm(buildExerciseEditForm(exercise));
+                                }}
+                              >
+                                <PencilLine className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => removeExercise.mutate({ exerciseId: exercise.id })}
+                                disabled={removeExercise.isPending}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -393,17 +521,21 @@ export default function Home() {
                   <span className="text-muted-foreground">Meta diária (ml)</span>
                   <div className="flex gap-2">
                     <input
-                      type="number"
-                      min={250}
-                      step={50}
+                      type="text"
+                      inputMode="numeric"
                       className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
                       value={waterForm.dailyTargetMl}
-                      onChange={event => setWaterForm(current => ({ ...current, dailyTargetMl: event.target.value }))}
+                      onChange={event =>
+                        setWaterForm(current => ({
+                          ...current,
+                          dailyTargetMl: formatIntegerInputPtBr(event.target.value),
+                        }))
+                      }
                     />
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => updateWaterGoal.mutate({ dailyTargetMl: Number(waterForm.dailyTargetMl || 0) })}
+                      onClick={() => updateWaterGoal.mutate({ dailyTargetMl: parseIntegerInputPtBr(waterForm.dailyTargetMl) })}
                       disabled={updateWaterGoal.isPending}
                     >
                       {updateWaterGoal.isPending ? "Salvando..." : "Salvar meta"}
@@ -414,12 +546,16 @@ export default function Home() {
                   <label className="block space-y-2 text-sm">
                     <span className="text-muted-foreground">Consumo (ml)</span>
                     <input
-                      type="number"
-                      min={50}
-                      step={50}
+                      type="text"
+                      inputMode="numeric"
                       className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
                       value={waterForm.amountMl}
-                      onChange={event => setWaterForm(current => ({ ...current, amountMl: event.target.value }))}
+                      onChange={event =>
+                        setWaterForm(current => ({
+                          ...current,
+                          amountMl: formatIntegerInputPtBr(event.target.value),
+                        }))
+                      }
                     />
                   </label>
                   <label className="block space-y-2 text-sm">
@@ -431,6 +567,13 @@ export default function Home() {
                       onChange={event => setWaterForm(current => ({ ...current, occurredAt: event.target.value }))}
                     />
                   </label>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[200, 300, 500].map(shortcut => (
+                    <Button key={shortcut} type="button" variant="outline" onClick={() => handleQuickWater(shortcut)} disabled={createWaterLog.isPending}>
+                      + {formatCountPtBr(shortcut, " ml")}
+                    </Button>
+                  ))}
                 </div>
                 <Button type="submit" className="w-full" disabled={createWaterLog.isPending}>
                   {createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}
@@ -568,6 +711,19 @@ function MacroBar({ label, consumed, goal }: { label: string; consumed: number; 
       </div>
       <Progress value={progress} className="h-2" />
       <p className="text-xs text-muted-foreground">{formatPercentPtBr(progress)}% da meta atingida hoje.</p>
+    </div>
+  );
+}
+
+function MiniProgress({ label, value, progress, helper }: { label: string; value: string; progress: number; helper: string }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        <p className="text-xs font-semibold tracking-tight">{value}</p>
+      </div>
+      <Progress value={progress} className="h-2" />
+      <p className="text-[11px] text-muted-foreground">{helper}</p>
     </div>
   );
 }
