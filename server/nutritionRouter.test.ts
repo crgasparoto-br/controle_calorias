@@ -136,7 +136,6 @@ describe("nutrition router", () => {
     const caller = appRouter.createCaller(ctx);
 
     const simulated = await caller.nutrition.whatsapp.simulateInbound({
-      userId: 777,
       text: "almocei arroz, feijão e frango grelhado",
     });
 
@@ -162,6 +161,29 @@ describe("nutrition router", () => {
     expect(admin.usage.mealsCount).toBeGreaterThan(0);
   });
 
+  it("expõe o status do WhatsApp e permite vincular o número ao usuário autenticado", async () => {
+    const userId = 991001 + Math.floor(Math.random() * 100000);
+    const ctx = createNutritionContext(userId, "admin");
+    const caller = appRouter.createCaller(ctx);
+
+    const initialStatus = await caller.nutrition.whatsapp.status();
+    expect(initialStatus.currentUserId).toBe(userId);
+
+    const uniquePhoneNumber = `55${String(userId).padStart(11, "0").slice(-11)}`;
+
+    const saved = await caller.nutrition.whatsapp.upsertConnection({
+      phoneNumber: uniquePhoneNumber,
+      displayName: "Gaspa",
+    });
+
+    const updatedStatus = await caller.nutrition.whatsapp.status();
+
+    expect(saved.phoneNumber).toBe(uniquePhoneNumber);
+    expect(saved.status).toBe("active");
+    expect(updatedStatus.connection?.phoneNumber).toBe(uniquePhoneNumber);
+    expect(updatedStatus.connection?.displayName).toBe("Gaspa");
+  });
+
   it("cria, lista e remove exercícios refletindo o saldo líquido diário e semanal", async () => {
     const userId = 880000 + Math.floor(Math.random() * 10000);
     const caller = appRouter.createCaller(createNutritionContext(userId));
@@ -182,7 +204,6 @@ describe("nutrition router", () => {
     });
 
     const simulated = await caller.nutrition.whatsapp.simulateInbound({
-      userId,
       text: "almocei arroz, feijão e frango grelhado",
     });
 

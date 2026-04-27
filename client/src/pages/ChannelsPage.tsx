@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,23 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCalories, formatCountPtBr, formatPercentPtBr } from "@/lib/numberFormat";
+import { formatCalories, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { MessageCircle, Send, Webhook } from "lucide-react";
-import { useState } from "react";
+import { Link2, MessageCircle, Save, Send, Smartphone, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ChannelsPage() {
-  const [userId, setUserId] = useState(1);
+  const utils = trpc.useUtils();
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("almocei arroz, feijão, frango grelhado e salada");
-  const statusQuery = trpc.nutrition.whatsapp.status.useQuery();
-  const simulateInbound = trpc.nutrition.whatsapp.simulateInbound.useMutation({
-    onSuccess: result => {
-      toast.success("Mensagem simulada com sucesso. Um rascunho foi criado para o usuário informado.");
-      setLastSimulation(result);
-    },
-    onError: error => toast.error(error.message || "Falha ao simular mensagem do WhatsApp."),
-  });
   const [lastSimulation, setLastSimulation] = useState<null | {
     draftId: string;
     processed: {
@@ -32,6 +25,38 @@ export default function ChannelsPage() {
       totals: { calories: number; protein: number; carbs: number; fat: number };
     };
   }>(null);
+
+  const statusQuery = trpc.nutrition.whatsapp.status.useQuery();
+
+  useEffect(() => {
+    if (statusQuery.data?.connection) {
+      setPhoneNumber(statusQuery.data.connection.phoneNumber ?? "");
+      setDisplayName(statusQuery.data.connection.displayName ?? "");
+      return;
+    }
+
+    setPhoneNumber("");
+    setDisplayName("");
+  }, [statusQuery.data?.connection]);
+
+  const saveConnection = trpc.nutrition.whatsapp.upsertConnection.useMutation({
+    onSuccess: async result => {
+      toast.success(`Número ${result.phoneNumber} vinculado com sucesso ao seu usuário.`);
+      await utils.nutrition.whatsapp.status.invalidate();
+    },
+    onError: error => toast.error(error.message || "Falha ao salvar o vínculo do WhatsApp."),
+  });
+
+  const simulateInbound = trpc.nutrition.whatsapp.simulateInbound.useMutation({
+    onSuccess: result => {
+      toast.success("Mensagem simulada com sucesso. Um rascunho foi criado para o usuário autenticado.");
+      setLastSimulation(result);
+    },
+    onError: error => toast.error(error.message || "Falha ao simular mensagem do WhatsApp."),
+  });
+
+  const connection = statusQuery.data?.connection;
+  const hasConnection = Boolean(connection?.phoneNumber);
 
   return (
     <DashboardLayout>
@@ -44,15 +69,18 @@ export default function ChannelsPage() {
                 WhatsApp Business Cloud API
               </CardTitle>
               <CardDescription>
-                Painel operacional da integração de mensagens. O webhook já está preparado na aplicação e pode ser validado assim que as credenciais forem informadas.
+                Painel operacional da integração de mensagens. Agora o número do WhatsApp precisa estar vinculado ao usuário autenticado para que o webhook consiga atribuir automaticamente as refeições recebidas.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <StatusRow label="Integração configurada" value={statusQuery.data?.configured ? "Sim" : "Não"} emphasize={!statusQuery.data?.configured} />
               <StatusRow label="Webhook público" value={statusQuery.data?.webhookPath || "/api/whatsapp/webhook"} mono />
+              <StatusRow label="Usuário autenticado" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."} mono />
+              <StatusRow label="Número vinculado" value={connection?.phoneNumber || "Não vinculado"} emphasize={!hasConnection} mono />
+              <StatusRow label="Status do vínculo" value={connection?.status === "active" ? "Ativo" : hasConnection ? connection?.status || "Pendente" : "Pendente de vínculo"} emphasize={!hasConnection} />
               <div className="space-y-3 rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
                 <p>
-                  Enquanto as credenciais não são preenchidas, a plataforma continua apta para desenvolvimento do fluxo web e para testes simulados de mensagens recebidas.
+                  Sem um vínculo ativo entre o número do WhatsApp e o usuário logado, a plataforma não consegue identificar com segurança a quem atribuir os alimentos, a refeição e o horário recebidos pelo webhook.
                 </p>
                 <div className="rounded-2xl border bg-background p-4">
                   <p className="font-medium text-foreground">Credenciais esperadas para ativação</p>
@@ -69,37 +97,84 @@ export default function ChannelsPage() {
           <Card className="border-0 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
-                <Webhook className="h-5 w-5 text-primary" />
-                Próximos passos de configuração
+                <Link2 className="h-5 w-5 text-primary" />
+                Vínculo do número do WhatsApp
               </CardTitle>
               <CardDescription>
-                Assim que você trouxer os dados da Meta, a conexão poderá ser finalizada com validação do webhook e respostas automáticas reais.
+                Informe o número que envia as imagens para associá-lo ao seu usuário autenticado e habilitar o registro automático das refeições processadas pelo canal WhatsApp.
               </CardDescription>
             </CardHeader>
-              <CardContent className="space-y-3">
-              <StepCard title="1. Informar credenciais" text="Fornecer verify token, access token e phone number id do número comercial." />
-              <StepCard title="2. Validar webhook" text="Apontar a URL pública da aplicação na conta Meta e confirmar o desafio de verificação." />
-              <StepCard title="3. Testar mídia real" text="Executar testes com texto, imagem e áudio reais vindos do WhatsApp para fechar o ciclo multimodal." />
-              <StepCard title="4. Confirmar retorno operacional" text="Verificar se a mensagem recebida gera rascunho, log de inferência e resposta automática sem erro no painel administrativo." />
-            </CardContent>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp-phone">Número do WhatsApp</Label>
+                <Input
+                  id="whatsapp-phone"
+                  value={phoneNumber}
+                  onChange={event => setPhoneNumber(event.target.value)}
+                  placeholder="Ex.: 5511999998888"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use apenas números ou inclua os símbolos que preferir. O sistema normaliza automaticamente o valor salvo.
+                </p>
+              </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp-display-name">Nome exibido no WhatsApp</Label>
+                <Input
+                  id="whatsapp-display-name"
+                  value={displayName}
+                  onChange={event => setDisplayName(event.target.value)}
+                  placeholder="Ex.: Gaspa"
+                />
+              </div>
+
+              <Button
+                className="rounded-full"
+                disabled={saveConnection.isPending || !phoneNumber.trim()}
+                onClick={() =>
+                  saveConnection.mutate({
+                    phoneNumber,
+                    displayName: displayName.trim() || undefined,
+                  })
+                }
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {saveConnection.isPending ? "Salvando vínculo..." : "Salvar vínculo"}
+              </Button>
+
+              <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                <p className="font-medium text-foreground">Como o fluxo funciona</p>
+                <div className="mt-3 space-y-3">
+                  <StepCard title="1. Vincular o número" text="O número enviado aqui é associado ao usuário autenticado e passa a ser usado pelo webhook para resolver o userId correto." />
+                  <StepCard title="2. Receber a imagem" text="Quando a imagem chega pelo WhatsApp, o sistema identifica o número remetente, localiza o vínculo ativo e processa os alimentos para o usuário correspondente." />
+                  <StepCard title="3. Registrar automaticamente" text="Após o processamento, a refeição é salva automaticamente com o horário do evento recebido, além da resposta textual de retorno no próprio WhatsApp." />
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </div>
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle>Simulação de mensagem inbound</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Webhook className="h-5 w-5 text-primary" />
+              Simulação de mensagem inbound
+            </CardTitle>
             <CardDescription>
-              Use esta área para validar o comportamento lógico do canal enquanto o acesso oficial ainda não está configurado.
+              Use esta área para validar o comportamento lógico do canal com o contexto do usuário autenticado, sem precisar informar manualmente o ID interno.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6 xl:grid-cols-[0.9fr,1.1fr]">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="simulation-user">ID interno do usuário</Label>
-                <Input id="simulation-user" type="number" value={userId} onChange={event => setUserId(Number(event.target.value))} />
-                <p className="text-xs text-muted-foreground">ID atual: {formatCountPtBr(userId)}</p>
+              <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <Smartphone className="h-4 w-4 text-primary" />
+                  Contexto da simulação
+                </div>
+                <p className="mt-2">Usuário autenticado: {statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."}</p>
+                <p>Número atualmente vinculado: {connection?.phoneNumber || "não vinculado"}</p>
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="simulation-message">Mensagem simulada</Label>
                 <Textarea
@@ -110,10 +185,11 @@ export default function ChannelsPage() {
                   placeholder="Descreva uma refeição como se tivesse chegado pelo WhatsApp"
                 />
               </div>
+
               <Button
                 className="rounded-full"
                 disabled={simulateInbound.isPending || !message.trim()}
-                onClick={() => simulateInbound.mutate({ userId, text: message })}
+                onClick={() => simulateInbound.mutate({ text: message })}
               >
                 <Send className="mr-2 h-4 w-4" />
                 {simulateInbound.isPending ? "Simulando..." : "Simular mensagem"}
@@ -177,7 +253,7 @@ function StatusRow({
 
 function StepCard({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-2xl border bg-muted/20 p-4">
+    <div className="rounded-2xl border bg-background p-4">
       <p className="font-medium tracking-tight">{title}</p>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
     </div>

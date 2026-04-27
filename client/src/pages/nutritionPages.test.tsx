@@ -7,14 +7,16 @@ const goalGetMock = vi.fn();
 const weeklyMock = vi.fn();
 const whatsappStatusMock = vi.fn();
 const useUtilsMock = vi.fn(() => ({
-  nutrition: {
-    dashboard: { overview: { invalidate: vi.fn() } },
-    meals: { list: { invalidate: vi.fn() } },
-    reports: { weekly: { invalidate: vi.fn() } },
-    goals: { get: { invalidate: vi.fn() } },
-    exercises: { list: { invalidate: vi.fn() } },
-    water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
-  },
+      nutrition: {
+        dashboard: { overview: { invalidate: vi.fn() } },
+        meals: { list: { invalidate: vi.fn() } },
+        reports: { weekly: { invalidate: vi.fn() } },
+        goals: { get: { invalidate: vi.fn() } },
+        exercises: { list: { invalidate: vi.fn() } },
+        water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
+        whatsapp: { status: { invalidate: vi.fn() } },
+      },
+
 }));
 
 vi.mock("@/components/DashboardLayout", () => ({
@@ -101,6 +103,9 @@ vi.mock("@/lib/trpc", () => ({
       whatsapp: {
         status: {
           useQuery: whatsappStatusMock,
+        },
+        upsertConnection: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
         simulateInbound: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
@@ -219,7 +224,7 @@ beforeEach(() => {
   dashboardOverviewMock.mockReturnValue({ data: overviewData });
   goalGetMock.mockReturnValue({ data: overviewData.goal });
   weeklyMock.mockReturnValue({ data: overviewData.weekly });
-  whatsappStatusMock.mockReturnValue({ data: { configured: false, webhookPath: "/api/whatsapp/webhook" } });
+  whatsappStatusMock.mockReturnValue({ data: { configured: false, webhookPath: "/api/whatsapp/webhook", currentUserId: 1, connection: null } });
 });
 
 describe("nutrition pages", () => {
@@ -283,12 +288,14 @@ describe("nutrition pages", () => {
     expect(html).toContain("Registro às");
   });
 
-  it("renderiza a página de canais com status do WhatsApp", async () => {
+  it("renderiza a página de canais com status do WhatsApp e vínculo do número", async () => {
     const { default: ChannelsPage } = await import("./ChannelsPage");
     const html = renderToString(React.createElement(ChannelsPage));
 
     expect(html).toContain("WhatsApp Business Cloud API");
-    expect(html).toContain("Simulação de mensagem inbound");
+    expect(html).toContain("Vínculo do número do WhatsApp");
+    expect(html).toContain("Salvar vínculo");
+    expect(html).toContain("Não vinculado");
     expect(html).toContain("/api/whatsapp/webhook");
   });
 });

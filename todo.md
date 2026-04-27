@@ -105,3 +105,9 @@
 - [x] Atualizar a secret `WHATSAPP_ACCESS_TOKEN` com o novo token informado pelo usuário e validar a configuração com teste automatizado
 - [x] Adicionar um teste automatizado específico para `WHATSAPP_ACCESS_TOKEN` que faça uma chamada leve autenticada à API do WhatsApp/Graph
 - [x] Executar o teste específico do access token e só então concluir a atualização da credencial do WhatsApp
+- [x] Investigar e corrigir o vínculo entre o usuário logado e o número do WhatsApp para registrar automaticamente refeições recebidas por imagem no webhook
+- [x] Validar no banco e na interface a associação userId ↔ phoneNumber usada pelo webhook do WhatsApp
+- [x] Cobrir com testes o fluxo de vinculação WhatsApp ↔ usuário e o registro automático de refeições
+- [x] Corrigir no canal WhatsApp a interpretação de comandos como "Mudar a refeição lanche para café da manhã" para que não sejam registrados como alimento
+- [x] Implementar no WhatsApp a atualização da classificação dos alimentos recentes quando o usuário pedir mudança de refeição e pedir esclarecimento quando houver ambiguidade
+- [x] Cobrir com testes o fluxo conversacional de ações do WhatsApp que editam refeições já registradas sem criar novos alimentos indevidos

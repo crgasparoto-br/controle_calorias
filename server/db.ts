@@ -16,6 +16,7 @@ import {
   users,
   waterGoals,
   waterLogs,
+  whatsappConnections,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
@@ -104,6 +105,101 @@ export async function getUserByOpenId(openId: string) {
     console.warn("[Database] Failed to get user by openId:", error);
     return undefined;
   }
+}
+
+export function normalizeWhatsAppPhoneNumber(phoneNumber: string) {
+  return phoneNumber.replace(/\D/g, "");
+}
+
+export async function getUserWhatsappConnection(userId: number) {
+  const db = await getDb();
+  if (!db) {
+    return null;
+  }
+
+  try {
+    const rows = await db
+      .select()
+      .from(whatsappConnections)
+      .where(eq(whatsappConnections.userId, userId))
+      .orderBy(desc(whatsappConnections.updatedAt));
+
+    const active = rows.find(row => row.status === "active") ?? rows[0];
+    return active ?? null;
+  } catch (error) {
+    console.warn("[Database] Failed to get WhatsApp connection:", error);
+    return null;
+  }
+}
+
+export async function upsertUserWhatsappConnection(input: {
+  userId: number;
+  phoneNumber: string;
+  displayName?: string;
+}) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Banco de dados indisponível para salvar o vínculo do WhatsApp.");
+  }
+
+  const normalizedPhoneNumber = normalizeWhatsAppPhoneNumber(input.phoneNumber);
+  if (normalizedPhoneNumber.length < 10 || normalizedPhoneNumber.length > 16) {
+    throw new Error("Informe um número de WhatsApp válido com DDD e código do país quando necessário.");
+  }
+
+  const normalizedDisplayName = input.displayName?.trim() ? input.displayName.trim() : null;
+
+  const conflictingRows = await db
+    .select()
+    .from(whatsappConnections)
+    .where(eq(whatsappConnections.phoneNumber, normalizedPhoneNumber));
+
+  const activeConflict = conflictingRows.find(row => row.userId !== input.userId && row.status !== "disabled");
+  if (activeConflict) {
+    throw new Error("Este número de WhatsApp já está vinculado a outro usuário.");
+  }
+
+  const userRows = await db
+    .select()
+    .from(whatsappConnections)
+    .where(eq(whatsappConnections.userId, input.userId))
+    .orderBy(desc(whatsappConnections.updatedAt));
+
+  let connectionId = userRows[0]?.id;
+
+  if (connectionId) {
+    await db
+      .update(whatsappConnections)
+      .set({
+        phoneNumber: normalizedPhoneNumber,
+        displayName: normalizedDisplayName,
+        status: "active",
+      })
+      .where(eq(whatsappConnections.id, connectionId));
+  } else {
+    const inserted = await db.insert(whatsappConnections).values({
+      userId: input.userId,
+      phoneNumber: normalizedPhoneNumber,
+      displayName: normalizedDisplayName,
+      status: "active",
+    });
+
+    connectionId = Number((inserted as { insertId?: number }).insertId ?? 0);
+  }
+
+  for (const row of userRows.slice(1)) {
+    await db
+      .update(whatsappConnections)
+      .set({ status: "disabled" })
+      .where(eq(whatsappConnections.id, row.id));
+  }
+
+  const saved = await getUserWhatsappConnection(input.userId);
+  if (!saved) {
+    throw new Error("Não foi possível recuperar o vínculo do WhatsApp após o salvamento.");
+  }
+
+  return saved;
 }
 
 type GoalTargetInput = {
@@ -1196,6 +1292,36 @@ async function updateHabitsFromMeal(meal: SavedMeal) {
   await persistHabitsToDb(meal.userId, ordered);
 }
 
+async function syncHabitsMealLabelFromMeals(userId: number, mealsToSync: SavedMeal[]) {
+  if (!mealsToSync.length) {
+    return;
+  }
+
+  const existing = (await loadHabitsFromDb(userId)) ?? habitStore.get(userId) ?? [];
+  const next = [...existing];
+
+  for (const meal of mealsToSync) {
+    for (const item of meal.items) {
+      const matchIndex = next.findIndex(habit => habit.foodName === item.canonicalName);
+      if (matchIndex < 0) {
+        continue;
+      }
+
+      next[matchIndex] = {
+        ...next[matchIndex],
+        typicalMealLabel: meal.mealLabel,
+        preferredPortionGrams: item.estimatedGrams,
+        notes: `Última porção confirmada: ${item.portionText}`,
+        lastSeenAt: Math.max(next[matchIndex].lastSeenAt, meal.occurredAt),
+      };
+    }
+  }
+
+  const ordered = next.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+  habitStore.set(userId, ordered);
+  await persistHabitsToDb(userId, ordered);
+}
+
 export async function confirmPendingMeal(input: {
   draftId: string;
   userId: number;
@@ -1330,6 +1456,52 @@ export async function updateUserMeal(input: {
     detail: `Refeição ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
   });
   return { ...updatedMeal, totals: sumItems(updatedMeal.items) };
+}
+
+export async function relabelUserMeals(input: {
+  userId: number;
+  mealIds: number[];
+  mealLabel: string;
+  origin?: "web" | "whatsapp";
+}) {
+  const origin = input.origin ?? "web";
+  const current = await listUserMeals(input.userId);
+  const targetIds = new Set(input.mealIds);
+  const existingMeals = current.filter(meal => targetIds.has(meal.id));
+
+  if (!existingMeals.length) {
+    throw new Error("Nenhuma refeição encontrada para reclassificação.");
+  }
+
+  const updatedMeals = existingMeals.map(meal => ({
+    ...meal,
+    mealLabel: input.mealLabel,
+  }));
+
+  mealStore.set(
+    input.userId,
+    current
+      .map(meal => updatedMeals.find(updated => updated.id === meal.id) ?? meal)
+      .sort((a, b) => b.occurredAt - a.occurredAt),
+  );
+
+  for (const meal of updatedMeals) {
+    await updateMealInDb(meal);
+  }
+
+  await syncHabitsMealLabelFromMeals(input.userId, updatedMeals);
+  logInferenceEvent({
+    userId: input.userId,
+    origin,
+    status: "success",
+    eventType: "meal.reclassified",
+    detail: `${updatedMeals.length} refeição(ões) reclassificada(s) para ${input.mealLabel}.`,
+  });
+
+  return updatedMeals.map(meal => ({
+    ...meal,
+    totals: sumItems(meal.items),
+  }));
 }
 
 export async function removeUserMeal(userId: number, mealId: number) {

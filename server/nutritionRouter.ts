@@ -16,6 +16,7 @@ import {
   getPendingInferenceFromDb,
   getUserNutritionGoal,
   getUserWaterGoal,
+  getUserWhatsappConnection,
   getWeeklySummary,
   listUserExercises,
   listUserMeals,
@@ -28,6 +29,7 @@ import {
   updateUserMeal,
   updateUserWaterGoal,
   upsertNutritionGoal,
+  upsertUserWhatsappConnection,
 } from "./db";
 import { MealDraftItem, processMealInput } from "./nutritionEngine";
 import { storagePut } from "./storage";
@@ -264,28 +266,53 @@ export const nutritionRouter = router({
   }),
 
   whatsapp: router({
-    status: protectedProcedure.query(() => ({
+    status: protectedProcedure.query(async ({ ctx }) => ({
       configured: Boolean(
         process.env.WHATSAPP_ACCESS_TOKEN &&
           process.env.WHATSAPP_PHONE_NUMBER_ID &&
           process.env.WHATSAPP_VERIFY_TOKEN,
       ),
       webhookPath: "/api/whatsapp/webhook",
+      currentUserId: ctx.user.id,
+      connection: await getUserWhatsappConnection(ctx.user.id),
     })),
-    simulateInbound: publicProcedure
+    upsertConnection: protectedProcedure
       .input(
         z.object({
-          userId: z.number().int().positive(),
+          phoneNumber: z.string().min(10).max(32),
+          displayName: z.string().max(255).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const connection = await upsertUserWhatsappConnection({
+          userId: ctx.user.id,
+          phoneNumber: input.phoneNumber,
+          displayName: input.displayName,
+        });
+
+        logInferenceEvent({
+          userId: ctx.user.id,
+          origin: "web",
+          status: "success",
+          eventType: "whatsapp.connection_updated",
+          detail: `Número ${connection.phoneNumber} vinculado ao usuário para processamento automático do WhatsApp.`,
+        });
+
+        return connection;
+      }),
+    simulateInbound: protectedProcedure
+      .input(
+        z.object({
           text: z.string().optional(),
         }),
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         const processed = await processMealInput({
           text: input.text,
-          habits: await getHabitSnapshots(input.userId),
+          habits: await getHabitSnapshots(ctx.user.id),
         });
 
-        const draft = createPendingMealInference(input.userId, "whatsapp", processed, []);
+        const draft = createPendingMealInference(ctx.user.id, "whatsapp", processed, []);
         return {
           draftId: draft.draftId,
           processed,

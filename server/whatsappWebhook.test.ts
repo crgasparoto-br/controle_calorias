@@ -15,43 +15,45 @@ vi.mock("./_core/voiceTranscription", () => ({
   })),
 }));
 
+const processMealInputMock = vi.fn(async () => ({
+  detectedMealLabel: "Almoço",
+  sourceText: "arroz e frango",
+  confidence: 0.91,
+  needsConfirmation: true,
+  reasoning: "Inferência simulada para webhook.",
+  items: [
+    {
+      foodName: "arroz",
+      canonicalName: "Arroz branco cozido",
+      portionText: "100 g",
+      servings: 1,
+      estimatedGrams: 100,
+      calories: 130,
+      protein: 2.7,
+      carbs: 28,
+      fat: 0.3,
+      confidence: 0.92,
+      source: "catalog" as const,
+    },
+  ],
+  totals: {
+    calories: 130,
+    protein: 2.7,
+    carbs: 28,
+    fat: 0.3,
+  },
+}));
+
 vi.mock("./nutritionEngine", async () => {
   const actual = await vi.importActual<typeof import("./nutritionEngine")>("./nutritionEngine");
   return {
     ...actual,
-    processMealInput: vi.fn(async () => ({
-      detectedMealLabel: "Almoço",
-      sourceText: "arroz e frango",
-      confidence: 0.91,
-      needsConfirmation: true,
-      reasoning: "Inferência simulada para webhook.",
-      items: [
-        {
-          foodName: "arroz",
-          canonicalName: "Arroz branco cozido",
-          portionText: "100 g",
-          servings: 1,
-          estimatedGrams: 100,
-          calories: 130,
-          protein: 2.7,
-          carbs: 28,
-          fat: 0.3,
-          confidence: 0.92,
-          source: "catalog" as const,
-        },
-      ],
-      totals: {
-        calories: 130,
-        protein: 2.7,
-        carbs: 28,
-        fat: 0.3,
-      },
-    })),
+    processMealInput: processMealInputMock,
   };
 });
 
 const { handleWhatsAppWebhook, verifyWhatsAppWebhook } = await import("./whatsappWebhook");
-const { getAdminSnapshot } = await import("./db");
+const { getAdminSnapshot, listUserMeals, upsertUserWhatsappConnection } = await import("./db");
 
 type MockResponse = {
   statusCode: number;
@@ -90,6 +92,35 @@ describe("whatsappWebhook", () => {
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
     lastSentWhatsAppBody = null;
+    processMealInputMock.mockReset();
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Almoço",
+      sourceText: "arroz e frango",
+      confidence: 0.91,
+      needsConfirmation: true,
+      reasoning: "Inferência simulada para webhook.",
+      items: [
+        {
+          foodName: "arroz",
+          canonicalName: "Arroz branco cozido",
+          portionText: "100 g",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 130,
+          protein: 2.7,
+          carbs: 28,
+          fat: 0.3,
+          confidence: 0.92,
+          source: "catalog" as const,
+        },
+      ],
+      totals: {
+        calories: 130,
+        protein: 2.7,
+        carbs: 28,
+        fat: 0.3,
+      },
+    });
 
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -173,7 +204,13 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 0 });
   });
 
-  it("processa uma mensagem de texto e envia uma resposta no formato detalhado inspirado na imagem de referência", async () => {
+  it("processa uma mensagem de texto vinculada e registra automaticamente a refeição antes de responder no WhatsApp", async () => {
+    await upsertUserWhatsappConnection({
+      userId: 1,
+      phoneNumber: "5511999999999",
+      displayName: "Gaspa",
+    });
+
     const req = {
       body: {
         entry: [
@@ -201,8 +238,14 @@ describe("whatsappWebhook", () => {
 
     await handleWhatsAppWebhook(req as never, res as never);
 
+    const admin = await getAdminSnapshot();
+    const confirmedLog = admin.recentInferenceLogs.find(
+      (entry) => entry.eventType === "meal.confirmed" && entry.origin === "whatsapp" && entry.userId === 1,
+    );
+
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(confirmedLog).toBeDefined();
     expect(lastSentWhatsAppBody).toBe([
       "🍽️ Almoço:",
       "",
@@ -215,7 +258,13 @@ describe("whatsappWebhook", () => {
     ].join("\n"));
   });
 
-  it("processa mídia de imagem e áudio sem falhar o webhook", async () => {
+  it("processa mídia de imagem e áudio sem falhar o webhook quando o número está vinculado", async () => {
+    await upsertUserWhatsappConnection({
+      userId: 1,
+      phoneNumber: "5511777777777",
+      displayName: "Gaspa",
+    });
+
     const req = {
       body: {
         entry: [
@@ -272,6 +321,12 @@ describe("whatsappWebhook", () => {
     }) as typeof fetch;
 
     const phone = `551188888${Date.now().toString().slice(-5)}`;
+    await upsertUserWhatsappConnection({
+      userId: 1,
+      phoneNumber: phone,
+      displayName: "Gaspa",
+    });
+
     const req = {
       body: {
         entry: [
@@ -310,7 +365,13 @@ describe("whatsappWebhook", () => {
     expect(warningLog?.status).toBe("warning");
   });
 
-  it("ignora mensagens não suportadas sem falhar o webhook", async () => {
+  it("ignora mensagens não suportadas sem falhar o webhook quando o número está vinculado", async () => {
+    await upsertUserWhatsappConnection({
+      userId: 1,
+      phoneNumber: "5511888888888",
+      displayName: "Gaspa",
+    });
+
     const req = {
       body: {
         entry: [
@@ -337,5 +398,252 @@ describe("whatsappWebhook", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+  });
+
+  it("reclassifica os registros recentes compatíveis quando o comando do WhatsApp é claro", async () => {
+    const userId = 700000 + Math.floor(Math.random() * 100000);
+    const phoneNumber = `55${String(userId).padStart(11, "0").slice(-11)}`;
+
+    await upsertUserWhatsappConnection({
+      userId,
+      phoneNumber,
+      displayName: "Gaspa",
+    });
+
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Lanche",
+      sourceText: "imagem de lanche",
+      confidence: 0.91,
+      needsConfirmation: true,
+      reasoning: "Inferência simulada para webhook.",
+      items: [
+        {
+          foodName: "banana",
+          canonicalName: "Banana prata",
+          portionText: "1 unidade",
+          servings: 1,
+          estimatedGrams: 90,
+          calories: 80,
+          protein: 1,
+          carbs: 20,
+          fat: 0.2,
+          confidence: 0.92,
+          source: "catalog" as const,
+        },
+      ],
+      totals: { calories: 80, protein: 1, carbs: 20, fat: 0.2 },
+    });
+
+    const seedMessages = [
+      { from: phoneNumber, type: "image", image: { id: "clear-image-1", mime_type: "image/jpeg" }, timestamp: "1713708840" },
+      { from: phoneNumber, type: "image", image: { id: "clear-image-2", mime_type: "image/jpeg" }, timestamp: "1713708900" },
+      { from: phoneNumber, type: "image", image: { id: "clear-image-3", mime_type: "image/jpeg" }, timestamp: "1713708960" },
+    ];
+
+    for (const payloadMessage of seedMessages) {
+      const req = { body: { entry: [{ changes: [{ value: { messages: [payloadMessage] } }] }] } };
+      const res = createResponse();
+      await handleWhatsAppWebhook(req as never, res as never);
+    }
+
+    processMealInputMock.mockClear();
+    const req = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      from: phoneNumber,
+                      type: "text",
+                      text: {
+                        body: "Mudar a refeição lanche para café da manhã",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    const updatedMeals = (await listUserMeals(userId)).filter((meal) => meal.source === "whatsapp").slice(0, 3);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(updatedMeals).toHaveLength(3);
+    expect(updatedMeals.every((meal) => meal.mealLabel === "Café da manhã")).toBe(true);
+    expect(lastSentWhatsAppBody).toContain("3 registro(s) recente(s) foram alterados de Lanche para Café da manhã");
+  });
+
+  it("pede esclarecimento quando o comando de mudança de refeição é ambíguo e não cria novo alimento", async () => {
+    const userId = 800000 + Math.floor(Math.random() * 100000);
+    const phoneNumber = `55${String(userId).padStart(11, "0").slice(-11)}`;
+
+    await upsertUserWhatsappConnection({
+      userId,
+      phoneNumber,
+      displayName: "Gaspa",
+    });
+
+    processMealInputMock
+      .mockResolvedValueOnce({
+        detectedMealLabel: "Lanche",
+        sourceText: "primeira imagem",
+        confidence: 0.91,
+        needsConfirmation: true,
+        reasoning: "Inferência simulada para webhook.",
+        items: [
+          {
+            foodName: "banana",
+            canonicalName: "Banana prata",
+            portionText: "1 unidade",
+            servings: 1,
+            estimatedGrams: 90,
+            calories: 80,
+            protein: 1,
+            carbs: 20,
+            fat: 0.2,
+            confidence: 0.92,
+            source: "catalog" as const,
+          },
+        ],
+        totals: { calories: 80, protein: 1, carbs: 20, fat: 0.2 },
+      })
+      .mockResolvedValueOnce({
+        detectedMealLabel: "Bebida",
+        sourceText: "segunda imagem",
+        confidence: 0.91,
+        needsConfirmation: true,
+        reasoning: "Inferência simulada para webhook.",
+        items: [
+          {
+            foodName: "café",
+            canonicalName: "Café sem açúcar",
+            portionText: "1 xícara",
+            servings: 1,
+            estimatedGrams: 120,
+            calories: 5,
+            protein: 0.3,
+            carbs: 0.2,
+            fat: 0,
+            confidence: 0.92,
+            source: "heuristic" as const,
+          },
+        ],
+        totals: { calories: 5, protein: 0.3, carbs: 0.2, fat: 0 },
+      })
+      .mockResolvedValueOnce({
+        detectedMealLabel: "Lanche",
+        sourceText: "terceira imagem",
+        confidence: 0.91,
+        needsConfirmation: true,
+        reasoning: "Inferência simulada para webhook.",
+        items: [
+          {
+            foodName: "pão",
+            canonicalName: "Pão francês",
+            portionText: "1 unidade",
+            servings: 1,
+            estimatedGrams: 50,
+            calories: 140,
+            protein: 4.5,
+            carbs: 28,
+            fat: 1.5,
+            confidence: 0.92,
+            source: "catalog" as const,
+          },
+        ],
+        totals: { calories: 140, protein: 4.5, carbs: 28, fat: 1.5 },
+      });
+
+    const seedMessages = [
+      { from: phoneNumber, type: "image", image: { id: "image-1", mime_type: "image/jpeg" }, timestamp: "1713708840" },
+      { from: phoneNumber, type: "image", image: { id: "image-2", mime_type: "image/jpeg" }, timestamp: "1713708900" },
+      { from: phoneNumber, type: "image", image: { id: "image-3", mime_type: "image/jpeg" }, timestamp: "1713708960" },
+    ];
+
+    for (const payloadMessage of seedMessages) {
+      const req = { body: { entry: [{ changes: [{ value: { messages: [payloadMessage] } }] }] } };
+      const res = createResponse();
+      await handleWhatsAppWebhook(req as never, res as never);
+    }
+
+    processMealInputMock.mockClear();
+    const req = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      from: phoneNumber,
+                      type: "text",
+                      text: {
+                        body: "Mudar a refeição lanche para café da manhã",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(lastSentWhatsAppBody).toContain("Você quer que eu mova apenas os itens marcados como Lanche");
+
+  });
+
+  it("registra warning quando o número recebido não possui vínculo ativo com um usuário", async () => {
+    const unlinkedPhone = `5511666${Date.now().toString().slice(-7)}`;
+    const req = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      from: unlinkedPhone,
+                      type: "text",
+                      text: {
+                        body: "envio sem vínculo",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(lastSentWhatsAppBody).toBeNull();
   });
 });

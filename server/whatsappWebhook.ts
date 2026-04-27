@@ -1,13 +1,14 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Request, Response } from "express";
 import { whatsappConnections } from "../drizzle/schema";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, createPendingMealInference, getDb, getHabitSnapshots, logInferenceEvent } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getDb, getHabitSnapshots, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 
 type WhatsAppMessage = {
   from?: string;
+  timestamp?: string;
   type?: string;
   text?: { body?: string };
   image?: { id?: string; mime_type?: string };
@@ -23,10 +24,11 @@ type PreparedMessageInput = {
   summary: string;
 };
 
-function getConfiguredUserId() {
-  const parsed = Number(process.env.WHATSAPP_DEFAULT_USER_ID || "1");
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
+type WhatsAppAction = {
+  kind: "reclassify_recent_meals";
+  fromMealLabel: string;
+  toMealLabel: string;
+};
 
 function normalizePhoneNumber(phone: string) {
   return phone.replace(/\D/g, "");
@@ -38,17 +40,21 @@ async function resolveUserIdFromPhone(sourcePhone: string) {
 
   if (db && normalizedPhone) {
     try {
-      const rows = await db.select().from(whatsappConnections).where(eq(whatsappConnections.phoneNumber, normalizedPhone)).limit(1);
+      const rows = await db
+        .select()
+        .from(whatsappConnections)
+        .where(and(eq(whatsappConnections.phoneNumber, normalizedPhone), eq(whatsappConnections.status, "active")))
+        .limit(1);
       const match = rows[0];
       if (match?.userId) {
         return match.userId;
       }
     } catch {
-      // mantém fallback para o usuário padrão enquanto a conexão real não estiver cadastrada
+      return null;
     }
   }
 
-  return getConfiguredUserId();
+  return null;
 }
 
 function getVerifyToken() {
@@ -94,6 +100,58 @@ function getMealEmoji(mealLabel: string) {
   return "🍎";
 }
 
+function resolveOccurredAt(message: WhatsAppMessage) {
+  const parsed = Number(message.timestamp);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return new Date();
+  }
+
+  return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
+}
+
+function normalizeIntentText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function canonicalMealLabel(label: string) {
+  const normalized = normalizeIntentText(label);
+  if (normalized.includes("cafe") || normalized.includes("manha")) return "Café da manhã";
+  if (normalized.includes("almoco")) return "Almoço";
+  if (normalized.includes("janta")) return "Jantar";
+  if (normalized.includes("lanche")) return "Lanche";
+  if (normalized.includes("bebida")) return "Bebida";
+  return label.trim();
+}
+
+function detectWhatsAppAction(message: WhatsAppMessage): WhatsAppAction | null {
+  const text = message.text?.body?.trim();
+  if (!text || message.image?.id || message.audio?.id) {
+    return null;
+  }
+
+  const normalized = normalizeIntentText(text);
+  const match = normalized.match(/(?:mudar|trocar|alterar)\s+a?\s*refeicao\s+(.+?)\s+para\s+(.+)/i);
+  if (!match) {
+    return null;
+  }
+
+  const fromMealLabel = canonicalMealLabel(match[1] || "");
+  const toMealLabel = canonicalMealLabel(match[2] || "");
+  if (!fromMealLabel || !toMealLabel || fromMealLabel === toMealLabel) {
+    return null;
+  }
+
+  return {
+    kind: "reclassify_recent_meals",
+    fromMealLabel,
+    toMealLabel,
+  };
+}
+
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
   const portionHasGrams = /\d\s*g\b/i.test(item.portionText);
   const gramsLabel = !portionHasGrams && item.estimatedGrams > 0 ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)` : "";
@@ -127,6 +185,52 @@ function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt
   ].join("\n"));
 
   return [mealHeader, "", itemBlocks.join("\n\n")].join("\n");
+}
+
+async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
+  const recentMeals = (await listUserMeals(userId))
+    .filter(meal => meal.source === "whatsapp")
+    .slice(0, 3);
+
+  const matchingMeals = recentMeals.filter(
+    meal => canonicalMealLabel(meal.mealLabel) === action.fromMealLabel,
+  );
+
+  if (!recentMeals.length || !matchingMeals.length) {
+    return {
+      handled: true,
+      reply: `Não encontrei refeições recentes no WhatsApp marcadas como ${action.fromMealLabel}. Me diga quais alimentos você quer mover para ${action.toMealLabel}.`,
+      eventType: "whatsapp.action_clarification_needed",
+      detail: `Comando de reclassificação sem refeições recentes compatíveis: ${action.fromMealLabel} → ${action.toMealLabel}.`,
+    };
+  }
+
+  if (matchingMeals.length !== recentMeals.length) {
+    const recentSummary = recentMeals
+      .map(meal => `${meal.mealLabel} às ${formatReplyTime(new Date(meal.occurredAt))}`)
+      .join(", ");
+
+    return {
+      handled: true,
+      reply: `Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer que eu mova apenas os itens marcados como ${action.fromMealLabel} ou todos os últimos ${recentMeals.length} registros para ${action.toMealLabel}?`,
+      eventType: "whatsapp.action_clarification_needed",
+      detail: `Comando ambíguo de reclassificação para ${action.toMealLabel}. Registros recentes: ${recentSummary}.`,
+    };
+  }
+
+  const updatedMeals = await relabelUserMeals({
+    userId,
+    mealIds: matchingMeals.map(meal => meal.id),
+    mealLabel: action.toMealLabel,
+    origin: "whatsapp",
+  });
+
+  return {
+    handled: true,
+    reply: `${updatedMeals.length} registro(s) recente(s) foram alterados de ${action.fromMealLabel} para ${action.toMealLabel}.`,
+    eventType: "whatsapp.action_applied",
+    detail: `Comando executado com sucesso: ${action.fromMealLabel} → ${action.toMealLabel} em ${updatedMeals.length} registro(s).`,
+  };
 }
 
 async function sendWhatsAppTextMessage(to: string, body: string) {
@@ -317,10 +421,22 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
   for (const message of messages) {
     const sourcePhone = message.from || "unknown";
+    const userId = await resolveUserIdFromPhone(sourcePhone);
+
+    if (!userId) {
+      logInferenceEvent({
+        userId: null,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.unlinked_phone",
+        detail: `Mensagem recebida de ${sourcePhone} sem vínculo ativo com um usuário da plataforma.`,
+      });
+      continue;
+    }
 
     if (!isSupportedMessage(message)) {
       logInferenceEvent({
-        userId: await resolveUserIdFromPhone(sourcePhone),
+        userId,
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.unsupported_message",
@@ -330,7 +446,30 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
     }
 
     try {
-      const userId = await resolveUserIdFromPhone(sourcePhone);
+      const action = detectWhatsAppAction(message);
+      if (action) {
+        const actionResult = await handleWhatsAppAction(action, userId);
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "success",
+          eventType: actionResult.eventType,
+          detail: actionResult.detail,
+        });
+
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, actionResult.reply);
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
+        continue;
+      }
+
       const prepared = await prepareMessageInput(message, sourcePhone);
       const processed = await processMealInput({
         text: prepared.text,
@@ -339,19 +478,28 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         audioUrl: prepared.audioUrl,
         habits: await getHabitSnapshots(userId),
       });
+      const occurredAt = resolveOccurredAt(message);
       const draft = createPendingMealInference(userId, "whatsapp", processed, prepared.media);
+      const savedMeal = await confirmPendingMeal({
+        draftId: draft.draftId,
+        userId,
+        mealLabel: processed.detectedMealLabel || "Refeição",
+        occurredAt: occurredAt.toISOString(),
+        notes: prepared.text?.trim() || prepared.transcript?.trim() || undefined,
+        items: processed.items,
+      });
 
       logInferenceEvent({
         userId,
         origin: "whatsapp",
         status: "success",
         eventType: "whatsapp.message_processed",
-        detail: `Mensagem ${prepared.summary} de ${sourcePhone} processada. Rascunho ${draft.draftId} criado com ${processed.items.length} itens.`,
+        detail: `Mensagem ${prepared.summary} de ${sourcePhone} processada e refeição ${savedMeal.mealLabel} registrada automaticamente às ${formatReplyTime(occurredAt)}.`,
       });
 
       const replyResult = await sendWhatsAppTextMessage(
         sourcePhone,
-        buildWhatsAppReplyMessage(processed, new Date()),
+        buildWhatsAppReplyMessage(processed, occurredAt),
       );
 
       if (!replyResult.ok) {
@@ -365,7 +513,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
     } catch (error) {
       logInferenceEvent({
-        userId: await resolveUserIdFromPhone(sourcePhone),
+        userId,
         origin: "whatsapp",
         status: "error",
         eventType: "whatsapp.processing_error",
