@@ -30,6 +30,17 @@ type WhatsAppAction = {
   toMealLabel: string;
 };
 
+type PendingWhatsAppConfirmation = {
+  action: WhatsAppAction;
+  mealIds: number[];
+  createdAt: number;
+  expiresAt: number;
+  summary: string;
+};
+
+const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation>();
+const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
+
 function normalizePhoneNumber(phone: string) {
   return phone.replace(/\D/g, "");
 }
@@ -127,8 +138,12 @@ function canonicalMealLabel(label: string) {
   return label.trim();
 }
 
+function getTextBody(message: WhatsAppMessage) {
+  return message.text?.body?.trim() ?? "";
+}
+
 function detectWhatsAppAction(message: WhatsAppMessage): WhatsAppAction | null {
-  const text = message.text?.body?.trim();
+  const text = getTextBody(message);
   if (!text || message.image?.id || message.audio?.id) {
     return null;
   }
@@ -150,6 +165,16 @@ function detectWhatsAppAction(message: WhatsAppMessage): WhatsAppAction | null {
     fromMealLabel,
     toMealLabel,
   };
+}
+
+function isConfirmationMessage(message: WhatsAppMessage) {
+  const normalized = normalizeIntentText(getTextBody(message));
+  return ["sim", "confirmar", "confirma", "pode confirmar", "ok", "pode seguir"].includes(normalized);
+}
+
+function isCancellationMessage(message: WhatsAppMessage) {
+  const normalized = normalizeIntentText(getTextBody(message));
+  return ["nao", "não", "cancelar", "cancela", "parar", "desfazer"].includes(normalized);
 }
 
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
@@ -187,6 +212,52 @@ function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt
   return [mealHeader, "", itemBlocks.join("\n\n")].join("\n");
 }
 
+async function handlePendingWhatsAppConfirmation(message: WhatsAppMessage, userId: number) {
+  const pending = pendingWhatsAppConfirmations.get(userId);
+  if (!pending) {
+    return null;
+  }
+
+  if (pending.expiresAt < Date.now()) {
+    pendingWhatsAppConfirmations.delete(userId);
+    return {
+      handled: true,
+      reply: "A solicitação anterior expirou. Se ainda quiser alterar a classificação das refeições, envie o comando novamente.",
+      eventType: "whatsapp.action_confirmation_expired",
+      detail: `Confirmação expirada para ${pending.summary}.`,
+    };
+  }
+
+  if (isCancellationMessage(message)) {
+    pendingWhatsAppConfirmations.delete(userId);
+    return {
+      handled: true,
+      reply: "Tudo certo. Não alterei nenhum registro histórico.",
+      eventType: "whatsapp.action_cancelled",
+      detail: `Confirmação cancelada para ${pending.summary}.`,
+    };
+  }
+
+  if (!isConfirmationMessage(message)) {
+    return null;
+  }
+
+  const updatedMeals = await relabelUserMeals({
+    userId,
+    mealIds: pending.mealIds,
+    mealLabel: pending.action.toMealLabel,
+    origin: "whatsapp",
+  });
+  pendingWhatsAppConfirmations.delete(userId);
+
+  return {
+    handled: true,
+    reply: `${updatedMeals.length} registro(s) recente(s) foram alterados de ${pending.action.fromMealLabel} para ${pending.action.toMealLabel}.`,
+    eventType: "whatsapp.action_applied",
+    detail: `Comando confirmado e executado com sucesso: ${pending.summary} em ${updatedMeals.length} registro(s).`,
+  };
+}
+
 async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
   const recentMeals = (await listUserMeals(userId))
     .filter(meal => meal.source === "whatsapp")
@@ -218,18 +289,20 @@ async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
     };
   }
 
-  const updatedMeals = await relabelUserMeals({
-    userId,
+  const summary = `${action.fromMealLabel} → ${action.toMealLabel}`;
+  pendingWhatsAppConfirmations.set(userId, {
+    action,
     mealIds: matchingMeals.map(meal => meal.id),
-    mealLabel: action.toMealLabel,
-    origin: "whatsapp",
+    createdAt: Date.now(),
+    expiresAt: Date.now() + PENDING_CONFIRMATION_TTL_MS,
+    summary,
   });
 
   return {
     handled: true,
-    reply: `${updatedMeals.length} registro(s) recente(s) foram alterados de ${action.fromMealLabel} para ${action.toMealLabel}.`,
-    eventType: "whatsapp.action_applied",
-    detail: `Comando executado com sucesso: ${action.fromMealLabel} → ${action.toMealLabel} em ${updatedMeals.length} registro(s).`,
+    reply: `Encontrei ${matchingMeals.length} registro(s) recente(s) marcados como ${action.fromMealLabel}. Responda SIM para confirmar a mudança para ${action.toMealLabel} ou CANCELAR para desistir.`,
+    eventType: "whatsapp.action_confirmation_requested",
+    detail: `Confirmação solicitada para ${summary} em ${matchingMeals.length} registro(s).`,
   };
 }
 
@@ -446,13 +519,36 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
     }
 
     try {
+      const pendingConfirmationResult = await handlePendingWhatsAppConfirmation(message, userId);
+      if (pendingConfirmationResult) {
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: pendingConfirmationResult.eventType === "whatsapp.action_cancelled" ? "warning" : "success",
+          eventType: pendingConfirmationResult.eventType,
+          detail: pendingConfirmationResult.detail,
+        });
+
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, pendingConfirmationResult.reply);
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
+        continue;
+      }
+
       const action = detectWhatsAppAction(message);
       if (action) {
         const actionResult = await handleWhatsAppAction(action, userId);
         logInferenceEvent({
           userId,
           origin: "whatsapp",
-          status: "success",
+          status: actionResult.eventType === "whatsapp.action_clarification_needed" ? "warning" : "success",
           eventType: actionResult.eventType,
           detail: actionResult.detail,
         });

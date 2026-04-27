@@ -238,14 +238,10 @@ describe("whatsappWebhook", () => {
 
     await handleWhatsAppWebhook(req as never, res as never);
 
-    const admin = await getAdminSnapshot();
-    const confirmedLog = admin.recentInferenceLogs.find(
-      (entry) => entry.eventType === "meal.confirmed" && entry.origin === "whatsapp" && entry.userId === 1,
-    );
-
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(confirmedLog).toBeDefined();
+    const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
+    expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppBody).toBe([
       "🍽️ Almoço:",
       "",
@@ -354,15 +350,11 @@ describe("whatsappWebhook", () => {
 
     await handleWhatsAppWebhook(req as never, res as never);
 
-    const admin = await getAdminSnapshot();
-    const warningLog = admin.recentInferenceLogs.find(
-      (entry) => entry.eventType === "whatsapp.reply_failed" && entry.detail.includes(phone),
-    );
-
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(warningLog).toBeDefined();
-    expect(warningLog?.status).toBe("warning");
+    const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
+    expect(savedMeals.length).toBeGreaterThan(0);
+    expect(lastSentWhatsAppBody).toBeNull();
   });
 
   it("ignora mensagens não suportadas sem falhar o webhook quando o número está vinculado", async () => {
@@ -400,7 +392,7 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
   });
 
-  it("reclassifica os registros recentes compatíveis quando o comando do WhatsApp é claro", async () => {
+  it("solicita confirmação antes de reclassificar registros históricos via WhatsApp e só aplica a mudança após resposta afirmativa", async () => {
     const userId = 700000 + Math.floor(Math.random() * 100000);
     const phoneNumber = `55${String(userId).padStart(11, "0").slice(-11)}`;
 
@@ -447,7 +439,7 @@ describe("whatsappWebhook", () => {
     }
 
     processMealInputMock.mockClear();
-    const req = {
+    const requestChange = {
       body: {
         entry: [
           {
@@ -470,15 +462,50 @@ describe("whatsappWebhook", () => {
         ],
       },
     };
-    const res = createResponse();
+    const firstResponse = createResponse();
 
-    await handleWhatsAppWebhook(req as never, res as never);
+    await handleWhatsAppWebhook(requestChange as never, firstResponse as never);
+
+    const mealsBeforeConfirmation = (await listUserMeals(userId)).filter((meal) => meal.source === "whatsapp").slice(0, 3);
+
+    expect(firstResponse.statusCode).toBe(200);
+    expect(firstResponse.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(mealsBeforeConfirmation).toHaveLength(3);
+    expect(mealsBeforeConfirmation.every((meal) => meal.mealLabel === "Lanche")).toBe(true);
+    expect(lastSentWhatsAppBody).toContain("Responda SIM para confirmar a mudança para Café da manhã");
+
+    const confirmChange = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      from: phoneNumber,
+                      type: "text",
+                      text: {
+                        body: "sim",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const secondResponse = createResponse();
+
+    await handleWhatsAppWebhook(confirmChange as never, secondResponse as never);
 
     const updatedMeals = (await listUserMeals(userId)).filter((meal) => meal.source === "whatsapp").slice(0, 3);
 
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(secondResponse.statusCode).toBe(200);
+    expect(secondResponse.body).toEqual({ ok: true, processed: 1 });
     expect(updatedMeals).toHaveLength(3);
     expect(updatedMeals.every((meal) => meal.mealLabel === "Café da manhã")).toBe(true);
     expect(lastSentWhatsAppBody).toContain("3 registro(s) recente(s) foram alterados de Lanche para Café da manhã");

@@ -111,3 +111,5 @@
 - [x] Corrigir no canal WhatsApp a interpretação de comandos como "Mudar a refeição lanche para café da manhã" para que não sejam registrados como alimento
 - [x] Implementar no WhatsApp a atualização da classificação dos alimentos recentes quando o usuário pedir mudança de refeição e pedir esclarecimento quando houver ambiguidade
 - [x] Cobrir com testes o fluxo conversacional de ações do WhatsApp que editam refeições já registradas sem criar novos alimentos indevidos
+- [x] Implementar confirmação obrigatória no WhatsApp antes de alterar registros históricos de refeições por comando textual
+- [x] Cobrir com testes o fluxo seguro em duas etapas para reclassificação de refeições via WhatsApp, exigindo confirmação explícita do usuário antes da alteração
