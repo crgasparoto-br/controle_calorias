@@ -99,9 +99,9 @@
 - [x] Aplicar formatação pt-BR também aos campos numéricos restantes da edição inline de exercícios no dashboard
 - [x] Adicionar seleção automática do conteúdo ao focar nos campos de hidratação para acelerar a edição da meta diária e do consumo
 - [x] Incluir validações visuais nos campos de água para destacar valores mínimos, máximos ou estados inválidos antes do salvamento
-- [ ] Permitir no cadastro de metas nutricionais a escolha entre informar macronutrientes por gramas ou por percentual
-- [ ] Calcular automaticamente as gramas de proteínas, carboidratos e gorduras quando o usuário optar pelo preenchimento por percentual
-- [ ] Validar no formulário de metas que a soma dos três macronutrientes em percentual seja exatamente 100% antes de permitir o salvamento
+- [x] Permitir no cadastro de metas nutricionais a escolha entre informar macronutrientes por gramas ou por percentual
+- [x] Calcular automaticamente as gramas de proteínas, carboidratos e gorduras quando o usuário optar pelo preenchimento por percentual
+- [x] Validar no formulário de metas que a soma dos três macronutrientes em percentual seja exatamente 100% antes de permitir o salvamento
 - [x] Atualizar a secret `WHATSAPP_ACCESS_TOKEN` com o novo token informado pelo usuário e validar a configuração com teste automatizado
 - [x] Adicionar um teste automatizado específico para `WHATSAPP_ACCESS_TOKEN` que faça uma chamada leve autenticada à API do WhatsApp/Graph
 - [x] Executar o teste específico do access token e só então concluir a atualização da credencial do WhatsApp
