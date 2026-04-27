@@ -25,8 +25,8 @@ function macroProgress(consumed: number, goal: number) {
 function buildDefaultExerciseForm() {
   return {
     activityType: "Corrida",
-    durationMinutes: "45",
-    caloriesBurned: "450",
+    durationMinutes: formatIntegerInputPtBr(45),
+    caloriesBurned: formatIntegerInputPtBr(450),
     occurredAt: new Date().toISOString().slice(0, 16),
     notes: "",
   };
@@ -49,8 +49,8 @@ function buildExerciseEditForm(exercise: {
 }) {
   return {
     activityType: exercise.activityType,
-    durationMinutes: String(exercise.durationMinutes),
-    caloriesBurned: String(exercise.caloriesBurned),
+    durationMinutes: formatIntegerInputPtBr(exercise.durationMinutes),
+    caloriesBurned: formatIntegerInputPtBr(exercise.caloriesBurned),
     occurredAt: new Date(Number(exercise.occurredAt)).toISOString().slice(0, 16),
     notes: exercise.notes ?? "",
   };
@@ -135,8 +135,8 @@ export default function Home() {
     event.preventDefault();
     createExercise.mutate({
       activityType: exerciseForm.activityType.trim(),
-      durationMinutes: Number(exerciseForm.durationMinutes || 0),
-      caloriesBurned: Number(exerciseForm.caloriesBurned || 0),
+      durationMinutes: parseIntegerInputPtBr(exerciseForm.durationMinutes),
+      caloriesBurned: parseIntegerInputPtBr(exerciseForm.caloriesBurned),
       occurredAt: new Date(exerciseForm.occurredAt).toISOString(),
       notes: exerciseForm.notes.trim() || undefined,
     });
@@ -158,6 +158,10 @@ export default function Home() {
   };
 
   const weeklyCombined = overview.data?.weekly ?? [];
+  const waterGoalValue = parseIntegerInputPtBr(waterForm.dailyTargetMl);
+  const waterAmountValue = parseIntegerInputPtBr(waterForm.amountMl);
+  const isWaterGoalInvalid = waterGoalValue < 250 || waterGoalValue > 10000;
+  const isWaterAmountInvalid = waterAmountValue < 50 || waterAmountValue > 5000;
 
   return (
     <DashboardLayout>
@@ -339,21 +343,31 @@ export default function Home() {
                   <label className="block space-y-2 text-sm">
                     <span className="text-muted-foreground">Duração (min)</span>
                     <input
-                      type="number"
-                      min={1}
+                      type="text"
+                      inputMode="numeric"
                       className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
                       value={exerciseForm.durationMinutes}
-                      onChange={event => setExerciseForm(current => ({ ...current, durationMinutes: event.target.value }))}
+                      onChange={event =>
+                        setExerciseForm(current => ({
+                          ...current,
+                          durationMinutes: formatIntegerInputPtBr(event.target.value),
+                        }))
+                      }
                     />
                   </label>
                   <label className="block space-y-2 text-sm">
                     <span className="text-muted-foreground">Gasto estimado (kcal)</span>
                     <input
-                      type="number"
-                      min={1}
+                      type="text"
+                      inputMode="numeric"
                       className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
                       value={exerciseForm.caloriesBurned}
-                      onChange={event => setExerciseForm(current => ({ ...current, caloriesBurned: event.target.value }))}
+                      onChange={event =>
+                        setExerciseForm(current => ({
+                          ...current,
+                          caloriesBurned: formatIntegerInputPtBr(event.target.value),
+                        }))
+                      }
                     />
                   </label>
                 </div>
@@ -398,18 +412,28 @@ export default function Home() {
                               />
                               <div className="grid gap-3 sm:grid-cols-2">
                                 <input
-                                  type="number"
-                                  min={1}
+                                  type="text"
+                                  inputMode="numeric"
                                   className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary"
                                   value={editingExerciseForm.durationMinutes}
-                                  onChange={event => setEditingExerciseForm(current => ({ ...current, durationMinutes: event.target.value }))}
+                                  onChange={event =>
+                                    setEditingExerciseForm(current => ({
+                                      ...current,
+                                      durationMinutes: formatIntegerInputPtBr(event.target.value),
+                                    }))
+                                  }
                                 />
                                 <input
-                                  type="number"
-                                  min={1}
+                                  type="text"
+                                  inputMode="numeric"
                                   className="w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary"
                                   value={editingExerciseForm.caloriesBurned}
-                                  onChange={event => setEditingExerciseForm(current => ({ ...current, caloriesBurned: event.target.value }))}
+                                  onChange={event =>
+                                    setEditingExerciseForm(current => ({
+                                      ...current,
+                                      caloriesBurned: formatIntegerInputPtBr(event.target.value),
+                                    }))
+                                  }
                                 />
                               </div>
                               <input
@@ -447,8 +471,8 @@ export default function Home() {
                                   updateExercise.mutate({
                                     exerciseId: exercise.id,
                                     activityType: editingExerciseForm.activityType.trim(),
-                                    durationMinutes: Number(editingExerciseForm.durationMinutes || 0),
-                                    caloriesBurned: Number(editingExerciseForm.caloriesBurned || 0),
+                                    durationMinutes: parseIntegerInputPtBr(editingExerciseForm.durationMinutes),
+                                    caloriesBurned: parseIntegerInputPtBr(editingExerciseForm.caloriesBurned),
                                     occurredAt: new Date(editingExerciseForm.occurredAt).toISOString(),
                                     notes: editingExerciseForm.notes.trim() || undefined,
                                   })
@@ -523,8 +547,9 @@ export default function Home() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                      className={`w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary ${isWaterGoalInvalid ? "border-amber-500 ring-1 ring-amber-200" : ""}`}
                       value={waterForm.dailyTargetMl}
+                      onFocus={event => event.currentTarget.select()}
                       onChange={event =>
                         setWaterForm(current => ({
                           ...current,
@@ -535,12 +560,13 @@ export default function Home() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => updateWaterGoal.mutate({ dailyTargetMl: parseIntegerInputPtBr(waterForm.dailyTargetMl) })}
-                      disabled={updateWaterGoal.isPending}
+                      onClick={() => updateWaterGoal.mutate({ dailyTargetMl: waterGoalValue })}
+                      disabled={updateWaterGoal.isPending || isWaterGoalInvalid}
                     >
                       {updateWaterGoal.isPending ? "Salvando..." : "Salvar meta"}
                     </Button>
                   </div>
+                  {isWaterGoalInvalid ? <p className="text-xs text-amber-600">Use uma meta diária entre 250 ml e 10.000 ml.</p> : null}
                 </label>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block space-y-2 text-sm">
@@ -548,8 +574,9 @@ export default function Home() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      className="w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary"
+                      className={`w-full rounded-xl border bg-background px-3 py-2 outline-none transition focus:border-primary ${isWaterAmountInvalid ? "border-amber-500 ring-1 ring-amber-200" : ""}`}
                       value={waterForm.amountMl}
+                      onFocus={event => event.currentTarget.select()}
                       onChange={event =>
                         setWaterForm(current => ({
                           ...current,
@@ -568,6 +595,7 @@ export default function Home() {
                     />
                   </label>
                 </div>
+                {isWaterAmountInvalid ? <p className="text-xs text-amber-600">Informe um consumo entre 50 ml e 5.000 ml por registro.</p> : null}
                 <div className="grid gap-2 sm:grid-cols-3">
                   {[200, 300, 500].map(shortcut => (
                     <Button key={shortcut} type="button" variant="outline" onClick={() => handleQuickWater(shortcut)} disabled={createWaterLog.isPending}>
@@ -575,7 +603,7 @@ export default function Home() {
                     </Button>
                   ))}
                 </div>
-                <Button type="submit" className="w-full" disabled={createWaterLog.isPending}>
+                <Button type="submit" className="w-full" disabled={createWaterLog.isPending || isWaterAmountInvalid}>
                   {createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}
                 </Button>
               </form>

@@ -96,3 +96,6 @@
 - [x] Criar uma visão semanal combinada com calorias líquidas, consumo de água e adesão à meta em um único bloco visual
 - [x] Aplicar formatação pt-BR no campo de entrada da meta diária da água no dashboard, preservando a gravação numérica correta do valor salvo
 - [x] Revisar os campos numéricos recém-adicionados de hidratação para garantir consistência com a regra de formatação pt-BR em entradas de dados
+- [x] Aplicar formatação pt-BR também aos campos numéricos restantes da edição inline de exercícios no dashboard
+- [x] Adicionar seleção automática do conteúdo ao focar nos campos de hidratação para acelerar a edição da meta diária e do consumo
+- [x] Incluir validações visuais nos campos de água para destacar valores mínimos, máximos ou estados inválidos antes do salvamento
