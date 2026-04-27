@@ -5,24 +5,50 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { formatCalories, formatGrams, formatIntegerPtBr, formatPercentPtBr } from "@/lib/numberFormat";
+import {
+  formatCalories,
+  formatDecimalInputPtBr,
+  formatGrams,
+  formatIntegerPtBr,
+  formatPercentPtBr,
+  parseDecimalInputPtBr,
+  parseIntegerInputPtBr,
+} from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { CalendarRange, Goal, Plus, Save, Trash2 } from "lucide-react";
+import { AlertCircle, CalendarRange, Goal, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-type GoalTargetForm = {
+type MacroInputMode = "grams" | "percent";
+type DurationType = "1_week" | "2_weeks" | "3_weeks" | "always";
+
+type GoalTargetBase = {
   calories: number;
   proteinGrams: number;
   carbsGrams: number;
   fatGrams: number;
 };
 
-type DurationType = "1_week" | "2_weeks" | "3_weeks" | "always";
+type GoalTargetForm = GoalTargetBase & {
+  inputMode: MacroInputMode;
+  proteinPercent: number;
+  carbsPercent: number;
+  fatPercent: number;
+};
 
 type GoalExceptionForm = GoalTargetForm & {
   id?: number;
   weekday: number;
   durationType: DurationType;
+};
+
+type MacroPercentField = "proteinPercent" | "carbsPercent" | "fatPercent";
+type MacroGramField = "proteinGrams" | "carbsGrams" | "fatGrams";
+
+type GoalPayload = {
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
 };
 
 const WEEKDAY_META = [
@@ -35,7 +61,7 @@ const WEEKDAY_META = [
   { weekday: 6, label: "Domingo", shortLabel: "dom." },
 ] as const;
 
-const DEFAULT_GOAL: GoalTargetForm = {
+const DEFAULT_GOAL_BASE: GoalTargetBase = {
   calories: 2200,
   proteinGrams: 160,
   carbsGrams: 240,
@@ -53,17 +79,83 @@ function getWeekdayIndex(date: Date) {
   return (date.getDay() + 6) % 7;
 }
 
+function roundToOneDecimal(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function derivePercentagesFromGoal(goal: GoalTargetBase) {
+  const proteinCalories = goal.proteinGrams * 4;
+  const carbsCalories = goal.carbsGrams * 4;
+  const fatCalories = goal.fatGrams * 9;
+  const totalMacroCalories = proteinCalories + carbsCalories + fatCalories;
+
+  if (!totalMacroCalories) {
+    return {
+      proteinPercent: 0,
+      carbsPercent: 0,
+      fatPercent: 0,
+    };
+  }
+
+  const proteinPercent = roundToOneDecimal((proteinCalories / totalMacroCalories) * 100);
+  const carbsPercent = roundToOneDecimal((carbsCalories / totalMacroCalories) * 100);
+  const fatPercent = roundToOneDecimal(Math.max(0, 100 - proteinPercent - carbsPercent));
+
+  return {
+    proteinPercent,
+    carbsPercent,
+    fatPercent,
+  };
+}
+
+function applyPercentagesToGoal(goal: GoalTargetForm, percentages: Pick<GoalTargetForm, MacroPercentField>): GoalTargetForm {
+  const calories = Math.max(0, goal.calories);
+  const proteinPercent = roundToOneDecimal(percentages.proteinPercent);
+  const carbsPercent = roundToOneDecimal(percentages.carbsPercent);
+  const fatPercent = roundToOneDecimal(percentages.fatPercent);
+
+  return {
+    ...goal,
+    proteinPercent,
+    carbsPercent,
+    fatPercent,
+    proteinGrams: Math.round((calories * (proteinPercent / 100)) / 4),
+    carbsGrams: Math.round((calories * (carbsPercent / 100)) / 4),
+    fatGrams: Math.round((calories * (fatPercent / 100)) / 9),
+  };
+}
+
+function createGoalTargetForm(goal: GoalTargetBase): GoalTargetForm {
+  return {
+    ...goal,
+    inputMode: "grams",
+    ...derivePercentagesFromGoal(goal),
+  };
+}
+
 function buildException(weekday: number): GoalExceptionForm {
   return {
     weekday,
     durationType: "always",
-    ...DEFAULT_GOAL,
+    ...createGoalTargetForm(DEFAULT_GOAL_BASE),
   };
 }
 
-function parseIntegerInputPtBr(rawValue: string) {
-  const digitsOnly = rawValue.replace(/\D/g, "");
-  return digitsOnly ? Number(digitsOnly) : 0;
+function getPercentSum(goal: GoalTargetForm) {
+  return roundToOneDecimal(goal.proteinPercent + goal.carbsPercent + goal.fatPercent);
+}
+
+function isPercentModeValid(goal: GoalTargetForm) {
+  return goal.inputMode !== "percent" || getPercentSum(goal) === 100;
+}
+
+function toGoalPayload(goal: GoalTargetForm): GoalPayload {
+  return {
+    calories: goal.calories,
+    proteinGrams: goal.proteinGrams,
+    carbsGrams: goal.carbsGrams,
+    fatGrams: goal.fatGrams,
+  };
 }
 
 export default function GoalsPage() {
@@ -81,40 +173,44 @@ export default function GoalsPage() {
     onError: error => toast.error(error.message || "Falha ao atualizar metas."),
   });
 
-  const [defaultGoal, setDefaultGoal] = useState<GoalTargetForm>(() => goalQuery.data ? {
+  const [defaultGoal, setDefaultGoal] = useState<GoalTargetForm>(() => goalQuery.data ? createGoalTargetForm({
     calories: goalQuery.data.defaultGoal.calories,
     proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
     carbsGrams: goalQuery.data.defaultGoal.carbsGrams,
     fatGrams: goalQuery.data.defaultGoal.fatGrams,
-  } : DEFAULT_GOAL);
+  }) : createGoalTargetForm(DEFAULT_GOAL_BASE));
   const [exceptions, setExceptions] = useState<GoalExceptionForm[]>(() => goalQuery.data ? goalQuery.data.exceptions.map(exception => ({
     id: exception.id,
     weekday: exception.weekday,
     durationType: exception.durationType,
-    calories: exception.calories,
-    proteinGrams: exception.proteinGrams,
-    carbsGrams: exception.carbsGrams,
-    fatGrams: exception.fatGrams,
+    ...createGoalTargetForm({
+      calories: exception.calories,
+      proteinGrams: exception.proteinGrams,
+      carbsGrams: exception.carbsGrams,
+      fatGrams: exception.fatGrams,
+    }),
   })) : []);
 
   useEffect(() => {
     if (!goalQuery.data) return;
 
-    setDefaultGoal({
+    setDefaultGoal(createGoalTargetForm({
       calories: goalQuery.data.defaultGoal.calories,
       proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
       carbsGrams: goalQuery.data.defaultGoal.carbsGrams,
       fatGrams: goalQuery.data.defaultGoal.fatGrams,
-    });
+    }));
 
     setExceptions(goalQuery.data.exceptions.map(exception => ({
       id: exception.id,
       weekday: exception.weekday,
       durationType: exception.durationType,
-      calories: exception.calories,
-      proteinGrams: exception.proteinGrams,
-      carbsGrams: exception.carbsGrams,
-      fatGrams: exception.fatGrams,
+      ...createGoalTargetForm({
+        calories: exception.calories,
+        proteinGrams: exception.proteinGrams,
+        carbsGrams: exception.carbsGrams,
+        fatGrams: exception.fatGrams,
+      }),
     })));
   }, [goalQuery.data]);
 
@@ -147,13 +243,87 @@ export default function GoalsPage() {
   const alignment = weeklyTotals.calories ? Math.min((weeklyMacroCalories / weeklyTotals.calories) * 100, 140) : 0;
   const todayGoal = previewDays[getWeekdayIndex(new Date())] ?? previewDays[0];
   const availableWeekdays = WEEKDAY_META.filter(day => !exceptions.some(exception => exception.weekday === day.weekday));
+  const defaultPercentSum = getPercentSum(defaultGoal);
+  const hasInvalidPercentages = !isPercentModeValid(defaultGoal) || exceptions.some(exception => !isPercentModeValid(exception));
 
-  function updateDefaultGoal(field: keyof GoalTargetForm, value: number) {
-    setDefaultGoal(current => ({ ...current, [field]: value }));
+  function updateGoalTargetField(current: GoalTargetForm, field: keyof GoalPayload, value: number) {
+    const nextGoal = { ...current, [field]: value };
+
+    if (field === "calories" && current.inputMode === "percent") {
+      return applyPercentagesToGoal(nextGoal, {
+        proteinPercent: current.proteinPercent,
+        carbsPercent: current.carbsPercent,
+        fatPercent: current.fatPercent,
+      });
+    }
+
+    return {
+      ...nextGoal,
+      ...derivePercentagesFromGoal(nextGoal),
+    };
+  }
+
+  function updateGoalTargetPercent(current: GoalTargetForm, field: MacroPercentField, value: number) {
+    return applyPercentagesToGoal({ ...current, inputMode: "percent" }, {
+      proteinPercent: field === "proteinPercent" ? value : current.proteinPercent,
+      carbsPercent: field === "carbsPercent" ? value : current.carbsPercent,
+      fatPercent: field === "fatPercent" ? value : current.fatPercent,
+    });
+  }
+
+  function updateGoalInputMode(current: GoalTargetForm, mode: MacroInputMode) {
+    if (mode === current.inputMode) return current;
+
+    if (mode === "percent") {
+      return applyPercentagesToGoal({ ...current, inputMode: mode }, {
+        proteinPercent: current.proteinPercent,
+        carbsPercent: current.carbsPercent,
+        fatPercent: current.fatPercent,
+      });
+    }
+
+    return {
+      ...current,
+      inputMode: mode,
+      ...derivePercentagesFromGoal(current),
+    };
+  }
+
+  function updateDefaultGoal(field: keyof GoalPayload, value: number) {
+    setDefaultGoal(current => updateGoalTargetField(current, field, value));
+  }
+
+  function updateDefaultGoalPercent(field: MacroPercentField, value: number) {
+    setDefaultGoal(current => updateGoalTargetPercent(current, field, value));
+  }
+
+  function updateDefaultInputMode(mode: MacroInputMode) {
+    setDefaultGoal(current => updateGoalInputMode(current, mode));
   }
 
   function updateException(index: number, patch: Partial<GoalExceptionForm>) {
     setExceptions(current => current.map((item, currentIndex) => currentIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function updateExceptionField(index: number, field: keyof GoalPayload, value: number) {
+    setExceptions(current => current.map((item, currentIndex) => currentIndex === index ? {
+      ...item,
+      ...updateGoalTargetField(item, field, value),
+    } : item));
+  }
+
+  function updateExceptionPercent(index: number, field: MacroPercentField, value: number) {
+    setExceptions(current => current.map((item, currentIndex) => currentIndex === index ? {
+      ...item,
+      ...updateGoalTargetPercent(item, field, value),
+    } : item));
+  }
+
+  function updateExceptionInputMode(index: number, mode: MacroInputMode) {
+    setExceptions(current => current.map((item, currentIndex) => currentIndex === index ? {
+      ...item,
+      ...updateGoalInputMode(item, mode),
+    } : item));
   }
 
   function removeException(index: number) {
@@ -169,6 +339,22 @@ export default function GoalsPage() {
     setExceptions(current => [...current, buildException(nextDay.weekday)]);
   }
 
+  function handleSave() {
+    if (hasInvalidPercentages) {
+      toast.error("Quando o modo percentual estiver ativo, a soma de proteínas, carboidratos e gorduras precisa fechar em 100%.");
+      return;
+    }
+
+    updateGoal.mutate({
+      defaultGoal: toGoalPayload(defaultGoal),
+      exceptions: exceptions.map(exception => ({
+        weekday: exception.weekday,
+        durationType: exception.durationType,
+        ...toGoalPayload(exception),
+      })),
+    });
+  }
+
   return (
     <DashboardLayout>
       <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
@@ -180,14 +366,39 @@ export default function GoalsPage() {
                 Meta geral da semana
               </CardTitle>
               <CardDescription>
-                Defina uma regra base válida para todos os dias. Depois, se quiser, trate apenas alguns dias como exceção.
+                Defina uma regra base válida para todos os dias. Você pode preencher os macronutrientes diretamente em gramas ou por percentual das calorias do dia.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <FormattedField label="Calorias" value={defaultGoal.calories} onChange={value => updateDefaultGoal("calories", value)} suffix="kcal" />
-              <FormattedField label="Proteínas" value={defaultGoal.proteinGrams} onChange={value => updateDefaultGoal("proteinGrams", value)} suffix="g" />
-              <FormattedField label="Carboidratos" value={defaultGoal.carbsGrams} onChange={value => updateDefaultGoal("carbsGrams", value)} suffix="g" />
-              <FormattedField label="Gorduras" value={defaultGoal.fatGrams} onChange={value => updateDefaultGoal("fatGrams", value)} suffix="g" />
+            <CardContent className="space-y-4">
+              <ModeSelector mode={defaultGoal.inputMode} onChange={updateDefaultInputMode} />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <FormattedField label="Calorias" value={defaultGoal.calories} onChange={value => updateDefaultGoal("calories", value)} suffix="kcal" />
+                <MacroField
+                  label="Proteínas"
+                  mode={defaultGoal.inputMode}
+                  grams={defaultGoal.proteinGrams}
+                  percent={defaultGoal.proteinPercent}
+                  onGramChange={value => updateDefaultGoal("proteinGrams", value)}
+                  onPercentChange={value => updateDefaultGoalPercent("proteinPercent", value)}
+                />
+                <MacroField
+                  label="Carboidratos"
+                  mode={defaultGoal.inputMode}
+                  grams={defaultGoal.carbsGrams}
+                  percent={defaultGoal.carbsPercent}
+                  onGramChange={value => updateDefaultGoal("carbsGrams", value)}
+                  onPercentChange={value => updateDefaultGoalPercent("carbsPercent", value)}
+                />
+                <MacroField
+                  label="Gorduras"
+                  mode={defaultGoal.inputMode}
+                  grams={defaultGoal.fatGrams}
+                  percent={defaultGoal.fatPercent}
+                  onGramChange={value => updateDefaultGoal("fatGrams", value)}
+                  onPercentChange={value => updateDefaultGoalPercent("fatPercent", value)}
+                />
+              </div>
+              <PercentValidationNote mode={defaultGoal.inputMode} percentSum={defaultPercentSum} />
             </CardContent>
           </Card>
 
@@ -228,11 +439,36 @@ export default function GoalsPage() {
                         Remover
                       </Button>
                     </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <Field label="Calorias" value={exception.calories} onChange={value => updateException(index, { calories: value })} suffix="kcal" />
-                      <Field label="Proteínas" value={exception.proteinGrams} onChange={value => updateException(index, { proteinGrams: value })} suffix="g" />
-                      <Field label="Carboidratos" value={exception.carbsGrams} onChange={value => updateException(index, { carbsGrams: value })} suffix="g" />
-                      <Field label="Gorduras" value={exception.fatGrams} onChange={value => updateException(index, { fatGrams: value })} suffix="g" />
+                    <div className="mt-4 space-y-4">
+                      <ModeSelector mode={exception.inputMode} onChange={mode => updateExceptionInputMode(index, mode)} />
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <FormattedField label="Calorias" value={exception.calories} onChange={value => updateExceptionField(index, "calories", value)} suffix="kcal" />
+                        <MacroField
+                          label="Proteínas"
+                          mode={exception.inputMode}
+                          grams={exception.proteinGrams}
+                          percent={exception.proteinPercent}
+                          onGramChange={value => updateExceptionField(index, "proteinGrams", value)}
+                          onPercentChange={value => updateExceptionPercent(index, "proteinPercent", value)}
+                        />
+                        <MacroField
+                          label="Carboidratos"
+                          mode={exception.inputMode}
+                          grams={exception.carbsGrams}
+                          percent={exception.carbsPercent}
+                          onGramChange={value => updateExceptionField(index, "carbsGrams", value)}
+                          onPercentChange={value => updateExceptionPercent(index, "carbsPercent", value)}
+                        />
+                        <MacroField
+                          label="Gorduras"
+                          mode={exception.inputMode}
+                          grams={exception.fatGrams}
+                          percent={exception.fatPercent}
+                          onGramChange={value => updateExceptionField(index, "fatGrams", value)}
+                          onPercentChange={value => updateExceptionPercent(index, "fatPercent", value)}
+                        />
+                      </div>
+                      <PercentValidationNote mode={exception.inputMode} percentSum={getPercentSum(exception)} />
                     </div>
                   </div>
                 );
@@ -245,7 +481,7 @@ export default function GoalsPage() {
               <Button
                 className="rounded-full"
                 disabled={updateGoal.isPending}
-                onClick={() => updateGoal.mutate({ defaultGoal, exceptions })}
+                onClick={handleSave}
               >
                 <Save className="mr-2 h-4 w-4" />
                 {updateGoal.isPending ? "Salvando..." : "Salvar regra geral e exceções"}
@@ -328,24 +564,76 @@ export default function GoalsPage() {
   );
 }
 
-function Field({
+function ModeSelector({ mode, onChange }: { mode: MacroInputMode; onChange: (mode: MacroInputMode) => void }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-medium tracking-tight">Modo de preenchimento dos macronutrientes</p>
+          <p className="text-sm text-muted-foreground">Escolha entre informar em gramas ou por percentual das calorias do dia.</p>
+        </div>
+        <div className="flex rounded-full bg-muted p-1">
+          <button
+            type="button"
+            className={`rounded-full px-4 py-2 text-sm transition ${mode === "grams" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            onClick={() => onChange("grams")}
+          >
+            Por gramas
+          </button>
+          <button
+            type="button"
+            className={`rounded-full px-4 py-2 text-sm transition ${mode === "percent" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            onClick={() => onChange("percent")}
+          >
+            Por percentual
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MacroField({
   label,
-  value,
-  onChange,
-  suffix,
+  mode,
+  grams,
+  percent,
+  onGramChange,
+  onPercentChange,
 }: {
   label: string;
-  value: number;
-  onChange: (value: number) => void;
-  suffix: string;
+  mode: MacroInputMode;
+  grams: number;
+  percent: number;
+  onGramChange: (value: number) => void;
+  onPercentChange: (value: number) => void;
 }) {
   return (
     <div className="space-y-2 rounded-2xl border bg-background p-4">
       <Label>{label}</Label>
       <div className="flex items-center gap-3">
-        <Input type="number" value={value} onChange={event => onChange(Number(event.target.value))} />
-        <span className="text-sm text-muted-foreground">{suffix}</span>
+        {mode === "grams" ? (
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={formatIntegerPtBr(grams)}
+            onChange={event => onGramChange(parseIntegerInputPtBr(event.target.value))}
+          />
+        ) : (
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={formatDecimalInputPtBr(percent, 1)}
+            onChange={event => onPercentChange(parseDecimalInputPtBr(event.target.value))}
+          />
+        )}
+        <span className="text-sm text-muted-foreground">{mode === "grams" ? "g" : "%"}</span>
       </div>
+      {mode === "percent" ? (
+        <p className="text-xs text-muted-foreground">Calculado automaticamente: {formatGrams(grams)}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">Equivalente atual da meta em gramas.</p>
+      )}
     </div>
   );
 }
@@ -372,6 +660,26 @@ function FormattedField({
           onChange={event => onChange(parseIntegerInputPtBr(event.target.value))}
         />
         <span className="text-sm text-muted-foreground">{suffix}</span>
+      </div>
+    </div>
+  );
+}
+
+function PercentValidationNote({ mode, percentSum }: { mode: MacroInputMode; percentSum: number }) {
+  if (mode !== "percent") return null;
+
+  const isValid = percentSum === 100;
+
+  return (
+    <div className={`rounded-2xl border p-4 text-sm ${isValid ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-destructive/30 bg-destructive/5 text-destructive"}`}>
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-4 w-4" />
+        <div>
+          <p className="font-medium tracking-tight">Soma dos percentuais</p>
+          <p>
+            A soma atual é de <strong>{formatPercentPtBr(percentSum, 1)}%</strong>. Para salvar no modo percentual, proteínas, carboidratos e gorduras precisam totalizar exatamente <strong>100%</strong>.
+          </p>
+        </div>
       </div>
     </div>
   );

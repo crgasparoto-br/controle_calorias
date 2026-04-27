@@ -244,6 +244,9 @@ describe("nutrition pages", () => {
     const html = renderToString(React.createElement(GoalsPage));
 
     expect(html).toContain("Meta geral da semana");
+    expect(html).toContain("Por gramas");
+    expect(html).toContain("Por percentual");
+    expect(html).toContain("percentual das calorias do dia");
     expect(html).toContain("Exceções por dia da semana");
     expect(html).toContain("Segunda-feira");
     expect(html).toContain("Sexta-feira");

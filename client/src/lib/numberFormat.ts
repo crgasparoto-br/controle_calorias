@@ -49,3 +49,28 @@ export function formatIntegerInputPtBr(value: string | number) {
   const numericValue = typeof value === "number" ? value : parseIntegerInputPtBr(value);
   return numericValue ? formatIntegerPtBr(numericValue) : "";
 }
+
+export function parseDecimalInputPtBr(value: string) {
+  const normalized = value
+    .replace(/\./g, "")
+    .replace(/,/g, ".")
+    .replace(/[^\d.]/g, "");
+
+  if (!normalized) return 0;
+
+  const [integerPart = "", ...decimalParts] = normalized.split(".");
+  const decimalPart = decimalParts.join("");
+  const merged = decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+  const parsed = Number(merged);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function formatDecimalInputPtBr(value: string | number, fractionDigits = 1) {
+  const numericValue = typeof value === "number" ? value : parseDecimalInputPtBr(value);
+  return numericValue
+    ? formatNumberPtBr(numericValue, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: fractionDigits,
+      })
+    : "";
+}
