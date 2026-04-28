@@ -113,3 +113,4 @@
 - [x] Cobrir com testes o fluxo conversacional de ações do WhatsApp que editam refeições já registradas sem criar novos alimentos indevidos
 - [x] Implementar confirmação obrigatória no WhatsApp antes de alterar registros históricos de refeições por comando textual
 - [x] Cobrir com testes o fluxo seguro em duas etapas para reclassificação de refeições via WhatsApp, exigindo confirmação explícita do usuário antes da alteração
+- [ ] Atualizar o repositório GitHub crgasparoto-br/controle_calorias com a versão validada mais recente do projeto
