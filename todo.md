@@ -120,3 +120,4 @@
 - [x] Cobrir com testes o fluxo da interface que permite editar o token do WhatsApp sem expor o valor sensível na aplicação
 - [x] Adicionar teste de interface da AdminPage cobrindo digitação do novo token, clique em "Salvar token", chamada da mutation de atualização e invalidação das queries administrativas
 - [x] Adicionar teste de interface garantindo que a AdminPage exibe apenas o valor mascarado retornado pelo backend e nunca renderiza o token completo persistido após o salvamento
+- [x] Atualizar novamente o repositório GitHub crgasparoto-br/controle_calorias com a iteração mais recente do campo editável e seguro do token do WhatsApp
