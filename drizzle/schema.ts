@@ -173,6 +173,15 @@ export const whatsappConnections = mysqlTable("whatsappConnections", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const appSecrets = mysqlTable("appSecrets", {
+  id: int("id").autoincrement().primaryKey(),
+  secretKey: varchar("secretKey", { length: 64 }).notNull().unique(),
+  valueEncrypted: text("valueEncrypted").notNull(),
+  updatedByUserId: int("updatedByUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export const inferenceLogs = mysqlTable("inferenceLogs", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId"),
@@ -201,5 +210,7 @@ export type WaterGoal = typeof waterGoals.$inferSelect;
 export type InsertWaterGoal = typeof waterGoals.$inferInsert;
 export type WaterLog = typeof waterLogs.$inferSelect;
 export type InsertWaterLog = typeof waterLogs.$inferInsert;
+export type AppSecret = typeof appSecrets.$inferSelect;
+export type InsertAppSecret = typeof appSecrets.$inferInsert;
 export type InferenceLog = typeof inferenceLogs.$inferSelect;
 export type InsertInferenceLog = typeof inferenceLogs.$inferInsert;

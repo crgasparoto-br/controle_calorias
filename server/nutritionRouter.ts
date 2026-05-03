@@ -10,6 +10,7 @@ import {
   createUserManualMeal,
   createUserWaterLog,
   getAdminSnapshot,
+  getAdminWhatsAppTokenStatus,
   getDashboardSnapshot,
   getHabitSnapshots,
   getPendingInference,
@@ -28,6 +29,7 @@ import {
   updateUserExercise,
   updateUserMeal,
   updateUserWaterGoal,
+  upsertAdminWhatsAppAccessToken,
   upsertNutritionGoal,
   upsertUserWhatsappConnection,
 } from "./db";
@@ -263,19 +265,47 @@ export const nutritionRouter = router({
 
   admin: router({
     overview: adminProcedure.query(async () => getAdminSnapshot()),
+    whatsappTokenStatus: adminProcedure.query(async () => getAdminWhatsAppTokenStatus()),
+    updateWhatsappToken: adminProcedure
+      .input(
+        z.object({
+          accessToken: z.string().min(20).max(4096),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const status = await upsertAdminWhatsAppAccessToken({
+          value: input.accessToken,
+          updatedByUserId: ctx.user.id,
+        });
+
+        logInferenceEvent({
+          userId: ctx.user.id,
+          origin: "admin",
+          status: "success",
+          eventType: "whatsapp.access_token_updated",
+          detail: `Token de acesso do WhatsApp atualizado via painel administrativo com origem ${status.source}.`,
+        });
+
+        return status;
+      }),
   }),
 
   whatsapp: router({
-    status: protectedProcedure.query(async ({ ctx }) => ({
-      configured: Boolean(
-        process.env.WHATSAPP_ACCESS_TOKEN &&
-          process.env.WHATSAPP_PHONE_NUMBER_ID &&
-          process.env.WHATSAPP_VERIFY_TOKEN,
-      ),
-      webhookPath: "/api/whatsapp/webhook",
-      currentUserId: ctx.user.id,
-      connection: await getUserWhatsappConnection(ctx.user.id),
-    })),
+    status: protectedProcedure.query(async ({ ctx }) => {
+      const tokenStatus = await getAdminWhatsAppTokenStatus();
+
+      return {
+        configured: Boolean(
+          tokenStatus.configured &&
+            process.env.WHATSAPP_PHONE_NUMBER_ID &&
+            process.env.WHATSAPP_VERIFY_TOKEN,
+        ),
+        webhookPath: "/api/whatsapp/webhook",
+        currentUserId: ctx.user.id,
+        connection: await getUserWhatsappConnection(ctx.user.id),
+        accessTokenSource: tokenStatus.source,
+      };
+    }),
     upsertConnection: protectedProcedure
       .input(
         z.object({

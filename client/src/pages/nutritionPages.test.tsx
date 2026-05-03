@@ -6,17 +6,22 @@ const dashboardOverviewMock = vi.fn();
 const goalGetMock = vi.fn();
 const weeklyMock = vi.fn();
 const whatsappStatusMock = vi.fn();
+const adminOverviewMock = vi.fn();
+const adminWhatsappTokenStatusMock = vi.fn();
 const useUtilsMock = vi.fn(() => ({
-      nutrition: {
-        dashboard: { overview: { invalidate: vi.fn() } },
-        meals: { list: { invalidate: vi.fn() } },
-        reports: { weekly: { invalidate: vi.fn() } },
-        goals: { get: { invalidate: vi.fn() } },
-        exercises: { list: { invalidate: vi.fn() } },
-        water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
-        whatsapp: { status: { invalidate: vi.fn() } },
-      },
-
+  nutrition: {
+    dashboard: { overview: { invalidate: vi.fn() } },
+    meals: { list: { invalidate: vi.fn() } },
+    reports: { weekly: { invalidate: vi.fn() } },
+    goals: { get: { invalidate: vi.fn() } },
+    exercises: { list: { invalidate: vi.fn() } },
+    water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
+    whatsapp: { status: { invalidate: vi.fn() } },
+    admin: {
+      overview: { invalidate: vi.fn() },
+      whatsappTokenStatus: { invalidate: vi.fn() },
+    },
+  },
 }));
 
 vi.mock("@/components/DashboardLayout", () => ({
@@ -113,7 +118,13 @@ vi.mock("@/lib/trpc", () => ({
       },
       admin: {
         overview: {
-          useQuery: () => ({ data: { usage: { usersCount: 0, mealsCount: 0, pendingInferences: 0, logsCount: 0 }, users: [], recentInferenceLogs: [] } }),
+          useQuery: adminOverviewMock,
+        },
+        whatsappTokenStatus: {
+          useQuery: adminWhatsappTokenStatusMock,
+        },
+        updateWhatsappToken: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
       },
     },
@@ -225,6 +236,29 @@ beforeEach(() => {
   goalGetMock.mockReturnValue({ data: overviewData.goal });
   weeklyMock.mockReturnValue({ data: overviewData.weekly });
   whatsappStatusMock.mockReturnValue({ data: { configured: false, webhookPath: "/api/whatsapp/webhook", currentUserId: 1, connection: null } });
+  adminOverviewMock.mockReturnValue({
+    data: {
+      usage: { usersCount: 0, mealsCount: 0, pendingInferences: 0, logsCount: 0 },
+      users: [],
+      whatsappToken: {
+        configured: true,
+        source: "database",
+        maskedValue: "EAAcmt••••1234",
+        updatedAt: Date.now(),
+        updatedByUserId: 1,
+      },
+      recentInferenceLogs: [],
+    },
+  });
+  adminWhatsappTokenStatusMock.mockReturnValue({
+    data: {
+      configured: true,
+      source: "database",
+      maskedValue: "EAAcmt••••1234",
+      updatedAt: Date.now(),
+      updatedByUserId: 1,
+    },
+  });
 });
 
 describe("nutrition pages", () => {
@@ -297,5 +331,16 @@ describe("nutrition pages", () => {
     expect(html).toContain("Salvar vínculo");
     expect(html).toContain("Não vinculado");
     expect(html).toContain("/api/whatsapp/webhook");
+  });
+
+  it("renderiza a página administrativa com o campo editável do token do WhatsApp", async () => {
+    const { default: AdminPage } = await import("./AdminPage");
+    const html = renderToString(React.createElement(AdminPage));
+
+    expect(html).toContain("Credenciais do WhatsApp");
+    expect(html).toContain("Token de acesso do WhatsApp");
+    expect(html).toContain("Salvar token");
+    expect(html).toContain("Painel admin");
+    expect(html).toContain("EAAcmt••••1234");
   });
 });

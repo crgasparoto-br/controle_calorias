@@ -1,6 +1,8 @@
+import crypto from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
+  appSecrets,
   exercises,
   habitMemories,
   inferenceLogs,
@@ -22,6 +24,160 @@ import { ENV } from "./_core/env";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+const WHATSAPP_ACCESS_TOKEN_SECRET_KEY = "whatsapp_access_token";
+
+type EncryptedSecretPayload = {
+  iv: string;
+  tag: string;
+  value: string;
+};
+
+export type AdminWhatsAppTokenStatus = {
+  configured: boolean;
+  source: "database" | "environment" | "missing";
+  maskedValue: string | null;
+  updatedAt: number | null;
+  updatedByUserId: number | null;
+};
+
+function maskSecret(value: string) {
+  if (value.length <= 10) {
+    return "•".repeat(value.length);
+  }
+
+  return `${value.slice(0, 6)}${"•".repeat(Math.max(8, value.length - 10))}${value.slice(-4)}`;
+}
+
+function getAppSecretCipherKey() {
+  return crypto
+    .createHash("sha256")
+    .update(`controle-calorias::app-secrets::${ENV.cookieSecret}`)
+    .digest();
+}
+
+function encryptAppSecretValue(value: string) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", getAppSecretCipherKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return JSON.stringify({
+    iv: iv.toString("base64"),
+    tag: tag.toString("base64"),
+    value: encrypted.toString("base64"),
+  } satisfies EncryptedSecretPayload);
+}
+
+function decryptAppSecretValue(payload: string) {
+  const parsed = JSON.parse(payload) as EncryptedSecretPayload;
+  const decipher = crypto.createDecipheriv("aes-256-gcm", getAppSecretCipherKey(), Buffer.from(parsed.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(parsed.tag, "base64"));
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(parsed.value, "base64")),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString("utf8");
+}
+
+async function getAppSecret(secretKey: string) {
+  const db = await getDb();
+  if (!db) {
+    return null;
+  }
+
+  try {
+    const rows = await db.select().from(appSecrets).where(eq(appSecrets.secretKey, secretKey)).limit(1);
+    return rows[0] ?? null;
+  } catch (error) {
+    console.warn("[Database] Failed to get app secret:", error);
+    return null;
+  }
+}
+
+export async function getWhatsAppAccessToken() {
+  const stored = await getAppSecret(WHATSAPP_ACCESS_TOKEN_SECRET_KEY);
+  if (stored) {
+    try {
+      return decryptAppSecretValue(stored.valueEncrypted);
+    } catch (error) {
+      console.warn("[Database] Failed to decrypt WhatsApp access token, falling back to environment:", error);
+    }
+  }
+
+  return process.env.WHATSAPP_ACCESS_TOKEN ?? null;
+}
+
+export async function getAdminWhatsAppTokenStatus(): Promise<AdminWhatsAppTokenStatus> {
+  const stored = await getAppSecret(WHATSAPP_ACCESS_TOKEN_SECRET_KEY);
+  if (stored) {
+    try {
+      const decrypted = decryptAppSecretValue(stored.valueEncrypted);
+      return {
+        configured: true,
+        source: "database",
+        maskedValue: maskSecret(decrypted),
+        updatedAt: stored.updatedAt ? stored.updatedAt.getTime() : null,
+        updatedByUserId: stored.updatedByUserId ?? null,
+      };
+    } catch (error) {
+      console.warn("[Database] Failed to decrypt admin WhatsApp token status:", error);
+    }
+  }
+
+  const envValue = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
+  if (envValue) {
+    return {
+      configured: true,
+      source: "environment",
+      maskedValue: maskSecret(envValue),
+      updatedAt: null,
+      updatedByUserId: null,
+    };
+  }
+
+  return {
+    configured: false,
+    source: "missing",
+    maskedValue: null,
+    updatedAt: null,
+    updatedByUserId: null,
+  };
+}
+
+export async function upsertAdminWhatsAppAccessToken(input: { value: string; updatedByUserId: number }) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Banco de dados indisponível para salvar o token do WhatsApp.");
+  }
+
+  const normalizedValue = input.value.trim();
+  if (normalizedValue.length < 20) {
+    throw new Error("Informe um token de acesso do WhatsApp válido.");
+  }
+
+  const encryptedValue = encryptAppSecretValue(normalizedValue);
+  const existing = await getAppSecret(WHATSAPP_ACCESS_TOKEN_SECRET_KEY);
+
+  if (existing) {
+    await db
+      .update(appSecrets)
+      .set({
+        valueEncrypted: encryptedValue,
+        updatedByUserId: input.updatedByUserId,
+      })
+      .where(eq(appSecrets.id, existing.id));
+  } else {
+    await db.insert(appSecrets).values({
+      secretKey: WHATSAPP_ACCESS_TOKEN_SECRET_KEY,
+      valueEncrypted: encryptedValue,
+      updatedByUserId: input.updatedByUserId,
+    });
+  }
+
+  process.env.WHATSAPP_ACCESS_TOKEN = normalizedValue;
+  return getAdminWhatsAppTokenStatus();
+}
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -1929,6 +2085,7 @@ export async function getKnownUsers(): Promise<User[]> {
 export async function getAdminSnapshot() {
   const usersList = await getKnownUsers();
   const db = await getDb();
+  const whatsappToken = await getAdminWhatsAppTokenStatus();
 
   if (db) {
     try {
@@ -1945,6 +2102,7 @@ export async function getAdminSnapshot() {
           logsCount: recentLogs?.length ?? adminLogStore.length,
         },
         users: usersList,
+        whatsappToken,
         recentInferenceLogs: recentLogs ?? adminLogStore.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 20),
       };
     } catch (error) {
@@ -1961,6 +2119,7 @@ export async function getAdminSnapshot() {
       logsCount: adminLogStore.length,
     },
     users: usersList,
+    whatsappToken,
     recentInferenceLogs: adminLogStore.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 20),
   };
 }

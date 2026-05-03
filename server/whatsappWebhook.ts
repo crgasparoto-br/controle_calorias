@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { whatsappConnections } from "../drizzle/schema";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getDb, getHabitSnapshots, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getDb, getHabitSnapshots, getWhatsAppAccessToken, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 
 type WhatsAppMessage = {
@@ -72,8 +72,8 @@ function getVerifyToken() {
   return process.env.WHATSAPP_VERIFY_TOKEN;
 }
 
-function getAccessToken() {
-  return process.env.WHATSAPP_ACCESS_TOKEN;
+async function getAccessToken() {
+  return getWhatsAppAccessToken();
 }
 
 function getPhoneNumberId() {
@@ -307,7 +307,7 @@ async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
 }
 
 async function sendWhatsAppTextMessage(to: string, body: string) {
-  const accessToken = getAccessToken();
+  const accessToken = await getAccessToken();
   const phoneNumberId = getPhoneNumberId();
   if (!accessToken || !phoneNumberId) {
     return {
@@ -354,7 +354,7 @@ async function sendWhatsAppTextMessage(to: string, body: string) {
 }
 
 async function getMediaDownloadUrl(mediaId: string) {
-  const accessToken = getAccessToken();
+  const accessToken = await getAccessToken();
   if (!accessToken) {
     throw new Error("WHATSAPP_ACCESS_TOKEN não configurado para download de mídia.");
   }
@@ -376,7 +376,7 @@ async function getMediaDownloadUrl(mediaId: string) {
 }
 
 async function downloadWhatsAppMedia(mediaId: string, fallbackMimeType?: string) {
-  const accessToken = getAccessToken();
+  const accessToken = await getAccessToken();
   if (!accessToken) {
     throw new Error("WHATSAPP_ACCESS_TOKEN não configurado para download de mídia.");
   }

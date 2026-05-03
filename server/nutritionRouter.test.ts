@@ -184,6 +184,28 @@ describe("nutrition router", () => {
     expect(updatedStatus.connection?.displayName).toBe("Gaspa");
   });
 
+  it("permite ao administrador atualizar o token do WhatsApp e expõe apenas o valor mascarado", async () => {
+    const userId = 880001 + Math.floor(Math.random() * 100000);
+    const caller = appRouter.createCaller(createNutritionContext(userId, "admin"));
+    const accessToken = `EAA_TEST_TOKEN_${userId}_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890`;
+
+    const updated = await caller.nutrition.admin.updateWhatsappToken({
+      accessToken,
+    });
+    const status = await caller.nutrition.admin.whatsappTokenStatus();
+
+    expect(updated.configured).toBe(true);
+    expect(updated.source).toBe("database");
+    expect(updated.updatedByUserId).toBe(userId);
+    expect(updated.maskedValue).toContain(accessToken.slice(0, 6));
+    expect(updated.maskedValue).toContain(accessToken.slice(-4));
+    expect(updated.maskedValue).not.toContain(accessToken.slice(6, -4));
+    expect(status.configured).toBe(true);
+    expect(status.source).toBe("database");
+    expect(status.updatedByUserId).toBe(userId);
+    expect(status.maskedValue).toBe(updated.maskedValue);
+  });
+
   it("cria, lista e remove exercícios refletindo o saldo líquido diário e semanal", async () => {
     const userId = 880000 + Math.floor(Math.random() * 10000);
     const caller = appRouter.createCaller(createNutritionContext(userId));

@@ -1,14 +1,47 @@
+import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Shield, Users } from "lucide-react";
+import { KeyRound, Save, Shield, Users } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AdminPage() {
+  const utils = trpc.useUtils();
   const admin = trpc.nutrition.admin.overview.useQuery(undefined, {
     retry: false,
   });
+  const whatsappTokenStatus = trpc.nutrition.admin.whatsappTokenStatus.useQuery(undefined, {
+    retry: false,
+  });
+
+  const [accessToken, setAccessToken] = useState("");
+
+  useEffect(() => {
+    setAccessToken("");
+  }, [whatsappTokenStatus.data?.updatedAt, whatsappTokenStatus.data?.source]);
+
+  const updateWhatsappToken = trpc.nutrition.admin.updateWhatsappToken.useMutation({
+    onSuccess: async () => {
+      toast.success("Token do WhatsApp atualizado com sucesso.");
+      setAccessToken("");
+      await Promise.all([
+        utils.nutrition.admin.overview.invalidate(),
+        utils.nutrition.admin.whatsappTokenStatus.invalidate(),
+        utils.nutrition.whatsapp.status.invalidate(),
+      ]);
+    },
+    onError: error => {
+      toast.error(error.message || "Falha ao atualizar o token do WhatsApp.");
+    },
+  });
+
+  const tokenStatus = whatsappTokenStatus.data ?? admin.data?.whatsappToken;
+  const canSaveToken = accessToken.trim().length >= 20 && !updateWhatsappToken.isPending;
 
   return (
     <DashboardLayout>
@@ -21,6 +54,70 @@ export default function AdminPage() {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-primary" />
+                Credenciais do WhatsApp
+              </CardTitle>
+              <CardDescription>
+                Atualize o token de acesso diretamente pelo painel administrativo. O valor atual nunca é exibido por completo e o webhook passa a usar a credencial salva com segurança.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <StatusPill
+                  label="Configuração"
+                  value={tokenStatus?.configured ? "Configurado" : "Pendente"}
+                  tone={tokenStatus?.configured ? "success" : "warning"}
+                />
+                <StatusPill
+                  label="Origem ativa"
+                  value={tokenStatus?.source === "database" ? "Painel admin" : tokenStatus?.source === "environment" ? "Ambiente" : "Não configurado"}
+                  tone={tokenStatus?.source === "database" ? "success" : tokenStatus?.source === "environment" ? "neutral" : "warning"}
+                />
+                <StatusPill
+                  label="Token mascarado"
+                  value={tokenStatus?.maskedValue || "Ainda não salvo"}
+                  tone="neutral"
+                  mono
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="admin-whatsapp-access-token">Token de acesso do WhatsApp</Label>
+                <Input
+                  id="admin-whatsapp-access-token"
+                  type="password"
+                  autoComplete="off"
+                  value={accessToken}
+                  onChange={event => setAccessToken(event.target.value)}
+                  placeholder="Cole aqui o novo token de acesso"
+                />
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Ao salvar, o token é persistido de forma protegida e passa a ter prioridade sobre o valor de ambiente na integração do WhatsApp.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 p-4">
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">Atualização segura da credencial</p>
+                  <p>
+                    Use este campo apenas quando você gerar um novo token na Meta. Depois da gravação, o canal de webhook e as respostas automáticas passam a usar a nova credencial.
+                  </p>
+                </div>
+                <Button
+                  className="gap-2"
+                  disabled={!canSaveToken}
+                  onClick={() => updateWhatsappToken.mutate({ accessToken })}
+                >
+                  <Save className="h-4 w-4" />
+                  {updateWhatsappToken.isPending ? "Salvando..." : "Salvar token"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="border-0 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -46,49 +143,49 @@ export default function AdminPage() {
               ))}
             </CardContent>
           </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-primary" />
-                Logs de inferência e operações
-              </CardTitle>
-              <CardDescription>Visão consolidada das principais operações do backend multimodal e do canal de mensagens.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {admin.data?.recentInferenceLogs.length ? (
-                admin.data.recentInferenceLogs.map(log => (
-                  <div key={log.id} className="rounded-2xl border bg-background p-4 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium tracking-tight">{log.eventType}</p>
-                        <p className="text-sm text-muted-foreground">{log.detail}</p>
-                      </div>
-                      <Badge
-                        className={
-                          log.status === "error"
-                            ? "bg-rose-100 text-rose-700 hover:bg-rose-100"
-                            : log.status === "warning"
-                              ? "bg-amber-100 text-amber-700 hover:bg-amber-100"
-                              : "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
-                        }
-                      >
-                        {log.status}
-                      </Badge>
-                    </div>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      {log.origin} · {new Date(log.createdAt).toLocaleString("pt-BR")}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-                  Ainda não há registros administrativos disponíveis. Eles aparecerão automaticamente após o uso do dashboard e das inferências multimodais.
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Logs de inferência e operações
+            </CardTitle>
+            <CardDescription>Visão consolidada das principais operações do backend multimodal e do canal de mensagens.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {admin.data?.recentInferenceLogs.length ? (
+              admin.data.recentInferenceLogs.map(log => (
+                <div key={log.id} className="rounded-2xl border bg-background p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium tracking-tight">{log.eventType}</p>
+                      <p className="text-sm text-muted-foreground">{log.detail}</p>
+                    </div>
+                    <Badge
+                      className={
+                        log.status === "error"
+                          ? "bg-rose-100 text-rose-700 hover:bg-rose-100"
+                          : log.status === "warning"
+                            ? "bg-amber-100 text-amber-700 hover:bg-amber-100"
+                            : "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                      }
+                    >
+                      {log.status}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {log.origin} · {new Date(log.createdAt).toLocaleString("pt-BR")}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
+                Ainda não há registros administrativos disponíveis. Eles aparecerão automaticamente após o uso do dashboard e das inferências multimodais.
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
@@ -102,5 +199,33 @@ function AdminMetric({ title, value }: { title: string; value: string }) {
         <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
       </CardContent>
     </Card>
+  );
+}
+
+function StatusPill({
+  label,
+  value,
+  tone,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "warning" | "neutral";
+  mono?: boolean;
+}) {
+  const toneClassName =
+    tone === "success"
+      ? "bg-emerald-100 text-emerald-700"
+      : tone === "warning"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-slate-100 text-slate-700";
+
+  return (
+    <div className="rounded-2xl border bg-background p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-medium ${toneClassName} ${mono ? "font-mono text-xs sm:text-sm" : ""}`}>
+        {value}
+      </p>
+    </div>
   );
 }
