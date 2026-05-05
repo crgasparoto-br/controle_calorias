@@ -1,10 +1,42 @@
 import { getUserNutritionGoal, upsertNutritionGoal } from "../../db";
+import { assessNutritionGoalInput } from "@shared/nutritionSafety";
+import type { NutritionGoalSafetyIssue } from "@shared/nutritionSafety";
 import { GoalInput } from "./schemas";
 
+export class UnsafeNutritionGoalError extends Error {
+  constructor(public readonly blockers: NutritionGoalSafetyIssue[]) {
+    super(blockers.map(issue => issue.message).join(" "));
+    this.name = "UnsafeNutritionGoalError";
+  }
+}
+
 export async function getNutritionGoal(userId: number) {
-  return getUserNutritionGoal(userId);
+  const goal = await getUserNutritionGoal(userId);
+  const assessment = assessNutritionGoalInput({
+    defaultGoal: goal.defaultGoal,
+    exceptions: goal.exceptions,
+  });
+
+  return {
+    ...goal,
+    safetyWarnings: assessment.warnings,
+  };
 }
 
 export async function updateNutritionGoal(userId: number, input: GoalInput) {
-  return upsertNutritionGoal(userId, input);
+  const assessment = assessNutritionGoalInput(input);
+  if (assessment.blockers.length) {
+    throw new UnsafeNutritionGoalError(assessment.blockers);
+  }
+
+  const goal = await upsertNutritionGoal(userId, input);
+  const savedAssessment = assessNutritionGoalInput({
+    defaultGoal: goal.defaultGoal,
+    exceptions: goal.exceptions,
+  });
+
+  return {
+    ...goal,
+    safetyWarnings: savedAssessment.warnings,
+  };
 }

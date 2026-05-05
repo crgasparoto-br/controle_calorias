@@ -122,17 +122,89 @@ describe("nutrition router", () => {
       ],
     });
 
+    await caller.nutrition.goals.update({
+      defaultGoal: {
+        calories: 2350,
+        proteinGrams: 172,
+        carbsGrams: 245,
+        fatGrams: 78,
+      },
+      exceptions: [],
+    });
+
     const overview = await caller.nutrition.dashboard.overview();
 
     expect(overview.goal.days).toHaveLength(7);
-    expect(overview.goal.defaultGoal.calories).toBe(2300);
-    expect(overview.goal.exceptions).toHaveLength(2);
-    expect(overview.goal.today.calories).toBe(2500);
-    expect(overview.goal.today.proteinGrams).toBe(180);
-    expect(overview.goal.today.source).toBe("exception");
+    expect(overview.goal.defaultGoal.calories).toBe(2350);
+    expect(overview.goal.exceptions).toHaveLength(0);
+    expect(overview.goal.today.calories).toBe(2350);
+    expect(overview.goal.today.proteinGrams).toBe(172);
+    expect(overview.goal.today.source).toBe("default");
     expect(overview.goal.weeklyTotals.calories).toBe(16600);
-    expect(overview.today.goal.calories).toBe(2500);
-    expect(overview.today.remaining.calories).toBe(2500);
+    expect(overview.today.goal.calories).toBe(2350);
+    expect(overview.today.remaining.calories).toBe(2350);
+  });
+
+  it("bloqueia metas nutricionais extremas antes de salvar", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(502));
+
+    await expect(caller.nutrition.goals.update({
+      defaultGoal: {
+        calories: 900,
+        proteinGrams: 20,
+        carbsGrams: 120,
+        fatGrams: 10,
+      },
+      exceptions: [],
+    })).rejects.toThrow("não podem ser salvas aqui");
+
+    const goal = await caller.nutrition.goals.get();
+
+    expect(goal.defaultGoal.calories).toBe(2200);
+    expect(goal.safetyWarnings).toHaveLength(0);
+  });
+
+  it("salva metas com alerta e expõe avisos de segurança nutricional", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(503));
+
+    const goal = await caller.nutrition.goals.update({
+      defaultGoal: {
+        calories: 1450,
+        proteinGrams: 130,
+        carbsGrams: 120,
+        fatGrams: 45,
+      },
+      exceptions: [],
+    });
+
+    expect(goal.defaultGoal.calories).toBe(1450);
+    expect(goal.safetyWarnings.map(issue => issue.code)).toContain("calories_low");
+  });
+
+  it("conclui onboarding, persiste perfil e cria meta nutricional inicial", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(504));
+
+    const result = await caller.nutrition.onboarding.complete({
+      name: "Gaspa",
+      ageYears: 34,
+      heightCm: 178,
+      currentWeightKg: 82,
+      objective: "ganhar_massa",
+      activityLevel: "moderate",
+      trackingExperience: "beginner",
+      dietaryPreferences: ["comida caseira", "café da manhã simples"],
+      dietaryRestrictions: ["lactose"],
+      eatingRoutine: "misto",
+      mainDifficulty: "falta_de_planejamento",
+    });
+
+    const goal = await caller.nutrition.goals.get();
+
+    expect(result.profile.name).toBe("Gaspa");
+    expect(result.profile.currentWeightKg).toBe(82);
+    expect(result.calculation.calculatedGoal.calories).toBeGreaterThan(result.calculation.tdee);
+    expect(goal.defaultGoal.calories).toBe(result.calculation.calculatedGoal.calories);
+    expect(goal.defaultGoal.proteinGrams).toBe(result.calculation.calculatedGoal.proteinGrams);
   });
 
   it("simula entrada por WhatsApp e confirma a refeição revisada", async () => {

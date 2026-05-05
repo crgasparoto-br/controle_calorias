@@ -30,12 +30,18 @@ vi.mock("@/components/DashboardLayout", () => ({
 
 vi.mock("wouter", () => ({
   Link: ({ children }: { children: React.ReactNode }) => React.createElement("a", null, children),
+  useLocation: () => ["/onboarding", vi.fn()],
 }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: useUtilsMock,
     nutrition: {
+      onboarding: {
+        complete: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+      },
       dashboard: {
         overview: {
           useQuery: dashboardOverviewMock,
@@ -286,6 +292,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Por gramas");
     expect(html).toContain("Por percentual");
     expect(html).toContain("percentual das calorias do dia");
+    expect(html).toContain("Metas muito extremas são bloqueadas");
     expect(html).toContain("Exceções por dia da semana");
     expect(html).toContain("Segunda-feira");
     expect(html).toContain("Sexta-feira");
@@ -293,6 +300,19 @@ describe("nutrition pages", () => {
     expect(html).toContain("Calorias semanais");
     expect(html).toContain("value=\"2.200\"");
     expect(html).toContain("15.600 kcal");
+  });
+
+  it("renderiza o onboarding com dados de personalização nutricional", async () => {
+    const { default: OnboardingPage } = await import("./OnboardingPage");
+    const html = renderToString(React.createElement(OnboardingPage));
+
+    expect(html).toContain("Onboarding nutricional");
+    expect(html).toContain("Nome");
+    expect(html).toContain("Peso atual");
+    expect(html).toContain("Objetivo");
+    expect(html).toContain("Preferências alimentares");
+    expect(html).toContain("Principal dificuldade");
+    expect(html).toContain("Concluir onboarding");
   });
 
   it("renderiza a página de registro multimodal", async () => {

@@ -6,6 +6,7 @@ import GoalsPage from "@/pages/GoalsPage";
 import Home from "@/pages/Home";
 import LogMealPage from "@/pages/LogMealPage";
 import NotFound from "@/pages/NotFound";
+import OnboardingPage from "@/pages/OnboardingPage";
 import ReportsPage from "@/pages/ReportsPage";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -15,6 +16,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/log-meal" component={LogMealPage} />
       <Route path="/goals" component={GoalsPage} />
       <Route path="/reports" component={ReportsPage} />

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   appSecrets,
@@ -12,8 +12,12 @@ import {
   meals,
   foodCatalog,
   NutritionGoal,
+  userPreferences,
+  userProfiles,
+  userRestrictions,
   User,
   users,
+  weightEntries,
   whatsappConnections,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -22,6 +26,7 @@ import { createDrizzleExercisesRepository } from "./repositories/exercisesReposi
 import { canUseMemoryPersistenceFallback } from "./repositories/memoryFallback";
 import { createDrizzleNutritionGoalsRepository } from "./repositories/nutritionGoalsRepository";
 import { createDrizzleWaterRepository } from "./repositories/waterRepository";
+import type { OnboardingInput } from "./modules/onboarding/schemas";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 const WHATSAPP_ACCESS_TOKEN_SECRET_KEY = "whatsapp_access_token";
@@ -296,6 +301,100 @@ export async function getUserByOpenId(openId: string) {
     console.warn("[Database] Failed to get user by openId:", error);
     return undefined;
   }
+}
+
+export async function saveUserOnboardingProfile(userId: number, input: OnboardingInput) {
+  const now = new Date();
+  const profile = {
+    userId,
+    ...input,
+    completedAt: now,
+  };
+
+  if (canUseMemoryPersistenceFallback()) {
+    onboardingProfileStore.set(userId, profile);
+  }
+
+  const db = await getDb();
+  if (!db) {
+    return profile;
+  }
+
+  const profileValues = {
+    userId,
+    displayName: input.name,
+    ageYears: input.ageYears,
+    sex: "prefer_not_to_say" as const,
+    heightCm: input.heightCm,
+    currentWeightKg: input.currentWeightKg,
+    nutritionObjective: input.objective,
+    activityLevel: input.activityLevel,
+    trackingExperience: input.trackingExperience,
+    eatingRoutine: input.eatingRoutine,
+    mainDifficulty: input.mainDifficulty,
+    onboardingCompletedAt: now,
+    updatedAt: now,
+  };
+
+  try {
+    const existingProfile = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1);
+    if (existingProfile.length) {
+      await db.update(userProfiles).set(profileValues).where(eq(userProfiles.userId, userId));
+    } else {
+      await db.insert(userProfiles).values({
+        ...profileValues,
+        createdAt: now,
+      });
+    }
+
+    await db.insert(weightEntries).values({
+      userId,
+      weightKg: input.currentWeightKg,
+      measuredAt: now,
+      notes: "Peso informado no onboarding.",
+    });
+
+    const preferenceKeys = ["dietary_preferences", "eating_routine", "main_difficulty", "tracking_experience"];
+    await db
+      .delete(userPreferences)
+      .where(and(eq(userPreferences.userId, userId), inArray(userPreferences.preferenceKey, preferenceKeys)));
+    await db.insert(userPreferences).values([
+      {
+        userId,
+        preferenceKey: "dietary_preferences",
+        preferenceValue: JSON.stringify(input.dietaryPreferences),
+      },
+      {
+        userId,
+        preferenceKey: "eating_routine",
+        preferenceValue: input.eatingRoutine,
+      },
+      {
+        userId,
+        preferenceKey: "main_difficulty",
+        preferenceValue: input.mainDifficulty,
+      },
+      {
+        userId,
+        preferenceKey: "tracking_experience",
+        preferenceValue: input.trackingExperience,
+      },
+    ]);
+
+    if (input.dietaryRestrictions.length) {
+      await db.insert(userRestrictions).values(input.dietaryRestrictions.map(label => ({
+        userId,
+        restrictionType: "other" as const,
+        label,
+        severity: "avoid" as const,
+        notes: "Informado no onboarding.",
+      })));
+    }
+  } catch (error) {
+    logPersistenceWarning("Onboarding persistence skipped", error);
+  }
+
+  return profile;
 }
 
 export function normalizeWhatsAppPhoneNumber(phoneNumber: string) {
@@ -595,7 +694,13 @@ type WaterLogEntry = {
   updatedAt: Date;
 };
 
+type OnboardingProfileEntry = OnboardingInput & {
+  userId: number;
+  completedAt: Date;
+};
+
 const goalStore = new Map<number, NutritionGoal[]>();
+const onboardingProfileStore = new Map<number, OnboardingProfileEntry>();
 const mealStore = new Map<number, SavedMeal[]>();
 const exerciseStore = new Map<number, ExerciseEntry[]>();
 const waterGoalStore = new Map<number, WaterGoalEntry>();
@@ -656,10 +761,25 @@ function buildExceptionEndDate(referenceDate: Date, durationType: GoalExceptionD
   return value;
 }
 
-function getDefaultGoalRule(userId: number, rows: NutritionGoal[]) {
+function isDefaultGoalActiveOnDate(rule: NutritionGoal, date: Date) {
+  if (rule.ruleType !== "default") {
+    return false;
+  }
+
+  const currentTime = date.getTime();
+  const startTime = new Date(rule.effectiveFrom).getTime();
+  const endTime = rule.effectiveUntil ? new Date(rule.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
+  return currentTime >= startTime && currentTime <= endTime;
+}
+
+function getDefaultGoalRule(userId: number, rows: NutritionGoal[], referenceDate = new Date()) {
   return rows
-    .filter(row => row.ruleType === "default")
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0] ?? defaultGoal(userId);
+    .filter(row => isDefaultGoalActiveOnDate(row, referenceDate))
+    .sort((a, b) => {
+      if (!a.effectiveUntil && b.effectiveUntil) return -1;
+      if (a.effectiveUntil && !b.effectiveUntil) return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })[0] ?? defaultGoal(userId);
 }
 
 function getExceptionRules(rows: NutritionGoal[]) {
@@ -684,12 +804,12 @@ function isExceptionActiveOnDate(rule: NutritionGoal, date: Date) {
 
   const currentWeek = startOfWeek(date).getTime();
   const startWeek = startOfWeek(new Date(rule.effectiveFrom)).getTime();
-  const endWeek = rule.effectiveUntil ? startOfWeek(new Date(rule.effectiveUntil)).getTime() : Number.POSITIVE_INFINITY;
-  return currentWeek >= startWeek && currentWeek <= endWeek;
+  const endTime = rule.effectiveUntil ? new Date(rule.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
+  return currentWeek >= startWeek && date.getTime() < endTime;
 }
 
 function resolveGoalForDate(userId: number, rows: NutritionGoal[], date: Date): GoalDayView {
-  const fallback = getDefaultGoalRule(userId, rows);
+  const fallback = getDefaultGoalRule(userId, rows, date);
   const activeException = getExceptionRules(rows).find(rule => isExceptionActiveOnDate(rule, date));
   const applied = activeException ?? fallback;
   const weekday = getWeekdayIndex(date);
@@ -713,13 +833,16 @@ function buildGoalSummary(rows: NutritionGoal[], userId: number, referenceDate =
     return resolveGoalForDate(userId, rows, current);
   });
   const today = resolveGoalForDate(userId, rows, referenceDate);
-  const defaultGoalRule = getDefaultGoalRule(userId, rows);
-  const exceptions = getExceptionRules(rows).map(rule => ({
-    ...rule,
-    label: WEEKDAY_META[rule.weekday]?.label ?? "Dia",
-    shortLabel: WEEKDAY_META[rule.weekday]?.shortLabel ?? "dia",
-    isActive: isExceptionActiveOnDate(rule, referenceDate),
-  }));
+  const defaultGoalRule = getDefaultGoalRule(userId, rows, referenceDate);
+  const currentTime = referenceDate.getTime();
+  const exceptions = getExceptionRules(rows)
+    .filter(rule => !rule.effectiveUntil || new Date(rule.effectiveUntil).getTime() > currentTime)
+    .map(rule => ({
+      ...rule,
+      label: WEEKDAY_META[rule.weekday]?.label ?? "Dia",
+      shortLabel: WEEKDAY_META[rule.weekday]?.shortLabel ?? "dia",
+      isActive: isExceptionActiveOnDate(rule, referenceDate),
+    }));
 
   return {
     defaultGoal: defaultGoalRule,
@@ -1246,6 +1369,19 @@ export async function getUserNutritionGoal(userId: number) {
 export async function upsertNutritionGoal(userId: number, input: GoalInput) {
   const now = new Date();
   const effectiveFrom = startOfWeek(now);
+  const currentGoals = await getStoredNutritionGoals(userId);
+  const historicalGoals = currentGoals.map(goal => {
+    const existingEnd = goal.effectiveUntil ? new Date(goal.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
+    if (existingEnd <= now.getTime()) {
+      return goal;
+    }
+
+    return {
+      ...goal,
+      effectiveUntil: now,
+      updatedAt: now,
+    };
+  });
 
   const updated: NutritionGoal[] = [
     {
@@ -1281,7 +1417,7 @@ export async function upsertNutritionGoal(userId: number, input: GoalInput) {
   ];
 
   if (canUseMemoryPersistenceFallback()) {
-    goalStore.set(userId, updated);
+    goalStore.set(userId, [...historicalGoals, ...updated]);
   }
   await persistGoalToDb(updated);
   logInferenceEvent({
@@ -1291,7 +1427,7 @@ export async function upsertNutritionGoal(userId: number, input: GoalInput) {
     eventType: "goal.updated",
     detail: "Meta padrão e exceções nutricionais atualizadas pelo usuário.",
   });
-  return buildGoalSummary(updated, userId);
+  return buildGoalSummary([...historicalGoals, ...updated], userId);
 }
 
 export async function getHabitSnapshots(userId: number): Promise<HabitSnapshot[]> {

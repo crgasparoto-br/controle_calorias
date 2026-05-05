@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
+  assessNutritionGoalTargets,
+} from "@shared/nutritionSafety";
+import type { NutritionGoalSafetyIssue } from "@shared/nutritionSafety";
+import {
   formatCalories,
   formatDecimalInputPtBr,
   formatGrams,
@@ -162,13 +166,17 @@ export default function GoalsPage() {
   const utils = trpc.useUtils();
   const goalQuery = trpc.nutrition.goals.get.useQuery();
   const updateGoal = trpc.nutrition.goals.update.useMutation({
-    onSuccess: async () => {
+    onSuccess: async result => {
       await Promise.all([
         utils.nutrition.goals.get.invalidate(),
         utils.nutrition.dashboard.overview.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
       ]);
-      toast.success("Meta padrão e exceções atualizadas com sucesso.");
+      if (result.safetyWarnings.length) {
+        toast.warning("Metas salvas. Há alguns pontos para revisar com calma.");
+      } else {
+        toast.success("Meta padrão e exceções atualizadas com sucesso.");
+      }
     },
     onError: error => toast.error(error.message || "Falha ao atualizar metas."),
   });
@@ -245,6 +253,13 @@ export default function GoalsPage() {
   const availableWeekdays = WEEKDAY_META.filter(day => !exceptions.some(exception => exception.weekday === day.weekday));
   const defaultPercentSum = getPercentSum(defaultGoal);
   const hasInvalidPercentages = !isPercentModeValid(defaultGoal) || exceptions.some(exception => !isPercentModeValid(exception));
+  const safetyAssessment = useMemo(() => assessNutritionGoalTargets([
+    { label: "Meta geral", ...toGoalPayload(defaultGoal) },
+    ...exceptions.map(exception => ({
+      label: WEEKDAY_META.find(day => day.weekday === exception.weekday)?.label ?? "Exceção",
+      ...toGoalPayload(exception),
+    })),
+  ]), [defaultGoal, exceptions]);
 
   function updateGoalTargetField(current: GoalTargetForm, field: keyof GoalPayload, value: number) {
     const nextGoal = { ...current, [field]: value };
@@ -345,6 +360,11 @@ export default function GoalsPage() {
       return;
     }
 
+    if (safetyAssessment.blockers.length) {
+      toast.error(safetyAssessment.blockers[0].message);
+      return;
+    }
+
     updateGoal.mutate({
       defaultGoal: toGoalPayload(defaultGoal),
       exceptions: exceptions.map(exception => ({
@@ -367,6 +387,7 @@ export default function GoalsPage() {
               </CardTitle>
               <CardDescription>
                 Defina uma regra base válida para todos os dias. Você pode preencher os macronutrientes diretamente em gramas ou por percentual das calorias do dia.
+                Metas muito extremas são bloqueadas e metas que merecem atenção aparecem como revisão, sem julgamento sobre suas escolhas.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -399,6 +420,7 @@ export default function GoalsPage() {
                 />
               </div>
               <PercentValidationNote mode={defaultGoal.inputMode} percentSum={defaultPercentSum} />
+              <NutritionSafetyNotice issues={safetyAssessment.issues} />
             </CardContent>
           </Card>
 
@@ -561,6 +583,34 @@ export default function GoalsPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+function NutritionSafetyNotice({ issues }: { issues: NutritionGoalSafetyIssue[] }) {
+  if (!issues.length) return null;
+
+  const blockers = issues.filter(issue => issue.severity === "block");
+  const warnings = issues.filter(issue => issue.severity === "warning");
+
+  return (
+    <div className={`rounded-2xl border p-4 text-sm ${blockers.length ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="space-y-2">
+          <p className="font-medium tracking-tight">Revisão de segurança nutricional</p>
+          <p className={blockers.length ? "text-destructive" : "text-amber-800"}>
+            {blockers.length
+              ? "Alguns valores precisam ser ajustados antes de salvar."
+              : "A meta pode ser salva, mas há pontos que valem uma revisão tranquila."}
+          </p>
+          <ul className="space-y-1">
+            {[...blockers, ...warnings].slice(0, 4).map(issue => (
+              <li key={`${issue.code}-${issue.targetLabel}-${issue.message}`}>{issue.message}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
 

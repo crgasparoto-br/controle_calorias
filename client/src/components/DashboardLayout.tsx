@@ -28,6 +28,7 @@ import {
   LogOut,
   MessageCircleMore,
   MessageSquareMore,
+  UserRound,
   Shield,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -92,6 +93,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const menuItems = useMemo(() => {
     const baseItems = [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+      { icon: UserRound, label: "Onboarding", path: "/onboarding" },
       { icon: MessageSquareMore, label: "Registrar refeição", path: "/log-meal" },
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
       { icon: BarChart3, label: "Relatórios", path: "/reports" },

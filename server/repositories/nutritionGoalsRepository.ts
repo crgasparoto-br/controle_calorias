@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { NutritionGoal, nutritionGoals } from "../../drizzle/schema";
 
 type DbProvider = () => Promise<any | null>;
@@ -35,7 +35,11 @@ export function createDrizzleNutritionGoalsRepository(deps: {
       if (!db || !goals.length) return;
 
       try {
-        await db.delete(nutritionGoals).where(eq(nutritionGoals.userId, userId));
+        const effectiveUntil = new Date();
+        await db
+          .update(nutritionGoals)
+          .set({ effectiveUntil, updatedAt: effectiveUntil })
+          .where(and(eq(nutritionGoals.userId, userId), isNull(nutritionGoals.effectiveUntil)));
         await db.insert(nutritionGoals).values(
           goals.map(goal => ({
             userId: goal.userId,

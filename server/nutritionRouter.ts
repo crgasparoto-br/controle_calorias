@@ -13,9 +13,11 @@ import {
   removeExerciseSchema,
   updateExerciseSchema,
 } from "./modules/exercises/schemas";
-import { getNutritionGoal, updateNutritionGoal } from "./modules/goals/service";
+import { getNutritionGoal, UnsafeNutritionGoalError, updateNutritionGoal } from "./modules/goals/service";
 import { goalSchema } from "./modules/goals/schemas";
 import { getDashboardOverview, getWeeklyReport } from "./modules/insights/service";
+import { completeOnboarding } from "./modules/onboarding/service";
+import { onboardingSchema } from "./modules/onboarding/schemas";
 import {
   confirmMeal,
   createManualMeal,
@@ -56,13 +58,30 @@ import {
 } from "./modules/whatsapp/schemas";
 
 export const nutritionRouter = router({
+  onboarding: router({
+    complete: protectedProcedure.input(onboardingSchema).mutation(async ({ ctx, input }) => completeOnboarding(ctx.user.id, input)),
+  }),
+
   dashboard: router({
     overview: protectedProcedure.query(async ({ ctx }) => getDashboardOverview(ctx.user.id)),
   }),
 
   goals: router({
     get: protectedProcedure.query(async ({ ctx }) => getNutritionGoal(ctx.user.id)),
-    update: protectedProcedure.input(goalSchema).mutation(async ({ ctx, input }) => updateNutritionGoal(ctx.user.id, input)),
+    update: protectedProcedure.input(goalSchema).mutation(async ({ ctx, input }) => {
+      try {
+        return await updateNutritionGoal(ctx.user.id, input);
+      } catch (error) {
+        if (!(error instanceof UnsafeNutritionGoalError)) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error.message,
+        });
+      }
+    }),
   }),
 
   meals: router({

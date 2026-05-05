@@ -3,8 +3,36 @@ import mysql from "mysql2/promise";
 
 const checks = [
   {
+    name: "userProfiles sem usuário",
+    sql: "SELECT COUNT(*) AS count FROM userProfiles p LEFT JOIN users u ON u.id = p.userId WHERE u.id IS NULL",
+  },
+  {
     name: "nutritionGoals sem usuário",
     sql: "SELECT COUNT(*) AS count FROM nutritionGoals g LEFT JOIN users u ON u.id = g.userId WHERE u.id IS NULL",
+  },
+  {
+    name: "foodCatalog com brandId inválido",
+    sql: "SELECT COUNT(*) AS count FROM foodCatalog f LEFT JOIN foodBrands b ON b.id = f.brandId WHERE f.brandId IS NOT NULL AND b.id IS NULL",
+  },
+  {
+    name: "portions sem alimento",
+    sql: "SELECT COUNT(*) AS count FROM portions p LEFT JOIN foodCatalog f ON f.id = p.foodCatalogId WHERE f.id IS NULL",
+  },
+  {
+    name: "recipes sem usuário",
+    sql: "SELECT COUNT(*) AS count FROM recipes r LEFT JOIN users u ON u.id = r.userId WHERE u.id IS NULL",
+  },
+  {
+    name: "recipeItems sem receita",
+    sql: "SELECT COUNT(*) AS count FROM recipeItems i LEFT JOIN recipes r ON r.id = i.recipeId WHERE r.id IS NULL",
+  },
+  {
+    name: "recipeItems com foodCatalogId inválido",
+    sql: "SELECT COUNT(*) AS count FROM recipeItems i LEFT JOIN foodCatalog f ON f.id = i.foodCatalogId WHERE i.foodCatalogId IS NOT NULL AND f.id IS NULL",
+  },
+  {
+    name: "recipeItems com portionId inválido",
+    sql: "SELECT COUNT(*) AS count FROM recipeItems i LEFT JOIN portions p ON p.id = i.portionId WHERE i.portionId IS NOT NULL AND p.id IS NULL",
   },
   {
     name: "meals sem usuário",
@@ -17,6 +45,14 @@ const checks = [
   {
     name: "mealItems com foodCatalogId inválido",
     sql: "SELECT COUNT(*) AS count FROM mealItems i LEFT JOIN foodCatalog f ON f.id = i.foodCatalogId WHERE i.foodCatalogId IS NOT NULL AND f.id IS NULL",
+  },
+  {
+    name: "mealItems com recipeId inválido",
+    sql: "SELECT COUNT(*) AS count FROM mealItems i LEFT JOIN recipes r ON r.id = i.recipeId WHERE i.recipeId IS NOT NULL AND r.id IS NULL",
+  },
+  {
+    name: "mealItems com portionId inválido",
+    sql: "SELECT COUNT(*) AS count FROM mealItems i LEFT JOIN portions p ON p.id = i.portionId WHERE i.portionId IS NOT NULL AND p.id IS NULL",
   },
   {
     name: "mealMedia sem refeição",
@@ -43,12 +79,24 @@ const checks = [
     sql: "SELECT COUNT(*) AS count FROM exercises e LEFT JOIN users u ON u.id = e.userId WHERE u.id IS NULL",
   },
   {
+    name: "weightEntries sem usuário",
+    sql: "SELECT COUNT(*) AS count FROM weightEntries w LEFT JOIN users u ON u.id = w.userId WHERE u.id IS NULL",
+  },
+  {
     name: "waterGoals sem usuário",
     sql: "SELECT COUNT(*) AS count FROM waterGoals wg LEFT JOIN users u ON u.id = wg.userId WHERE u.id IS NULL",
   },
   {
     name: "waterLogs sem usuário",
     sql: "SELECT COUNT(*) AS count FROM waterLogs wl LEFT JOIN users u ON u.id = wl.userId WHERE u.id IS NULL",
+  },
+  {
+    name: "userPreferences sem usuário",
+    sql: "SELECT COUNT(*) AS count FROM userPreferences p LEFT JOIN users u ON u.id = p.userId WHERE u.id IS NULL",
+  },
+  {
+    name: "userRestrictions sem usuário",
+    sql: "SELECT COUNT(*) AS count FROM userRestrictions r LEFT JOIN users u ON u.id = r.userId WHERE u.id IS NULL",
   },
   {
     name: "whatsappConnections sem usuário",
