@@ -1,0 +1,151 @@
+import {
+  buildSavedMedia,
+  confirmPendingMeal,
+  createPendingMealInference,
+  createUserManualMeal,
+  getHabitSnapshots,
+  getPendingInference,
+  getPendingInferenceFromDb,
+  listUserMeals,
+  logInferenceEvent,
+  removeUserMeal,
+  updateUserMeal,
+} from "../../db";
+import { MealDraftItem, processMealInput } from "../../nutritionEngine";
+import { storagePut } from "../../storage";
+import { transcribeAudio } from "../../_core/voiceTranscription";
+import {
+  ConfirmMealInput,
+  ManualMealInput,
+  MediaInput,
+  ProcessMealDraftInput,
+  UpdateMealInput,
+} from "./schemas";
+
+export class MealDraftNotFoundError extends Error {
+  constructor() {
+    super("Rascunho não encontrado para confirmação.");
+    this.name = "MealDraftNotFoundError";
+  }
+}
+
+function extractBase64Payload(value: string) {
+  const match = value.match(/^data:(.+);base64,(.*)$/);
+  return Buffer.from(match ? match[2] : value, "base64");
+}
+
+async function uploadMedia(params: {
+  userId: number;
+  type: "image" | "audio";
+  media?: MediaInput;
+}) {
+  if (!params.media) {
+    return null;
+  }
+
+  const extension = params.media.mimeType.split("/")[1] || (params.type === "image" ? "jpg" : "webm");
+  const keyPrefix = params.type === "image" ? "meal-images" : "meal-audios";
+  const buffer = extractBase64Payload(params.media.base64);
+  const upload = await storagePut(
+    `${params.userId}/${keyPrefix}/${Date.now()}.${extension}`,
+    buffer,
+    params.media.mimeType,
+  );
+
+  return buildSavedMedia({
+    mediaType: params.type,
+    storageKey: upload.key,
+    storageUrl: upload.url,
+    mimeType: params.media.mimeType,
+    originalFileName: params.media.fileName,
+  });
+}
+
+function ensureMealItems(items: Array<MealDraftItem>): MealDraftItem[] {
+  return items.map(item => ({ ...item }));
+}
+
+export async function listMeals(userId: number) {
+  return listUserMeals(userId);
+}
+
+export async function createManualMeal(userId: number, input: ManualMealInput) {
+  return createUserManualMeal({ userId, ...input, items: ensureMealItems(input.items) });
+}
+
+export async function updateMeal(userId: number, input: UpdateMealInput) {
+  return updateUserMeal({
+    userId,
+    mealId: input.mealId,
+    mealLabel: input.mealLabel,
+    occurredAt: input.occurredAt,
+    notes: input.notes,
+    items: ensureMealItems(input.items),
+  });
+}
+
+export async function removeMeal(userId: number, mealId: number) {
+  return removeUserMeal(userId, mealId);
+}
+
+export async function processMealDraft(userId: number, input: ProcessMealDraftInput) {
+  const imageMedia = await uploadMedia({ userId, type: "image", media: input.image });
+  const audioMedia = await uploadMedia({ userId, type: "audio", media: input.audio });
+
+  let transcript: string | undefined;
+  if (audioMedia) {
+    const transcription = await transcribeAudio({
+      audioUrl: audioMedia.storageUrl,
+      language: "pt",
+      prompt: "Transcreva a refeição narrada pelo usuário com foco em alimentos e porções.",
+    });
+    if ("error" in transcription) {
+      logInferenceEvent({
+        userId,
+        origin: input.source,
+        status: "warning",
+        eventType: "audio.transcription_warning",
+        detail: transcription.details || transcription.error,
+      });
+    } else {
+      transcript = transcription.text;
+    }
+  }
+
+  const processed = await processMealInput({
+    text: input.text,
+    transcript,
+    imageUrl: imageMedia?.storageUrl,
+    audioUrl: audioMedia?.storageUrl,
+    habits: await getHabitSnapshots(userId),
+  });
+
+  const draft = createPendingMealInference(
+    userId,
+    input.source,
+    processed,
+    [imageMedia, audioMedia].filter(Boolean) as NonNullable<Awaited<ReturnType<typeof uploadMedia>>>[],
+  );
+
+  return {
+    draftId: draft.draftId,
+    processed,
+    media: draft.media,
+  };
+}
+
+export async function confirmMeal(userId: number, input: ConfirmMealInput) {
+  const pending = getPendingInference(input.draftId) ?? await getPendingInferenceFromDb(input.draftId);
+  if (!pending || pending.userId !== userId) {
+    throw new MealDraftNotFoundError();
+  }
+
+  return confirmPendingMeal({
+    draftId: input.draftId,
+    userId,
+    mealLabel: input.mealLabel,
+    occurredAt: input.occurredAt,
+    notes: input.notes,
+    items: ensureMealItems(input.items),
+  });
+}

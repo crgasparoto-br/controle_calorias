@@ -62,7 +62,12 @@ export default function DashboardLayout({
           <Button
             className="mt-8 h-11 w-full"
             onClick={() => {
-              window.location.href = getLoginUrl();
+              const loginUrl = getLoginUrl();
+              if (!loginUrl) {
+                window.alert("Login OAuth não configurado neste ambiente local.");
+                return;
+              }
+              window.location.href = loginUrl;
             }}
           >
             Fazer login

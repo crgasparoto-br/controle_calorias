@@ -3,7 +3,6 @@ import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   appSecrets,
-  exercises,
   habitMemories,
   inferenceLogs,
   InsertUser,
@@ -13,18 +12,34 @@ import {
   meals,
   foodCatalog,
   NutritionGoal,
-  nutritionGoals,
   User,
   users,
-  waterGoals,
-  waterLogs,
   whatsappConnections,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
+import { createDrizzleExercisesRepository } from "./repositories/exercisesRepository";
+import { canUseMemoryPersistenceFallback } from "./repositories/memoryFallback";
+import { createDrizzleNutritionGoalsRepository } from "./repositories/nutritionGoalsRepository";
+import { createDrizzleWaterRepository } from "./repositories/waterRepository";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 const WHATSAPP_ACCESS_TOKEN_SECRET_KEY = "whatsapp_access_token";
+const whatsappConnectionStore: Array<{
+  id: number;
+  userId: number;
+  phoneNumber: string;
+  displayName: string | null;
+  status: "pending" | "active" | "disabled";
+  createdAt: Date;
+  updatedAt: Date;
+}> = [];
+let whatsappConnectionSequence = 1;
+let memoryWhatsAppAccessToken: {
+  value: string;
+  updatedAt: Date;
+  updatedByUserId: number;
+} | null = null;
 
 type EncryptedSecretPayload = {
   iv: string;
@@ -105,6 +120,10 @@ export async function getWhatsAppAccessToken() {
     }
   }
 
+  if (memoryWhatsAppAccessToken?.value) {
+    return memoryWhatsAppAccessToken.value;
+  }
+
   return process.env.WHATSAPP_ACCESS_TOKEN ?? null;
 }
 
@@ -123,6 +142,16 @@ export async function getAdminWhatsAppTokenStatus(): Promise<AdminWhatsAppTokenS
     } catch (error) {
       console.warn("[Database] Failed to decrypt admin WhatsApp token status:", error);
     }
+  }
+
+  if (memoryWhatsAppAccessToken) {
+    return {
+      configured: true,
+      source: "database",
+      maskedValue: maskSecret(memoryWhatsAppAccessToken.value),
+      updatedAt: memoryWhatsAppAccessToken.updatedAt.getTime(),
+      updatedByUserId: memoryWhatsAppAccessToken.updatedByUserId,
+    };
   }
 
   const envValue = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
@@ -146,14 +175,20 @@ export async function getAdminWhatsAppTokenStatus(): Promise<AdminWhatsAppTokenS
 }
 
 export async function upsertAdminWhatsAppAccessToken(input: { value: string; updatedByUserId: number }) {
-  const db = await getDb();
-  if (!db) {
-    throw new Error("Banco de dados indisponível para salvar o token do WhatsApp.");
-  }
-
   const normalizedValue = input.value.trim();
   if (normalizedValue.length < 20) {
     throw new Error("Informe um token de acesso do WhatsApp válido.");
+  }
+
+  const db = await getDb();
+  if (!db) {
+    memoryWhatsAppAccessToken = {
+      value: normalizedValue,
+      updatedAt: new Date(),
+      updatedByUserId: input.updatedByUserId,
+    };
+    process.env.WHATSAPP_ACCESS_TOKEN = normalizedValue;
+    return getAdminWhatsAppTokenStatus();
   }
 
   const encryptedValue = encryptAppSecretValue(normalizedValue);
@@ -270,7 +305,10 @@ export function normalizeWhatsAppPhoneNumber(phoneNumber: string) {
 export async function getUserWhatsappConnection(userId: number) {
   const db = await getDb();
   if (!db) {
-    return null;
+    const rows = whatsappConnectionStore
+      .filter(row => row.userId === userId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    return rows.find(row => row.status === "active") ?? rows[0] ?? null;
   }
 
   try {
@@ -288,22 +326,83 @@ export async function getUserWhatsappConnection(userId: number) {
   }
 }
 
+export async function getUserIdByWhatsappPhone(phoneNumber: string) {
+  const normalizedPhoneNumber = normalizeWhatsAppPhoneNumber(phoneNumber);
+  if (!normalizedPhoneNumber) {
+    return null;
+  }
+
+  const db = await getDb();
+  if (!db) {
+    return whatsappConnectionStore.find(row => row.phoneNumber === normalizedPhoneNumber && row.status === "active")?.userId ?? null;
+  }
+
+  try {
+    const rows = await db
+      .select()
+      .from(whatsappConnections)
+      .where(and(eq(whatsappConnections.phoneNumber, normalizedPhoneNumber), eq(whatsappConnections.status, "active")))
+      .limit(1);
+
+    return rows[0]?.userId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function upsertUserWhatsappConnection(input: {
   userId: number;
   phoneNumber: string;
   displayName?: string;
 }) {
-  const db = await getDb();
-  if (!db) {
-    throw new Error("Banco de dados indisponível para salvar o vínculo do WhatsApp.");
-  }
-
   const normalizedPhoneNumber = normalizeWhatsAppPhoneNumber(input.phoneNumber);
   if (normalizedPhoneNumber.length < 10 || normalizedPhoneNumber.length > 16) {
     throw new Error("Informe um número de WhatsApp válido com DDD e código do país quando necessário.");
   }
 
   const normalizedDisplayName = input.displayName?.trim() ? input.displayName.trim() : null;
+  const db = await getDb();
+  if (!db) {
+    const activeConflict = whatsappConnectionStore.find(row => row.phoneNumber === normalizedPhoneNumber && row.userId !== input.userId && row.status !== "disabled");
+    if (activeConflict) {
+      throw new Error("Este telefone de origem já está vinculado a outro usuário.");
+    }
+
+    const now = new Date();
+    const userRows = whatsappConnectionStore
+      .filter(row => row.userId === input.userId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const existing = userRows[0];
+
+    if (existing) {
+      existing.phoneNumber = normalizedPhoneNumber;
+      existing.displayName = normalizedDisplayName;
+      existing.status = "active";
+      existing.updatedAt = now;
+    } else {
+      whatsappConnectionStore.push({
+        id: whatsappConnectionSequence++,
+        userId: input.userId,
+        phoneNumber: normalizedPhoneNumber,
+        displayName: normalizedDisplayName,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    for (const row of userRows.slice(1)) {
+      row.status = "disabled";
+      row.updatedAt = now;
+    }
+
+    const saved = await getUserWhatsappConnection(input.userId);
+    if (!saved) {
+      throw new Error("Não foi possível recuperar o contato do WhatsApp após o salvamento.");
+    }
+
+    return saved;
+  }
 
   const conflictingRows = await db
     .select()
@@ -312,7 +411,7 @@ export async function upsertUserWhatsappConnection(input: {
 
   const activeConflict = conflictingRows.find(row => row.userId !== input.userId && row.status !== "disabled");
   if (activeConflict) {
-    throw new Error("Este número de WhatsApp já está vinculado a outro usuário.");
+    throw new Error("Este telefone de origem já está vinculado a outro usuário.");
   }
 
   const userRows = await db
@@ -352,7 +451,7 @@ export async function upsertUserWhatsappConnection(input: {
 
   const saved = await getUserWhatsappConnection(input.userId);
   if (!saved) {
-    throw new Error("Não foi possível recuperar o vínculo do WhatsApp após o salvamento.");
+    throw new Error("Não foi possível recuperar o contato do WhatsApp após o salvamento.");
   }
 
   return saved;
@@ -688,6 +787,19 @@ function logPersistenceWarning(scope: string, error: unknown) {
   console.warn(`[Database] ${scope}:`, error);
 }
 
+const nutritionGoalsRepository = createDrizzleNutritionGoalsRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const exercisesRepository = createDrizzleExercisesRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const waterRepository = createDrizzleWaterRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+
 function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[] {
   if (!value) return fallback;
   try {
@@ -745,28 +857,8 @@ async function resolveFoodCatalogIds(items: MealDraftItem[]) {
 }
 
 async function persistGoalToDb(goals: NutritionGoal[]) {
-  const db = await getDb();
-  if (!db || !goals.length) return;
-
-  try {
-    await db.delete(nutritionGoals).where(eq(nutritionGoals.userId, goals[0].userId));
-    await db.insert(nutritionGoals).values(
-      goals.map(goal => ({
-        userId: goal.userId,
-        ruleType: goal.ruleType,
-        weekday: goal.weekday,
-        durationType: goal.durationType,
-        calories: goal.calories,
-        proteinGrams: goal.proteinGrams,
-        carbsGrams: goal.carbsGrams,
-        fatGrams: goal.fatGrams,
-        effectiveFrom: goal.effectiveFrom,
-        effectiveUntil: goal.effectiveUntil,
-      })),
-    );
-  } catch (error) {
-    logPersistenceWarning("Goal persistence skipped", error);
-  }
+  if (!goals.length) return;
+  await nutritionGoalsRepository.replaceForUser(goals[0].userId, goals);
 }
 
 async function persistInferenceToDb(draft: PendingInference) {
@@ -863,57 +955,15 @@ async function persistMealToDb(meal: SavedMeal) {
 }
 
 async function persistExerciseToDb(exercise: ExerciseEntry) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    const exerciseInsert = await db.insert(exercises).values({
-      userId: exercise.userId,
-      activityType: exercise.activityType,
-      durationMinutes: exercise.durationMinutes,
-      caloriesBurned: exercise.caloriesBurned,
-      notes: exercise.notes ?? null,
-      occurredAt: new Date(exercise.occurredAt),
-    });
-
-    const insertedExerciseId = Number((exerciseInsert as any)?.[0]?.insertId ?? (exerciseInsert as any)?.insertId ?? 0);
-    if (insertedExerciseId) {
-      exercise.id = insertedExerciseId;
-    }
-  } catch (error) {
-    logPersistenceWarning("Exercise persistence skipped", error);
-  }
+  await exercisesRepository.insert(exercise);
 }
 
 async function updateExerciseInDb(exercise: ExerciseEntry) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    await db
-      .update(exercises)
-      .set({
-        activityType: exercise.activityType,
-        durationMinutes: exercise.durationMinutes,
-        caloriesBurned: exercise.caloriesBurned,
-        notes: exercise.notes ?? null,
-        occurredAt: new Date(exercise.occurredAt),
-      })
-      .where(and(eq(exercises.userId, exercise.userId), eq(exercises.id, exercise.id)));
-  } catch (error) {
-    logPersistenceWarning("Exercise update skipped", error);
-  }
+  await exercisesRepository.update(exercise);
 }
 
 async function deleteExerciseFromDb(userId: number, exerciseId: number) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    await db.delete(exercises).where(and(eq(exercises.userId, userId), eq(exercises.id, exerciseId)));
-  } catch (error) {
-    logPersistenceWarning("Exercise deletion skipped", error);
-  }
+  await exercisesRepository.delete(userId, exerciseId);
 }
 
 async function updateMealInDb(meal: SavedMeal) {
@@ -972,57 +1022,15 @@ async function deleteMealFromDb(userId: number, mealId: number) {
 }
 
 async function persistWaterGoalToDb(goal: WaterGoalEntry) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    const existing = await db.select().from(waterGoals).where(eq(waterGoals.userId, goal.userId)).limit(1);
-    if (existing.length) {
-      await db
-        .update(waterGoals)
-        .set({ dailyTargetMl: goal.dailyTargetMl, updatedAt: new Date() })
-        .where(eq(waterGoals.userId, goal.userId));
-      return;
-    }
-
-    const insertResult = await db.insert(waterGoals).values({ userId: goal.userId, dailyTargetMl: goal.dailyTargetMl });
-    const insertedId = Number((insertResult as any)?.[0]?.insertId ?? (insertResult as any)?.insertId ?? 0);
-    if (insertedId) {
-      goal.id = insertedId;
-    }
-  } catch (error) {
-    logPersistenceWarning("Water goal persistence skipped", error);
-  }
+  await waterRepository.upsertGoal(goal);
 }
 
 async function persistWaterLogToDb(log: WaterLogEntry) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    const insertResult = await db.insert(waterLogs).values({
-      userId: log.userId,
-      amountMl: log.amountMl,
-      occurredAt: new Date(log.occurredAt),
-    });
-    const insertedId = Number((insertResult as any)?.[0]?.insertId ?? (insertResult as any)?.insertId ?? 0);
-    if (insertedId) {
-      log.id = insertedId;
-    }
-  } catch (error) {
-    logPersistenceWarning("Water log persistence skipped", error);
-  }
+  await waterRepository.insertLog(log);
 }
 
 async function deleteWaterLogFromDb(userId: number, waterLogId: number) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    await db.delete(waterLogs).where(and(eq(waterLogs.userId, userId), eq(waterLogs.id, waterLogId)));
-  } catch (error) {
-    logPersistenceWarning("Water log deletion skipped", error);
-  }
+  await waterRepository.deleteLog(userId, waterLogId);
 }
 
 async function persistHabitsToDb(userId: number, habits: HabitMemoryState[]) {
@@ -1064,16 +1072,7 @@ async function persistLogToDb(entry: AdminLogEntry) {
 }
 
 async function loadGoalFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
-
-  try {
-    const rows = await db.select().from(nutritionGoals).where(eq(nutritionGoals.userId, userId)).orderBy(desc(nutritionGoals.updatedAt));
-    return rows;
-  } catch (error) {
-    logPersistenceWarning("Goal read skipped", error);
-    return null;
-  }
+  return nutritionGoalsRepository.findByUserId(userId);
 }
 
 async function loadMealsFromDb(userId: number) {
@@ -1143,57 +1142,15 @@ async function loadMealsFromDb(userId: number) {
 }
 
 async function loadExercisesFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
-
-  try {
-    const rows = await db.select().from(exercises).where(eq(exercises.userId, userId)).orderBy(desc(exercises.occurredAt));
-    return rows.map(row => ({
-      ...row,
-      occurredAt: new Date(row.occurredAt).getTime(),
-      createdAt: new Date(row.createdAt).getTime(),
-    }));
-  } catch (error) {
-    logPersistenceWarning("Exercise read skipped", error);
-    return null;
-  }
+  return exercisesRepository.findByUserId(userId);
 }
 
 async function loadWaterGoalFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
-
-  try {
-    const rows = await db.select().from(waterGoals).where(eq(waterGoals.userId, userId)).limit(1);
-    if (!rows.length) return null;
-    const row = rows[0];
-    return {
-      ...row,
-      createdAt: new Date(row.createdAt).getTime(),
-      updatedAt: new Date(row.updatedAt),
-    } satisfies WaterGoalEntry;
-  } catch (error) {
-    logPersistenceWarning("Water goal read skipped", error);
-    return null;
-  }
+  return waterRepository.findGoalByUserId(userId);
 }
 
 async function loadWaterLogsFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
-
-  try {
-    const rows = await db.select().from(waterLogs).where(eq(waterLogs.userId, userId)).orderBy(desc(waterLogs.occurredAt));
-    return rows.map(row => ({
-      ...row,
-      occurredAt: new Date(row.occurredAt).getTime(),
-      createdAt: new Date(row.createdAt).getTime(),
-      updatedAt: new Date(row.updatedAt),
-    } satisfies WaterLogEntry));
-  } catch (error) {
-    logPersistenceWarning("Water log read skipped", error);
-    return null;
-  }
+  return waterRepository.findLogsByUserId(userId);
 }
 
 async function loadHabitsFromDb(userId: number) {
@@ -1261,17 +1218,23 @@ async function loadRecentLogsFromDb() {
 async function getStoredNutritionGoals(userId: number) {
   const dbGoals = await loadGoalFromDb(userId);
   if (dbGoals?.length) {
-    goalStore.set(userId, dbGoals);
+    if (canUseMemoryPersistenceFallback()) {
+      goalStore.set(userId, dbGoals);
+    }
     return dbGoals;
   }
 
-  const stored = goalStore.get(userId);
-  if (stored?.length) {
-    return stored;
+  if (canUseMemoryPersistenceFallback()) {
+    const stored = goalStore.get(userId);
+    if (stored?.length) {
+      return stored;
+    }
   }
 
   const created = [defaultGoal(userId)];
-  goalStore.set(userId, created);
+  if (canUseMemoryPersistenceFallback()) {
+    goalStore.set(userId, created);
+  }
   return created;
 }
 
@@ -1317,7 +1280,9 @@ export async function upsertNutritionGoal(userId: number, input: GoalInput) {
     })),
   ];
 
-  goalStore.set(userId, updated);
+  if (canUseMemoryPersistenceFallback()) {
+    goalStore.set(userId, updated);
+  }
   await persistGoalToDb(updated);
   logInferenceEvent({
     userId,
@@ -1682,13 +1647,17 @@ export async function removeUserMeal(userId: number, mealId: number) {
 async function getStoredWaterGoal(userId: number) {
   const dbGoal = await loadWaterGoalFromDb(userId);
   if (dbGoal) {
-    waterGoalStore.set(userId, dbGoal);
+    if (canUseMemoryPersistenceFallback()) {
+      waterGoalStore.set(userId, dbGoal);
+    }
     return dbGoal;
   }
 
-  const stored = waterGoalStore.get(userId);
-  if (stored) {
-    return stored;
+  if (canUseMemoryPersistenceFallback()) {
+    const stored = waterGoalStore.get(userId);
+    if (stored) {
+      return stored;
+    }
   }
 
   const created: WaterGoalEntry = {
@@ -1698,18 +1667,22 @@ async function getStoredWaterGoal(userId: number) {
     createdAt: Date.now(),
     updatedAt: new Date(),
   };
-  waterGoalStore.set(userId, created);
+  if (canUseMemoryPersistenceFallback()) {
+    waterGoalStore.set(userId, created);
+  }
   return created;
 }
 
 async function getStoredWaterLogs(userId: number) {
   const dbLogs = await loadWaterLogsFromDb(userId);
   if (dbLogs) {
-    waterLogStore.set(userId, dbLogs);
+    if (canUseMemoryPersistenceFallback()) {
+      waterLogStore.set(userId, dbLogs);
+    }
     return dbLogs;
   }
 
-  return waterLogStore.get(userId) ?? [];
+  return canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : [];
 }
 
 export async function getUserWaterGoal(userId: number) {
@@ -1728,7 +1701,9 @@ export async function updateUserWaterGoal(userId: number, dailyTargetMl: number)
     dailyTargetMl,
     updatedAt: new Date(),
   };
-  waterGoalStore.set(userId, updated);
+  if (canUseMemoryPersistenceFallback()) {
+    waterGoalStore.set(userId, updated);
+  }
   await persistWaterGoalToDb(updated);
   logInferenceEvent({
     userId,
@@ -1751,7 +1726,9 @@ export async function createUserWaterLog(userId: number, input: { amountMl: numb
   };
 
   const current = await listUserWaterLogs(userId);
-  waterLogStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
+  if (canUseMemoryPersistenceFallback()) {
+    waterLogStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
+  }
   await persistWaterLogToDb(created);
   logInferenceEvent({
     userId,
@@ -1770,7 +1747,9 @@ export async function removeUserWaterLog(userId: number, waterLogId: number) {
     throw new Error("Registro de água não encontrado.");
   }
 
-  waterLogStore.set(userId, current.filter(item => item.id !== waterLogId));
+  if (canUseMemoryPersistenceFallback()) {
+    waterLogStore.set(userId, current.filter(item => item.id !== waterLogId));
+  }
   await deleteWaterLogFromDb(userId, waterLogId);
   logInferenceEvent({
     userId,
@@ -1785,11 +1764,13 @@ export async function removeUserWaterLog(userId: number, waterLogId: number) {
 async function getStoredExercises(userId: number) {
   const dbExercises = await loadExercisesFromDb(userId);
   if (dbExercises) {
-    exerciseStore.set(userId, dbExercises);
+    if (canUseMemoryPersistenceFallback()) {
+      exerciseStore.set(userId, dbExercises);
+    }
     return dbExercises;
   }
 
-  return exerciseStore.get(userId) ?? [];
+  return canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : [];
 }
 
 export async function listUserExercises(userId: number) {
@@ -1817,7 +1798,9 @@ export async function createUserExercise(userId: number, input: {
   };
 
   const current = await listUserExercises(userId);
-  exerciseStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
+  if (canUseMemoryPersistenceFallback()) {
+    exerciseStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
+  }
   await persistExerciseToDb(created);
   logInferenceEvent({
     userId,
@@ -1853,12 +1836,14 @@ export async function updateUserExercise(userId: number, input: {
     updatedAt: new Date(),
   };
 
-  exerciseStore.set(
-    userId,
-    current
-      .map(item => (item.id === input.exerciseId ? updated : item))
-      .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt)),
-  );
+  if (canUseMemoryPersistenceFallback()) {
+    exerciseStore.set(
+      userId,
+      current
+        .map(item => (item.id === input.exerciseId ? updated : item))
+        .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt)),
+    );
+  }
   await updateExerciseInDb(updated);
   logInferenceEvent({
     userId,
@@ -1877,7 +1862,9 @@ export async function removeUserExercise(userId: number, exerciseId: number) {
     throw new Error("Exercício não encontrado.");
   }
 
-  exerciseStore.set(userId, current.filter(item => item.id !== exerciseId));
+  if (canUseMemoryPersistenceFallback()) {
+    exerciseStore.set(userId, current.filter(item => item.id !== exerciseId));
+  }
   await deleteExerciseFromDb(userId, exerciseId);
   logInferenceEvent({
     userId,

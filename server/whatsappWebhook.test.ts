@@ -54,6 +54,7 @@ vi.mock("./nutritionEngine", async () => {
 
 const { handleWhatsAppWebhook, verifyWhatsAppWebhook } = await import("./whatsappWebhook");
 const { getAdminSnapshot, listUserMeals, upsertUserWhatsappConnection } = await import("./db");
+const { requireWhatsAppSendConfig } = await import("./whatsappConfig");
 
 type MockResponse = {
   statusCode: number;
@@ -64,6 +65,7 @@ type MockResponse = {
 };
 
 let lastSentWhatsAppBody: string | null = null;
+let lastSentWhatsAppUrl: string | null = null;
 
 function createResponse(): MockResponse {
   return {
@@ -90,8 +92,10 @@ describe("whatsappWebhook", () => {
     vi.setSystemTime(new Date("2026-04-20T08:52:00-03:00"));
     process.env.WHATSAPP_VERIFY_TOKEN = "verify-token-test";
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
+    process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
     lastSentWhatsAppBody = null;
+    lastSentWhatsAppUrl = null;
     processMealInputMock.mockReset();
     processMealInputMock.mockResolvedValue({
       detectedMealLabel: "Almoço",
@@ -127,6 +131,7 @@ describe("whatsappWebhook", () => {
 
       if (url.includes("/messages")) {
         const payload = init?.body ? JSON.parse(String(init.body)) : {};
+        lastSentWhatsAppUrl = url;
         lastSentWhatsAppBody = payload?.text?.body ?? null;
         return {
           ok: true,
@@ -204,7 +209,13 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 0 });
   });
 
-  it("processa uma mensagem de texto vinculada e registra automaticamente a refeição antes de responder no WhatsApp", async () => {
+  it("gera erro claro quando falta configuração obrigatória para envio pelo WhatsApp fixo", async () => {
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    await expect(requireWhatsAppSendConfig()).rejects.toThrow("WHATSAPP_PHONE_NUMBER_ID");
+  });
+
+  it("processa uma mensagem recebida pelo número fixo, identifica o usuário pelo telefone de origem e responde com o Phone Number ID oficial", async () => {
     await upsertUserWhatsappConnection({
       userId: 1,
       phoneNumber: "5511999999999",
@@ -218,6 +229,10 @@ describe("whatsappWebhook", () => {
             changes: [
               {
                 value: {
+                  metadata: {
+                    display_phone_number: "5511000000000",
+                    phone_number_id: "phone-number-test",
+                  },
                   messages: [
                     {
                       from: "5511999999999",
@@ -242,6 +257,7 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
     expect(savedMeals.length).toBeGreaterThan(0);
+    expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
     expect(lastSentWhatsAppBody).toBe([
       "🍽️ Almoço:",
       "",
@@ -355,6 +371,50 @@ describe("whatsappWebhook", () => {
     const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppBody).toBeNull();
+  });
+
+  it("ignora mensagens recebidas por um WhatsApp Phone Number ID diferente do canal fixo configurado", async () => {
+    await upsertUserWhatsappConnection({
+      userId: 1,
+      phoneNumber: "5511555555555",
+      displayName: "Contato",
+    });
+
+    const req = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  metadata: {
+                    display_phone_number: "5511999990000",
+                    phone_number_id: "outro-phone-number-id",
+                  },
+                  messages: [
+                    {
+                      from: "5511555555555",
+                      type: "text",
+                      text: {
+                        body: "arroz e frango",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(lastSentWhatsAppUrl).toBeNull();
   });
 
   it("ignora mensagens não suportadas sem falhar o webhook quando o número está vinculado", async () => {

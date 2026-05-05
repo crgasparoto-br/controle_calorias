@@ -82,6 +82,10 @@ describe("nutrition router", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-22T12:00:00-03:00"));
+    process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-id-test";
+    process.env.WHATSAPP_VERIFY_TOKEN = "verify-token-test";
+    process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
   });
 
   afterEach(() => {
@@ -161,13 +165,16 @@ describe("nutrition router", () => {
     expect(admin.usage.mealsCount).toBeGreaterThan(0);
   });
 
-  it("expõe o status do WhatsApp e permite vincular o número ao usuário autenticado", async () => {
+  it("expõe o status do WhatsApp fixo e permite vincular o telefone de origem ao usuário autenticado", async () => {
     const userId = 991001 + Math.floor(Math.random() * 100000);
     const ctx = createNutritionContext(userId, "admin");
     const caller = appRouter.createCaller(ctx);
 
     const initialStatus = await caller.nutrition.whatsapp.status();
     expect(initialStatus.currentUserId).toBe(userId);
+    expect(initialStatus.configured).toBe(true);
+    expect(initialStatus.channel.phoneNumber).toBe("5511000000000");
+    expect(initialStatus.channel.phoneNumberId).toBe("phone-number-id-test");
 
     const uniquePhoneNumber = `55${String(userId).padStart(11, "0").slice(-11)}`;
 
@@ -182,6 +189,17 @@ describe("nutrition router", () => {
     expect(saved.status).toBe("active");
     expect(updatedStatus.connection?.phoneNumber).toBe(uniquePhoneNumber);
     expect(updatedStatus.connection?.displayName).toBe("Gaspa");
+  });
+
+  it("impede vincular o número oficial fixo da solução como telefone de usuário", async () => {
+    const userId = 992001 + Math.floor(Math.random() * 100000);
+    const ctx = createNutritionContext(userId, "admin");
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.nutrition.whatsapp.upsertConnection({
+      phoneNumber: "55 11 00000-0000",
+      displayName: "Canal oficial",
+    })).rejects.toThrow("não o número oficial fixo da solução");
   });
 
   it("permite ao administrador atualizar o token do WhatsApp e expõe apenas o valor mascarado", async () => {

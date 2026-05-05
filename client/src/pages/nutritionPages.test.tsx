@@ -322,14 +322,16 @@ describe("nutrition pages", () => {
     expect(html).toContain("Registro às");
   });
 
-  it("renderiza a página de canais com status do WhatsApp e vínculo do número", async () => {
+  it("renderiza a página de canais com status do WhatsApp fixo e vínculo do contato", async () => {
     const { default: ChannelsPage } = await import("./ChannelsPage");
     const html = renderToString(React.createElement(ChannelsPage));
 
     expect(html).toContain("WhatsApp Business Cloud API");
-    expect(html).toContain("Vínculo do número do WhatsApp");
-    expect(html).toContain("Salvar vínculo");
+    expect(html).toContain("Vínculo do contato do usuário");
+    expect(html).toContain("Salvar contato");
     expect(html).toContain("Não vinculado");
+    expect(html).toContain("Número oficial da solução");
+    expect(html).toContain("Phone Number ID oficial");
     expect(html).toContain("/api/whatsapp/webhook");
   });
 

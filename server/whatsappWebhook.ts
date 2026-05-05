@@ -1,13 +1,14 @@
-import { and, eq } from "drizzle-orm";
 import { Request, Response } from "express";
-import { whatsappConnections } from "../drizzle/schema";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getDb, getHabitSnapshots, getWhatsAppAccessToken, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
+import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 
 type WhatsAppMessage = {
   from?: string;
+  channelPhoneNumberId?: string;
+  channelDisplayPhoneNumber?: string;
   timestamp?: string;
   type?: string;
   text?: { body?: string };
@@ -41,52 +42,33 @@ type PendingWhatsAppConfirmation = {
 const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation>();
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
 
-function normalizePhoneNumber(phone: string) {
-  return phone.replace(/\D/g, "");
-}
-
 async function resolveUserIdFromPhone(sourcePhone: string) {
-  const normalizedPhone = normalizePhoneNumber(sourcePhone);
-  const db = await getDb();
-
-  if (db && normalizedPhone) {
-    try {
-      const rows = await db
-        .select()
-        .from(whatsappConnections)
-        .where(and(eq(whatsappConnections.phoneNumber, normalizedPhone), eq(whatsappConnections.status, "active")))
-        .limit(1);
-      const match = rows[0];
-      if (match?.userId) {
-        return match.userId;
-      }
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
+  return getUserIdByWhatsappPhone(sourcePhone);
 }
 
 function getVerifyToken() {
-  return process.env.WHATSAPP_VERIFY_TOKEN;
-}
-
-async function getAccessToken() {
-  return getWhatsAppAccessToken();
-}
-
-function getPhoneNumberId() {
-  return process.env.WHATSAPP_PHONE_NUMBER_ID;
+  return getWhatsAppChannelConfig().verifyToken;
 }
 
 function extractMessages(payload: any): WhatsAppMessage[] {
   const entries = Array.isArray(payload?.entry) ? payload.entry : [];
   return entries.flatMap((entry: any) =>
     Array.isArray(entry?.changes)
-      ? entry.changes.flatMap((change: any) => (Array.isArray(change?.value?.messages) ? change.value.messages : []))
+      ? entry.changes.flatMap((change: any) => {
+          const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
+          return messages.map((message: WhatsAppMessage) => ({
+            ...message,
+            channelPhoneNumberId: change?.value?.metadata?.phone_number_id,
+            channelDisplayPhoneNumber: change?.value?.metadata?.display_phone_number,
+          }));
+        })
       : [],
   );
+}
+
+function isMessageForConfiguredChannel(message: WhatsAppMessage) {
+  const configuredPhoneNumberId = getWhatsAppChannelConfig().phoneNumberId;
+  return !message.channelPhoneNumberId || !configuredPhoneNumberId || message.channelPhoneNumberId === configuredPhoneNumberId;
 }
 
 function formatMacro(value: number) {
@@ -307,20 +289,21 @@ async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
 }
 
 async function sendWhatsAppTextMessage(to: string, body: string) {
-  const accessToken = await getAccessToken();
-  const phoneNumberId = getPhoneNumberId();
-  if (!accessToken || !phoneNumberId) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
     return {
       ok: false,
-      detail: "Credenciais do WhatsApp não configuradas para envio de resposta.",
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de resposta.",
     };
   }
 
   try {
-    const response = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${config.accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -354,10 +337,7 @@ async function sendWhatsAppTextMessage(to: string, body: string) {
 }
 
 async function getMediaDownloadUrl(mediaId: string) {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    throw new Error("WHATSAPP_ACCESS_TOKEN não configurado para download de mídia.");
-  }
+  const { accessToken } = await requireWhatsAppMediaConfig();
 
   const response = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -376,10 +356,7 @@ async function getMediaDownloadUrl(mediaId: string) {
 }
 
 async function downloadWhatsAppMedia(mediaId: string, fallbackMimeType?: string) {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    throw new Error("WHATSAPP_ACCESS_TOKEN não configurado para download de mídia.");
-  }
+  const { accessToken } = await requireWhatsAppMediaConfig();
 
   const meta = await getMediaDownloadUrl(mediaId);
   const response = await fetch(meta.url, {
@@ -494,6 +471,18 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
   for (const message of messages) {
     const sourcePhone = message.from || "unknown";
+
+    if (!isMessageForConfiguredChannel(message)) {
+      logInferenceEvent({
+        userId: null,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.unexpected_channel",
+        detail: `Mensagem recebida pelo WhatsApp Phone Number ID ${message.channelPhoneNumberId}, diferente do ID fixo configurado para a solução.`,
+      });
+      continue;
+    }
+
     const userId = await resolveUserIdFromPhone(sourcePhone);
 
     if (!userId) {

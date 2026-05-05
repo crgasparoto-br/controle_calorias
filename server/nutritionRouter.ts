@@ -1,352 +1,150 @@
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
-import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { transcribeAudio } from "./_core/voiceTranscription";
+import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
+import { getAdminOverview, getWhatsappTokenStatus, updateWhatsappToken } from "./modules/admin/service";
+import { updateWhatsappTokenSchema } from "./modules/admin/schemas";
 import {
-  buildSavedMedia,
-  confirmPendingMeal,
-  createPendingMealInference,
-  createUserExercise,
-  createUserManualMeal,
-  createUserWaterLog,
-  getAdminSnapshot,
-  getAdminWhatsAppTokenStatus,
-  getDashboardSnapshot,
-  getHabitSnapshots,
-  getPendingInference,
-  getPendingInferenceFromDb,
-  getUserNutritionGoal,
-  getUserWaterGoal,
-  getUserWhatsappConnection,
-  getWeeklySummary,
-  listUserExercises,
-  listUserMeals,
-  listUserWaterLogs,
-  logInferenceEvent,
-  removeUserExercise,
-  removeUserMeal,
-  removeUserWaterLog,
-  updateUserExercise,
-  updateUserMeal,
-  updateUserWaterGoal,
-  upsertAdminWhatsAppAccessToken,
-  upsertNutritionGoal,
-  upsertUserWhatsappConnection,
-} from "./db";
-import { MealDraftItem, processMealInput } from "./nutritionEngine";
-import { storagePut } from "./storage";
-
-const goalTargetSchema = z.object({
-  calories: z.number().int().min(800).max(8000),
-  proteinGrams: z.number().min(20).max(500),
-  carbsGrams: z.number().min(20).max(1000),
-  fatGrams: z.number().min(10).max(300),
-});
-
-const goalExceptionSchema = goalTargetSchema.extend({
-  id: z.number().int().positive().optional(),
-  weekday: z.number().int().min(0).max(6),
-  durationType: z.enum(["1_week", "2_weeks", "3_weeks", "always"]),
-});
-
-const goalSchema = z.object({
-  defaultGoal: goalTargetSchema,
-  exceptions: z
-    .array(goalExceptionSchema)
-    .refine(exceptions => new Set(exceptions.map(item => item.weekday)).size === exceptions.length, "Informe no máximo uma exceção ativa por dia da semana."),
-});
-
-const mediaInputSchema = z
-  .object({
-    base64: z.string().min(1),
-    mimeType: z.string().min(1),
-    fileName: z.string().optional(),
-  })
-  .optional();
-
-const mealItemSchema = z.object({
-  foodName: z.string().min(1),
-  canonicalName: z.string().min(1),
-  portionText: z.string().min(1),
-  servings: z.number().min(0.1).max(20),
-  estimatedGrams: z.number().min(0).max(5000),
-  calories: z.number().min(0).max(10000),
-  protein: z.number().min(0).max(1000),
-  carbs: z.number().min(0).max(1000),
-  fat: z.number().min(0).max(1000),
-  confidence: z.number().min(0).max(1),
-  source: z.enum(["catalog", "hybrid", "heuristic"]),
-});
-
-const manualMealSchema = z.object({
-  mealLabel: z.string().min(1).max(80),
-  occurredAt: z.string().min(1),
-  notes: z.string().max(500).optional(),
-  items: z.array(mealItemSchema).min(1),
-});
-
-const waterGoalSchema = z.object({
-  dailyTargetMl: z.number().int().min(250).max(10000),
-});
-
-const waterLogSchema = z.object({
-  amountMl: z.number().int().min(50).max(5000),
-  occurredAt: z.string().min(1),
-});
-
-const exerciseSchema = z.object({
-  activityType: z.string().min(2).max(120),
-  durationMinutes: z.number().int().min(1).max(1440),
-  caloriesBurned: z.number().min(1).max(10000),
-  occurredAt: z.string().min(1),
-  notes: z.string().max(500).optional(),
-});
-
-function extractBase64Payload(value: string) {
-  const match = value.match(/^data:(.+);base64,(.*)$/);
-  return Buffer.from(match ? match[2] : value, "base64");
-}
-
-async function uploadMedia(params: {
-  userId: number;
-  type: "image" | "audio";
-  media?: z.infer<typeof mediaInputSchema>;
-}) {
-  if (!params.media) {
-    return null;
-  }
-
-  const extension = params.media.mimeType.split("/")[1] || (params.type === "image" ? "jpg" : "webm");
-  const keyPrefix = params.type === "image" ? "meal-images" : "meal-audios";
-  const buffer = extractBase64Payload(params.media.base64);
-  const upload = await storagePut(
-    `${params.userId}/${keyPrefix}/${Date.now()}.${extension}`,
-    buffer,
-    params.media.mimeType,
-  );
-
-  return buildSavedMedia({
-    mediaType: params.type,
-    storageKey: upload.key,
-    storageUrl: upload.url,
-    mimeType: params.media.mimeType,
-    originalFileName: params.media.fileName,
-  });
-}
-
-function ensureMealItems(items: z.infer<typeof mealItemSchema>[]): MealDraftItem[] {
-  return items.map(item => ({ ...item }));
-}
+  createExercise,
+  listExercises,
+  removeExercise,
+  updateExercise,
+} from "./modules/exercises/service";
+import {
+  exerciseSchema,
+  removeExerciseSchema,
+  updateExerciseSchema,
+} from "./modules/exercises/schemas";
+import { getNutritionGoal, updateNutritionGoal } from "./modules/goals/service";
+import { goalSchema } from "./modules/goals/schemas";
+import { getDashboardOverview, getWeeklyReport } from "./modules/insights/service";
+import {
+  confirmMeal,
+  createManualMeal,
+  listMeals,
+  MealDraftNotFoundError,
+  processMealDraft,
+  removeMeal,
+  updateMeal,
+} from "./modules/meals/service";
+import {
+  confirmMealSchema,
+  manualMealSchema,
+  processMealDraftSchema,
+  removeMealSchema,
+  updateMealSchema,
+} from "./modules/meals/schemas";
+import {
+  createWaterLog,
+  getWaterGoal,
+  listWaterLogs,
+  removeWaterLog,
+  updateWaterGoal,
+} from "./modules/water/service";
+import {
+  removeWaterLogSchema,
+  waterGoalSchema,
+  waterLogSchema,
+} from "./modules/water/schemas";
+import {
+  getWhatsappStatus,
+  OfficialWhatsappNumberError,
+  simulateWhatsappInbound,
+  updateWhatsappConnection,
+} from "./modules/whatsapp/service";
+import {
+  simulateWhatsappInboundSchema,
+  whatsappConnectionSchema,
+} from "./modules/whatsapp/schemas";
 
 export const nutritionRouter = router({
   dashboard: router({
-    overview: protectedProcedure.query(async ({ ctx }) => getDashboardSnapshot(ctx.user.id)),
+    overview: protectedProcedure.query(async ({ ctx }) => getDashboardOverview(ctx.user.id)),
   }),
 
   goals: router({
-    get: protectedProcedure.query(async ({ ctx }) => getUserNutritionGoal(ctx.user.id)),
-    update: protectedProcedure.input(goalSchema).mutation(async ({ ctx, input }) => upsertNutritionGoal(ctx.user.id, input)),
+    get: protectedProcedure.query(async ({ ctx }) => getNutritionGoal(ctx.user.id)),
+    update: protectedProcedure.input(goalSchema).mutation(async ({ ctx, input }) => updateNutritionGoal(ctx.user.id, input)),
   }),
 
   meals: router({
-    list: protectedProcedure.query(async ({ ctx }) => listUserMeals(ctx.user.id)),
-    createManual: protectedProcedure.input(manualMealSchema).mutation(async ({ ctx, input }) => createUserManualMeal({ userId: ctx.user.id, ...input, items: ensureMealItems(input.items) })),
+    list: protectedProcedure.query(async ({ ctx }) => listMeals(ctx.user.id)),
+    createManual: protectedProcedure.input(manualMealSchema).mutation(async ({ ctx, input }) => createManualMeal(ctx.user.id, input)),
     update: protectedProcedure
-      .input(manualMealSchema.extend({ mealId: z.number().int().positive() }))
-      .mutation(async ({ ctx, input }) => updateUserMeal({ userId: ctx.user.id, mealId: input.mealId, mealLabel: input.mealLabel, occurredAt: input.occurredAt, notes: input.notes, items: ensureMealItems(input.items) })),
+      .input(updateMealSchema)
+      .mutation(async ({ ctx, input }) => updateMeal(ctx.user.id, input)),
     remove: protectedProcedure
-      .input(z.object({ mealId: z.number().int().positive() }))
-      .mutation(async ({ ctx, input }) => removeUserMeal(ctx.user.id, input.mealId)),
+      .input(removeMealSchema)
+      .mutation(async ({ ctx, input }) => removeMeal(ctx.user.id, input.mealId)),
     processDraft: protectedProcedure
-      .input(
-        z.object({
-          source: z.enum(["web", "whatsapp"]).default("web"),
-          text: z.string().optional(),
-          image: mediaInputSchema,
-          audio: mediaInputSchema,
-        }),
-      )
-      .mutation(async ({ ctx, input }) => {
-        const imageMedia = await uploadMedia({ userId: ctx.user.id, type: "image", media: input.image });
-        const audioMedia = await uploadMedia({ userId: ctx.user.id, type: "audio", media: input.audio });
-
-        let transcript: string | undefined;
-        if (audioMedia) {
-          const transcription = await transcribeAudio({
-            audioUrl: audioMedia.storageUrl,
-            language: "pt",
-            prompt: "Transcreva a refeição narrada pelo usuário com foco em alimentos e porções.",
-          });
-          if ("error" in transcription) {
-            logInferenceEvent({
-              userId: ctx.user.id,
-              origin: input.source,
-              status: "warning",
-              eventType: "audio.transcription_warning",
-              detail: transcription.details || transcription.error,
-            });
-          } else {
-            transcript = transcription.text;
-          }
-        }
-
-        const processed = await processMealInput({
-          text: input.text,
-          transcript,
-          imageUrl: imageMedia?.storageUrl,
-          audioUrl: audioMedia?.storageUrl,
-          habits: await getHabitSnapshots(ctx.user.id),
-        });
-
-        const draft = createPendingMealInference(
-          ctx.user.id,
-          input.source,
-          processed,
-          [imageMedia, audioMedia].filter(Boolean) as NonNullable<Awaited<ReturnType<typeof uploadMedia>>>[],
-        );
-
-        return {
-          draftId: draft.draftId,
-          processed,
-          media: draft.media,
-        };
-      }),
+      .input(processMealDraftSchema)
+      .mutation(async ({ ctx, input }) => processMealDraft(ctx.user.id, input)),
     confirm: protectedProcedure
-      .input(
-        z.object({
-          draftId: z.string().min(1),
-          mealLabel: z.string().min(1),
-          occurredAt: z.string().min(1),
-          notes: z.string().optional(),
-          items: z.array(mealItemSchema).min(1),
-        }),
-      )
+      .input(confirmMealSchema)
       .mutation(async ({ ctx, input }) => {
-        const pending = getPendingInference(input.draftId) ?? await getPendingInferenceFromDb(input.draftId);
-        if (!pending || pending.userId !== ctx.user.id) {
+        try {
+          return await confirmMeal(ctx.user.id, input);
+        } catch (error) {
+          if (!(error instanceof MealDraftNotFoundError)) {
+            throw error;
+          }
+
           throw new TRPCError({ code: "NOT_FOUND", message: "Rascunho não encontrado para confirmação." });
         }
-
-        return confirmPendingMeal({
-          draftId: input.draftId,
-          userId: ctx.user.id,
-          mealLabel: input.mealLabel,
-          occurredAt: input.occurredAt,
-          notes: input.notes,
-          items: ensureMealItems(input.items),
-        });
       }),
   }),
 
   exercises: router({
-    list: protectedProcedure.query(async ({ ctx }) => listUserExercises(ctx.user.id)),
-    create: protectedProcedure.input(exerciseSchema).mutation(async ({ ctx, input }) => createUserExercise(ctx.user.id, input)),
+    list: protectedProcedure.query(async ({ ctx }) => listExercises(ctx.user.id)),
+    create: protectedProcedure.input(exerciseSchema).mutation(async ({ ctx, input }) => createExercise(ctx.user.id, input)),
     update: protectedProcedure
-      .input(exerciseSchema.extend({ exerciseId: z.number().int().positive() }))
-      .mutation(async ({ ctx, input }) => updateUserExercise(ctx.user.id, input)),
+      .input(updateExerciseSchema)
+      .mutation(async ({ ctx, input }) => updateExercise(ctx.user.id, input)),
     remove: protectedProcedure
-      .input(z.object({ exerciseId: z.number().int().positive() }))
-      .mutation(async ({ ctx, input }) => removeUserExercise(ctx.user.id, input.exerciseId)),
+      .input(removeExerciseSchema)
+      .mutation(async ({ ctx, input }) => removeExercise(ctx.user.id, input.exerciseId)),
   }),
 
   water: router({
-    goal: protectedProcedure.query(async ({ ctx }) => getUserWaterGoal(ctx.user.id)),
-    updateGoal: protectedProcedure.input(waterGoalSchema).mutation(async ({ ctx, input }) => updateUserWaterGoal(ctx.user.id, input.dailyTargetMl)),
-    list: protectedProcedure.query(async ({ ctx }) => listUserWaterLogs(ctx.user.id)),
-    create: protectedProcedure.input(waterLogSchema).mutation(async ({ ctx, input }) => createUserWaterLog(ctx.user.id, input)),
+    goal: protectedProcedure.query(async ({ ctx }) => getWaterGoal(ctx.user.id)),
+    updateGoal: protectedProcedure.input(waterGoalSchema).mutation(async ({ ctx, input }) => updateWaterGoal(ctx.user.id, input)),
+    list: protectedProcedure.query(async ({ ctx }) => listWaterLogs(ctx.user.id)),
+    create: protectedProcedure.input(waterLogSchema).mutation(async ({ ctx, input }) => createWaterLog(ctx.user.id, input)),
     remove: protectedProcedure
-      .input(z.object({ waterLogId: z.number().int().positive() }))
-      .mutation(async ({ ctx, input }) => removeUserWaterLog(ctx.user.id, input.waterLogId)),
+      .input(removeWaterLogSchema)
+      .mutation(async ({ ctx, input }) => removeWaterLog(ctx.user.id, input.waterLogId)),
   }),
 
   reports: router({
-    weekly: protectedProcedure.query(async ({ ctx }) => getWeeklySummary(ctx.user.id)),
+    weekly: protectedProcedure.query(async ({ ctx }) => getWeeklyReport(ctx.user.id)),
   }),
 
   admin: router({
-    overview: adminProcedure.query(async () => getAdminSnapshot()),
-    whatsappTokenStatus: adminProcedure.query(async () => getAdminWhatsAppTokenStatus()),
+    overview: adminProcedure.query(async () => getAdminOverview()),
+    whatsappTokenStatus: adminProcedure.query(async () => getWhatsappTokenStatus()),
     updateWhatsappToken: adminProcedure
-      .input(
-        z.object({
-          accessToken: z.string().min(20).max(4096),
-        }),
-      )
-      .mutation(async ({ ctx, input }) => {
-        const status = await upsertAdminWhatsAppAccessToken({
-          value: input.accessToken,
-          updatedByUserId: ctx.user.id,
-        });
-
-        logInferenceEvent({
-          userId: ctx.user.id,
-          origin: "admin",
-          status: "success",
-          eventType: "whatsapp.access_token_updated",
-          detail: `Token de acesso do WhatsApp atualizado via painel administrativo com origem ${status.source}.`,
-        });
-
-        return status;
-      }),
+      .input(updateWhatsappTokenSchema)
+      .mutation(async ({ ctx, input }) => updateWhatsappToken(ctx.user.id, input)),
   }),
 
   whatsapp: router({
-    status: protectedProcedure.query(async ({ ctx }) => {
-      const tokenStatus = await getAdminWhatsAppTokenStatus();
-
-      return {
-        configured: Boolean(
-          tokenStatus.configured &&
-            process.env.WHATSAPP_PHONE_NUMBER_ID &&
-            process.env.WHATSAPP_VERIFY_TOKEN,
-        ),
-        webhookPath: "/api/whatsapp/webhook",
-        currentUserId: ctx.user.id,
-        connection: await getUserWhatsappConnection(ctx.user.id),
-        accessTokenSource: tokenStatus.source,
-      };
-    }),
+    status: protectedProcedure.query(async ({ ctx }) => getWhatsappStatus(ctx.user.id)),
     upsertConnection: protectedProcedure
-      .input(
-        z.object({
-          phoneNumber: z.string().min(10).max(32),
-          displayName: z.string().max(255).optional(),
-        }),
-      )
+      .input(whatsappConnectionSchema)
       .mutation(async ({ ctx, input }) => {
-        const connection = await upsertUserWhatsappConnection({
-          userId: ctx.user.id,
-          phoneNumber: input.phoneNumber,
-          displayName: input.displayName,
-        });
+        try {
+          return await updateWhatsappConnection(ctx.user.id, input);
+        } catch (error) {
+          if (!(error instanceof OfficialWhatsappNumberError)) {
+            throw error;
+          }
 
-        logInferenceEvent({
-          userId: ctx.user.id,
-          origin: "web",
-          status: "success",
-          eventType: "whatsapp.connection_updated",
-          detail: `Número ${connection.phoneNumber} vinculado ao usuário para processamento automático do WhatsApp.`,
-        });
-
-        return connection;
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Informe o telefone de origem do usuário final, não o número oficial fixo da solução.",
+          });
+        }
       }),
     simulateInbound: protectedProcedure
-      .input(
-        z.object({
-          text: z.string().optional(),
-        }),
-      )
-      .mutation(async ({ ctx, input }) => {
-        const processed = await processMealInput({
-          text: input.text,
-          habits: await getHabitSnapshots(ctx.user.id),
-        });
-
-        const draft = createPendingMealInference(ctx.user.id, "whatsapp", processed, []);
-        return {
-          draftId: draft.draftId,
-          processed,
-        };
-      }),
+      .input(simulateWhatsappInboundSchema)
+      .mutation(async ({ ctx, input }) => simulateWhatsappInbound(ctx.user.id, input)),
   }),
 });

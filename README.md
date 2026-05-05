@@ -6,7 +6,7 @@ Após a revisão das demais branches do repositório, a principal conclusão foi
 
 ## Visão geral da solução
 
-A aplicação foi estruturada para atender dois canais principais de uso. No canal **web**, o usuário autentica-se, registra refeições por texto, imagem ou áudio, confirma a inferência nutricional e acompanha metas, hábitos e relatórios. No canal **WhatsApp**, a solução recebe mensagens, processa o conteúdo, gera a análise nutricional, registra a inferência e devolve uma resposta padronizada com a estrutura da refeição, os alimentos detectados e seus respectivos nutrientes.
+A aplicação foi estruturada para atender dois canais principais de uso. No canal **web**, o usuário autentica-se, registra refeições por texto, imagem ou áudio, confirma a inferência nutricional e acompanha metas, hábitos e relatórios. No canal **WhatsApp**, a solução recebe mensagens em um único número oficial configurado no ambiente, identifica o usuário pelo telefone de origem da mensagem, processa o conteúdo, registra a inferência e devolve uma resposta padronizada pelo mesmo canal oficial.
 
 | Domínio | Capacidade atual |
 |---|---|
@@ -42,6 +42,12 @@ O fluxo atual da solução segue uma lógica de inferência assistida. Primeiro,
 ## Resposta padronizada no WhatsApp
 
 A resposta automática do WhatsApp foi reformulada para seguir uma estrutura mais legível e próxima do modelo visual aprovado durante o projeto. A mensagem agora organiza o retorno por refeição, listando os alimentos identificados individualmente e exibindo o horário, proteínas, carboidratos, gorduras e calorias de cada item.
+
+## Fluxo do WhatsApp oficial
+
+A integração usa um único WhatsApp Business Phone Number ID para toda a solução. Esse ID não é escolhido por usuário e não é salvo em registros individuais: ele vem de `WHATSAPP_PHONE_NUMBER_ID` e representa o canal oficial de entrada e saída da IA. O número oficial da solução vem de `WHATSAPP_PHONE_NUMBER` e serve apenas para operação e validação do canal.
+
+O telefone do usuário final continua sendo salvo na tabela de vínculos do WhatsApp apenas como identificador do contato que enviou a mensagem. No webhook, esse telefone vem do campo `from` do payload da Meta. A aplicação usa esse telefone de origem para localizar o usuário interno, processa a refeição no contexto desse usuário e envia a resposta de volta para o mesmo telefone de origem usando sempre o `WHATSAPP_PHONE_NUMBER_ID` fixo configurado.
 
 | Elemento da resposta | Situação atual |
 |---|---|
@@ -126,7 +132,9 @@ O projeto depende de variáveis injetadas pelo ambiente para autenticação Manu
 | Banco e sessão | `DATABASE_URL`, `JWT_SECRET` |
 | OAuth e identidade | `VITE_APP_ID`, `OAUTH_SERVER_URL`, `VITE_OAUTH_PORTAL_URL` |
 | Forge / APIs internas | `BUILT_IN_FORGE_API_KEY`, `BUILT_IN_FORGE_API_URL` |
-| WhatsApp | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN` |
+| WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN` |
+
+Para o WhatsApp, `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` e `WHATSAPP_VERIFY_TOKEN` são obrigatórios para operação completa. `WHATSAPP_BUSINESS_ACCOUNT_ID` é mantido para integrações administrativas quando aplicável. A ausência de variáveis obrigatórias impede o envio e gera erro explícito no backend.
 
 ## Qualidade e testes
 

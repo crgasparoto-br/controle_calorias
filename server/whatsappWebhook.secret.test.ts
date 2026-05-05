@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Request, Response } from "express";
 import { verifyWhatsAppWebhook } from "./whatsappWebhook";
+import { requireWhatsAppSendConfig } from "./whatsappConfig";
 
 type MockResponse = {
   statusCode?: number;
@@ -45,7 +46,10 @@ describe("whatsapp webhook secrets", () => {
 
   it("validates the configured WhatsApp access token with a lightweight Graph API call", async () => {
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    expect(accessToken).toBeTruthy();
+    if (!accessToken) {
+      await expect(requireWhatsAppSendConfig()).rejects.toThrow("WHATSAPP_ACCESS_TOKEN");
+      return;
+    }
 
     const response = await fetch("https://graph.facebook.com/v23.0/me?fields=id,name", {
       headers: {

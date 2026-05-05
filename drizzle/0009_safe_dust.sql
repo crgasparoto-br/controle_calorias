@@ -1,0 +1,1 @@
+CREATE INDEX `appSecrets_updatedByUserId_idx` ON `appSecrets` (`updatedByUserId`);

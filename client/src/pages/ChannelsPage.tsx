@@ -41,10 +41,10 @@ export default function ChannelsPage() {
 
   const saveConnection = trpc.nutrition.whatsapp.upsertConnection.useMutation({
     onSuccess: async result => {
-      toast.success(`Número ${result.phoneNumber} vinculado com sucesso ao seu usuário.`);
+      toast.success(`Contato ${result.phoneNumber} vinculado com sucesso ao seu usuário.`);
       await utils.nutrition.whatsapp.status.invalidate();
     },
-    onError: error => toast.error(error.message || "Falha ao salvar o vínculo do WhatsApp."),
+    onError: error => toast.error(error.message || "Falha ao salvar o contato do WhatsApp."),
   });
 
   const simulateInbound = trpc.nutrition.whatsapp.simulateInbound.useMutation({
@@ -69,22 +69,25 @@ export default function ChannelsPage() {
                 WhatsApp Business Cloud API
               </CardTitle>
               <CardDescription>
-                Painel operacional da integração de mensagens. Agora o número do WhatsApp precisa estar vinculado ao usuário autenticado para que o webhook consiga atribuir automaticamente as refeições recebidas.
+                Painel operacional da integração de mensagens. O WhatsApp oficial da solução é único e vem do ambiente; o telefone salvo por usuário identifica apenas quem enviou a mensagem.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <StatusRow label="Integração configurada" value={statusQuery.data?.configured ? "Sim" : "Não"} emphasize={!statusQuery.data?.configured} />
               <StatusRow label="Webhook público" value={statusQuery.data?.webhookPath || "/api/whatsapp/webhook"} mono />
+              <StatusRow label="Número oficial da solução" value={statusQuery.data?.channel?.phoneNumber || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumber} mono />
+              <StatusRow label="Phone Number ID oficial" value={statusQuery.data?.channel?.phoneNumberId || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumberId} mono />
               <StatusRow label="Usuário autenticado" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."} mono />
-              <StatusRow label="Número vinculado" value={connection?.phoneNumber || "Não vinculado"} emphasize={!hasConnection} mono />
+              <StatusRow label="Contato de origem vinculado" value={connection?.phoneNumber || "Não vinculado"} emphasize={!hasConnection} mono />
               <StatusRow label="Status do vínculo" value={connection?.status === "active" ? "Ativo" : hasConnection ? connection?.status || "Pendente" : "Pendente de vínculo"} emphasize={!hasConnection} />
               <div className="space-y-3 rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
                 <p>
-                  Sem um vínculo ativo entre o número do WhatsApp e o usuário logado, a plataforma não consegue identificar com segurança a quem atribuir os alimentos, a refeição e o horário recebidos pelo webhook.
+                  Sem um vínculo ativo entre o telefone de origem e o usuário logado, a plataforma não consegue identificar com segurança a quem atribuir os alimentos, a refeição e o horário recebidos pelo webhook.
                 </p>
                 <div className="rounded-2xl border bg-background p-4">
                   <p className="font-medium text-foreground">Credenciais esperadas para ativação</p>
                   <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+                    <div className="rounded-xl border bg-muted/30 p-3 font-mono">WHATSAPP_PHONE_NUMBER</div>
                     <div className="rounded-xl border bg-muted/30 p-3 font-mono">WHATSAPP_VERIFY_TOKEN</div>
                     <div className="rounded-xl border bg-muted/30 p-3 font-mono">WHATSAPP_ACCESS_TOKEN</div>
                     <div className="rounded-xl border bg-muted/30 p-3 font-mono">WHATSAPP_PHONE_NUMBER_ID</div>
@@ -98,15 +101,15 @@ export default function ChannelsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Link2 className="h-5 w-5 text-primary" />
-                Vínculo do número do WhatsApp
+                Vínculo do contato do usuário
               </CardTitle>
               <CardDescription>
-                Informe o número que envia as imagens para associá-lo ao seu usuário autenticado e habilitar o registro automático das refeições processadas pelo canal WhatsApp.
+                Informe o telefone do contato final que envia mensagens para o número oficial da solução. Este valor diferencia usuários, mas nunca substitui o canal oficial configurado no ambiente.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="whatsapp-phone">Número do WhatsApp</Label>
+                <Label htmlFor="whatsapp-phone">Telefone de origem do usuário</Label>
                 <Input
                   id="whatsapp-phone"
                   value={phoneNumber}
@@ -114,7 +117,7 @@ export default function ChannelsPage() {
                   placeholder="Ex.: 5511999998888"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use apenas números ou inclua os símbolos que preferir. O sistema normaliza automaticamente o valor salvo.
+                  Não informe aqui o número oficial da solução. Use o telefone do usuário final que aparece no campo `from` do webhook.
                 </p>
               </div>
 
@@ -139,15 +142,15 @@ export default function ChannelsPage() {
                 }
               >
                 <Save className="mr-2 h-4 w-4" />
-                {saveConnection.isPending ? "Salvando vínculo..." : "Salvar vínculo"}
+                {saveConnection.isPending ? "Salvando contato..." : "Salvar contato"}
               </Button>
 
               <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
                 <p className="font-medium text-foreground">Como o fluxo funciona</p>
                 <div className="mt-3 space-y-3">
-                  <StepCard title="1. Vincular o número" text="O número enviado aqui é associado ao usuário autenticado e passa a ser usado pelo webhook para resolver o userId correto." />
-                  <StepCard title="2. Receber a imagem" text="Quando a imagem chega pelo WhatsApp, o sistema identifica o número remetente, localiza o vínculo ativo e processa os alimentos para o usuário correspondente." />
-                  <StepCard title="3. Registrar automaticamente" text="Após o processamento, a refeição é salva automaticamente com o horário do evento recebido, além da resposta textual de retorno no próprio WhatsApp." />
+                  <StepCard title="1. Configurar o canal oficial" text="O ambiente define um único WHATSAPP_PHONE_NUMBER_ID usado para receber e responder mensagens." />
+                  <StepCard title="2. Vincular o contato" text="O telefone de origem salvo aqui é associado ao usuário autenticado e passa a resolver o userId correto." />
+                  <StepCard title="3. Responder pelo canal fixo" text="Após o processamento, a refeição é salva para o contato identificado e a resposta sai pelo Phone Number ID oficial configurado." />
                 </div>
               </div>
             </CardContent>
@@ -172,7 +175,7 @@ export default function ChannelsPage() {
                   Contexto da simulação
                 </div>
                 <p className="mt-2">Usuário autenticado: {statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."}</p>
-                <p>Número atualmente vinculado: {connection?.phoneNumber || "não vinculado"}</p>
+                <p>Contato atualmente vinculado: {connection?.phoneNumber || "não vinculado"}</p>
               </div>
 
               <div className="space-y-2">
