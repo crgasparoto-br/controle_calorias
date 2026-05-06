@@ -15,23 +15,47 @@ import {
 } from "./modules/exercises/schemas";
 import { getNutritionGoal, UnsafeNutritionGoalError, updateNutritionGoal } from "./modules/goals/service";
 import { goalSchema } from "./modules/goals/schemas";
-import { getDashboardOverview, getWeeklyReport } from "./modules/insights/service";
+import { getGamification, updateGamificationSettings } from "./modules/gamification/service";
+import { gamificationSettingsSchema } from "./modules/gamification/schemas";
+import {
+  createFood,
+  listRecentlyUsedFoods,
+  searchFoodCatalog,
+  setFoodFavorite,
+  updateFood,
+} from "./modules/foods/service";
+import {
+  favoriteFoodSchema,
+  foodFormSchema,
+  foodSearchSchema,
+  updateFoodSchema,
+} from "./modules/foods/schemas";
+import { getDashboardOverview, getWeeklyInsightsReport, getWeeklyProgressReport, getWeeklyReport } from "./modules/insights/service";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingSchema } from "./modules/onboarding/schemas";
 import {
   confirmMeal,
+  copyMeal,
   createManualMeal,
+  getDayTotals,
+  listMealFavorites,
   listMeals,
   MealDraftNotFoundError,
   processMealDraft,
   removeMeal,
+  reuseMealFavorite,
+  saveMealFavorite,
   updateMeal,
 } from "./modules/meals/service";
 import {
   confirmMealSchema,
+  copyMealSchema,
+  dayTotalsSchema,
   manualMealSchema,
   processMealDraftSchema,
   removeMealSchema,
+  reuseFavoriteMealSchema,
+  saveFavoriteMealSchema,
   updateMealSchema,
 } from "./modules/meals/schemas";
 import {
@@ -84,12 +108,38 @@ export const nutritionRouter = router({
     }),
   }),
 
+  gamification: router({
+    get: protectedProcedure.query(async ({ ctx }) => getGamification(ctx.user.id)),
+    updateSettings: protectedProcedure
+      .input(gamificationSettingsSchema)
+      .mutation(async ({ ctx, input }) => updateGamificationSettings(ctx.user.id, input)),
+  }),
+
+  foods: router({
+    search: protectedProcedure.input(foodSearchSchema).query(async ({ ctx, input }) => searchFoodCatalog(ctx.user.id, input)),
+    recent: protectedProcedure.query(async ({ ctx }) => listRecentlyUsedFoods(ctx.user.id)),
+    favorite: protectedProcedure.input(favoriteFoodSchema).mutation(async ({ ctx, input }) => setFoodFavorite(ctx.user.id, input)),
+    create: protectedProcedure.input(foodFormSchema).mutation(async ({ ctx, input }) => createFood(ctx.user.id, input)),
+    update: protectedProcedure.input(updateFoodSchema).mutation(async ({ ctx, input }) => updateFood(ctx.user.id, input)),
+  }),
+
   meals: router({
     list: protectedProcedure.query(async ({ ctx }) => listMeals(ctx.user.id)),
+    dayTotals: protectedProcedure.input(dayTotalsSchema).query(async ({ ctx, input }) => getDayTotals(ctx.user.id, input.date)),
     createManual: protectedProcedure.input(manualMealSchema).mutation(async ({ ctx, input }) => createManualMeal(ctx.user.id, input)),
     update: protectedProcedure
       .input(updateMealSchema)
       .mutation(async ({ ctx, input }) => updateMeal(ctx.user.id, input)),
+    copy: protectedProcedure
+      .input(copyMealSchema)
+      .mutation(async ({ ctx, input }) => copyMeal(ctx.user.id, input)),
+    favorites: protectedProcedure.query(async ({ ctx }) => listMealFavorites(ctx.user.id)),
+    saveFavorite: protectedProcedure
+      .input(saveFavoriteMealSchema)
+      .mutation(async ({ ctx, input }) => saveMealFavorite(ctx.user.id, input)),
+    reuseFavorite: protectedProcedure
+      .input(reuseFavoriteMealSchema)
+      .mutation(async ({ ctx, input }) => reuseMealFavorite(ctx.user.id, input)),
     remove: protectedProcedure
       .input(removeMealSchema)
       .mutation(async ({ ctx, input }) => removeMeal(ctx.user.id, input.mealId)),
@@ -134,6 +184,8 @@ export const nutritionRouter = router({
 
   reports: router({
     weekly: protectedProcedure.query(async ({ ctx }) => getWeeklyReport(ctx.user.id)),
+    weeklyProgress: protectedProcedure.query(async ({ ctx }) => getWeeklyProgressReport(ctx.user.id)),
+    weeklyInsights: protectedProcedure.query(async ({ ctx }) => getWeeklyInsightsReport(ctx.user.id)),
   }),
 
   admin: router({

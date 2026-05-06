@@ -3,24 +3,31 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   appSecrets,
+  foodFavorites,
   habitMemories,
   inferenceLogs,
   InsertUser,
   mealInferences,
+  mealFavorites,
   mealItems,
   mealMedia,
   meals,
   foodCatalog,
   NutritionGoal,
+  userBadges,
+  userGamificationSettings,
   userPreferences,
   userProfiles,
   userRestrictions,
   User,
   users,
+  WeightEntry,
   weightEntries,
   whatsappConnections,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
+import { calculateDayTotals, calculateMealTotals } from "../shared/mealTotals";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
 import { createDrizzleExercisesRepository } from "./repositories/exercisesRepository";
 import { canUseMemoryPersistenceFallback } from "./repositories/memoryFallback";
@@ -646,6 +653,16 @@ type SavedMeal = {
   createdAt: number;
 };
 
+type FavoriteMeal = {
+  id: number;
+  userId: number;
+  name: string;
+  mealLabel: string;
+  notes?: string;
+  items: MealDraftItem[];
+  createdAt: number;
+};
+
 type HabitMemoryState = {
   foodName: string;
   typicalMealLabel?: string | null;
@@ -694,6 +711,36 @@ type WaterLogEntry = {
   updatedAt: Date;
 };
 
+type BadgeCode =
+  | "registered_3_days_week"
+  | "registered_5_days_week"
+  | "protein_4_days_week"
+  | "water_3_days_week"
+  | "created_favorite_meal"
+  | "planned_meal"
+  | "weekly_consistency";
+
+type BadgeDefinition = {
+  code: BadgeCode;
+  title: string;
+  description: string;
+};
+
+type UserBadgeEntry = {
+  id: number;
+  userId: number;
+  badgeCode: BadgeCode;
+  earnedAt: number;
+  weekStart: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+type GamificationSettingEntry = {
+  userId: number;
+  enabled: boolean;
+  updatedAt: number;
+};
+
 type OnboardingProfileEntry = OnboardingInput & {
   userId: number;
   completedAt: Date;
@@ -705,7 +752,13 @@ const mealStore = new Map<number, SavedMeal[]>();
 const exerciseStore = new Map<number, ExerciseEntry[]>();
 const waterGoalStore = new Map<number, WaterGoalEntry>();
 const waterLogStore = new Map<number, WaterLogEntry[]>();
+const weightEntryStore = new Map<number, WeightEntry[]>();
 const habitStore = new Map<number, HabitMemoryState[]>();
+const userFoodStore = new Map<number, FoodSearchItem[]>();
+const favoriteFoodStore = new Map<number, Set<number>>();
+const favoriteMealStore = new Map<number, FavoriteMeal[]>();
+const gamificationSettingsStore = new Map<number, GamificationSettingEntry>();
+const userBadgeStore = new Map<number, UserBadgeEntry[]>();
 const inferenceStore = new Map<string, PendingInference>();
 const adminLogStore: AdminLogEntry[] = [];
 let mealIdSequence = 1;
@@ -714,6 +767,65 @@ let goalIdSequence = 1;
 let exerciseIdSequence = 1;
 let waterGoalIdSequence = 1;
 let waterLogIdSequence = 1;
+let foodIdSequence = 10000;
+let favoriteMealIdSequence = 1;
+let userBadgeIdSequence = 1;
+
+export const BADGE_DEFINITIONS: BadgeDefinition[] = [
+  { code: "registered_3_days_week", title: "3 dias registrados", description: "Registrou refeições em 3 dias da semana." },
+  { code: "registered_5_days_week", title: "5 dias registrados", description: "Registrou refeições em 5 dias da semana." },
+  { code: "protein_4_days_week", title: "Proteína em 4 dias", description: "Atingiu a meta de proteína em 4 dias da semana." },
+  { code: "water_3_days_week", title: "Água em 3 dias", description: "Registrou água em 3 dias da semana." },
+  { code: "created_favorite_meal", title: "Refeição favorita criada", description: "Salvou uma refeição favorita para reduzir fricção na rotina." },
+  { code: "planned_meal", title: "Refeição planejada", description: "Planejou uma refeição para um horário futuro." },
+  { code: "weekly_consistency", title: "Consistência semanal", description: "Manteve registros consistentes ao longo da semana." },
+];
+
+const BADGE_DEFINITION_BY_CODE = new Map(BADGE_DEFINITIONS.map(badge => [badge.code, badge]));
+
+export type FoodSearchItem = {
+  id: number;
+  name: string;
+  brandName?: string | null;
+  servingSize: number;
+  servingUnit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number | null;
+  isFruit: boolean;
+  isVegetable: boolean;
+  isUltraProcessed: boolean;
+  source: string;
+  foodType: "generic" | "branded";
+  isUserCreated: boolean;
+  createdByUserId?: number | null;
+  isFavorite: boolean;
+  lastUsedAt?: number | null;
+};
+
+const referenceFoods: FoodSearchItem[] = FOOD_CATALOG_REFERENCE.map((food, index) => ({
+  id: index + 1,
+  name: food.name,
+  brandName: null,
+  servingSize: food.gramsPerServing,
+  servingUnit: food.servingLabel.replace(String(food.gramsPerServing), "").trim() || "porção",
+  calories: food.calories,
+  protein: food.protein,
+  carbs: food.carbs,
+  fat: food.fat,
+  fiber: null,
+  isFruit: false,
+  isVegetable: false,
+  isUltraProcessed: false,
+  source: "catalog",
+  foodType: "generic",
+  isUserCreated: false,
+  createdByUserId: null,
+  isFavorite: false,
+  lastUsedAt: null,
+}));
 
 function getWeekdayIndex(date: Date) {
   return (date.getDay() + 6) % 7;
@@ -873,16 +985,7 @@ function dateKey(date: Date) {
 }
 
 function sumItems(items: MealDraftItem[]) {
-  return items.reduce(
-    (acc, item) => {
-      acc.calories += item.calories;
-      acc.protein += item.protein;
-      acc.carbs += item.carbs;
-      acc.fat += item.fat;
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+  return calculateMealTotals(items);
 }
 
 function sumExercises(items: ExerciseEntry[]) {
@@ -893,8 +996,255 @@ function sumWater(items: WaterLogEntry[]) {
   return items.reduce((acc, item) => acc + Number(item.amountMl ?? 0), 0);
 }
 
+type QualityIndicators = {
+  proteinGrams: number;
+  fiberGrams: number;
+  waterMl: number;
+  fruitServings: number;
+  vegetableServings: number;
+  ultraProcessedServings: number;
+  mealCount: number;
+  regularityScore: number;
+};
+
+function emptyQualityIndicators(waterMl = 0): QualityIndicators {
+  return {
+    proteinGrams: 0,
+    fiberGrams: 0,
+    waterMl: round(waterMl),
+    fruitServings: 0,
+    vegetableServings: 0,
+    ultraProcessedServings: 0,
+    mealCount: 0,
+    regularityScore: 0,
+  };
+}
+
+function calculateRegularityScore(meals: SavedMeal[]) {
+  if (!meals.length) return 0;
+  const labels = new Set(meals.map(meal => normalizeCatalogText(meal.mealLabel)));
+  const hasMainMeal = ["cafe da manha", "almoco", "jantar"].filter(label => labels.has(label)).length;
+  return Math.min(Math.round(((Math.min(meals.length, 4) / 4) * 60) + ((hasMainMeal / 3) * 40)), 100);
+}
+
+async function calculateQualityIndicators(userId: number, meals: SavedMeal[], waterMl = 0): Promise<QualityIndicators> {
+  if (!meals.length) {
+    return emptyQualityIndicators(waterMl);
+  }
+
+  const foods = await searchFoods(userId, "", 500);
+  const foodsByName = new Map<string, FoodSearchItem>();
+  for (const food of foods) {
+    foodsByName.set(normalizeCatalogText(food.name), food);
+  }
+
+  const quality = meals.reduce(
+    (acc, meal) => {
+      for (const item of meal.items) {
+        acc.proteinGrams += Number(item.protein || 0);
+        const food = foodsByName.get(normalizeCatalogText(item.canonicalName)) ?? foodsByName.get(normalizeCatalogText(item.foodName));
+        if (!food) continue;
+
+        const servingFactor = food.servingSize > 0 && item.estimatedGrams > 0 ? item.estimatedGrams / food.servingSize : item.servings || 1;
+        acc.fiberGrams += Number(food.fiber || 0) * servingFactor;
+        if (food.isFruit) acc.fruitServings += servingFactor;
+        if (food.isVegetable) acc.vegetableServings += servingFactor;
+        if (food.isUltraProcessed) acc.ultraProcessedServings += servingFactor;
+      }
+      return acc;
+    },
+    emptyQualityIndicators(waterMl),
+  );
+
+  quality.mealCount = meals.length;
+  quality.regularityScore = calculateRegularityScore(meals);
+  return {
+    proteinGrams: round(quality.proteinGrams),
+    fiberGrams: round(quality.fiberGrams),
+    waterMl: round(waterMl),
+    fruitServings: round(quality.fruitServings),
+    vegetableServings: round(quality.vegetableServings),
+    ultraProcessedServings: round(quality.ultraProcessedServings),
+    mealCount: quality.mealCount,
+    regularityScore: quality.regularityScore,
+  };
+}
+
 function round(value: number) {
   return Math.round(value * 10) / 10;
+}
+
+function badgeWeekStart() {
+  return dateKey(startOfWeek(new Date()));
+}
+
+function withBadgeDefinition(entry: UserBadgeEntry) {
+  const definition = BADGE_DEFINITION_BY_CODE.get(entry.badgeCode);
+  return {
+    id: entry.id,
+    code: entry.badgeCode,
+    title: definition?.title ?? entry.badgeCode,
+    description: definition?.description ?? "",
+    earnedAt: entry.earnedAt,
+    weekStart: entry.weekStart,
+    metadata: entry.metadata ?? {},
+  };
+}
+
+async function getGamificationEnabled(userId: number) {
+  const memory = gamificationSettingsStore.get(userId);
+  if (memory) return memory.enabled;
+
+  const db = await getDb();
+  if (db) {
+    try {
+      const rows = await db.select().from(userGamificationSettings).where(eq(userGamificationSettings.userId, userId)).limit(1);
+      const row = rows[0];
+      if (row) {
+        const setting = { userId, enabled: row.enabled === 1, updatedAt: new Date(row.updatedAt).getTime() };
+        gamificationSettingsStore.set(userId, setting);
+        return setting.enabled;
+      }
+    } catch (error) {
+      logPersistenceWarning("Gamification settings read skipped", error);
+    }
+  }
+
+  return true;
+}
+
+export async function updateUserGamificationSettings(userId: number, enabled: boolean) {
+  const setting = { userId, enabled, updatedAt: Date.now() };
+  gamificationSettingsStore.set(userId, setting);
+
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.insert(userGamificationSettings).values({
+        userId,
+        enabled: enabled ? 1 : 0,
+      }).onDuplicateKeyUpdate({
+        set: {
+          enabled: enabled ? 1 : 0,
+          updatedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      logPersistenceWarning("Gamification settings persistence skipped", error);
+    }
+  }
+
+  return { enabled };
+}
+
+async function loadUserBadges(userId: number) {
+  const db = await getDb();
+  if (db) {
+    try {
+      const rows = await db.select().from(userBadges).where(eq(userBadges.userId, userId)).orderBy(desc(userBadges.earnedAt));
+      const entries = rows.map(row => ({
+        id: row.id,
+        userId: row.userId,
+        badgeCode: row.badgeCode as BadgeCode,
+        earnedAt: new Date(row.earnedAt).getTime(),
+        weekStart: row.weekStart ?? null,
+        metadata: parseJsonObject(row.metadataJson, {}),
+      }));
+      userBadgeStore.set(userId, entries);
+      return entries;
+    } catch (error) {
+      logPersistenceWarning("User badges read skipped", error);
+    }
+  }
+
+  return userBadgeStore.get(userId) ?? [];
+}
+
+async function awardUserBadge(userId: number, badgeCode: BadgeCode, weekStart: string, metadata: Record<string, unknown>) {
+  const current = await loadUserBadges(userId);
+  const existing = current.find(badge => badge.badgeCode === badgeCode && badge.weekStart === weekStart);
+  if (existing) return existing;
+
+  const badge: UserBadgeEntry = {
+    id: userBadgeIdSequence++,
+    userId,
+    badgeCode,
+    earnedAt: Date.now(),
+    weekStart,
+    metadata,
+  };
+
+  const db = await getDb();
+  if (db) {
+    try {
+      const inserted = await db.insert(userBadges).values({
+        userId,
+        badgeCode,
+        weekStart,
+        metadataJson: JSON.stringify(metadata),
+      });
+      const insertedId = Number((inserted as any)?.[0]?.insertId ?? (inserted as any)?.insertId ?? 0);
+      if (insertedId) badge.id = insertedId;
+    } catch (error) {
+      logPersistenceWarning("User badge persistence skipped", error);
+    }
+  }
+
+  userBadgeStore.set(userId, [badge, ...current]);
+  return badge;
+}
+
+async function calculateEarnedBadgeCodes(userId: number, weekly: Awaited<ReturnType<typeof getWeeklySummary>>): Promise<Array<{ code: BadgeCode; metadata: Record<string, unknown> }>> {
+  const daysWithMeals = weekly.filter(day => day.quality.mealCount > 0).length;
+  const daysWithProteinGoal = weekly.filter(day => day.goalProtein > 0 && day.protein >= day.goalProtein).length;
+  const daysWithWater = weekly.filter(day => day.waterConsumedMl > 0).length;
+  const favorites = await listFavoriteMeals(userId);
+  const meals = await listUserMeals(userId);
+  const hasPlannedMeal = meals.some(meal => meal.occurredAt > Date.now() && meal.source === "web");
+  const badges: Array<{ code: BadgeCode; metadata: Record<string, unknown> }> = [];
+
+  if (daysWithMeals >= 3) badges.push({ code: "registered_3_days_week", metadata: { daysWithMeals } });
+  if (daysWithMeals >= 5) badges.push({ code: "registered_5_days_week", metadata: { daysWithMeals } });
+  if (daysWithProteinGoal >= 4) badges.push({ code: "protein_4_days_week", metadata: { daysWithProteinGoal } });
+  if (daysWithWater >= 3) badges.push({ code: "water_3_days_week", metadata: { daysWithWater } });
+  if (favorites.length > 0) badges.push({ code: "created_favorite_meal", metadata: { favoriteMeals: favorites.length } });
+  if (hasPlannedMeal) badges.push({ code: "planned_meal", metadata: {} });
+  if (daysWithMeals >= 5 && daysWithWater >= 3) badges.push({ code: "weekly_consistency", metadata: { daysWithMeals, daysWithWater } });
+
+  return badges;
+}
+
+export async function getUserGamification(userId: number, weekly?: Awaited<ReturnType<typeof getWeeklySummary>>) {
+  const enabled = await getGamificationEnabled(userId);
+  const history = await loadUserBadges(userId);
+
+  if (!enabled) {
+    return {
+      enabled,
+      availableBadges: BADGE_DEFINITIONS,
+      earnedBadges: history.map(withBadgeDefinition),
+      newlyEarnedBadges: [],
+    };
+  }
+
+  const weekStart = badgeWeekStart();
+  const weeklyData = weekly ?? await getWeeklySummary(userId);
+  const earnedCandidates = await calculateEarnedBadgeCodes(userId, weeklyData);
+  const newlyEarned: UserBadgeEntry[] = [];
+
+  for (const candidate of earnedCandidates) {
+    const before = (userBadgeStore.get(userId) ?? history).some(badge => badge.badgeCode === candidate.code && badge.weekStart === weekStart);
+    const awarded = await awardUserBadge(userId, candidate.code, weekStart, candidate.metadata);
+    if (!before) newlyEarned.push(awarded);
+  }
+
+  const updatedHistory = await loadUserBadges(userId);
+  return {
+    enabled,
+    availableBadges: BADGE_DEFINITIONS,
+    earnedBadges: updatedHistory.map(withBadgeDefinition),
+    newlyEarnedBadges: newlyEarned.map(withBadgeDefinition),
+  };
 }
 
 function isMissingTableError(error: unknown) {
@@ -933,12 +1283,317 @@ function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[]
   }
 }
 
+function parseJsonObject(value: string | null | undefined, fallback: Record<string, unknown>): Record<string, unknown> {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function normalizeCatalogText(value: string) {
   return value
     .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\w\s-]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function toSlug(value: string) {
+  const normalized = normalizeCatalogText(value).replace(/[\s_]+/g, "-").replace(/-+/g, "-");
+  return normalized || `food-${Date.now()}`;
+}
+
+function rankFoods(food: FoodSearchItem, query: string) {
+  const normalizedQuery = normalizeCatalogText(query);
+  const haystack = normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`);
+  const exact = normalizedQuery && haystack.startsWith(normalizedQuery) ? 4 : 0;
+  const favorite = food.isFavorite ? 3 : 0;
+  const recent = food.lastUsedAt ? 2 : 0;
+  const userCreated = food.isUserCreated ? 1 : 0;
+  return exact + favorite + recent + userCreated;
+}
+
+function getMemoryFoodsForUser(userId: number) {
+  const favorites = favoriteFoodStore.get(userId) ?? new Set<number>();
+  const userFoods = userFoodStore.get(userId) ?? [];
+  const recentMeals = mealStore.get(userId) ?? [];
+  const recentByName = new Map<string, number>();
+
+  for (const meal of recentMeals) {
+    for (const item of meal.items) {
+      const key = normalizeCatalogText(item.canonicalName || item.foodName);
+      recentByName.set(key, Math.max(recentByName.get(key) ?? 0, meal.occurredAt));
+    }
+  }
+
+  return [...userFoods, ...referenceFoods].map(food => {
+    const lastUsedAt = recentByName.get(normalizeCatalogText(food.name)) ?? food.lastUsedAt ?? null;
+    return {
+      ...food,
+      isFavorite: favorites.has(food.id),
+      lastUsedAt,
+    };
+  });
+}
+
+async function loadFavoriteFoodIdsFromDb(userId: number) {
+  const db = await getDb();
+  if (!db) return favoriteFoodStore.get(userId) ?? new Set<number>();
+
+  try {
+    const rows = await db.select().from(foodFavorites).where(eq(foodFavorites.userId, userId));
+    const ids = new Set(rows.map(row => row.foodCatalogId));
+    favoriteFoodStore.set(userId, ids);
+    return ids;
+  } catch (error) {
+    logPersistenceWarning("Food favorites read skipped", error);
+    return favoriteFoodStore.get(userId) ?? new Set<number>();
+  }
+}
+
+async function loadRecentFoodUsageFromDb(userId: number) {
+  const db = await getDb();
+  if (!db) return new Map<string, number>();
+
+  try {
+    const mealRows = await db.select().from(meals).where(eq(meals.userId, userId));
+    const usage = new Map<string, number>();
+    for (const meal of mealRows) {
+      const items = await db.select().from(mealItems).where(eq(mealItems.mealId, meal.id));
+      for (const item of items) {
+        const key = normalizeCatalogText(item.canonicalName || item.foodName);
+        usage.set(key, Math.max(usage.get(key) ?? 0, new Date(meal.occurredAt).getTime()));
+      }
+    }
+    return usage;
+  } catch (error) {
+    logPersistenceWarning("Recent foods read skipped", error);
+    return new Map<string, number>();
+  }
+}
+
+export async function searchFoods(userId: number, query = "", limit = 20) {
+  const normalizedQuery = normalizeCatalogText(query);
+  const db = await getDb();
+  const favorites = await loadFavoriteFoodIdsFromDb(userId);
+
+  if (db) {
+    try {
+      const [rows, usage] = await Promise.all([
+        db.select().from(foodCatalog),
+        loadRecentFoodUsageFromDb(userId),
+      ]);
+
+      const foods = rows
+        .filter(row => !row.createdByUserId || row.createdByUserId === userId)
+        .map(row => {
+          const lastUsedAt = usage.get(normalizeCatalogText(row.name)) ?? null;
+          return {
+            id: row.id,
+            name: row.name,
+            brandName: row.brandName,
+            servingSize: row.gramsPerServing,
+            servingUnit: row.servingUnit,
+            calories: row.calories,
+            protein: row.protein,
+            carbs: row.carbs,
+            fat: row.fat,
+            fiber: row.fiber,
+            isFruit: row.isFruit === 1,
+            isVegetable: row.isVegetable === 1,
+            isUltraProcessed: row.isUltraProcessed === 1,
+            source: row.dataSource,
+            foodType: row.foodType,
+            isUserCreated: row.isUserCreated === 1,
+            createdByUserId: row.createdByUserId,
+            isFavorite: favorites.has(row.id),
+            lastUsedAt,
+          } satisfies FoodSearchItem;
+        });
+
+      return foods
+        .filter(food => !normalizedQuery || normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`).includes(normalizedQuery))
+        .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
+        .slice(0, limit);
+    } catch (error) {
+      logPersistenceWarning("Food search read skipped", error);
+    }
+  }
+
+  return getMemoryFoodsForUser(userId)
+    .filter(food => !normalizedQuery || normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`).includes(normalizedQuery))
+    .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+export async function listRecentFoods(userId: number, limit = 10) {
+  return (await searchFoods(userId, "", 100)).filter(food => food.lastUsedAt).slice(0, limit);
+}
+
+export async function upsertFavoriteFood(userId: number, foodId: number, favorite: boolean) {
+  const favorites = new Set(favoriteFoodStore.get(userId) ?? []);
+  if (favorite) favorites.add(foodId);
+  else favorites.delete(foodId);
+  favoriteFoodStore.set(userId, favorites);
+
+  const db = await getDb();
+  if (db) {
+    try {
+      if (favorite) {
+        await db.insert(foodFavorites).values({ userId, foodCatalogId: foodId }).onDuplicateKeyUpdate({ set: { userId } });
+      } else {
+        await db.delete(foodFavorites).where(and(eq(foodFavorites.userId, userId), eq(foodFavorites.foodCatalogId, foodId)));
+      }
+    } catch (error) {
+      logPersistenceWarning("Food favorite write skipped", error);
+    }
+  }
+
+  const [food] = await searchFoods(userId, "", 200);
+  return (await searchFoods(userId, "", 200)).find(item => item.id === foodId) ?? food;
+}
+
+export type FoodUpsertInput = {
+  foodId?: number;
+  name: string;
+  brandName?: string | null;
+  servingSize: number;
+  servingUnit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number | null;
+  isFruit?: boolean;
+  isVegetable?: boolean;
+  isUltraProcessed?: boolean;
+  source: string;
+  foodType: "generic" | "branded";
+};
+
+export async function createUserFood(userId: number, input: FoodUpsertInput) {
+  const food: FoodSearchItem = {
+    id: foodIdSequence++,
+    name: input.name,
+    brandName: input.brandName ?? null,
+    servingSize: input.servingSize,
+    servingUnit: input.servingUnit,
+    calories: input.calories,
+    protein: input.protein,
+    carbs: input.carbs,
+    fat: input.fat,
+    fiber: input.fiber ?? null,
+    isFruit: input.isFruit ?? false,
+    isVegetable: input.isVegetable ?? false,
+    isUltraProcessed: input.isUltraProcessed ?? false,
+    source: input.source || "manual",
+    foodType: input.foodType,
+    isUserCreated: true,
+    createdByUserId: userId,
+    isFavorite: false,
+    lastUsedAt: null,
+  };
+
+  const db = await getDb();
+  if (db) {
+    try {
+      const inserted = await db.insert(foodCatalog).values({
+        slug: `${toSlug(`${input.brandName ?? ""} ${input.name}`)}-${userId}-${Date.now()}`,
+        name: input.name,
+        aliases: JSON.stringify([]),
+        brandName: input.brandName ?? null,
+        foodType: input.foodType,
+        dataSource: input.source || "manual",
+        servingLabel: `${input.servingSize} ${input.servingUnit}`,
+        servingUnit: input.servingUnit,
+        gramsPerServing: input.servingSize,
+        calories: input.calories,
+        protein: input.protein,
+        carbs: input.carbs,
+        fat: input.fat,
+        fiber: input.fiber ?? null,
+        isFruit: input.isFruit ? 1 : 0,
+        isVegetable: input.isVegetable ? 1 : 0,
+        isUltraProcessed: input.isUltraProcessed ? 1 : 0,
+        isUserCreated: 1,
+        createdByUserId: userId,
+      });
+      const insertedId = Number((inserted as any)?.[0]?.insertId ?? (inserted as any)?.insertId ?? 0);
+      if (insertedId) food.id = insertedId;
+    } catch (error) {
+      logPersistenceWarning("Food creation persistence skipped", error);
+    }
+  }
+
+  const current = userFoodStore.get(userId) ?? [];
+  userFoodStore.set(userId, [food, ...current]);
+  return food;
+}
+
+export async function updateUserFood(userId: number, input: FoodUpsertInput & { foodId: number }) {
+  const current = userFoodStore.get(userId) ?? [];
+  const existing = current.find(food => food.id === input.foodId);
+  if (!existing) {
+    const dbFoods = await searchFoods(userId, "", 200);
+    const dbExisting = dbFoods.find(food => food.id === input.foodId && food.isUserCreated && food.createdByUserId === userId);
+    if (!dbExisting) {
+      throw new Error("Alimento criado pelo usuário não encontrado.");
+    }
+  }
+
+  const updated: FoodSearchItem = {
+    ...(existing ?? { id: input.foodId, isFavorite: false, lastUsedAt: null }),
+    id: input.foodId,
+    name: input.name,
+    brandName: input.brandName ?? null,
+    servingSize: input.servingSize,
+    servingUnit: input.servingUnit,
+    calories: input.calories,
+    protein: input.protein,
+    carbs: input.carbs,
+    fat: input.fat,
+    fiber: input.fiber ?? null,
+    isFruit: input.isFruit ?? false,
+    isVegetable: input.isVegetable ?? false,
+    isUltraProcessed: input.isUltraProcessed ?? false,
+    source: input.source || "manual",
+    foodType: input.foodType,
+    isUserCreated: true,
+    createdByUserId: userId,
+  };
+
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.update(foodCatalog).set({
+        name: input.name,
+        brandName: input.brandName ?? null,
+        foodType: input.foodType,
+        dataSource: input.source || "manual",
+        servingLabel: `${input.servingSize} ${input.servingUnit}`,
+        servingUnit: input.servingUnit,
+        gramsPerServing: input.servingSize,
+        calories: input.calories,
+        protein: input.protein,
+        carbs: input.carbs,
+        fat: input.fat,
+        fiber: input.fiber ?? null,
+        isFruit: input.isFruit ? 1 : 0,
+        isVegetable: input.isVegetable ? 1 : 0,
+        isUltraProcessed: input.isUltraProcessed ? 1 : 0,
+        updatedAt: new Date(),
+      }).where(and(eq(foodCatalog.id, input.foodId), eq(foodCatalog.createdByUserId, userId)));
+    } catch (error) {
+      logPersistenceWarning("Food update persistence skipped", error);
+    }
+  }
+
+  userFoodStore.set(userId, [updated, ...current.filter(food => food.id !== input.foodId)]);
+  return updated;
 }
 
 async function resolveFoodCatalogIds(items: MealDraftItem[]) {
@@ -1274,6 +1929,26 @@ async function loadWaterGoalFromDb(userId: number) {
 
 async function loadWaterLogsFromDb(userId: number) {
   return waterRepository.findLogsByUserId(userId);
+}
+
+async function loadWeightEntriesFromDb(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db.select().from(weightEntries).where(eq(weightEntries.userId, userId));
+    return rows
+      .map(row => ({
+        ...row,
+        measuredAt: new Date(row.measuredAt),
+        createdAt: new Date(row.createdAt),
+        updatedAt: new Date(row.updatedAt),
+      }))
+      .sort((a, b) => b.measuredAt.getTime() - a.measuredAt.getTime());
+  } catch (error) {
+    logPersistenceWarning("Weight entries read skipped", error);
+    return null;
+  }
 }
 
 async function loadHabitsFromDb(userId: number) {
@@ -1639,6 +2314,17 @@ export async function listUserMeals(userId: number) {
     }));
 }
 
+export async function getUserDayMealTotals(userId: number, date: string) {
+  const key = date || dateKey(new Date());
+  const mealsForUser = await listUserMeals(userId);
+  const mealsOnDay = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === key);
+  return {
+    date: key,
+    meals: mealsOnDay,
+    totals: calculateDayTotals(mealsOnDay),
+  };
+}
+
 export async function createUserManualMeal(input: {
   userId: number;
   mealLabel: string;
@@ -1674,6 +2360,137 @@ export async function createUserManualMeal(input: {
     detail: `Refeição manual ${savedMeal.mealLabel} criada com ${savedMeal.items.length} itens.`,
   });
   return { ...savedMeal, totals: sumItems(savedMeal.items) };
+}
+
+export async function copyUserMeal(input: {
+  userId: number;
+  mealId: number;
+  occurredAt: string;
+  mealLabel?: string;
+}) {
+  const current = await listUserMeals(input.userId);
+  const sourceMeal = current.find(meal => meal.id === input.mealId);
+  if (!sourceMeal) {
+    throw new Error("Refeição de origem não encontrada.");
+  }
+
+  return createUserManualMeal({
+    userId: input.userId,
+    mealLabel: input.mealLabel?.trim() || sourceMeal.mealLabel,
+    occurredAt: input.occurredAt,
+    notes: sourceMeal.notes,
+    items: sourceMeal.items.map(item => ({ ...item })),
+  });
+}
+
+export async function listFavoriteMeals(userId: number) {
+  const db = await getDb();
+  if (db) {
+    try {
+      const rows = await db.select().from(mealFavorites).where(eq(mealFavorites.userId, userId));
+      const favorites = rows.map(row => ({
+        id: row.id,
+        userId: row.userId,
+        name: row.name,
+        mealLabel: row.mealLabel,
+        notes: row.notes ?? undefined,
+        items: parseJsonArray<MealDraftItem>(row.itemsJson, []),
+        createdAt: new Date(row.createdAt).getTime(),
+      }));
+      favoriteMealStore.set(userId, favorites);
+      return favorites
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map(meal => ({
+          ...meal,
+          totals: sumItems(meal.items),
+        }));
+    } catch (error) {
+      logPersistenceWarning("Meal favorites read skipped", error);
+    }
+  }
+
+  return (favoriteMealStore.get(userId) ?? [])
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(meal => ({
+      ...meal,
+      totals: sumItems(meal.items),
+    }));
+}
+
+export async function saveFavoriteMeal(input: {
+  userId: number;
+  mealId: number;
+  name?: string;
+}) {
+  const current = await listUserMeals(input.userId);
+  const meal = current.find(item => item.id === input.mealId);
+  if (!meal) {
+    throw new Error("Refeição não encontrada para favoritar.");
+  }
+
+  const favorite: FavoriteMeal = {
+    id: favoriteMealIdSequence++,
+    userId: input.userId,
+    name: input.name?.trim() || meal.mealLabel,
+    mealLabel: meal.mealLabel,
+    notes: meal.notes,
+    items: meal.items.map(item => ({ ...item })),
+    createdAt: Date.now(),
+  };
+
+  const favorites = favoriteMealStore.get(input.userId) ?? [];
+  favoriteMealStore.set(input.userId, [favorite, ...favorites.filter(item => item.name !== favorite.name)]);
+
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.insert(mealFavorites).values({
+        userId: input.userId,
+        name: favorite.name,
+        mealLabel: favorite.mealLabel,
+        notes: favorite.notes ?? null,
+        itemsJson: JSON.stringify(favorite.items),
+      }).onDuplicateKeyUpdate({
+        set: {
+          mealLabel: favorite.mealLabel,
+          notes: favorite.notes ?? null,
+          itemsJson: JSON.stringify(favorite.items),
+        },
+      });
+    } catch (error) {
+      logPersistenceWarning("Meal favorite persistence skipped", error);
+    }
+  }
+
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "web",
+    status: "success",
+    eventType: "meal.favorite_saved",
+    detail: `Refeição favorita ${favorite.name} salva com ${favorite.items.length} itens.`,
+  });
+
+  return { ...favorite, totals: sumItems(favorite.items) };
+}
+
+export async function reuseFavoriteMeal(input: {
+  userId: number;
+  favoriteMealId: number;
+  occurredAt: string;
+}) {
+  const favorite = (await listFavoriteMeals(input.userId)).find(item => item.id === input.favoriteMealId);
+  if (!favorite) {
+    throw new Error("Refeição favorita não encontrada.");
+  }
+
+  return createUserManualMeal({
+    userId: input.userId,
+    mealLabel: favorite.mealLabel,
+    occurredAt: input.occurredAt,
+    notes: favorite.notes,
+    items: favorite.items.map(item => ({ ...item })),
+  });
 }
 
 export async function updateUserMeal(input: {
@@ -2029,7 +2846,7 @@ export async function getWeeklySummary(userId: number) {
     return current;
   });
 
-  return days.map((day, index) => {
+  return Promise.all(days.map(async (day, index) => {
     const key = dateKey(day);
     const dailyMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === key);
     const dailyExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt))) === key);
@@ -2047,6 +2864,7 @@ export async function getWeeklySummary(userId: number) {
     );
     const burnedCalories = sumExercises(dailyExercises);
     const waterConsumedMl = sumWater(dailyWaterLogs);
+    const quality = await calculateQualityIndicators(userId, dailyMeals, waterConsumedMl);
     const planned = goal.days[index] ?? goal.today;
 
     return {
@@ -2060,12 +2878,121 @@ export async function getWeeklySummary(userId: number) {
       netCalories: round(totals.calories - burnedCalories),
       waterConsumedMl: round(waterConsumedMl),
       waterGoalMl: waterGoal.dailyTargetMl,
+      quality,
       goalCalories: planned.calories,
       goalProtein: planned.proteinGrams,
       goalCarbs: planned.carbsGrams,
       goalFat: planned.fatGrams,
     };
-  });
+  }));
+}
+
+function classifyWeeklyDay(day: Awaited<ReturnType<typeof getWeeklySummary>>[number]) {
+  if (day.calories <= 0) return "no_data" as const;
+  const ratio = day.goalCalories ? day.calories / day.goalCalories : 0;
+  if (ratio > 1.05) return "above" as const;
+  if (ratio < 0.9) return "below" as const;
+  return "within" as const;
+}
+
+async function listUserWeightEntries(userId: number) {
+  const dbEntries = await loadWeightEntriesFromDb(userId);
+  if (dbEntries) {
+    if (canUseMemoryPersistenceFallback()) {
+      weightEntryStore.set(userId, dbEntries);
+    }
+    return dbEntries;
+  }
+
+  const memoryEntries = weightEntryStore.get(userId);
+  if (memoryEntries?.length) return memoryEntries;
+
+  const onboardingProfile = onboardingProfileStore.get(userId);
+  if (!onboardingProfile?.currentWeightKg) return [];
+
+  return [{
+    id: 0,
+    userId,
+    weightKg: onboardingProfile.currentWeightKg,
+    measuredAt: onboardingProfile.completedAt,
+    notes: "Peso informado no onboarding.",
+    createdAt: onboardingProfile.completedAt,
+    updatedAt: onboardingProfile.completedAt,
+  } satisfies WeightEntry];
+}
+
+export async function getWeeklyProgress(userId: number) {
+  const [days, weights] = await Promise.all([
+    getWeeklySummary(userId),
+    listUserWeightEntries(userId),
+  ]);
+
+  const totalCalories = round(days.reduce((acc, day) => acc + day.calories, 0));
+  const totalGoalCalories = round(days.reduce((acc, day) => acc + day.goalCalories, 0));
+  const totalExerciseCalories = round(days.reduce((acc, day) => acc + day.exerciseCalories, 0));
+  const totalNetCalories = round(days.reduce((acc, day) => acc + day.netCalories, 0));
+  const averageCalories = round(totalCalories / Math.max(days.length, 1));
+  const averageProtein = round(days.reduce((acc, day) => acc + day.protein, 0) / Math.max(days.length, 1));
+  const daysByStatus = days.reduce(
+    (acc, day) => {
+      const status = classifyWeeklyDay(day);
+      acc[status] += 1;
+      return acc;
+    },
+    { within: 0, above: 0, below: 0, no_data: 0 },
+  );
+
+  const sortedWeights = weights
+    .slice()
+    .sort((a, b) => new Date(a.measuredAt).getTime() - new Date(b.measuredAt).getTime())
+    .map(entry => ({
+      id: entry.id,
+      date: dateKey(new Date(entry.measuredAt)),
+      weightKg: round(entry.weightKg),
+      notes: entry.notes ?? null,
+    }));
+  const firstWeight = sortedWeights[0];
+  const lastWeight = sortedWeights[sortedWeights.length - 1];
+
+  const balanceCalories = round(totalGoalCalories - totalNetCalories);
+  const message = totalCalories <= 0
+    ? "Semana sem registros alimentares ainda. Um primeiro lançamento já cria uma referência útil."
+    : daysByStatus.above > 0
+      ? "Alguns dias ficaram acima da meta, mas a leitura semanal mostra o contexto completo."
+      : daysByStatus.within >= 3
+        ? "A semana mostra boa consistência em torno das metas planejadas."
+        : "A semana ainda está em construção. Use os próximos registros para observar tendência, não um dia isolado.";
+
+  return {
+    days: days.map(day => ({
+      ...day,
+      status: classifyWeeklyDay(day),
+      calorieDelta: round(day.calories - day.goalCalories),
+      netDelta: round(day.netCalories - day.goalCalories),
+    })),
+    summary: {
+      averageCalories,
+      totalCalories,
+      totalGoalCalories,
+      calorieDelta: round(totalCalories - totalGoalCalories),
+      daysWithinGoal: daysByStatus.within,
+      daysAboveGoal: daysByStatus.above,
+      daysBelowGoal: daysByStatus.below,
+      daysWithoutRecords: daysByStatus.no_data,
+      averageProtein,
+      totalExerciseCalories,
+      totalNetCalories,
+      balanceCalories,
+      message,
+    },
+    weight: {
+      entries: sortedWeights,
+      firstWeightKg: firstWeight?.weightKg ?? null,
+      lastWeightKg: lastWeight?.weightKg ?? null,
+      deltaKg: firstWeight && lastWeight ? round(lastWeight.weightKg - firstWeight.weightKg) : null,
+      hasData: sortedWeights.length > 0,
+    },
+  };
 }
 
 export async function getDashboardSnapshot(userId: number) {
@@ -2091,11 +3018,13 @@ export async function getDashboardSnapshot(userId: number) {
   );
   const todayBurnedCalories = sumExercises(todaysExercises);
   const todayWaterMl = sumWater(todaysWaterLogs);
+  const todayQuality = await calculateQualityIndicators(userId, todaysMeals, todayWaterMl);
 
   const [weekly, habits] = await Promise.all([
     getWeeklySummary(userId),
     getHabitSnapshots(userId),
   ]);
+  const gamification = await getUserGamification(userId, weekly);
 
   const weeklyConsumed = weekly.reduce(
     (acc, day) => {
@@ -2129,6 +3058,7 @@ export async function getDashboardSnapshot(userId: number) {
         goalMl: waterGoal.dailyTargetMl,
         remainingMl: Math.max(waterGoal.dailyTargetMl - round(todayWaterMl), 0),
       },
+      quality: todayQuality,
       net: {
         calories: round(todayTotals.calories - todayBurnedCalories),
         remainingToGoal: round(goal.today.calories - (todayTotals.calories - todayBurnedCalories)),
@@ -2157,6 +3087,19 @@ export async function getDashboardSnapshot(userId: number) {
         goalMl: waterGoal.dailyTargetMl * 7,
         remainingMl: Math.max(waterGoal.dailyTargetMl * 7 - round(weeklyWaterMl), 0),
       },
+      quality: weekly.reduce(
+        (acc, day) => ({
+          proteinGrams: round(acc.proteinGrams + day.quality.proteinGrams),
+          fiberGrams: round(acc.fiberGrams + day.quality.fiberGrams),
+          waterMl: round(acc.waterMl + day.quality.waterMl),
+          fruitServings: round(acc.fruitServings + day.quality.fruitServings),
+          vegetableServings: round(acc.vegetableServings + day.quality.vegetableServings),
+          ultraProcessedServings: round(acc.ultraProcessedServings + day.quality.ultraProcessedServings),
+          mealCount: acc.mealCount + day.quality.mealCount,
+          regularityScore: round(acc.regularityScore + day.quality.regularityScore / 7),
+        }),
+        emptyQualityIndicators(0),
+      ),
       net: {
         calories: round(weeklyConsumed.calories - weeklyBurnedCalories),
         remainingToGoal: round(goal.weeklyTotals.calories - (weeklyConsumed.calories - weeklyBurnedCalories)),
@@ -2176,6 +3119,7 @@ export async function getDashboardSnapshot(userId: number) {
       goal: waterGoal,
       logs: waterLogsForUser.slice(0, 8),
     },
+    gamification,
     habits,
   };
 }

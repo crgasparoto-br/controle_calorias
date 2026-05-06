@@ -20,6 +20,10 @@ describe("nutrition model schemas", () => {
       protein: 2.7,
       carbs: 28,
       fat: 0.3,
+      fiber: 1.6,
+      isFruit: false,
+      isVegetable: false,
+      isUltraProcessed: false,
     });
 
     const brandedFood = foodInputSchema.parse({
@@ -71,6 +75,8 @@ describe("nutrition model schemas", () => {
     });
 
     expect(meal.items).toHaveLength(2);
+    expect(genericFood.fiber).toBe(1.6);
+    expect(genericFood.isUltraProcessed).toBe(false);
     expect(meal.items.reduce((total, item) => total + item.calories, 0)).toBe(305);
   });
 

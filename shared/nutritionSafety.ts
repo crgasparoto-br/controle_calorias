@@ -1,3 +1,5 @@
+import { SAFE_NUTRITION_MESSAGES } from "./safeMessages";
+
 export type NutritionGoalSafetyTarget = {
   label: string;
   calories: number;
@@ -67,7 +69,7 @@ function assessTarget(target: NutritionGoalSafetyTarget): NutritionGoalSafetyIss
       "warning",
       "calories_low",
       label,
-      `${label}: a meta calórica está em uma faixa baixa. Observe energia, fome e rotina antes de manter esse planejamento por vários dias.`,
+      `${label}: ${SAFE_NUTRITION_MESSAGES.aggressiveCalorieGoal} Observe energia, fome e rotina antes de manter esse planejamento por vários dias.`,
     ));
   }
 

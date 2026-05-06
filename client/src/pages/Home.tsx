@@ -4,22 +4,30 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   formatCalories,
   formatCountPtBr,
   formatGrams,
   formatIntegerInputPtBr,
   formatIntegerPtBr,
+  formatNumberPtBr,
   formatPercentPtBr,
   parseIntegerInputPtBr,
 } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, BrainCircuit, Droplets, Dumbbell, Flame, PencilLine, Salad, Target, Trash2, X } from "lucide-react";
+import { buildDailyNutritionStatus, SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
+import { Activity, AlertCircle, ArrowRight, Award, BrainCircuit, Droplets, Dumbbell, Flame, PencilLine, Salad, Target, Trash2, X } from "lucide-react";
 import { Link } from "wouter";
 
 function macroProgress(consumed: number, goal: number) {
   if (!goal) return 0;
   return Math.min((consumed / goal) * 100, 100);
+}
+
+function positiveRemaining(value: number) {
+  return Math.max(value, 0);
 }
 
 function buildDefaultExerciseForm() {
@@ -131,6 +139,13 @@ export default function Home() {
     },
   });
 
+  const updateGamification = trpc.nutrition.gamification.updateSettings.useMutation({
+    onSuccess: async () => {
+      await utils.nutrition.dashboard.overview.invalidate();
+      await utils.nutrition.gamification.get.invalidate();
+    },
+  });
+
   const handleExerciseSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     createExercise.mutate({
@@ -162,85 +177,215 @@ export default function Home() {
   const waterAmountValue = parseIntegerInputPtBr(waterForm.amountMl);
   const isWaterGoalInvalid = waterGoalValue < 250 || waterGoalValue > 10000;
   const isWaterAmountInvalid = waterAmountValue < 50 || waterAmountValue > 5000;
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todaysMeals = (overview.data?.meals ?? []).filter(meal => new Date(meal.occurredAt).toISOString().slice(0, 10) === todayKey);
+  const consumedCalories = overview.data?.today.consumed.calories ?? 0;
+  const calorieGoal = overview.data?.today.goal.calories ?? 0;
+  const remainingCalories = overview.data?.today.remaining.calories ?? 0;
+  const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
+
+  if (overview.isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Skeleton className="h-36 rounded-2xl" />
+            <Skeleton className="h-36 rounded-2xl" />
+            <Skeleton className="h-36 rounded-2xl" />
+          </div>
+          <Skeleton className="h-80 rounded-2xl" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (overview.isError) {
+    return (
+      <DashboardLayout>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="flex items-start gap-3 p-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold tracking-tight">Não foi possível carregar o dashboard agora.</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                Tente atualizar a página em instantes. Seus registros seguem sendo a base para acompanhar próximos passos com calma.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <section className="grid gap-4 xl:grid-cols-[1.5fr,1fr]">
-          <Card className="overflow-hidden border-0 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 text-white shadow-xl shadow-emerald-500/15">
-            <CardContent className="relative p-6 sm:p-8">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_40%)]" />
-              <div className="relative space-y-5">
-                <Badge className="bg-white/12 text-white hover:bg-white/12">IA multimodal ativa</Badge>
-                <div className="space-y-2">
-                  <h1 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
-                    Acompanhe calorias, macronutrientes, exercícios e saldo energético em um só painel.
-                  </h1>
-                  <p className="max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
-                    Registre refeições por texto, imagem ou áudio, inclua exercícios manualmente e acompanhe a equação
-                    entre meta planejada, consumo alimentar e gasto energético ao longo da semana.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Link href="/log-meal">
-                    <Button size="lg" variant="secondary" className="rounded-full bg-white text-emerald-700 hover:bg-white/90">
-                      Registrar refeição
-                    </Button>
-                  </Link>
-                  <Link href="/reports">
-                    <Button size="lg" variant="outline" className="rounded-full border-white/30 bg-white/10 text-white hover:bg-white/15">
-                      Ver relatórios
-                    </Button>
-                  </Link>
-                </div>
-              </div>
+        <section className="space-y-4">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+            <div className="space-y-2">
+              <Badge variant="secondary" className="w-fit">Dashboard diário</Badge>
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Resumo de hoje</h1>
+              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                Acompanhe calorias, macronutrientes, exercícios e saldo energético em um só painel.
+              </p>
+            </div>
+            <Link href="/log-meal">
+              <Button className="rounded-full">
+                Registrar refeição
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <DailyMetric
+              title="Calorias consumidas"
+              value={formatCalories(consumedCalories)}
+              helper={`${formatPercentPtBr(overview.data?.today.adherence ?? 0)}% da meta do dia`}
+              icon={Flame}
+            />
+            <DailyMetric
+              title="Calorias restantes"
+              value={formatCalories(positiveRemaining(remainingCalories))}
+              helper={remainingCalories < 0 ? "Acima da meta planejada hoje" : "Disponíveis para os próximos registros"}
+              icon={Salad}
+            />
+            <DailyMetric
+              title="Meta calórica do dia"
+              value={formatCalories(calorieGoal)}
+              helper={overview.data?.today.goal.label ?? "Planejamento diário"}
+              icon={Target}
+            />
+          </div>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Qualidade alimentar de hoje</CardTitle>
+              <CardDescription>Indicadores simples a partir dos alimentos classificados e dos registros de água.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <StatBlock label="Fibras" value={formatGrams(overview.data?.today.quality?.fiberGrams ?? 0)} sublabel="Quando disponível no alimento" />
+              <StatBlock label="Frutas" value={formatNumberPtBr(overview.data?.today.quality?.fruitServings ?? 0, { maximumFractionDigits: 1 })} sublabel="Porções registradas" />
+              <StatBlock label="Vegetais" value={formatNumberPtBr(overview.data?.today.quality?.vegetableServings ?? 0, { maximumFractionDigits: 1 })} sublabel="Porções registradas" />
+              <StatBlock label="Regularidade" value={`${formatIntegerPtBr(overview.data?.today.quality?.regularityScore ?? 0)}%`} sublabel={`${formatCountPtBr(overview.data?.today.quality?.mealCount ?? 0)} refeições hoje`} />
+              <StatBlock label="Proteína" value={formatGrams(overview.data?.today.quality?.proteinGrams ?? 0)} sublabel="Total do dia" />
+              <StatBlock label="Água" value={`${formatIntegerPtBr(overview.data?.today.quality?.waterMl ?? 0)} ml`} sublabel="Total registrado" />
+              <StatBlock label="Ultraprocessados" value={formatNumberPtBr(overview.data?.today.quality?.ultraProcessedServings ?? 0, { maximumFractionDigits: 1 })} sublabel="Porções registradas" />
             </CardContent>
           </Card>
 
-          <Card className="border-0 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Target className="h-5 w-5 text-primary" />
-                Resumo de hoje
-              </CardTitle>
-              <CardDescription>Saldo diário com base na meta planejada e no consumo registrado.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-2xl bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Calorias consumidas</p>
-                <div className="mt-2 flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-3xl font-semibold tracking-tight">
-                      {overview.data ? formatIntegerPtBr(overview.data.today.consumed.calories) : "--"}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      de {overview.data ? formatCalories(overview.data.today.goal.calories) : "--"} planejadas
-                    </p>
-                  </div>
-                  <Badge variant="secondary">{formatPercentPtBr(overview.data?.today.adherence ?? 0)}% da meta</Badge>
+          <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle>Progresso por macro</CardTitle>
+                <CardDescription>Consumo atual comparado à meta de hoje.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-3">
+                <MacroBar label="Proteínas" consumed={overview.data?.today.consumed.protein ?? 0} goal={overview.data?.today.goal.protein ?? 0} />
+                <MacroBar label="Carboidratos" consumed={overview.data?.today.consumed.carbs ?? 0} goal={overview.data?.today.goal.carbs ?? 0} />
+                <MacroBar label="Gorduras" consumed={overview.data?.today.consumed.fat ?? 0} goal={overview.data?.today.goal.fat ?? 0} />
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle>Status do dia</CardTitle>
+                <CardDescription>Uma leitura rápida para orientar próximos passos.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-2xl border bg-muted/30 p-4">
+                  <p className="text-sm leading-6 text-muted-foreground">{dailyStatus}</p>
                 </div>
-                <Progress className="mt-4 h-2" value={overview.data?.today.adherence ?? 0} />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <StatBlock
-                  label="Proteínas"
-                  value={formatGrams(overview.data?.today.consumed.protein ?? 0)}
-                  sublabel={`Restam ${formatGrams(overview.data?.today.remaining.protein ?? 0)}`}
-                />
-                <StatBlock
-                  label="Carboidratos"
-                  value={formatGrams(overview.data?.today.consumed.carbs ?? 0)}
-                  sublabel={`Restam ${formatGrams(overview.data?.today.remaining.carbs ?? 0)}`}
-                />
-                <StatBlock
-                  label="Gorduras"
-                  value={formatGrams(overview.data?.today.consumed.fat ?? 0)}
-                  sublabel={`Restam ${formatGrams(overview.data?.today.remaining.fat ?? 0)}`}
-                />
-              </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <StatBlock label="Proteína" value={formatGrams(overview.data?.today.consumed.protein ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.protein ?? 0)}`} />
+                  <StatBlock label="Carboidratos" value={formatGrams(overview.data?.today.consumed.carbs ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.carbs ?? 0)}`} />
+                  <StatBlock label="Gorduras" value={formatGrams(overview.data?.today.consumed.fat ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.fat ?? 0)}`} />
+                  <StatBlock label="Refeições" value={formatCountPtBr(todaysMeals.length)} sublabel="Registradas hoje" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Refeições do dia</CardTitle>
+              <CardDescription>Registros confirmados hoje, com calorias e macros por refeição.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {todaysMeals.length ? (
+                todaysMeals.map(meal => (
+                  <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium tracking-tight">{meal.mealLabel}</p>
+                          <Badge variant="secondary">{meal.source === "web" ? "Web" : "WhatsApp"}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{new Date(meal.occurredAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(meal.totals.calories)}</Badge>
+                    </div>
+                    <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
+                      <MiniMacro label="Proteínas" value={formatGrams(meal.totals.protein)} />
+                      <MiniMacro label="Carboidratos" value={formatGrams(meal.totals.carbs)} />
+                      <MiniMacro label="Gorduras" value={formatGrams(meal.totals.fat)} />
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {meal.items.map(item => (
+                        <Badge key={`${meal.id}-${item.foodName}`} variant="outline" className="rounded-full px-3 py-1 text-xs">
+                          {item.foodName} · {item.portionText}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <EmptyCopy text="Nenhuma refeição foi registrada hoje. Um primeiro registro simples já ajuda a visualizar o dia com mais clareza." />
+              )}
             </CardContent>
           </Card>
         </section>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-primary" />
+                Badges de consistência
+              </CardTitle>
+              <CardDescription>Reconhecimentos focados em registro, hidratação, planejamento e rotina sustentável.</CardDescription>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Switch
+                checked={overview.data?.gamification?.enabled ?? true}
+                onCheckedChange={enabled => updateGamification.mutate({ enabled })}
+                disabled={updateGamification.isPending}
+              />
+              Gamificação ativa
+            </label>
+          </CardHeader>
+          <CardContent>
+            {overview.data?.gamification?.enabled === false ? (
+              <EmptyCopy text="Gamificação desativada. Seus registros seguem funcionando normalmente, sem exibir novos badges." />
+            ) : overview.data?.gamification?.earnedBadges?.length ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {overview.data.gamification.earnedBadges.slice(0, 8).map(badge => (
+                  <div key={`${badge.code}-${badge.weekStart ?? "geral"}`} className="rounded-2xl border bg-muted/20 p-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Award className="h-5 w-5" />
+                    </div>
+                    <p className="mt-3 font-semibold tracking-tight">{badge.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted-foreground">{badge.description}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyCopy text="Os badges aparecem aqui conforme a semana ganha registros consistentes, com foco em rotina, planejamento e cuidado sustentável." />
+            )}
+          </CardContent>
+        </Card>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={Flame} title="Líquido de hoje" value={formatCalories(overview.data?.today.net.calories ?? 0)} description="Consumo menos exercícios" />
@@ -717,6 +862,33 @@ function MetricCard({
   );
 }
 
+function DailyMetric({
+  icon: Icon,
+  title,
+  value,
+  helper,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardContent className="flex min-h-36 items-start justify-between gap-4 p-5">
+        <div>
+          <p className="text-sm text-muted-foreground">{title}</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
+          <p className="mt-2 text-sm leading-5 text-muted-foreground">{helper}</p>
+        </div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function StatBlock({ label, value, sublabel }: { label: string; value: string; sublabel: string }) {
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -729,6 +901,7 @@ function StatBlock({ label, value, sublabel }: { label: string; value: string; s
 
 function MacroBar({ label, consumed, goal }: { label: string; consumed: number; goal: number }) {
   const progress = macroProgress(consumed, goal);
+  const isAboveGoal = goal > 0 && consumed > goal;
   return (
     <div className="space-y-2 rounded-2xl border bg-muted/30 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -738,7 +911,18 @@ function MacroBar({ label, consumed, goal }: { label: string; consumed: number; 
         </p>
       </div>
       <Progress value={progress} className="h-2" />
-      <p className="text-xs text-muted-foreground">{formatPercentPtBr(progress)}% da meta atingida hoje.</p>
+      <p className="text-xs text-muted-foreground">
+        {isAboveGoal ? SAFE_NUTRITION_MESSAGES.macroAboveGoal : `${formatPercentPtBr(progress)}% da meta de hoje.`}
+      </p>
+    </div>
+  );
+}
+
+function MiniMacro({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-muted/40 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-medium tracking-tight">{value}</p>
     </div>
   );
 }

@@ -23,6 +23,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   Activity,
   BarChart3,
+  Apple,
   Goal,
   LayoutDashboard,
   LogOut,
@@ -95,6 +96,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
       { icon: UserRound, label: "Onboarding", path: "/onboarding" },
       { icon: MessageSquareMore, label: "Registrar refeição", path: "/log-meal" },
+      { icon: Apple, label: "Alimentos", path: "/foods" },
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: MessageCircleMore, label: "Canais", path: "/channels" },

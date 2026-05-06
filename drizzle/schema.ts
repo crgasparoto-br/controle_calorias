@@ -76,21 +76,62 @@ export const foodCatalog = mysqlTable("foodCatalog", {
   name: varchar("name", { length: 255 }).notNull(),
   aliases: text("aliases"),
   brandId: int("brandId").references(() => foodBrands.id, { onDelete: "set null" }),
+  brandName: varchar("brandName", { length: 255 }),
   foodType: mysqlEnum("foodType", ["generic", "branded"]).default("generic").notNull(),
   barcode: varchar("barcode", { length: 64 }),
   dataSource: varchar("dataSource", { length: 80 }).default("manual").notNull(),
   servingLabel: varchar("servingLabel", { length: 120 }).notNull(),
+  servingUnit: varchar("servingUnit", { length: 40 }).default("g").notNull(),
   gramsPerServing: double("gramsPerServing").notNull(),
   calories: double("calories").notNull(),
   protein: double("protein").notNull(),
   carbs: double("carbs").notNull(),
   fat: double("fat").notNull(),
+  fiber: double("fiber"),
+  isFruit: int("isFruit").default(0).notNull(),
+  isVegetable: int("isVegetable").default(0).notNull(),
+  isUltraProcessed: int("isUltraProcessed").default(0).notNull(),
+  isUserCreated: int("isUserCreated").default(0).notNull(),
+  createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
   brandIdIdx: index("foodCatalog_brandId_idx").on(table.brandId),
+  createdByUserIdx: index("foodCatalog_createdByUserId_idx").on(table.createdByUserId),
   foodTypeIdx: index("foodCatalog_foodType_idx").on(table.foodType),
   barcodeUnique: uniqueIndex("foodCatalog_barcode_unique").on(table.barcode),
+}));
+
+export const foodFavorites = mysqlTable("foodFavorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  foodCatalogId: int("foodCatalogId").notNull().references(() => foodCatalog.id, { onDelete: "cascade" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  userFoodUnique: uniqueIndex("foodFavorites_user_food_idx").on(table.userId, table.foodCatalogId),
+  userIdIdx: index("foodFavorites_userId_idx").on(table.userId),
+}));
+
+export const userGamificationSettings = mysqlTable("userGamificationSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  enabled: int("enabled").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  userIdIdx: index("userGamificationSettings_userId_idx").on(table.userId),
+}));
+
+export const userBadges = mysqlTable("userBadges", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  badgeCode: varchar("badgeCode", { length: 80 }).notNull(),
+  earnedAt: timestamp("earnedAt").defaultNow().notNull(),
+  weekStart: varchar("weekStart", { length: 10 }),
+  metadataJson: text("metadataJson"),
+}, table => ({
+  userBadgeUnique: uniqueIndex("userBadges_user_badge_week_idx").on(table.userId, table.badgeCode, table.weekStart),
+  userIdIdx: index("userBadges_userId_idx").on(table.userId),
 }));
 
 export const portions = mysqlTable("portions", {
@@ -203,6 +244,19 @@ export const mealMedia = mysqlTable("mealMedia", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => ({
   mealIdIdx: index("mealMedia_mealId_idx").on(table.mealId),
+}));
+
+export const mealFavorites = mysqlTable("mealFavorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 80 }).notNull(),
+  mealLabel: varchar("mealLabel", { length: 80 }).notNull(),
+  notes: text("notes"),
+  itemsJson: text("itemsJson").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  userIdIdx: index("mealFavorites_userId_idx").on(table.userId),
+  userNameUnique: uniqueIndex("mealFavorites_user_name_idx").on(table.userId, table.name),
 }));
 
 export const mealInferences = mysqlTable("mealInferences", {
@@ -372,6 +426,12 @@ export type FoodBrand = typeof foodBrands.$inferSelect;
 export type InsertFoodBrand = typeof foodBrands.$inferInsert;
 export type Food = typeof foodCatalog.$inferSelect;
 export type InsertFood = typeof foodCatalog.$inferInsert;
+export type FoodFavorite = typeof foodFavorites.$inferSelect;
+export type InsertFoodFavorite = typeof foodFavorites.$inferInsert;
+export type UserGamificationSetting = typeof userGamificationSettings.$inferSelect;
+export type InsertUserGamificationSetting = typeof userGamificationSettings.$inferInsert;
+export type UserBadge = typeof userBadges.$inferSelect;
+export type InsertUserBadge = typeof userBadges.$inferInsert;
 export type Portion = typeof portions.$inferSelect;
 export type InsertPortion = typeof portions.$inferInsert;
 export type Recipe = typeof recipes.$inferSelect;
@@ -384,6 +444,8 @@ export type MealItem = typeof mealItems.$inferSelect;
 export type InsertMealItem = typeof mealItems.$inferInsert;
 export type MealMedia = typeof mealMedia.$inferSelect;
 export type InsertMealMedia = typeof mealMedia.$inferInsert;
+export type MealFavorite = typeof mealFavorites.$inferSelect;
+export type InsertMealFavorite = typeof mealFavorites.$inferInsert;
 export type HabitMemory = typeof habitMemories.$inferSelect;
 export type InsertHabitMemory = typeof habitMemories.$inferInsert;
 export type DailyLog = typeof dailySummaries.$inferSelect;

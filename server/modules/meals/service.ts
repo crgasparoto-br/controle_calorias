@@ -1,14 +1,19 @@
 import {
   buildSavedMedia,
   confirmPendingMeal,
+  copyUserMeal,
   createPendingMealInference,
   createUserManualMeal,
+  getUserDayMealTotals,
   getHabitSnapshots,
   getPendingInference,
   getPendingInferenceFromDb,
+  listFavoriteMeals,
   listUserMeals,
   logInferenceEvent,
   removeUserMeal,
+  reuseFavoriteMeal,
+  saveFavoriteMeal,
   updateUserMeal,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
@@ -16,9 +21,12 @@ import { storagePut } from "../../storage";
 import { transcribeAudio } from "../../_core/voiceTranscription";
 import {
   ConfirmMealInput,
+  CopyMealInput,
   ManualMealInput,
   MediaInput,
   ProcessMealDraftInput,
+  ReuseFavoriteMealInput,
+  SaveFavoriteMealInput,
   UpdateMealInput,
 } from "./schemas";
 
@@ -69,6 +77,10 @@ export async function listMeals(userId: number) {
   return listUserMeals(userId);
 }
 
+export async function getDayTotals(userId: number, date: string) {
+  return getUserDayMealTotals(userId, date);
+}
+
 export async function createManualMeal(userId: number, input: ManualMealInput) {
   return createUserManualMeal({ userId, ...input, items: ensureMealItems(input.items) });
 }
@@ -86,6 +98,22 @@ export async function updateMeal(userId: number, input: UpdateMealInput) {
 
 export async function removeMeal(userId: number, mealId: number) {
   return removeUserMeal(userId, mealId);
+}
+
+export async function copyMeal(userId: number, input: CopyMealInput) {
+  return copyUserMeal({ userId, ...input });
+}
+
+export async function listMealFavorites(userId: number) {
+  return listFavoriteMeals(userId);
+}
+
+export async function saveMealFavorite(userId: number, input: SaveFavoriteMealInput) {
+  return saveFavoriteMeal({ userId, ...input });
+}
+
+export async function reuseMealFavorite(userId: number, input: ReuseFavoriteMealInput) {
+  return reuseFavoriteMeal({ userId, ...input });
 }
 
 export async function processMealDraft(userId: number, input: ProcessMealDraftInput) {

@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { BrainCircuit, ImagePlus, Mic, PencilLine, Plus, Save, Trash2, WandSparkles } from "lucide-react";
+import { calculateDayTotals, calculateMealTotals } from "../../../shared/mealTotals";
+import { BrainCircuit, CalendarPlus, Copy, ImagePlus, Mic, PencilLine, Plus, Save, Star, Trash2, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -59,6 +61,9 @@ type StoredMeal = {
   };
 };
 
+const MEAL_TYPES = ["café da manhã", "almoço", "jantar", "lanche", "outro"] as const;
+type MealType = (typeof MEAL_TYPES)[number];
+
 function createEmptyItem(): MealItemState {
   return {
     foodName: "",
@@ -78,7 +83,7 @@ function createEmptyItem(): MealItemState {
 function createManualMealState() {
   return {
     mealId: undefined as number | undefined,
-    mealLabel: "",
+    mealLabel: "almoço" as MealType,
     occurredAt: new Date().toISOString().slice(0, 16),
     notes: "",
     items: [createEmptyItem()],
@@ -95,21 +100,13 @@ async function fileToBase64(file: File) {
 }
 
 function sumItems(items: MealItemState[]) {
-  return items.reduce(
-    (acc, item) => {
-      acc.calories += Number(item.calories || 0);
-      acc.protein += Number(item.protein || 0);
-      acc.carbs += Number(item.carbs || 0);
-      acc.fat += Number(item.fat || 0);
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+  return calculateMealTotals(items);
 }
 
 export default function LogMealPage() {
   const utils = trpc.useUtils();
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
+  const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
 
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -120,11 +117,15 @@ export default function LogMealPage() {
   const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
   const [editableItems, setEditableItems] = useState<MealItemState[]>([]);
   const [manualMeal, setManualMeal] = useState(createManualMealState);
+  const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().slice(0, 10));
+  const dayTotalsQuery = trpc.nutrition.meals.dayTotals.useQuery({ date: selectedDay });
 
   const invalidateNutritionViews = async () => {
     await Promise.all([
       utils.nutrition.dashboard.overview.invalidate(),
       utils.nutrition.meals.list.invalidate(),
+      utils.nutrition.meals.dayTotals.invalidate(),
+      utils.nutrition.meals.favorites.invalidate(),
       utils.nutrition.reports.weekly.invalidate(),
     ]);
   };
@@ -154,7 +155,7 @@ export default function LogMealPage() {
       setNotes("");
       setOccurredAt(new Date().toISOString().slice(0, 16));
     },
-    onError: error => toast.error(error.message || "Falha ao confirmar a refeição."),
+    onError: error => toast.error(error.message || "Não foi possível confirmar a refeição agora."),
   });
 
   const createManualMeal = trpc.nutrition.meals.createManual.useMutation({
@@ -184,8 +185,33 @@ export default function LogMealPage() {
     onError: error => toast.error(error.message || "Não foi possível remover a refeição."),
   });
 
+  const copyMeal = trpc.nutrition.meals.copy.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Refeição copiada para a data selecionada.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível copiar a refeição."),
+  });
+
+  const saveFavoriteMeal = trpc.nutrition.meals.saveFavorite.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Refeição salva como favorita.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível favoritar a refeição."),
+  });
+
+  const reuseFavoriteMeal = trpc.nutrition.meals.reuseFavorite.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Refeição favorita reutilizada.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível reutilizar a favorita."),
+  });
+
   const previewTotals = useMemo(() => sumItems(editableItems), [editableItems]);
   const manualTotals = useMemo(() => sumItems(manualMeal.items), [manualMeal.items]);
+  const localDayTotals = useMemo(() => calculateDayTotals(mealsQuery.data ?? []), [mealsQuery.data]);
 
   const handleProcess = async () => {
     if (!description && !imageFile && !audioFile) {
@@ -242,18 +268,13 @@ export default function LogMealPage() {
       confidence: Number(item.confidence || 1),
     }));
 
-    if (!manualMeal.mealLabel.trim()) {
-      toast.error("Informe o nome da refeição.");
-      return;
-    }
-
     if (!normalizedItems.length || normalizedItems.some(item => !item.foodName)) {
       toast.error("Preencha ao menos um alimento na refeição manual.");
       return;
     }
 
     const payload = {
-      mealLabel: manualMeal.mealLabel.trim(),
+      mealLabel: manualMeal.mealLabel,
       occurredAt: new Date(manualMeal.occurredAt).toISOString(),
       notes: manualMeal.notes.trim() || undefined,
       items: normalizedItems,
@@ -270,7 +291,7 @@ export default function LogMealPage() {
   const loadMealForEditing = (meal: StoredMeal) => {
     setManualMeal({
       mealId: meal.id,
-      mealLabel: meal.mealLabel,
+      mealLabel: MEAL_TYPES.includes(meal.mealLabel as MealType) ? meal.mealLabel as MealType : "outro",
       occurredAt: new Date(meal.occurredAt).toISOString().slice(0, 16),
       notes: meal.notes ?? "",
       items: meal.items.map(item => ({ ...item })),
@@ -280,6 +301,25 @@ export default function LogMealPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle>Totais do dia</CardTitle>
+            <CardDescription>Acompanhe calorias e macros do dia enquanto registra novas refeições.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="max-w-xs space-y-2">
+              <Label>Dia</Label>
+              <Input type="date" value={selectedDay} onChange={event => setSelectedDay(event.target.value)} />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <SummaryPill label="Calorias" value={formatCalories(dayTotalsQuery.data?.totals.calories ?? localDayTotals.calories)} />
+              <SummaryPill label="Proteínas" value={formatGrams(dayTotalsQuery.data?.totals.protein ?? localDayTotals.protein)} />
+              <SummaryPill label="Carboidratos" value={formatGrams(dayTotalsQuery.data?.totals.carbs ?? localDayTotals.carbs)} />
+              <SummaryPill label="Gorduras" value={formatGrams(dayTotalsQuery.data?.totals.fat ?? localDayTotals.fat)} />
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
           <Card className="border-0 shadow-sm">
             <CardHeader>
@@ -361,7 +401,12 @@ export default function LogMealPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="meal-label">Nome da refeição</Label>
-                      <Input id="meal-label" value={mealLabel} onChange={event => setMealLabel(event.target.value)} />
+                      <Select value={MEAL_TYPES.includes(mealLabel as MealType) ? mealLabel : "outro"} onValueChange={setMealLabel}>
+                        <SelectTrigger id="meal-label"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="occurred-at">Data e horário</Label>
@@ -431,7 +476,12 @@ export default function LogMealPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="manual-meal-label">Nome da refeição</Label>
-                  <Input id="manual-meal-label" value={manualMeal.mealLabel} onChange={event => setManualMeal(current => ({ ...current, mealLabel: event.target.value }))} placeholder="Ex.: Café da manhã" />
+                  <Select value={manualMeal.mealLabel} onValueChange={(mealLabel: MealType) => setManualMeal(current => ({ ...current, mealLabel }))}>
+                    <SelectTrigger id="manual-meal-label"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="manual-occurred-at">Data e horário</Label>
@@ -518,6 +568,26 @@ export default function LogMealPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {favoriteMealsQuery.data?.length ? (
+                <div className="mb-4 rounded-2xl border bg-muted/20 p-4">
+                  <p className="mb-3 text-sm font-medium tracking-tight">Refeições favoritas</p>
+                  <div className="flex flex-wrap gap-2">
+                    {favoriteMealsQuery.data.map(favorite => (
+                      <Button
+                        key={favorite.id}
+                        type="button"
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: new Date(`${selectedDay}T12:00`).toISOString() })}
+                        disabled={reuseFavoriteMeal.isPending}
+                      >
+                        <CalendarPlus className="mr-2 h-4 w-4" />
+                        {favorite.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {mealsQuery.data?.length ? (
                 mealsQuery.data.map(meal => (
                   <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -546,6 +616,14 @@ export default function LogMealPage() {
                           Editar manualmente
                         </Button>
                       ) : null}
+                      <Button type="button" variant="outline" className="rounded-full" onClick={() => copyMeal.mutate({ mealId: meal.id, occurredAt: new Date(`${selectedDay}T12:00`).toISOString(), mealLabel: MEAL_TYPES.includes(meal.mealLabel as MealType) ? meal.mealLabel as MealType : "outro" })} disabled={copyMeal.isPending}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copiar para o dia
+                      </Button>
+                      <Button type="button" variant="outline" className="rounded-full" onClick={() => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })} disabled={saveFavoriteMeal.isPending}>
+                        <Star className="mr-2 h-4 w-4" />
+                        Salvar favorita
+                      </Button>
                       <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => removeMeal.mutate({ mealId: meal.id })} disabled={removeMeal.isPending}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Excluir refeição
@@ -573,22 +651,50 @@ function MealItemEditor({
   item: MealItemState;
   onChange: <K extends keyof MealItemState>(key: K, value: MealItemState[K]) => void;
 }) {
+  const foods = trpc.nutrition.foods.search.useQuery(
+    { query: item.foodName, limit: 5 },
+    { enabled: item.foodName.trim().length >= 2 },
+  );
+
+  const applyFood = (food: NonNullable<typeof foods.data>[number]) => {
+    onChange("foodName", food.name);
+    onChange("canonicalName", food.name);
+    onChange("portionText", `${food.servingSize} ${food.servingUnit}`);
+    onChange("servings", 1);
+    onChange("estimatedGrams", food.servingUnit === "g" ? food.servingSize : 0);
+    onChange("calories", food.calories);
+    onChange("protein", food.protein);
+    onChange("carbs", food.carbs);
+    onChange("fat", food.fat);
+    onChange("confidence", 1);
+    onChange("source", "catalog");
+  };
+
   return (
     <div className="grid gap-3 lg:grid-cols-2">
       <div className="space-y-2">
         <Label>Alimento</Label>
         <Input value={item.foodName} onChange={event => onChange("foodName", event.target.value)} />
+        {foods.data?.length ? (
+          <div className="flex flex-wrap gap-2">
+            {foods.data.map(food => (
+              <Button key={food.id} type="button" variant="outline" size="sm" className="h-8 rounded-full" onClick={() => applyFood(food)}>
+                {food.name}
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </div>
       <div className="space-y-2">
         <Label>Nome canônico</Label>
         <Input value={item.canonicalName} onChange={event => onChange("canonicalName", event.target.value)} />
       </div>
       <div className="space-y-2">
-        <Label>Porção</Label>
+        <Label>Unidade</Label>
         <Input value={item.portionText} onChange={event => onChange("portionText", event.target.value)} />
       </div>
       <div className="space-y-2">
-        <Label>Gramas estimados</Label>
+        <Label>Quantidade</Label>
         <Input type="number" value={item.estimatedGrams} onChange={event => onChange("estimatedGrams", Number(event.target.value))} />
       </div>
       <div className="space-y-2">

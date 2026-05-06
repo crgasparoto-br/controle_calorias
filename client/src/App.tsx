@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import AdminPage from "@/pages/AdminPage";
 import ChannelsPage from "@/pages/ChannelsPage";
 import GoalsPage from "@/pages/GoalsPage";
+import FoodsPage from "@/pages/FoodsPage";
 import Home from "@/pages/Home";
 import LogMealPage from "@/pages/LogMealPage";
 import NotFound from "@/pages/NotFound";
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/log-meal" component={LogMealPage} />
+      <Route path="/foods" component={FoodsPage} />
       <Route path="/goals" component={GoalsPage} />
       <Route path="/reports" component={ReportsPage} />
       <Route path="/channels" component={ChannelsPage} />

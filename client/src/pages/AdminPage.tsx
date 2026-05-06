@@ -36,7 +36,7 @@ export default function AdminPage() {
       ]);
     },
     onError: error => {
-      toast.error(error.message || "Falha ao atualizar o token do WhatsApp.");
+      toast.error(error.message || "Não foi possível atualizar o token do WhatsApp agora.");
     },
   });
 

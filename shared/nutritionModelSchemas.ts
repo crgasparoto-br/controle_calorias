@@ -37,6 +37,10 @@ export const foodInputSchema = z.object({
   protein: nonNegativeAmount,
   carbs: nonNegativeAmount,
   fat: nonNegativeAmount,
+  fiber: nonNegativeAmount.optional(),
+  isFruit: z.boolean().default(false),
+  isVegetable: z.boolean().default(false),
+  isUltraProcessed: z.boolean().default(false),
 });
 
 export const portionInputSchema = z.object({

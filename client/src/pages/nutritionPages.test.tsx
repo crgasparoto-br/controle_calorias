@@ -5,15 +5,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dashboardOverviewMock = vi.fn();
 const goalGetMock = vi.fn();
 const weeklyMock = vi.fn();
+const weeklyProgressMock = vi.fn();
+const weeklyInsightsMock = vi.fn();
 const whatsappStatusMock = vi.fn();
 const adminOverviewMock = vi.fn();
 const adminWhatsappTokenStatusMock = vi.fn();
 const useUtilsMock = vi.fn(() => ({
   nutrition: {
     dashboard: { overview: { invalidate: vi.fn() } },
-    meals: { list: { invalidate: vi.fn() } },
+    meals: { list: { invalidate: vi.fn() }, dayTotals: { invalidate: vi.fn() }, favorites: { invalidate: vi.fn() } },
     reports: { weekly: { invalidate: vi.fn() } },
     goals: { get: { invalidate: vi.fn() } },
+    gamification: { get: { invalidate: vi.fn() } },
     exercises: { list: { invalidate: vi.fn() } },
     water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
     whatsapp: { status: { invalidate: vi.fn() } },
@@ -55,6 +58,19 @@ vi.mock("@/lib/trpc", () => ({
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
       },
+      gamification: {
+        get: {
+          useQuery: () => ({ data: overviewData.gamification }),
+        },
+        updateSettings: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+      },
+      foods: {
+        search: {
+          useQuery: () => ({ data: [] }),
+        },
+      },
       meals: {
         processDraft: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
@@ -70,6 +86,21 @@ vi.mock("@/lib/trpc", () => ({
         },
         remove: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        copy: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        saveFavorite: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        reuseFavorite: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        favorites: {
+          useQuery: () => ({ data: [] }),
+        },
+        dayTotals: {
+          useQuery: () => ({ data: { totals: overviewData.today.consumed, meals: overviewData.meals } }),
         },
         list: {
           useQuery: () => ({ data: overviewData.meals }),
@@ -109,6 +140,12 @@ vi.mock("@/lib/trpc", () => ({
       reports: {
         weekly: {
           useQuery: weeklyMock,
+        },
+        weeklyProgress: {
+          useQuery: weeklyProgressMock,
+        },
+        weeklyInsights: {
+          useQuery: weeklyInsightsMock,
         },
       },
       whatsapp: {
@@ -205,8 +242,8 @@ const overviewData = {
     adherence: 25,
   },
   weekly: [
-    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, waterConsumedMl: 900, waterGoalMl: 2500, goalCalories: 2200 },
-    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, waterConsumedMl: 1300, waterGoalMl: 2500, goalCalories: 2200 },
+    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, waterConsumedMl: 900, waterGoalMl: 2500, goalCalories: 2200, status: "within", calorieDelta: -100, netDelta: -400 },
+    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, waterConsumedMl: 1300, waterGoalMl: 2500, goalCalories: 2200, status: "below", calorieDelta: -300, netDelta: -520 },
   ],
   meals: [
     {
@@ -235,12 +272,71 @@ const overviewData = {
       notes: "Rodagem leve",
     },
   ],
+  gamification: {
+    enabled: true,
+    availableBadges: [],
+    newlyEarnedBadges: [],
+    earnedBadges: [
+      {
+        id: 1,
+        code: "registered_3_days_week",
+        title: "3 dias registrados",
+        description: "Registrou refeições em 3 dias da semana.",
+        earnedAt: Date.now(),
+        weekStart: "2026-04-14",
+        metadata: { daysWithMeals: 3 },
+      },
+    ],
+  },
 };
 
 beforeEach(() => {
   dashboardOverviewMock.mockReturnValue({ data: overviewData });
   goalGetMock.mockReturnValue({ data: overviewData.goal });
   weeklyMock.mockReturnValue({ data: overviewData.weekly });
+  weeklyProgressMock.mockReturnValue({
+    data: {
+      days: overviewData.weekly,
+      summary: {
+        averageCalories: 2000,
+        totalCalories: 4000,
+        totalGoalCalories: 4400,
+        calorieDelta: -400,
+        daysWithinGoal: 1,
+        daysAboveGoal: 0,
+        daysBelowGoal: 1,
+        daysWithoutRecords: 5,
+        averageProtein: 145,
+        totalExerciseCalories: 520,
+        totalNetCalories: 3480,
+        balanceCalories: 920,
+        message: "A semana mostra boa consistência em torno das metas planejadas.",
+      },
+      weight: {
+        entries: [{ id: 1, date: "2026-04-14", weightKg: 82, notes: "Peso informado no onboarding." }],
+        firstWeightKg: 82,
+        lastWeightKg: 82,
+        deltaKg: 0,
+        hasData: true,
+      },
+    },
+  });
+  weeklyInsightsMock.mockReturnValue({
+    data: {
+      generatedAt: "2026-04-22T15:00:00.000Z",
+      weekStart: "2026-04-20",
+      weekEnd: "2026-04-26",
+      insights: [
+        {
+          title: "Aderência à meta calórica semanal",
+          description: "A semana ficou em 95% da meta calórica planejada.",
+          suggestion: "Mantenha registros consistentes para a média semanal continuar ajudando nas decisões.",
+          severity: "positive",
+          data: { adherencePercent: 95 },
+        },
+      ],
+    },
+  });
   whatsappStatusMock.mockReturnValue({ data: { configured: false, webhookPath: "/api/whatsapp/webhook", currentUserId: 1, connection: null } });
   adminOverviewMock.mockReturnValue({
     data: {
@@ -331,6 +427,12 @@ describe("nutrition pages", () => {
     const html = renderToString(React.createElement(ReportsPage));
 
     expect(html).toContain("Alimentos registrados por refeição");
+    expect(html).toContain("Progresso nutricional da semana");
+    expect(html).toContain("Média semanal");
+    expect(html).toContain("Dias da semana");
+    expect(html).toContain("Evolução de peso");
+    expect(html).toContain("Insights alimentares da semana");
+    expect(html).toContain("Aderência à meta calórica semanal");
     expect(html).toContain("Almoço");
     expect(html).toContain("Frango grelhado");
     expect(html).toContain("Porção:");

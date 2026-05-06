@@ -44,7 +44,7 @@ export default function ChannelsPage() {
       toast.success(`Contato ${result.phoneNumber} vinculado com sucesso ao seu usuário.`);
       await utils.nutrition.whatsapp.status.invalidate();
     },
-    onError: error => toast.error(error.message || "Falha ao salvar o contato do WhatsApp."),
+    onError: error => toast.error(error.message || "Não foi possível salvar o contato do WhatsApp agora."),
   });
 
   const simulateInbound = trpc.nutrition.whatsapp.simulateInbound.useMutation({
@@ -52,7 +52,7 @@ export default function ChannelsPage() {
       toast.success("Mensagem simulada com sucesso. Um rascunho foi criado para o usuário autenticado.");
       setLastSimulation(result);
     },
-    onError: error => toast.error(error.message || "Falha ao simular mensagem do WhatsApp."),
+    onError: error => toast.error(error.message || "Não foi possível simular a mensagem do WhatsApp agora."),
   });
 
   const connection = statusQuery.data?.connection;

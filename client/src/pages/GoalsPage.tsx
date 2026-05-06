@@ -9,6 +9,7 @@ import {
   assessNutritionGoalTargets,
 } from "@shared/nutritionSafety";
 import type { NutritionGoalSafetyIssue } from "@shared/nutritionSafety";
+import { SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
 import {
   formatCalories,
   formatDecimalInputPtBr,
@@ -178,7 +179,7 @@ export default function GoalsPage() {
         toast.success("Meta padrão e exceções atualizadas com sucesso.");
       }
     },
-    onError: error => toast.error(error.message || "Falha ao atualizar metas."),
+    onError: error => toast.error(error.message || SAFE_NUTRITION_MESSAGES.couldNotUpdateGoals),
   });
 
   const [defaultGoal, setDefaultGoal] = useState<GoalTargetForm>(() => goalQuery.data ? createGoalTargetForm({

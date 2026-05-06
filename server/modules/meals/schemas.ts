@@ -23,7 +23,7 @@ export const mealItemSchema = z.object({
 });
 
 export const manualMealSchema = z.object({
-  mealLabel: z.string().min(1).max(80),
+  mealLabel: z.enum(["café da manhã", "almoço", "jantar", "lanche", "outro"]),
   occurredAt: z.string().min(1),
   notes: z.string().max(500).optional(),
   items: z.array(mealItemSchema).min(1),
@@ -52,9 +52,32 @@ export const removeMealSchema = z.object({
   mealId: z.number().int().positive(),
 });
 
+export const dayTotalsSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const copyMealSchema = z.object({
+  mealId: z.number().int().positive(),
+  occurredAt: z.string().min(1),
+  mealLabel: z.enum(["café da manhã", "almoço", "jantar", "lanche", "outro"]).optional(),
+});
+
+export const saveFavoriteMealSchema = z.object({
+  mealId: z.number().int().positive(),
+  name: z.string().trim().min(1).max(80).optional(),
+});
+
+export const reuseFavoriteMealSchema = z.object({
+  favoriteMealId: z.number().int().positive(),
+  occurredAt: z.string().min(1),
+});
+
 export type MediaInput = z.infer<typeof mediaInputSchema>;
 export type MealItemInput = z.infer<typeof mealItemSchema>;
 export type ManualMealInput = z.infer<typeof manualMealSchema>;
 export type ProcessMealDraftInput = z.infer<typeof processMealDraftSchema>;
 export type ConfirmMealInput = z.infer<typeof confirmMealSchema>;
 export type UpdateMealInput = z.infer<typeof updateMealSchema>;
+export type CopyMealInput = z.infer<typeof copyMealSchema>;
+export type ReuseFavoriteMealInput = z.infer<typeof reuseFavoriteMealSchema>;
+export type SaveFavoriteMealInput = z.infer<typeof saveFavoriteMealSchema>;
