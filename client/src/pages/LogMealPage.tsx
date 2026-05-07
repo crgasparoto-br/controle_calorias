@@ -46,6 +46,24 @@ type DraftState = {
   };
 };
 
+type FoodPhotoAnalysisState = {
+  id: string;
+  status: "pending" | "analyzed" | "confirmed" | "rejected";
+  suggestedItems: Array<{
+    foodName: string;
+    estimatedQuantity: number;
+    unit: string;
+    estimatedCalories: number;
+    estimatedMacros: {
+      protein: number;
+      carbs: number;
+      fat: number;
+    };
+    confidenceScore: number;
+  }>;
+  editableItems: MealItemState[];
+};
+
 type StoredMeal = {
   id: number;
   mealLabel: string;
@@ -111,6 +129,12 @@ export default function LogMealPage() {
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoAnalysis, setPhotoAnalysis] = useState<FoodPhotoAnalysisState | null>(null);
+  const [photoMealLabel, setPhotoMealLabel] = useState<MealType>("almoço");
+  const [photoOccurredAt, setPhotoOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [photoNotes, setPhotoNotes] = useState("");
+  const [photoEditableItems, setPhotoEditableItems] = useState<MealItemState[]>([]);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [mealLabel, setMealLabel] = useState("");
   const [notes, setNotes] = useState("");
@@ -156,6 +180,39 @@ export default function LogMealPage() {
       setOccurredAt(new Date().toISOString().slice(0, 16));
     },
     onError: error => toast.error(error.message || "Não foi possível confirmar a refeição agora."),
+  });
+
+  const analyzeFoodPhoto = trpc.nutrition.foodPhotoAnalysis.analyze.useMutation({
+    onSuccess: result => {
+      const analysis = result as FoodPhotoAnalysisState;
+      setPhotoAnalysis(analysis);
+      setPhotoEditableItems(analysis.editableItems);
+      toast.success("Foto analisada. Revise as sugestões antes de salvar.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível analisar a foto."),
+  });
+
+  const confirmFoodPhoto = trpc.nutrition.foodPhotoAnalysis.confirm.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Refeição da foto salva após confirmação.");
+      setPhotoFile(null);
+      setPhotoAnalysis(null);
+      setPhotoEditableItems([]);
+      setPhotoMealLabel("almoço");
+      setPhotoOccurredAt(new Date().toISOString().slice(0, 16));
+      setPhotoNotes("");
+    },
+    onError: error => toast.error(error.message || "Não foi possível confirmar a análise da foto."),
+  });
+
+  const rejectFoodPhoto = trpc.nutrition.foodPhotoAnalysis.reject.useMutation({
+    onSuccess: result => {
+      setPhotoAnalysis(current => current ? { ...current, status: result.status } : current);
+      setPhotoEditableItems([]);
+      toast.success("Análise rejeitada. Nenhuma refeição foi salva.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível rejeitar a análise."),
   });
 
   const createManualMeal = trpc.nutrition.meals.createManual.useMutation({
@@ -243,6 +300,36 @@ export default function LogMealPage() {
     });
   };
 
+  const handleAnalyzeFoodPhoto = async () => {
+    if (!photoFile) {
+      toast.error("Selecione uma foto da refeição para analisar.");
+      return;
+    }
+
+    analyzeFoodPhoto.mutate({
+      image: {
+        base64: await fileToBase64(photoFile),
+        mimeType: photoFile.type,
+        fileName: photoFile.name,
+      },
+    });
+  };
+
+  const handleConfirmFoodPhoto = () => {
+    if (!photoAnalysis || !photoEditableItems.length) {
+      toast.error("Analise uma foto e revise os itens antes de confirmar.");
+      return;
+    }
+
+    confirmFoodPhoto.mutate({
+      analysisId: photoAnalysis.id,
+      mealLabel: photoMealLabel,
+      occurredAt: new Date(photoOccurredAt).toISOString(),
+      notes: photoNotes.trim() || undefined,
+      items: photoEditableItems,
+    });
+  };
+
   const updateItem = <K extends keyof MealItemState>(
     setter: React.Dispatch<React.SetStateAction<MealItemState[]>>,
     index: number,
@@ -316,6 +403,103 @@ export default function LogMealPage() {
               <SummaryPill label="Proteínas" value={formatGrams(dayTotalsQuery.data?.totals.protein ?? localDayTotals.protein)} />
               <SummaryPill label="Carboidratos" value={formatGrams(dayTotalsQuery.data?.totals.carbs ?? localDayTotals.carbs)} />
               <SummaryPill label="Gorduras" value={formatGrams(dayTotalsQuery.data?.totals.fat ?? localDayTotals.fat)} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <ImagePlus className="h-5 w-5 text-primary" />
+              Registrar refeição por foto
+            </CardTitle>
+            <CardDescription>
+              A foto gera uma análise com alimentos prováveis, porções e confiança. A refeição só é salva depois da sua confirmação.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-5 xl:grid-cols-[0.85fr,1.15fr]">
+            <div className="space-y-4">
+              <div className="space-y-2 rounded-2xl border bg-muted/20 p-4">
+                <Label htmlFor="photo-analysis-image">Foto da refeição</Label>
+                <Input id="photo-analysis-image" type="file" accept="image/*" onChange={event => setPhotoFile(event.target.files?.[0] ?? null)} />
+                <p className="text-xs text-muted-foreground">{photoFile ? photoFile.name : "Nenhuma foto selecionada."}</p>
+              </div>
+              <Button type="button" className="rounded-full" onClick={handleAnalyzeFoodPhoto} disabled={analyzeFoodPhoto.isPending}>
+                <BrainCircuit className="mr-2 h-4 w-4" />
+                {analyzeFoodPhoto.isPending ? "Analisando..." : "Analisar foto"}
+              </Button>
+              <p className="text-sm leading-6 text-muted-foreground">
+                A análise pode errar alimentos e porções. Corrija os campos antes de salvar para manter seu histórico confiável.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {photoAnalysis ? (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 p-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Status da análise</p>
+                      <p className="text-xl font-semibold tracking-tight">{photoAnalysis.status}</p>
+                    </div>
+                    <Badge>{formatCountPtBr(photoAnalysis.suggestedItems.length, " sugestões")}</Badge>
+                  </div>
+
+                  {photoAnalysis.status === "analyzed" ? (
+                    <>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Nome da refeição</Label>
+                          <Select value={photoMealLabel} onValueChange={(value: MealType) => setPhotoMealLabel(value)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Data e horário</Label>
+                          <Input type="datetime-local" value={photoOccurredAt} onChange={event => setPhotoOccurredAt(event.target.value)} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Observações</Label>
+                        <Textarea value={photoNotes} onChange={event => setPhotoNotes(event.target.value)} placeholder="Ex.: porção corrigida após revisar a foto" className="min-h-20 rounded-2xl" />
+                      </div>
+
+                      <div className="space-y-3">
+                        {photoEditableItems.map((item, index) => (
+                          <div key={`photo-${index}`} className="space-y-2 rounded-2xl border bg-background p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium">Sugestão {index + 1}</p>
+                              <Badge variant="secondary">{formatPercentPtBr(item.confidence * 100)}% confiança</Badge>
+                            </div>
+                            <MealItemEditor item={item} onChange={(key, value) => updateItem(setPhotoEditableItems, index, key, value)} />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <Button type="button" className="rounded-full" onClick={handleConfirmFoodPhoto} disabled={confirmFoodPhoto.isPending || !photoEditableItems.length}>
+                          <Save className="mr-2 h-4 w-4" />
+                          {confirmFoodPhoto.isPending ? "Salvando..." : "Confirmar e salvar refeição"}
+                        </Button>
+                        <Button type="button" variant="outline" className="rounded-full" onClick={() => rejectFoodPhoto.mutate({ analysisId: photoAnalysis.id })} disabled={rejectFoodPhoto.isPending}>
+                          Rejeitar análise
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
+                      Esta análise não está disponível para confirmação. Nenhuma refeição foi salva automaticamente.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
+                  As sugestões da foto aparecerão aqui com quantidade, unidade, calorias, macros e confiança para correção manual.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

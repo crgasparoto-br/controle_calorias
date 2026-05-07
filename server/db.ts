@@ -404,6 +404,50 @@ export async function saveUserOnboardingProfile(userId: number, input: Onboardin
   return profile;
 }
 
+function parsePreferenceList(value: string | null | undefined) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter(item => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getFoodAssistantProfile(userId: number) {
+  const memoryProfile = onboardingProfileStore.get(userId);
+  const fallback = {
+    preferences: memoryProfile?.dietaryPreferences ?? [],
+    restrictions: memoryProfile?.dietaryRestrictions ?? [],
+    eatingRoutine: memoryProfile?.eatingRoutine ?? null,
+    objective: memoryProfile?.objective ?? null,
+  };
+
+  const db = await getDb();
+  if (!db) {
+    return fallback;
+  }
+
+  try {
+    const [profileRows, preferenceRows, restrictionRows] = await Promise.all([
+      db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
+      db.select().from(userPreferences).where(eq(userPreferences.userId, userId)),
+      db.select().from(userRestrictions).where(eq(userRestrictions.userId, userId)),
+    ]);
+    const preferenceMap = new Map(preferenceRows.map(row => [row.preferenceKey, row.preferenceValue]));
+
+    return {
+      preferences: parsePreferenceList(preferenceMap.get("dietary_preferences")),
+      restrictions: restrictionRows.map(row => row.label).filter(Boolean),
+      eatingRoutine: profileRows[0]?.eatingRoutine ?? preferenceMap.get("eating_routine") ?? null,
+      objective: profileRows[0]?.nutritionObjective ?? null,
+    };
+  } catch (error) {
+    logPersistenceWarning("Food assistant profile read skipped", error);
+    return fallback;
+  }
+}
+
 export function normalizeWhatsAppPhoneNumber(phoneNumber: string) {
   return phoneNumber.replace(/\D/g, "");
 }

@@ -25,10 +25,12 @@ import {
   BarChart3,
   Apple,
   Goal,
+  HeartPulse,
   LayoutDashboard,
   LogOut,
   MessageCircleMore,
   MessageSquareMore,
+  Stethoscope,
   UserRound,
   Shield,
 } from "lucide-react";
@@ -100,6 +102,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: MessageCircleMore, label: "Canais", path: "/channels" },
+      { icon: HeartPulse, label: "Saúde externa", path: "/health-integrations" },
+      { icon: Stethoscope, label: "Nutricionista", path: "/professional" },
     ];
 
     if (user?.role === "admin") {

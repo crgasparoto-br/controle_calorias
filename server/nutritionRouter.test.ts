@@ -578,6 +578,157 @@ describe("nutrition router", () => {
     expect(reused.totals).toEqual(breakfast.totals);
   });
 
+  it("analisa foto, permite corrigir sugestões e só cria refeição após confirmação", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(884));
+
+    const before = await caller.nutrition.meals.list();
+    const analysis = await caller.nutrition.foodPhotoAnalysis.analyze({
+      image: {
+        base64: "data:image/png;base64,aW1hZ2VtLXRlc3Rl",
+        mimeType: "image/png",
+        fileName: "prato.png",
+      },
+    });
+    const afterAnalysis = await caller.nutrition.meals.list();
+
+    expect(analysis.status).toBe("analyzed");
+    expect(analysis.suggestedItems.length).toBeGreaterThan(0);
+    expect(analysis.editableItems[0]).toMatchObject({
+      foodName: expect.any(String),
+      portionText: expect.any(String),
+      confidence: expect.any(Number),
+    });
+    expect(afterAnalysis).toHaveLength(before.length);
+
+    const correctedItems = analysis.editableItems.map((item, index) => index === 0
+      ? { ...item, foodName: "Arroz integral corrigido", calories: 140, confidence: 0.95 }
+      : item);
+
+    const meal = await caller.nutrition.foodPhotoAnalysis.confirm({
+      analysisId: analysis.id,
+      mealLabel: "almoço",
+      occurredAt: "2026-04-22T15:00:00.000Z",
+      notes: "Confirmado após revisar a foto.",
+      items: correctedItems,
+    });
+    const afterConfirm = await caller.nutrition.meals.list();
+
+    expect(meal.items[0].foodName).toBe("Arroz integral corrigido");
+    expect(afterConfirm).toHaveLength(before.length + 1);
+    await expect(caller.nutrition.foodPhotoAnalysis.confirm({
+      analysisId: analysis.id,
+      mealLabel: "almoço",
+      occurredAt: "2026-04-22T15:30:00.000Z",
+      items: correctedItems,
+    })).rejects.toThrow("precisa estar pronta");
+  });
+
+  it("permite rejeitar análise de foto sem criar refeição", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(885));
+    const before = await caller.nutrition.meals.list();
+
+    const analysis = await caller.nutrition.foodPhotoAnalysis.analyze({
+      image: {
+        base64: "data:image/png;base64,aW1hZ2VtLXRlc3Rl",
+        mimeType: "image/png",
+      },
+    });
+    const rejected = await caller.nutrition.foodPhotoAnalysis.reject({ analysisId: analysis.id });
+    const afterReject = await caller.nutrition.meals.list();
+
+    expect(rejected.status).toBe("rejected");
+    expect(afterReject).toHaveLength(before.length);
+  });
+
+  it("conecta, sincroniza e desconecta integração de saúde com origem dos dados", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(886));
+
+    const initial = await caller.nutrition.healthIntegrations.status();
+    expect(initial.platform).toBe("web");
+    expect(initial.providers.find(provider => provider.provider === "apple_health")?.available).toBe(false);
+
+    await expect(caller.nutrition.healthIntegrations.sync({ provider: "mock" })).rejects.toThrow("Conceda consentimento");
+
+    const connection = await caller.nutrition.healthIntegrations.connect({
+      provider: "mock",
+      consentAccepted: true,
+      scopes: ["steps", "activity", "energy_burned", "sleep"],
+    });
+    expect(connection.status).toBe("connected");
+    expect(connection.scopes).toEqual(["steps", "activity", "energy_burned", "sleep"]);
+
+    const synced = await caller.nutrition.healthIntegrations.sync({ provider: "mock" });
+    expect(synced.records.length).toBe(4);
+    expect(synced.records.every(record => record.source === "mock")).toBe(true);
+    expect(synced.records.find(record => record.dataType === "energy_burned")?.energyKind).toBe("burned");
+
+    const status = await caller.nutrition.healthIntegrations.status();
+    expect(status.totals.energyBurnedCalories).toBeGreaterThan(0);
+    expect(status.recentRecords[0].source).toBe("mock");
+
+    const disconnected = await caller.nutrition.healthIntegrations.disconnect({ provider: "mock" });
+    const afterDisconnect = await caller.nutrition.healthIntegrations.status();
+    expect(disconnected.status).toBe("disconnected");
+    expect(afterDisconnect.recentRecords).toHaveLength(0);
+  });
+
+  it("bloqueia dados de paciente sem consentimento e libera após aprovação com comentários", async () => {
+    const professional = appRouter.createCaller(createNutritionContext(910));
+    const patient = appRouter.createCaller(createNutritionContext(911));
+    const outsider = appRouter.createCaller(createNutritionContext(912));
+
+    await patient.nutrition.meals.createManual({
+      mealLabel: "almoço",
+      occurredAt: "2026-04-22T15:00:00.000Z",
+      items: [{
+        foodName: "Prato do paciente",
+        canonicalName: "Prato do paciente",
+        portionText: "1 prato",
+        servings: 1,
+        estimatedGrams: 350,
+        calories: 520,
+        protein: 35,
+        carbs: 55,
+        fat: 18,
+        confidence: 1,
+        source: "heuristic",
+      }],
+    });
+
+    await expect(professional.nutrition.professionals.patientDashboard({ patientId: 911 })).rejects.toThrow("não autorizado");
+
+    await professional.nutrition.professionals.upsertProfile({
+      displayName: "Nutri Teste",
+      registrationNumber: "CRN-123",
+    });
+    const request = await professional.nutrition.professionals.requestAccess({
+      patientId: 911,
+      reason: "Acompanhamento semanal consentido.",
+    });
+    expect(request.status).toBe("pending");
+    await expect(outsider.nutrition.professionals.approveAccess({ accessId: request.id })).rejects.toThrow("não encontrada");
+
+    const approved = await patient.nutrition.professionals.approveAccess({ accessId: request.id });
+    expect(approved.status).toBe("approved");
+
+    const dashboard = await professional.nutrition.professionals.patientDashboard({ patientId: 911 });
+    expect(dashboard.patientId).toBe(911);
+    expect(dashboard.meals[0].items[0].foodName).toBe("Prato do paciente");
+
+    const comment = await professional.nutrition.professionals.addComment({
+      patientId: 911,
+      comment: "Boa consistência de registros nesta semana.",
+    });
+    expect(comment.comment).toContain("Boa consistência");
+
+    const updatedDashboard = await professional.nutrition.professionals.patientDashboard({ patientId: 911 });
+    expect(updatedDashboard.comments).toHaveLength(1);
+
+    const revoked = await patient.nutrition.professionals.revokeAccess({ accessId: request.id });
+    expect(revoked.status).toBe("revoked");
+    await expect(professional.nutrition.professionals.patientDashboard({ patientId: 911 })).rejects.toThrow("não autorizado");
+  });
+
   it("expõe o status do WhatsApp fixo e permite vincular o telefone de origem ao usuário autenticado", async () => {
     const userId = 991001 + Math.floor(Math.random() * 100000);
     const ctx = createNutritionContext(userId, "admin");

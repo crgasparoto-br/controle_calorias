@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   formatCalories,
   formatCountPtBr,
@@ -19,7 +20,29 @@ import {
 import { trpc } from "@/lib/trpc";
 import { buildDailyNutritionStatus, SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
 import { Activity, AlertCircle, ArrowRight, Award, BrainCircuit, Droplets, Dumbbell, Flame, PencilLine, Salad, Target, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { Link } from "wouter";
+
+type AssistantSuggestion = {
+  text: string;
+  suggestedFoods: Array<{
+    foodName: string;
+    portionText: string;
+    estimatedGrams: number;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }>;
+  estimatedCalories: number;
+  estimatedMacros: {
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+  alert?: string;
+  educationalNotice: string;
+};
 
 function macroProgress(consumed: number, goal: number) {
   if (!goal) return 0;
@@ -68,6 +91,8 @@ export default function Home() {
   const utils = trpc.useUtils();
   const overview = trpc.nutrition.dashboard.overview.useQuery();
   const waterGoal = trpc.nutrition.water.goal.useQuery();
+  const [assistantMessage, setAssistantMessage] = React.useState("");
+  const [assistantSuggestion, setAssistantSuggestion] = React.useState<AssistantSuggestion | null>(null);
   const [exerciseForm, setExerciseForm] = React.useState(buildDefaultExerciseForm);
   const [waterForm, setWaterForm] = React.useState(buildDefaultWaterForm);
   const [editingExerciseId, setEditingExerciseId] = React.useState<number | null>(null);
@@ -146,6 +171,26 @@ export default function Home() {
     },
   });
 
+  const assistantSuggest = trpc.nutrition.assistant.suggest.useMutation({
+    onSuccess: result => {
+      setAssistantSuggestion(result as AssistantSuggestion);
+    },
+    onError: error => toast.error(error.message || "Não foi possível gerar uma sugestão agora."),
+  });
+
+  const saveAssistantMeal = trpc.nutrition.meals.createManual.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.meals.list.invalidate(),
+        utils.nutrition.meals.dayTotals.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+      ]);
+      toast.success("Sugestão salva como refeição.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível salvar a sugestão."),
+  });
+
   const handleExerciseSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     createExercise.mutate({
@@ -169,6 +214,43 @@ export default function Home() {
     createWaterLog.mutate({
       amountMl,
       occurredAt: new Date().toISOString(),
+    });
+  };
+
+  const handleAssistantSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!assistantMessage.trim()) return;
+    assistantSuggest.mutate({ message: assistantMessage });
+  };
+
+  const handleAssistantShortcut = (message: string) => {
+    setAssistantMessage(message);
+    assistantSuggest.mutate({ message });
+  };
+
+  const handleSaveSuggestionAsMeal = () => {
+    if (!assistantSuggestion?.suggestedFoods.length) {
+      toast.error("A sugestão não tem alimentos suficientes para salvar.");
+      return;
+    }
+
+    saveAssistantMeal.mutate({
+      mealLabel: "jantar",
+      occurredAt: new Date().toISOString(),
+      notes: "Sugestão educativa do assistente alimentar.",
+      items: assistantSuggestion.suggestedFoods.map(food => ({
+        foodName: food.foodName,
+        canonicalName: food.foodName,
+        portionText: food.portionText,
+        servings: 1,
+        estimatedGrams: food.estimatedGrams,
+        calories: food.calories,
+        protein: food.protein,
+        carbs: food.carbs,
+        fat: food.fat,
+        confidence: 0.7,
+        source: "heuristic" as const,
+      })),
     });
   };
 
@@ -259,6 +341,17 @@ export default function Home() {
               icon={Target}
             />
           </div>
+
+          <FoodAssistantCard
+            message={assistantMessage}
+            suggestion={assistantSuggestion}
+            isGenerating={assistantSuggest.isPending}
+            isSaving={saveAssistantMeal.isPending}
+            onMessageChange={setAssistantMessage}
+            onSubmit={handleAssistantSubmit}
+            onShortcut={handleAssistantShortcut}
+            onSaveSuggestion={handleSaveSuggestionAsMeal}
+          />
 
           <Card className="border-0 shadow-sm">
             <CardHeader>
@@ -883,6 +976,122 @@ function DailyMetric({
         </div>
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <Icon className="h-5 w-5" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FoodAssistantCard({
+  message,
+  suggestion,
+  isGenerating,
+  isSaving,
+  onMessageChange,
+  onSubmit,
+  onShortcut,
+  onSaveSuggestion,
+}: {
+  message: string;
+  suggestion: AssistantSuggestion | null;
+  isGenerating: boolean;
+  isSaving: boolean;
+  onMessageChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onShortcut: (message: string) => void;
+  onSaveSuggestion: () => void;
+}) {
+  const shortcuts = [
+    "Sugira um jantar usando minhas calorias restantes.",
+    "Como posso bater minha proteína hoje?",
+    "Quero um lanche barato para agora.",
+    "Sugira uma substituição alimentar simples.",
+    "Explique meu resumo semanal em linguagem simples.",
+  ];
+
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <BrainCircuit className="h-5 w-5 text-primary" />
+              Assistente alimentar
+            </CardTitle>
+            <CardDescription>Peça ideias simples considerando suas metas, preferências e restrições cadastradas.</CardDescription>
+          </div>
+          <Badge variant="secondary" className="w-fit">Educativo</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-[0.95fr,1.05fr]">
+        <form className="space-y-3" onSubmit={onSubmit}>
+          <Textarea
+            value={message}
+            onChange={event => onMessageChange(event.target.value)}
+            placeholder="Ex.: sugira um jantar leve com as calorias restantes"
+            className="min-h-28 resize-none"
+            maxLength={600}
+          />
+          <div className="flex flex-wrap gap-2">
+            {shortcuts.map(shortcut => (
+              <Button
+                key={shortcut}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-auto rounded-full px-3 py-2 text-left whitespace-normal"
+                onClick={() => onShortcut(shortcut)}
+                disabled={isGenerating}
+              >
+                {shortcut}
+              </Button>
+            ))}
+          </div>
+          <Button type="submit" disabled={isGenerating || message.trim().length < 3}>
+            {isGenerating ? "Gerando sugestão..." : "Pedir sugestão"}
+          </Button>
+          <p className="text-xs leading-5 text-muted-foreground">
+            As sugestões são educativas e não substituem orientação de nutricionista, médico ou outro profissional de saúde.
+          </p>
+        </form>
+
+        <div className="rounded-2xl border bg-muted/20 p-4">
+          {suggestion ? (
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-muted-foreground">{suggestion.text}</p>
+              <div className="grid gap-2 sm:grid-cols-4">
+                <MiniMacro label="Calorias" value={formatCalories(suggestion.estimatedCalories)} />
+                <MiniMacro label="Proteínas" value={formatGrams(suggestion.estimatedMacros.protein)} />
+                <MiniMacro label="Carboidratos" value={formatGrams(suggestion.estimatedMacros.carbs)} />
+                <MiniMacro label="Gorduras" value={formatGrams(suggestion.estimatedMacros.fat)} />
+              </div>
+              {suggestion.suggestedFoods.length ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium tracking-tight">Alimentos sugeridos</p>
+                  <div className="grid gap-2">
+                    {suggestion.suggestedFoods.map(food => (
+                      <div key={`${food.foodName}-${food.portionText}`} className="rounded-xl border bg-background px-3 py-2 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium">{food.foodName}</span>
+                          <span className="text-muted-foreground">{food.portionText}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatCalories(food.calories)} · {formatGrams(food.protein)} proteína
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {suggestion.alert ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{suggestion.alert}</p> : null}
+              <p className="text-xs leading-5 text-muted-foreground">{suggestion.educationalNotice}</p>
+              <Button type="button" onClick={onSaveSuggestion} disabled={isSaving || !suggestion.suggestedFoods.length}>
+                {isSaving ? "Salvando..." : "Salvar como refeição"}
+              </Button>
+            </div>
+          ) : (
+            <EmptyCopy text="A resposta aparecerá aqui com alimentos sugeridos, calorias, macros e uma observação de segurança quando necessário." />
+          )}
         </div>
       </CardContent>
     </Card>

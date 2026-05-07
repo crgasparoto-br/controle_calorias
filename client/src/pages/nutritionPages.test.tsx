@@ -20,6 +20,13 @@ const useUtilsMock = vi.fn(() => ({
     exercises: { list: { invalidate: vi.fn() } },
     water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
     whatsapp: { status: { invalidate: vi.fn() } },
+    professionals: {
+      profile: { invalidate: vi.fn() },
+      myAccesses: { invalidate: vi.fn() },
+      patientRequests: { invalidate: vi.fn() },
+      history: { invalidate: vi.fn() },
+      patientDashboard: { invalidate: vi.fn() },
+    },
     admin: {
       overview: { invalidate: vi.fn() },
       whatsappTokenStatus: { invalidate: vi.fn() },
@@ -40,6 +47,11 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: useUtilsMock,
     nutrition: {
+      assistant: {
+        suggest: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+      },
       onboarding: {
         complete: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
@@ -69,6 +81,17 @@ vi.mock("@/lib/trpc", () => ({
       foods: {
         search: {
           useQuery: () => ({ data: [] }),
+        },
+      },
+      foodPhotoAnalysis: {
+        analyze: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        confirm: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        reject: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
       },
       meals: {
@@ -158,6 +181,19 @@ vi.mock("@/lib/trpc", () => ({
         simulateInbound: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
+      },
+      professionals: {
+        profile: { useQuery: () => ({ data: null }) },
+        upsertProfile: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        requestAccess: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        myAccesses: { useQuery: () => ({ data: [] }) },
+        patientRequests: { useQuery: () => ({ data: [] }) },
+        approveAccess: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        revokeAccess: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        patientDashboard: { useQuery: () => ({ data: null }) },
+        addComment: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        suggestGoalAdjustment: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        history: { useQuery: () => ({ data: [] }) },
       },
       admin: {
         overview: {
