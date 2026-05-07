@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { summarizeLlmMessagesForAudit } from "../privacy";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -283,6 +284,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     model: "gemini-2.5-flash",
     messages: messages.map(normalizeMessage),
   };
+  const auditSummary = summarizeLlmMessagesForAudit(messages);
 
   if (tools && tools.length > 0) {
     payload.tools = tools;
@@ -322,9 +324,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
+    await response.text().catch(() => "");
     throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+      `LLM invoke failed: ${response.status} ${response.statusText}; payloadSummary=${JSON.stringify(auditSummary)}`
     );
   }
 

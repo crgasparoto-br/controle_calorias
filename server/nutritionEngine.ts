@@ -1,6 +1,7 @@
 import { invokeLLM } from "./_core/llm";
 import { getCatalogCache } from "./catalogRuntime";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
+import { calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 
 export type CatalogFood = {
   slug: string;
@@ -69,8 +70,6 @@ type LlmItem = {
   confidence: number;
 };
 
-const round = (value: number) => Math.round(value * 10) / 10;
-
 export { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 
 function normalizeText(value: string) {
@@ -123,11 +122,11 @@ function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftIte
     canonicalName: food.name,
     portionText: llmItem.portionText || food.servingLabel,
     servings,
-    estimatedGrams: round(estimatedGrams),
-    calories: round(food.calories * factor),
-    protein: round(food.protein * factor),
-    carbs: round(food.carbs * factor),
-    fat: round(food.fat * factor),
+    estimatedGrams: roundNutritionValue(estimatedGrams),
+    calories: roundNutritionValue(food.calories * factor),
+    protein: roundNutritionValue(food.protein * factor),
+    carbs: roundNutritionValue(food.carbs * factor),
+    fat: roundNutritionValue(food.fat * factor),
     confidence: Math.min(Math.max(llmItem.confidence || 0.6, 0.1), 0.99),
     source: "catalog",
   };
@@ -174,16 +173,7 @@ function fallbackFromText(sourceText: string): MealDraftItem[] {
 }
 
 function sumTotals(items: MealDraftItem[]) {
-  return items.reduce(
-    (acc, item) => {
-      acc.calories = round(acc.calories + item.calories);
-      acc.protein = round(acc.protein + item.protein);
-      acc.carbs = round(acc.carbs + item.carbs);
-      acc.fat = round(acc.fat + item.fat);
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+  return calculateMealTotals(items);
 }
 
 function safeJsonParse<T>(value: string): T | null {

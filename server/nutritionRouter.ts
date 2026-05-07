@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import { analyticsService } from "./analyticsService";
+import { exportUserPrivacyData, requestUserAccountDeletion } from "./db";
 import { generateFoodAssistantSuggestion } from "./modules/assistant/service";
 import { assistantRequestSchema } from "./modules/assistant/schemas";
 import {
@@ -140,6 +141,11 @@ function daysBetweenDates(from: string | number, to: string | number) {
 }
 
 export const nutritionRouter = router({
+  privacy: router({
+    exportData: protectedProcedure.query(async ({ ctx }) => exportUserPrivacyData(ctx.user.id)),
+    requestAccountDeletion: protectedProcedure.mutation(async ({ ctx }) => requestUserAccountDeletion(ctx.user.id)),
+  }),
+
   assistant: router({
     suggest: protectedProcedure
       .input(assistantRequestSchema)

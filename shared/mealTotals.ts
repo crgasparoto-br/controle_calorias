@@ -12,17 +12,17 @@ export type MealTotals = {
   fat: number;
 };
 
-function round(value: number) {
+export function roundNutritionValue(value: number) {
   return Math.round(value * 10) / 10;
 }
 
 export function calculateMealTotals(items: MealTotalItem[]): MealTotals {
   return items.reduce(
     (acc, item) => ({
-      calories: round(acc.calories + Number(item.calories || 0)),
-      protein: round(acc.protein + Number(item.protein || 0)),
-      carbs: round(acc.carbs + Number(item.carbs || 0)),
-      fat: round(acc.fat + Number(item.fat || 0)),
+      calories: roundNutritionValue(acc.calories + Number(item.calories || 0)),
+      protein: roundNutritionValue(acc.protein + Number(item.protein || 0)),
+      carbs: roundNutritionValue(acc.carbs + Number(item.carbs || 0)),
+      fat: roundNutritionValue(acc.fat + Number(item.fat || 0)),
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
@@ -30,4 +30,8 @@ export function calculateMealTotals(items: MealTotalItem[]): MealTotals {
 
 export function calculateDayTotals<T extends { items: MealTotalItem[] }>(meals: T[]): MealTotals {
   return calculateMealTotals(meals.flatMap(meal => meal.items));
+}
+
+export function addMealTotals(items: MealTotals[]): MealTotals {
+  return calculateMealTotals(items);
 }

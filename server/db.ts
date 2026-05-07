@@ -3,6 +3,8 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   appSecrets,
+  dailySummaries,
+  exercises,
   foodFavorites,
   habitMemories,
   inferenceLogs,
@@ -21,19 +23,23 @@ import {
   userRestrictions,
   User,
   users,
+  waterGoals,
+  waterLogs,
   WeightEntry,
   weightEntries,
   whatsappConnections,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
-import { calculateDayTotals, calculateMealTotals } from "../shared/mealTotals";
+import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
+import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
 import { createDrizzleExercisesRepository } from "./repositories/exercisesRepository";
 import { canUseMemoryPersistenceFallback } from "./repositories/memoryFallback";
 import { createDrizzleNutritionGoalsRepository } from "./repositories/nutritionGoalsRepository";
 import { createDrizzleWaterRepository } from "./repositories/waterRepository";
 import type { OnboardingInput } from "./modules/onboarding/schemas";
+import { safeLogDetail } from "./privacy";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 const WHATSAPP_ACCESS_TOKEN_SECRET_KEY = "whatsapp_access_token";
@@ -1028,8 +1034,12 @@ function dateKey(date: Date) {
   return startOfDay(date).toISOString().slice(0, 10);
 }
 
-function sumItems(items: MealDraftItem[]) {
+function sumMealItems(items: MealDraftItem[]) {
   return calculateMealTotals(items);
+}
+
+function sumMeals(meals: Array<{ items: MealDraftItem[] }>) {
+  return calculateDayTotals(meals);
 }
 
 function sumExercises(items: ExerciseEntry[]) {
@@ -1114,9 +1124,7 @@ async function calculateQualityIndicators(userId: number, meals: SavedMeal[], wa
   };
 }
 
-function round(value: number) {
-  return Math.round(value * 10) / 10;
-}
+const round = roundNutritionValue;
 
 function badgeWeekStart() {
   return dateKey(startOfWeek(new Date()));
@@ -1301,7 +1309,7 @@ function logPersistenceWarning(scope: string, error: unknown) {
   if (isMissingTableError(error)) {
     return;
   }
-  console.warn(`[Database] ${scope}:`, error);
+  console.warn(`[Database] ${scope}:`, safeLogDetail(error));
 }
 
 const nutritionGoalsRepository = createDrizzleNutritionGoalsRepository({
@@ -1886,7 +1894,7 @@ async function persistLogToDb(entry: AdminLogEntry) {
       origin: entry.origin,
       status: entry.status,
       eventType: entry.eventType,
-      detail: entry.detail,
+      detail: safeLogDetail(entry.detail),
     });
   } catch (error) {
     logPersistenceWarning("Log persistence skipped", error);
@@ -2354,7 +2362,7 @@ export async function listUserMeals(userId: number) {
     .sort((a, b) => b.occurredAt - a.occurredAt)
     .map(meal => ({
       ...meal,
-      totals: sumItems(meal.items),
+      totals: sumMealItems(meal.items),
     }));
 }
 
@@ -2403,7 +2411,7 @@ export async function createUserManualMeal(input: {
     eventType: "meal.manual_created",
     detail: `Refeição manual ${savedMeal.mealLabel} criada com ${savedMeal.items.length} itens.`,
   });
-  return { ...savedMeal, totals: sumItems(savedMeal.items) };
+  return { ...savedMeal, totals: sumMealItems(savedMeal.items) };
 }
 
 export async function copyUserMeal(input: {
@@ -2446,7 +2454,7 @@ export async function listFavoriteMeals(userId: number) {
         .sort((a, b) => b.createdAt - a.createdAt)
         .map(meal => ({
           ...meal,
-          totals: sumItems(meal.items),
+          totals: sumMealItems(meal.items),
         }));
     } catch (error) {
       logPersistenceWarning("Meal favorites read skipped", error);
@@ -2458,7 +2466,7 @@ export async function listFavoriteMeals(userId: number) {
     .sort((a, b) => b.createdAt - a.createdAt)
     .map(meal => ({
       ...meal,
-      totals: sumItems(meal.items),
+      totals: sumMealItems(meal.items),
     }));
 }
 
@@ -2515,7 +2523,7 @@ export async function saveFavoriteMeal(input: {
     detail: `Refeição favorita ${favorite.name} salva com ${favorite.items.length} itens.`,
   });
 
-  return { ...favorite, totals: sumItems(favorite.items) };
+  return { ...favorite, totals: sumMealItems(favorite.items) };
 }
 
 export async function reuseFavoriteMeal(input: {
@@ -2573,7 +2581,7 @@ export async function updateUserMeal(input: {
     eventType: "meal.manual_updated",
     detail: `Refeição ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
   });
-  return { ...updatedMeal, totals: sumItems(updatedMeal.items) };
+  return { ...updatedMeal, totals: sumMealItems(updatedMeal.items) };
 }
 
 export async function relabelUserMeals(input: {
@@ -2618,7 +2626,7 @@ export async function relabelUserMeals(input: {
 
   return updatedMeals.map(meal => ({
     ...meal,
-    totals: sumItems(meal.items),
+    totals: sumMealItems(meal.items),
   }));
 }
 
@@ -2895,17 +2903,7 @@ export async function getWeeklySummary(userId: number) {
     const dailyMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === key);
     const dailyExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt))) === key);
     const dailyWaterLogs = waterLogsForUser.filter(log => dateKey(new Date(Number(log.occurredAt))) === key);
-    const totals = dailyMeals.reduce(
-      (acc, meal) => {
-        const mealTotals = sumItems(meal.items);
-        acc.calories += mealTotals.calories;
-        acc.protein += mealTotals.protein;
-        acc.carbs += mealTotals.carbs;
-        acc.fat += mealTotals.fat;
-        return acc;
-      },
-      { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    );
+    const totals = sumMeals(dailyMeals);
     const burnedCalories = sumExercises(dailyExercises);
     const waterConsumedMl = sumWater(dailyWaterLogs);
     const quality = await calculateQualityIndicators(userId, dailyMeals, waterConsumedMl);
@@ -2999,13 +2997,11 @@ export async function getWeeklyProgress(userId: number) {
   const lastWeight = sortedWeights[sortedWeights.length - 1];
 
   const balanceCalories = round(totalGoalCalories - totalNetCalories);
-  const message = totalCalories <= 0
-    ? "Semana sem registros alimentares ainda. Um primeiro lançamento já cria uma referência útil."
-    : daysByStatus.above > 0
-      ? "Alguns dias ficaram acima da meta, mas a leitura semanal mostra o contexto completo."
-      : daysByStatus.within >= 3
-        ? "A semana mostra boa consistência em torno das metas planejadas."
-        : "A semana ainda está em construção. Use os próximos registros para observar tendência, não um dia isolado.";
+  const message = buildWeeklyNutritionStatus({
+    totalCalories,
+    daysAboveGoal: daysByStatus.above,
+    daysWithinGoal: daysByStatus.within,
+  });
 
   return {
     days: days.map(day => ({
@@ -3049,17 +3045,7 @@ export async function getDashboardSnapshot(userId: number) {
   const todaysMeals = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === todayKey);
   const todaysExercises = exercisesForUser.filter(exercise => dateKey(new Date(Number(exercise.occurredAt))) === todayKey);
   const todaysWaterLogs = waterLogsForUser.filter(log => dateKey(new Date(Number(log.occurredAt))) === todayKey);
-  const todayTotals = todaysMeals.reduce(
-    (acc, meal) => {
-      const totals = sumItems(meal.items);
-      acc.calories += totals.calories;
-      acc.protein += totals.protein;
-      acc.carbs += totals.carbs;
-      acc.fat += totals.fat;
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+  const todayTotals = sumMeals(todaysMeals);
   const todayBurnedCalories = sumExercises(todaysExercises);
   const todayWaterMl = sumWater(todaysWaterLogs);
   const todayQuality = await calculateQualityIndicators(userId, todaysMeals, todayWaterMl);
@@ -3070,16 +3056,7 @@ export async function getDashboardSnapshot(userId: number) {
   ]);
   const gamification = await getUserGamification(userId, weekly);
 
-  const weeklyConsumed = weekly.reduce(
-    (acc, day) => {
-      acc.calories += day.calories;
-      acc.protein += day.protein;
-      acc.carbs += day.carbs;
-      acc.fat += day.fat;
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+  const weeklyConsumed = addMealTotals(weekly);
   const weeklyBurnedCalories = weekly.reduce((acc, day) => acc + Number(day.exerciseCalories ?? 0), 0);
   const weeklyWaterMl = weekly.reduce((acc, day) => acc + Number(day.waterConsumedMl ?? 0), 0);
 
@@ -3240,9 +3217,134 @@ export function logInferenceEvent(entry: Omit<AdminLogEntry, "id" | "createdAt">
     id: crypto.randomUUID(),
     createdAt: Date.now(),
     ...entry,
+    detail: safeLogDetail(entry.detail),
   };
   adminLogStore.unshift(created);
   void persistLogToDb(created);
+}
+
+export async function exportUserPrivacyData(userId: number) {
+  const db = await getDb();
+  const [profile, goals, mealsForUser, exercisesForUser, waterGoal, waterLogsForUser, weeklyProgress, whatsappConnection] =
+    await Promise.all([
+      db ? db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1) : Promise.resolve([]),
+      getStoredNutritionGoals(userId),
+      listUserMeals(userId),
+      listUserExercises(userId),
+      getUserWaterGoal(userId),
+      listUserWaterLogs(userId),
+      getWeeklyProgress(userId),
+      getUserWhatsappConnection(userId),
+    ]);
+
+  const dbUser = db ? await db.select().from(users).where(eq(users.id, userId)).limit(1) : [];
+  const dbPreferences = db ? await db.select().from(userPreferences).where(eq(userPreferences.userId, userId)) : [];
+  const dbRestrictions = db ? await db.select().from(userRestrictions).where(eq(userRestrictions.userId, userId)) : [];
+
+  return {
+    exportedAt: new Date().toISOString(),
+    policy: {
+      format: "JSON",
+      scope: "Dados principais da conta, rotina alimentar, metas, peso, hidratação, exercícios, preferências e consentimentos ativos.",
+      sensitiveDataNotice: "Este arquivo pode conter dados pessoais e dados sensíveis de saúde.",
+    },
+    account: dbUser[0]
+      ? {
+          id: dbUser[0].id,
+          name: dbUser[0].name,
+          email: dbUser[0].email,
+          loginMethod: dbUser[0].loginMethod,
+          role: dbUser[0].role,
+          createdAt: dbUser[0].createdAt,
+          updatedAt: dbUser[0].updatedAt,
+          lastSignedIn: dbUser[0].lastSignedIn,
+        }
+      : { id: userId },
+    profile: profile[0] ?? onboardingProfileStore.get(userId) ?? null,
+    nutritionGoals: goals,
+    meals: mealsForUser,
+    favoriteMeals: favoriteMealStore.get(userId) ?? [],
+    exercises: exercisesForUser,
+    water: {
+      goal: waterGoal,
+      logs: waterLogsForUser,
+    },
+    weight: weeklyProgress.weight,
+    preferences: dbPreferences,
+    restrictions: dbRestrictions,
+    whatsapp: whatsappConnection
+      ? {
+          status: whatsappConnection.status,
+          phoneNumber: whatsappConnection.phoneNumber,
+          displayName: whatsappConnection.displayName,
+          createdAt: whatsappConnection.createdAt,
+          updatedAt: whatsappConnection.updatedAt,
+        }
+      : null,
+    professionalSharing: "Compartilhamento operacional depende de solicitação pendente e aprovação explícita do paciente.",
+    healthIntegrations: "Integrações de saúde exigem consentimento no módulo healthIntegrations antes da sincronização.",
+  };
+}
+
+function deleteUserMemoryData(userId: number) {
+  goalStore.delete(userId);
+  onboardingProfileStore.delete(userId);
+  mealStore.delete(userId);
+  exerciseStore.delete(userId);
+  waterGoalStore.delete(userId);
+  waterLogStore.delete(userId);
+  weightEntryStore.delete(userId);
+  habitStore.delete(userId);
+  userFoodStore.delete(userId);
+  favoriteFoodStore.delete(userId);
+  favoriteMealStore.delete(userId);
+  gamificationSettingsStore.delete(userId);
+  userBadgeStore.delete(userId);
+
+  for (const [draftId, draft] of Array.from(inferenceStore.entries())) {
+    if (draft.userId === userId) inferenceStore.delete(draftId);
+  }
+
+  for (let index = whatsappConnectionStore.length - 1; index >= 0; index -= 1) {
+    if (whatsappConnectionStore[index].userId === userId) whatsappConnectionStore.splice(index, 1);
+  }
+}
+
+export async function requestUserAccountDeletion(userId: number) {
+  const db = await getDb();
+  if (db) {
+    const mealIdsForUser = db.select({ id: meals.id }).from(meals).where(eq(meals.userId, userId));
+    await db.delete(mealItems).where(inArray(mealItems.mealId, mealIdsForUser));
+    await db.delete(mealMedia).where(inArray(mealMedia.mealId, mealIdsForUser));
+    await db.delete(mealInferences).where(eq(mealInferences.userId, userId));
+    await db.delete(inferenceLogs).where(eq(inferenceLogs.userId, userId));
+    await db.delete(foodFavorites).where(eq(foodFavorites.userId, userId));
+    await db.delete(mealFavorites).where(eq(mealFavorites.userId, userId));
+    await db.delete(habitMemories).where(eq(habitMemories.userId, userId));
+    await db.delete(dailySummaries).where(eq(dailySummaries.userId, userId));
+    await db.delete(exercises).where(eq(exercises.userId, userId));
+    await db.delete(waterLogs).where(eq(waterLogs.userId, userId));
+    await db.delete(waterGoals).where(eq(waterGoals.userId, userId));
+    await db.delete(weightEntries).where(eq(weightEntries.userId, userId));
+    await db.delete(userPreferences).where(eq(userPreferences.userId, userId));
+    await db.delete(userRestrictions).where(eq(userRestrictions.userId, userId));
+    await db.delete(userBadges).where(eq(userBadges.userId, userId));
+    await db.delete(userGamificationSettings).where(eq(userGamificationSettings.userId, userId));
+    await db.delete(whatsappConnections).where(eq(whatsappConnections.userId, userId));
+    await db.update(foodCatalog).set({ createdByUserId: null }).where(eq(foodCatalog.createdByUserId, userId));
+    await db.update(appSecrets).set({ updatedByUserId: null }).where(eq(appSecrets.updatedByUserId, userId));
+    await db.delete(userProfiles).where(eq(userProfiles.userId, userId));
+    await db.delete(meals).where(eq(meals.userId, userId));
+    await db.delete(users).where(eq(users.id, userId));
+  }
+
+  deleteUserMemoryData(userId);
+
+  return {
+    success: true,
+    deletedAt: new Date().toISOString(),
+    scope: "Conta e dados principais vinculados ao usuário removidos ou desvinculados.",
+  } as const;
 }
 
 export function buildSavedMedia(input: Omit<SavedMedia, "id">) {

@@ -207,6 +207,173 @@ describe("nutrition router", () => {
     expect(goal.defaultGoal.proteinGrams).toBe(result.calculation.calculatedGoal.proteinGrams);
   });
 
+  it("cobre o fluxo principal: onboarding, meta, alimento, refeição, edição, cópia, dashboard e relatórios", async () => {
+    const caller = appRouter.createCaller(createNutritionContext(930));
+
+    const onboarding = await caller.nutrition.onboarding.complete({
+      name: "Ana Rotina",
+      ageYears: 32,
+      heightCm: 165,
+      currentWeightKg: 68,
+      objective: "melhorar_habitos",
+      activityLevel: "light",
+      trackingExperience: "beginner",
+      dietaryPreferences: ["comida brasileira", "lanches simples"],
+      dietaryRestrictions: ["castanhas"],
+      eatingRoutine: "misto",
+      mainDifficulty: "falta_de_tempo",
+    });
+    const generatedGoal = await caller.nutrition.goals.get();
+
+    expect(onboarding.profile.name).toBe("Ana Rotina");
+    expect(generatedGoal.defaultGoal.calories).toBe(onboarding.calculation.calculatedGoal.calories);
+    expect(generatedGoal.defaultGoal.proteinGrams).toBe(onboarding.calculation.calculatedGoal.proteinGrams);
+
+    const adjustedGoal = await caller.nutrition.goals.update({
+      defaultGoal: {
+        calories: 2100,
+        proteinGrams: 120,
+        carbsGrams: 245,
+        fatGrams: 70,
+      },
+      exceptions: [
+        {
+          weekday: 2,
+          durationType: "always",
+          calories: 2200,
+          proteinGrams: 125,
+          carbsGrams: 260,
+          fatGrams: 72,
+        },
+      ],
+    });
+
+    expect(adjustedGoal.today.calories).toBe(2200);
+    expect(adjustedGoal.today.source).toBe("exception");
+
+    const createdFood = await caller.nutrition.foods.create({
+      name: "Iogurte natural caseiro",
+      brandName: "Feito em casa",
+      servingSize: 170,
+      servingUnit: "g",
+      calories: 105,
+      protein: 8,
+      carbs: 12,
+      fat: 3,
+      fiber: 0,
+      isFruit: false,
+      isVegetable: false,
+      isUltraProcessed: false,
+      source: "manual",
+      foodType: "generic",
+    });
+    const searchResults = await caller.nutrition.foods.search({ query: "iogurte natural", limit: 5 });
+
+    expect(searchResults[0]).toMatchObject({
+      id: createdFood.id,
+      name: "Iogurte natural caseiro",
+      calories: 105,
+      isUserCreated: true,
+    });
+
+    const meal = await caller.nutrition.meals.createManual({
+      mealLabel: "almoço",
+      occurredAt: "2026-04-22T15:00:00.000Z",
+      notes: "Almoço simples preparado em casa.",
+      items: [
+        {
+          foodName: "Arroz integral",
+          canonicalName: "Arroz integral cozido",
+          portionText: "4 colheres de sopa",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 124,
+          protein: 2.6,
+          carbs: 25.8,
+          fat: 1,
+          confidence: 1,
+          source: "catalog",
+        },
+        {
+          foodName: "Frango grelhado",
+          canonicalName: "Frango grelhado",
+          portionText: "1 filé médio",
+          servings: 1,
+          estimatedGrams: 120,
+          calories: 198,
+          protein: 37.2,
+          carbs: 0,
+          fat: 4.3,
+          confidence: 1,
+          source: "catalog",
+        },
+      ],
+    });
+
+    expect(meal.totals).toEqual({ calories: 322, protein: 39.8, carbs: 25.8, fat: 5.3 });
+
+    const editedMeal = await caller.nutrition.meals.update({
+      mealId: meal.id,
+      mealLabel: "almoço",
+      occurredAt: "2026-04-22T15:00:00.000Z",
+      notes: "Porção ajustada após revisar o prato.",
+      items: [
+        {
+          ...meal.items[0],
+          portionText: "5 colheres de sopa",
+          estimatedGrams: 125,
+          calories: 155,
+          protein: 3.3,
+          carbs: 32.3,
+          fat: 1.3,
+        },
+        meal.items[1],
+        {
+          foodName: "Iogurte natural caseiro",
+          canonicalName: "Iogurte natural caseiro",
+          portionText: "170 g",
+          servings: 1,
+          estimatedGrams: 170,
+          calories: 105,
+          protein: 8,
+          carbs: 12,
+          fat: 3,
+          confidence: 1,
+          source: "catalog",
+        },
+      ],
+    });
+
+    expect(editedMeal.items).toHaveLength(3);
+    expect(editedMeal.totals).toEqual({ calories: 458, protein: 48.5, carbs: 44.3, fat: 8.6 });
+
+    const copiedMeal = await caller.nutrition.meals.copy({
+      mealId: editedMeal.id,
+      occurredAt: "2026-04-23T15:00:00.000Z",
+      mealLabel: "almoço",
+    });
+
+    expect(copiedMeal.id).not.toBe(editedMeal.id);
+    expect(copiedMeal.totals).toEqual(editedMeal.totals);
+
+    const dayTotals = await caller.nutrition.meals.dayTotals({ date: "2026-04-22" });
+    const dashboard = await caller.nutrition.dashboard.overview();
+    const weeklyView = await caller.nutrition.reports.weeklyProgress();
+    const weeklyReport = await caller.nutrition.reports.weekly();
+
+    expect(dayTotals.totals).toEqual(editedMeal.totals);
+    expect(dashboard.today.goal.calories).toBe(2200);
+    expect(dashboard.today.consumed.calories).toBe(458);
+    expect(dashboard.today.remaining.calories).toBe(1742);
+    expect(dashboard.meals[0].notes).toBe("Porção ajustada após revisar o prato.");
+    expect(weeklyView.days).toHaveLength(7);
+    expect(weeklyView.summary.totalCalories).toBe(916);
+    expect(weeklyView.summary.daysWithoutRecords).toBe(5);
+    expect(weeklyReport).toHaveLength(7);
+    expect(weeklyReport.find(day => day.date === "2026-04-22")?.calories).toBe(458);
+    expect(weeklyReport.find(day => day.date === "2026-04-23")?.calories).toBe(458);
+  });
+
   it("simula entrada por WhatsApp e confirma a refeição revisada", async () => {
     const ctx = createNutritionContext(777, "admin");
     const caller = appRouter.createCaller(ctx);

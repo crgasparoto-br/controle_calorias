@@ -1,23 +1,13 @@
 import { getDashboardSnapshot, getFoodAssistantProfile, logInferenceEvent } from "../../db";
 import { invokeLLM } from "../../_core/llm";
+import { redactSensitiveText, safeLogDetail } from "../../privacy";
+import { calculateMealTotals } from "../../../shared/mealTotals";
 import { assistantSuggestionSchema, type AssistantRequestInput, type AssistantSuggestion } from "./schemas";
 
 const EDUCATIONAL_NOTICE = "Sugestões educativas para apoiar sua rotina alimentar. Elas não substituem orientação de nutricionista, médico ou outro profissional de saúde.";
 
-function round(value: number) {
-  return Math.round(value * 10) / 10;
-}
-
 function sumSuggestedFoods(items: AssistantSuggestion["suggestedFoods"]) {
-  return items.reduce(
-    (acc, item) => ({
-      calories: round(acc.calories + item.calories),
-      protein: round(acc.protein + item.protein),
-      carbs: round(acc.carbs + item.carbs),
-      fat: round(acc.fat + item.fat),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+  return calculateMealTotals(items);
 }
 
 function buildFallbackSuggestion(input: AssistantRequestInput, context: Awaited<ReturnType<typeof buildAssistantContext>>): AssistantSuggestion {
@@ -92,6 +82,7 @@ function parseAssistantContent(content: unknown) {
 
 export async function generateFoodAssistantSuggestion(userId: number, input: AssistantRequestInput) {
   const context = await buildAssistantContext(userId);
+  const sanitizedMessage = redactSensitiveText(input.message);
   console.info("[FoodAssistant] suggestion_requested", {
     messageLength: input.message.length,
     hasRestrictions: context.restrictions.length > 0,
@@ -116,7 +107,7 @@ export async function generateFoodAssistantSuggestion(userId: number, input: Ass
         {
           role: "user",
           content: JSON.stringify({
-            pedido: input.message,
+            pedido: sanitizedMessage,
             contexto: context,
             avisoObrigatorio: EDUCATIONAL_NOTICE,
           }),
@@ -179,7 +170,7 @@ export async function generateFoodAssistantSuggestion(userId: number, input: Ass
       origin: "web",
       status: "warning",
       eventType: "assistant.suggestion_fallback",
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao gerar sugestão alimentar.",
+      detail: safeLogDetail(error instanceof Error ? error.message : "Falha desconhecida ao gerar sugestão alimentar."),
     });
     return buildFallbackSuggestion(input, context);
   }

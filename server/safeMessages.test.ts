@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildDailyNutritionStatus,
+  buildWeeklyNutritionStatus,
   FORBIDDEN_FOOD_MESSAGE_TERMS,
   SAFE_NUTRITION_MESSAGES,
 } from "@shared/safeMessages";
@@ -33,6 +34,21 @@ describe("safe nutrition messages", () => {
     expect(assessment.warnings.map(issue => issue.code)).toContain("calories_low");
     expect(assessment.warnings[0]?.message).toContain(SAFE_NUTRITION_MESSAGES.aggressiveCalorieGoal);
     expectSafeMessage(assessment.warnings[0]?.message ?? "");
+  });
+
+  it("centraliza mensagens de progresso semanal sem linguagem punitiva", () => {
+    const messages = [
+      buildWeeklyNutritionStatus({ totalCalories: 0, daysAboveGoal: 0, daysWithinGoal: 0 }),
+      buildWeeklyNutritionStatus({ totalCalories: 4200, daysAboveGoal: 1, daysWithinGoal: 1 }),
+      buildWeeklyNutritionStatus({ totalCalories: 6200, daysAboveGoal: 0, daysWithinGoal: 3 }),
+      buildWeeklyNutritionStatus({ totalCalories: 1200, daysAboveGoal: 0, daysWithinGoal: 0 }),
+    ];
+
+    expect(messages[0]).toContain("primeiro lançamento");
+    expect(messages[1]).toContain("contexto completo");
+    expect(messages[2]).toContain("boa consistência");
+    expect(messages[3]).toContain("semana ainda está em construção");
+    messages.forEach(expectSafeMessage);
   });
 
   it("não expõe termos proibidos nas páginas da interface", () => {
