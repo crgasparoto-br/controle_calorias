@@ -38,9 +38,9 @@
         color: hsl(var(--background));
       }
       .goals-calendar-body > div {
-        min-height: 245px;
+        min-height: 210px;
         border-right: 1px solid hsl(var(--border));
-        padding: 8px;
+        padding: 10px 8px;
       }
       .goals-calendar-body > div:last-child {
         border-right: 0;
@@ -50,27 +50,6 @@
       }
       .goals-calendar-day.is-exception {
         background: rgba(255, 237, 213, 0.55);
-      }
-      .goals-calendar-day-title {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        margin-bottom: 10px;
-      }
-      .goals-calendar-day-title strong {
-        display: block;
-        font-size: 13px;
-        line-height: 1.2;
-      }
-      .goals-calendar-day-title span {
-        border-radius: 999px;
-        background: hsl(var(--background));
-        color: hsl(var(--muted-foreground));
-        padding: 3px 8px;
-        font-size: 11px;
-        font-weight: 600;
-        white-space: nowrap;
       }
       .goals-calendar-event {
         border: 1px solid hsl(var(--border));
@@ -146,19 +125,13 @@
   }
 
   function buildDayCell(dayCard) {
-    const label = dayCard.querySelector("p")?.textContent?.trim() || "Dia";
     const source = Array.from(dayCard.querySelectorAll("p"))[1]?.textContent?.trim() || "Usando a meta geral.";
     const values = Array.from(dayCard.querySelectorAll("p"))[2]?.textContent?.trim() || "";
-    const shortLabel = dayCard.querySelector("span")?.textContent?.trim() || "";
     const isException = /exceção/i.test(source);
 
     const cell = document.createElement("div");
     cell.className = `goals-calendar-day${isException ? " is-exception" : ""}`;
     cell.innerHTML = `
-      <div class="goals-calendar-day-title">
-        <strong>${label}</strong>
-        <span>${shortLabel}</span>
-      </div>
       <div class="goals-calendar-event">
         <p class="goals-calendar-source">${source}</p>
         <p class="goals-calendar-values">${values.replaceAll(" · ", "<br />")}</p>
