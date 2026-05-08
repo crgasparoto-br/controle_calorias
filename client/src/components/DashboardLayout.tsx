@@ -21,23 +21,33 @@ import {
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
-  Activity,
-  BarChart3,
   Apple,
+  BarChart3,
   Goal,
   HeartPulse,
   LayoutDashboard,
   LogOut,
   MessageCircleMore,
   MessageSquareMore,
+  Shield,
   Stethoscope,
   UserRound,
-  Shield,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useLocation } from "wouter";
+import calorieControlIcon from "../../../imagens/premium_app_icon_for_a_smart_calorie_control_2.png";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
+
+function ProductIcon({ className = "h-11 w-11" }: { className?: string }) {
+  return (
+    <img
+      src={calorieControlIcon}
+      alt="Controle de Calorias"
+      className={`${className} rounded-2xl object-cover shadow-sm ring-1 ring-white/20`}
+    />
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -55,9 +65,7 @@ export default function DashboardLayout({
       <div className="flex min-h-screen items-center justify-center bg-background px-6">
         <div className="w-full max-w-md rounded-3xl border bg-card p-8 text-card-foreground shadow-sm">
           <div className="space-y-3 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Activity className="h-7 w-7" />
-            </div>
+            <ProductIcon className="mx-auto h-16 w-16" />
             <h1 className="text-2xl font-semibold tracking-tight">Entre para acessar sua jornada nutricional</h1>
             <p className="text-sm leading-6 text-muted-foreground">
               Faça login para registrar refeições, acompanhar metas calóricas, revisar inferências da IA e visualizar seus relatórios.
@@ -120,9 +128,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       <Sidebar collapsible="icon" className="border-r border-sidebar-border/70 bg-sidebar">
         <SidebarHeader className="border-b border-sidebar-border/70 px-4 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sidebar-primary/12 text-sidebar-primary">
-              <Activity className="h-5 w-5" />
-            </div>
+            <ProductIcon />
             <div className="min-w-0 group-data-[collapsible=icon]:hidden">
               <p className="truncate text-sm font-medium text-sidebar-foreground/70">Controle de Calorias</p>
               <h1 className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">Nutrição inteligente</h1>
