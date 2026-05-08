@@ -11,6 +11,8 @@ import { trpc } from "@/lib/trpc";
 import { BarChart3, CalendarDays, ChevronDown, Clock3, Droplets, Dumbbell, Flame, Lightbulb, Scale, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+const WEEKDAY_NAMES = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+
 function formatMacro(value: number) {
   return formatNumberPtBr(value, {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
@@ -53,7 +55,7 @@ export default function ReportsPage() {
 
   const caloricTrend = weekly.data ?? [];
   const progress = weeklyProgress.data;
-  const macroTrend = (weekly.data ?? []).map(day => ({
+  const macroTrend = caloricTrend.map(day => ({
     label: day.label,
     protein: Math.round(day.protein),
     carbs: Math.round(day.carbs),
@@ -74,7 +76,7 @@ export default function ReportsPage() {
       .sort(([firstDate], [secondDate]) => secondDate.localeCompare(firstDate))
       .map(([date, items]) => ({ date, items }));
   }, [detailedMeals]);
-  const weeklyQuality = (weekly.data ?? []).reduce(
+  const weeklyQuality = caloricTrend.reduce(
     (acc, day) => ({
       proteinGrams: acc.proteinGrams + (day.quality?.proteinGrams ?? 0),
       fiberGrams: acc.fiberGrams + (day.quality?.fiberGrams ?? 0),
@@ -125,7 +127,7 @@ export default function ReportsPage() {
               <HighlightCard title="Calorias líquidas" value={formatCalories(progress.summary.totalNetCalories)} description={`Exercícios registrados: ${formatCalories(progress.summary.totalExerciseCalories)}.`} />
             </div>
 
-            <Card className="border-0 shadow-sm">
+            <Card className="border-0 shadow-sm" defaultOpen>
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -134,7 +136,7 @@ export default function ReportsPage() {
                       Semana em formato de calendário
                     </CardTitle>
                     <CardDescription>
-                      Calorias, saldo líquido, exercício, água e macros ficam juntos no mesmo dia para facilitar a leitura da rotina.
+                      Visual compacto inspirado em calendário: dias da semana em colunas e totais semanais na lateral.
                     </CardDescription>
                   </div>
                   <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-4 lg:min-w-[520px]">
@@ -146,38 +148,7 @@ export default function ReportsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-7">
-                  {progress.days.map(day => {
-                    const trendDay = caloricTrend.find(item => item.date === day.date);
-                    const delta = day.calories - day.goalCalories;
-                    return (
-                      <div key={day.date} className={`flex min-h-[260px] flex-col rounded-3xl border p-4 shadow-sm ${dayTone(day.status)}`}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{day.label}</p>
-                            <p className="mt-1 text-sm font-semibold tracking-tight">{formatCalendarDay(day.date)}</p>
-                          </div>
-                          <Badge variant="outline" className="bg-background/70">{statusLabel(day.status)}</Badge>
-                        </div>
-
-                        <div className="mt-4 space-y-3">
-                          <CalendarMetric icon={Flame} label="Consumido" value={formatCalories(day.calories)} helper={`Meta ${formatCalories(day.goalCalories)}`} />
-                          <Progress className="h-2" value={progressPercent(day.calories, day.goalCalories)} />
-                          <CalendarMetric icon={TrendingUp} label="Saldo" value={formatCalories(day.netCalories)} helper={`${delta > 0 ? "+" : ""}${formatNumberPtBr(Math.round(delta))} kcal vs. meta`} />
-                          <CalendarMetric icon={Dumbbell} label="Exercícios" value={formatCalories(trendDay?.exerciseCalories ?? 0)} helper="Gasto registrado" />
-                          <CalendarMetric icon={Droplets} label="Água" value={`${Math.round(trendDay?.quality?.waterMl ?? 0).toLocaleString("pt-BR")} ml`} helper="No dia" />
-                        </div>
-
-                        <div className="mt-auto pt-4">
-                          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Macros</p>
-                          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                            P {formatMacro(trendDay?.protein ?? 0)} g · C {formatMacro(trendDay?.carbs ?? 0)} g · G {formatMacro(trendDay?.fat ?? 0)} g
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <WeeklyCalendarBoard progress={progress} caloricTrend={caloricTrend} />
 
                 <div className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
                   <Card className="border bg-muted/10 shadow-none">
@@ -471,6 +442,116 @@ export default function ReportsPage() {
   );
 }
 
+function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; caloricTrend: any[] }) {
+  const totals = progress.days.reduce(
+    (acc: { calories: number; goal: number; net: number; exercise: number; water: number; meals: number; protein: number; carbs: number; fat: number }, day: any) => {
+      const trendDay = caloricTrend.find(item => item.date === day.date);
+      acc.calories += day.calories ?? 0;
+      acc.goal += day.goalCalories ?? 0;
+      acc.net += day.netCalories ?? 0;
+      acc.exercise += trendDay?.exerciseCalories ?? 0;
+      acc.water += trendDay?.quality?.waterMl ?? 0;
+      acc.meals += trendDay?.quality?.mealCount ?? 0;
+      acc.protein += trendDay?.protein ?? 0;
+      acc.carbs += trendDay?.carbs ?? 0;
+      acc.fat += trendDay?.fat ?? 0;
+      return acc;
+    },
+    { calories: 0, goal: 0, net: 0, exercise: 0, water: 0, meals: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-3xl border bg-background shadow-sm">
+      <div className="min-w-[1180px]">
+        <div className="grid grid-cols-[repeat(7,minmax(135px,1fr))_210px] border-b bg-muted/40 text-xs font-semibold text-foreground">
+          {WEEKDAY_NAMES.map(dayName => (
+            <div key={dayName} className="border-r px-3 py-2 text-center">
+              {dayName}
+            </div>
+          ))}
+          <div className="bg-foreground/70 px-4 py-2 text-center text-background">Totais semanais</div>
+        </div>
+
+        <div className="grid grid-cols-[repeat(7,minmax(135px,1fr))_210px]">
+          {progress.days.map((day: any) => {
+            const trendDay = caloricTrend.find(item => item.date === day.date);
+            const delta = day.calories - day.goalCalories;
+            return (
+              <div key={day.date} className={`min-h-[420px] border-r p-2 ${calendarCellTone(day.status)}`}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">{formatCalendarDay(day.date)}</p>
+                    <p className="text-sm font-semibold tracking-tight">{day.label}</p>
+                  </div>
+                  <span className={`h-2.5 w-2.5 rounded-full ${statusDotTone(day.status)}`} />
+                </div>
+
+                <div className="space-y-2">
+                  <CalendarEvent tone="border-l-emerald-500" icon={Flame} title="Calorias" value={formatCalories(day.calories)} detail={`Meta ${formatCalories(day.goalCalories)}`} />
+                  <CalendarEvent tone={delta > 0 ? "border-l-amber-500" : "border-l-sky-500"} icon={TrendingUp} title="Saldo" value={formatCalories(day.netCalories)} detail={`${delta > 0 ? "+" : ""}${formatNumberPtBr(Math.round(delta))} kcal vs. meta`} />
+                  <CalendarEvent tone="border-l-orange-500" icon={Dumbbell} title="Exercícios" value={formatCalories(trendDay?.exerciseCalories ?? 0)} detail="Gasto energético" />
+                  <CalendarEvent tone="border-l-blue-500" icon={Droplets} title="Água" value={`${Math.round(trendDay?.quality?.waterMl ?? 0).toLocaleString("pt-BR")} ml`} detail="Hidratação" />
+                  <div className="rounded-xl border bg-background/85 p-2 text-xs">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="font-medium">Aderência</span>
+                      <span className="text-muted-foreground">{formatNumberPtBr(Math.round(progressPercent(day.calories, day.goalCalories)))}%</span>
+                    </div>
+                    <Progress className="h-1.5" value={progressPercent(day.calories, day.goalCalories)} />
+                  </div>
+                  <div className="rounded-xl border bg-background/85 p-2 text-xs leading-5 text-muted-foreground">
+                    <p className="font-medium text-foreground">Macros</p>
+                    <p>P {formatMacro(trendDay?.protein ?? 0)} g</p>
+                    <p>C {formatMacro(trendDay?.carbs ?? 0)} g</p>
+                    <p>G {formatMacro(trendDay?.fat ?? 0)} g</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="min-h-[420px] bg-foreground/70 p-4 text-background">
+            <p className="mb-4 text-sm font-semibold tracking-tight">Resumo acumulado</p>
+            <WeeklyTotalItem label="Calorias" value={formatCalories(totals.calories)} />
+            <WeeklyTotalItem label="Meta" value={formatCalories(totals.goal)} />
+            <WeeklyTotalItem label="Saldo líquido" value={formatCalories(totals.net)} />
+            <WeeklyTotalItem label="Exercícios" value={formatCalories(totals.exercise)} />
+            <WeeklyTotalItem label="Água" value={`${Math.round(totals.water).toLocaleString("pt-BR")} ml`} />
+            <WeeklyTotalItem label="Refeições" value={String(totals.meals)} />
+            <div className="mt-4 border-t border-background/25 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-background/70">Macros</p>
+              <p className="mt-2 text-sm">Proteínas: {formatMacro(totals.protein)} g</p>
+              <p className="text-sm">Carboidratos: {formatMacro(totals.carbs)} g</p>
+              <p className="text-sm">Gorduras: {formatMacro(totals.fat)} g</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarEvent({ tone, icon: Icon, title, value, detail }: { tone: string; icon: React.ElementType; title: string; value: string; detail: string }) {
+  return (
+    <div className={`rounded-xl border border-l-4 bg-background/90 p-2 text-xs shadow-sm ${tone}`}>
+      <div className="flex items-center gap-1.5 font-medium text-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        {title}
+      </div>
+      <p className="mt-1 font-semibold tracking-tight">{value}</p>
+      <p className="text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function WeeklyTotalItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mb-3">
+      <p className="text-xs font-semibold text-background/75">{label}:</p>
+      <p className="text-sm font-semibold leading-5">{value}</p>
+    </div>
+  );
+}
+
 function CollapsibleSection({
   title,
   description,
@@ -542,19 +623,6 @@ function CalendarLegend({ tone, label }: { tone: string; label: string }) {
   );
 }
 
-function CalendarMetric({ icon: Icon, label, value, helper }: { icon: React.ElementType; label: string; value: string; helper: string }) {
-  return (
-    <div className="rounded-2xl bg-background/80 p-3">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <p className="mt-1 text-sm font-semibold tracking-tight">{value}</p>
-      <p className="text-xs text-muted-foreground">{helper}</p>
-    </div>
-  );
-}
-
 function statusLabel(status: "within" | "above" | "below" | "no_data") {
   const labels = {
     within: "dentro",
@@ -565,12 +633,22 @@ function statusLabel(status: "within" | "above" | "below" | "no_data") {
   return labels[status];
 }
 
-function dayTone(status: "within" | "above" | "below" | "no_data") {
+function statusDotTone(status: "within" | "above" | "below" | "no_data") {
   const tones = {
-    within: "bg-emerald-50/80 border-emerald-200/80",
-    above: "bg-amber-50/80 border-amber-200/80",
-    below: "bg-sky-50/80 border-sky-200/80",
-    no_data: "bg-muted/30 border-border",
+    within: "bg-emerald-500",
+    above: "bg-amber-500",
+    below: "bg-sky-500",
+    no_data: "bg-muted-foreground",
+  };
+  return tones[status];
+}
+
+function calendarCellTone(status: "within" | "above" | "below" | "no_data") {
+  const tones = {
+    within: "bg-emerald-50/50",
+    above: "bg-amber-50/50",
+    below: "bg-sky-50/50",
+    no_data: "bg-muted/20",
   };
   return tones[status];
 }
