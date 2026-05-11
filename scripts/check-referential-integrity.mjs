@@ -127,7 +127,30 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const connection = await mysql.createConnection(databaseUrl);
+function buildConnectionConfig(databaseUrl) {
+  const useSsl =
+    process.env.TIDB_ENABLE_SSL === "true" ||
+    databaseUrl.includes("tidbcloud.com");
+
+  if (!useSsl) {
+    return databaseUrl;
+  }
+
+  const url = new URL(databaseUrl);
+
+  return {
+    host: url.hostname,
+    port: Number(url.port || 4000),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.replace(/^\//, ""),
+    ssl: {
+      minVersion: "TLSv1.2",
+    },
+  };
+}
+
+const connection = await mysql.createConnection(buildConnectionConfig(databaseUrl));
 let hasIssues = false;
 
 try {
