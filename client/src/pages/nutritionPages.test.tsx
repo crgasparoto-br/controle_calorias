@@ -458,26 +458,21 @@ describe("nutrition pages", () => {
     expect(html).toContain("Refeições registradas");
   });
 
-  it("renderiza a página de relatórios com detalhamento por refeição e itens nutricionais", async () => {
+  it("renderiza a página de relatórios com resumo semanal, seções recolhíveis e insights nutricionais", async () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("Alimentos registrados por refeição");
     expect(html).toContain("Progresso nutricional da semana");
     expect(html).toContain("Média semanal");
     expect(html).toContain("Dias da semana");
     expect(html).toContain("Evolução de peso");
     expect(html).toContain("Insights alimentares da semana");
     expect(html).toContain("Aderência à meta calórica semanal");
-    expect(html).toContain("Almoço");
-    expect(html).toContain("Frango grelhado");
-    expect(html).toContain("Porção:");
-    expect(html).toContain("150 g");
-    expect(html).toContain("Proteínas");
-    expect(html).toContain("Carboidratos");
-    expect(html).toContain("Gorduras");
-    expect(html).toContain("Calorias");
-    expect(html).toContain("Registro às");
+    expect(html).toContain("Refeições detalhadas");
+    expect(html).toContain("Lista completa recolhida por padrão");
+    expect(html).toContain("Gráficos e leitura analítica");
+    expect(html).toContain("Consumo semanal");
+    expect(html).toContain("Calorias líquidas");
   });
 
   it("renderiza a página de canais com status do WhatsApp fixo e vínculo do contato", async () => {
