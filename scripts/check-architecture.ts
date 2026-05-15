@@ -27,6 +27,46 @@ function walk(dir: string): string[] {
   });
 }
 
+function pointsToProjectServer(source: string) {
+  return (
+    source === "server" ||
+    source.startsWith("server/") ||
+    source.startsWith("@/server/") ||
+    source.includes("../server") ||
+    source.includes("../../server") ||
+    source.includes("../../../server")
+  );
+}
+
+function hasRuntimeServerImport(content: string) {
+  const lines = content.split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("import ")) continue;
+    if (trimmed.startsWith("import type ")) continue;
+
+    const fromMatch = trimmed.match(/\sfrom\s+["']([^"']+)["']/);
+    if (fromMatch && pointsToProjectServer(fromMatch[1])) {
+      return true;
+    }
+
+    const sideEffectMatch = trimmed.match(/^import\s+["']([^"']+)["']/);
+    if (sideEffectMatch && pointsToProjectServer(sideEffectMatch[1])) {
+      return true;
+    }
+  }
+
+  const dynamicImports = content.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g);
+  for (const match of dynamicImports) {
+    if (pointsToProjectServer(match[1])) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 const requiredModuleFiles = [
   "server/modules/meals/service.ts",
   "server/modules/meals/schemas.ts",
@@ -58,8 +98,8 @@ for (const file of walk("shared")) {
 for (const file of walk("client")) {
   if (!/\.(ts|tsx)$/.test(file)) continue;
   const content = read(file);
-  if (/from\s+["'][^"']*server\//.test(content) || /from\s+["']\.\.\/\.\.\/server/.test(content)) {
-    fail(`client não deve importar server diretamente: ${file}`);
+  if (hasRuntimeServerImport(content)) {
+    fail(`client não deve importar server em runtime: ${file}`);
   }
 }
 
