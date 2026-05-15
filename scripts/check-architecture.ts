@@ -27,6 +27,28 @@ function walk(dir: string): string[] {
   });
 }
 
+function hasRuntimeServerImport(content: string) {
+  const staticImports = content.matchAll(/import\s+(type\s+)?[\s\S]*?\sfrom\s+["']([^"']+)["']/g);
+
+  for (const match of staticImports) {
+    const isTypeOnly = Boolean(match[1]);
+    const source = match[2];
+    if (!isTypeOnly && /(^|\/)server(\/|$)|\.\.\/\.\.\/\.\.\/server/.test(source)) {
+      return true;
+    }
+  }
+
+  const sideEffectImports = content.matchAll(/import\s+["']([^"']+)["']/g);
+  for (const match of sideEffectImports) {
+    const source = match[1];
+    if (/(^|\/)server(\/|$)|\.\.\/\.\.\/\.\.\/server/.test(source)) {
+      return true;
+    }
+  }
+
+  return /import\([^)]*["'][^"']*server\//.test(content);
+}
+
 const requiredModuleFiles = [
   "server/modules/meals/service.ts",
   "server/modules/meals/schemas.ts",
@@ -58,8 +80,8 @@ for (const file of walk("shared")) {
 for (const file of walk("client")) {
   if (!/\.(ts|tsx)$/.test(file)) continue;
   const content = read(file);
-  if (/from\s+["'][^"']*server\//.test(content) || /from\s+["']\.\.\/\.\.\/server/.test(content)) {
-    fail(`client não deve importar server diretamente: ${file}`);
+  if (hasRuntimeServerImport(content)) {
+    fail(`client não deve importar server em runtime: ${file}`);
   }
 }
 
