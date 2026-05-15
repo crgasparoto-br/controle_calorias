@@ -12,7 +12,8 @@
     "test": "vitest run",
     "architecture:check": "tsx scripts/check-architecture.ts",
     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",
-    "docs:check": "tsx scripts/generate-db-schema-doc.ts --check && tsx scripts/check-docs-freshness.ts",
+    "docs:generate:trpc": "tsx scripts/generate-trpc-routes-doc.ts",
+    "docs:check": "tsx scripts/generate-db-schema-doc.ts --check && tsx scripts/generate-trpc-routes-doc.ts --check && tsx scripts/check-docs-freshness.ts",
     "agent:check": "pnpm check && pnpm test && pnpm architecture:check && pnpm docs:check",
     "db:check-integrity": "node scripts/check-referential-integrity.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
