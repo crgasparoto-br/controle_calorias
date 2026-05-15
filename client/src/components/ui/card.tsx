@@ -37,8 +37,11 @@ function Card({ className, children, collapsible, defaultOpen, ...props }: CardP
 
   const renderedChildren = shouldCollapse
     ? childArray.map(child => {
-        if (isCardSlot(child, CardContent)) {
-          return isCollapsed ? null : child;
+        if (isCardSlot(child, CardContent) && React.isValidElement<React.ComponentProps<"div">>(child)) {
+          return React.cloneElement(child, {
+            hidden: isCollapsed,
+            "aria-hidden": isCollapsed || undefined,
+          });
         }
 
         if (isCardSlot(child, CardHeader) && React.isValidElement<{ className?: string }>(child)) {
