@@ -10,6 +10,9 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
+    "architecture:check": "tsx scripts/check-architecture.ts",
+    "docs:check": "tsx scripts/check-docs-freshness.ts",
+    "agent:check": "pnpm check && pnpm test && pnpm architecture:check && pnpm docs:check",
     "db:check-integrity": "node scripts/check-referential-integrity.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
