@@ -54,7 +54,7 @@ export default function AdminPage() {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0 shadow-sm" defaultOpen>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-primary" />
