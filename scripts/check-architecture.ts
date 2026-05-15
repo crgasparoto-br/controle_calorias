@@ -27,26 +27,37 @@ function walk(dir: string): string[] {
   });
 }
 
+function pointsToServer(source: string) {
+  return /(^|\/)server(\/|$)|\.\.\/\.\.\/\.\.\/server/.test(source);
+}
+
 function hasRuntimeServerImport(content: string) {
-  const staticImports = content.matchAll(/import\s+(type\s+)?[\s\S]*?\sfrom\s+["']([^"']+)["']/g);
+  const lines = content.split(/\r?\n/);
 
-  for (const match of staticImports) {
-    const isTypeOnly = Boolean(match[1]);
-    const source = match[2];
-    if (!isTypeOnly && /(^|\/)server(\/|$)|\.\.\/\.\.\/\.\.\/server/.test(source)) {
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("import ")) continue;
+    if (trimmed.startsWith("import type ")) continue;
+
+    const fromMatch = trimmed.match(/\sfrom\s+["']([^"']+)["']/);
+    if (fromMatch && pointsToServer(fromMatch[1])) {
+      return true;
+    }
+
+    const sideEffectMatch = trimmed.match(/^import\s+["']([^"']+)["']/);
+    if (sideEffectMatch && pointsToServer(sideEffectMatch[1])) {
       return true;
     }
   }
 
-  const sideEffectImports = content.matchAll(/import\s+["']([^"']+)["']/g);
-  for (const match of sideEffectImports) {
-    const source = match[1];
-    if (/(^|\/)server(\/|$)|\.\.\/\.\.\/\.\.\/server/.test(source)) {
+  const dynamicImports = content.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g);
+  for (const match of dynamicImports) {
+    if (pointsToServer(match[1])) {
       return true;
     }
   }
 
-  return /import\([^)]*["'][^"']*server\//.test(content);
+  return false;
 }
 
 const requiredModuleFiles = [
