@@ -1,47 +1,95 @@
-# Documentação gerada/manualizada: schema do banco
+# Documentação gerada: schema do banco
 
-Este arquivo resume `drizzle/schema.ts` para navegação rápida por humanos e agentes. Atualize quando alterar o schema.
+> Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.
 
-## Tabelas e finalidade
+Fonte: `drizzle/schema.ts`.
 
-| Tabela | Finalidade | Sensibilidade |
-|---|---|---|
-| `users` | Usuários, identidade OAuth e papel | Identidade |
-| `userProfiles` | Perfil nutricional, peso, objetivo, rotina e timezone | Saúde |
-| `nutritionGoals` | Metas padrão e exceções | Saúde |
-| `foodBrands` | Marcas de alimentos | Baixa |
-| `foodCatalog` | Catálogo alimentar e macros | Média quando criado por usuário |
-| `foodFavorites` | Favoritos alimentares do usuário ligados ao catálogo | Hábitos |
-| `mealFavorites` | Refeições favoritas/reutilizáveis do usuário | Hábitos alimentares |
-| `portions` | Porções relacionadas ao catálogo | Baixa |
-| `recipes` | Receitas do usuário | Hábitos |
-| `recipeItems` | Ingredientes de receitas | Hábitos |
-| `meals` | Refeições e textos/transcrições associados | Saúde sensível |
-| `mealItems` | Alimentos, porções e macros por refeição | Saúde sensível |
-| `mealMedia` | Referências de imagem/áudio | Sensível |
-| `mealInferences` | Rascunhos, IA, reasoning, sourceText e transcript | Muito sensível |
-| `habitMemories` | Memória de hábitos alimentares | Saúde sensível |
-| `dailySummaries` | Totais diários consolidados | Saúde |
-| `exercises` | Atividades físicas | Saúde |
-| `weightEntries` | Pesos medidos | Saúde sensível |
-| `waterGoals` | Meta de hidratação | Saúde |
-| `waterLogs` | Consumo de água | Saúde |
-| `userPreferences` | Preferências por chave | Depende da chave |
-| `userRestrictions` | Alergias, restrições e condições | Saúde sensível |
-| `userGamificationSettings` | Preferências e estado de gamificação do usuário | Preferências/comportamento |
-| `userBadges` | Medalhas e conquistas obtidas pelo usuário | Comportamento |
-| `whatsappConnections` | Telefone do usuário e status de vínculo | Identidade sensível |
-| `appSecrets` | Segredos criptografados | Segredo operacional |
-| `inferenceLogs` | Eventos de inferência sanitizados | Operacional |
+## Tabelas
+
+| Export | Tabela física | Colunas | Classificação |
+|---|---|---:|---|
+| `users` | `users` | 9 | Requer atenção |
+| `userProfiles` | `userProfiles` | 18 | Requer atenção |
+| `nutritionGoals` | `nutritionGoals` | 13 | Requer atenção |
+| `foodBrands` | `foodBrands` | 7 | Baixa |
+| `foodCatalog` | `foodCatalog` | 24 | Baixa |
+| `foodFavorites` | `foodFavorites` | 4 | Requer atenção |
+| `userGamificationSettings` | `userGamificationSettings` | 5 | Requer atenção |
+| `userBadges` | `userBadges` | 6 | Requer atenção |
+| `portions` | `portions` | 9 | Baixa |
+| `recipes` | `recipes` | 13 | Requer atenção |
+| `recipeItems` | `recipeItems` | 13 | Requer atenção |
+| `meals` | `meals` | 12 | Requer atenção |
+| `mealItems` | `mealItems` | 19 | Requer atenção |
+| `mealMedia` | `mealMedia` | 8 | Requer atenção |
+| `mealFavorites` | `mealFavorites` | 7 | Requer atenção |
+| `mealInferences` | `mealInferences` | 14 | Requer atenção |
+| `habitMemories` | `habitMemories` | 10 | Requer atenção |
+| `dailySummaries` | `dailySummaries` | 9 | Requer atenção |
+| `exercises` | `exercises` | 9 | Requer atenção |
+| `weightEntries` | `weightEntries` | 7 | Requer atenção |
+| `waterGoals` | `waterGoals` | 5 | Requer atenção |
+| `waterLogs` | `waterLogs` | 6 | Requer atenção |
+| `userPreferences` | `userPreferences` | 6 | Requer atenção |
+| `userRestrictions` | `userRestrictions` | 8 | Requer atenção |
+| `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
+| `appSecrets` | `appSecrets` | 6 | Baixa |
+| `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
+
+## Tabelas sensíveis conhecidas
+
+- `users` via export `users`.
+- `userProfiles` via export `userProfiles`.
+- `nutritionGoals` via export `nutritionGoals`.
+- `foodFavorites` via export `foodFavorites`.
+- `userGamificationSettings` via export `userGamificationSettings`.
+- `userBadges` via export `userBadges`.
+- `recipes` via export `recipes`.
+- `recipeItems` via export `recipeItems`.
+- `meals` via export `meals`.
+- `mealItems` via export `mealItems`.
+- `mealMedia` via export `mealMedia`.
+- `mealFavorites` via export `mealFavorites`.
+- `mealInferences` via export `mealInferences`.
+- `habitMemories` via export `habitMemories`.
+- `dailySummaries` via export `dailySummaries`.
+- `exercises` via export `exercises`.
+- `weightEntries` via export `weightEntries`.
+- `waterGoals` via export `waterGoals`.
+- `waterLogs` via export `waterLogs`.
+- `userPreferences` via export `userPreferences`.
+- `userRestrictions` via export `userRestrictions`.
+- `whatsappConnections` via export `whatsappConnections`.
+- `inferenceLogs` via export `inferenceLogs`.
+
+## Campos sensíveis conhecidos
+
+| Tabela física | Campos detectados |
+|---|---|
+| `users` | `name`, `email` |
+| `userProfiles` | `displayName`, `ageYears`, `birthDate`, `heightCm`, `currentWeightKg`, `nutritionObjective`, `activityLevel`, `eatingRoutine`, `mainDifficulty`, `timezone` |
+| `foodBrands` | `name`, `normalizedName` |
+| `foodCatalog` | `name`, `brandName`, `servingLabel` |
+| `userBadges` | `metadataJson` |
+| `portions` | `label` |
+| `recipes` | `name` |
+| `recipeItems` | `notes` |
+| `meals` | `mealLabel`, `notes`, `sourceText`, `transcript`, `occurredAt` |
+| `mealItems` | `foodName`, `canonicalName`, `portionText` |
+| `mealMedia` | `mediaType`, `storageUrl`, `mimeType`, `originalFileName` |
+| `mealFavorites` | `name`, `mealLabel`, `notes`, `itemsJson` |
+| `mealInferences` | `sourceText`, `transcript`, `mediaJson`, `reasoning`, `itemsJson`, `totalsJson` |
+| `habitMemories` | `foodName`, `typicalMealLabel`, `notes` |
+| `exercises` | `activityType`, `notes`, `occurredAt` |
+| `weightEntries` | `weightKg`, `measuredAt`, `notes` |
+| `waterLogs` | `occurredAt` |
+| `userPreferences` | `preferenceKey`, `preferenceValue` |
+| `userRestrictions` | `restrictionType`, `label`, `severity`, `notes` |
+| `whatsappConnections` | `displayName` |
+| `inferenceLogs` | `detail` |
 
 ## Relações críticas
 
 - A maioria dos dados de domínio referencia `users.id`.
-- `meals` possui `mealItems` e `mealMedia` por `mealId`.
-- `mealInferences` referencia `users` e opcionalmente `meals`.
-- `mealFavorites`, `userGamificationSettings` e `userBadges` referenciam `users.id` e alimentam personalização/engajamento.
-- `whatsappConnections.phoneNumber` identifica o usuário final no canal WhatsApp.
-
-## Campos que exigem cuidado extra
-
-`sourceText`, `transcript`, `reasoning`, `mediaJson`, `storageUrl`, `phoneNumber`, `valueEncrypted`, `detail`, peso, restrições, objetivos, histórico alimentar, favoritos e sinais de comportamento.
+- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.
+- `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.
