@@ -27,8 +27,15 @@ function walk(dir: string): string[] {
   });
 }
 
-function pointsToServer(source: string) {
-  return /(^|\/)server(\/|$)|\.\.\/\.\.\/\.\.\/server/.test(source);
+function pointsToProjectServer(source: string) {
+  return (
+    source === "server" ||
+    source.startsWith("server/") ||
+    source.startsWith("@/server/") ||
+    source.includes("../server") ||
+    source.includes("../../server") ||
+    source.includes("../../../server")
+  );
 }
 
 function hasRuntimeServerImport(content: string) {
@@ -40,19 +47,19 @@ function hasRuntimeServerImport(content: string) {
     if (trimmed.startsWith("import type ")) continue;
 
     const fromMatch = trimmed.match(/\sfrom\s+["']([^"']+)["']/);
-    if (fromMatch && pointsToServer(fromMatch[1])) {
+    if (fromMatch && pointsToProjectServer(fromMatch[1])) {
       return true;
     }
 
     const sideEffectMatch = trimmed.match(/^import\s+["']([^"']+)["']/);
-    if (sideEffectMatch && pointsToServer(sideEffectMatch[1])) {
+    if (sideEffectMatch && pointsToProjectServer(sideEffectMatch[1])) {
       return true;
     }
   }
 
   const dynamicImports = content.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g);
   for (const match of dynamicImports) {
-    if (pointsToServer(match[1])) {
+    if (pointsToProjectServer(match[1])) {
       return true;
     }
   }
