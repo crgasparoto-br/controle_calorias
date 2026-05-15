@@ -10,9 +10,8 @@ Fonte: `drizzle/schema.ts`.
 |---|---|---:|---|
 | `users` | `users` | 9 | Requer atenção |
 | `userProfiles` | `userProfiles` | 18 | Requer atenção |
-| `nutritionGoals` | `nutritionGoals` | 13 | Requer atenção |
 | `foodBrands` | `foodBrands` | 7 | Baixa |
-| `foodCatalog` | `foodCatalog` | 24 | Baixa |
+| `foodCatalog` | `foodCatalog` | 24 | Requer atenção |
 | `foodFavorites` | `foodFavorites` | 4 | Requer atenção |
 | `userGamificationSettings` | `userGamificationSettings` | 5 | Requer atenção |
 | `userBadges` | `userBadges` | 6 | Requer atenção |
@@ -25,7 +24,7 @@ Fonte: `drizzle/schema.ts`.
 | `mealFavorites` | `mealFavorites` | 7 | Requer atenção |
 | `mealInferences` | `mealInferences` | 14 | Requer atenção |
 | `habitMemories` | `habitMemories` | 10 | Requer atenção |
-| `dailySummaries` | `dailySummaries` | 9 | Requer atenção |
+| `dailySummaries` | `dailySummaries` | 9 | Baixa |
 | `exercises` | `exercises` | 9 | Requer atenção |
 | `weightEntries` | `weightEntries` | 7 | Requer atenção |
 | `waterGoals` | `waterGoals` | 5 | Requer atenção |
@@ -40,7 +39,7 @@ Fonte: `drizzle/schema.ts`.
 
 - `users` via export `users`.
 - `userProfiles` via export `userProfiles`.
-- `nutritionGoals` via export `nutritionGoals`.
+- `foodCatalog` via export `foodCatalog`.
 - `foodFavorites` via export `foodFavorites`.
 - `userGamificationSettings` via export `userGamificationSettings`.
 - `userBadges` via export `userBadges`.
@@ -52,7 +51,6 @@ Fonte: `drizzle/schema.ts`.
 - `mealFavorites` via export `mealFavorites`.
 - `mealInferences` via export `mealInferences`.
 - `habitMemories` via export `habitMemories`.
-- `dailySummaries` via export `dailySummaries`.
 - `exercises` via export `exercises`.
 - `weightEntries` via export `weightEntries`.
 - `waterGoals` via export `waterGoals`.
@@ -76,7 +74,7 @@ Fonte: `drizzle/schema.ts`.
 | `recipeItems` | `notes` |
 | `meals` | `mealLabel`, `notes`, `sourceText`, `transcript`, `occurredAt` |
 | `mealItems` | `foodName`, `canonicalName`, `portionText` |
-| `mealMedia` | `mediaType`, `storageUrl`, `mimeType`, `originalFileName` |
+| `mealMedia` | `mediaType`, `storageKey`, `storageUrl`, `originalFileName` |
 | `mealFavorites` | `name`, `mealLabel`, `notes`, `itemsJson` |
 | `mealInferences` | `sourceText`, `transcript`, `mediaJson`, `reasoning`, `itemsJson`, `totalsJson` |
 | `habitMemories` | `foodName`, `typicalMealLabel`, `notes` |
@@ -93,3 +91,4 @@ Fonte: `drizzle/schema.ts`.
 - A maioria dos dados de domínio referencia `users.id`.
 - `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.
 - `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.
+
