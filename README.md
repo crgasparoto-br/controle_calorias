@@ -67,7 +67,7 @@ A branch principal consolidou-se em uma arquitetura monolítica moderna, orienta
 | Backend | Express 4 + tRPC 11 | Procedimentos tipados e lógica de negócio |
 | Banco | MySQL/TiDB + Drizzle ORM | Persistência de metas, refeições, itens, hábitos e inferências |
 | Armazenamento | S3 helper do projeto | Mídias de imagem e áudio |
-| IA | LLM + transcrição + geração de imagem via helpers do projeto | Inferência nutricional e suporte multimodal |
+| IA | Helpers legados de LLM, transcrição e geração de imagem, com provider OpenAI isolado preparado no backend | Inferência nutricional e suporte multimodal |
 | Canal externo | WhatsApp Business Cloud API | Entrada e resposta conversacional |
 | Testes | Vitest | Cobertura de backend e frontend |
 
@@ -96,6 +96,10 @@ O backend atual expõe os casos de uso centrais do produto por meio do router nu
 | `reports` | Resumo semanal |
 | `admin` | Visão operacional e administrativa |
 | `whatsapp` | Status do webhook e simulação inbound |
+
+## Migração da IA para OpenAI
+
+A Fase 2 da migração adiciona o SDK oficial da OpenAI e prepara uma interface interna de provider apenas no backend. Nesta etapa, a aplicação ainda não troca a transcrição, a inferência nutricional nem a geração visual para o novo provider. O objetivo aqui é deixar a fundação pronta para as próximas fases sem expor segredos no frontend e sem obrigar credenciais reais durante testes com mocks.
 
 ## Branches revisadas do repositório
 
@@ -132,9 +136,12 @@ O projeto depende de variáveis injetadas pelo ambiente para autenticação Manu
 | Banco e sessão | `DATABASE_URL`, `JWT_SECRET` |
 | OAuth e identidade | `VITE_APP_ID`, `OAUTH_SERVER_URL`, `VITE_OAUTH_PORTAL_URL` |
 | Forge / APIs internas | `BUILT_IN_FORGE_API_KEY`, `BUILT_IN_FORGE_API_URL` |
+| OpenAI backend-only | `OPENAI_API_KEY` |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN` |
 
 Para o WhatsApp, `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` e `WHATSAPP_VERIFY_TOKEN` são obrigatórios para operação completa. `WHATSAPP_BUSINESS_ACCOUNT_ID` é mantido para integrações administrativas quando aplicável. A ausência de variáveis obrigatórias impede o envio e gera erro explícito no backend.
+
+`OPENAI_API_KEY` deve existir apenas no backend e passa a ser reservado para o provider isolado da migração. Nenhuma configuração sensível da OpenAI deve ser exposta via `VITE_*` ou em código executado no navegador.
 
 ## Qualidade e testes
 
