@@ -67,7 +67,7 @@ A branch principal consolidou-se em uma arquitetura monolítica moderna, orienta
 | Backend | Express 4 + tRPC 11 | Procedimentos tipados e lógica de negócio |
 | Banco | MySQL/TiDB + Drizzle ORM | Persistência de metas, refeições, itens, hábitos e inferências |
 | Armazenamento | S3 helper do projeto | Mídias de imagem e áudio |
-| IA | Helpers legados de LLM, transcrição e geração de imagem, com provider OpenAI isolado preparado no backend | Inferência nutricional e suporte multimodal |
+| IA | Provider OpenAI isolado no backend para transcrição de áudio, com inferência nutricional e geração visual ainda em migração incremental | Inferência nutricional e suporte multimodal |
 | Canal externo | WhatsApp Business Cloud API | Entrada e resposta conversacional |
 | Testes | Vitest | Cobertura de backend e frontend |
 
@@ -99,9 +99,19 @@ O backend atual expõe os casos de uso centrais do produto por meio do router nu
 
 ## Migração da IA para OpenAI
 
-A Fase 2 da migração adiciona o SDK oficial da OpenAI e prepara uma interface interna de provider apenas no backend. Nesta etapa, a aplicação ainda não troca a transcrição, a inferência nutricional nem a geração visual para o novo provider. O objetivo aqui é deixar a fundação pronta para as próximas fases sem expor segredos no frontend e sem obrigar credenciais reais durante testes com mocks.
+A migração segue o plano incremental em `docs/exec-plans/active/migrate-ai-to-openai.md`.
 
-A criação do cliente real ficou lazy: sem `OPENAI_API_KEY`, a aplicação não falha no import nem em testes com provider mockado. O erro claro aparece apenas quando alguém tenta usar o provider real da OpenAI.
+A **Fase 2** adicionou o SDK oficial da OpenAI, criou o cliente backend isolado e a interface interna de provider. O cliente real continua lazy: sem `OPENAI_API_KEY`, a aplicação não falha no import nem em testes com provider mockado. O erro claro aparece apenas quando alguém tenta usar o provider real da OpenAI.
+
+A **Fase 3** migra `server/_core/voiceTranscription.ts` para esse provider backend. Agora a transcrição:
+
+- baixa o áudio a partir da URL recebida;
+- valida MIME type e limite de 16 MB antes do envio;
+- usa `OPENAI_TRANSCRIPTION_MODEL` para escolher o modelo do provider;
+- mantém o formato de retorno compatível com o fluxo atual baseado em Whisper;
+- sanitiza falhas do provider para não expor payloads, transcrição bruta ou segredos.
+
+A inferência nutricional texto/imagem e a geração visual auxiliar continuam nas próximas fases da migração.
 
 ## Branches revisadas do repositório
 
@@ -138,16 +148,16 @@ O projeto depende de variáveis injetadas pelo ambiente para autenticação Manu
 | Banco e sessão | `DATABASE_URL`, `JWT_SECRET` |
 | OAuth e identidade | `VITE_APP_ID`, `OAUTH_SERVER_URL`, `VITE_OAUTH_PORTAL_URL` |
 | Forge / APIs internas | `BUILT_IN_FORGE_API_KEY`, `BUILT_IN_FORGE_API_URL` |
-| OpenAI backend-only | `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` |
+| OpenAI backend-only | `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TRANSCRIPTION_MODEL` |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN` |
 
 Para o WhatsApp, `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` e `WHATSAPP_VERIFY_TOKEN` são obrigatórios para operação completa. `WHATSAPP_BUSINESS_ACCOUNT_ID` é mantido para integrações administrativas quando aplicável. A ausência de variáveis obrigatórias impede o envio e gera erro explícito no backend.
 
-`OPENAI_API_KEY` deve existir apenas no backend e passa a ser reservado para o provider isolado da migração. Nenhuma configuração sensível da OpenAI deve ser exposta via `VITE_*` ou em código executado no navegador. `AI_PROVIDER` deve permanecer em `forge` até a fase funcional da migração ser concluída.
+`OPENAI_API_KEY` deve existir apenas no backend e passa a ser reservado para o provider isolado da migração. Nenhuma configuração sensível da OpenAI deve ser exposta via `VITE_*` ou em código executado no navegador. `AI_PROVIDER` continua relevante para os fluxos legados ainda não migrados, enquanto a transcrição de áudio já usa `OPENAI_TRANSCRIPTION_MODEL` no provider backend.
 
 ## Qualidade e testes
 
-A base foi evoluída com cobertura automatizada para os fluxos críticos já implementados. Atualmente, os testes cobrem regras do motor nutricional, logout/autenticação, webhook do WhatsApp, router nutricional e renderização das páginas centrais do frontend. Isso inclui os ajustes recentes na resposta do WhatsApp e na visualização dos relatórios.
+A base foi evoluída com cobertura automatizada para os fluxos críticos já implementados. Atualmente, os testes cobrem regras do motor nutricional, logout/autenticação, webhook do WhatsApp, router nutricional e renderização das páginas centrais do frontend. Isso inclui os ajustes recentes na resposta do WhatsApp, na visualização dos relatórios e na migração da transcrição de áudio com mocks de provider.
 
 ## Limitações e cuidados atuais
 
