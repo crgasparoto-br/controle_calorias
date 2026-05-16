@@ -1,4 +1,8 @@
 import type OpenAI from "openai";
+import type {
+  Response as OpenAiResponse,
+  ResponseCreateParamsNonStreaming,
+} from "openai/resources/responses/responses";
 import { createOpenAiClient } from "./openaiClient";
 
 export type AiProviderResponseFormat =
@@ -13,7 +17,7 @@ export type AiProviderResponseFormat =
 export type AiProviderTextRequest = {
   model: string;
   instructions?: string;
-  input: string | Array<Record<string, unknown>>;
+  input: ResponseCreateParamsNonStreaming["input"];
   format?: AiProviderResponseFormat;
 };
 
@@ -29,20 +33,9 @@ export interface AiProvider {
   ): Promise<AiProviderTextResponse>;
 }
 
-type OpenAiResponsesCreatePayload = {
-  model: string;
-  input: AiProviderTextRequest["input"];
-  instructions?: string;
-  text?: NonNullable<ReturnType<typeof buildTextConfig>>;
-  stream: false;
-};
-
-type OpenAiResponsesCreateResult = {
-  id: string;
-  output_text?: string | null;
-};
-
-function buildTextConfig(format: AiProviderResponseFormat | undefined) {
+function buildTextConfig(
+  format: AiProviderResponseFormat | undefined,
+): ResponseCreateParamsNonStreaming["text"] | undefined {
   if (!format || format.type === "text") {
     return undefined;
   }
@@ -63,7 +56,7 @@ export class OpenAiProvider implements AiProvider {
   async createTextResponse(
     request: AiProviderTextRequest,
   ): Promise<AiProviderTextResponse> {
-    const payload: OpenAiResponsesCreatePayload = {
+    const payload: ResponseCreateParamsNonStreaming = {
       model: request.model,
       input: request.input,
       stream: false,
@@ -78,11 +71,9 @@ export class OpenAiProvider implements AiProvider {
       payload.text = text;
     }
 
-    const createResponse = this.client.responses.create as unknown as (
-      payload: OpenAiResponsesCreatePayload,
-    ) => Promise<OpenAiResponsesCreateResult & Record<string, unknown>>;
-
-    const response = await createResponse(payload);
+    const response = (await this.client.responses.create(
+      payload,
+    )) as OpenAiResponse;
 
     return {
       id: response.id,
