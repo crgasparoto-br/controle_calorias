@@ -11,4 +11,5 @@ export const ENV = {
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
   openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "",
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+  openaiTranscriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL ?? "whisper-1",
 };
