@@ -10,7 +10,7 @@ Introduzir o SDK oficial da OpenAI apenas no backend, por trás de uma interface
 - `server/_core/openaiClient.ts` centraliza a criação do cliente real.
 - `server/_core/aiProvider.ts` define a interface interna e a factory do provider.
 - O provider pode ser mockado em testes sem exigir `OPENAI_API_KEY`.
-- A ausência de `OPENAI_API_KEY` só gera erro quando o cliente real é criado.
+- A ausência de `OPENAI_API_KEY` só gera erro quando o cliente real é usado pela primeira vez.
 - O backend segue compatível com o legado até as próximas fases da migração.
 
 ## Contrato interno
@@ -36,3 +36,18 @@ Regras:
 - manter `AI_PROVIDER=forge` até as próximas fases concluírem a migração funcional;
 - usar `OPENAI_BASE_URL` apenas quando houver necessidade operacional explícita;
 - tratar qualquer erro do provider com mensagens claras e sem vazamento de segredo.
+
+## Cobertura esperada nesta fase
+
+- criação do cliente OpenAI isolada em módulo próprio;
+- provider interno com contrato mockável;
+- testes cobrindo mock do provider, erro claro sem chave e mapeamento básico do request para a SDK oficial;
+- nenhuma dependência nova do SDK oficial em serviços de domínio.
+
+## Fora de escopo
+
+- migrar transcrição;
+- migrar inferência nutricional;
+- migrar geração visual auxiliar;
+- alterar autenticação;
+- expor segredo ou configuração sensível ao frontend.
