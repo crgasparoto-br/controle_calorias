@@ -29,10 +29,18 @@ export interface AiProvider {
   ): Promise<AiProviderTextResponse>;
 }
 
-type OpenAiResponsesCreateParams = Extract<
-  Parameters<OpenAI["responses"]["create"]>[0],
-  { stream?: false | null }
->;
+type OpenAiResponsesCreatePayload = {
+  model: string;
+  input: AiProviderTextRequest["input"];
+  instructions?: string;
+  text?: NonNullable<ReturnType<typeof buildTextConfig>>;
+  stream: false;
+};
+
+type OpenAiResponsesCreateResult = {
+  id: string;
+  output_text?: string | null;
+};
 
 function buildTextConfig(format: AiProviderResponseFormat | undefined) {
   if (!format || format.type === "text") {
@@ -55,9 +63,9 @@ export class OpenAiProvider implements AiProvider {
   async createTextResponse(
     request: AiProviderTextRequest,
   ): Promise<AiProviderTextResponse> {
-    const payload: OpenAiResponsesCreateParams = {
+    const payload: OpenAiResponsesCreatePayload = {
       model: request.model,
-      input: request.input as OpenAiResponsesCreateParams["input"],
+      input: request.input,
       stream: false,
     };
 
@@ -67,10 +75,14 @@ export class OpenAiProvider implements AiProvider {
 
     const text = buildTextConfig(request.format);
     if (text) {
-      payload.text = text as OpenAiResponsesCreateParams["text"];
+      payload.text = text;
     }
 
-    const response = await this.client.responses.create(payload);
+    const createResponse = this.client.responses.create as (
+      payload: OpenAiResponsesCreatePayload,
+    ) => Promise<OpenAiResponsesCreateResult & Record<string, unknown>>;
+
+    const response = await createResponse(payload);
 
     return {
       id: response.id,
