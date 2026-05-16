@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   refresh-lockfile:
+    # Skip the bot-generated push that only carries the refreshed lockfile.
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
