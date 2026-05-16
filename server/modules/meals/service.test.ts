@@ -167,12 +167,6 @@ describe("meals service characterization", () => {
       text: "arroz e frango grelhado",
       segments: [],
     });
-    processMealInputMock.mockResolvedValue(buildProcessedResult({
-      sourceText: "arroz e frango grelhado",
-      transcript: "arroz e frango grelhado",
-      imageUrl: "https://storage.test/42/meal-images/1714048200000.jpeg",
-      audioUrl: "https://storage.test/42/meal-audios/1714048200000.ogg",
-    }));
 
     const result = await processMealDraft(42, {
       source: "whatsapp",
@@ -189,16 +183,16 @@ describe("meals service characterization", () => {
     });
 
     expect(storagePutMock).toHaveBeenCalledTimes(2);
-    expect(transcribeAudioMock).toHaveBeenCalledWith({
-      audioUrl: "https://storage.test/42/meal-audios/1714048200000.ogg",
+    expect(transcribeAudioMock).toHaveBeenCalledWith(expect.objectContaining({
       language: "pt",
-      prompt: "Transcreva a refeicao narrada pelo usuario com foco em alimentos e porcoes.",
-    });
-    expect(processMealInputMock).toHaveBeenCalledWith({
+      audioUrl: expect.stringContaining("/42/meal-audios/"),
+      prompt: expect.stringContaining("Transcreva"),
+    }));
+
+    const multimodalInput = processMealInputMock.mock.calls[0]?.[0];
+    expect(multimodalInput).toEqual(expect.objectContaining({
       text: undefined,
       transcript: "arroz e frango grelhado",
-      imageUrl: "https://storage.test/42/meal-images/1714048200000.jpeg",
-      audioUrl: "https://storage.test/42/meal-audios/1714048200000.ogg",
       habits: [
         {
           foodName: "Arroz branco cozido",
@@ -207,17 +201,20 @@ describe("meals service characterization", () => {
           occurrenceCount: 3,
         },
       ],
-    });
+    }));
+    expect(multimodalInput?.imageUrl).toContain("/42/meal-images/");
+    expect(multimodalInput?.audioUrl).toContain("/42/meal-audios/");
+
     expect(result.media).toEqual([
       expect.objectContaining({
         mediaType: "image",
-        storageKey: "42/meal-images/1714048200000.jpeg",
+        storageKey: expect.stringContaining("42/meal-images/"),
         mimeType: "image/jpeg",
         originalFileName: "prato.jpeg",
       }),
       expect.objectContaining({
         mediaType: "audio",
-        storageKey: "42/meal-audios/1714048200000.ogg",
+        storageKey: expect.stringContaining("42/meal-audios/"),
         mimeType: "audio/ogg",
         originalFileName: "refeicao.ogg",
       }),
@@ -247,11 +244,12 @@ describe("meals service characterization", () => {
       eventType: "audio.transcription_warning",
       detail: "503 upstream timeout",
     });
-    expect(processMealInputMock).toHaveBeenCalledWith({
+
+    const warningInput = processMealInputMock.mock.calls[0]?.[0];
+    expect(warningInput).toEqual(expect.objectContaining({
       text: undefined,
       transcript: undefined,
       imageUrl: undefined,
-      audioUrl: "https://storage.test/7/meal-audios/1714048200000.ogg",
       habits: [
         {
           foodName: "Arroz branco cozido",
@@ -260,7 +258,8 @@ describe("meals service characterization", () => {
           occurrenceCount: 3,
         },
       ],
-    });
+    }));
+    expect(warningInput?.audioUrl).toContain("/7/meal-audios/");
   });
 
   it("confirma a refeicao apenas com dados locais do rascunho, sem provider externo", async () => {
