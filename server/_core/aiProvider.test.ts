@@ -38,13 +38,20 @@ describe("openai provider foundation", () => {
     });
   });
 
-  it("fails with a clear error only when the real client is created without OPENAI_API_KEY", () => {
-    expect(() =>
+  it("only throws a clear error when the lazy real provider is actually used without OPENAI_API_KEY", async () => {
+    const provider = new OpenAiProvider(() =>
       createOpenAiClient({
         apiKey: "",
         createClient: vi.fn() as never,
       }),
-    ).toThrowError(OpenAiConfigurationError);
+    );
+
+    await expect(
+      provider.createTextResponse({
+        model: "gpt-4.1-mini",
+        input: "hello",
+      }),
+    ).rejects.toThrowError(OpenAiConfigurationError);
   });
 
   it("maps internal requests to the OpenAI responses client", async () => {
