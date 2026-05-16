@@ -18,7 +18,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
 | `foods` | 5 | 2 | 3 | protected | Catálogo, favoritos e busca de alimentos |
-| `meals` | 12 | 4 | 8 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
+| `meals` | 11 | 3 | 8 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
 | `reports` | 3 | 3 | 0 | protected | Relatórios semanais e insights |
@@ -176,3 +176,4 @@ Fonte: `server/nutritionRouter.ts`.
 - Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.
 - Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.
 - Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde.
+
