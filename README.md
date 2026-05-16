@@ -101,6 +101,8 @@ O backend atual expõe os casos de uso centrais do produto por meio do router nu
 
 A Fase 2 da migração adiciona o SDK oficial da OpenAI e prepara uma interface interna de provider apenas no backend. Nesta etapa, a aplicação ainda não troca a transcrição, a inferência nutricional nem a geração visual para o novo provider. O objetivo aqui é deixar a fundação pronta para as próximas fases sem expor segredos no frontend e sem obrigar credenciais reais durante testes com mocks.
 
+A criação do cliente real ficou lazy: sem `OPENAI_API_KEY`, a aplicação não falha no import nem em testes com provider mockado. O erro claro aparece apenas quando alguém tenta usar o provider real da OpenAI.
+
 ## Branches revisadas do repositório
 
 Foram revisadas as branches remotas existentes no GitHub para verificar se havia alguma definição importante não incorporada à solução atual.
@@ -136,12 +138,12 @@ O projeto depende de variáveis injetadas pelo ambiente para autenticação Manu
 | Banco e sessão | `DATABASE_URL`, `JWT_SECRET` |
 | OAuth e identidade | `VITE_APP_ID`, `OAUTH_SERVER_URL`, `VITE_OAUTH_PORTAL_URL` |
 | Forge / APIs internas | `BUILT_IN_FORGE_API_KEY`, `BUILT_IN_FORGE_API_URL` |
-| OpenAI backend-only | `OPENAI_API_KEY` |
+| OpenAI backend-only | `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN` |
 
 Para o WhatsApp, `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` e `WHATSAPP_VERIFY_TOKEN` são obrigatórios para operação completa. `WHATSAPP_BUSINESS_ACCOUNT_ID` é mantido para integrações administrativas quando aplicável. A ausência de variáveis obrigatórias impede o envio e gera erro explícito no backend.
 
-`OPENAI_API_KEY` deve existir apenas no backend e passa a ser reservado para o provider isolado da migração. Nenhuma configuração sensível da OpenAI deve ser exposta via `VITE_*` ou em código executado no navegador.
+`OPENAI_API_KEY` deve existir apenas no backend e passa a ser reservado para o provider isolado da migração. Nenhuma configuração sensível da OpenAI deve ser exposta via `VITE_*` ou em código executado no navegador. `AI_PROVIDER` deve permanecer em `forge` até a fase funcional da migração ser concluída.
 
 ## Qualidade e testes
 
