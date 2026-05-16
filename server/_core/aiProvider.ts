@@ -78,7 +78,7 @@ export class OpenAiProvider implements AiProvider {
       payload.text = text;
     }
 
-    const createResponse = this.client.responses.create as (
+    const createResponse = this.client.responses.create as unknown as (
       payload: OpenAiResponsesCreatePayload,
     ) => Promise<OpenAiResponsesCreateResult & Record<string, unknown>>;
 
