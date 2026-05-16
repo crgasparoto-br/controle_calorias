@@ -106,6 +106,7 @@ describe("openai provider foundation", () => {
           strict: true,
         },
       },
+      stream: false,
     });
     expect(result).toEqual({
       id: "resp_123",
