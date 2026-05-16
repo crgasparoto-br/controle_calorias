@@ -6,6 +6,7 @@ const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
+const getWhatsAppAccessTokenMock = vi.fn();
 
 vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input) => input),
@@ -13,6 +14,7 @@ vi.mock("./db", () => ({
   createPendingMealInference: createPendingMealInferenceMock,
   getHabitSnapshots: getHabitSnapshotsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
+  getWhatsAppAccessToken: getWhatsAppAccessTokenMock,
   listUserMeals: vi.fn(async () => []),
   logInferenceEvent: logInferenceEventMock,
   relabelUserMeals: vi.fn(async () => []),
@@ -108,6 +110,7 @@ describe("whatsappWebhook smoke", () => {
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
     getHabitSnapshotsMock.mockResolvedValue([]);
+    getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-smoke-text" });
     confirmPendingMealMock.mockResolvedValue({ id: 456, mealLabel: "Almoço" });
     processMealInputMock.mockResolvedValue({
