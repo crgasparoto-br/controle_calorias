@@ -16,6 +16,7 @@ export type OpenAiClientFactory = (
 
 export type CreateOpenAiClientOptions = {
   apiKey?: string;
+  baseURL?: string;
   createClient?: OpenAiClientFactory;
 };
 
@@ -27,6 +28,11 @@ function resolveApiKey(apiKey?: string) {
   }
 
   return resolvedApiKey;
+}
+
+function resolveBaseUrl(baseURL?: string) {
+  const resolvedBaseUrl = (baseURL ?? ENV.openaiBaseUrl).trim();
+  return resolvedBaseUrl || undefined;
 }
 
 export function isOpenAiConfigured(apiKey = ENV.openaiApiKey) {
@@ -43,5 +49,8 @@ export function createOpenAiClient(
 
   return createClient({
     apiKey: resolveApiKey(options.apiKey),
+    ...(resolveBaseUrl(options.baseURL)
+      ? { baseURL: resolveBaseUrl(options.baseURL) }
+      : {}),
   });
 }
