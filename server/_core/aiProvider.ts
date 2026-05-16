@@ -50,8 +50,28 @@ function buildTextConfig(
   };
 }
 
+type OpenAiClientFactory = () => OpenAI;
+
+function isOpenAiClientFactory(
+  client: OpenAI | OpenAiClientFactory,
+): client is OpenAiClientFactory {
+  return typeof client === "function";
+}
+
 export class OpenAiProvider implements AiProvider {
-  constructor(private readonly client: OpenAI) {}
+  private resolvedClient: OpenAI | null = null;
+
+  constructor(private readonly client: OpenAI | OpenAiClientFactory) {}
+
+  private getClient() {
+    if (!this.resolvedClient) {
+      this.resolvedClient = isOpenAiClientFactory(this.client)
+        ? this.client()
+        : this.client;
+    }
+
+    return this.resolvedClient;
+  }
 
   async createTextResponse(
     request: AiProviderTextRequest,
@@ -71,7 +91,7 @@ export class OpenAiProvider implements AiProvider {
       payload.text = text;
     }
 
-    const response = (await this.client.responses.create(
+    const response = (await this.getClient().responses.create(
       payload,
     )) as OpenAiResponse;
 
@@ -86,7 +106,7 @@ export class OpenAiProvider implements AiProvider {
 export type AiProviderFactory = () => AiProvider;
 
 const defaultAiProviderFactory: AiProviderFactory = () =>
-  new OpenAiProvider(createOpenAiClient());
+  new OpenAiProvider(() => createOpenAiClient());
 
 let aiProviderFactory: AiProviderFactory = defaultAiProviderFactory;
 
