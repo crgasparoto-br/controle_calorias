@@ -1,4 +1,4 @@
-name: Refresh pnpm lockfile
+name: Refresh branch artifacts
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  refresh-lockfile:
-    # Skip the bot-generated push that only carries the refreshed lockfile.
+  refresh-artifacts:
+    # Skip the bot-generated push that only carries refreshed artifacts.
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
@@ -31,18 +31,21 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Refresh lockfile
+      - name: Refresh install artifacts
         run: pnpm install --lockfile-only --no-frozen-lockfile
 
-      - name: Commit updated lockfile
+      - name: Refresh generated docs
+        run: pnpm docs:generate:trpc
+
+      - name: Commit refreshed artifacts
         run: |
-          if git diff --quiet -- pnpm-lock.yaml; then
-            echo "pnpm-lock.yaml already up to date"
+          if git diff --quiet -- pnpm-lock.yaml docs/generated/trpc-routes.md; then
+            echo "branch artifacts already up to date"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pnpm-lock.yaml
-          git commit -m "chore: refresh pnpm lockfile for OpenAI provider"
+          git add pnpm-lock.yaml docs/generated/trpc-routes.md
+          git commit -m "chore: refresh OpenAI migration artifacts"
           git push
