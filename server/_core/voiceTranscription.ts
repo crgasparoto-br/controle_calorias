@@ -156,6 +156,10 @@ function sanitizeProviderError(error: unknown) {
   return "OpenAI transcription provider request failed.";
 }
 
+function toFileBytes(buffer: Buffer) {
+  return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+}
+
 /**
  * Transcribe audio to text using the internal backend provider.
  */
@@ -186,7 +190,7 @@ export async function transcribeAudio(
 
   try {
     const audioFile = new File(
-      [downloaded.buffer],
+      [toFileBytes(downloaded.buffer)],
       `audio.${getFileExtension(downloaded.mimeType)}`,
       { type: downloaded.mimeType },
     );
@@ -239,7 +243,7 @@ function getFileExtension(mimeType: string): string {
   return mimeToExt[mimeType] || "audio";
 }
 
-function getLanguageName(langCode: string): string {
+function getLanguageName(langCode: string) {
   const langMap: Record<string, string> = {
     en: "English",
     es: "Spanish",
