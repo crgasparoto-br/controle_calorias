@@ -4,6 +4,7 @@ const storagePutMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 const logInferenceEventMock = vi.fn();
+const generateImageMock = vi.fn();
 
 vi.mock("../../storage", () => ({
   storagePut: storagePutMock,
@@ -13,6 +14,10 @@ vi.mock("../../db", () => ({
   createUserManualMeal: vi.fn(),
   getHabitSnapshots: getHabitSnapshotsMock,
   logInferenceEvent: logInferenceEventMock,
+}));
+
+vi.mock("../../_core/imageGeneration", () => ({
+  generateImage: generateImageMock,
 }));
 
 vi.mock("../../nutritionEngine", () => ({
@@ -58,6 +63,12 @@ describe("photoAnalysis service", () => {
       },
     });
 
+    generateImageMock.mockReset();
+    generateImageMock.mockResolvedValue({
+      url: "https://storage.test/generated/meal-support/foto.png",
+      mimeType: "image/png",
+    });
+
     getHabitSnapshotsMock.mockReset();
     getHabitSnapshotsMock.mockResolvedValue([
       {
@@ -71,7 +82,7 @@ describe("photoAnalysis service", () => {
     logInferenceEventMock.mockReset();
   });
 
-  it("usa o núcleo compartilhado de inferência para analisar foto", async () => {
+  it("usa o núcleo compartilhado de inferência para analisar foto e anexa visual auxiliar quando disponível", async () => {
     const { analyzeFoodPhoto } = await import("./service");
 
     const result = await analyzeFoodPhoto(42, {
@@ -94,6 +105,15 @@ describe("photoAnalysis service", () => {
         },
       ],
     });
+    expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining("Arroz branco cozido"),
+      originalImages: [
+        expect.objectContaining({
+          url: "https://storage.test/42/meal-images/foto.jpg",
+          mimeType: "image/jpeg",
+        }),
+      ],
+    }));
     expect(result.suggestedItems).toEqual([
       {
         foodName: "Arroz branco cozido",
@@ -108,6 +128,9 @@ describe("photoAnalysis service", () => {
         confidenceScore: 0.91,
       },
     ]);
+    expect(result.supportingImageUrl).toBe(
+      "https://storage.test/generated/meal-support/foto.png",
+    );
   });
 
   it("mantém fallback seguro quando a inferência principal falha de forma controlada", async () => {
@@ -124,9 +147,66 @@ describe("photoAnalysis service", () => {
     });
 
     expect(result.suggestedItems).toHaveLength(3);
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      status: "warning",
-      eventType: "food_photo.fallback_used",
-    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "warning",
+        eventType: "food_photo.fallback_used",
+      }),
+    );
+  });
+
+  it("não bloqueia a análise quando a geração visual auxiliar falha", async () => {
+    generateImageMock.mockResolvedValue({
+      skippedReason: "provider_failed",
+    });
+
+    const { analyzeFoodPhoto } = await import("./service");
+    const result = await analyzeFoodPhoto(42, {
+      image: {
+        base64: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
+        mimeType: "image/jpeg",
+        fileName: "foto.jpg",
+      },
+    });
+
+    expect(result.suggestedItems).toHaveLength(1);
+    expect(result.supportingImageUrl).toBeUndefined();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "warning",
+        eventType: "food_photo.visual_generation_warning",
+      }),
+    );
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "success",
+        eventType: "food_photo.analyzed",
+      }),
+    );
+  });
+
+  it("usa a imagem inline quando o upload falha e segue com a análise", async () => {
+    storagePutMock.mockRejectedValueOnce(new Error("storage down"));
+
+    const { analyzeFoodPhoto } = await import("./service");
+    await analyzeFoodPhoto(42, {
+      image: {
+        base64: "aW1hZ2UtZGUtdGVzdGU=",
+        mimeType: "image/jpeg",
+        fileName: "foto.jpg",
+      },
+    });
+
+    expect(processMealInputMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imageUrl: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
+      }),
+    );
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "warning",
+        eventType: "food_photo.inline_image_used",
+      }),
+    );
   });
 });
