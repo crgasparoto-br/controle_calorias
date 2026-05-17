@@ -78,10 +78,6 @@ type LlmItem = {
   confidence: number;
 };
 
-type AiResponseInputItem = Exclude<AiProviderTextRequest["input"], string>[number];
-type AiUserMessage = Extract<AiResponseInputItem, { role: "user" }>;
-type AiUserContent = Exclude<AiUserMessage["content"], string | undefined>;
-
 const mealExtractionSchema = z.object({
   mealLabel: z.string().trim().min(1).max(80),
   confidence: z.number().min(0).max(1),
@@ -309,9 +305,9 @@ function habitsToPrompt(habits: HabitSnapshot[] = []) {
 
 async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
   const composedText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n");
-  const content: AiUserContent = [
+  const content = [
     {
-      type: "input_text",
+      type: "input_text" as const,
       text: [
         "Analise a refeição do usuário e extraia itens alimentares para registro nutricional revisável.",
         `Texto disponível: ${composedText || "não informado"}`,
@@ -324,21 +320,23 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
 
   if (input.imageUrl) {
     content.push({
-      type: "input_image",
+      type: "input_image" as const,
       image_url: input.imageUrl,
-      detail: "high",
+      detail: "high" as const,
     });
   }
+
+  const aiInput: AiProviderTextRequest["input"] = [
+    {
+      role: "user",
+      content,
+    },
+  ];
 
   const response = await getAiProvider().createTextResponse({
     model: ENV.openaiModel,
     instructions: "Você é um nutricionista assistente. Identifique alimentos, estime porções realistas e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON.",
-    input: [
-      {
-        role: "user",
-        content,
-      },
-    ],
+    input: aiInput,
     format: {
       type: "json_schema",
       name: "meal_extraction",
