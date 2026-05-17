@@ -262,6 +262,21 @@ describe("meals service characterization", () => {
     expect(warningInput?.audioUrl).toContain("/7/meal-audios/");
   });
 
+  it("não persiste rascunho quando a inferência falha antes da validação final", async () => {
+    processMealInputMock.mockRejectedValue(new Error("Não foi possível gerar um rascunho revisável para esta refeição agora."));
+
+    await expect(processMealDraft(15, {
+      source: "web",
+      image: {
+        base64: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
+        mimeType: "image/jpeg",
+        fileName: "foto.jpeg",
+      },
+    })).rejects.toThrow("Não foi possível gerar um rascunho revisável para esta refeição agora.");
+
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+  });
+
   it("confirma a refeicao apenas com dados locais do rascunho, sem provider externo", async () => {
     getPendingInferenceMock.mockReturnValue({
       draftId: "draft-local",
