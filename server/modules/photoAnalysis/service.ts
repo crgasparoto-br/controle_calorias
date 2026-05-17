@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
-import { createUserManualMeal, logInferenceEvent } from "../../db";
-import type { MealDraftItem } from "../../nutritionEngine";
+import {
+  createUserManualMeal,
+  getHabitSnapshots,
+  logInferenceEvent,
+} from "../../db";
+import { MealInferenceError, processMealInput, type MealDraftItem } from "../../nutritionEngine";
+import { storagePut } from "../../storage";
 import type {
   AnalyzeFoodPhotoInput,
   ConfirmFoodPhotoAnalysisInput,
@@ -74,7 +79,59 @@ function toMealItem(item: FoodPhotoSuggestedItem): MealDraftItem {
   };
 }
 
+function toSuggestedItem(item: MealDraftItem): FoodPhotoSuggestedItem {
+  return {
+    foodName: item.canonicalName || item.foodName,
+    estimatedQuantity: item.estimatedGrams > 0 ? item.estimatedGrams : 1,
+    unit: item.estimatedGrams > 0 ? "g" : item.portionText,
+    estimatedCalories: item.calories,
+    estimatedMacros: {
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+    },
+    confidenceScore: item.confidence,
+  };
+}
+
+function extractBase64Payload(value: string) {
+  const match = value.match(/^data:(.+);base64,(.*)$/);
+  return Buffer.from(match ? match[2] : value, "base64");
+}
+
+function buildInlineImageDataUrl(input: NonNullable<AnalyzeFoodPhotoInput["image"]>) {
+  return input.base64.startsWith("data:")
+    ? input.base64
+    : `data:${input.mimeType};base64,${input.base64}`;
+}
+
+async function resolveAnalysisImageUrl(userId: number, input: NonNullable<AnalyzeFoodPhotoInput["image"]>) {
+  const extension = input.mimeType.split("/")[1] || "jpg";
+
+  try {
+    const upload = await storagePut(
+      `${userId}/meal-images/${Date.now()}.${extension}`,
+      extractBase64Payload(input.base64),
+      input.mimeType,
+    );
+
+    return {
+      imageUrl: upload.url,
+      usedInlineFallback: false,
+    };
+  } catch {
+    return {
+      imageUrl: buildInlineImageDataUrl(input),
+      usedInlineFallback: true,
+    };
+  }
+}
+
 export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoInput) {
+  if (!input.image) {
+    throw new MealInferenceError("Envie uma foto para análise.");
+  }
+
   const now = Date.now();
   const pending: FoodPhotoAnalysis = {
     id: crypto.randomUUID(),
@@ -86,10 +143,47 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
   };
   photoAnalysisStore.set(pending.id, pending);
 
+  const { imageUrl, usedInlineFallback } = await resolveAnalysisImageUrl(userId, input.image);
+
+  let suggestedItems: FoodPhotoSuggestedItem[];
+  let usedInferenceFallback = false;
+
+  try {
+    const processed = await processMealInput({
+      imageUrl,
+      habits: await getHabitSnapshots(userId),
+    });
+    suggestedItems = processed.items.map(toSuggestedItem);
+  } catch (error) {
+    if (!(error instanceof MealInferenceError)) {
+      throw error;
+    }
+
+    suggestedItems = mockAnalyzeImage();
+    usedInferenceFallback = true;
+    logInferenceEvent({
+      userId,
+      origin: "web",
+      status: "warning",
+      eventType: "food_photo.fallback_used",
+      detail: "A análise de foto usou um fallback seguro após falha controlada da inferência principal.",
+    });
+  }
+
+  if (usedInlineFallback) {
+    logInferenceEvent({
+      userId,
+      origin: "web",
+      status: "warning",
+      eventType: "food_photo.inline_image_used",
+      detail: "A análise de foto usou a imagem inline porque o upload para storage não estava disponível.",
+    });
+  }
+
   const analyzed: FoodPhotoAnalysis = {
     ...pending,
     status: "analyzed",
-    suggestedItems: mockAnalyzeImage(),
+    suggestedItems,
     updatedAt: Date.now(),
   };
   photoAnalysisStore.set(analyzed.id, analyzed);
@@ -99,7 +193,9 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
     origin: "web",
     status: "success",
     eventType: "food_photo.analyzed",
-    detail: `Foto analisada com ${analyzed.suggestedItems.length} sugestões simuladas.`,
+    detail: usedInferenceFallback
+      ? `Foto analisada com ${analyzed.suggestedItems.length} sugestões após fallback seguro.`
+      : `Foto analisada com ${analyzed.suggestedItems.length} sugestões estruturadas pelo núcleo compartilhado.`,
   });
 
   return sanitizeAnalysis(analyzed);
@@ -151,4 +247,3 @@ export async function confirmFoodPhotoAnalysis(userId: number, input: ConfirmFoo
 export function mapPhotoSuggestionsToMealItems(items: FoodPhotoSuggestedItem[]) {
   return items.map(toMealItem);
 }
-
