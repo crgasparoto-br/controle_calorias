@@ -1,4 +1,6 @@
-import { invokeLLM } from "./_core/llm";
+import { z } from "zod";
+import { getAiProvider } from "./_core/aiProvider";
+import { ENV } from "./_core/env";
 import { getCatalogCache } from "./catalogRuntime";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
@@ -66,9 +68,88 @@ type LlmItem = {
   foodName: string;
   portionText: string;
   servings: number;
-  estimatedGrams?: number;
+  estimatedGrams: number;
+  estimatedCalories: number;
+  estimatedMacros: {
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
   confidence: number;
 };
+
+const mealExtractionSchema = z.object({
+  mealLabel: z.string().trim().min(1).max(80),
+  confidence: z.number().min(0).max(1),
+  reasoning: z.string().trim().min(1).max(2000),
+  items: z.array(z.object({
+    foodName: z.string().trim().min(1).max(160),
+    portionText: z.string().trim().min(1).max(120),
+    servings: z.number().min(0.1).max(20),
+    estimatedGrams: z.number().min(0).max(5000),
+    estimatedCalories: z.number().min(0).max(10000),
+    estimatedMacros: z.object({
+      protein: z.number().min(0).max(1000),
+      carbs: z.number().min(0).max(1000),
+      fat: z.number().min(0).max(1000),
+    }),
+    confidence: z.number().min(0).max(1),
+  })).min(1).max(10),
+});
+
+const mealExtractionJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    mealLabel: { type: "string" },
+    confidence: { type: "number", minimum: 0, maximum: 1 },
+    reasoning: { type: "string" },
+    items: {
+      type: "array",
+      minItems: 1,
+      maxItems: 10,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          foodName: { type: "string" },
+          portionText: { type: "string" },
+          servings: { type: "number", minimum: 0.1, maximum: 20 },
+          estimatedGrams: { type: "number", minimum: 0, maximum: 5000 },
+          estimatedCalories: { type: "number", minimum: 0, maximum: 10000 },
+          estimatedMacros: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              protein: { type: "number", minimum: 0, maximum: 1000 },
+              carbs: { type: "number", minimum: 0, maximum: 1000 },
+              fat: { type: "number", minimum: 0, maximum: 1000 },
+            },
+            required: ["protein", "carbs", "fat"],
+          },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+        required: [
+          "foodName",
+          "portionText",
+          "servings",
+          "estimatedGrams",
+          "estimatedCalories",
+          "estimatedMacros",
+          "confidence"
+        ],
+      },
+    },
+  },
+  required: ["mealLabel", "confidence", "reasoning", "items"],
+} as const;
+
+export class MealInferenceError extends Error {
+  constructor(message = "Não foi possível gerar um rascunho revisável para esta refeição agora.") {
+    super(message);
+    this.name = "MealInferenceError";
+  }
+}
 
 export { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 
@@ -110,9 +191,13 @@ function findCatalogFood(foodName: string) {
   );
 }
 
+function clampConfidence(value: number) {
+  return Math.min(Math.max(value || 0.6, 0.1), 0.99);
+}
+
 function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
-  const estimatedGrams = llmItem.estimatedGrams && llmItem.estimatedGrams > 0
+  const estimatedGrams = llmItem.estimatedGrams > 0
     ? llmItem.estimatedGrams
     : food.gramsPerServing * servings;
   const factor = estimatedGrams / food.gramsPerServing;
@@ -127,8 +212,24 @@ function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftIte
     protein: roundNutritionValue(food.protein * factor),
     carbs: roundNutritionValue(food.carbs * factor),
     fat: roundNutritionValue(food.fat * factor),
-    confidence: Math.min(Math.max(llmItem.confidence || 0.6, 0.1), 0.99),
+    confidence: clampConfidence(llmItem.confidence),
     source: "catalog",
+  };
+}
+
+function buildHybridItem(llmItem: LlmItem): MealDraftItem {
+  return {
+    foodName: llmItem.foodName,
+    canonicalName: llmItem.foodName,
+    portionText: llmItem.portionText,
+    servings: Math.max(llmItem.servings || 1, 0.25),
+    estimatedGrams: roundNutritionValue(Math.max(llmItem.estimatedGrams || 0, 0)),
+    calories: roundNutritionValue(llmItem.estimatedCalories),
+    protein: roundNutritionValue(llmItem.estimatedMacros.protein),
+    carbs: roundNutritionValue(llmItem.estimatedMacros.carbs),
+    fat: roundNutritionValue(llmItem.estimatedMacros.fat),
+    confidence: clampConfidence(llmItem.confidence),
+    source: "hybrid",
   };
 }
 
@@ -139,6 +240,13 @@ function buildHeuristicItem(foodName: string): MealDraftItem {
       foodName,
       portionText: catalog.servingLabel,
       servings: 1,
+      estimatedGrams: catalog.gramsPerServing,
+      estimatedCalories: catalog.calories,
+      estimatedMacros: {
+        protein: catalog.protein,
+        carbs: catalog.carbs,
+        fat: catalog.fat,
+      },
       confidence: 0.45,
     });
   }
@@ -195,127 +303,94 @@ function habitsToPrompt(habits: HabitSnapshot[] = []) {
     .join("\n");
 }
 
-async function extractWithLlm(input: MealProcessingInput): Promise<{ items: LlmItem[]; reasoning: string; confidence: number; mealLabel: string } | null> {
+async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
   const composedText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n");
-  const userContent: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }> = [
+  const content: Array<Record<string, unknown>> = [
     {
-      type: "text",
+      type: "input_text",
       text: [
-        "Extraia alimentos e porções de uma refeição para rastreamento nutricional.",
+        "Analise a refeição do usuário e extraia itens alimentares para registro nutricional revisável.",
         `Texto disponível: ${composedText || "não informado"}`,
-        `Histórico relevante do usuário: ${habitsToPrompt(input.habits)}`,
-        "Responda apenas com JSON válido seguindo o schema.",
+        `Histórico relevante do usuário:\n${habitsToPrompt(input.habits)}`,
+        "Retorne apenas JSON válido no schema solicitado.",
+        "Não invente totais agregados; detalhe por item com porção, gramas estimados e macronutrientes por item.",
       ].join("\n"),
     },
   ];
 
   if (input.imageUrl) {
-    userContent.push({
-      type: "image_url",
-      image_url: {
-        url: input.imageUrl,
-        detail: "high",
-      },
+    content.push({
+      type: "input_image",
+      image_url: input.imageUrl,
+      detail: "high",
     });
   }
 
-  const response = await invokeLLM({
-    messages: [
-      {
-        role: "system",
-        content: "Você é um nutricionista assistente especializado em identificar alimentos, estimar porções realistas e preparar dados estruturados para cálculo determinístico de calorias e macronutrientes.",
-      },
+  const response = await getAiProvider().createTextResponse({
+    model: ENV.openaiModel,
+    instructions: "Você é um nutricionista assistente. Identifique alimentos, estime porções realistas e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON.",
+    input: [
       {
         role: "user",
-        content: userContent,
+        content,
       },
     ],
-    response_format: {
+    format: {
       type: "json_schema",
-      json_schema: {
-        name: "meal_extraction",
-        strict: true,
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            mealLabel: { type: "string" },
-            confidence: { type: "number" },
-            reasoning: { type: "string" },
-            items: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  foodName: { type: "string" },
-                  portionText: { type: "string" },
-                  servings: { type: "number" },
-                  estimatedGrams: { type: "number" },
-                  confidence: { type: "number" },
-                },
-                required: ["foodName", "portionText", "servings", "confidence"],
-              },
-            },
-          },
-          required: ["mealLabel", "confidence", "reasoning", "items"],
-        },
-      },
+      name: "meal_extraction",
+      schema: mealExtractionJsonSchema,
+      strict: true,
     },
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (typeof content !== "string") {
-    return null;
-  }
-
-  const parsed = safeJsonParse<{
-    mealLabel: string;
-    confidence: number;
-    reasoning: string;
-    items: LlmItem[];
-  }>(content);
-
+  const parsed = safeJsonParse<unknown>(response.outputText);
   if (!parsed) {
     return null;
   }
 
-  return {
-    items: parsed.items || [],
-    reasoning: parsed.reasoning || "Inferência gerada pela IA.",
-    confidence: parsed.confidence || 0.6,
-    mealLabel: parsed.mealLabel || guessMealLabel(composedText),
-  };
+  const validation = mealExtractionSchema.safeParse(parsed);
+  if (!validation.success) {
+    return null;
+  }
+
+  return validation.data;
+}
+
+function buildItemsFromInference(items: LlmItem[]) {
+  return items.map(item => {
+    const catalog = findCatalogFood(item.foodName);
+    if (catalog) {
+      return buildItemFromCatalog(catalog, item);
+    }
+    return buildHybridItem(item);
+  });
 }
 
 export async function processMealInput(input: MealProcessingInput): Promise<MealProcessingResult> {
   const sourceText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n").trim();
   const initialMealLabel = guessMealLabel(sourceText);
 
-  let llmExtraction: Awaited<ReturnType<typeof extractWithLlm>> = null;
+  let extraction: Awaited<ReturnType<typeof extractWithAi>> = null;
   try {
-    llmExtraction = await extractWithLlm(input);
+    extraction = await extractWithAi(input);
   } catch {
-    llmExtraction = null;
+    extraction = null;
   }
 
-  const items = (llmExtraction?.items?.length
-    ? llmExtraction.items.map(item => {
-        const catalog = findCatalogFood(item.foodName);
-        if (catalog) {
-          return buildItemFromCatalog(catalog, item);
-        }
-        return buildHeuristicItem(item.foodName);
-      })
-    : fallbackFromText(sourceText))
-    .slice(0, 10);
+  const items = extraction
+    ? buildItemsFromInference(extraction.items)
+    : fallbackFromText(sourceText);
+
+  if (!items.length) {
+    throw new MealInferenceError();
+  }
 
   const totals = sumTotals(items);
-  const confidence = llmExtraction ? Math.min(Math.max(llmExtraction.confidence, 0.1), 0.99) : items.length ? 0.45 : 0.2;
-  const reasoning = llmExtraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
+  const confidence = extraction ? clampConfidence(extraction.confidence) : items.length ? 0.45 : 0.2;
+  const reasoning = extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
 
   return {
-    detectedMealLabel: llmExtraction?.mealLabel || initialMealLabel,
+    detectedMealLabel: extraction?.mealLabel || initialMealLabel,
     sourceText,
     imageUrl: input.imageUrl,
     audioUrl: input.audioUrl,
