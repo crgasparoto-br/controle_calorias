@@ -1,5 +1,9 @@
 import crypto from "node:crypto";
-import { getHabitSnapshots, logInferenceEvent } from "../../db";
+import {
+  createUserManualMeal,
+  getHabitSnapshots,
+  logInferenceEvent,
+} from "../../db";
 import { MealInferenceError, processMealInput, type MealDraftItem } from "../../nutritionEngine";
 import { storagePut } from "../../storage";
 import type {
@@ -8,7 +12,6 @@ import type {
   FoodPhotoAnalysisStatus,
   FoodPhotoSuggestedItem,
 } from "./schemas";
-import { createUserManualMeal } from "../../db";
 
 export type FoodPhotoAnalysis = {
   id: string;
@@ -108,6 +111,10 @@ async function uploadAnalysisImage(userId: number, input: NonNullable<AnalyzeFoo
 }
 
 export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoInput) {
+  if (!input.image) {
+    throw new MealInferenceError("Envie uma foto para análise.");
+  }
+
   const now = Date.now();
   const pending: FoodPhotoAnalysis = {
     id: crypto.randomUUID(),
