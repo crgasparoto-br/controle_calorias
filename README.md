@@ -1,168 +1,88 @@
 # Controle de Calorias
 
-**Controle de Calorias** é uma plataforma de nutrição inteligente com foco em registro multimodal de refeições, acompanhamento de metas nutricionais, operação via web e integração com **WhatsApp Business Cloud API**. A solução atual foi consolidada em uma arquitetura única baseada em **React + Express + tRPC + Drizzle**, priorizando rapidez de evolução, rastreabilidade dos registros e experiência operacional simples para uso diário.
+Controle de Calorias é uma plataforma de nutrição com registro multimodal de refeições, revisão antes de persistência, acompanhamento de metas e operação por web e WhatsApp. O projeto segue como um monólito React + Express + tRPC + Drizzle, com a camada principal de IA isolada no backend.
 
-Após a revisão das demais branches do repositório, a principal conclusão foi que não havia funcionalidades mais novas prontas para incorporação direta na branch principal, mas havia **definições documentais úteis** que estavam dispersas ou em arquiteturas alternativas. Por isso, este README passa a consolidar no projeto atual os pontos que realmente fazem sentido manter: visão da solução, fluxos principais, modelo funcional, stack, operação e próximos cuidados técnicos.
+## O que o produto faz hoje
 
-## Visão geral da solução
-
-A aplicação foi estruturada para atender dois canais principais de uso. No canal **web**, o usuário autentica-se, registra refeições por texto, imagem ou áudio, confirma a inferência nutricional e acompanha metas, hábitos e relatórios. No canal **WhatsApp**, a solução recebe mensagens em um único número oficial configurado no ambiente, identifica o usuário pelo telefone de origem da mensagem, processa o conteúdo, registra a inferência e devolve uma resposta padronizada pelo mesmo canal oficial.
-
-| Domínio | Capacidade atual |
+| Domínio | Situação atual |
 |---|---|
-| Registro alimentar | Entrada por texto, imagem e áudio |
-| Processamento nutricional | Inferência de alimentos, porções e totais de macros/calorias |
-| Confirmação | Revisão e confirmação manual da refeição inferida |
-| Persistência | Banco relacional com Drizzle e armazenamento de mídia em S3 |
-| Relatórios | Resumo semanal, tendência de macros e detalhamento por refeição |
-| Canal conversacional | Integração com WhatsApp Business Cloud API |
-| Operação administrativa | Visão de uso, logs recentes e status do canal |
+| Registro alimentar | Entrada por texto, imagem, áudio e cadastro manual |
+| Inferência nutricional | Núcleo compartilhado entre web e WhatsApp, validado com Zod |
+| Confirmação | Persistência apenas após revisão/fluxo equivalente |
+| WhatsApp | Entrada e resposta pelo número oficial configurado |
+| Relatórios | Dashboard diário, visão semanal e detalhamento por refeição |
+| Operação administrativa | Status do canal e atualização segura do token do WhatsApp |
 
-## Módulos entregues na interface web
+## Fluxo de refeição
 
-A aplicação web está organizada em uma navegação de dashboard, voltada para uso operacional. Cada rota foi desenhada para cobrir uma etapa do fluxo nutricional e deixar explícita a passagem entre captura, confirmação e acompanhamento.
+1. O usuário envia texto, imagem ou áudio.
+2. O backend monta um rascunho revisável com itens, porções e macros.
+3. O usuário revisa ou confirma pelo fluxo conversacional.
+4. A refeição confirmada alimenta dashboard, relatórios e hábitos.
 
-| Rota | Objetivo |
-|---|---|
-| `/` | Dashboard com resumo diário, metas e visão geral do uso |
-| `/log-meal` | Registro multimodal de refeições com apoio de IA |
-| `/goals` | Configuração de metas de calorias, proteínas, carboidratos e gorduras |
-| `/reports` | Relatórios com semana iniciando na segunda-feira e detalhamento por refeição |
-| `/channels` | Status do canal WhatsApp e recursos operacionais do webhook |
-| `/admin` | Visão administrativa de uso, usuários e logs |
+A confirmação de refeição não depende de chamada externa. Falhas de transcrição, inferência ou imagem auxiliar são tratadas de forma controlada para não corromper dados nem bloquear a confirmação local.
 
-Na página de **Relatórios**, a semana foi ajustada para começar na **segunda-feira** e cada refeição confirmada exibe de forma visível os **alimentos registrados**, suas **porções**, **proteínas**, **carboidratos**, **gorduras**, **calorias** e o **horário do registro**.
+## Estado da migração OpenAI
 
-## Fluxo funcional da refeição
+A migração segue o plano em `docs/exec-plans/active/migrate-ai-to-openai.md`.
 
-O fluxo atual da solução segue uma lógica de inferência assistida. Primeiro, o usuário envia o conteúdo da refeição em um dos canais suportados. Em seguida, o sistema processa texto, imagem e/ou áudio, monta um rascunho de inferência e apresenta os itens identificados. Após a confirmação do usuário, a refeição é persistida no banco, os itens são registrados individualmente, os hábitos são atualizados e os relatórios passam a refletir o novo consumo.
+Situação atual:
 
-> O mesmo núcleo de processamento nutricional é reutilizado entre a experiência web e a experiência via WhatsApp, o que reduz divergência entre canais e simplifica a manutenção das regras de negócio.
+- Transcrição de áudio já usa o provider OpenAI isolado no backend.
+- Inferência nutricional de texto e imagem já usa o provider OpenAI com saída estruturada e validação Zod.
+- Geração visual auxiliar foi movida para helper OpenAI opcional. Se falhar ou não estiver configurada, a análise da refeição continua normalmente.
+- O legado Forge permanece apenas no subsistema de sugestões educativas do assistente alimentar. Essa dependência remanescente foi mantida e documentada porque não faz parte do fluxo principal de registro de refeição.
 
-## Resposta padronizada no WhatsApp
+## Variáveis de ambiente
 
-A resposta automática do WhatsApp foi reformulada para seguir uma estrutura mais legível e próxima do modelo visual aprovado durante o projeto. A mensagem agora organiza o retorno por refeição, listando os alimentos identificados individualmente e exibindo o horário, proteínas, carboidratos, gorduras e calorias de cada item.
+### Backend OpenAI
 
-## Fluxo do WhatsApp oficial
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL` opcional
+- `OPENAI_MODEL` para inferência nutricional estruturada
+- `OPENAI_TRANSCRIPTION_MODEL` para áudio
+- `OPENAI_IMAGE_MODEL` para visual auxiliar opcional
 
-A integração usa um único WhatsApp Business Phone Number ID para toda a solução. Esse ID não é escolhido por usuário e não é salvo em registros individuais: ele vem de `WHATSAPP_PHONE_NUMBER_ID` e representa o canal oficial de entrada e saída da IA. O número oficial da solução vem de `WHATSAPP_PHONE_NUMBER` e serve apenas para operação e validação do canal.
+Regras importantes:
 
-O telefone do usuário final continua sendo salvo na tabela de vínculos do WhatsApp apenas como identificador do contato que enviou a mensagem. No webhook, esse telefone vem do campo `from` do payload da Meta. A aplicação usa esse telefone de origem para localizar o usuário interno, processa a refeição no contexto desse usuário e envia a resposta de volta para o mesmo telefone de origem usando sempre o `WHATSAPP_PHONE_NUMBER_ID` fixo configurado.
+- `OPENAI_API_KEY` deve existir apenas no backend.
+- Não exponha `OPENAI_*` via `VITE_*`.
+- Não adicione `OPENAI_API_KEY` na Vercel se ela for usada apenas para frontend estático. A chave deve ficar apenas no runtime backend responsável pelas chamadas ao provider.
 
-| Elemento da resposta | Situação atual |
-|---|---|
-| Cabeçalho da refeição | Implementado |
-| Lista de alimentos | Implementado |
-| Horário da refeição | Implementado com fuso de São Paulo |
-| Proteínas, carboidratos, gorduras e calorias por item | Implementado |
-| Imagem anotada de referência | Gerada como apoio visual |
+### Variáveis legadas remanescentes
 
-## Arquitetura atual do projeto
+- `BUILT_IN_FORGE_API_KEY`
+- `BUILT_IN_FORGE_API_URL`
 
-A branch principal consolidou-se em uma arquitetura monolítica moderna, orientada a produto, sem a complexidade operacional das propostas alternativas encontradas em outras branches. Em vez de múltiplos serviços e infraestrutura separada, a solução atual mantém frontend, backend, autenticação, banco e integrações dentro de um mesmo projeto, com contratos tipados ponta a ponta.
+Essas variáveis continuam necessárias somente enquanto o assistente alimentar educativo ainda usar o provider legado. Elas não devem voltar a ser usadas por transcrição, inferência nutricional nem confirmação de refeição.
 
-| Camada | Tecnologia atual | Papel na solução |
-|---|---|---|
-| Frontend | React 19 + Vite + Tailwind 4 | Interface web e dashboard operacional |
-| Backend | Express 4 + tRPC 11 | Procedimentos tipados e lógica de negócio |
-| Banco | MySQL/TiDB + Drizzle ORM | Persistência de metas, refeições, itens, hábitos e inferências |
-| Armazenamento | S3 helper do projeto | Mídias de imagem e áudio |
-| IA | Provider OpenAI isolado no backend para transcrição de áudio, com inferência nutricional e geração visual ainda em migração incremental | Inferência nutricional e suporte multimodal |
-| Canal externo | WhatsApp Business Cloud API | Entrada e resposta conversacional |
-| Testes | Vitest | Cobertura de backend e frontend |
+### WhatsApp
 
-## Estrutura de pastas relevante
+- `WHATSAPP_PHONE_NUMBER`
+- `WHATSAPP_PHONE_NUMBER_ID`
+- `WHATSAPP_BUSINESS_ACCOUNT_ID`
+- `WHATSAPP_VERIFY_TOKEN`
+- `WHATSAPP_ACCESS_TOKEN`
 
-A estrutura do projeto foi mantida simples e consistente com a stack atual. Os diretórios abaixo concentram praticamente toda a lógica funcional e são os mais importantes para manutenção.
+## Qualidade e gates
 
-| Caminho | Conteúdo |
-|---|---|
-| `client/src/pages/` | Páginas do dashboard e fluxos do usuário |
-| `client/src/components/` | Componentes reutilizáveis da interface |
-| `server/` | Regras de negócio, router nutricional, webhook do WhatsApp e camada de persistência |
-| `drizzle/` | Schema e migrações do banco |
-| `scripts/` | Scripts auxiliares de migração, catálogo e verificação |
-| `shared/` | Tipos e constantes compartilhadas |
+Comandos esperados para mudanças neste repositório:
 
-## Principais operações disponíveis no backend
+```bash
+pnpm check
+pnpm test
+pnpm architecture:check
+pnpm docs:check
+pnpm agent:check
+```
 
-O backend atual expõe os casos de uso centrais do produto por meio do router nutricional, com autenticação para o ambiente web e procedimentos públicos apenas onde realmente faz sentido operacional.
+## Rollout
 
-| Grupo | Operações principais |
-|---|---|
-| `dashboard` | Visão consolidada do consumo e hábitos |
-| `goals` | Leitura e atualização das metas nutricionais |
-| `meals` | Listagem, processamento de rascunho e confirmação de refeição |
-| `reports` | Resumo semanal |
-| `admin` | Visão operacional e administrativa |
-| `whatsapp` | Status do webhook e simulação inbound |
+O checklist operacional da Fase 7 fica em `docs/runbooks/openai-rollout-checklist.md`.
 
-## Migração da IA para OpenAI
+Resumo do rollout:
 
-A migração segue o plano incremental em `docs/exec-plans/active/migrate-ai-to-openai.md`.
-
-A **Fase 2** adicionou o SDK oficial da OpenAI, criou o cliente backend isolado e a interface interna de provider. O cliente real continua lazy: sem `OPENAI_API_KEY`, a aplicação não falha no import nem em testes com provider mockado. O erro claro aparece apenas quando alguém tenta usar o provider real da OpenAI.
-
-A **Fase 3** migra `server/_core/voiceTranscription.ts` para esse provider backend. Agora a transcrição:
-
-- baixa o áudio a partir da URL recebida;
-- valida MIME type e limite de 16 MB antes do envio;
-- usa `OPENAI_TRANSCRIPTION_MODEL` para escolher o modelo do provider;
-- mantém o formato de retorno compatível com o fluxo atual baseado em Whisper;
-- sanitiza falhas do provider para não expor payloads, transcrição bruta ou segredos.
-
-A inferência nutricional texto/imagem e a geração visual auxiliar continuam nas próximas fases da migração.
-
-## Branches revisadas do repositório
-
-Foram revisadas as branches remotas existentes no GitHub para verificar se havia alguma definição importante não incorporada à solução atual.
-
-| Branch | Situação encontrada | Conclusão |
-|---|---|---|
-| `main` | Branch principal consolidada e mais atual | Continua sendo a base correta do projeto |
-| `copilot/create-saas-calorie-tracker` | Branch divergente, com arquitetura alternativa orientada a múltiplos serviços e documentação extensa | Útil como referência documental, mas não como base de código para merge direto |
-| `copilot/create-saas-solution-calorie-control` | Branch atrás da main | Sem conteúdo adicional relevante |
-| `copilot/execute-web-application` | Branch atrás da main | Sem conteúdo adicional relevante |
-
-A branch `copilot/create-saas-calorie-tracker` continha materiais úteis sobre **arquitetura**, **modelo de dados**, **fluxos**, **stack** e **contratos de API**, mas dentro de uma solução diferente da que foi efetivamente implementada. Em vez de tentar misturar arquiteturas, este README incorpora apenas as definições conceituais que ajudam a entender o produto atual.
-
-## Setup local
-
-A execução local do projeto parte de uma instalação Node moderna com `pnpm`. Como a aplicação depende de variáveis de ambiente gerenciadas pela plataforma para autenticação, banco, storage e integrações, o uso mais confiável continua sendo dentro do ambiente gerenciado do projeto. Ainda assim, a base local pode ser preparada para desenvolvimento e testes.
-
-| Etapa | Comando |
-|---|---|
-| Instalar dependências | `pnpm install` |
-| Rodar em desenvolvimento | `pnpm dev` |
-| Executar testes | `pnpm test` |
-| Validar TypeScript | `pnpm check` |
-| Gerar/aplicar migrações com Drizzle | `pnpm db:push` |
-| Gerar build | `pnpm build` |
-
-## Variáveis e integrações importantes
-
-O projeto depende de variáveis injetadas pelo ambiente para autenticação Manus OAuth, banco de dados, storage e canal WhatsApp. Em desenvolvimento controlado pela plataforma, essas variáveis já são disponibilizadas conforme a configuração do projeto.
-
-| Grupo | Exemplos |
-|---|---|
-| Banco e sessão | `DATABASE_URL`, `JWT_SECRET` |
-| OAuth e identidade | `VITE_APP_ID`, `OAUTH_SERVER_URL`, `VITE_OAUTH_PORTAL_URL` |
-| Forge / APIs internas | `BUILT_IN_FORGE_API_KEY`, `BUILT_IN_FORGE_API_URL` |
-| OpenAI backend-only | `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TRANSCRIPTION_MODEL` |
-| WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN` |
-
-Para o WhatsApp, `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` e `WHATSAPP_VERIFY_TOKEN` são obrigatórios para operação completa. `WHATSAPP_BUSINESS_ACCOUNT_ID` é mantido para integrações administrativas quando aplicável. A ausência de variáveis obrigatórias impede o envio e gera erro explícito no backend.
-
-`OPENAI_API_KEY` deve existir apenas no backend e passa a ser reservado para o provider isolado da migração. Nenhuma configuração sensível da OpenAI deve ser exposta via `VITE_*` ou em código executado no navegador. `AI_PROVIDER` continua relevante para os fluxos legados ainda não migrados, enquanto a transcrição de áudio já usa `OPENAI_TRANSCRIPTION_MODEL` no provider backend.
-
-## Qualidade e testes
-
-A base foi evoluída com cobertura automatizada para os fluxos críticos já implementados. Atualmente, os testes cobrem regras do motor nutricional, logout/autenticação, webhook do WhatsApp, router nutricional e renderização das páginas centrais do frontend. Isso inclui os ajustes recentes na resposta do WhatsApp, na visualização dos relatórios e na migração da transcrição de áudio com mocks de provider.
-
-## Limitações e cuidados atuais
-
-A solução está funcional para o escopo atual, mas há alguns pontos que merecem atenção contínua. O primeiro é manter o schema do banco sempre alinhado às migrações, especialmente em estruturas como `mealInferences`. O segundo é seguir exportando versões estáveis para o GitHub e checkpoints do ambiente para evitar divergência entre código remoto e estado operacional. O terceiro é tratar o README como fonte viva do produto, revisando-o sempre que houver mudanças estruturais em canais, fluxos ou modelo de dados.
-
-## Próximos passos recomendados
-
-Como evolução natural da plataforma, os próximos incrementos mais úteis tendem a ser a exportação formal de relatórios, filtros temporais mais flexíveis e maior personalização da resposta conversacional. Em paralelo, também faria sentido ampliar a documentação com diagramas específicos apenas quando isso trouxer valor real para manutenção ou onboarding.
+- configurar OpenAI apenas no backend do Render;
+- manter frontend/Vercel sem `OPENAI_API_KEY`;
+- validar web e WhatsApp com smoke tests;
+- monitorar apenas erros sanitizados, sem conteúdo cru em logs.

@@ -4,7 +4,12 @@ import {
   getHabitSnapshots,
   logInferenceEvent,
 } from "../../db";
-import { MealInferenceError, processMealInput, type MealDraftItem } from "../../nutritionEngine";
+import { generateImage } from "../../_core/imageGeneration";
+import {
+  MealInferenceError,
+  processMealInput,
+  type MealDraftItem,
+} from "../../nutritionEngine";
 import { storagePut } from "../../storage";
 import type {
   AnalyzeFoodPhotoInput,
@@ -18,6 +23,7 @@ export type FoodPhotoAnalysis = {
   userId: number;
   status: FoodPhotoAnalysisStatus;
   suggestedItems: FoodPhotoSuggestedItem[];
+  supportingImageUrl?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -58,6 +64,7 @@ function sanitizeAnalysis(analysis: FoodPhotoAnalysis) {
     id: analysis.id,
     status: analysis.status,
     suggestedItems: analysis.suggestedItems,
+    supportingImageUrl: analysis.supportingImageUrl,
     createdAt: analysis.createdAt,
     updatedAt: analysis.updatedAt,
   };
@@ -105,7 +112,10 @@ function buildInlineImageDataUrl(input: NonNullable<AnalyzeFoodPhotoInput["image
     : `data:${input.mimeType};base64,${input.base64}`;
 }
 
-async function resolveAnalysisImageUrl(userId: number, input: NonNullable<AnalyzeFoodPhotoInput["image"]>) {
+async function resolveAnalysisImageUrl(
+  userId: number,
+  input: NonNullable<AnalyzeFoodPhotoInput["image"]>,
+) {
   const extension = input.mimeType.split("/")[1] || "jpg";
 
   try {
@@ -127,6 +137,24 @@ async function resolveAnalysisImageUrl(userId: number, input: NonNullable<Analyz
   }
 }
 
+function buildSupportingImagePrompt(items: FoodPhotoSuggestedItem[]) {
+  if (!items.length) {
+    return "";
+  }
+
+  const itemSummary = items
+    .slice(0, 6)
+    .map((item) => `${item.foodName} (${item.estimatedQuantity} ${item.unit})`)
+    .join(", ");
+
+  return [
+    "Crie uma imagem simples de apoio visual para uma refeição já analisada.",
+    "Mostre uma foto de prato vista de cima, com aparência realista e fundo neutro.",
+    `Itens principais: ${itemSummary}.`,
+    "Nao inclua texto, marcas, tabela nutricional nem elementos médicos.",
+  ].join(" ");
+}
+
 export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoInput) {
   if (!input.image) {
     throw new MealInferenceError("Envie uma foto para análise.");
@@ -143,7 +171,10 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
   };
   photoAnalysisStore.set(pending.id, pending);
 
-  const { imageUrl, usedInlineFallback } = await resolveAnalysisImageUrl(userId, input.image);
+  const { imageUrl, usedInlineFallback } = await resolveAnalysisImageUrl(
+    userId,
+    input.image,
+  );
 
   let suggestedItems: FoodPhotoSuggestedItem[];
   let usedInferenceFallback = false;
@@ -166,7 +197,8 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
       origin: "web",
       status: "warning",
       eventType: "food_photo.fallback_used",
-      detail: "A análise de foto usou um fallback seguro após falha controlada da inferência principal.",
+      detail:
+        "A análise de foto usou um fallback seguro após falha controlada da inferência principal.",
     });
   }
 
@@ -176,7 +208,24 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
       origin: "web",
       status: "warning",
       eventType: "food_photo.inline_image_used",
-      detail: "A análise de foto usou a imagem inline porque o upload para storage não estava disponível.",
+      detail:
+        "A análise de foto usou a imagem inline porque o upload para storage não estava disponível.",
+    });
+  }
+
+  const supportingImage = await generateImage({
+    prompt: buildSupportingImagePrompt(suggestedItems),
+    originalImages: [{ url: imageUrl, mimeType: input.image.mimeType }],
+  });
+
+  if (supportingImage.skippedReason === "provider_failed") {
+    logInferenceEvent({
+      userId,
+      origin: "web",
+      status: "warning",
+      eventType: "food_photo.visual_generation_warning",
+      detail:
+        "A geração visual auxiliar falhou, mas a análise da refeição seguiu sem bloquear confirmação.",
     });
   }
 
@@ -184,6 +233,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
     ...pending,
     status: "analyzed",
     suggestedItems,
+    supportingImageUrl: supportingImage.url,
     updatedAt: Date.now(),
   };
   photoAnalysisStore.set(analyzed.id, analyzed);
@@ -213,12 +263,19 @@ export async function rejectFoodPhotoAnalysis(userId: number, analysisId: string
     throw new Error("Análise de foto não encontrada.");
   }
 
-  const rejected = { ...analysis, status: "rejected" as const, updatedAt: Date.now() };
+  const rejected = {
+    ...analysis,
+    status: "rejected" as const,
+    updatedAt: Date.now(),
+  };
   photoAnalysisStore.set(analysisId, rejected);
   return sanitizeAnalysis(rejected);
 }
 
-export async function confirmFoodPhotoAnalysis(userId: number, input: ConfirmFoodPhotoAnalysisInput) {
+export async function confirmFoodPhotoAnalysis(
+  userId: number,
+  input: ConfirmFoodPhotoAnalysisInput,
+) {
   const analysis = photoAnalysisStore.get(input.analysisId);
   if (!analysis || analysis.userId !== userId) {
     throw new Error("Análise de foto não encontrada.");

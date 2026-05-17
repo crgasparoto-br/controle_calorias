@@ -2,18 +2,18 @@
 
 ## Objetivo
 
-Garantir que os fluxos criticos possam ser validados por humanos e agentes antes de deploy ou merge.
+Garantir que os fluxos críticos possam ser validados por humanos e agentes antes de deploy ou merge.
 
-## Fluxos criticos
+## Fluxos críticos
 
-- Autenticacao e sessao.
-- Registro de refeicao por texto, imagem e audio.
-- Confirmacao de rascunho de refeicao.
-- Relatorios e dashboard.
+- Autenticação e sessão.
+- Registro de refeição por texto, imagem e áudio.
+- Confirmação de rascunho de refeição.
+- Relatórios e dashboard.
 - WhatsApp inbound e outbound.
-- Exportacao e exclusao de dados.
-- Migracoes e integridade referencial.
-- Migracao da camada de IA para OpenAI, conforme `docs/exec-plans/active/migrate-ai-to-openai.md`.
+- Exportação e exclusão de dados.
+- Migrações e integridade referencial.
+- Migração da camada de IA para OpenAI, conforme `docs/exec-plans/active/migrate-ai-to-openai.md`.
 
 ## Gates recomendados
 
@@ -25,36 +25,39 @@ pnpm docs:check
 pnpm agent:check
 ```
 
-Quando houver `DATABASE_URL` disponivel:
+Quando houver `DATABASE_URL` disponível:
 
 ```bash
 pnpm db:check-integrity
 ```
 
-## Estrategia de testes
+## Estratégia de testes
 
-- Testes unitarios para calculos nutricionais e validacao de schemas.
-- Testes de servico para confirmacao de refeicao, metas e WhatsApp.
+- Testes unitários para cálculos nutricionais e validação de schemas.
+- Testes de serviço para confirmação de refeição, metas e WhatsApp.
 - Smoke tests futuros para web, WhatsApp e banco.
-- Checks estruturais para impedir drift de arquitetura e documentacao.
-- Para migracao OpenAI, testes de caracterizacao antes da troca de provider e mocks para transcricao, texto, imagem e falha externa.
+- Checks estruturais para impedir drift de arquitetura e documentação.
+- Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
+- Para visual auxiliar opcional, testes devem provar que falhas do provider não bloqueiam análise nem confirmação da refeição.
 
 ## Incidentes comuns a prevenir
 
-- Migracao nao aplicada em producao.
-- Divergencia entre rascunho e confirmacao.
-- Log de dados sensiveis.
+- Migração não aplicada em produção.
+- Divergência entre rascunho e confirmação.
+- Log de dados sensíveis.
 - Falha silenciosa no envio WhatsApp.
-- Relatorio semanal divergente do dashboard.
-- Falha externa de IA corrompendo rascunhos ou bloqueando confirmacao manual.
-- Chave ou configuracao de IA exposta no frontend.
+- Relatório semanal divergente do dashboard.
+- Falha externa de IA corrompendo rascunhos ou bloqueando confirmação manual.
+- Falha de imagem auxiliar bloqueando um fluxo que deveria continuar sem ela.
+- Chave ou configuração de IA exposta no frontend.
 
-## Guardrails para migracao OpenAI
+## Guardrails para migração OpenAI
 
 - Implementar em fases pequenas, seguindo `docs/exec-plans/active/migrate-ai-to-openai.md`.
-- Nao misturar migracao de autenticacao com migracao de IA.
-- Manter fallback seguro ou erro controlado quando a OpenAI estiver indisponivel.
-- Confirmacao de refeicao nao deve depender de chamada externa.
-- Validar saida de IA com Zod antes de retornar ou persistir.
+- Não misturar migração de autenticação com migração de IA.
+- Manter fallback seguro ou erro controlado quando a OpenAI estiver indisponível.
+- Confirmação de refeição não deve depender de chamada externa.
+- Validar saída de IA com Zod antes de retornar ou persistir.
 - Recalcular totais nutricionais no backend a partir dos itens validados.
-- Rodar smoke test web e WhatsApp antes de ativar em producao.
+- Falha de visual auxiliar deve degradar para ausência de imagem, nunca para falha de refeição.
+- Rodar smoke test web e WhatsApp antes de ativar em produção.
