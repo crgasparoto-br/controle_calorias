@@ -78,6 +78,17 @@ type LlmItem = {
   confidence: number;
 };
 
+type AiInputContentItem =
+  | {
+      type: "input_text";
+      text: string;
+    }
+  | {
+      type: "input_image";
+      image_url: string;
+      detail: "high";
+    };
+
 const mealExtractionSchema = z.object({
   mealLabel: z.string().trim().min(1).max(80),
   confidence: z.number().min(0).max(1),
@@ -305,9 +316,9 @@ function habitsToPrompt(habits: HabitSnapshot[] = []) {
 
 async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
   const composedText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n");
-  const content = [
+  const content: AiInputContentItem[] = [
     {
-      type: "input_text" as const,
+      type: "input_text",
       text: [
         "Analise a refeição do usuário e extraia itens alimentares para registro nutricional revisável.",
         `Texto disponível: ${composedText || "não informado"}`,
@@ -320,9 +331,9 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
 
   if (input.imageUrl) {
     content.push({
-      type: "input_image" as const,
+      type: "input_image",
       image_url: input.imageUrl,
-      detail: "high" as const,
+      detail: "high",
     });
   }
 
