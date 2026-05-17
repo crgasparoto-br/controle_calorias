@@ -7,6 +7,7 @@ const confirmPendingMealMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
+const transcribeAudioMock = vi.fn();
 
 vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input) => input),
@@ -29,7 +30,7 @@ vi.mock("./storage", () => ({
 }));
 
 vi.mock("./_core/voiceTranscription", () => ({
-  transcribeAudio: vi.fn(async () => ({ text: "", language: "pt", segments: [] })),
+  transcribeAudio: transcribeAudioMock,
 }));
 
 const { handleWhatsAppWebhook } = await import("./whatsappWebhook");
@@ -99,6 +100,47 @@ function createMetaTextPayload(text: string) {
   };
 }
 
+function createMetaAudioPayload() {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: "business-account-id",
+        changes: [
+          {
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: "5511000000000",
+                phone_number_id: "phone-number-test",
+              },
+              contacts: [
+                {
+                  profile: { name: "Usuário Smoke" },
+                  wa_id: "5511999999999",
+                },
+              ],
+              messages: [
+                {
+                  from: "5511999999999",
+                  id: "wamid.smoke-audio-1",
+                  timestamp: "1713708840",
+                  type: "audio",
+                  audio: {
+                    id: "audio-media-id",
+                    mime_type: "audio/ogg",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("whatsappWebhook smoke", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -135,6 +177,14 @@ describe("whatsappWebhook smoke", () => {
         },
       ],
       totals: { calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
+    });
+    transcribeAudioMock.mockReset();
+    transcribeAudioMock.mockResolvedValue({
+      task: "transcribe",
+      language: "pt",
+      duration: 0,
+      text: "",
+      segments: [],
     });
 
     global.fetch = vi.fn(async () => ({
@@ -173,6 +223,64 @@ describe("whatsappWebhook smoke", () => {
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("processa áudio inbound com transcrição mockada e sem chamada externa real ao provider", async () => {
+    transcribeAudioMock.mockResolvedValue({
+      task: "transcribe",
+      language: "pt",
+      duration: 2.1,
+      text: "arroz e feijão",
+      segments: [],
+    });
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          url: "https://media.test/audio-download",
+          mime_type: "audio/ogg",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode("audio-test").buffer,
+        headers: {
+          get: (name: string) =>
+            name.toLowerCase() === "content-type" ? "audio/ogg" : null,
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      }) as typeof fetch;
+
+    const req = { body: createMetaAudioPayload() };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(transcribeAudioMock).toHaveBeenCalledWith({
+      audioUrl: expect.stringContaining("/whatsapp/audio/5511999999999-audio-media-id.ogg"),
+      language: "pt",
+      prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
+    });
+    expect(processMealInputMock).toHaveBeenCalledWith({
+      text: undefined,
+      transcript: "arroz e feijão",
+      imageUrl: undefined,
+      audioUrl: expect.stringContaining("/whatsapp/audio/5511999999999-audio-media-id.ogg"),
+      habits: [],
+    });
+    expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
+      draftId: "draft-smoke-text",
+      userId: 123,
+      mealLabel: "Almoço",
+      notes: "arroz e feijão",
+    }));
   });
 
   it("retorna sucesso sem processar quando o payload da Meta contém apenas status e nenhuma mensagem", async () => {

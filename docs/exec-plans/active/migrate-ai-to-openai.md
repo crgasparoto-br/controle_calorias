@@ -49,6 +49,13 @@ server/_core/imageGeneration.ts
 
 Servicos de dominio devem depender da interface interna do provider, nao do SDK diretamente.
 
+## Andamento atual
+
+- Fase 1 concluida: inventario e testes de caracterizacao adicionados.
+- Fase 2 concluida: SDK oficial, cliente backend e interface interna de provider foram isolados no backend.
+- Fase 3 concluida nesta branch: `server/_core/voiceTranscription.ts` agora usa o provider interno da OpenAI, com validacao de formato e tamanho antes do envio, retorno compativel com o fluxo atual e erros sanitizados.
+- Fases 4 a 7 permanecem pendentes.
+
 ## Fases
 
 ### Fase 1 - Inventario e testes
@@ -62,6 +69,15 @@ Adicionar SDK oficial, cliente backend, interface de provider, configuracao de a
 ### Fase 3 - Transcricao
 
 Migrar `voiceTranscription` para o provider. Validar formato e tamanho do arquivo antes de envio. Manter retorno compativel.
+
+Entregas desta fase:
+
+- `voiceTranscription` baixa o audio pela URL recebida e valida MIME type suportado.
+- Arquivos acima de 16 MB falham antes da chamada ao provider.
+- O modelo passa a ser configurado por `OPENAI_TRANSCRIPTION_MODEL`.
+- O helper retorna a mesma estrutura publica baseada em Whisper usada pelo fluxo atual.
+- Falhas externas retornam erro sanitizado, sem payload sensivel, audio bruto ou transcricao crua em logs e mensagens.
+- Testes mockam o provider interno e mantem o fluxo WhatsApp com audio coberto por smoke test.
 
 ### Fase 4 - Inferencia nutricional
 

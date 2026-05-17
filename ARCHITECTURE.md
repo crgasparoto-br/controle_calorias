@@ -9,7 +9,7 @@ O projeto é um monólito moderno orientado a produto. A decisão arquitetural a
 | Frontend | React + Vite + Tailwind | Fluxos web, dashboard, formulários e visualizações |
 | Backend | Express + tRPC | Contratos tipados, autenticação, orquestração e casos de uso |
 | Banco | MySQL/TiDB + Drizzle | Persistência relacional, migrações e integridade referencial |
-| IA | Helpers internos de LLM, transcrição e mídia, com provider OpenAI isolado no backend | Inferência nutricional multimodal |
+| IA | Provider OpenAI isolado no backend para transcrição, com helpers legados ainda presentes para fluxos não migrados | Inferência nutricional multimodal |
 | Canal externo | WhatsApp Business Cloud API | Entrada e saída conversacional oficial |
 | Testes | Vitest | Cobertura de regras, routers e UI |
 
@@ -50,6 +50,7 @@ O `nutritionRouter.ts` deve permanecer fino: validar entrada, chamar serviço, t
 - Serviços não devem depender de componentes React.
 - Schemas devem ser reutilizados pelo router e, quando útil, pelo frontend via tipos inferidos.
 - O SDK oficial da OpenAI deve ficar restrito a `server/_core/openaiClient.ts` e à camada de provider backend.
+- `server/_core/voiceTranscription.ts` deve consumir apenas a interface interna do provider, sem acoplamento direto ao SDK.
 
 ## Privacidade e dados sensíveis
 
