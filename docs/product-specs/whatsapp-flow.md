@@ -11,13 +11,14 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O sistema deve responder sempre ao telefone de origem usando o número oficial configurado.
 - O usuário não deve cadastrar o número oficial como se fosse seu telefone pessoal.
 - Respostas devem listar alimentos, porções, macros, calorias e horário em formato legível.
+- Recursos visuais auxiliares são opcionais. Falha nesse apoio não pode bloquear registro nem confirmação da refeição.
 
 ## Entradas suportadas
 
 | Tipo | Comportamento esperado |
 |---|---|
 | Texto | Processar descrição livre da refeição |
-| Imagem | Analisar alimento visível e gerar apoio visual quando aplicável |
+| Imagem | Analisar alimento visível e gerar apoio visual opcional quando disponível |
 | Áudio | Transcrever, processar e preservar apenas o necessário |
 
 ## Critérios de aceite
@@ -26,3 +27,4 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Mensagem inbound encontra ou solicita vínculo com usuário interno.
 - Erros de configuração de token/número são explícitos para operação, mas não vazam segredo.
 - Simulação inbound continua disponível para testes operacionais.
+- Falha de visual auxiliar não bloqueia o fluxo conversacional principal.
