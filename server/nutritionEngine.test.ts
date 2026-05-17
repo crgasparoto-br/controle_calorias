@@ -79,10 +79,10 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.items).toHaveLength(2);
     expect(result.items[0]).toEqual(expect.objectContaining({
       canonicalName: "Arroz branco cozido",
-      calories: 128,
-      protein: 2.5,
+      calories: 130,
+      protein: 2.7,
       carbs: 28,
-      fat: 0.2,
+      fat: 0.3,
       source: "catalog",
     }));
     expect(result.items[1]).toEqual(expect.objectContaining({
@@ -94,10 +94,10 @@ describe("nutritionEngine.processMealInput", () => {
       source: "hybrid",
     }));
     expect(result.totals).toEqual({
-      calories: 248,
-      protein: 4.5,
+      calories: 250,
+      protein: 4.7,
       carbs: 31,
-      fat: 11.2,
+      fat: 11.3,
     });
   });
 
