@@ -56,6 +56,20 @@ export type AiProviderAudioTranscriptionResponse = {
   raw: unknown;
 };
 
+export type AiProviderImageGenerationRequest = {
+  prompt: string;
+  model: string;
+  size?: "1024x1024" | "1024x1536" | "1536x1024";
+  quality?: "low" | "medium" | "high";
+  outputFormat?: "png" | "webp" | "jpeg";
+};
+
+export type AiProviderImageGenerationResponse = {
+  b64Json: string;
+  mimeType: string;
+  raw: unknown;
+};
+
 export interface AiProvider {
   createTextResponse(
     request: AiProviderTextRequest,
@@ -63,6 +77,9 @@ export interface AiProvider {
   createAudioTranscription(
     request: AiProviderAudioTranscriptionRequest,
   ): Promise<AiProviderAudioTranscriptionResponse>;
+  createImageGeneration(
+    request: AiProviderImageGenerationRequest,
+  ): Promise<AiProviderImageGenerationResponse>;
 }
 
 function buildTextConfig(
@@ -105,6 +122,16 @@ function buildTranscriptionResponse(
       : [],
     raw: response,
   };
+}
+
+function mimeTypeFromOutputFormat(
+  outputFormat: AiProviderImageGenerationRequest["outputFormat"] = "png",
+) {
+  if (outputFormat === "jpeg") {
+    return "image/jpeg";
+  }
+
+  return `image/${outputFormat}`;
 }
 
 export class OpenAiProvider implements AiProvider {
@@ -163,6 +190,29 @@ export class OpenAiProvider implements AiProvider {
     });
 
     return buildTranscriptionResponse(response);
+  }
+
+  async createImageGeneration(
+    request: AiProviderImageGenerationRequest,
+  ): Promise<AiProviderImageGenerationResponse> {
+    const response = await this.getClient().images.generate({
+      model: request.model,
+      prompt: request.prompt,
+      ...(request.size ? { size: request.size } : {}),
+      ...(request.quality ? { quality: request.quality } : {}),
+      ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
+    });
+
+    const imageData = response.data?.[0]?.b64_json;
+    if (!imageData) {
+      throw new Error("OpenAI image provider returned no image data.");
+    }
+
+    return {
+      b64Json: imageData,
+      mimeType: mimeTypeFromOutputFormat(request.outputFormat),
+      raw: response,
+    };
   }
 }
 
