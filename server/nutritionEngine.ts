@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getAiProvider } from "./_core/aiProvider";
+import { getAiProvider, type AiProviderTextRequest } from "./_core/aiProvider";
 import { ENV } from "./_core/env";
 import { getCatalogCache } from "./catalogRuntime";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
@@ -77,6 +77,10 @@ type LlmItem = {
   };
   confidence: number;
 };
+
+type AiResponseInputItem = Exclude<AiProviderTextRequest["input"], string>[number];
+type AiUserMessage = Extract<AiResponseInputItem, { role: "user" }>;
+type AiUserContent = Exclude<AiUserMessage["content"], string | undefined>;
 
 const mealExtractionSchema = z.object({
   mealLabel: z.string().trim().min(1).max(80),
@@ -305,7 +309,7 @@ function habitsToPrompt(habits: HabitSnapshot[] = []) {
 
 async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
   const composedText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n");
-  const content: Array<Record<string, unknown>> = [
+  const content: AiUserContent = [
     {
       type: "input_text",
       text: [
