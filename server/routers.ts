@@ -17,9 +17,9 @@ const registerSchema = z.object({
 
 const loginSchema = registerSchema.pick({ email: true, password: true });
 
-function sanitizeUser<T extends { passwordHash?: unknown }>(user: T) {
-  const { passwordHash: _passwordHash, ...safeUser } = user;
-  return safeUser;
+function sanitizeUser<T extends Record<string, unknown>>(user: T): Omit<T, "passwordHash"> {
+  const { passwordHash: _passwordHash, ...safeUser } = user as T & { passwordHash?: unknown };
+  return safeUser as Omit<T, "passwordHash">;
 }
 
 async function setSessionCookie(

@@ -279,7 +279,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (user.role !== undefined) {
     values.role = user.role;
     updateSet.role = user.role;
-  } else if (user.openId === ENV.ownerOpenId) {
+  } else if (user.openId === "local:owner") {
     values.role = "admin";
     updateSet.role = "admin";
   }
@@ -3158,10 +3158,10 @@ export async function getKnownUsers(): Promise<User[]> {
   return [
     {
       id: 1,
-      openId: ENV.ownerOpenId || "owner",
+      openId: "local:owner",
       name: "Administrador",
       email: null,
-      loginMethod: "manus",
+      loginMethod: "password",
       role: "admin",
       createdAt: new Date(),
       updatedAt: new Date(),

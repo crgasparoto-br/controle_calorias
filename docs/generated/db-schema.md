@@ -8,7 +8,7 @@ Fonte: `drizzle/schema.ts`.
 
 | Export | Tabela física | Colunas | Classificação |
 |---|---|---:|---|
-| `users` | `users` | 9 | Requer atenção |
+| `users` | `users` | 10 | Requer atenção |
 | `userProfiles` | `userProfiles` | 18 | Requer atenção |
 | `foodBrands` | `foodBrands` | 7 | Baixa |
 | `foodCatalog` | `foodCatalog` | 24 | Requer atenção |

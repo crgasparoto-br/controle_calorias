@@ -1,7 +1,6 @@
 export const ENV = {
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
-  ownerOpenId: "",
   isProduction: process.env.NODE_ENV === "production",
   aiProvider: process.env.AI_PROVIDER ?? "forge",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",

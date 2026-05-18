@@ -22,7 +22,7 @@ Este documento registra a estratégia para migrar a camada de IA do sistema para
 
 Migrar transcrição, análise de imagem, inferência nutricional e geração visual auxiliar para um provider OpenAI isolado no backend.
 
-Fora de escopo: autenticação Manus OAuth, troca de banco, troca de frontend, criação de microserviços e alteração de schema sem necessidade comprovada.
+Fora de escopo: autenticação externa legada, troca de banco, troca de frontend, criação de microserviços e alteração de schema sem necessidade comprovada.
 
 ## Invariantes
 

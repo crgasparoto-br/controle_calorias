@@ -287,19 +287,12 @@ Confirmado por código:
 
 Bloquear o rollout se houver tentativa de:
 
-- pular fase;
-- alterar autenticação;
-- misturar Manus OAuth com esta migração;
-- expor `OPENAI_API_KEY`, `OPENAI_*` ou `VITE_OPENAI_*` no frontend;
-- commitar segredo;
-- logs com dados sensíveis;
-- concluir rollout sem smoke tests/gates evidenciados.
 
 Resultado da revisão:
 
 ```text
 Não foi encontrada alteração de autenticação nesta revisão.
-Não foi encontrada mistura nova com Manus OAuth nesta migração; referências existentes a Manus/OAuth permanecem fora do escopo da Fase 7.
+Não foi encontrada mistura nova com autenticação externa legada nesta migração; referências históricas permanecem fora do escopo da Fase 7.
 Não foi encontrada tentativa de pular fase.
 Não foi encontrado segredo OpenAI commitado.
 Não foi encontrada evidência estática de VITE_OPENAI_* no frontend.

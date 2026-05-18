@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
-import { eq, sql } from "drizzle-orm";
-import { users, type User } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
+import { users, type User, type UserWithPasswordHash } from "../../drizzle/schema";
 import * as db from "../db";
-import { hashPassword, verifyPassword } from "./passwords";
+import { hashPassword, passwordHashNeedsUpgrade, verifyPassword } from "./passwords";
 
-type LocalUserWithPassword = User & { passwordHash?: string | null };
-type MemoryUser = User & { passwordHash: string | null };
+type LocalUserWithPassword = UserWithPasswordHash;
+type MemoryUser = UserWithPasswordHash;
 
 const memoryUsersById = new Map<number, MemoryUser>();
 const memoryUserIdsByEmail = new Map<string, number>();
@@ -60,18 +60,18 @@ async function findUserByEmail(email: string) {
       openId: users.openId,
       name: users.name,
       email: users.email,
+      passwordHash: users.passwordHash,
       loginMethod: users.loginMethod,
       role: users.role,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
       lastSignedIn: users.lastSignedIn,
-      passwordHash: sql<string | null>`passwordHash`,
     })
     .from(users)
     .where(eq(users.email, email))
     .limit(1);
 
-  return rows[0] as LocalUserWithPassword | undefined;
+  return rows[0];
 }
 
 export async function registerLocalUser(input: { name: string; email: string; password: string }) {
@@ -95,7 +95,7 @@ export async function registerLocalUser(input: { name: string; email: string; pa
     loginMethod: "password",
     passwordHash,
     lastSignedIn: new Date(),
-  } as typeof users.$inferInsert & { passwordHash: string };
+  };
 
   await database.insert(users).values(values);
 
@@ -127,7 +127,15 @@ export async function authenticateLocalUser(input: { email: string; password: st
     throw new Error("INVALID_CREDENTIALS");
   }
 
-  await database.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
+  const updatePayload: Partial<typeof users.$inferInsert> = {
+    lastSignedIn: new Date(),
+  };
+
+  if (passwordHashNeedsUpgrade(user.passwordHash)) {
+    updatePayload.passwordHash = await hashPassword(input.password);
+  }
+
+  await database.update(users).set(updatePayload).where(eq(users.id, user.id));
   return stripPasswordHash(user);
 }
 
