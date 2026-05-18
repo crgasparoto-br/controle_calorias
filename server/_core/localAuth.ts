@@ -50,22 +50,28 @@ function createMemoryUser(input: { name: string; email: string; passwordHash: st
   return stripPasswordHash(user);
 }
 
+function selectUserPublicFields() {
+  return {
+    id: users.id,
+    openId: users.openId,
+    name: users.name,
+    email: users.email,
+    loginMethod: users.loginMethod,
+    role: users.role,
+    createdAt: users.createdAt,
+    updatedAt: users.updatedAt,
+    lastSignedIn: users.lastSignedIn,
+  };
+}
+
 async function findUserByEmail(email: string) {
   const database = await db.getDb();
   if (!database) return undefined;
 
   const rows = await database
     .select({
-      id: users.id,
-      openId: users.openId,
-      name: users.name,
-      email: users.email,
+      ...selectUserPublicFields(),
       passwordHash: users.passwordHash,
-      loginMethod: users.loginMethod,
-      role: users.role,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt,
-      lastSignedIn: users.lastSignedIn,
     })
     .from(users)
     .where(eq(users.email, email))
@@ -85,7 +91,26 @@ export async function registerLocalUser(input: { name: string; email: string; pa
 
   const existing = await findUserByEmail(normalizedEmail);
   if (existing) {
-    throw new Error("EMAIL_ALREADY_REGISTERED");
+    if (existing.passwordHash) {
+      throw new Error("EMAIL_ALREADY_REGISTERED");
+    }
+
+    await database
+      .update(users)
+      .set({
+        name: input.name.trim() || existing.name,
+        loginMethod: "password",
+        passwordHash,
+        lastSignedIn: new Date(),
+      })
+      .where(eq(users.id, existing.id));
+
+    const migratedUser = await findUserByEmail(normalizedEmail);
+    if (!migratedUser) {
+      throw new Error("USER_CREATE_FAILED");
+    }
+
+    return stripPasswordHash(migratedUser);
   }
 
   const values = {
@@ -147,6 +172,10 @@ export async function getLocalUserById(userId: number) {
     return memoryUser ? stripPasswordHash(memoryUser) : undefined;
   }
 
-  const rows = await database.select().from(users).where(eq(users.id, userId)).limit(1);
+  const rows = await database
+    .select(selectUserPublicFields())
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   return rows[0];
 }
