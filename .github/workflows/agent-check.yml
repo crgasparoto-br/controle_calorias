@@ -10,6 +10,8 @@ jobs:
   agent-check:
     name: Agent-first gate
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
       - name: Checkout repository
@@ -40,3 +42,14 @@ jobs:
 
       - name: Documentation check
         run: pnpm docs:check
+
+      - name: Agent check
+        run: pnpm agent:check
+
+      - name: Database integrity check
+        if: ${{ env.DATABASE_URL != '' }}
+        run: pnpm db:check-integrity
+
+      - name: Database integrity check skipped
+        if: ${{ env.DATABASE_URL == '' }}
+        run: echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
