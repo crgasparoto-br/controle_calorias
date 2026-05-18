@@ -35,6 +35,22 @@ Situação atual:
 
 ## Variáveis de ambiente
 
+### Autenticação OAuth
+
+A autenticação da aplicação continua usando o fluxo OAuth externo original compatível com Manus/WebDevAuth. Ela não foi substituída por OpenAI, Vercel, Render, TiDB ou WhatsApp. OpenAI é apenas o provider de IA; TiDB é apenas banco; Vercel/Render são runtimes de publicação.
+
+Variáveis necessárias para login web:
+
+- `VITE_APP_ID`: identificador público do app usado para montar a URL de login no frontend.
+- `VITE_OAUTH_PORTAL_URL`: URL pública do portal OAuth que expõe `/app-auth`.
+- `OAUTH_SERVER_URL`: URL backend do servidor OAuth usado para trocar `code` por token e consultar dados do usuário.
+- `OWNER_OPEN_ID`: openId do proprietário/administrador quando o ambiente precisar reconhecer o dono da aplicação.
+- `JWT_SECRET`: segredo backend usado para assinar o cookie de sessão da aplicação.
+
+Fluxo atual: o frontend monta a URL `${VITE_OAUTH_PORTAL_URL}/app-auth`, informa `appId`, `redirectUri`, `state` e `type=signIn`; o callback `/api/oauth/callback` recebe `code` e `state`; o backend chama `OAUTH_SERVER_URL` nos endpoints WebDevAuth de troca de token e leitura do usuário; depois cria o cookie de sessão local com `JWT_SECRET`.
+
+Em deploy separado, configure `VITE_APP_ID` e `VITE_OAUTH_PORTAL_URL` no runtime/build do frontend, e `OAUTH_SERVER_URL`, `OWNER_OPEN_ID` e `JWT_SECRET` no backend. O `redirectUri` precisa apontar para a origem pública real que atende `/api/oauth/callback`.
+
 ### Backend OpenAI
 
 - `OPENAI_API_KEY`
