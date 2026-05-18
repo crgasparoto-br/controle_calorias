@@ -2,43 +2,45 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
-import { registerLocalUser, authenticateLocalUser } from "./_core/localAuth";
+import type { TrpcContext } from "./_core/context";
+import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { nutritionRouter } from "./nutritionRouter";
 
-const authUserSchema = z.object({
+const registerSchema = z.object({
   name: z.string().trim().min(2).max(160),
   email: z.string().trim().email().max(320),
   password: z.string().min(8).max(128),
 });
 
-const loginSchema = authUserSchema.pick({ email: true, password: true });
+const loginSchema = registerSchema.pick({ email: true, password: true });
 
 function sanitizeUser<T extends { passwordHash?: unknown }>(user: T) {
   const { passwordHash: _passwordHash, ...safeUser } = user;
   return safeUser;
 }
 
-async function setSessionCookie(ctx: Parameters<Parameters<typeof publicProcedure.mutation>[0]>[0]["ctx"], user: {
-  id: number;
-  email: string | null;
-  name: string | null;
-  role: "user" | "admin";
-}) {
+async function setSessionCookie(
+  ctx: TrpcContext,
+  user: { id: number; email: string | null; name: string | null; role: "user" | "admin" }
+) {
   const email = user.email ?? "";
   const name = user.name ?? email;
   if (!email || !name) {
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível iniciar a sessão." });
   }
 
-  const sessionToken = await sdk.signSession({
-    userId: user.id,
-    email,
-    name,
-    role: user.role,
-  }, { expiresInMs: ONE_YEAR_MS });
+  const sessionToken = await sdk.signSession(
+    {
+      userId: user.id,
+      email,
+      name,
+      role: user.role,
+    },
+    { expiresInMs: ONE_YEAR_MS }
+  );
   const cookieOptions = getSessionCookieOptions(ctx.req);
   ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 }
@@ -48,7 +50,7 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user ? sanitizeUser(opts.ctx.user) : null),
-    register: publicProcedure.input(authUserSchema).mutation(async ({ input, ctx }) => {
+    register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
       try {
         const user = await registerLocalUser(input);
         await setSessionCookie(ctx, user);
