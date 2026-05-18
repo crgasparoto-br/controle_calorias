@@ -1,11 +1,10 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { users, type User } from "../../drizzle/schema";
 import * as db from "../db";
 import { hashPassword, verifyPassword } from "./passwords";
 
-export type AuthUser = User;
-
+type LocalUserWithPassword = User & { passwordHash?: string | null };
 type MemoryUser = User & { passwordHash: string | null };
 
 const memoryUsersById = new Map<number, MemoryUser>();
@@ -16,7 +15,7 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-function stripPasswordHash(user: MemoryUser): User {
+function stripPasswordHash(user: LocalUserWithPassword): User {
   const { passwordHash: _passwordHash, ...publicUser } = user;
   return publicUser;
 }
@@ -51,6 +50,30 @@ function createMemoryUser(input: { name: string; email: string; passwordHash: st
   return stripPasswordHash(user);
 }
 
+async function findUserByEmail(email: string) {
+  const database = await db.getDb();
+  if (!database) return undefined;
+
+  const rows = await database
+    .select({
+      id: users.id,
+      openId: users.openId,
+      name: users.name,
+      email: users.email,
+      loginMethod: users.loginMethod,
+      role: users.role,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+      lastSignedIn: users.lastSignedIn,
+      passwordHash: sql<string | null>`passwordHash`,
+    })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  return rows[0] as LocalUserWithPassword | undefined;
+}
+
 export async function registerLocalUser(input: { name: string; email: string; password: string }) {
   const normalizedEmail = normalizeEmail(input.email);
   const passwordHash = await hashPassword(input.password);
@@ -60,31 +83,28 @@ export async function registerLocalUser(input: { name: string; email: string; pa
     return createMemoryUser({ name: input.name.trim(), email: normalizedEmail, passwordHash });
   }
 
-  const existing = await database.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
-  if (existing.length) {
+  const existing = await findUserByEmail(normalizedEmail);
+  if (existing) {
     throw new Error("EMAIL_ALREADY_REGISTERED");
   }
 
-  const inserted = await database.insert(users).values({
+  const values = {
     openId: buildLocalOpenId(),
     name: input.name.trim(),
     email: normalizedEmail,
     loginMethod: "password",
     passwordHash,
     lastSignedIn: new Date(),
-  });
+  } as typeof users.$inferInsert & { passwordHash: string };
 
-  const insertedId = Number((inserted as { insertId?: number })?.insertId ?? (inserted as any)?.[0]?.insertId ?? 0);
-  const rows = insertedId
-    ? await database.select().from(users).where(eq(users.id, insertedId)).limit(1)
-    : await database.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+  await database.insert(users).values(values);
 
-  const user = rows[0];
+  const user = await findUserByEmail(normalizedEmail);
   if (!user) {
     throw new Error("USER_CREATE_FAILED");
   }
 
-  return user;
+  return stripPasswordHash(user);
 }
 
 export async function authenticateLocalUser(input: { email: string; password: string }) {
@@ -102,14 +122,13 @@ export async function authenticateLocalUser(input: { email: string; password: st
     return stripPasswordHash(memoryUser);
   }
 
-  const rows = await database.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
-  const user = rows[0] as (User & { passwordHash?: string | null }) | undefined;
+  const user = await findUserByEmail(normalizedEmail);
   if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
     throw new Error("INVALID_CREDENTIALS");
   }
 
   await database.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
-  return { ...user, passwordHash: undefined } as User;
+  return stripPasswordHash(user);
 }
 
 export async function getLocalUserById(userId: number) {
