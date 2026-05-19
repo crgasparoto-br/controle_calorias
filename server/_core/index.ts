@@ -8,6 +8,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleWhatsAppWebhook, verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
+import { ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -31,6 +32,15 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  try {
+    const schemaCompatibility = await ensureRuntimeSchemaCompatibility();
+    if (schemaCompatibility.added.length) {
+      console.log("[Database] Runtime schema compatibility applied:", schemaCompatibility);
+    }
+  } catch (error) {
+    console.warn("[Database] Runtime schema compatibility skipped:", error);
+  }
+
   try {
     const catalogSync = await syncFoodCatalogReference();
     console.log("[Nutrition] Food catalog sync:", catalogSync);
