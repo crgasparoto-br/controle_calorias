@@ -473,7 +473,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Registrar refeição com IA multimodal");
     expect(html).toContain("Imagem do prato ou rótulo");
     expect(html).toContain("Fluxo de confirmação");
-    expect(html).toContain("Criar ou editar refeição manualmente");
+    expect(html).toContain("Criar refeição manualmente");
     expect(html).toContain("Refeições registradas");
   });
 
