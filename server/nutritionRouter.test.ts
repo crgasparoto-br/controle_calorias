@@ -186,7 +186,7 @@ describe("nutrition router", () => {
 
     const result = await caller.nutrition.onboarding.complete({
       name: "Gaspa",
-      ageYears: 34,
+      birthDate: "1991-05-01",
       heightCm: 178,
       currentWeightKg: 82,
       objective: "ganhar_massa",
@@ -212,7 +212,7 @@ describe("nutrition router", () => {
 
     const onboarding = await caller.nutrition.onboarding.complete({
       name: "Ana Rotina",
-      ageYears: 32,
+      birthDate: "1994-08-10",
       heightCm: 165,
       currentWeightKg: 68,
       objective: "melhorar_habitos",
