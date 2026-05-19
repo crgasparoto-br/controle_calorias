@@ -51,6 +51,13 @@ const DIFFICULTY_OPTIONS = [
   { value: "falta_de_planejamento", label: "Falta de planejamento" },
 ] as const;
 
+const OPTIONAL_ONBOARDING_FALLBACK = {
+  name: "Usuário",
+  birthDate: "1990-01-01",
+  heightCm: 170,
+  currentWeightKg: 70,
+} as const;
+
 type FormState = {
   name: string;
   birthDate: string;
@@ -84,6 +91,11 @@ function splitList(value: string) {
     .split(/[,;\n]/)
     .map(item => item.trim())
     .filter(Boolean);
+}
+
+function parseOptionalDecimalInput(value: string) {
+  if (!value.trim()) return undefined;
+  return parseDecimalInputPtBr(value);
 }
 
 function calculateAgeYears(birthDate: string, referenceDate = new Date()) {
@@ -123,8 +135,8 @@ export default function OnboardingPage() {
   const parsed = useMemo(() => ({
     name: form.name.trim(),
     birthDate: form.birthDate,
-    heightCm: parseDecimalInputPtBr(form.heightCm),
-    currentWeightKg: parseDecimalInputPtBr(form.currentWeightKg),
+    heightCm: parseOptionalDecimalInput(form.heightCm),
+    currentWeightKg: parseOptionalDecimalInput(form.currentWeightKg),
     objective: form.objective,
     activityLevel: form.activityLevel,
     trackingExperience: form.trackingExperience,
@@ -135,14 +147,27 @@ export default function OnboardingPage() {
   }), [form]);
 
   const validationMessage = useMemo(() => {
-    if (parsed.name.length < 2) return "Informe seu nome.";
-    if (!parsed.birthDate) return "Informe sua data de nascimento.";
-    if (calculatedAgeYears === null) return "Informe uma data de nascimento válida.";
-    if (calculatedAgeYears < 13 || calculatedAgeYears > 120) return "A idade calculada deve estar entre 13 e 120 anos.";
-    if (parsed.heightCm < 100 || parsed.heightCm > 250) return "Informe uma altura válida.";
-    if (parsed.currentWeightKg < 25 || parsed.currentWeightKg > 350) return "Informe um peso atual válido.";
+    if (parsed.name && parsed.name.length < 2) return "Informe um nome com pelo menos 2 caracteres ou deixe o campo em branco.";
+    if (parsed.birthDate && calculatedAgeYears === null) return "Informe uma data de nascimento válida ou deixe o campo em branco.";
+    if (calculatedAgeYears !== null && (calculatedAgeYears < 13 || calculatedAgeYears > 120)) return "A idade calculada deve estar entre 13 e 120 anos.";
+    if (parsed.heightCm !== undefined && (parsed.heightCm < 100 || parsed.heightCm > 250)) return "Informe uma altura válida ou deixe o campo em branco.";
+    if (parsed.currentWeightKg !== undefined && (parsed.currentWeightKg < 25 || parsed.currentWeightKg > 350)) return "Informe um peso atual válido ou deixe o campo em branco.";
     return null;
   }, [calculatedAgeYears, parsed]);
+
+  const payload = useMemo(() => ({
+    name: parsed.name || userName || OPTIONAL_ONBOARDING_FALLBACK.name,
+    birthDate: parsed.birthDate || OPTIONAL_ONBOARDING_FALLBACK.birthDate,
+    heightCm: parsed.heightCm ?? OPTIONAL_ONBOARDING_FALLBACK.heightCm,
+    currentWeightKg: parsed.currentWeightKg ?? OPTIONAL_ONBOARDING_FALLBACK.currentWeightKg,
+    objective: parsed.objective,
+    activityLevel: parsed.activityLevel,
+    trackingExperience: parsed.trackingExperience,
+    dietaryPreferences: parsed.dietaryPreferences,
+    dietaryRestrictions: parsed.dietaryRestrictions,
+    eatingRoutine: parsed.eatingRoutine,
+    mainDifficulty: parsed.mainDifficulty,
+  }), [parsed, userName]);
 
   const completeOnboarding = trpc.nutrition.onboarding.complete.useMutation({
     onSuccess: async () => {
@@ -151,10 +176,10 @@ export default function OnboardingPage() {
         utils.nutrition.dashboard.overview.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
       ]);
-      toast.success("Perfil criado e meta inicial calculada.");
+      toast.success("Perfil salvo com sucesso.");
       setLocation("/");
     },
-    onError: error => toast.error(error.message || "Não foi possível concluir o onboarding."),
+    onError: error => toast.error(error.message || "Não foi possível salvar o onboarding."),
   });
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
@@ -168,12 +193,12 @@ export default function OnboardingPage() {
       toast.error(validationMessage);
       return;
     }
-    completeOnboarding.mutate(parsed);
+    completeOnboarding.mutate(payload);
   }
 
   return (
     <DashboardLayout>
-      <form className="mx-auto grid max-w-5xl gap-6" onSubmit={handleSubmit}>
+      <form className="mx-auto grid w-full max-w-7xl gap-6 px-1" onSubmit={handleSubmit}>
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
@@ -181,15 +206,15 @@ export default function OnboardingPage() {
               Onboarding nutricional
             </CardTitle>
             <CardDescription>
-              Essas informações ajudam a criar uma meta inicial personalizada e ajustável.
+              Os blocos estão expandidos e todos os campos podem ser preenchidos agora ou ajustados depois.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} />
-            <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} />
-            <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Informe a data" : `${calculatedAgeYears} anos`} />
-            <TextField label="Altura" suffix="cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} />
-            <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} />
+          <CardContent className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+            <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
+            <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
+            <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
+            <TextField label="Altura" suffix="cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,75 ou 175" />
+            <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5 ou 72.5" />
           </CardContent>
         </Card>
 
@@ -199,23 +224,26 @@ export default function OnboardingPage() {
               <Activity className="h-5 w-5 text-primary" />
               Rotina e objetivo
             </CardTitle>
+            <CardDescription>
+              As opções já vêm selecionadas para permitir salvar rapidamente, mas você pode alterá-las quando quiser.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
             <SelectField label="Objetivo" value={form.objective} options={OBJECTIVE_OPTIONS} onChange={value => updateField("objective", value as FormState["objective"])} />
             <SelectField label="Nível de atividade física" value={form.activityLevel} options={ACTIVITY_OPTIONS} onChange={value => updateField("activityLevel", value as FormState["activityLevel"])} />
             <SelectField label="Experiência com controle alimentar" value={form.trackingExperience} options={EXPERIENCE_OPTIONS} onChange={value => updateField("trackingExperience", value as FormState["trackingExperience"])} />
             <SelectField label="Rotina alimentar" value={form.eatingRoutine} options={ROUTINE_OPTIONS} onChange={value => updateField("eatingRoutine", value as FormState["eatingRoutine"])} />
             <SelectField label="Principal dificuldade" value={form.mainDifficulty} options={DIFFICULTY_OPTIONS} onChange={value => updateField("mainDifficulty", value as FormState["mainDifficulty"])} />
-            <div className="grid gap-4 md:col-span-2 md:grid-cols-2">
-              <TextAreaField label="Preferências alimentares" value={form.dietaryPreferences} onChange={value => updateField("dietaryPreferences", value)} placeholder="Ex.: comida caseira, vegetariano, café da manhã simples" />
-              <TextAreaField label="Restrições alimentares" value={form.dietaryRestrictions} onChange={value => updateField("dietaryRestrictions", value)} placeholder="Ex.: lactose, glúten, amendoim" />
+            <div className="grid gap-5 lg:col-span-2 xl:col-span-3 xl:grid-cols-2">
+              <TextAreaField label="Preferências alimentares" value={form.dietaryPreferences} onChange={value => updateField("dietaryPreferences", value)} placeholder="Ex.: comida caseira, vegetariano, café da manhã simples" optional />
+              <TextAreaField label="Restrições alimentares" value={form.dietaryRestrictions} onChange={value => updateField("dietaryRestrictions", value)} placeholder="Ex.: lactose, glúten, amendoim" optional />
             </div>
           </CardContent>
         </Card>
 
         <div className="flex justify-end">
           <Button className="h-11 rounded-full px-6" disabled={completeOnboarding.isPending} type="submit">
-            {completeOnboarding.isPending ? "Calculando..." : "Concluir onboarding"}
+            {completeOnboarding.isPending ? "Salvando..." : "Salvar onboarding"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
@@ -224,20 +252,31 @@ export default function OnboardingPage() {
   );
 }
 
-function TextField({ label, value, onChange, inputMode, suffix, type = "text" }: {
+function FieldLabel({ label, optional = false }: { label: string; optional?: boolean }) {
+  return (
+    <Label className="flex items-center justify-between gap-3">
+      <span>{label}</span>
+      {optional ? <span className="text-xs font-normal text-muted-foreground">Opcional</span> : null}
+    </Label>
+  );
+}
+
+function TextField({ label, value, onChange, inputMode, suffix, type = "text", optional = false, placeholder }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   suffix?: string;
   type?: React.HTMLInputTypeAttribute;
+  optional?: boolean;
+  placeholder?: string;
 }) {
   return (
-    <div className="space-y-2 rounded-2xl border bg-background p-4">
-      <Label>{label}</Label>
+    <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
+      <FieldLabel label={label} optional={optional} />
       <div className="flex items-center gap-3">
-        <Input type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} />
-        {suffix ? <span className="text-sm text-muted-foreground">{suffix}</span> : null}
+        <Input type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} />
+        {suffix ? <span className="shrink-0 text-sm text-muted-foreground">{suffix}</span> : null}
       </div>
     </div>
   );
@@ -245,7 +284,7 @@ function TextField({ label, value, onChange, inputMode, suffix, type = "text" }:
 
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-2 rounded-2xl border bg-muted/20 p-4">
+    <div className="min-w-0 space-y-2 rounded-2xl border bg-muted/20 p-5">
       <Label>{label}</Label>
       <div className="flex h-10 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground">
         {value}
@@ -261,7 +300,7 @@ function SelectField<T extends readonly { value: string; label: string }[]>({ la
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-2 rounded-2xl border bg-background p-4">
+    <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
       <Label>{label}</Label>
       <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={value} onChange={event => onChange(event.target.value)}>
         {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -270,15 +309,16 @@ function SelectField<T extends readonly { value: string; label: string }[]>({ la
   );
 }
 
-function TextAreaField({ label, value, onChange, placeholder }: {
+function TextAreaField({ label, value, onChange, placeholder, optional = false }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  optional?: boolean;
 }) {
   return (
-    <div className="space-y-2 rounded-2xl border bg-background p-4">
-      <Label>{label}</Label>
+    <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
+      <FieldLabel label={label} optional={optional} />
       <Textarea value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} />
     </div>
   );
