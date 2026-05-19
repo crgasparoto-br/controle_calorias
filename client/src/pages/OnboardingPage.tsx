@@ -187,6 +187,7 @@ export default function OnboardingPage() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} />
             <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} />
+            <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Informe a data" : `${calculatedAgeYears} anos`} />
             <TextField label="Altura" suffix="cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} />
             <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} />
           </CardContent>
@@ -237,6 +238,17 @@ function TextField({ label, value, onChange, inputMode, suffix, type = "text" }:
       <div className="flex items-center gap-3">
         <Input type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} />
         {suffix ? <span className="text-sm text-muted-foreground">{suffix}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-2 rounded-2xl border bg-muted/20 p-4">
+      <Label>{label}</Label>
+      <div className="flex h-10 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground">
+        {value}
       </div>
     </div>
   );

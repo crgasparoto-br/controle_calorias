@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateTimeInTimeZone, getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { calculateDayTotals, calculateMealTotals } from "../../../shared/mealTotals";
@@ -102,7 +103,7 @@ function createManualMealState() {
   return {
     mealId: undefined as number | undefined,
     mealLabel: "almoço" as MealType,
-    occurredAt: new Date().toISOString().slice(0, 16),
+    occurredAt: toDateTimeLocalValue(),
     notes: "",
     items: [createEmptyItem()],
   };
@@ -121,10 +122,23 @@ function sumItems(items: MealItemState[]) {
   return calculateMealTotals(items);
 }
 
+type LogMealPageProps = {
+  registeredOnly?: boolean;
+};
+
+export function RegisteredMealsPage() {
+  return <LogMealPageContent registeredOnly />;
+}
+
 export default function LogMealPage() {
+  return <LogMealPageContent />;
+}
+
+function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   const utils = trpc.useUtils();
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
+  const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
 
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -132,16 +146,16 @@ export default function LogMealPage() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoAnalysis, setPhotoAnalysis] = useState<FoodPhotoAnalysisState | null>(null);
   const [photoMealLabel, setPhotoMealLabel] = useState<MealType>("almoço");
-  const [photoOccurredAt, setPhotoOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [photoOccurredAt, setPhotoOccurredAt] = useState(() => toDateTimeLocalValue());
   const [photoNotes, setPhotoNotes] = useState("");
   const [photoEditableItems, setPhotoEditableItems] = useState<MealItemState[]>([]);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [mealLabel, setMealLabel] = useState("");
   const [notes, setNotes] = useState("");
-  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocalValue());
   const [editableItems, setEditableItems] = useState<MealItemState[]>([]);
   const [manualMeal, setManualMeal] = useState(createManualMealState);
-  const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
   const dayTotalsQuery = trpc.nutrition.meals.dayTotals.useQuery({ date: selectedDay });
 
   const invalidateNutritionViews = async () => {
@@ -177,7 +191,7 @@ export default function LogMealPage() {
       setEditableItems([]);
       setMealLabel("");
       setNotes("");
-      setOccurredAt(new Date().toISOString().slice(0, 16));
+      setOccurredAt(toDateTimeLocalValue(undefined, userTimeZone));
     },
     onError: error => toast.error(error.message || "Não foi possível confirmar a refeição agora."),
   });
@@ -200,7 +214,7 @@ export default function LogMealPage() {
       setPhotoAnalysis(null);
       setPhotoEditableItems([]);
       setPhotoMealLabel("almoço");
-      setPhotoOccurredAt(new Date().toISOString().slice(0, 16));
+      setPhotoOccurredAt(toDateTimeLocalValue(undefined, userTimeZone));
       setPhotoNotes("");
     },
     onError: error => toast.error(error.message || "Não foi possível confirmar a análise da foto."),
@@ -324,7 +338,7 @@ export default function LogMealPage() {
     confirmFoodPhoto.mutate({
       analysisId: photoAnalysis.id,
       mealLabel: photoMealLabel,
-      occurredAt: new Date(photoOccurredAt).toISOString(),
+      occurredAt: zonedDateTimeLocalToIso(photoOccurredAt, userTimeZone),
       notes: photoNotes.trim() || undefined,
       items: photoEditableItems,
     });
@@ -362,7 +376,7 @@ export default function LogMealPage() {
 
     const payload = {
       mealLabel: manualMeal.mealLabel,
-      occurredAt: new Date(manualMeal.occurredAt).toISOString(),
+      occurredAt: zonedDateTimeLocalToIso(manualMeal.occurredAt, userTimeZone),
       notes: manualMeal.notes.trim() || undefined,
       items: normalizedItems,
     };
@@ -379,11 +393,102 @@ export default function LogMealPage() {
     setManualMeal({
       mealId: meal.id,
       mealLabel: MEAL_TYPES.includes(meal.mealLabel as MealType) ? meal.mealLabel as MealType : "outro",
-      occurredAt: new Date(meal.occurredAt).toISOString().slice(0, 16),
+      occurredAt: toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone),
       notes: meal.notes ?? "",
       items: meal.items.map(item => ({ ...item })),
     });
   };
+
+  const registeredMealsBlock = (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle>Refeições registradas</CardTitle>
+        <CardDescription>
+          Reaproveite refeições web para edição manual e remova registros que não fazem mais sentido no acompanhamento.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {favoriteMealsQuery.data?.length ? (
+          <div className="mb-4 rounded-2xl border bg-muted/20 p-4">
+            <p className="mb-3 text-sm font-medium tracking-tight">Refeições favoritas</p>
+            <div className="flex flex-wrap gap-2">
+              {favoriteMealsQuery.data.map(favorite => (
+                <Button
+                  key={favorite.id}
+                  type="button"
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone) })}
+                  disabled={reuseFavoriteMeal.isPending}
+                >
+                  <CalendarPlus className="mr-2 h-4 w-4" />
+                  {favorite.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {mealsQuery.data?.length ? (
+          mealsQuery.data.map(meal => (
+            <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium tracking-tight">{meal.mealLabel}</p>
+                    <Badge variant="secondary">{meal.source === "web" ? "Web" : "WhatsApp"}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{formatDateTimeInTimeZone(meal.occurredAt, userTimeZone)}</p>
+                  {meal.notes ? <p className="mt-2 text-sm text-muted-foreground">{meal.notes}</p> : null}
+                </div>
+                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(meal.totals.calories)}</Badge>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {meal.items.map((item, index) => (
+                  <Badge key={`${meal.id}-${item.foodName}-${index}`} variant="outline" className="rounded-full px-3 py-1 text-xs">
+                    {item.foodName} · {item.portionText}
+                  </Badge>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {!registeredOnly && meal.source === "web" ? (
+                  <Button type="button" variant="outline" className="rounded-full" onClick={() => loadMealForEditing(meal as StoredMeal)}>
+                    <PencilLine className="mr-2 h-4 w-4" />
+                    Editar manualmente
+                  </Button>
+                ) : null}
+                <Button type="button" variant="outline" className="rounded-full" onClick={() => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone), mealLabel: MEAL_TYPES.includes(meal.mealLabel as MealType) ? meal.mealLabel as MealType : "outro" })} disabled={copyMeal.isPending}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copiar para o dia
+                </Button>
+                <Button type="button" variant="outline" className="rounded-full" onClick={() => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })} disabled={saveFavoriteMeal.isPending}>
+                  <Star className="mr-2 h-4 w-4" />
+                  Salvar favorita
+                </Button>
+                <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => removeMeal.mutate({ mealId: meal.id })} disabled={removeMeal.isPending}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Excluir refeição
+                </Button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
+            {registeredOnly
+              ? "Nenhuma refeição foi registrada ainda."
+              : "Nenhuma refeição foi registrada ainda. Você pode começar pelo fluxo multimodal acima ou criar uma refeição manual neste mesmo módulo."}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  if (registeredOnly) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">{registeredMealsBlock}</div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -626,7 +731,7 @@ export default function LogMealPage() {
                       confirmMeal.mutate({
                         draftId: draft.draftId,
                         mealLabel: mealLabel || draft.processed.detectedMealLabel,
-                        occurredAt: new Date(occurredAt).toISOString(),
+                        occurredAt: zonedDateTimeLocalToIso(occurredAt, userTimeZone),
                         notes: notes || undefined,
                         items: editableItems,
                       });
@@ -744,84 +849,7 @@ export default function LogMealPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle>Refeições registradas</CardTitle>
-              <CardDescription>
-                Reaproveite refeições web para edição manual e remova registros que não fazem mais sentido no acompanhamento.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {favoriteMealsQuery.data?.length ? (
-                <div className="mb-4 rounded-2xl border bg-muted/20 p-4">
-                  <p className="mb-3 text-sm font-medium tracking-tight">Refeições favoritas</p>
-                  <div className="flex flex-wrap gap-2">
-                    {favoriteMealsQuery.data.map(favorite => (
-                      <Button
-                        key={favorite.id}
-                        type="button"
-                        variant="outline"
-                        className="rounded-full"
-                        onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: new Date(`${selectedDay}T12:00`).toISOString() })}
-                        disabled={reuseFavoriteMeal.isPending}
-                      >
-                        <CalendarPlus className="mr-2 h-4 w-4" />
-                        {favorite.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {mealsQuery.data?.length ? (
-                mealsQuery.data.map(meal => (
-                  <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium tracking-tight">{meal.mealLabel}</p>
-                          <Badge variant="secondary">{meal.source === "web" ? "Web" : "WhatsApp"}</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
-                        {meal.notes ? <p className="mt-2 text-sm text-muted-foreground">{meal.notes}</p> : null}
-                      </div>
-                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(meal.totals.calories)}</Badge>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {meal.items.map((item, index) => (
-                        <Badge key={`${meal.id}-${item.foodName}-${index}`} variant="outline" className="rounded-full px-3 py-1 text-xs">
-                          {item.foodName} · {item.portionText}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      {meal.source === "web" ? (
-                        <Button type="button" variant="outline" className="rounded-full" onClick={() => loadMealForEditing(meal as StoredMeal)}>
-                          <PencilLine className="mr-2 h-4 w-4" />
-                          Editar manualmente
-                        </Button>
-                      ) : null}
-                      <Button type="button" variant="outline" className="rounded-full" onClick={() => copyMeal.mutate({ mealId: meal.id, occurredAt: new Date(`${selectedDay}T12:00`).toISOString(), mealLabel: MEAL_TYPES.includes(meal.mealLabel as MealType) ? meal.mealLabel as MealType : "outro" })} disabled={copyMeal.isPending}>
-                        <Copy className="mr-2 h-4 w-4" />
-                        Copiar para o dia
-                      </Button>
-                      <Button type="button" variant="outline" className="rounded-full" onClick={() => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })} disabled={saveFavoriteMeal.isPending}>
-                        <Star className="mr-2 h-4 w-4" />
-                        Salvar favorita
-                      </Button>
-                      <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => removeMeal.mutate({ mealId: meal.id })} disabled={removeMeal.isPending}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Excluir refeição
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-                  Nenhuma refeição foi registrada ainda. Você pode começar pelo fluxo multimodal acima ou criar uma refeição manual neste mesmo módulo.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {registeredMealsBlock}
         </div>
       </div>
     </DashboardLayout>

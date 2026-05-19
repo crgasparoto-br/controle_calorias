@@ -374,6 +374,7 @@ export async function saveUserOnboardingProfile(userId: number, input: Onboardin
   const profileValues = {
     userId,
     displayName: input.name,
+    birthDate: input.birthDate ?? null,
     ageYears: input.ageYears,
     sex: "prefer_not_to_say" as const,
     heightCm: input.heightCm,

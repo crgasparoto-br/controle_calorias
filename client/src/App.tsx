@@ -6,7 +6,7 @@ import GoalsPage from "@/pages/GoalsPage";
 import FoodsPage from "@/pages/FoodsPage";
 import Home from "@/pages/Home";
 import HealthIntegrationsPage from "@/pages/HealthIntegrationsPage";
-import LogMealPage from "@/pages/LogMealPage";
+import LogMealPage, { RegisteredMealsPage } from "@/pages/LogMealPage";
 import LoginPage from "@/pages/LoginPage";
 import NotFound from "@/pages/NotFound";
 import OnboardingPage from "@/pages/OnboardingPage";
@@ -41,7 +41,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/log-meal" component={LogMealPage} />
-      <Route path="/meals" component={LogMealPage} />
+      <Route path="/meals" component={RegisteredMealsPage} />
       <Route path="/foods" component={FoodsPage} />
       <Route path="/goals" component={GoalsPage} />
       <Route path="/reports" component={ReportsPage} />

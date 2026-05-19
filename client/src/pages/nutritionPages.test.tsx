@@ -454,6 +454,7 @@ describe("nutrition pages", () => {
 
     expect(html).toContain("Onboarding nutricional");
     expect(html).toContain("Nome");
+    expect(html).toContain("Idade");
     expect(html).toContain("Peso atual");
     expect(html).toContain("Objetivo");
     expect(html).toContain("Preferências alimentares");

@@ -32,6 +32,23 @@ const MEAL_ITEM_COLUMNS = [
   { name: "unit", sql: "`unit` varchar(40) DEFAULT 'serving' NOT NULL" },
 ];
 
+const USER_PROFILE_COLUMNS = [
+  { name: "displayName", sql: "`displayName` varchar(255) NULL" },
+  { name: "ageYears", sql: "`ageYears` int NULL" },
+  { name: "birthDate", sql: "`birthDate` varchar(10) NULL" },
+  { name: "sex", sql: "`sex` enum('female','male','non_binary','prefer_not_to_say') DEFAULT 'prefer_not_to_say' NOT NULL" },
+  { name: "heightCm", sql: "`heightCm` double NULL" },
+  { name: "currentWeightKg", sql: "`currentWeightKg` double NULL" },
+  { name: "nutritionObjective", sql: "`nutritionObjective` enum('emagrecer','manter_peso','ganhar_massa','melhorar_habitos') NULL" },
+  { name: "activityLevel", sql: "`activityLevel` enum('sedentary','light','moderate','active','very_active') NULL" },
+  { name: "trackingExperience", sql: "`trackingExperience` enum('beginner','intermediate','advanced') NULL" },
+  { name: "eatingRoutine", sql: "`eatingRoutine` enum('cozinha_em_casa','come_fora','delivery','marmita','misto') NULL" },
+  { name: "mainDifficulty", sql: "`mainDifficulty` enum('fome','ansiedade','falta_de_tempo','beliscos','doces','comer_fora','falta_de_planejamento') NULL" },
+  { name: "onboardingCompletedAt", sql: "`onboardingCompletedAt` timestamp NULL" },
+  { name: "timezone", sql: "`timezone` varchar(80) DEFAULT 'UTC' NOT NULL" },
+  { name: "locale", sql: "`locale` varchar(16) DEFAULT 'pt-BR' NOT NULL" },
+];
+
 async function tableExists(connection: Connection, tableName: string) {
   const [rows] = await connection.execute<mysql.RowDataPacket[]>(
     "SELECT COUNT(*) AS total FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
@@ -111,6 +128,7 @@ export async function ensureRuntimeSchemaCompatibility() {
       ...(await addMissingColumns(connection, "nutritionGoals", NUTRITION_GOAL_COLUMNS)),
       ...(await addMissingColumns(connection, "foodCatalog", FOOD_CATALOG_COLUMNS)),
       ...(await addMissingColumns(connection, "mealItems", MEAL_ITEM_COLUMNS)),
+      ...(await addMissingColumns(connection, "userProfiles", USER_PROFILE_COLUMNS)),
     ];
 
     await normalizeNutritionGoalsWeekday(connection);

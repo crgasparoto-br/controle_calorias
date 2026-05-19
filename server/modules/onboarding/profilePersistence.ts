@@ -11,7 +11,7 @@ export async function persistOnboardingBirthDate(userId: number, input: Onboardi
     await db
       .update(userProfiles)
       .set({
-        birthDate: input.birthDate,
+        birthDate: input.birthDate ?? null,
         ageYears: input.ageYears,
         updatedAt: new Date(),
       })
