@@ -139,6 +139,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
+  const manualEditorRef = React.useRef<HTMLDivElement>(null);
 
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -397,14 +398,120 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
       notes: meal.notes ?? "",
       items: meal.items.map(item => ({ ...item })),
     });
+    window.requestAnimationFrame(() => {
+      manualEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    toast.success("Refeição carregada para edição.");
   };
+
+  const manualMealEditorBlock = (
+    <div ref={manualEditorRef}>
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <PencilLine className="h-5 w-5 text-primary" />
+            Criar ou editar refeição manualmente
+          </CardTitle>
+          <CardDescription>
+            Use este bloco para criar refeições sem IA, ajustar refeições já registradas e manter seu histórico alimentar manualmente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="manual-meal-label">Nome da refeição</Label>
+              <Select value={manualMeal.mealLabel} onValueChange={(mealLabel: MealType) => setManualMeal(current => ({ ...current, mealLabel }))}>
+                <SelectTrigger id="manual-meal-label"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="manual-occurred-at">Data e horário</Label>
+              <Input id="manual-occurred-at" type="datetime-local" value={manualMeal.occurredAt} onChange={event => setManualMeal(current => ({ ...current, occurredAt: event.target.value }))} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manual-notes">Observações</Label>
+            <Textarea id="manual-notes" value={manualMeal.notes} onChange={event => setManualMeal(current => ({ ...current, notes: event.target.value }))} placeholder="Ex.: refeição pré-treino" className="min-h-24 rounded-2xl" />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium tracking-tight">Itens da refeição</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar item
+              </Button>
+            </div>
+
+            {manualMeal.items.map((item, index) => (
+              <div key={`manual-${index}`} className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">Item {index + 1}</p>
+                  {manualMeal.items.length > 1 ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() =>
+                        setManualMeal(current => ({
+                          ...current,
+                          items: current.items.filter((_, currentIndex) => currentIndex !== index),
+                        }))
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+                <MealItemEditor item={item} onChange={(key, value) => updateManualItem(index, key, value)} />
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border bg-muted/30 p-4">
+            <p className="text-sm text-muted-foreground">Totais da refeição manual</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-4">
+              <SummaryPill label="Calorias" value={formatCalories(manualTotals.calories)} />
+              <SummaryPill label="Proteínas" value={formatGrams(manualTotals.protein)} />
+              <SummaryPill label="Carboidratos" value={formatGrams(manualTotals.carbs)} />
+              <SummaryPill label="Gorduras" value={formatGrams(manualTotals.fat)} />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button className="rounded-full" onClick={handleSubmitManualMeal} disabled={createManualMeal.isPending || updateMeal.isPending}>
+              <Save className="mr-2 h-4 w-4" />
+              {manualMeal.mealId ? (updateMeal.isPending ? "Atualizando..." : "Salvar alterações") : createManualMeal.isPending ? "Criando..." : "Criar refeição manual"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setManualMeal(createManualMealState())}
+            >
+              Limpar formulário
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 
   const registeredMealsBlock = (
     <Card className="border-0 shadow-sm">
       <CardHeader>
         <CardTitle>Refeições registradas</CardTitle>
         <CardDescription>
-          Reaproveite refeições web para edição manual e remova registros que não fazem mais sentido no acompanhamento.
+          Edite, copie, favorite ou remova registros para manter seu acompanhamento alimentar ajustado.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -450,12 +557,10 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
                 ))}
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
-                {!registeredOnly && meal.source === "web" ? (
-                  <Button type="button" variant="outline" className="rounded-full" onClick={() => loadMealForEditing(meal as StoredMeal)}>
-                    <PencilLine className="mr-2 h-4 w-4" />
-                    Editar manualmente
-                  </Button>
-                ) : null}
+                <Button type="button" variant="outline" className="rounded-full" onClick={() => loadMealForEditing(meal as StoredMeal)}>
+                  <PencilLine className="mr-2 h-4 w-4" />
+                  Editar refeição
+                </Button>
                 <Button type="button" variant="outline" className="rounded-full" onClick={() => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone), mealLabel: MEAL_TYPES.includes(meal.mealLabel as MealType) ? meal.mealLabel as MealType : "outro" })} disabled={copyMeal.isPending}>
                   <Copy className="mr-2 h-4 w-4" />
                   Copiar para o dia
@@ -485,7 +590,10 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   if (registeredOnly) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">{registeredMealsBlock}</div>
+        <div className="space-y-6">
+          {manualMeal.mealId ? manualMealEditorBlock : null}
+          {registeredMealsBlock}
+        </div>
       </DashboardLayout>
     );
   }
@@ -751,104 +859,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[0.95fr,1.05fr]">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <PencilLine className="h-5 w-5 text-primary" />
-                Criar ou editar refeição manualmente
-              </CardTitle>
-              <CardDescription>
-                Use este bloco para criar refeições sem IA, ajustar refeições já registradas via web e manter seu histórico alimentar manualmente.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="manual-meal-label">Nome da refeição</Label>
-                  <Select value={manualMeal.mealLabel} onValueChange={(mealLabel: MealType) => setManualMeal(current => ({ ...current, mealLabel }))}>
-                    <SelectTrigger id="manual-meal-label"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manual-occurred-at">Data e horário</Label>
-                  <Input id="manual-occurred-at" type="datetime-local" value={manualMeal.occurredAt} onChange={event => setManualMeal(current => ({ ...current, occurredAt: event.target.value }))} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="manual-notes">Observações</Label>
-                <Textarea id="manual-notes" value={manualMeal.notes} onChange={event => setManualMeal(current => ({ ...current, notes: event.target.value }))} placeholder="Ex.: refeição pré-treino" className="min-h-24 rounded-2xl" />
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium tracking-tight">Itens da refeição</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-full"
-                    onClick={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Adicionar item
-                  </Button>
-                </div>
-
-                {manualMeal.items.map((item, index) => (
-                  <div key={`manual-${index}`} className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium">Item {index + 1}</p>
-                      {manualMeal.items.length > 1 ? (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() =>
-                            setManualMeal(current => ({
-                              ...current,
-                              items: current.items.filter((_, currentIndex) => currentIndex !== index),
-                            }))
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                    </div>
-                    <MealItemEditor item={item} onChange={(key, value) => updateManualItem(index, key, value)} />
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-2xl border bg-muted/30 p-4">
-                <p className="text-sm text-muted-foreground">Totais da refeição manual</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                  <SummaryPill label="Calorias" value={formatCalories(manualTotals.calories)} />
-                  <SummaryPill label="Proteínas" value={formatGrams(manualTotals.protein)} />
-                  <SummaryPill label="Carboidratos" value={formatGrams(manualTotals.carbs)} />
-                  <SummaryPill label="Gorduras" value={formatGrams(manualTotals.fat)} />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button className="rounded-full" onClick={handleSubmitManualMeal} disabled={createManualMeal.isPending || updateMeal.isPending}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {manualMeal.mealId ? (updateMeal.isPending ? "Atualizando..." : "Salvar alterações") : createManualMeal.isPending ? "Criando..." : "Criar refeição manual"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full"
-                  onClick={() => setManualMeal(createManualMealState())}
-                >
-                  Limpar formulário
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
+          {manualMealEditorBlock}
           {registeredMealsBlock}
         </div>
       </div>
