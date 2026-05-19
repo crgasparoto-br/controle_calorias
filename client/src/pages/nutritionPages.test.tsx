@@ -11,6 +11,12 @@ const whatsappStatusMock = vi.fn();
 const adminOverviewMock = vi.fn();
 const adminWhatsappTokenStatusMock = vi.fn();
 const useUtilsMock = vi.fn(() => ({
+  auth: {
+    me: {
+      setData: vi.fn(),
+      invalidate: vi.fn(),
+    },
+  },
   nutrition: {
     dashboard: { overview: { invalidate: vi.fn() } },
     meals: { list: { invalidate: vi.fn() }, dayTotals: { invalidate: vi.fn() }, favorites: { invalidate: vi.fn() } },
@@ -46,6 +52,14 @@ vi.mock("wouter", () => ({
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: useUtilsMock,
+    auth: {
+      me: {
+        useQuery: () => ({ data: null, isLoading: false, error: null, refetch: vi.fn() }),
+      },
+      logout: {
+        useMutation: () => ({ isPending: false, error: null, mutateAsync: vi.fn() }),
+      },
+    },
     nutrition: {
       assistant: {
         suggest: {

@@ -1,3 +1,4 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import React, { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { parseDecimalInputPtBr, parseIntegerInputPtBr } from "@/lib/numberFormat";
+import { parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Activity, ArrowRight, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -52,7 +53,7 @@ const DIFFICULTY_OPTIONS = [
 
 type FormState = {
   name: string;
-  ageYears: string;
+  birthDate: string;
   heightCm: string;
   currentWeightKg: string;
   objective: typeof OBJECTIVE_OPTIONS[number]["value"];
@@ -66,7 +67,7 @@ type FormState = {
 
 const initialForm: FormState = {
   name: "",
-  ageYears: "",
+  birthDate: "",
   heightCm: "",
   currentWeightKg: "",
   objective: "melhorar_habitos",
@@ -85,14 +86,43 @@ function splitList(value: string) {
     .filter(Boolean);
 }
 
+function calculateAgeYears(birthDate: string, referenceDate = new Date()) {
+  if (!birthDate) return null;
+  const [year, month, day] = birthDate.split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  const parsedDate = new Date(year, month - 1, day);
+  const isSameDate = parsedDate.getFullYear() === year && parsedDate.getMonth() === month - 1 && parsedDate.getDate() === day;
+  if (!isSameDate || parsedDate.getTime() > referenceDate.getTime()) return null;
+
+  let age = referenceDate.getFullYear() - year;
+  const birthdayAlreadyHappened = referenceDate.getMonth() > month - 1 || (referenceDate.getMonth() === month - 1 && referenceDate.getDate() >= day);
+  if (!birthdayAlreadyHappened) age -= 1;
+  return age;
+}
+
 export default function OnboardingPage() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
-  const [form, setForm] = useState<FormState>(initialForm);
+  const { user } = useAuth();
+  const [nameEdited, setNameEdited] = useState(false);
+  const [form, setForm] = useState<FormState>(() => ({
+    ...initialForm,
+    name: user?.name?.trim() ?? "",
+  }));
+
+  const userName = user?.name?.trim() ?? "";
+  React.useEffect(() => {
+    if (!nameEdited && userName && !form.name.trim()) {
+      setForm(current => ({ ...current, name: userName }));
+    }
+  }, [form.name, nameEdited, userName]);
+
+  const calculatedAgeYears = useMemo(() => calculateAgeYears(form.birthDate), [form.birthDate]);
 
   const parsed = useMemo(() => ({
     name: form.name.trim(),
-    ageYears: parseIntegerInputPtBr(form.ageYears),
+    birthDate: form.birthDate,
     heightCm: parseDecimalInputPtBr(form.heightCm),
     currentWeightKg: parseDecimalInputPtBr(form.currentWeightKg),
     objective: form.objective,
@@ -106,11 +136,13 @@ export default function OnboardingPage() {
 
   const validationMessage = useMemo(() => {
     if (parsed.name.length < 2) return "Informe seu nome.";
-    if (parsed.ageYears < 13 || parsed.ageYears > 120) return "Informe uma idade válida.";
+    if (!parsed.birthDate) return "Informe sua data de nascimento.";
+    if (calculatedAgeYears === null) return "Informe uma data de nascimento válida.";
+    if (calculatedAgeYears < 13 || calculatedAgeYears > 120) return "A idade calculada deve estar entre 13 e 120 anos.";
     if (parsed.heightCm < 100 || parsed.heightCm > 250) return "Informe uma altura válida.";
     if (parsed.currentWeightKg < 25 || parsed.currentWeightKg > 350) return "Informe um peso atual válido.";
     return null;
-  }, [parsed]);
+  }, [calculatedAgeYears, parsed]);
 
   const completeOnboarding = trpc.nutrition.onboarding.complete.useMutation({
     onSuccess: async () => {
@@ -126,6 +158,7 @@ export default function OnboardingPage() {
   });
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
+    if (field === "name") setNameEdited(true);
     setForm(current => ({ ...current, [field]: value }));
   }
 
@@ -153,7 +186,7 @@ export default function OnboardingPage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} />
-            <TextField label="Idade" inputMode="numeric" value={form.ageYears} onChange={value => updateField("ageYears", value)} />
+            <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} />
             <TextField label="Altura" suffix="cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} />
             <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} />
           </CardContent>
@@ -190,18 +223,19 @@ export default function OnboardingPage() {
   );
 }
 
-function TextField({ label, value, onChange, inputMode, suffix }: {
+function TextField({ label, value, onChange, inputMode, suffix, type = "text" }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   suffix?: string;
+  type?: React.HTMLInputTypeAttribute;
 }) {
   return (
     <div className="space-y-2 rounded-2xl border bg-background p-4">
       <Label>{label}</Label>
       <div className="flex items-center gap-3">
-        <Input inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} />
+        <Input type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} />
         {suffix ? <span className="text-sm text-muted-foreground">{suffix}</span> : null}
       </div>
     </div>
