@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { createPool, type Pool } from "mysql2/promise";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
@@ -232,10 +233,47 @@ export async function upsertAdminWhatsAppAccessToken(input: { value: string; upd
   return getAdminWhatsAppTokenStatus();
 }
 
+function envFlagEnabled(value: string | undefined) {
+  return ["1", "true", "yes", "on"].includes(value?.toLowerCase() ?? "");
+}
+
+function envFlagDisabled(value: string | undefined) {
+  return ["0", "false", "no", "off"].includes(value?.toLowerCase() ?? "");
+}
+
+function shouldEnableRuntimeDatabaseSsl(connectionString: string) {
+  const explicitValue = process.env.TIDB_ENABLE_SSL;
+  if (envFlagEnabled(explicitValue)) return true;
+  if (envFlagDisabled(explicitValue)) return false;
+
+  return connectionString.includes("tidbcloud.com");
+}
+
+function getRuntimeDatabaseConnectionLimit() {
+  const configured = Number(process.env.DATABASE_CONNECTION_LIMIT ?? "10");
+  return Number.isFinite(configured) && configured > 0 ? configured : 10;
+}
+
+function createRuntimeDatabaseClient(connectionString: string): string | Pool {
+  if (!shouldEnableRuntimeDatabaseSsl(connectionString)) {
+    return connectionString;
+  }
+
+  return createPool({
+    uri: connectionString,
+    waitForConnections: true,
+    connectionLimit: getRuntimeDatabaseConnectionLimit(),
+    ssl: {
+      minVersion: "TLSv1.2",
+    },
+  });
+}
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const client = createRuntimeDatabaseClient(process.env.DATABASE_URL);
+        _db = (typeof client === "string" ? drizzle(client) : drizzle(client)) as unknown as typeof _db;
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
