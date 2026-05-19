@@ -273,7 +273,7 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       const client = createRuntimeDatabaseClient(process.env.DATABASE_URL);
-      _db = typeof client === "string" ? drizzle(client) : drizzle(client);
+        _db = (typeof client === "string" ? drizzle(client) : drizzle(client)) as unknown as typeof _db;
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
