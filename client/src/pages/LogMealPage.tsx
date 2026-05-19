@@ -398,22 +398,21 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
       notes: meal.notes ?? "",
       items: meal.items.map(item => ({ ...item })),
     });
-    window.requestAnimationFrame(() => {
-      manualEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    toast.success("Refeição carregada para edição.");
+    toast.success("Formulário de edição aberto abaixo da refeição selecionada.");
   };
 
   const manualMealEditorBlock = (
     <div ref={manualEditorRef}>
-      <Card className="border-0 shadow-sm">
+      <Card className="border-0 shadow-sm ring-1 ring-primary/20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <PencilLine className="h-5 w-5 text-primary" />
-            Criar ou editar refeição manualmente
+            {manualMeal.mealId ? "Editar refeição selecionada" : "Criar refeição manualmente"}
           </CardTitle>
           <CardDescription>
-            Use este bloco para criar refeições sem IA, ajustar refeições já registradas e manter seu histórico alimentar manualmente.
+            {manualMeal.mealId
+              ? "Altere os dados abaixo e clique em salvar alterações para atualizar esta refeição."
+              : "Use este bloco para criar refeições sem IA e manter seu histórico alimentar manualmente."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -498,7 +497,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
               className="rounded-full"
               onClick={() => setManualMeal(createManualMealState())}
             >
-              Limpar formulário
+              {manualMeal.mealId ? "Cancelar edição" : "Limpar formulário"}
             </Button>
           </div>
         </CardContent>
@@ -557,9 +556,9 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
                 ))}
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => loadMealForEditing(meal as StoredMeal)}>
+                <Button type="button" variant={manualMeal.mealId === meal.id ? "default" : "outline"} className="rounded-full" onClick={() => loadMealForEditing(meal as StoredMeal)}>
                   <PencilLine className="mr-2 h-4 w-4" />
-                  Editar refeição
+                  {manualMeal.mealId === meal.id ? "Editando esta refeição" : "Editar refeição"}
                 </Button>
                 <Button type="button" variant="outline" className="rounded-full" onClick={() => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone), mealLabel: MEAL_TYPES.includes(meal.mealLabel as MealType) ? meal.mealLabel as MealType : "outro" })} disabled={copyMeal.isPending}>
                   <Copy className="mr-2 h-4 w-4" />
@@ -574,6 +573,11 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
                   Excluir refeição
                 </Button>
               </div>
+              {manualMeal.mealId === meal.id ? (
+                <div className="mt-5 rounded-3xl border border-primary/30 bg-primary/5 p-3">
+                  {manualMealEditorBlock}
+                </div>
+              ) : null}
             </div>
           ))
         ) : (
@@ -591,7 +595,6 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          {manualMeal.mealId ? manualMealEditorBlock : null}
           {registeredMealsBlock}
         </div>
       </DashboardLayout>
@@ -859,7 +862,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[0.95fr,1.05fr]">
-          {manualMealEditorBlock}
+          {manualMeal.mealId ? null : manualMealEditorBlock}
           {registeredMealsBlock}
         </div>
       </div>
