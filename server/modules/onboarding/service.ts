@@ -1,6 +1,7 @@
 import { saveUserOnboardingProfile } from "../../db";
 import { updateNutritionGoal } from "../goals/service";
 import { nutritionGoalService, type ActivityLevel, type NutritionObjective } from "../goals/nutritionGoalService";
+import { persistOnboardingBirthDate } from "./profilePersistence";
 import type { OnboardingInput } from "./schemas";
 
 const OBJECTIVE_MAP: Record<OnboardingInput["objective"], NutritionObjective> = {
@@ -21,13 +22,14 @@ export async function completeOnboarding(userId: number, input: OnboardingInput)
   });
 
   const savedProfile = await saveUserOnboardingProfile(userId, input);
+  await persistOnboardingBirthDate(userId, input);
   const goal = await updateNutritionGoal(userId, {
     defaultGoal: calculation.calculatedGoal,
     exceptions: [],
   });
 
   return {
-    profile: savedProfile,
+    profile: { ...savedProfile, birthDate: input.birthDate, ageYears: input.ageYears },
     calculation,
     goal,
   };
