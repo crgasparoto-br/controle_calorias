@@ -459,7 +459,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Objetivo");
     expect(html).toContain("Preferências alimentares");
     expect(html).toContain("Principal dificuldade");
-    expect(html).toContain("Concluir onboarding");
+    expect(html).toContain("Salvar onboarding");
   });
 
   it("renderiza a página de registro multimodal", async () => {
