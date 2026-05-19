@@ -51,17 +51,31 @@ export function formatIntegerInputPtBr(value: string | number) {
 }
 
 export function parseDecimalInputPtBr(value: string) {
-  const normalized = value
-    .replace(/\./g, "")
-    .replace(/,/g, ".")
-    .replace(/[^\d.]/g, "");
+  const compact = value.trim().replace(/\s/g, "").replace(/[^\d,.-]/g, "");
+  if (!compact) return 0;
 
-  if (!normalized) return 0;
+  const sign = compact.startsWith("-") ? "-" : "";
+  const unsigned = compact.replace(/-/g, "");
+  const separators = Array.from(unsigned.matchAll(/[.,]/g)).map(match => ({
+    separator: match[0],
+    index: match.index ?? -1,
+  }));
 
-  const [integerPart = "", ...decimalParts] = normalized.split(".");
-  const decimalPart = decimalParts.join("");
-  const merged = decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
-  const parsed = Number(merged);
+  if (!separators.length) {
+    const parsedInteger = Number(`${sign}${unsigned.replace(/\D/g, "")}`);
+    return Number.isFinite(parsedInteger) ? parsedInteger : 0;
+  }
+
+  const lastSeparator = separators[separators.length - 1];
+  const rawIntegerPart = unsigned.slice(0, lastSeparator.index).replace(/[.,]/g, "");
+  const rawDecimalPart = unsigned.slice(lastSeparator.index + 1).replace(/[.,]/g, "");
+
+  const looksLikeThousandsSeparator = separators.length === 1 && rawDecimalPart.length === 3 && rawIntegerPart.length > 0;
+  const normalized = looksLikeThousandsSeparator
+    ? `${sign}${rawIntegerPart}${rawDecimalPart}`
+    : `${sign}${rawIntegerPart || "0"}${rawDecimalPart ? `.${rawDecimalPart}` : ""}`;
+
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
