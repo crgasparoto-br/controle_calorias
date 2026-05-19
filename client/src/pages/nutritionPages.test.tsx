@@ -18,6 +18,7 @@ const useUtilsMock = vi.fn(() => ({
     },
   },
   nutrition: {
+    onboarding: { profile: { invalidate: vi.fn() } },
     dashboard: { overview: { invalidate: vi.fn() } },
     meals: { list: { invalidate: vi.fn() }, dayTotals: { invalidate: vi.fn() }, favorites: { invalidate: vi.fn() } },
     reports: { weekly: { invalidate: vi.fn() } },
@@ -67,6 +68,9 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
       onboarding: {
+        profile: {
+          useQuery: () => ({ data: null, isLoading: false, error: null }),
+        },
         complete: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },

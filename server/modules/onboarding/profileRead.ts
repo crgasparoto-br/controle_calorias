@@ -21,7 +21,7 @@ function parsePreferenceList(value: string | null | undefined) {
 }
 
 function uniqueStrings(values: string[]) {
-  return [...new Set(values.map(value => value.trim()).filter(Boolean))];
+  return Array.from(new Set(values.map(value => value.trim()).filter(Boolean)));
 }
 
 export async function getUserOnboardingProfile(userId: number) {
