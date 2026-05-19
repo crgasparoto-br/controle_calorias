@@ -16,7 +16,7 @@ export function calculateAgeYearsFromBirthDate(birthDate: string, referenceDate 
   return age;
 }
 
-export const onboardingSchema = z.object({
+const onboardingBaseSchema = z.object({
   name: z.string().trim().min(2, "Informe seu nome.").max(120),
   birthDate: z.string().trim().min(1, "Informe sua data de nascimento."),
   heightCm: z.number().min(100).max(250),
@@ -28,17 +28,23 @@ export const onboardingSchema = z.object({
   dietaryRestrictions: z.array(z.string().trim().min(1).max(80)).max(12).default([]),
   eatingRoutine: z.enum(["cozinha_em_casa", "come_fora", "delivery", "marmita", "misto"]),
   mainDifficulty: z.enum(["fome", "ansiedade", "falta_de_tempo", "beliscos", "doces", "comer_fora", "falta_de_planejamento"]),
-}).superRefine((input, ctx) => {
-  const ageYears = calculateAgeYearsFromBirthDate(input.birthDate);
-  if (ageYears === null) {
-    ctx.addIssue({ code: "custom", path: ["birthDate"], message: "Informe uma data de nascimento válida." });
-    return;
-  }
-
-  if (ageYears < 13 || ageYears > 120) {
-    ctx.addIssue({ code: "custom", path: ["birthDate"], message: "A idade calculada deve estar entre 13 e 120 anos." });
-  }
 });
 
+export const onboardingSchema = onboardingBaseSchema
+  .superRefine((input, ctx) => {
+    const ageYears = calculateAgeYearsFromBirthDate(input.birthDate);
+    if (ageYears === null) {
+      ctx.addIssue({ code: "custom", path: ["birthDate"], message: "Informe uma data de nascimento válida." });
+      return;
+    }
+
+    if (ageYears < 13 || ageYears > 120) {
+      ctx.addIssue({ code: "custom", path: ["birthDate"], message: "A idade calculada deve estar entre 13 e 120 anos." });
+    }
+  })
+  .transform(input => ({
+    ...input,
+    ageYears: calculateAgeYearsFromBirthDate(input.birthDate) ?? 0,
+  }));
+
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
-export type OnboardingProfileInput = OnboardingInput & { ageYears: number };
