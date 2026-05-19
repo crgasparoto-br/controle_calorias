@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { parseDecimalInputPtBr } from "@/lib/numberFormat";
+import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Activity, ArrowRight, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -93,9 +93,49 @@ function splitList(value: string) {
     .filter(Boolean);
 }
 
+function joinList(value: string[] | null | undefined) {
+  return value?.join(", ") ?? "";
+}
+
 function parseOptionalDecimalInput(value: string) {
   if (!value.trim()) return undefined;
   return parseDecimalInputPtBr(value);
+}
+
+function parseHeightInputToCentimeters(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const directDecimal = trimmed.replace(/\s/g, "").replace(",", ".");
+  const parsed = /^\d+(\.\d+)?$/.test(directDecimal)
+    ? Number(directDecimal)
+    : parseDecimalInputPtBr(trimmed);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  if (parsed < 3) return Math.round(parsed * 1000) / 10;
+  return parsed;
+}
+
+function formatHeightInputFromCentimeters(value: number | null | undefined) {
+  if (!value) return "";
+  if (value >= 100) {
+    return formatNumberPtBr(value / 100, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+  return formatNumberPtBr(value, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatWeightInput(value: number | null | undefined) {
+  if (!value) return "";
+  return formatNumberPtBr(value, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
 }
 
 function calculateAgeYears(birthDate: string, referenceDate = new Date()) {
@@ -118,12 +158,36 @@ export default function OnboardingPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const [nameEdited, setNameEdited] = useState(false);
+  const [savedProfileApplied, setSavedProfileApplied] = useState(false);
   const [form, setForm] = useState<FormState>(() => ({
     ...initialForm,
     name: user?.name?.trim() ?? "",
   }));
 
+  const savedProfileQuery = trpc.nutrition.onboarding.profile.useQuery();
   const userName = user?.name?.trim() ?? "";
+
+  React.useEffect(() => {
+    const profile = savedProfileQuery.data;
+    if (!profile || savedProfileApplied) return;
+
+    setForm({
+      name: profile.name || userName,
+      birthDate: profile.birthDate ?? "",
+      heightCm: formatHeightInputFromCentimeters(profile.heightCm),
+      currentWeightKg: formatWeightInput(profile.currentWeightKg),
+      objective: profile.objective,
+      activityLevel: profile.activityLevel,
+      trackingExperience: profile.trackingExperience,
+      dietaryPreferences: joinList(profile.dietaryPreferences),
+      dietaryRestrictions: joinList(profile.dietaryRestrictions),
+      eatingRoutine: profile.eatingRoutine,
+      mainDifficulty: profile.mainDifficulty,
+    });
+    setNameEdited(Boolean(profile.name));
+    setSavedProfileApplied(true);
+  }, [savedProfileApplied, savedProfileQuery.data, userName]);
+
   React.useEffect(() => {
     if (!nameEdited && userName && !form.name.trim()) {
       setForm(current => ({ ...current, name: userName }));
@@ -135,7 +199,7 @@ export default function OnboardingPage() {
   const parsed = useMemo(() => ({
     name: form.name.trim(),
     birthDate: form.birthDate,
-    heightCm: parseOptionalDecimalInput(form.heightCm),
+    heightCm: parseHeightInputToCentimeters(form.heightCm),
     currentWeightKg: parseOptionalDecimalInput(form.currentWeightKg),
     objective: form.objective,
     activityLevel: form.activityLevel,
@@ -150,10 +214,11 @@ export default function OnboardingPage() {
     if (parsed.name && parsed.name.length < 2) return "Informe um nome com pelo menos 2 caracteres ou deixe o campo em branco.";
     if (parsed.birthDate && calculatedAgeYears === null) return "Informe uma data de nascimento válida ou deixe o campo em branco.";
     if (calculatedAgeYears !== null && (calculatedAgeYears < 13 || calculatedAgeYears > 120)) return "A idade calculada deve estar entre 13 e 120 anos.";
-    if (parsed.heightCm !== undefined && (parsed.heightCm < 100 || parsed.heightCm > 250)) return "Informe uma altura válida ou deixe o campo em branco.";
+    if (form.heightCm.trim() && parsed.heightCm === undefined) return "Informe uma altura válida ou deixe o campo em branco.";
+    if (parsed.heightCm !== undefined && (parsed.heightCm < 100 || parsed.heightCm > 250)) return "Informe uma altura válida entre 1,00 m e 2,50 m, ou deixe o campo em branco.";
     if (parsed.currentWeightKg !== undefined && (parsed.currentWeightKg < 25 || parsed.currentWeightKg > 350)) return "Informe um peso atual válido ou deixe o campo em branco.";
     return null;
-  }, [calculatedAgeYears, parsed]);
+  }, [calculatedAgeYears, form.heightCm, parsed]);
 
   const payload = useMemo(() => ({
     name: parsed.name || userName || OPTIONAL_ONBOARDING_FALLBACK.name,
@@ -172,6 +237,7 @@ export default function OnboardingPage() {
   const completeOnboarding = trpc.nutrition.onboarding.complete.useMutation({
     onSuccess: async () => {
       await Promise.all([
+        utils.nutrition.onboarding.profile.invalidate(),
         utils.nutrition.goals.get.invalidate(),
         utils.nutrition.dashboard.overview.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
@@ -213,7 +279,7 @@ export default function OnboardingPage() {
             <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
             <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
             <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
-            <TextField label="Altura" suffix="cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,75 ou 175" />
+            <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
             <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5 ou 72.5" />
           </CardContent>
         </Card>
