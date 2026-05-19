@@ -13,7 +13,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `foodPhotoAnalysis` | 4 | 1 | 3 | protected | Análise, consulta, rejeição e confirmação de fotos |
 | `healthIntegrations` | 4 | 1 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
 | `professionals` | 11 | 5 | 6 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
-| `onboarding` | 1 | 0 | 1 | protected | Conclusão de onboarding nutricional |
+| `onboarding` | 2 | 1 | 1 | protected | Conclusão de onboarding nutricional |
 | `dashboard` | 1 | 1 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
@@ -78,6 +78,7 @@ Fonte: `server/nutritionRouter.ts`.
 
 | Procedure | Operação | Escopo |
 |---|---|---|
+| `profile` | query | protected |
 | `complete` | mutation | protected |
 
 ### dashboard
