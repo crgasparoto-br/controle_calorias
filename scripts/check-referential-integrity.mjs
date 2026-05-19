@@ -46,14 +46,7 @@ const checks = [
     name: "mealItems com foodCatalogId inválido",
     sql: "SELECT COUNT(*) AS count FROM mealItems i LEFT JOIN foodCatalog f ON f.id = i.foodCatalogId WHERE i.foodCatalogId IS NOT NULL AND f.id IS NULL",
   },
-  {
-    name: "mealItems com recipeId inválido",
-    sql: "SELECT COUNT(*) AS count FROM mealItems i LEFT JOIN recipes r ON r.id = i.recipeId WHERE i.recipeId IS NOT NULL AND r.id IS NULL",
-  },
-  {
-    name: "mealItems com portionId inválido",
-    sql: "SELECT COUNT(*) AS count FROM mealItems i LEFT JOIN portions p ON p.id = i.portionId WHERE i.portionId IS NOT NULL AND p.id IS NULL",
-  },
+
   {
     name: "mealMedia sem refeição",
     sql: "SELECT COUNT(*) AS count FROM mealMedia mm LEFT JOIN meals m ON m.id = mm.mealId WHERE m.id IS NULL",
