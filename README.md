@@ -9,9 +9,19 @@ Controle de Calorias é uma plataforma de nutrição com registro multimodal de 
 | Registro alimentar | Entrada por texto, imagem, áudio e cadastro manual |
 | Inferência nutricional | Núcleo compartilhado entre web e WhatsApp, validado com Zod |
 | Confirmação | Persistência apenas após revisão/fluxo equivalente |
+| Autenticação web | Cadastro e login próprios com nome, e-mail e senha |
+| Sessão | Cookie HTTP-only assinado com `JWT_SECRET` |
 | WhatsApp | Entrada e resposta pelo número oficial configurado |
 | Relatórios | Dashboard diário, visão semanal e detalhamento por refeição |
 | Operação administrativa | Status do canal e atualização segura do token do WhatsApp |
+
+## Autenticação própria
+
+A aplicação usa autenticação local com e-mail e senha. O frontend acessa `/login` e `/register`; o backend expõe procedures tRPC para cadastro, login, logout e usuário atual.
+
+A sessão é gravada em cookie HTTP-only. Em produção, o cookie usa `secure` e a política `sameSite` definida pelo backend. O JWT de sessão é assinado exclusivamente no backend com `JWT_SECRET` e carrega somente dados locais do usuário: `userId`, `email`, `name` e `role`.
+
+Senhas nunca devem ser persistidas em texto puro, retornadas para o frontend ou gravadas em logs. O backend armazena apenas hash de senha em `users.passwordHash`.
 
 ## Fluxo de refeição
 
@@ -28,57 +38,35 @@ A migração segue o plano em `docs/exec-plans/active/migrate-ai-to-openai.md`.
 
 Situação atual:
 
-- Transcrição de áudio já usa o provider OpenAI isolado no backend.
-- Inferência nutricional de texto e imagem já usa o provider OpenAI com saída estruturada e validação Zod.
-- Geração visual auxiliar foi movida para helper OpenAI opcional. Se falhar ou não estiver configurada, a análise da refeição continua normalmente.
-- O legado Forge permanece apenas no subsistema de sugestões educativas do assistente alimentar. Essa dependência remanescente foi mantida e documentada porque não faz parte do fluxo principal de registro de refeição.
+- Transcrição de áudio usa o provider OpenAI isolado no backend.
+- Inferência nutricional de texto e imagem usa o provider OpenAI com saída estruturada e validação Zod.
+- Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise da refeição continua normalmente.
 
-## Variáveis de ambiente
+## Variáveis de ambiente obrigatórias
 
-### Autenticação OAuth
+Configure estas variáveis no backend/runtime responsável pela API:
 
-A autenticação da aplicação continua usando o fluxo OAuth externo original compatível com Manus/WebDevAuth. Ela não foi substituída por OpenAI, Vercel, Render, TiDB ou WhatsApp. OpenAI é apenas o provider de IA; TiDB é apenas banco; Vercel/Render são runtimes de publicação.
-
-Variáveis necessárias para login web:
-
-- `VITE_APP_ID`: identificador público do app usado para montar a URL de login no frontend.
-- `VITE_OAUTH_PORTAL_URL`: URL pública do portal OAuth que expõe `/app-auth`.
-- `OAUTH_SERVER_URL`: URL backend do servidor OAuth usado para trocar `code` por token e consultar dados do usuário.
-- `OWNER_OPEN_ID`: openId do proprietário/administrador quando o ambiente precisar reconhecer o dono da aplicação.
-- `JWT_SECRET`: segredo backend usado para assinar o cookie de sessão da aplicação.
-
-Fluxo atual: o frontend monta a URL `${VITE_OAUTH_PORTAL_URL}/app-auth`, informa `appId`, `redirectUri`, `state` e `type=signIn`; o callback `/api/oauth/callback` recebe `code` e `state`; o backend chama `OAUTH_SERVER_URL` nos endpoints WebDevAuth de troca de token e leitura do usuário; depois cria o cookie de sessão local com `JWT_SECRET`.
-
-Em deploy separado, configure `VITE_APP_ID` e `VITE_OAUTH_PORTAL_URL` no runtime/build do frontend, e `OAUTH_SERVER_URL`, `OWNER_OPEN_ID` e `JWT_SECRET` no backend. O `redirectUri` precisa apontar para a origem pública real que atende `/api/oauth/callback`.
-
-### Backend OpenAI
-
+- `DATABASE_URL`
+- `JWT_SECRET`
 - `OPENAI_API_KEY`
-- `OPENAI_BASE_URL` opcional
-- `OPENAI_MODEL` para inferência nutricional estruturada
-- `OPENAI_TRANSCRIPTION_MODEL` para áudio
-- `OPENAI_IMAGE_MODEL` para visual auxiliar opcional
-
-Regras importantes:
-
-- `OPENAI_API_KEY` deve existir apenas no backend.
-- Não exponha `OPENAI_*` via `VITE_*`.
-- Não adicione `OPENAI_API_KEY` na Vercel se ela for usada apenas para frontend estático. A chave deve ficar apenas no runtime backend responsável pelas chamadas ao provider.
-
-### Variáveis legadas remanescentes
-
-- `BUILT_IN_FORGE_API_KEY`
-- `BUILT_IN_FORGE_API_URL`
-
-Essas variáveis continuam necessárias somente enquanto o assistente alimentar educativo ainda usar o provider legado. Elas não devem voltar a ser usadas por transcrição, inferência nutricional nem confirmação de refeição.
-
-### WhatsApp
-
+- `OPENAI_BASE_URL`
+- `OPENAI_MODEL`
+- `OPENAI_TRANSCRIPTION_MODEL`
 - `WHATSAPP_PHONE_NUMBER`
 - `WHATSAPP_PHONE_NUMBER_ID`
 - `WHATSAPP_BUSINESS_ACCOUNT_ID`
 - `WHATSAPP_VERIFY_TOKEN`
 - `WHATSAPP_ACCESS_TOKEN`
+
+`OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
+
+`OPENAI_IMAGE_MODEL` pode ser configurada no backend quando o fluxo visual auxiliar estiver habilitado, mas não é necessária para a autenticação nem para o login web.
+
+## WhatsApp
+
+A integração usa um único número oficial da solução. O `WHATSAPP_PHONE_NUMBER_ID` identifica o canal de envio e recebimento; o telefone de origem do usuário final é salvo apenas como vínculo com o usuário autenticado.
+
+O webhook localiza o usuário pelo telefone de origem, processa a refeição no contexto desse usuário e responde pelo mesmo canal oficial configurado no ambiente.
 
 ## Qualidade e gates
 
@@ -89,16 +77,17 @@ pnpm check
 pnpm test
 pnpm architecture:check
 pnpm docs:check
+pnpm build
 pnpm agent:check
 ```
 
 ## Rollout
 
-O checklist operacional da Fase 7 fica em `docs/runbooks/openai-rollout-checklist.md`.
-
 Resumo do rollout:
 
-- configurar OpenAI apenas no backend do Render;
-- manter frontend/Vercel sem `OPENAI_API_KEY`;
+- configurar `JWT_SECRET` e `DATABASE_URL` somente no backend;
+- configurar OpenAI apenas no backend do Render ou runtime equivalente;
+- manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
+- validar cadastro, login, logout e usuário atual;
 - validar web e WhatsApp com smoke tests;
-- monitorar apenas erros sanitizados, sem conteúdo cru em logs.
+- monitorar apenas erros sanitizados, sem senha, hash, token ou cookie em logs.

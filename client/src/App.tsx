@@ -7,9 +7,11 @@ import FoodsPage from "@/pages/FoodsPage";
 import Home from "@/pages/Home";
 import HealthIntegrationsPage from "@/pages/HealthIntegrationsPage";
 import LogMealPage from "@/pages/LogMealPage";
+import LoginPage from "@/pages/LoginPage";
 import NotFound from "@/pages/NotFound";
 import OnboardingPage from "@/pages/OnboardingPage";
 import ProfessionalPage from "@/pages/ProfessionalPage";
+import RegisterPage from "@/pages/RegisterPage";
 import ReportsPage from "@/pages/ReportsPage";
 import { useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
@@ -34,6 +36,8 @@ function Router() {
 
   return (
     <Switch>
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
       <Route path="/" component={Home} />
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/log-meal" component={LogMealPage} />

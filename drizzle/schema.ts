@@ -5,12 +5,15 @@ export const users = mysqlTable("users", {
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  passwordHash: text("passwordHash"),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
-});
+}, table => ({
+  emailUniqueIdx: uniqueIndex("users_email_unique_idx").on(table.email),
+}));
 
 export const userProfiles = mysqlTable("userProfiles", {
   id: int("id").autoincrement().primaryKey(),
@@ -416,7 +419,8 @@ export const inferenceLogs = mysqlTable("inferenceLogs", {
   eventTypeIdx: index("inferenceLogs_eventType_idx").on(table.eventType),
 }));
 
-export type User = typeof users.$inferSelect;
+export type UserWithPasswordHash = typeof users.$inferSelect;
+export type User = Omit<UserWithPasswordHash, "passwordHash">;
 export type InsertUser = typeof users.$inferInsert;
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type InsertUserProfile = typeof userProfiles.$inferInsert;

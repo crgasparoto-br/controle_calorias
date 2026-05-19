@@ -59,7 +59,7 @@ function createNutritionContext(userId: number, role: "user" | "admin" = "user")
     openId: `user-${userId}`,
     email: `user-${userId}@example.com`,
     name: `User ${userId}`,
-    loginMethod: "manus",
+    loginMethod: "password",
     role,
     createdAt: new Date(),
     updatedAt: new Date(),
