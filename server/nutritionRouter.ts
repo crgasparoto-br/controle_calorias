@@ -47,6 +47,7 @@ import {
   updateFoodSchema,
 } from "./modules/foods/schemas";
 import { getDashboardOverview, getWeeklyInsightsReport, getWeeklyProgressReport, getWeeklyReport } from "./modules/insights/service";
+import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingSchema } from "./modules/onboarding/schemas";
 import {
@@ -227,6 +228,7 @@ export const nutritionRouter = router({
   }),
 
   onboarding: router({
+    profile: protectedProcedure.query(async ({ ctx }) => getUserOnboardingProfile(ctx.user.id)),
     complete: protectedProcedure.input(onboardingSchema).mutation(async ({ ctx, input }) => {
       const result = await completeOnboarding(ctx.user.id, input);
       void analyticsService.track("onboarding_completed", {
