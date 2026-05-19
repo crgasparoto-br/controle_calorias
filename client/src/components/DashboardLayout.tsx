@@ -100,7 +100,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const menuItems = useMemo(() => {
     const baseItems = [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-      { icon: UserRound, label: "Onboarding", path: "/onboarding" },
       { icon: MessageSquareMore, label: "Registrar refeição", path: "/log-meal" },
       { icon: ListChecks, label: "Registro das refeições", path: "/meals" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
@@ -114,6 +113,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     if (user?.role === "admin") {
       baseItems.push({ icon: Shield, label: "Administração", path: "/admin" });
     }
+
+    baseItems.push({ icon: UserRound, label: "Onboarding", path: "/onboarding" });
 
     return baseItems;
   }, [user?.role]);
