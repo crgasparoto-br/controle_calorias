@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import PageIntro from "@/components/PageIntro";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -378,209 +379,247 @@ export default function GoalsPage() {
 
   return (
     <DashboardLayout>
-      <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
-        <div className="space-y-6">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Goal className="h-5 w-5 text-primary" />
-                Meta geral da semana
-              </CardTitle>
-              <CardDescription>
-                Defina uma regra base válida para todos os dias. Você pode preencher os macronutrientes diretamente em gramas ou por percentual das calorias do dia.
-                Metas muito extremas são bloqueadas e metas que merecem atenção aparecem como revisão, sem julgamento sobre suas escolhas.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ModeSelector mode={defaultGoal.inputMode} onChange={updateDefaultInputMode} />
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <FormattedField label="Calorias" value={defaultGoal.calories} onChange={value => updateDefaultGoal("calories", value)} suffix="kcal" />
-                <MacroField
-                  label="Proteínas"
-                  mode={defaultGoal.inputMode}
-                  grams={defaultGoal.proteinGrams}
-                  percent={defaultGoal.proteinPercent}
-                  onGramChange={value => updateDefaultGoal("proteinGrams", value)}
-                  onPercentChange={value => updateDefaultGoalPercent("proteinPercent", value)}
-                />
-                <MacroField
-                  label="Carboidratos"
-                  mode={defaultGoal.inputMode}
-                  grams={defaultGoal.carbsGrams}
-                  percent={defaultGoal.carbsPercent}
-                  onGramChange={value => updateDefaultGoal("carbsGrams", value)}
-                  onPercentChange={value => updateDefaultGoalPercent("carbsPercent", value)}
-                />
-                <MacroField
-                  label="Gorduras"
-                  mode={defaultGoal.inputMode}
-                  grams={defaultGoal.fatGrams}
-                  percent={defaultGoal.fatPercent}
-                  onGramChange={value => updateDefaultGoal("fatGrams", value)}
-                  onPercentChange={value => updateDefaultGoalPercent("fatPercent", value)}
-                />
-              </div>
-              <PercentValidationNote mode={defaultGoal.inputMode} percentSum={defaultPercentSum} />
-              <NutritionSafetyNotice issues={safetyAssessment.issues} />
-            </CardContent>
-          </Card>
+      <div className="space-y-6">
+        <PageIntro
+          eyebrow="Planejamento nutricional"
+          title="Metas e exceções da semana"
+          description="Defina uma regra base para o plano nutricional e ajuste apenas os dias que realmente precisam sair do padrão. A tela continua com a mesma lógica, mas agora entrega um resumo mais claro antes da edição detalhada."
+          actions={(
+            <Button
+              className="rounded-full"
+              type="button"
+              variant="outline"
+              onClick={addException}
+              disabled={!availableWeekdays.length}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar exceção
+            </Button>
+          )}
+          stats={(
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <IntroStat
+                label="Meta de hoje"
+                value={todayGoal.label}
+                supporting={formatCalories(todayGoal.calories)}
+              />
+              <IntroStat
+                label="Exceções ativas"
+                value={String(exceptions.length)}
+                supporting={exceptions.length ? "dias com regra própria" : "sem desvios da meta base"}
+              />
+              <IntroStat
+                label="Meta base"
+                value={formatCalories(defaultGoal.calories)}
+                supporting={`${formatGrams(defaultGoal.proteinGrams)} proteína`}
+              />
+              <IntroStat
+                label="Calorias na semana"
+                value={formatCalories(weeklyTotals.calories)}
+                supporting="planejamento de segunda a domingo"
+              />
+            </div>
+          )}
+        />
 
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <div>
+        <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
+          <div className="space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Goal className="h-5 w-5 text-primary" />
+                  Meta geral da semana
+                </CardTitle>
+                <CardDescription>
+                  Defina uma regra base válida para todos os dias. Você pode preencher os macronutrientes diretamente em gramas ou por percentual das calorias do dia.
+                  Metas muito extremas são bloqueadas e metas que merecem atenção aparecem como revisão, sem julgamento sobre suas escolhas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ModeSelector mode={defaultGoal.inputMode} onChange={updateDefaultInputMode} />
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <FormattedField label="Calorias" value={defaultGoal.calories} onChange={value => updateDefaultGoal("calories", value)} suffix="kcal" />
+                  <MacroField
+                    label="Proteínas"
+                    mode={defaultGoal.inputMode}
+                    grams={defaultGoal.proteinGrams}
+                    percent={defaultGoal.proteinPercent}
+                    onGramChange={value => updateDefaultGoal("proteinGrams", value)}
+                    onPercentChange={value => updateDefaultGoalPercent("proteinPercent", value)}
+                  />
+                  <MacroField
+                    label="Carboidratos"
+                    mode={defaultGoal.inputMode}
+                    grams={defaultGoal.carbsGrams}
+                    percent={defaultGoal.carbsPercent}
+                    onGramChange={value => updateDefaultGoal("carbsGrams", value)}
+                    onPercentChange={value => updateDefaultGoalPercent("carbsPercent", value)}
+                  />
+                  <MacroField
+                    label="Gorduras"
+                    mode={defaultGoal.inputMode}
+                    grams={defaultGoal.fatGrams}
+                    percent={defaultGoal.fatPercent}
+                    onGramChange={value => updateDefaultGoal("fatGrams", value)}
+                    onPercentChange={value => updateDefaultGoalPercent("fatPercent", value)}
+                  />
+                </div>
+                <PercentValidationNote mode={defaultGoal.inputMode} percentSum={defaultPercentSum} />
+                <NutritionSafetyNotice issues={safetyAssessment.issues} />
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
                 <CardTitle>Exceções por dia da semana</CardTitle>
                 <CardDescription>
                   Escolha apenas os dias que precisam sair da meta geral e por quanto tempo essa exceção deve valer.
                 </CardDescription>
-              </div>
-              <Button className="rounded-full" type="button" variant="outline" onClick={addException}>
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar exceção
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {exceptions.length ? exceptions.map((exception, index) => {
-                const selectedWeekdays = new Set(exceptions.map(item => item.weekday));
-                const weekdayOptions = WEEKDAY_META.filter(day => day.weekday === exception.weekday || !selectedWeekdays.has(day.weekday));
-                return (
-                  <div key={`${exception.weekday}-${index}`} className="rounded-3xl border bg-muted/20 p-4">
-                    <div className="grid gap-3 lg:grid-cols-[1fr,1fr,auto] lg:items-end">
-                      <SelectField
-                        label="Dia da exceção"
-                        value={String(exception.weekday)}
-                        options={weekdayOptions.map(day => ({ value: String(day.weekday), label: day.label }))}
-                        onChange={value => updateException(index, { weekday: Number(value) })}
-                      />
-                      <SelectField
-                        label="Duração"
-                        value={exception.durationType}
-                        options={DURATION_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
-                        onChange={value => updateException(index, { durationType: value as DurationType })}
-                      />
-                      <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => removeException(index)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Remover
-                      </Button>
-                    </div>
-                    <div className="mt-4 space-y-4">
-                      <ModeSelector mode={exception.inputMode} onChange={mode => updateExceptionInputMode(index, mode)} />
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <FormattedField label="Calorias" value={exception.calories} onChange={value => updateExceptionField(index, "calories", value)} suffix="kcal" />
-                        <MacroField
-                          label="Proteínas"
-                          mode={exception.inputMode}
-                          grams={exception.proteinGrams}
-                          percent={exception.proteinPercent}
-                          onGramChange={value => updateExceptionField(index, "proteinGrams", value)}
-                          onPercentChange={value => updateExceptionPercent(index, "proteinPercent", value)}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {exceptions.length ? exceptions.map((exception, index) => {
+                  const selectedWeekdays = new Set(exceptions.map(item => item.weekday));
+                  const weekdayOptions = WEEKDAY_META.filter(day => day.weekday === exception.weekday || !selectedWeekdays.has(day.weekday));
+                  return (
+                    <div key={`${exception.weekday}-${index}`} className="rounded-3xl border bg-muted/20 p-4">
+                      <div className="grid gap-3 lg:grid-cols-[1fr,1fr,auto] lg:items-end">
+                        <SelectField
+                          label="Dia da exceção"
+                          value={String(exception.weekday)}
+                          options={weekdayOptions.map(day => ({ value: String(day.weekday), label: day.label }))}
+                          onChange={value => updateException(index, { weekday: Number(value) })}
                         />
-                        <MacroField
-                          label="Carboidratos"
-                          mode={exception.inputMode}
-                          grams={exception.carbsGrams}
-                          percent={exception.carbsPercent}
-                          onGramChange={value => updateExceptionField(index, "carbsGrams", value)}
-                          onPercentChange={value => updateExceptionPercent(index, "carbsPercent", value)}
+                        <SelectField
+                          label="Duração"
+                          value={exception.durationType}
+                          options={DURATION_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
+                          onChange={value => updateException(index, { durationType: value as DurationType })}
                         />
-                        <MacroField
-                          label="Gorduras"
-                          mode={exception.inputMode}
-                          grams={exception.fatGrams}
-                          percent={exception.fatPercent}
-                          onGramChange={value => updateExceptionField(index, "fatGrams", value)}
-                          onPercentChange={value => updateExceptionPercent(index, "fatPercent", value)}
-                        />
+                        <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => removeException(index)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remover
+                        </Button>
                       </div>
-                      <PercentValidationNote mode={exception.inputMode} percentSum={getPercentSum(exception)} />
+                      <div className="mt-4 space-y-4">
+                        <ModeSelector mode={exception.inputMode} onChange={mode => updateExceptionInputMode(index, mode)} />
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <FormattedField label="Calorias" value={exception.calories} onChange={value => updateExceptionField(index, "calories", value)} suffix="kcal" />
+                          <MacroField
+                            label="Proteínas"
+                            mode={exception.inputMode}
+                            grams={exception.proteinGrams}
+                            percent={exception.proteinPercent}
+                            onGramChange={value => updateExceptionField(index, "proteinGrams", value)}
+                            onPercentChange={value => updateExceptionPercent(index, "proteinPercent", value)}
+                          />
+                          <MacroField
+                            label="Carboidratos"
+                            mode={exception.inputMode}
+                            grams={exception.carbsGrams}
+                            percent={exception.carbsPercent}
+                            onGramChange={value => updateExceptionField(index, "carbsGrams", value)}
+                            onPercentChange={value => updateExceptionPercent(index, "carbsPercent", value)}
+                          />
+                          <MacroField
+                            label="Gorduras"
+                            mode={exception.inputMode}
+                            grams={exception.fatGrams}
+                            percent={exception.fatPercent}
+                            onGramChange={value => updateExceptionField(index, "fatGrams", value)}
+                            onPercentChange={value => updateExceptionPercent(index, "fatPercent", value)}
+                          />
+                        </div>
+                        <PercentValidationNote mode={exception.inputMode} percentSum={getPercentSum(exception)} />
+                      </div>
                     </div>
+                  );
+                }) : (
+                  <div className="rounded-3xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
+                    Nenhuma exceção cadastrada. Neste caso, a meta geral será aplicada a todos os dias da semana.
                   </div>
-                );
-              }) : (
-                <div className="rounded-3xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
-                  Nenhuma exceção cadastrada. Neste caso, a meta geral será aplicada a todos os dias da semana.
+                )}
+
+                <Button
+                  className="rounded-full"
+                  disabled={updateGoal.isPending}
+                  onClick={handleSave}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {updateGoal.isPending ? "Salvando..." : "Salvar regra geral e exceções"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarRange className="h-5 w-5 text-primary" />
+                  Soma planejada da semana
+                </CardTitle>
+                <CardDescription>
+                  A semana segue de segunda-feira a domingo, somando a meta geral com as exceções ativas no planejamento.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3">
+                  {previewDays.map(day => (
+                    <div key={day.weekday} className="rounded-2xl border bg-muted/20 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium tracking-tight">{day.label}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
+                      </div>
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        {formatCalories(day.calories)} · {formatGrams(day.proteinGrams)} proteína · {formatGrams(day.carbsGrams)} carbo · {formatGrams(day.fatGrams)} gordura
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              )}
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <SummaryTile label="Calorias semanais" value={formatCalories(weeklyTotals.calories)} />
+                  <SummaryTile label="Proteínas na semana" value={formatGrams(weeklyTotals.proteinGrams)} />
+                  <SummaryTile label="Carboidratos na semana" value={formatGrams(weeklyTotals.carbsGrams)} />
+                  <SummaryTile label="Gorduras na semana" value={formatGrams(weeklyTotals.fatGrams)} />
+                </div>
+              </CardContent>
+            </Card>
 
-              <Button
-                className="rounded-full"
-                disabled={updateGoal.isPending}
-                onClick={handleSave}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {updateGoal.isPending ? "Salvando..." : "Salvar regra geral e exceções"}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarRange className="h-5 w-5 text-primary" />
-                Soma planejada da semana
-              </CardTitle>
-              <CardDescription>
-                A semana segue de segunda-feira a domingo, somando a meta geral com as exceções ativas no planejamento.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3">
-                {previewDays.map(day => (
-                  <div key={day.weekday} className="rounded-2xl border bg-muted/20 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium tracking-tight">{day.label}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
-                    </div>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {formatCalories(day.calories)} · {formatGrams(day.proteinGrams)} proteína · {formatGrams(day.carbsGrams)} carbo · {formatGrams(day.fatGrams)} gordura
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <SummaryTile label="Calorias semanais" value={formatCalories(weeklyTotals.calories)} />
-                <SummaryTile label="Proteínas na semana" value={formatGrams(weeklyTotals.proteinGrams)} />
-                <SummaryTile label="Carboidratos na semana" value={formatGrams(weeklyTotals.carbsGrams)} />
-                <SummaryTile label="Gorduras na semana" value={formatGrams(weeklyTotals.fatGrams)} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle>Foco do dia atual</CardTitle>
-              <CardDescription>
-                Meta efetiva usada hoje no dashboard e nos relatórios, considerando a regra geral e as exceções vigentes.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="rounded-3xl bg-muted/30 p-5">
-                <p className="text-sm text-muted-foreground">Meta ativa hoje</p>
-                <p className="mt-2 text-3xl font-semibold tracking-tight">{todayGoal.label}</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {formatCalories(todayGoal.calories)} planejadas para o dia {todayGoal.source === "exception" ? "com exceção ativa" : "pela regra geral"}.
-                </p>
-              </div>
-              <div className="grid gap-3">
-                <MacroSplit label="Proteínas" value={todayGoal.proteinGrams} calorieFactor={4} accent="bg-emerald-500" />
-                <MacroSplit label="Carboidratos" value={todayGoal.carbsGrams} calorieFactor={4} accent="bg-sky-500" />
-                <MacroSplit label="Gorduras" value={todayGoal.fatGrams} calorieFactor={9} accent="bg-amber-500" />
-              </div>
-              <div className="rounded-3xl border bg-background p-4 shadow-sm">
-                <p className="text-sm text-muted-foreground">Consistência energética da semana</p>
-                <p className="mt-2 text-3xl font-semibold tracking-tight">{formatCalories(weeklyMacroCalories)}</p>
-                <p className="mt-2 text-sm text-muted-foreground">Equivalente calórico estimado a partir dos macronutrientes planejados para a semana atual.</p>
-                <Progress className="mt-4 h-2" value={alignment} />
-                <p className="mt-3 text-sm text-muted-foreground">{formatPercentPtBr(alignment)}% de alinhamento entre macros e calorias planejadas.</p>
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle>Foco do dia atual</CardTitle>
+                <CardDescription>
+                  Meta efetiva usada hoje no dashboard e nos relatórios, considerando a regra geral e as exceções vigentes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="rounded-3xl bg-muted/30 p-5">
+                  <p className="text-sm text-muted-foreground">Meta ativa hoje</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight">{todayGoal.label}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {formatCalories(todayGoal.calories)} planejadas para o dia {todayGoal.source === "exception" ? "com exceção ativa" : "pela regra geral"}.
+                  </p>
+                </div>
+                <div className="grid gap-3">
+                  <MacroSplit label="Proteínas" value={todayGoal.proteinGrams} calorieFactor={4} accent="bg-emerald-500" />
+                  <MacroSplit label="Carboidratos" value={todayGoal.carbsGrams} calorieFactor={4} accent="bg-sky-500" />
+                  <MacroSplit label="Gorduras" value={todayGoal.fatGrams} calorieFactor={9} accent="bg-amber-500" />
+                </div>
+                <div className="rounded-3xl border bg-background p-4 shadow-sm">
+                  <p className="text-sm text-muted-foreground">Consistência energética da semana</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight">{formatCalories(weeklyMacroCalories)}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Equivalente calórico estimado a partir dos macronutrientes planejados para a semana atual.</p>
+                  <Progress className="mt-4 h-2" value={alignment} />
+                  <p className="mt-3 text-sm text-muted-foreground">{formatPercentPtBr(alignment)}% de alinhamento entre macros e calorias planejadas.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </DashboardLayout>
@@ -793,6 +832,16 @@ function MacroSplit({
         <p className="text-sm text-muted-foreground">{formatGrams(value)}</p>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{formatCalories(value * calorieFactor)} atribuídas a este macronutriente.</p>
+    </div>
+  );
+}
+
+function IntroStat({ label, value, supporting }: { label: string; value: string; supporting: string }) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background px-4 py-3">
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{supporting}</p>
     </div>
   );
 }
