@@ -49,6 +49,15 @@ export type FoodPhotoAnalysisState = {
   supportingImageUrl?: string;
 };
 
+export type StoredMealMedia = {
+  id?: number;
+  mediaType?: "image" | "audio" | string;
+  storageKey?: string;
+  storageUrl?: string;
+  mimeType?: string;
+  originalFileName?: string;
+};
+
 export type StoredMeal = {
   id: number;
   mealLabel: string;
@@ -56,6 +65,10 @@ export type StoredMeal = {
   notes?: string;
   source: "web" | "whatsapp";
   items: MealItemState[];
+  media?: StoredMealMedia[];
+  imageUrl?: string;
+  supportingImageUrl?: string;
+  photoUrl?: string;
   totals: {
     calories: number;
     protein: number;
