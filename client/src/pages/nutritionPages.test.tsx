@@ -441,8 +441,8 @@ describe("nutrition pages", () => {
     const { default: Home } = await import("./Home");
     const html = renderToString(React.createElement(Home));
 
-    expect(html).toContain("Acompanhe calorias, macronutrientes, exercícios e saldo energético em um só painel");
-    expect(html).toContain("Resumo de hoje");
+    expect(html).toContain("O painel foi reorganizado para destacar o que pede ação agora: consumo, saldo, hidratação, exercícios e refeições registradas.");
+    expect(html).toContain("Resumo do dia");
     expect(html).toContain("Equação energética do dia");
     expect(html).toContain("Registrar exercício");
     expect(html).toContain("Água do dia");
