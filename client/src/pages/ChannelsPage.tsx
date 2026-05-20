@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +62,20 @@ export default function ChannelsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <PageIntro
+          eyebrow="Canais"
+          title="Operação do WhatsApp"
+          description="A tela foi organizada para separar estado da integração, vínculo do contato do usuário e simulação de mensagens sem misturar conceitos do canal oficial com o número de origem do usuário final."
+          stats={
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <IntroStat label="Integração" value={statusQuery.data?.configured ? "Ativa" : "Pendente"} helper="status do ambiente" />
+              <IntroStat label="Canal oficial" value={statusQuery.data?.channel?.phoneNumber ? "Configurado" : "Ausente"} helper="número da solução" />
+              <IntroStat label="Contato vinculado" value={hasConnection ? "Sim" : "Não"} helper="origem do usuário final" />
+              <IntroStat label="Usuário atual" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "..."} helper="contexto da sessão" />
+            </div>
+          }
+        />
+
         <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
           <Card className="border-0 shadow-sm">
             <CardHeader>
@@ -232,6 +247,16 @@ export default function ChannelsPage() {
         </Card>
       </div>
     </DashboardLayout>
+  );
+}
+
+function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
   );
 }
 
