@@ -1,5 +1,5 @@
 import { toDateTimeLocalValue } from "@/lib/dateTime";
-import { calculateMealTotals } from "../../../../shared/mealTotals";
+import { calculateMealTotals } from "@/shared/mealTotals";
 import type { ManualMealState, MealItemState } from "./types";
 
 export function createEmptyItem(): MealItemState {
