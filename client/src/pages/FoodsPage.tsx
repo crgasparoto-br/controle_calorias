@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import PageIntro from "@/components/PageIntro";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,8 @@ export default function FoodsPage() {
 
   const submitLabel = form.foodId ? "Salvar alimento" : "Criar alimento";
   const visibleFoods = foods.data ?? [];
+  const favoriteCount = useMemo(() => visibleFoods.filter(food => food.isFavorite).length, [visibleFoods]);
+  const userCreatedCount = useMemo(() => visibleFoods.filter(food => food.isUserCreated).length, [visibleFoods]);
 
   const formPayload = useMemo(() => ({
     name: form.name,
@@ -110,10 +113,19 @@ export default function FoodsPage() {
   return (
     <DashboardLayout>
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Alimentos</h1>
-          <p className="text-sm text-muted-foreground">Busque, favorite e cadastre alimentos com macros por porção.</p>
-        </div>
+        <PageIntro
+          eyebrow="Alimentos"
+          title="Base alimentar do usuário"
+          description="Busque, favorite e mantenha alimentos bem descritos para acelerar os próximos registros de refeição e melhorar a consistência dos macros por porção."
+          stats={
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <IntroStat label="Resultados" value={String(visibleFoods.length)} helper="itens visíveis na busca" />
+              <IntroStat label="Favoritos" value={String(favoriteCount)} helper="na lista filtrada atual" />
+              <IntroStat label="Recentes" value={String(recent.data?.length ?? 0)} helper="atalhos de uso recente" />
+              <IntroStat label="Criados por você" value={String(userCreatedCount)} helper="editáveis na lista atual" />
+            </div>
+          }
+        />
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-6">
@@ -204,6 +216,7 @@ export default function FoodsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Usados recentemente</CardTitle>
+                <CardDescription>Atalhos rápidos para retomar buscas comuns sem digitar de novo.</CardDescription>
               </CardHeader>
               <CardContent>
                 {recent.isLoading ? <Skeleton className="h-16 w-full" /> : recent.data?.length ? (
@@ -277,6 +290,16 @@ export default function FoodsPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
   );
 }
 
