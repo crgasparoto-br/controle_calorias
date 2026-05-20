@@ -29,6 +29,7 @@ import {
   SaveFavoriteMealInput,
   UpdateMealInput,
 } from "./schemas";
+import { decorateMealWithImageUrl } from "./mealImageAssociations";
 
 export class MealDraftNotFoundError extends Error {
   constructor() {
@@ -74,7 +75,7 @@ function ensureMealItems(items: Array<MealDraftItem>): MealDraftItem[] {
 }
 
 export async function listMeals(userId: number) {
-  return listUserMeals(userId);
+  return (await listUserMeals(userId)).map(decorateMealWithImageUrl);
 }
 
 export async function getDayTotals(userId: number, date: string) {
@@ -82,18 +83,18 @@ export async function getDayTotals(userId: number, date: string) {
 }
 
 export async function createManualMeal(userId: number, input: ManualMealInput) {
-  return createUserManualMeal({ userId, ...input, items: ensureMealItems(input.items) });
+  return decorateMealWithImageUrl(await createUserManualMeal({ userId, ...input, items: ensureMealItems(input.items) }));
 }
 
 export async function updateMeal(userId: number, input: UpdateMealInput) {
-  return updateUserMeal({
+  return decorateMealWithImageUrl(await updateUserMeal({
     userId,
     mealId: input.mealId,
     mealLabel: input.mealLabel,
     occurredAt: input.occurredAt,
     notes: input.notes,
     items: ensureMealItems(input.items),
-  });
+  }));
 }
 
 export async function removeMeal(userId: number, mealId: number) {
@@ -101,7 +102,7 @@ export async function removeMeal(userId: number, mealId: number) {
 }
 
 export async function copyMeal(userId: number, input: CopyMealInput) {
-  return copyUserMeal({ userId, ...input });
+  return decorateMealWithImageUrl(await copyUserMeal({ userId, ...input }));
 }
 
 export async function listMealFavorites(userId: number) {
@@ -113,7 +114,7 @@ export async function saveMealFavorite(userId: number, input: SaveFavoriteMealIn
 }
 
 export async function reuseMealFavorite(userId: number, input: ReuseFavoriteMealInput) {
-  return reuseFavoriteMeal({ userId, ...input });
+  return decorateMealWithImageUrl(await reuseFavoriteMeal({ userId, ...input }));
 }
 
 export async function processMealDraft(userId: number, input: ProcessMealDraftInput) {
@@ -168,12 +169,12 @@ export async function confirmMeal(userId: number, input: ConfirmMealInput) {
     throw new MealDraftNotFoundError();
   }
 
-  return confirmPendingMeal({
+  return decorateMealWithImageUrl(await confirmPendingMeal({
     draftId: input.draftId,
     userId,
     mealLabel: input.mealLabel,
     occurredAt: input.occurredAt,
     notes: input.notes,
     items: ensureMealItems(input.items),
-  });
+  }));
 }
