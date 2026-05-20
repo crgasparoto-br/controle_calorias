@@ -1,2 +1,2 @@
-export { default } from "./LogMealPageLegacyContent";
+export { default } from "./legacy/LogMealPageContainer";
 export { RegisteredMealsPage } from "./RegisteredMealsPageContent";

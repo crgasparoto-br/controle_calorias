@@ -40,18 +40,8 @@ export function mealMatchesDate(meal: StoredMeal, dateInputValue: string, timeZo
 }
 
 export function getMealImageUrl(meal: StoredMeal): string | undefined {
-  const candidate = meal as StoredMeal & {
-    imageUrl?: string;
-    supportingImageUrl?: string;
-    photoUrl?: string;
-    media?: Array<{
-      mediaType?: string;
-      storageUrl?: string;
-    }>;
-  };
-
-  const mediaImageUrl = candidate.media?.find(media => media.mediaType === "image" && media.storageUrl)?.storageUrl;
-  return candidate.supportingImageUrl ?? candidate.imageUrl ?? candidate.photoUrl ?? mediaImageUrl;
+  const mediaImageUrl = meal.media?.find(media => media.mediaType === "image" && media.storageUrl)?.storageUrl;
+  return meal.supportingImageUrl ?? meal.imageUrl ?? meal.photoUrl ?? mediaImageUrl;
 }
 
 export function buildRegisteredMealGroups(
