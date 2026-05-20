@@ -44,9 +44,14 @@ export function getMealImageUrl(meal: StoredMeal): string | undefined {
     imageUrl?: string;
     supportingImageUrl?: string;
     photoUrl?: string;
+    media?: Array<{
+      mediaType?: string;
+      storageUrl?: string;
+    }>;
   };
 
-  return candidate.supportingImageUrl ?? candidate.imageUrl ?? candidate.photoUrl;
+  const mediaImageUrl = candidate.media?.find(media => media.mediaType === "image" && media.storageUrl)?.storageUrl;
+  return candidate.supportingImageUrl ?? candidate.imageUrl ?? candidate.photoUrl ?? mediaImageUrl;
 }
 
 export function buildRegisteredMealGroups(

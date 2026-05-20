@@ -11,6 +11,7 @@ import {
   type MealDraftItem,
 } from "../../nutritionEngine";
 import { storagePut } from "../../storage";
+import { decorateMealWithImageUrl, registerMealImageUrl } from "../meals/mealImageAssociations";
 import type {
   AnalyzeFoodPhotoInput,
   ConfirmFoodPhotoAnalysisInput,
@@ -292,13 +293,15 @@ export async function confirmFoodPhotoAnalysis(
     items: input.items,
   });
 
+  registerMealImageUrl(meal.id, analysis.supportingImageUrl);
+
   photoAnalysisStore.set(input.analysisId, {
     ...analysis,
     status: "confirmed",
     updatedAt: Date.now(),
   });
 
-  return meal;
+  return decorateMealWithImageUrl(meal);
 }
 
 export function mapPhotoSuggestionsToMealItems(items: FoodPhotoSuggestedItem[]) {
