@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type PageIntroProps = {
@@ -41,5 +41,5 @@ export default function PageIntro({
       </div>
       {stats ? <div className="mt-5">{stats}</div> : null}
     </section>
-  )
+  );
 }

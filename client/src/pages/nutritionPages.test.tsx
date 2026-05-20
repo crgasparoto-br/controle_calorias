@@ -475,16 +475,16 @@ describe("nutrition pages", () => {
     const { default: OnboardingPage } = await import("./OnboardingPage");
     const html = renderToString(React.createElement(OnboardingPage));
 
-    expect(html).toContain("Configurações nutricionais");
+    expect(html).toContain("Configurações");
+    expect(html).toContain("Ajuste seu perfil sem se perder em blocos longos");
     expect(html).toContain("Nome");
     expect(html).toContain("Data de nascimento");
     expect(html).toContain("Idade calculada");
     expect(html).toContain("Peso atual");
-    expect(html).toContain("Objetivo");
-    expect(html).toContain("Preferências alimentares");
-    expect(html).toContain("Principal dificuldade");
+    expect(html).toContain("Perfil");
+    expect(html).toContain("Objetivos e rotina");
     expect(html).toContain("Refeições habituais");
-    expect(html).toContain("Salvar refeições");
+    expect(html).toContain("Tudo salvo no mesmo fluxo");
     expect(html).toContain("Salvar configurações");
   });
 
@@ -492,12 +492,13 @@ describe("nutrition pages", () => {
     const { default: LogMealPage } = await import("./LogMealPage");
     const html = renderToString(React.createElement(LogMealPage));
 
-    expect(html).toContain("Registrar refeição com IA multimodal");
+    expect(html).toContain("Registro de refeição");
+    expect(html).toContain("Registrar com IA multimodal");
     expect(html).toContain("Imagem do prato ou rótulo");
-    expect(html).toContain("Fluxo de confirmação");
-    expect(html).toContain("Criar refeição manualmente");
-    expect(html).toContain("Sugestão pelo horário");
-    expect(html).toContain("Refeições registradas");
+    expect(html).toContain("Revisão antes de salvar");
+    expect(html).toContain("IA multimodal");
+    expect(html).toContain("Manual");
+    expect(html).toContain("Hoje");
   });
 
   it("renderiza a página de relatórios com resumo semanal, seções recolhíveis e insights nutricionais", async () => {
