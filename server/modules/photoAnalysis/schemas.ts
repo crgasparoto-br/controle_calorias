@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { mediaInputSchema, mealItemSchema } from "../meals/schemas";
+import { mealLabelSchema, mediaInputSchema, mealItemSchema } from "../meals/schemas";
 
 export const foodPhotoAnalysisStatusSchema = z.enum(["pending", "analyzed", "confirmed", "rejected"]);
 
@@ -22,7 +22,7 @@ export const analyzeFoodPhotoSchema = z.object({
 
 export const confirmFoodPhotoAnalysisSchema = z.object({
   analysisId: z.string().min(1),
-  mealLabel: z.enum(["café da manhã", "almoço", "jantar", "lanche", "outro"]),
+  mealLabel: mealLabelSchema,
   occurredAt: z.string().min(1),
   notes: z.string().max(500).optional(),
   items: z.array(mealItemSchema).min(1),

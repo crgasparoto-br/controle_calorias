@@ -1,3 +1,4 @@
+import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { CalendarPlus, PencilLine, Plus, Save, Trash2 } from "lucide-react";
+import { CalendarPlus, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DayNavigator, MealItemEditor, RegisteredMealGroups, SummaryPill } from "./components";
@@ -145,13 +146,13 @@ export function RegisteredMealsPage() {
   };
 
   const editingBlock = manualMeal.mealId ? (
-    <Card className="border-0 shadow-sm ring-1 ring-primary/20">
+    <Card defaultOpen className="border-0 shadow-sm ring-1 ring-primary/20">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl">
           <PencilLine className="h-5 w-5 text-primary" />
           Editar refeição selecionada
         </CardTitle>
-        <CardDescription>Altere os dados abaixo e salve para atualizar esta refeição.</CardDescription>
+        <CardDescription>O editor abre acima da lista para manter o contexto e reduzir deslocamento visual.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
@@ -225,29 +226,29 @@ export function RegisteredMealsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle>Refeições registradas</CardTitle>
-            <CardDescription>
-              Acompanhe os alimentos por refeição, filtre por data e ajuste registros quando necessário.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <DayNavigator selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} />
+        <PageIntro
+          eyebrow="Registros"
+          title="Revise o dia sem perder o foco na refeição certa"
+          description="A tela agora prioriza o resumo do dia e deixa favoritos, edição e lista completa em blocos mais previsíveis para reduzir atrito na navegação."
+          stats={
             <div className="grid gap-3 sm:grid-cols-4">
               <SummaryPill label="Calorias" value={formatCalories(dayTotals.calories)} />
               <SummaryPill label="Proteínas" value={formatGrams(dayTotals.protein)} />
               <SummaryPill label="Carboidratos" value={formatGrams(dayTotals.carbs)} />
               <SummaryPill label="Gorduras" value={formatGrams(dayTotals.fat)} />
             </div>
-          </CardContent>
-        </Card>
+          }
+          actions={<DayNavigator selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} />}
+        />
 
         {favoriteMealsQuery.data?.length ? (
-          <Card className="border-0 shadow-sm">
+          <Card defaultOpen className="border-0 shadow-sm">
             <CardHeader>
-              <CardTitle>Refeições favoritas</CardTitle>
-              <CardDescription>Reutilize uma favorita no dia selecionado.</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Star className="h-5 w-5 text-primary" />
+                Refeições favoritas
+              </CardTitle>
+              <CardDescription>Reutilize uma favorita no dia selecionado com um toque.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {favoriteMealsQuery.data.map(favorite => (
@@ -269,11 +270,14 @@ export function RegisteredMealsPage() {
 
         {editingBlock}
 
-        <Card className="border-0 shadow-sm">
+        <Card defaultOpen className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle>Alimentos do dia</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <ListChecks className="h-5 w-5 text-primary" />
+              Alimentos do dia
+            </CardTitle>
             <CardDescription>
-              Os alimentos são agrupados por refeição e exibidos em lista vertical com horário e informações nutricionais.
+              As refeições seguem agrupadas com horário e informações nutricionais, mas agora entram no fluxo com cabeçalho e resumo mais consistentes.
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -10,6 +10,13 @@ const weeklyInsightsMock = vi.fn();
 const whatsappStatusMock = vi.fn();
 const adminOverviewMock = vi.fn();
 const adminWhatsappTokenStatusMock = vi.fn();
+const mealSchedulesMock = [
+  { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
+  { mealLabel: "almoço", startTime: "11:00", endTime: "14:59", enabled: true },
+  { mealLabel: "lanche", startTime: "15:00", endTime: "17:59", enabled: true },
+  { mealLabel: "jantar", startTime: "18:00", endTime: "22:59", enabled: true },
+  { mealLabel: "outro", startTime: "23:00", endTime: "04:59", enabled: true },
+];
 const useUtilsMock = vi.fn(() => ({
   auth: {
     me: {
@@ -19,6 +26,7 @@ const useUtilsMock = vi.fn(() => ({
   },
   nutrition: {
     onboarding: { profile: { invalidate: vi.fn() } },
+    mealSchedules: { list: { invalidate: vi.fn() } },
     dashboard: { overview: { invalidate: vi.fn() } },
     meals: { list: { invalidate: vi.fn() }, dayTotals: { invalidate: vi.fn() }, favorites: { invalidate: vi.fn() } },
     reports: { weekly: { invalidate: vi.fn() } },
@@ -73,6 +81,17 @@ vi.mock("@/lib/trpc", () => ({
         },
         complete: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+      },
+      mealSchedules: {
+        list: {
+          useQuery: () => ({ data: mealSchedulesMock, isLoading: false, error: null }),
+        },
+        update: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        suggest: {
+          useQuery: () => ({ data: { mealLabel: "almoço", matchedSchedule: mealSchedulesMock[1], confidence: 1 } }),
         },
       },
       dashboard: {
@@ -422,8 +441,8 @@ describe("nutrition pages", () => {
     const { default: Home } = await import("./Home");
     const html = renderToString(React.createElement(Home));
 
-    expect(html).toContain("Acompanhe calorias, macronutrientes, exercícios e saldo energético em um só painel");
-    expect(html).toContain("Resumo de hoje");
+    expect(html).toContain("O painel foi reorganizado para destacar o que pede ação agora: consumo, saldo, hidratação, exercícios e refeições registradas.");
+    expect(html).toContain("Resumo do dia");
     expect(html).toContain("Equação energética do dia");
     expect(html).toContain("Registrar exercício");
     expect(html).toContain("Água do dia");
@@ -452,29 +471,34 @@ describe("nutrition pages", () => {
     expect(html).toContain("15.600 kcal");
   });
 
-  it("renderiza o onboarding com dados de personalização nutricional", async () => {
+  it("renderiza as configurações com perfil e refeições habituais", async () => {
     const { default: OnboardingPage } = await import("./OnboardingPage");
     const html = renderToString(React.createElement(OnboardingPage));
 
-    expect(html).toContain("Onboarding nutricional");
+    expect(html).toContain("Configurações");
+    expect(html).toContain("Ajuste seu perfil sem se perder em blocos longos");
     expect(html).toContain("Nome");
-    expect(html).toContain("Idade");
+    expect(html).toContain("Data de nascimento");
+    expect(html).toContain("Idade calculada");
     expect(html).toContain("Peso atual");
-    expect(html).toContain("Objetivo");
-    expect(html).toContain("Preferências alimentares");
-    expect(html).toContain("Principal dificuldade");
-    expect(html).toContain("Salvar onboarding");
+    expect(html).toContain("Perfil");
+    expect(html).toContain("Objetivos e rotina");
+    expect(html).toContain("Refeições habituais");
+    expect(html).toContain("Tudo salvo no mesmo fluxo");
+    expect(html).toContain("Salvar configurações");
   });
 
   it("renderiza a página de registro multimodal", async () => {
     const { default: LogMealPage } = await import("./LogMealPage");
     const html = renderToString(React.createElement(LogMealPage));
 
-    expect(html).toContain("Registrar refeição com IA multimodal");
+    expect(html).toContain("Registro de refeição");
+    expect(html).toContain("Registrar com IA multimodal");
     expect(html).toContain("Imagem do prato ou rótulo");
-    expect(html).toContain("Fluxo de confirmação");
-    expect(html).toContain("Criar refeição manualmente");
-    expect(html).toContain("Refeições registradas");
+    expect(html).toContain("Revisão antes de salvar");
+    expect(html).toContain("IA multimodal");
+    expect(html).toContain("Manual");
+    expect(html).toContain("Hoje");
   });
 
   it("renderiza a página de relatórios com resumo semanal, seções recolhíveis e insights nutricionais", async () => {
