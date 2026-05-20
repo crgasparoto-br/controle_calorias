@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, Clock3, Save, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Clock3, Plus, Save, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -52,10 +52,10 @@ const DIFFICULTY_OPTIONS = [
   { value: "falta_de_planejamento", label: "Falta de planejamento" },
 ] as const;
 
-const MEAL_LABEL_OPTIONS = ["café da manhã", "almoço", "jantar", "lanche", "outro"] as const;
+const MEAL_LABEL_SUGGESTIONS = ["café da manhã", "almoço", "lanche da tarde", "pré-treino", "pós-treino", "jantar", "ceia", "outro"] as const;
 
 type MealScheduleState = {
-  mealLabel: typeof MEAL_LABEL_OPTIONS[number];
+  mealLabel: string;
   startTime: string;
   endTime: string;
   enabled: boolean;
@@ -64,9 +64,10 @@ type MealScheduleState = {
 const DEFAULT_MEAL_SCHEDULES: MealScheduleState[] = [
   { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
   { mealLabel: "almoço", startTime: "11:00", endTime: "14:59", enabled: true },
-  { mealLabel: "lanche", startTime: "15:00", endTime: "17:59", enabled: true },
-  { mealLabel: "jantar", startTime: "18:00", endTime: "22:59", enabled: true },
-  { mealLabel: "outro", startTime: "23:00", endTime: "04:59", enabled: true },
+  { mealLabel: "lanche da tarde", startTime: "15:00", endTime: "17:29", enabled: true },
+  { mealLabel: "pré-treino", startTime: "17:30", endTime: "18:29", enabled: true },
+  { mealLabel: "jantar", startTime: "18:30", endTime: "22:59", enabled: true },
+  { mealLabel: "ceia", startTime: "23:00", endTime: "04:59", enabled: true },
 ];
 
 const OPTIONAL_ONBOARDING_FALLBACK = {
@@ -173,6 +174,10 @@ function calculateAgeYears(birthDate: string, referenceDate = new Date()) {
 
 function hasInvalidScheduleTime(schedules: MealScheduleState[]) {
   return schedules.some(schedule => !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.endTime));
+}
+
+function createNewMealSchedule(): MealScheduleState {
+  return { mealLabel: "nova refeição", startTime: "12:00", endTime: "12:59", enabled: true };
 }
 
 export default function OnboardingPage() {
@@ -306,11 +311,16 @@ export default function OnboardingPage() {
   }
 
   function handleSaveMealSchedules() {
-    if (hasInvalidScheduleTime(mealSchedules)) {
+    const normalizedSchedules = mealSchedules.map(schedule => ({ ...schedule, mealLabel: schedule.mealLabel.trim() }));
+    if (normalizedSchedules.some(schedule => !schedule.mealLabel)) {
+      toast.error("Informe o nome de todas as refeições habituais.");
+      return;
+    }
+    if (hasInvalidScheduleTime(normalizedSchedules)) {
       toast.error("Revise os horários das refeições habituais. Use o formato HH:mm.");
       return;
     }
-    updateMealSchedules.mutate({ schedules: mealSchedules });
+    updateMealSchedules.mutate({ schedules: normalizedSchedules });
   }
 
   return (
@@ -365,29 +375,57 @@ export default function OnboardingPage() {
               Refeições habituais
             </CardTitle>
             <CardDescription>
-              Configure os intervalos usuais para que o registro de refeição já selecione automaticamente a opção mais adequada ao horário.
+              Crie refeições com nomes livres, como “lanche da tarde”, “pré-treino”, “pós-treino” ou “ceia”. O registro usará os horários para sugerir automaticamente a refeição mais adequada.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3">
               {mealSchedules.map((schedule, index) => (
-                <div key={`${schedule.mealLabel}-${index}`} className="grid gap-3 rounded-2xl border bg-background p-4 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end">
-                  <SelectField
-                    label="Refeição"
-                    value={schedule.mealLabel}
-                    options={MEAL_LABEL_OPTIONS.map(value => ({ value, label: value }))}
-                    onChange={value => updateSchedule(index, "mealLabel", value as MealScheduleState["mealLabel"])}
-                  />
+                <div key={`${schedule.mealLabel}-${index}`} className="grid gap-3 rounded-2xl border bg-background p-4 md:grid-cols-[1.2fr_1fr_1fr_auto_auto] md:items-end">
+                  <div className="space-y-2 rounded-2xl border bg-background p-5">
+                    <FieldLabel label="Refeição" />
+                    <Input
+                      value={schedule.mealLabel}
+                      onChange={event => updateSchedule(index, "mealLabel", event.target.value)}
+                      placeholder="Ex.: lanche da tarde"
+                      list="meal-label-suggestions"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      {MEAL_LABEL_SUGGESTIONS.slice(0, 5).map(label => (
+                        <Button key={label} type="button" size="sm" variant="outline" className="h-7 rounded-full text-xs" onClick={() => updateSchedule(index, "mealLabel", label)}>
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                   <TextField label="Início" type="time" value={schedule.startTime} onChange={value => updateSchedule(index, "startTime", value)} />
                   <TextField label="Fim" type="time" value={schedule.endTime} onChange={value => updateSchedule(index, "endTime", value)} />
                   <label className="flex h-10 items-center gap-2 rounded-xl border px-3 text-sm">
                     <Checkbox checked={schedule.enabled} onCheckedChange={value => updateSchedule(index, "enabled", Boolean(value))} />
                     Ativa
                   </label>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    disabled={mealSchedules.length <= 1}
+                    onClick={() => setMealSchedules(current => current.filter((_, currentIndex) => currentIndex !== index))}
+                    aria-label="Remover refeição habitual"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
             </div>
+            <datalist id="meal-label-suggestions">
+              {MEAL_LABEL_SUGGESTIONS.map(label => <option key={label} value={label} />)}
+            </datalist>
             <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(current => [...current, createNewMealSchedule()])} disabled={mealSchedules.length >= 12}>
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar refeição
+              </Button>
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(DEFAULT_MEAL_SCHEDULES)}>
                 Restaurar padrão
               </Button>
