@@ -31,7 +31,6 @@ import {
   Flame,
   PencilLine,
   Salad,
-  Target,
   Trash2,
   X,
 } from "lucide-react";
@@ -994,7 +993,11 @@ export default function Home() {
                 <MacroBar label="Proteínas" consumed={overview.data?.today.consumed.protein ?? 0} goal={overview.data?.today.goal.protein ?? 0} />
                 <MacroBar label="Carboidratos" consumed={overview.data?.today.consumed.carbs ?? 0} goal={overview.data?.today.goal.carbs ?? 0} />
                 <MacroBar label="Gorduras" consumed={overview.data?.today.consumed.fat ?? 0} goal={overview.data?.today.goal.fat ?? 0} />
-                <StatBlock label="Gorduras" value={formatGrams(overview.data?.today.consumed.fat ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.fat ?? 0)}`} />
+                <StatBlock
+                  label="Calorias restantes"
+                  value={formatCalories(positiveRemaining(remainingCalories))}
+                  sublabel={remainingCalories < 0 ? "Meta já ultrapassada hoje" : "Disponíveis para próximos registros"}
+                />
               </CardContent>
             </Card>
           </div>
