@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { ClipboardList, MessageSquarePlus, ShieldCheck, UserCheck, UserPlus, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 export default function ProfessionalPage() {
@@ -78,17 +79,25 @@ export default function ProfessionalPage() {
   });
 
   const approvedAccesses = accesses.data?.filter(access => access.status === "approved") ?? [];
+  const pendingRequestsCount = patientRequests.data?.filter(request => request.status === "pending").length ?? 0;
+  const historyCount = history.data?.length ?? 0;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <section className="space-y-2">
-          <Badge variant="secondary" className="w-fit">Modo nutricionista</Badge>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Acompanhamento profissional</h1>
-          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-            Profissionais só visualizam dados de pacientes que aprovaram o compartilhamento. O paciente pode revogar o acesso a qualquer momento.
-          </p>
-        </section>
+        <PageIntro
+          eyebrow="Profissional"
+          title="Acompanhamento profissional"
+          description="A tela foi organizada para separar perfil, consentimento, pacientes autorizados e acompanhamento ativo, mantendo o princípio de que o paciente controla o compartilhamento e pode revogar o acesso a qualquer momento."
+          stats={
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <IntroStat label="Perfil" value={profile.data ? "Ativo" : "Pendente"} helper="dados do profissional" />
+              <IntroStat label="Pacientes autorizados" value={String(approvedAccesses.length)} helper="com acesso aprovado" />
+              <IntroStat label="Solicitações pendentes" value={String(pendingRequestsCount)} helper="como paciente" />
+              <IntroStat label="Eventos no histórico" value={String(historyCount)} helper="ações registradas" />
+            </div>
+          }
+        />
 
         <div className="grid gap-4 xl:grid-cols-2">
           <Card className="border-0 shadow-sm">
@@ -266,6 +275,16 @@ export default function ProfessionalPage() {
   );
 }
 
+function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border bg-background p-4">
@@ -278,4 +297,3 @@ function Metric({ label, value }: { label: string; value: string }) {
 function Empty({ text }: { text: string }) {
   return <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">{text}</div>;
 }
-
