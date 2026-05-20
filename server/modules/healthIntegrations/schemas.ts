@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const healthProviderSchema = z.enum(["apple_health", "health_connect", "google_fit", "mock"]);
+export const healthProviderSchema = z.enum(["apple_health", "health_connect", "google_fit", "strava", "mock"]);
 export const healthDataTypeSchema = z.enum(["steps", "weight", "activity", "energy_burned", "sleep"]);
 
 export const connectHealthIntegrationSchema = z.object({
@@ -22,4 +22,3 @@ export type HealthDataType = z.infer<typeof healthDataTypeSchema>;
 export type ConnectHealthIntegrationInput = z.infer<typeof connectHealthIntegrationSchema>;
 export type SyncHealthIntegrationInput = z.infer<typeof syncHealthIntegrationSchema>;
 export type DisconnectHealthIntegrationInput = z.infer<typeof disconnectHealthIntegrationSchema>;
-
