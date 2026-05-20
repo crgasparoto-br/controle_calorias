@@ -21,7 +21,7 @@ export default function PageIntro({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] p-5 shadow-sm sm:p-6",
+        "overflow-hidden rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6",
         className,
       )}
     >
@@ -37,9 +37,13 @@ export default function PageIntro({
             <p className="text-sm leading-6 text-muted-foreground sm:text-base">{description}</p>
           </div>
         </div>
-        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            {actions}
+          </div>
+        ) : null}
       </div>
-      {stats ? <div className="mt-5">{stats}</div> : null}
+      {stats ? <div className="mt-5 rounded-3xl bg-muted/20 p-3 sm:p-4">{stats}</div> : null}
     </section>
   );
 }
