@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import {
-  createUserManualMeal,
+  buildSavedMedia,
+  confirmPendingMeal,
+  createPendingMealInference,
   getHabitSnapshots,
   logInferenceEvent,
 } from "../../db";
@@ -11,6 +13,7 @@ import {
   type MealDraftItem,
 } from "../../nutritionEngine";
 import { storagePut } from "../../storage";
+import { calculateMealTotals } from "../../../shared/mealTotals";
 import { decorateMealWithImageUrl, registerMealImageUrl } from "../meals/mealImageAssociations";
 import type {
   AnalyzeFoodPhotoInput,
@@ -25,6 +28,8 @@ export type FoodPhotoAnalysis = {
   status: FoodPhotoAnalysisStatus;
   suggestedItems: FoodPhotoSuggestedItem[];
   supportingImageUrl?: string;
+  originalImageUrl?: string;
+  originalImageMimeType?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -156,6 +161,21 @@ function buildSupportingImagePrompt(items: FoodPhotoSuggestedItem[]) {
   ].join(" ");
 }
 
+function createPhotoAnalysisMedia(analysis: FoodPhotoAnalysis) {
+  const imageUrl = analysis.supportingImageUrl ?? analysis.originalImageUrl;
+  if (!imageUrl) return [];
+
+  return [
+    buildSavedMedia({
+      mediaType: "image",
+      storageKey: imageUrl,
+      storageUrl: imageUrl,
+      mimeType: analysis.originalImageMimeType ?? "image/png",
+      originalFileName: "food-photo-analysis",
+    }),
+  ];
+}
+
 export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoInput) {
   if (!input.image) {
     throw new MealInferenceError("Envie uma foto para análise.");
@@ -235,6 +255,8 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
     status: "analyzed",
     suggestedItems,
     supportingImageUrl: supportingImage.url,
+    originalImageUrl: imageUrl,
+    originalImageMimeType: input.image.mimeType,
     updatedAt: Date.now(),
   };
   photoAnalysisStore.set(analyzed.id, analyzed);
@@ -285,15 +307,34 @@ export async function confirmFoodPhotoAnalysis(
     throw new Error("A análise precisa estar pronta antes de confirmar a refeição.");
   }
 
-  const meal = await createUserManualMeal({
+  const processedItems = input.items;
+  const draft = createPendingMealInference(
+    userId,
+    "web",
+    {
+      sourceText: input.notes ?? "Registro criado a partir de foto.",
+      reasoning: "Refeição confirmada a partir da análise de foto.",
+      confidence: processedItems.length
+        ? processedItems.reduce((sum, item) => sum + item.confidence, 0) / processedItems.length
+        : 1,
+      detectedMealLabel: input.mealLabel,
+      needsConfirmation: false,
+      items: processedItems,
+      totals: calculateMealTotals(processedItems),
+    },
+    createPhotoAnalysisMedia(analysis),
+  );
+
+  const meal = await confirmPendingMeal({
+    draftId: draft.draftId,
     userId,
     mealLabel: input.mealLabel,
     occurredAt: input.occurredAt,
     notes: input.notes,
-    items: input.items,
+    items: processedItems,
   });
 
-  registerMealImageUrl(meal.id, analysis.supportingImageUrl);
+  registerMealImageUrl(meal.id, analysis.supportingImageUrl ?? analysis.originalImageUrl);
 
   photoAnalysisStore.set(input.analysisId, {
     ...analysis,
