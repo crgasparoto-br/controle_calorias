@@ -228,7 +228,7 @@ function StatusLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Metric({ label, value }: { label: string }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border bg-background p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
