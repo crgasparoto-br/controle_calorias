@@ -1,1 +1,1 @@
-export { RegisteredMealsPage, default } from "@/features/meals/LogMealPageContent";
+export { RegisteredMealsPage, default } from "@/features/meals";
