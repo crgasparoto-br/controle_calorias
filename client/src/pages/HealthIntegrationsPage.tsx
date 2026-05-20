@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, HeartPulse, Link2, RefreshCw, Unlink } from "lucide-react";
+import { Activity, ExternalLink, HeartPulse, Link2, RefreshCw, Unlink } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -18,7 +18,7 @@ const DATA_TYPES = [
 ] as const;
 
 type HealthDataType = typeof DATA_TYPES[number]["value"];
-type HealthProvider = "apple_health" | "health_connect" | "google_fit" | "mock";
+type HealthProvider = "apple_health" | "health_connect" | "google_fit" | "strava" | "mock";
 
 export default function HealthIntegrationsPage() {
   const utils = trpc.useUtils();
@@ -97,6 +97,9 @@ export default function HealthIntegrationsPage() {
           {status.data?.providers.map(provider => {
             const connection = provider.connection;
             const connected = connection?.status === "connected";
+            const authorizationUrl = "authorizationUrl" in provider ? provider.authorizationUrl : null;
+            const isStrava = provider.provider === "strava";
+            const setupStatus = "setupStatus" in provider ? provider.setupStatus : undefined;
             return (
               <Card key={provider.provider} className="border-0 shadow-sm">
                 <CardHeader>
@@ -108,7 +111,7 @@ export default function HealthIntegrationsPage() {
                       </CardDescription>
                     </div>
                     <Badge variant={provider.available ? "secondary" : "outline"}>
-                      {provider.available ? "Disponível" : "Requer app nativo"}
+                      {provider.available ? "Disponível" : isStrava ? "Configuração pendente" : "Requer app nativo"}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -116,22 +119,45 @@ export default function HealthIntegrationsPage() {
                   <StatusLine label="Status" value={connection?.status ?? "disconnected"} />
                   <StatusLine label="Última sincronização" value={connection?.lastSyncedAt ? new Date(connection.lastSyncedAt).toLocaleString("pt-BR") : "Nunca"} />
                   <StatusLine label="Origem dos dados" value={provider.provider} />
+                  {setupStatus === "missing_credentials" ? (
+                    <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      Configure STRAVA_CLIENT_ID e STRAVA_REDIRECT_URI no backend para liberar o OAuth do Strava.
+                    </p>
+                  ) : null}
+                  {isStrava ? (
+                    <p className="rounded-xl border bg-muted/20 px-3 py-2 text-sm leading-6 text-muted-foreground">
+                      O Strava usa OAuth 2.0. Esta tela já prepara o início da autorização; a próxima etapa é persistir tokens no callback e consumir atividades para minutos e gasto energético.
+                    </p>
+                  ) : null}
                   {connection?.lastError ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{connection.lastError}</p> : null}
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      className="rounded-full"
-                      disabled={!provider.available || connect.isPending || selectedScopes.length === 0 || connected}
-                      onClick={() => connect.mutate({ provider: provider.provider as HealthProvider, consentAccepted: true, scopes: selectedScopes })}
-                    >
-                      <Link2 className="mr-2 h-4 w-4" />
-                      Conectar
-                    </Button>
+                    {authorizationUrl ? (
+                      <Button
+                        type="button"
+                        className="rounded-full"
+                        onClick={() => {
+                          window.location.href = authorizationUrl;
+                        }}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Conectar Strava
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        className="rounded-full"
+                        disabled={!provider.available || connect.isPending || selectedScopes.length === 0 || connected || isStrava}
+                        onClick={() => connect.mutate({ provider: provider.provider as HealthProvider, consentAccepted: true, scopes: selectedScopes })}
+                      >
+                        <Link2 className="mr-2 h-4 w-4" />
+                        Conectar
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="outline"
                       className="rounded-full"
-                      disabled={!connected || sync.isPending}
+                      disabled={!connected || sync.isPending || isStrava}
                       onClick={() => sync.mutate({ provider: provider.provider as HealthProvider })}
                     >
                       <RefreshCw className="mr-2 h-4 w-4" />
@@ -210,4 +236,3 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

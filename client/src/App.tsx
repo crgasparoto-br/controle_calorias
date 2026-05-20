@@ -29,8 +29,8 @@ function Router() {
     if (location === "/reports") {
       trackEvent("weekly_report_viewed", { report_type: "progress" });
     }
-    if (location === "/onboarding") {
-      trackEvent("onboarding_started", { entry_point: "route" });
+    if (location === "/onboarding" || location === "/settings") {
+      trackEvent("settings_opened", { entry_point: "route" });
     }
   }, [location]);
 
@@ -40,6 +40,7 @@ function Router() {
       <Route path="/register" component={RegisterPage} />
       <Route path="/" component={Home} />
       <Route path="/onboarding" component={OnboardingPage} />
+      <Route path="/settings" component={OnboardingPage} />
       <Route path="/log-meal" component={LogMealPage} />
       <Route path="/meals" component={RegisteredMealsPage} />
       <Route path="/foods" component={FoodsPage} />
