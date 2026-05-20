@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDateTimeInTimeZone, getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { calculateDayTotals, calculateMealTotals } from "../../../shared/mealTotals";
+import { calculateDayTotals, calculateMealTotals } from "../../../../../shared/mealTotals";
 import { BrainCircuit, CalendarPlus, Copy, ImagePlus, Mic, PencilLine, Plus, Save, Star, Trash2, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
