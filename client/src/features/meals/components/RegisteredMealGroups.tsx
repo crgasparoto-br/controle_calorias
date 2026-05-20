@@ -1,9 +1,10 @@
+import type React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateTimeInTimeZone } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
-import type { MealType, StoredMeal } from "../types";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel } from "../mealViewModels";
+import type { MealType, StoredMeal } from "../types";
 import { Copy, PencilLine, Star, Trash2 } from "lucide-react";
 
 type RegisteredMealGroupsProps = {
