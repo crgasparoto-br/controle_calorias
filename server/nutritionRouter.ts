@@ -51,6 +51,15 @@ import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingSchema } from "./modules/onboarding/schemas";
 import {
+  listMealSchedules,
+  suggestMealLabelForTime,
+  updateMealSchedules,
+} from "./modules/mealSchedules/service";
+import {
+  suggestMealScheduleSchema,
+  updateMealSchedulesSchema,
+} from "./modules/mealSchedules/schemas";
+import {
   confirmMeal,
   copyMeal,
   createManualMeal,
@@ -241,6 +250,16 @@ export const nutritionRouter = router({
       void analyticsService.track("weight_logged", { source: "onboarding" });
       return result;
     }),
+  }),
+
+  mealSchedules: router({
+    list: protectedProcedure.query(async ({ ctx }) => listMealSchedules(ctx.user.id)),
+    update: protectedProcedure
+      .input(updateMealSchedulesSchema)
+      .mutation(async ({ ctx, input }) => updateMealSchedules(ctx.user.id, input)),
+    suggest: protectedProcedure
+      .input(suggestMealScheduleSchema)
+      .query(async ({ ctx, input }) => suggestMealLabelForTime(ctx.user.id, input)),
   }),
 
   dashboard: router({
