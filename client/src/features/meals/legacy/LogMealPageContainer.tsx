@@ -11,7 +11,7 @@ import { formatDateTimeInTimeZone, getBrowserTimeZone, toDateInputValue, toDateT
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { calculateDayTotals, calculateMealTotals } from "../../../../../shared/mealTotals";
-import { BrainCircuit, CalendarPlus, Copy, ImagePlus, Mic, PencilLine, Plus, Save, Star, Trash2, WandSparkles } from "lucide-react";
+import { BrainCircuit, CalendarPlus, Clock3, Copy, ImagePlus, Mic, PencilLine, Plus, Save, Star, Trash2, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -80,6 +80,13 @@ type StoredMeal = {
   };
 };
 
+type MealScheduleState = {
+  mealLabel: MealType;
+  startTime: string;
+  endTime: string;
+  enabled: boolean;
+};
+
 const MEAL_TYPES = ["café da manhã", "almoço", "jantar", "lanche", "outro"] as const;
 type MealType = (typeof MEAL_TYPES)[number];
 
@@ -99,14 +106,57 @@ function createEmptyItem(): MealItemState {
   };
 }
 
-function createManualMealState() {
+function createManualMealState(mealLabel: MealType = "almoço", occurredAt = toDateTimeLocalValue()) {
   return {
     mealId: undefined as number | undefined,
-    mealLabel: "almoço" as MealType,
-    occurredAt: toDateTimeLocalValue(),
+    mealLabel,
+    occurredAt,
     notes: "",
     items: [createEmptyItem()],
   };
+}
+
+function minutesFromTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return (hours * 60) + minutes;
+}
+
+function isTimeWithinRange(timeMinutes: number, startTime: string, endTime: string) {
+  const start = minutesFromTime(startTime);
+  const end = minutesFromTime(endTime);
+  if (start <= end) return timeMinutes >= start && timeMinutes <= end;
+  return timeMinutes >= start || timeMinutes <= end;
+}
+
+function rangeCenterDistance(timeMinutes: number, startTime: string, endTime: string) {
+  const start = minutesFromTime(startTime);
+  let end = minutesFromTime(endTime);
+  let current = timeMinutes;
+  if (end < start) end += 1440;
+  if (current < start) current += 1440;
+  return Math.abs(current - (start + ((end - start) / 2)));
+}
+
+function localMinutesFromDateTimeLocal(value: string) {
+  const match = value.match(/T(\d{2}):(\d{2})/);
+  if (!match) return null;
+  return (Number(match[1]) * 60) + Number(match[2]);
+}
+
+function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleState[] | undefined): MealType | null {
+  const timeMinutes = localMinutesFromDateTimeLocal(value);
+  const enabledSchedules = schedules?.filter(schedule => schedule.enabled && MEAL_TYPES.includes(schedule.mealLabel)) ?? [];
+  if (timeMinutes === null || !enabledSchedules.length) return null;
+
+  const directMatches = enabledSchedules
+    .filter(schedule => isTimeWithinRange(timeMinutes, schedule.startTime, schedule.endTime))
+    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
+
+  const fallback = enabledSchedules
+    .slice()
+    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime))[0];
+
+  return (directMatches[0] ?? fallback)?.mealLabel ?? null;
 }
 
 async function fileToBase64(file: File) {
@@ -138,6 +188,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   const utils = trpc.useUtils();
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
+  const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
   const manualEditorRef = React.useRef<HTMLDivElement>(null);
 
@@ -159,6 +210,29 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
   const dayTotalsQuery = trpc.nutrition.meals.dayTotals.useQuery({ date: selectedDay });
 
+  const mealSchedules = mealSchedulesQuery.data as MealScheduleState[] | undefined;
+  const suggestedManualMealLabel = useMemo(() => suggestMealLabelFromSchedules(manualMeal.occurredAt, mealSchedules), [manualMeal.occurredAt, mealSchedules]);
+  const suggestedPhotoMealLabel = useMemo(() => suggestMealLabelFromSchedules(photoOccurredAt, mealSchedules), [photoOccurredAt, mealSchedules]);
+  const suggestedDraftMealLabel = useMemo(() => suggestMealLabelFromSchedules(occurredAt, mealSchedules), [occurredAt, mealSchedules]);
+
+  React.useEffect(() => {
+    if (!manualMeal.mealId && suggestedManualMealLabel && manualMeal.mealLabel !== suggestedManualMealLabel) {
+      setManualMeal(current => current.mealId ? current : { ...current, mealLabel: suggestedManualMealLabel });
+    }
+  }, [manualMeal.mealId, manualMeal.mealLabel, suggestedManualMealLabel]);
+
+  React.useEffect(() => {
+    if (suggestedPhotoMealLabel && !photoAnalysis) {
+      setPhotoMealLabel(suggestedPhotoMealLabel);
+    }
+  }, [photoAnalysis, suggestedPhotoMealLabel]);
+
+  React.useEffect(() => {
+    if (draft && suggestedDraftMealLabel && (!mealLabel || MEAL_TYPES.includes(mealLabel as MealType))) {
+      setMealLabel(suggestedDraftMealLabel);
+    }
+  }, [draft, mealLabel, suggestedDraftMealLabel]);
+
   const invalidateNutritionViews = async () => {
     await Promise.all([
       utils.nutrition.dashboard.overview.invalidate(),
@@ -172,7 +246,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   const processDraft = trpc.nutrition.meals.processDraft.useMutation({
     onSuccess: result => {
       setDraft(result as DraftState);
-      setMealLabel(result.processed.detectedMealLabel);
+      setMealLabel(suggestedDraftMealLabel ?? result.processed.detectedMealLabel);
       setEditableItems(result.processed.items);
       toast.success("Inferência preparada. Revise os itens antes de salvar.");
     },
@@ -214,7 +288,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
       setPhotoFile(null);
       setPhotoAnalysis(null);
       setPhotoEditableItems([]);
-      setPhotoMealLabel("almoço");
+      setPhotoMealLabel(suggestMealLabelFromSchedules(toDateTimeLocalValue(undefined, userTimeZone), mealSchedules) ?? "almoço");
       setPhotoOccurredAt(toDateTimeLocalValue(undefined, userTimeZone));
       setPhotoNotes("");
     },
@@ -234,7 +308,8 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição manual criada com sucesso.");
-      setManualMeal(createManualMealState());
+      const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
+      setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
     },
     onError: error => toast.error(error.message || "Não foi possível criar a refeição manual."),
   });
@@ -243,7 +318,8 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição atualizada com sucesso.");
-      setManualMeal(createManualMealState());
+      const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
+      setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar a refeição."),
   });
@@ -252,7 +328,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição removida com sucesso.");
-      setManualMeal(current => (current.mealId ? createManualMealState() : current));
+      setManualMeal(current => (current.mealId ? createManualMealState(suggestMealLabelFromSchedules(current.occurredAt, mealSchedules) ?? "almoço", current.occurredAt) : current));
     },
     onError: error => toast.error(error.message || "Não foi possível remover a refeição."),
   });
@@ -425,10 +501,25 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
                   {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {suggestedManualMealLabel ? (
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock3 className="h-3 w-3" />
+                  Sugestão pelo horário: {suggestedManualMealLabel}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="manual-occurred-at">Data e horário</Label>
-              <Input id="manual-occurred-at" type="datetime-local" value={manualMeal.occurredAt} onChange={event => setManualMeal(current => ({ ...current, occurredAt: event.target.value }))} />
+              <Input
+                id="manual-occurred-at"
+                type="datetime-local"
+                value={manualMeal.occurredAt}
+                onChange={event => {
+                  const nextOccurredAt = event.target.value;
+                  const nextLabel = suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules);
+                  setManualMeal(current => ({ ...current, occurredAt: nextOccurredAt, mealLabel: nextLabel ?? current.mealLabel }));
+                }}
+              />
             </div>
           </div>
 
@@ -495,7 +586,10 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
               type="button"
               variant="outline"
               className="rounded-full"
-              onClick={() => setManualMeal(createManualMealState())}
+              onClick={() => {
+                const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
+                setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
+              }}
             >
               {manualMeal.mealId ? "Cancelar edição" : "Limpar formulário"}
             </Button>
@@ -671,10 +765,24 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
                               {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          {suggestedPhotoMealLabel ? (
+                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock3 className="h-3 w-3" />
+                              Sugestão pelo horário: {suggestedPhotoMealLabel}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="space-y-2">
                           <Label>Data e horário</Label>
-                          <Input type="datetime-local" value={photoOccurredAt} onChange={event => setPhotoOccurredAt(event.target.value)} />
+                          <Input
+                            type="datetime-local"
+                            value={photoOccurredAt}
+                            onChange={event => {
+                              const nextOccurredAt = event.target.value;
+                              setPhotoOccurredAt(nextOccurredAt);
+                              setPhotoMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? photoMealLabel);
+                            }}
+                          />
                         </div>
                       </div>
 
@@ -807,10 +915,25 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
                           {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
                         </SelectContent>
                       </Select>
+                      {suggestedDraftMealLabel ? (
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock3 className="h-3 w-3" />
+                          Sugestão pelo horário: {suggestedDraftMealLabel}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="occurred-at">Data e horário</Label>
-                      <Input id="occurred-at" type="datetime-local" value={occurredAt} onChange={event => setOccurredAt(event.target.value)} />
+                      <Input
+                        id="occurred-at"
+                        type="datetime-local"
+                        value={occurredAt}
+                        onChange={event => {
+                          const nextOccurredAt = event.target.value;
+                          setOccurredAt(nextOccurredAt);
+                          setMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? mealLabel);
+                        }}
+                      />
                     </div>
                   </div>
 
