@@ -3,12 +3,13 @@ import React, { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Clock3, Save, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -50,6 +51,23 @@ const DIFFICULTY_OPTIONS = [
   { value: "comer_fora", label: "Comer fora" },
   { value: "falta_de_planejamento", label: "Falta de planejamento" },
 ] as const;
+
+const MEAL_LABEL_OPTIONS = ["café da manhã", "almoço", "jantar", "lanche", "outro"] as const;
+
+type MealScheduleState = {
+  mealLabel: typeof MEAL_LABEL_OPTIONS[number];
+  startTime: string;
+  endTime: string;
+  enabled: boolean;
+};
+
+const DEFAULT_MEAL_SCHEDULES: MealScheduleState[] = [
+  { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
+  { mealLabel: "almoço", startTime: "11:00", endTime: "14:59", enabled: true },
+  { mealLabel: "lanche", startTime: "15:00", endTime: "17:59", enabled: true },
+  { mealLabel: "jantar", startTime: "18:00", endTime: "22:59", enabled: true },
+  { mealLabel: "outro", startTime: "23:00", endTime: "04:59", enabled: true },
+];
 
 const OPTIONAL_ONBOARDING_FALLBACK = {
   name: "Usuário",
@@ -153,18 +171,25 @@ function calculateAgeYears(birthDate: string, referenceDate = new Date()) {
   return age;
 }
 
+function hasInvalidScheduleTime(schedules: MealScheduleState[]) {
+  return schedules.some(schedule => !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.endTime));
+}
+
 export default function OnboardingPage() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const [nameEdited, setNameEdited] = useState(false);
   const [savedProfileApplied, setSavedProfileApplied] = useState(false);
+  const [schedulesApplied, setSchedulesApplied] = useState(false);
+  const [mealSchedules, setMealSchedules] = useState<MealScheduleState[]>(DEFAULT_MEAL_SCHEDULES);
   const [form, setForm] = useState<FormState>(() => ({
     ...initialForm,
     name: user?.name?.trim() ?? "",
   }));
 
   const savedProfileQuery = trpc.nutrition.onboarding.profile.useQuery();
+  const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const userName = user?.name?.trim() ?? "";
 
   React.useEffect(() => {
@@ -193,6 +218,12 @@ export default function OnboardingPage() {
       setForm(current => ({ ...current, name: userName }));
     }
   }, [form.name, nameEdited, userName]);
+
+  React.useEffect(() => {
+    if (!mealSchedulesQuery.data || schedulesApplied) return;
+    setMealSchedules(mealSchedulesQuery.data as MealScheduleState[]);
+    setSchedulesApplied(true);
+  }, [mealSchedulesQuery.data, schedulesApplied]);
 
   const calculatedAgeYears = useMemo(() => calculateAgeYears(form.birthDate), [form.birthDate]);
 
@@ -245,12 +276,24 @@ export default function OnboardingPage() {
       toast.success("Perfil salvo com sucesso.");
       setLocation("/");
     },
-    onError: error => toast.error(error.message || "Não foi possível salvar o onboarding."),
+    onError: error => toast.error(error.message || "Não foi possível salvar as configurações."),
+  });
+
+  const updateMealSchedules = trpc.nutrition.mealSchedules.update.useMutation({
+    onSuccess: async () => {
+      await utils.nutrition.mealSchedules.list.invalidate();
+      toast.success("Refeições habituais salvas com sucesso.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível salvar as refeições habituais."),
   });
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     if (field === "name") setNameEdited(true);
     setForm(current => ({ ...current, [field]: value }));
+  }
+
+  function updateSchedule<K extends keyof MealScheduleState>(index: number, field: K, value: MealScheduleState[K]) {
+    setMealSchedules(current => current.map((schedule, currentIndex) => currentIndex === index ? { ...schedule, [field]: value } : schedule));
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -262,6 +305,14 @@ export default function OnboardingPage() {
     completeOnboarding.mutate(payload);
   }
 
+  function handleSaveMealSchedules() {
+    if (hasInvalidScheduleTime(mealSchedules)) {
+      toast.error("Revise os horários das refeições habituais. Use o formato HH:mm.");
+      return;
+    }
+    updateMealSchedules.mutate({ schedules: mealSchedules });
+  }
+
   return (
     <DashboardLayout>
       <form className="mx-auto grid w-full max-w-7xl gap-6 px-1" onSubmit={handleSubmit}>
@@ -269,7 +320,7 @@ export default function OnboardingPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <UserRound className="h-5 w-5 text-primary" />
-              Onboarding nutricional
+              Configurações nutricionais
             </CardTitle>
             <CardDescription>
               Os blocos estão expandidos e todos os campos podem ser preenchidos agora ou ajustados depois.
@@ -307,9 +358,50 @@ export default function OnboardingPage() {
           </CardContent>
         </Card>
 
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock3 className="h-5 w-5 text-primary" />
+              Refeições habituais
+            </CardTitle>
+            <CardDescription>
+              Configure os intervalos usuais para que o registro de refeição já selecione automaticamente a opção mais adequada ao horário.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3">
+              {mealSchedules.map((schedule, index) => (
+                <div key={`${schedule.mealLabel}-${index}`} className="grid gap-3 rounded-2xl border bg-background p-4 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end">
+                  <SelectField
+                    label="Refeição"
+                    value={schedule.mealLabel}
+                    options={MEAL_LABEL_OPTIONS.map(value => ({ value, label: value }))}
+                    onChange={value => updateSchedule(index, "mealLabel", value as MealScheduleState["mealLabel"])}
+                  />
+                  <TextField label="Início" type="time" value={schedule.startTime} onChange={value => updateSchedule(index, "startTime", value)} />
+                  <TextField label="Fim" type="time" value={schedule.endTime} onChange={value => updateSchedule(index, "endTime", value)} />
+                  <label className="flex h-10 items-center gap-2 rounded-xl border px-3 text-sm">
+                    <Checkbox checked={schedule.enabled} onCheckedChange={value => updateSchedule(index, "enabled", Boolean(value))} />
+                    Ativa
+                  </label>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(DEFAULT_MEAL_SCHEDULES)}>
+                Restaurar padrão
+              </Button>
+              <Button type="button" className="rounded-full" disabled={updateMealSchedules.isPending} onClick={handleSaveMealSchedules}>
+                <Save className="mr-2 h-4 w-4" />
+                {updateMealSchedules.isPending ? "Salvando..." : "Salvar refeições"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="flex justify-end">
           <Button className="h-11 rounded-full px-6" disabled={completeOnboarding.isPending} type="submit">
-            {completeOnboarding.isPending ? "Salvando..." : "Salvar onboarding"}
+            {completeOnboarding.isPending ? "Salvando..." : "Salvar configurações"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
