@@ -7,6 +7,7 @@
 - `/log-meal` misturava quatro tarefas pesadas na mesma rolagem: foto, IA multimodal, cadastro manual e lista de registros.
 - `/settings` concentrava muitos blocos longos, com cartões dentro de cartões, o que aumentava a sensação de formulário infinito.
 - `/meals` já tinha agrupamento funcional, mas faltava uma entrada de contexto mais forte para o resumo do dia e as ações principais.
+- `/reports` tinha boa densidade informacional, mas ainda não conversava visualmente com o novo padrão aplicado em Configurações e Registro.
 
 ### Uso de espaço e rolagem
 
@@ -34,6 +35,7 @@
 - Reestruturada a tela `/log-meal` em abas: `IA multimodal`, `Foto`, `Manual` e `Hoje`.
 - Mantida a edição de refeição acessível a partir da aba `Hoje`, redirecionando o usuário para o modo manual dentro da mesma tela.
 - Refinada a tela `/meals` com cabeçalho consistente e melhor apresentação do resumo diário.
+- Alinhada a tela `/reports` ao mesmo padrão de entrada visual com `PageIntro`, deixando a abertura da página mais coerente com o restante do app.
 
 ## Validação
 
@@ -44,4 +46,4 @@ Validações recomendadas na PR/CI:
 - `pnpm check`
 - `pnpm test`
 - `pnpm architecture:check`
-- validação manual de `/settings`, `/log-meal` e `/meals` em desktop e mobile
+- validação manual de `/settings`, `/log-meal`, `/meals` e `/reports` em desktop e mobile
