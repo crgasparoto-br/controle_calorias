@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Activity, ExternalLink, HeartPulse, Link2, RefreshCw, Unlink } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const DATA_TYPES = [
@@ -61,16 +62,28 @@ export default function HealthIntegrationsPage() {
     );
   };
 
+  const availableProviders = useMemo(() => status.data?.providers.filter(provider => provider.available).length ?? 0, [status.data?.providers]);
+  const connectedProviders = useMemo(
+    () => status.data?.providers.filter(provider => provider.connection?.status === "connected").length ?? 0,
+    [status.data?.providers],
+  );
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <section className="space-y-2">
-          <Badge variant="secondary" className="w-fit">Privacidade e consentimento</Badge>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Integrações de saúde</h1>
-          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-            Conecte fontes externas somente com consentimento explícito. Calorias ingeridas continuam separadas do gasto energético vindo de atividade.
-          </p>
-        </section>
+        <PageIntro
+          eyebrow="Saúde"
+          title="Integrações de saúde"
+          description="A tela foi organizada para separar permissões, estado das integrações e dados sincronizados, sempre preservando consentimento explícito e a distinção entre consumo alimentar e gasto energético externo."
+          stats={
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <IntroStat label="Providers disponíveis" value={String(availableProviders)} helper="prontos para uso" />
+              <IntroStat label="Providers conectados" value={String(connectedProviders)} helper="com vínculo ativo" />
+              <IntroStat label="Escopos selecionados" value={String(selectedScopes.length)} helper="tipos de dados permitidos" />
+              <IntroStat label="Registros recentes" value={String(status.data?.recentRecords.length ?? 0)} helper="itens visíveis agora" />
+            </div>
+          }
+        />
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
@@ -216,6 +229,16 @@ export default function HealthIntegrationsPage() {
         </Card>
       </div>
     </DashboardLayout>
+  );
+}
+
+function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
   );
 }
 
