@@ -9,8 +9,22 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCalories, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { BarChart3, CalendarDays, ChevronDown, Clock3, Droplets, Dumbbell, Flame, Lightbulb, Scale, TrendingUp, UtensilsCrossed } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  CalendarDays,
+  ChevronDown,
+  Clock3,
+  Droplets,
+  Dumbbell,
+  Flame,
+  Lightbulb,
+  Scale,
+  TrendingUp,
+  UtensilsCrossed,
+} from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Link } from "wouter";
 
 const WEEKDAY_NAMES = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
 
@@ -121,13 +135,21 @@ export default function ReportsPage() {
                 </div>
               }
               actions={
-                <div className="rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
-                  Saldo semanal: <span className="font-semibold text-foreground">{formatCalories(progress.summary.balanceCalories)}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+                    Saldo semanal: <span className="font-semibold text-foreground">{formatCalories(progress.summary.balanceCalories)}</span>
+                  </div>
+                  <Link href="/log-meal">
+                    <Button className="rounded-full">
+                      Registrar refeição
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               }
             />
 
-            <Card className="border-0 shadow-sm" defaultOpen>
+            <Card className="border-0 shadow-sm">
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -139,7 +161,7 @@ export default function ReportsPage() {
                       Visual compacto inspirado em calendário: dias da semana em colunas e totais semanais na lateral.
                     </CardDescription>
                   </div>
-                  <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-4 lg:min-w-[520px]">
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground lg:max-w-[520px] lg:justify-end">
                     <CalendarLegend tone="bg-emerald-500" label="dentro" />
                     <CalendarLegend tone="bg-amber-500" label="acima" />
                     <CalendarLegend tone="bg-sky-500" label="abaixo" />
@@ -156,7 +178,7 @@ export default function ReportsPage() {
                       <CardTitle>Dias da semana</CardTitle>
                       <CardDescription>Dias sem registro ficam separados para não distorcer a leitura de consistência.</CardDescription>
                     </CardHeader>
-                    <CardContent className="grid gap-3 sm:grid-cols-4">
+                    <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <StatusTile label="Dentro da meta" value={progress.summary.daysWithinGoal} />
                       <StatusTile label="Acima da meta" value={progress.summary.daysAboveGoal} />
                       <StatusTile label="Abaixo da meta" value={progress.summary.daysBelowGoal} />
@@ -196,6 +218,30 @@ export default function ReportsPage() {
             </Card>
           </section>
         ) : null}
+
+        <section className="space-y-4">
+          <SectionHeading
+            title="Resumo do período"
+            description="Esses números dão uma leitura rápida da semana antes de abrir os blocos mais analíticos."
+          />
+          <div className="grid gap-4 lg:grid-cols-3">
+            <HighlightCard
+              title="Consumo semanal"
+              value={formatCalories(caloricTrend.reduce((acc, day) => acc + day.calories, 0))}
+              description="Soma do período monitorado nos últimos sete dias."
+            />
+            <HighlightCard
+              title="Média diária"
+              value={formatCalories(caloricTrend.reduce((acc, day) => acc + day.calories, 0) / Math.max(caloricTrend.length, 1))}
+              description="Média simples de calorias ingeridas por dia."
+            />
+            <HighlightCard
+              title="Maior consumo"
+              value={formatCalories(Math.max(...caloricTrend.map(day => day.calories), 0))}
+              description="Pico calórico identificado na janela semanal atual."
+            />
+          </div>
+        </section>
 
         <CollapsibleSection
           title="Insights e qualidade alimentar"
@@ -268,24 +314,6 @@ export default function ReportsPage() {
             </div>
           </div>
         </CollapsibleSection>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          <HighlightCard
-            title="Consumo semanal"
-            value={formatCalories(caloricTrend.reduce((acc, day) => acc + day.calories, 0))}
-            description="Soma do período monitorado nos últimos sete dias."
-          />
-          <HighlightCard
-            title="Média diária"
-            value={formatCalories(caloricTrend.reduce((acc, day) => acc + day.calories, 0) / Math.max(caloricTrend.length, 1))}
-            description="Média simples de calorias ingeridas por dia."
-          />
-          <HighlightCard
-            title="Maior consumo"
-            value={formatCalories(Math.max(...caloricTrend.map(day => day.calories), 0))}
-            description="Pico calórico identificado na janela semanal atual."
-          />
-        </div>
 
         <CollapsibleSection
           title="Refeições detalhadas"
@@ -548,6 +576,15 @@ function WeeklyTotalItem({ label, value }: { label: string; value: string }) {
     <div className="mb-3">
       <p className="text-xs font-semibold text-background/75">{label}:</p>
       <p className="text-sm font-semibold leading-5">{value}</p>
+    </div>
+  );
+}
+
+function SectionHeading({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="space-y-1">
+      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
     </div>
   );
 }
