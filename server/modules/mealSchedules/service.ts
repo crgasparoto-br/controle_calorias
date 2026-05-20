@@ -9,9 +9,10 @@ const MEAL_SCHEDULE_PREFERENCE_KEY = "meal_schedule";
 const DEFAULT_MEAL_SCHEDULES: MealScheduleItemInput[] = [
   { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
   { mealLabel: "almoço", startTime: "11:00", endTime: "14:59", enabled: true },
-  { mealLabel: "lanche", startTime: "15:00", endTime: "17:59", enabled: true },
-  { mealLabel: "jantar", startTime: "18:00", endTime: "22:59", enabled: true },
-  { mealLabel: "outro", startTime: "23:00", endTime: "04:59", enabled: true },
+  { mealLabel: "lanche da tarde", startTime: "15:00", endTime: "17:29", enabled: true },
+  { mealLabel: "pré-treino", startTime: "17:30", endTime: "18:29", enabled: true },
+  { mealLabel: "jantar", startTime: "18:30", endTime: "22:59", enabled: true },
+  { mealLabel: "ceia", startTime: "23:00", endTime: "04:59", enabled: true },
 ];
 
 const memoryMealSchedules = new Map<number, MealScheduleItemInput[]>();
@@ -43,7 +44,7 @@ function rangeCenterDistance(timeMinutes: number, startTime: string, endTime: st
 
 function normalizeSchedules(schedules: MealScheduleItemInput[]) {
   return schedules.map(schedule => ({
-    mealLabel: schedule.mealLabel,
+    mealLabel: schedule.mealLabel.trim(),
     startTime: schedule.startTime,
     endTime: schedule.endTime,
     enabled: schedule.enabled,
