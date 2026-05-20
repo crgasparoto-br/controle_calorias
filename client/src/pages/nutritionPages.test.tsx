@@ -10,6 +10,13 @@ const weeklyInsightsMock = vi.fn();
 const whatsappStatusMock = vi.fn();
 const adminOverviewMock = vi.fn();
 const adminWhatsappTokenStatusMock = vi.fn();
+const mealSchedulesMock = [
+  { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
+  { mealLabel: "almoço", startTime: "11:00", endTime: "14:59", enabled: true },
+  { mealLabel: "lanche", startTime: "15:00", endTime: "17:59", enabled: true },
+  { mealLabel: "jantar", startTime: "18:00", endTime: "22:59", enabled: true },
+  { mealLabel: "outro", startTime: "23:00", endTime: "04:59", enabled: true },
+];
 const useUtilsMock = vi.fn(() => ({
   auth: {
     me: {
@@ -19,6 +26,7 @@ const useUtilsMock = vi.fn(() => ({
   },
   nutrition: {
     onboarding: { profile: { invalidate: vi.fn() } },
+    mealSchedules: { list: { invalidate: vi.fn() } },
     dashboard: { overview: { invalidate: vi.fn() } },
     meals: { list: { invalidate: vi.fn() }, dayTotals: { invalidate: vi.fn() }, favorites: { invalidate: vi.fn() } },
     reports: { weekly: { invalidate: vi.fn() } },
@@ -73,6 +81,17 @@ vi.mock("@/lib/trpc", () => ({
         },
         complete: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+      },
+      mealSchedules: {
+        list: {
+          useQuery: () => ({ data: mealSchedulesMock, isLoading: false, error: null }),
+        },
+        update: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        suggest: {
+          useQuery: () => ({ data: { mealLabel: "almoço", matchedSchedule: mealSchedulesMock[1], confidence: 1 } }),
         },
       },
       dashboard: {
@@ -452,18 +471,21 @@ describe("nutrition pages", () => {
     expect(html).toContain("15.600 kcal");
   });
 
-  it("renderiza o onboarding com dados de personalização nutricional", async () => {
+  it("renderiza as configurações com perfil e refeições habituais", async () => {
     const { default: OnboardingPage } = await import("./OnboardingPage");
     const html = renderToString(React.createElement(OnboardingPage));
 
-    expect(html).toContain("Onboarding nutricional");
+    expect(html).toContain("Configurações nutricionais");
     expect(html).toContain("Nome");
-    expect(html).toContain("Idade");
+    expect(html).toContain("Data de nascimento");
+    expect(html).toContain("Idade calculada");
     expect(html).toContain("Peso atual");
     expect(html).toContain("Objetivo");
     expect(html).toContain("Preferências alimentares");
     expect(html).toContain("Principal dificuldade");
-    expect(html).toContain("Salvar onboarding");
+    expect(html).toContain("Refeições habituais");
+    expect(html).toContain("Salvar refeições");
+    expect(html).toContain("Salvar configurações");
   });
 
   it("renderiza a página de registro multimodal", async () => {
@@ -474,6 +496,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Imagem do prato ou rótulo");
     expect(html).toContain("Fluxo de confirmação");
     expect(html).toContain("Criar refeição manualmente");
+    expect(html).toContain("Sugestão pelo horário");
     expect(html).toContain("Refeições registradas");
   });
 
