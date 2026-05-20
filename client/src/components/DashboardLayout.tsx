@@ -22,7 +22,6 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   Apple,
-  BarChart3,
   Goal,
   HeartPulse,
   LayoutDashboard,
@@ -69,7 +68,7 @@ export default function DashboardLayout({
             <ProductIcon className="mx-auto h-16 w-16" />
             <h1 className="text-2xl font-semibold tracking-tight">Entre para acessar sua jornada nutricional</h1>
             <p className="text-sm leading-6 text-muted-foreground">
-              Faça login para registrar refeições, acompanhar metas calóricas, revisar inferências da IA e visualizar seus relatórios.
+              Faça login para registrar refeições, acompanhar metas calóricas, revisar inferências da IA e visualizar seu painel diário e semanal.
             </p>
           </div>
           <Button
@@ -100,11 +99,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const menuItems = useMemo(() => {
     const baseItems = [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-      { icon: MessageSquareMore, label: "Registrar refeição", path: "/log-meal" },
-      { icon: ListChecks, label: "Registro das refeições", path: "/meals" },
+      { icon: MessageSquareMore, label: "Registro de refeição", path: "/log-meal" },
+      { icon: ListChecks, label: "Registros", path: "/meals" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
-      { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: MessageCircleMore, label: "Canais", path: "/channels" },
       { icon: HeartPulse, label: "Saúde externa", path: "/health-integrations" },
       { icon: Stethoscope, label: "Nutricionista", path: "/professional" },
@@ -114,12 +112,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       baseItems.push({ icon: Shield, label: "Administração", path: "/admin" });
     }
 
-    baseItems.push({ icon: UserRound, label: "Onboarding", path: "/onboarding" });
+    baseItems.push({ icon: UserRound, label: "Configurações", path: "/settings" });
 
     return baseItems;
   }, [user?.role]);
 
-  const activeItem = menuItems.find(item => item.path === location);
+  const activeItem = menuItems.find(item => item.path === location || (item.path === "/settings" && location === "/onboarding"));
 
   return (
     <>
@@ -137,7 +135,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <SidebarContent className="px-3 py-4">
           <SidebarMenu>
             {menuItems.map(item => {
-              const isActive = item.path === location;
+              const isActive = item.path === location || (item.path === "/settings" && location === "/onboarding");
               return (
                 <SidebarMenuItem key={item.path}>
                   <SidebarMenuButton
