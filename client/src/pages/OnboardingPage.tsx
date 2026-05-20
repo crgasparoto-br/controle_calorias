@@ -1,15 +1,17 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import React, { useMemo, useState } from "react";
+import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, Clock3, Plus, Save, Trash2, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Clock3, Plus, Save, Sparkles, Target, Trash2, UserRound } from "lucide-react";
+import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -323,128 +325,216 @@ export default function OnboardingPage() {
     updateMealSchedules.mutate({ schedules: normalizedSchedules });
   }
 
+  const activeSchedules = mealSchedules.filter(schedule => schedule.enabled).length;
+  const completionStats = (
+    <div className="grid gap-3 sm:grid-cols-3">
+      <IntroStat label="Perfil" value={form.name.trim() ? "preenchido" : "pendente"} helper={calculatedAgeYears === null ? "idade opcional" : `${calculatedAgeYears} anos`} />
+      <IntroStat label="Objetivo" value={OBJECTIVE_OPTIONS.find(option => option.value === form.objective)?.label ?? "definido"} helper={ACTIVITY_OPTIONS.find(option => option.value === form.activityLevel)?.label ?? "rotina"} />
+      <IntroStat label="Refeições" value={`${activeSchedules} ativas`} helper={`${mealSchedules.length} faixas configuradas`} />
+    </div>
+  );
+
   return (
     <DashboardLayout>
-      <form className="mx-auto grid w-full max-w-7xl gap-6 px-1" onSubmit={handleSubmit}>
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <UserRound className="h-5 w-5 text-primary" />
-              Configurações nutricionais
-            </CardTitle>
-            <CardDescription>
-              Os blocos estão expandidos e todos os campos podem ser preenchidos agora ou ajustados depois.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-            <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
-            <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
-            <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
-            <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
-            <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5 ou 72.5" />
-          </CardContent>
-        </Card>
+      <form className="mx-auto flex w-full max-w-7xl flex-col gap-6" onSubmit={handleSubmit}>
+        <PageIntro
+          eyebrow="Configurações"
+          title="Ajuste seu perfil sem se perder em blocos longos"
+          description="Organizamos a tela em etapas curtas para reduzir rolagem, facilitar revisões rápidas e deixar as refeições habituais mais simples de manter no dia a dia."
+          stats={completionStats}
+          actions={
+            <Button className="h-11 rounded-full px-5" disabled={completeOnboarding.isPending} type="submit">
+              {completeOnboarding.isPending ? "Salvando..." : "Salvar configurações"}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          }
+        />
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              Rotina e objetivo
-            </CardTitle>
-            <CardDescription>
-              As opções já vêm selecionadas para permitir salvar rapidamente, mas você pode alterá-las quando quiser.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-            <SelectField label="Objetivo" value={form.objective} options={OBJECTIVE_OPTIONS} onChange={value => updateField("objective", value as FormState["objective"])} />
-            <SelectField label="Nível de atividade física" value={form.activityLevel} options={ACTIVITY_OPTIONS} onChange={value => updateField("activityLevel", value as FormState["activityLevel"])} />
-            <SelectField label="Experiência com controle alimentar" value={form.trackingExperience} options={EXPERIENCE_OPTIONS} onChange={value => updateField("trackingExperience", value as FormState["trackingExperience"])} />
-            <SelectField label="Rotina alimentar" value={form.eatingRoutine} options={ROUTINE_OPTIONS} onChange={value => updateField("eatingRoutine", value as FormState["eatingRoutine"])} />
-            <SelectField label="Principal dificuldade" value={form.mainDifficulty} options={DIFFICULTY_OPTIONS} onChange={value => updateField("mainDifficulty", value as FormState["mainDifficulty"])} />
-            <div className="grid gap-5 lg:col-span-2 xl:col-span-3 xl:grid-cols-2">
-              <TextAreaField label="Preferências alimentares" value={form.dietaryPreferences} onChange={value => updateField("dietaryPreferences", value)} placeholder="Ex.: comida caseira, vegetariano, café da manhã simples" optional />
-              <TextAreaField label="Restrições alimentares" value={form.dietaryRestrictions} onChange={value => updateField("dietaryRestrictions", value)} placeholder="Ex.: lactose, glúten, amendoim" optional />
-            </div>
-          </CardContent>
-        </Card>
+        {validationMessage ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {validationMessage}
+          </div>
+        ) : null}
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock3 className="h-5 w-5 text-primary" />
+        <Tabs defaultValue="perfil" className="gap-4">
+          <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3">
+            <TabsTrigger className="min-h-11 rounded-xl" value="perfil">
+              <UserRound className="h-4 w-4" />
+              Perfil
+            </TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="objetivos">
+              <Target className="h-4 w-4" />
+              Objetivos e rotina
+            </TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="refeicoes">
+              <Clock3 className="h-4 w-4" />
               Refeições habituais
-            </CardTitle>
-            <CardDescription>
-              Crie refeições com nomes livres, como “lanche da tarde”, “pré-treino”, “pós-treino” ou “ceia”. O registro usará os horários para sugerir automaticamente a refeição mais adequada.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3">
-              {mealSchedules.map((schedule, index) => (
-                <div key={`${schedule.mealLabel}-${index}`} className="grid gap-3 rounded-2xl border bg-background p-4 md:grid-cols-[1.2fr_1fr_1fr_auto_auto] md:items-end">
-                  <div className="space-y-2 rounded-2xl border bg-background p-5">
-                    <FieldLabel label="Refeição" />
-                    <Input
-                      value={schedule.mealLabel}
-                      onChange={event => updateSchedule(index, "mealLabel", event.target.value)}
-                      placeholder="Ex.: lanche da tarde"
-                      list="meal-label-suggestions"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      {MEAL_LABEL_SUGGESTIONS.slice(0, 5).map(label => (
-                        <Button key={label} type="button" size="sm" variant="outline" className="h-7 rounded-full text-xs" onClick={() => updateSchedule(index, "mealLabel", label)}>
-                          {label}
-                        </Button>
-                      ))}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="perfil">
+            <Card defaultOpen className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <UserRound className="h-5 w-5 text-primary" />
+                  Identificação e base física
+                </CardTitle>
+                <CardDescription>
+                  Campos essenciais ficam juntos para reduzir ida e volta pela página e facilitar pequenos ajustes futuros.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
+                <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
+                <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
+                <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
+                <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="objetivos">
+            <Card defaultOpen className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Activity className="h-5 w-5 text-primary" />
+                  Objetivos, rotina e contexto alimentar
+                </CardTitle>
+                <CardDescription>
+                  Agrupamos as decisões de rotina em uma única superfície para deixar a leitura mais rápida em desktop e tablet.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                  <SelectField label="Objetivo" value={form.objective} options={OBJECTIVE_OPTIONS} onChange={value => updateField("objective", value as FormState["objective"])} />
+                  <SelectField label="Nível de atividade física" value={form.activityLevel} options={ACTIVITY_OPTIONS} onChange={value => updateField("activityLevel", value as FormState["activityLevel"])} />
+                  <SelectField label="Experiência com controle alimentar" value={form.trackingExperience} options={EXPERIENCE_OPTIONS} onChange={value => updateField("trackingExperience", value as FormState["trackingExperience"])} />
+                  <SelectField label="Rotina alimentar" value={form.eatingRoutine} options={ROUTINE_OPTIONS} onChange={value => updateField("eatingRoutine", value as FormState["eatingRoutine"])} />
+                  <SelectField label="Principal dificuldade" value={form.mainDifficulty} options={DIFFICULTY_OPTIONS} onChange={value => updateField("mainDifficulty", value as FormState["mainDifficulty"])} />
+                </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <TextAreaField label="Preferências alimentares" value={form.dietaryPreferences} onChange={value => updateField("dietaryPreferences", value)} placeholder="Ex.: comida caseira, vegetariano, café da manhã simples" optional />
+                  <TextAreaField label="Restrições alimentares" value={form.dietaryRestrictions} onChange={value => updateField("dietaryRestrictions", value)} placeholder="Ex.: lactose, glúten, amendoim" optional />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="refeicoes">
+            <Card defaultOpen className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Clock3 className="h-5 w-5 text-primary" />
+                  Refeições habituais
+                </CardTitle>
+                <CardDescription>
+                  Os horários foram compactados em linhas editáveis para evitar cartões dentro de cartões e reduzir rolagem desnecessária.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr]">
+                  <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                    Crie refeições com nomes livres, como “lanche da tarde”, “pré-treino”, “pós-treino” ou “ceia”. O registro usa esses horários para sugerir automaticamente a refeição mais adequada.
+                  </div>
+                  <div className="rounded-2xl border bg-background p-4">
+                    <p className="text-sm font-medium tracking-tight">Resumo rápido</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <InlineMetric label="Faixas ativas" value={String(activeSchedules)} />
+                      <InlineMetric label="Total configurado" value={String(mealSchedules.length)} />
                     </div>
                   </div>
-                  <TextField label="Início" type="time" value={schedule.startTime} onChange={value => updateSchedule(index, "startTime", value)} />
-                  <TextField label="Fim" type="time" value={schedule.endTime} onChange={value => updateSchedule(index, "endTime", value)} />
-                  <label className="flex h-10 items-center gap-2 rounded-xl border px-3 text-sm">
-                    <Checkbox checked={schedule.enabled} onCheckedChange={value => updateSchedule(index, "enabled", Boolean(value))} />
-                    Ativa
-                  </label>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="text-destructive hover:text-destructive"
-                    disabled={mealSchedules.length <= 1}
-                    onClick={() => setMealSchedules(current => current.filter((_, currentIndex) => currentIndex !== index))}
-                    aria-label="Remover refeição habitual"
-                  >
-                    <Trash2 className="h-4 w-4" />
+                </div>
+                <div className="grid gap-3">
+                  {mealSchedules.map((schedule, index) => (
+                    <div key={`${schedule.mealLabel}-${index}`} className="grid gap-3 rounded-2xl border bg-background p-4 lg:grid-cols-[minmax(0,1.2fr)_140px_140px_auto_auto] lg:items-center">
+                      <div className="space-y-2">
+                        <FieldLabel label={`Refeição ${index + 1}`} />
+                        <Input
+                          value={schedule.mealLabel}
+                          onChange={event => updateSchedule(index, "mealLabel", event.target.value)}
+                          placeholder="Ex.: lanche da tarde"
+                          list="meal-label-suggestions"
+                        />
+                      </div>
+                      <TextField compact label="Início" type="time" value={schedule.startTime} onChange={value => updateSchedule(index, "startTime", value)} />
+                      <TextField compact label="Fim" type="time" value={schedule.endTime} onChange={value => updateSchedule(index, "endTime", value)} />
+                      <label className="flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium">
+                        <Checkbox checked={schedule.enabled} onCheckedChange={value => updateSchedule(index, "enabled", Boolean(value))} />
+                        Ativa
+                      </label>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-11 w-11 rounded-xl text-destructive hover:text-destructive"
+                        disabled={mealSchedules.length <= 1}
+                        onClick={() => setMealSchedules(current => current.filter((_, currentIndex) => currentIndex !== index))}
+                        aria-label="Remover refeição habitual"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <datalist id="meal-label-suggestions">
+                  {MEAL_LABEL_SUGGESTIONS.map(label => <option key={label} value={label} />)}
+                </datalist>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(current => [...current, createNewMealSchedule()])} disabled={mealSchedules.length >= 12}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Adicionar refeição
+                  </Button>
+                  <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(DEFAULT_MEAL_SCHEDULES)}>
+                    Restaurar padrão
+                  </Button>
+                  <Button type="button" className="rounded-full" disabled={updateMealSchedules.isPending} onClick={handleSaveMealSchedules}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {updateMealSchedules.isPending ? "Salvando..." : "Salvar horários"}
                   </Button>
                 </div>
-              ))}
-            </div>
-            <datalist id="meal-label-suggestions">
-              {MEAL_LABEL_SUGGESTIONS.map(label => <option key={label} value={label} />)}
-            </datalist>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(current => [...current, createNewMealSchedule()])} disabled={mealSchedules.length >= 12}>
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar refeição
-              </Button>
-              <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(DEFAULT_MEAL_SCHEDULES)}>
-                Restaurar padrão
-              </Button>
-              <Button type="button" className="rounded-full" disabled={updateMealSchedules.isPending} onClick={handleSaveMealSchedules}>
-                <Save className="mr-2 h-4 w-4" />
-                {updateMealSchedules.isPending ? "Salvando..." : "Salvar refeições"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
-        <div className="flex justify-end">
-          <Button className="h-11 rounded-full px-6" disabled={completeOnboarding.isPending} type="submit">
+        <div className="flex flex-col gap-3 rounded-[24px] border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-medium tracking-tight">Tudo salvo no mesmo fluxo</p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Você pode atualizar perfil e refeições habituais separadamente, mas o botão principal mantém a tela pronta para uma revisão completa quando precisar.
+              </p>
+            </div>
+          </div>
+          <Button className="h-11 rounded-full px-5" disabled={completeOnboarding.isPending} type="submit">
             {completeOnboarding.isPending ? "Salvando..." : "Salvar configurações"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </form>
     </DashboardLayout>
+  );
+}
+
+function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border bg-background px-4 py-3 shadow-sm">
+      <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-base font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
+  );
+}
+
+function InlineMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border bg-muted/20 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-semibold tracking-tight">{value}</p>
+    </div>
   );
 }
 
@@ -457,7 +547,7 @@ function FieldLabel({ label, optional = false }: { label: string; optional?: boo
   );
 }
 
-function TextField({ label, value, onChange, inputMode, suffix, type = "text", optional = false, placeholder }: {
+function TextField({ label, value, onChange, inputMode, suffix, type = "text", optional = false, placeholder, compact = false }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -466,9 +556,10 @@ function TextField({ label, value, onChange, inputMode, suffix, type = "text", o
   type?: React.HTMLInputTypeAttribute;
   optional?: boolean;
   placeholder?: string;
+  compact?: boolean;
 }) {
   return (
-    <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
+    <div className={`min-w-0 space-y-2 rounded-2xl border ${compact ? "bg-muted/10 p-4" : "bg-background p-5"}`}>
       <FieldLabel label={label} optional={optional} />
       <div className="flex items-center gap-3">
         <Input type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} />
@@ -515,7 +606,7 @@ function TextAreaField({ label, value, onChange, placeholder, optional = false }
   return (
     <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
       <FieldLabel label={label} optional={optional} />
-      <Textarea value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} />
+      <Textarea value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className="min-h-28" />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React from "react";
+import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -107,25 +108,24 @@ export default function ReportsPage() {
 
         {progress ? (
           <section className="space-y-4">
-            <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
-              <div>
-                <Badge variant="secondary" className="mb-2">Visão semanal</Badge>
-                <h1 className="text-3xl font-semibold tracking-tight">Progresso nutricional da semana</h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                  {progress.summary.message}
-                </p>
-              </div>
-              <div className="rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
-                Saldo semanal: <span className="font-semibold text-foreground">{formatCalories(progress.summary.balanceCalories)}</span>
-              </div>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-4">
-              <HighlightCard title="Média semanal" value={formatCalories(progress.summary.averageCalories)} description="Média diária na semana atual." />
-              <HighlightCard title="Total semanal" value={formatCalories(progress.summary.totalCalories)} description={`Meta semanal ${formatCalories(progress.summary.totalGoalCalories)}.`} />
-              <HighlightCard title="Média de proteína" value={`${formatMacro(progress.summary.averageProtein)} g`} description="Média diária de proteína registrada." />
-              <HighlightCard title="Calorias líquidas" value={formatCalories(progress.summary.totalNetCalories)} description={`Exercícios registrados: ${formatCalories(progress.summary.totalExerciseCalories)}.`} />
-            </div>
+            <PageIntro
+              eyebrow="Relatórios"
+              title="Progresso nutricional da semana"
+              description={progress.summary.message}
+              stats={
+                <div className="grid gap-4 lg:grid-cols-4">
+                  <HighlightCard title="Média semanal" value={formatCalories(progress.summary.averageCalories)} description="Média diária na semana atual." />
+                  <HighlightCard title="Total semanal" value={formatCalories(progress.summary.totalCalories)} description={`Meta semanal ${formatCalories(progress.summary.totalGoalCalories)}.`} />
+                  <HighlightCard title="Média de proteína" value={`${formatMacro(progress.summary.averageProtein)} g`} description="Média diária de proteína registrada." />
+                  <HighlightCard title="Calorias líquidas" value={formatCalories(progress.summary.totalNetCalories)} description={`Exercícios registrados: ${formatCalories(progress.summary.totalExerciseCalories)}.`} />
+                </div>
+              }
+              actions={
+                <div className="rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+                  Saldo semanal: <span className="font-semibold text-foreground">{formatCalories(progress.summary.balanceCalories)}</span>
+                </div>
+              }
+            />
 
             <Card className="border-0 shadow-sm" defaultOpen>
               <CardHeader>
@@ -621,16 +621,6 @@ function CalendarLegend({ tone, label }: { tone: string; label: string }) {
       <span className="font-medium">{label}</span>
     </div>
   );
-}
-
-function statusLabel(status: "within" | "above" | "below" | "no_data") {
-  const labels = {
-    within: "dentro",
-    above: "acima",
-    below: "abaixo",
-    no_data: "sem registro",
-  };
-  return labels[status];
 }
 
 function statusDotTone(status: "within" | "above" | "below" | "no_data") {
