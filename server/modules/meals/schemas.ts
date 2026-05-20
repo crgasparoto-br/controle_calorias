@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const mealLabelSchema = z.string().trim().min(1).max(80);
+
 export const mediaInputSchema = z
   .object({
     base64: z.string().min(1),
@@ -23,7 +25,7 @@ export const mealItemSchema = z.object({
 });
 
 export const manualMealSchema = z.object({
-  mealLabel: z.enum(["café da manhã", "almoço", "jantar", "lanche", "outro"]),
+  mealLabel: mealLabelSchema,
   occurredAt: z.string().min(1),
   notes: z.string().max(500).optional(),
   items: z.array(mealItemSchema).min(1),
@@ -38,7 +40,7 @@ export const processMealDraftSchema = z.object({
 
 export const confirmMealSchema = z.object({
   draftId: z.string().min(1),
-  mealLabel: z.string().min(1),
+  mealLabel: mealLabelSchema,
   occurredAt: z.string().min(1),
   notes: z.string().optional(),
   items: z.array(mealItemSchema).min(1),
@@ -59,7 +61,7 @@ export const dayTotalsSchema = z.object({
 export const copyMealSchema = z.object({
   mealId: z.number().int().positive(),
   occurredAt: z.string().min(1),
-  mealLabel: z.enum(["café da manhã", "almoço", "jantar", "lanche", "outro"]).optional(),
+  mealLabel: mealLabelSchema.optional(),
 });
 
 export const saveFavoriteMealSchema = z.object({

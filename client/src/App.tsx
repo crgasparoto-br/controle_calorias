@@ -29,9 +29,9 @@ function Router() {
     if (location === "/reports") {
       trackEvent("weekly_report_viewed", { report_type: "progress" });
     }
-    if (location === "/onboarding" || location === "/settings") {
-      trackEvent("settings_opened", { entry_point: "route" });
-    }
+    // if (location === "/onboarding" || location === "/settings") {
+    //   trackEvent("settings_opened", { entry_point: "route" });
+    // }
   }, [location]);
 
   return (
