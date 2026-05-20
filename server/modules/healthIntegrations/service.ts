@@ -8,6 +8,8 @@ import type {
 } from "./schemas";
 
 type HealthConnectionStatus = "connected" | "disconnected" | "error";
+type HealthSetupStatus = "ready" | "missing_credentials" | "native_required" | "dev_only";
+type IntegrationKind = "native" | "oauth" | "mock";
 
 type HealthConnection = {
   userId: number;
@@ -37,12 +39,22 @@ type HealthRecord = {
 const connections = new Map<string, HealthConnection>();
 const records = new Map<number, HealthRecord[]>();
 
+const STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize";
+const STRAVA_SCOPES = "read,activity:read";
+
+function hasStravaCredentials() {
+  return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_REDIRECT_URI);
+}
+
 const PROVIDERS: Array<{
   provider: HealthProvider;
   label: string;
   platform: "ios" | "android" | "web";
   available: boolean;
   supportedDataTypes: HealthDataType[];
+  integrationKind: IntegrationKind;
+  setupStatus: HealthSetupStatus;
+  docsUrl?: string;
 }> = [
   {
     provider: "apple_health",
@@ -50,6 +62,8 @@ const PROVIDERS: Array<{
     platform: "ios",
     available: false,
     supportedDataTypes: ["steps", "weight", "activity", "energy_burned", "sleep"],
+    integrationKind: "native",
+    setupStatus: "native_required",
   },
   {
     provider: "health_connect",
@@ -57,6 +71,8 @@ const PROVIDERS: Array<{
     platform: "android",
     available: false,
     supportedDataTypes: ["steps", "weight", "activity", "energy_burned", "sleep"],
+    integrationKind: "native",
+    setupStatus: "native_required",
   },
   {
     provider: "google_fit",
@@ -64,6 +80,18 @@ const PROVIDERS: Array<{
     platform: "android",
     available: false,
     supportedDataTypes: ["steps", "weight", "activity", "energy_burned", "sleep"],
+    integrationKind: "native",
+    setupStatus: "native_required",
+  },
+  {
+    provider: "strava",
+    label: "Strava",
+    platform: "web",
+    available: hasStravaCredentials(),
+    supportedDataTypes: ["activity", "energy_burned"],
+    integrationKind: "oauth",
+    setupStatus: hasStravaCredentials() ? "ready" : "missing_credentials",
+    docsUrl: "https://developers.strava.com/docs/authentication/",
   },
   {
     provider: "mock",
@@ -71,6 +99,8 @@ const PROVIDERS: Array<{
     platform: "web",
     available: true,
     supportedDataTypes: ["steps", "weight", "activity", "energy_burned", "sleep"],
+    integrationKind: "mock",
+    setupStatus: "dev_only",
   },
 ];
 
@@ -80,6 +110,24 @@ function connectionKey(userId: number, provider: HealthProvider) {
 
 function getProvider(provider: HealthProvider) {
   return PROVIDERS.find(item => item.provider === provider);
+}
+
+function buildStravaAuthorizationUrl(userId: number) {
+  const clientId = process.env.STRAVA_CLIENT_ID;
+  const redirectUri = process.env.STRAVA_REDIRECT_URI;
+  if (!clientId || !redirectUri) return null;
+
+  const state = Buffer.from(JSON.stringify({ provider: "strava", userId, createdAt: Date.now() })).toString("base64url");
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    approval_prompt: "auto",
+    scope: STRAVA_SCOPES,
+    state,
+  });
+
+  return `${STRAVA_AUTHORIZATION_URL}?${params.toString()}`;
 }
 
 function publicConnection(connection: HealthConnection) {
@@ -129,7 +177,7 @@ function buildMockRecords(userId: number, provider: HealthProvider, scopes: Heal
       measuredAt,
       value: 35,
       unit: "minutes",
-      activityType: "Caminhada",
+      activityType: provider === "strava" ? "Corrida" : "Caminhada",
       createdAt: Date.now(),
     },
     {
@@ -139,7 +187,7 @@ function buildMockRecords(userId: number, provider: HealthProvider, scopes: Heal
       source: provider,
       dataType: "energy_burned",
       measuredAt,
-      value: 260,
+      value: provider === "strava" ? 510 : 260,
       unit: "kcal",
       energyKind: "burned",
       createdAt: Date.now(),
@@ -166,6 +214,7 @@ export class HealthIntegrationService {
       const connection = connections.get(connectionKey(userId, provider.provider));
       return {
         ...provider,
+        authorizationUrl: provider.provider === "strava" ? buildStravaAuthorizationUrl(userId) : null,
         connection: connection ? publicConnection(connection) : null,
       };
     });
@@ -187,6 +236,12 @@ export class HealthIntegrationService {
   connect(userId: number, input: ConnectHealthIntegrationInput) {
     const provider = getProvider(input.provider);
     if (!provider) throw new Error("Provedor de saúde desconhecido.");
+    if (provider.provider === "strava") {
+      if (!provider.available) {
+        throw new Error("Configure STRAVA_CLIENT_ID e STRAVA_REDIRECT_URI antes de iniciar o OAuth do Strava.");
+      }
+      throw new Error("Use a URL de autorização do Strava e conclua o callback OAuth antes de sincronizar atividades reais.");
+    }
     if (!provider.available) {
       throw new Error(`${provider.label} exige app nativo ${provider.platform}; este projeto atual é web.`);
     }
@@ -225,6 +280,10 @@ export class HealthIntegrationService {
   }
 
   sync(userId: number, input: SyncHealthIntegrationInput) {
+    if (input.provider === "strava") {
+      throw new Error("A sincronização real do Strava depende da troca do code por tokens OAuth persistidos.");
+    }
+
     const key = connectionKey(userId, input.provider);
     const connection = connections.get(key);
     if (!connection || connection.status !== "connected" || !connection.consentGrantedAt) {
