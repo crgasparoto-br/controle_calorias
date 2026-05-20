@@ -2,14 +2,15 @@
 
 ## Escopo
 
-Segunda passada de UX/UI focada no Dashboard principal, após a consolidação da PR #51.
+Segunda passada de UX/UI focada no Dashboard principal e no acabamento visual de Relatórios, após a consolidação da PR #51.
 
 ## Diagnóstico atacado
 
 - excesso de densidade visual no Dashboard, com pouca separação entre leitura rápida, análise semanal e formulários de registro;
 - repetição de padrões de card sem hierarquia clara entre o que pede ação imediata e o que é histórico;
 - rolagem longa com blocos úteis, mas pouco agrupados por contexto de uso;
-- aproveitamento insuficiente do topo da página para orientar a jornada do dia.
+- aproveitamento insuficiente do topo da página para orientar a jornada do dia;
+- pontos de responsividade fina em Relatórios, especialmente no cabeçalho semanal e na distribuição do resumo do período.
 
 ## Melhorias aplicadas
 
@@ -18,11 +19,13 @@ Segunda passada de UX/UI focada no Dashboard principal, após a consolidação d
 - destaque mais claro para ações principais (`Registrar refeição` e `Abrir relatórios`);
 - agrupamento entre exercícios e hidratação para reduzir troca de contexto;
 - refinamento da visão semanal combinada para melhor adaptação em larguras intermediárias;
-- melhoria da leitura dos blocos finais de histórico e progresso nutricional.
+- melhoria da leitura dos blocos finais de histórico e progresso nutricional;
+- ajuste fino da tela de Relatórios com ação direta para registrar refeição, legenda semanal mais flexível e bloco próprio para resumo do período.
 
 ## Telas alteradas
 
 - `client/src/pages/Home.tsx`
+- `client/src/pages/ReportsPage.tsx`
 
 ## Validação
 
