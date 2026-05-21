@@ -16,6 +16,15 @@ export function calculateAgeYearsFromBirthDate(birthDate: string, referenceDate 
   return age;
 }
 
+function isValidTimeZone(value: string) {
+  try {
+    new Intl.DateTimeFormat("pt-BR", { timeZone: value }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const onboardingBaseSchema = z.object({
   name: z.string().trim().min(2, "Informe seu nome.").max(120),
   birthDate: z.string().trim().min(1, "Informe sua data de nascimento."),
@@ -28,6 +37,8 @@ const onboardingBaseSchema = z.object({
   dietaryRestrictions: z.array(z.string().trim().min(1).max(80)).max(12).default([]),
   eatingRoutine: z.enum(["cozinha_em_casa", "come_fora", "delivery", "marmita", "misto"]),
   mainDifficulty: z.enum(["fome", "ansiedade", "falta_de_tempo", "beliscos", "doces", "comer_fora", "falta_de_planejamento"]),
+  locale: z.string().trim().min(2).max(16).default("pt-BR"),
+  timeZone: z.string().trim().min(3).max(80).default("America/Sao_Paulo"),
 });
 
 export const onboardingSchema = onboardingBaseSchema
@@ -41,9 +52,15 @@ export const onboardingSchema = onboardingBaseSchema
     if (ageYears < 13 || ageYears > 120) {
       ctx.addIssue({ code: "custom", path: ["birthDate"], message: "A idade calculada deve estar entre 13 e 120 anos." });
     }
+
+    if (!isValidTimeZone(input.timeZone)) {
+      ctx.addIssue({ code: "custom", path: ["timeZone"], message: "Informe um fuso horário válido." });
+    }
   })
   .transform(input => ({
     ...input,
+    locale: input.locale || "pt-BR",
+    timeZone: input.timeZone || "America/Sao_Paulo",
     ageYears: calculateAgeYearsFromBirthDate(input.birthDate) ?? 0,
   }));
 
