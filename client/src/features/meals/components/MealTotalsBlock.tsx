@@ -1,3 +1,4 @@
+import React from "react";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { SummaryPill } from "./SummaryPill";
 
