@@ -14,6 +14,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `healthIntegrations` | 4 | 1 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
 | `professionals` | 11 | 5 | 6 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 2 | 1 | 1 | protected | Conclusão de onboarding nutricional |
+| `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
 | `dashboard` | 1 | 1 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
@@ -80,6 +81,14 @@ Fonte: `server/nutritionRouter.ts`.
 |---|---|---|
 | `profile` | query | protected |
 | `complete` | mutation | protected |
+
+### mealSchedules
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `list` | query | protected |
+| `update` | mutation | protected |
+| `suggest` | query | protected |
 
 ### dashboard
 

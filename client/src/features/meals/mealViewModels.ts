@@ -11,9 +11,25 @@ export type RegisteredMealItemViewModel = {
   imageUrl?: string;
 };
 
+export type RegisteredMealRecordViewModel = {
+  meal: StoredMeal;
+  items: RegisteredMealItemViewModel[];
+  registeredAt: number;
+  mealLabel: MealType;
+  mealNotes?: string;
+  imageUrl?: string;
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+};
+
 export type RegisteredMealGroupViewModel = {
   mealLabel: MealType;
   meals: StoredMeal[];
+  records: RegisteredMealRecordViewModel[];
   items: RegisteredMealItemViewModel[];
   totals: {
     calories: number;
@@ -65,6 +81,7 @@ export function buildRegisteredMealGroups(
     const group = existingGroup ?? {
       mealLabel,
       meals: [],
+      records: [],
       items: [],
       totals: {
         calories: 0,
@@ -74,23 +91,36 @@ export function buildRegisteredMealGroups(
       },
     };
 
+    const mealItems = meal.items.map((item, itemIndex) => ({
+      meal,
+      item,
+      itemIndex,
+      registeredAt: meal.occurredAt,
+      mealLabel,
+      mealNotes: meal.notes,
+      imageUrl,
+    }));
+
     group.meals.push(meal);
+    group.records.push({
+      meal,
+      items: mealItems,
+      registeredAt: meal.occurredAt,
+      mealLabel,
+      mealNotes: meal.notes,
+      imageUrl,
+      totals: {
+        calories: meal.totals.calories,
+        protein: meal.totals.protein,
+        carbs: meal.totals.carbs,
+        fat: meal.totals.fat,
+      },
+    });
+    group.items.push(...mealItems);
     group.totals.calories += meal.totals.calories;
     group.totals.protein += meal.totals.protein;
     group.totals.carbs += meal.totals.carbs;
     group.totals.fat += meal.totals.fat;
-
-    meal.items.forEach((item, itemIndex) => {
-      group.items.push({
-        meal,
-        item,
-        itemIndex,
-        registeredAt: meal.occurredAt,
-        mealLabel,
-        mealNotes: meal.notes,
-        imageUrl,
-      });
-    });
 
     groups.set(mealLabel, group);
   }
