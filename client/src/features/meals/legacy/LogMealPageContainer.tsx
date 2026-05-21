@@ -3,13 +3,10 @@ import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  formatDateTimeInTimeZone,
   getBrowserTimeZone,
   toDateInputValue,
   toDateTimeLocalValue,
@@ -18,18 +15,15 @@ import {
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { calculateDayTotals, calculateMealTotals } from "../../../../../shared/mealTotals";
-import { ArrowRight, CalendarDays, Copy, ListChecks, PencilLine, Plus, Save, Star, Trash2, WandSparkles, ImagePlus } from "lucide-react";
+import { ArrowRight, CalendarDays, ImagePlus, PencilLine, Star, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   MealAiTabContent,
-  MealDateTimeInput,
-  MealEmptyState,
-  MealItemEditor,
-  MealLabelInput,
+  MealDayRecordsCard,
+  MealManualEditorCard,
   MealModeGuide,
   MealPhotoTabContent,
-  MealTotalsBlock,
   SummaryPill,
 } from "../components";
 import type { DraftState, FoodPhotoAnalysisState, MealItemState, StoredMeal } from "../types";
@@ -283,8 +277,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição manual criada com sucesso.");
-      const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
-      setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
+      resetManualMeal();
     },
     onError: error => toast.error(error.message || "Não foi possível criar a refeição manual."),
   });
@@ -293,8 +286,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição atualizada com sucesso.");
-      const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
-      setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
+      resetManualMeal();
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar a refeição."),
   });
@@ -495,228 +487,43 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     </div>
   ) : null;
 
-  const manualMealEditorBlock = (
-    <div>
-      {mealLabelSuggestions}
-      <Card defaultOpen className="border-0 shadow-sm ring-1 ring-primary/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <PencilLine className="h-5 w-5 text-primary" />
-            {manualMeal.mealId ? "Editar refeição selecionada" : "Criar refeição manual"}
-          </CardTitle>
-          <CardDescription>
-            {manualMeal.mealId
-              ? "A edição abre aqui sem perder o contexto do restante da tela."
-              : "Use nomes livres e ajuste alimentos de forma direta, sem etapas extras."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <MealLabelInput
-              value={manualMeal.mealLabel}
-              onChange={value => setManualMeal(current => ({ ...current, mealLabel: value }))}
-              suggestedLabel={suggestedManualMealLabel}
-            />
-            <MealDateTimeInput
-              id="manual-occurred-at"
-              label="Data e horário"
-              value={manualMeal.occurredAt}
-              onChange={nextOccurredAt =>
-                setManualMeal(current => ({
-                  ...current,
-                  occurredAt: nextOccurredAt,
-                  mealLabel: suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? current.mealLabel,
-                }))
-              }
-            />
-          </div>
+  function resetManualMeal() {
+    const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
+    setManualMeal(
+      createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt),
+    );
+  }
 
-          <div className="space-y-2">
-            <Label htmlFor="manual-notes">Observações</Label>
-            <Textarea
-              id="manual-notes"
-              value={manualMeal.notes}
-              onChange={event => setManualMeal(current => ({ ...current, notes: event.target.value }))}
-              placeholder="Ex.: refeição pré-treino"
-              className="min-h-24 rounded-2xl"
-            />
-          </div>
+  const handleCopyMeal = (meal: StoredMeal) =>
+    copyMeal.mutate({
+      mealId: meal.id,
+      occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone),
+      mealLabel: meal.mealLabel,
+    });
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium tracking-tight">Itens da refeição</p>
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-full"
-                onClick={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar item
-              </Button>
-            </div>
+  const handleFavoriteMeal = (meal: StoredMeal) => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel });
+  const handleRemoveMeal = (meal: StoredMeal) => removeMeal.mutate({ mealId: meal.id });
 
-            {manualMeal.items.map((item, index) => (
-              <div key={`manual-${index}`} className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">Item {index + 1}</p>
-                  {manualMeal.items.length > 1 ? (
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() =>
-                        setManualMeal(current => ({
-                          ...current,
-                          items: current.items.filter((_, currentIndex) => currentIndex !== index),
-                        }))
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  ) : null}
-                </div>
-                <MealItemEditor item={item} onChange={(key, value) => updateManualItem(index, key, value)} />
-              </div>
-            ))}
-          </div>
-
-          <MealTotalsBlock title="Totais da refeição manual" totals={manualTotals} />
-
-          <div className="flex flex-wrap gap-3">
-            <Button className="rounded-full" onClick={handleSubmitManualMeal} disabled={createManualMeal.isPending || updateMeal.isPending}>
-              <Save className="mr-2 h-4 w-4" />
-              {manualMeal.mealId
-                ? updateMeal.isPending
-                  ? "Atualizando..."
-                  : "Salvar alterações"
-                : createManualMeal.isPending
-                  ? "Criando..."
-                  : "Criar refeição manual"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-full"
-              onClick={() => {
-                const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
-                setManualMeal(
-                  createManualMealState(
-                    suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço",
-                    nextOccurredAt,
-                  ),
-                );
-              }}
-            >
-              {manualMeal.mealId ? "Cancelar edição" : "Limpar formulário"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-
-  const recentMealsPreview = (
-    <Card defaultOpen className="border-0 shadow-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <ListChecks className="h-5 w-5 text-primary" />
-          Registros do dia
-        </CardTitle>
-        <CardDescription>
-          A edição detalhada continua disponível na tela de Registros; aqui ficam os atalhos para revisar o que acabou de entrar.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {selectedDayMeals.length ? (
-          selectedDayMeals.map(meal => (
-            <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium tracking-tight">{meal.mealLabel}</p>
-                    <Badge variant="secondary">{meal.source === "web" ? "Web" : "WhatsApp"}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{formatDateTimeInTimeZone(meal.occurredAt, userTimeZone)}</p>
-                  {meal.notes ? <p className="mt-2 text-sm text-muted-foreground">{meal.notes}</p> : null}
-                </div>
-                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                  {formatCalories(meal.totals.calories)}
-                </Badge>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {meal.items.map((item, index) => (
-                  <Badge key={`${meal.id}-${item.foodName}-${index}`} variant="outline" className="rounded-full px-3 py-1 text-xs">
-                    {item.foodName} · {item.portionText}
-                  </Badge>
-                ))}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  variant={manualMeal.mealId === meal.id ? "default" : "outline"}
-                  className="rounded-full"
-                  onClick={() => loadMealForEditing(meal as StoredMeal)}
-                >
-                  <PencilLine className="mr-2 h-4 w-4" />
-                  {manualMeal.mealId === meal.id ? "Editando agora" : "Editar"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full"
-                  onClick={() =>
-                    copyMeal.mutate({
-                      mealId: meal.id,
-                      occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone),
-                      mealLabel: meal.mealLabel,
-                    })
-                  }
-                  disabled={copyMeal.isPending}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full"
-                  onClick={() => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })}
-                  disabled={saveFavoriteMeal.isPending}
-                >
-                  <Star className="mr-2 h-4 w-4" />
-                  Favoritar
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="rounded-full text-destructive hover:text-destructive"
-                  onClick={() => removeMeal.mutate({ mealId: meal.id })}
-                  disabled={removeMeal.isPending}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Excluir
-                </Button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <MealEmptyState
-            text={
-              mealsQuery.isLoading
-                ? "Carregando registros..."
-                : "Nenhuma refeição foi registrada para esta data. Use qualquer uma das abas acima para começar."
-            }
-          />
-        )}
-      </CardContent>
-    </Card>
+  const recordsCard = (
+    <MealDayRecordsCard
+      meals={selectedDayMeals as StoredMeal[]}
+      userTimeZone={userTimeZone}
+      selectedMealId={manualMeal.mealId}
+      isLoading={mealsQuery.isLoading}
+      isCopyPending={copyMeal.isPending}
+      isFavoritePending={saveFavoriteMeal.isPending}
+      isRemovePending={removeMeal.isPending}
+      onEditMeal={loadMealForEditing}
+      onCopyMeal={handleCopyMeal}
+      onFavoriteMeal={handleFavoriteMeal}
+      onRemoveMeal={handleRemoveMeal}
+    />
   );
 
   if (registeredOnly) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">{recentMealsPreview}</div>
+        <div className="space-y-6">{recordsCard}</div>
       </DashboardLayout>
     );
   }
@@ -847,12 +654,37 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
 
           <TabsContent value="manual" className="space-y-4">
             {favoriteMealsBlock}
-            {manualMealEditorBlock}
+            {mealLabelSuggestions}
+            <MealManualEditorCard
+              manualMeal={manualMeal}
+              suggestedManualMealLabel={suggestedManualMealLabel}
+              onMealLabelChange={value => setManualMeal(current => ({ ...current, mealLabel: value }))}
+              onOccurredAtChange={nextOccurredAt =>
+                setManualMeal(current => ({
+                  ...current,
+                  occurredAt: nextOccurredAt,
+                  mealLabel: suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? current.mealLabel,
+                }))
+              }
+              onNotesChange={value => setManualMeal(current => ({ ...current, notes: value }))}
+              onAddItem={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}
+              onRemoveItem={index =>
+                setManualMeal(current => ({
+                  ...current,
+                  items: current.items.filter((_, currentIndex) => currentIndex !== index),
+                }))
+              }
+              onItemChange={(index, key, value) => updateManualItem(index, key, value)}
+              manualTotals={manualTotals}
+              onSubmit={handleSubmitManualMeal}
+              isSubmitting={createManualMeal.isPending || updateMeal.isPending}
+              onReset={resetManualMeal}
+            />
           </TabsContent>
 
           <TabsContent value="hoje" className="space-y-4">
             {favoriteMealsBlock}
-            {recentMealsPreview}
+            {recordsCard}
           </TabsContent>
         </Tabs>
       </div>
