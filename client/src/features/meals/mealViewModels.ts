@@ -1,6 +1,5 @@
 import { toDateInputValue } from "@/lib/dateTime";
 import type { MealItemState, MealType, StoredMeal } from "./types";
-import { MEAL_TYPES } from "./types";
 
 export type RegisteredMealItemViewModel = {
   meal: StoredMeal;
@@ -25,7 +24,7 @@ export type RegisteredMealGroupViewModel = {
 };
 
 export function normalizeMealType(mealLabel: string): MealType {
-  return MEAL_TYPES.includes(mealLabel as MealType) ? (mealLabel as MealType) : "outro";
+  return mealLabel.trim() || "outro";
 }
 
 export function addDaysToDateInputValue(dateInputValue: string, days: number): string {
@@ -53,11 +52,17 @@ export function buildRegisteredMealGroups(
     : meals;
 
   const groups = new Map<MealType, RegisteredMealGroupViewModel>();
+  const mealLabelOrder: MealType[] = [];
 
   for (const meal of filteredMeals) {
     const mealLabel = normalizeMealType(meal.mealLabel);
     const imageUrl = getMealImageUrl(meal);
-    const group = groups.get(mealLabel) ?? {
+    const existingGroup = groups.get(mealLabel);
+    if (!existingGroup) {
+      mealLabelOrder.push(mealLabel);
+    }
+
+    const group = existingGroup ?? {
       mealLabel,
       meals: [],
       items: [],
@@ -90,5 +95,7 @@ export function buildRegisteredMealGroups(
     groups.set(mealLabel, group);
   }
 
-  return MEAL_TYPES.map(mealLabel => groups.get(mealLabel)).filter(Boolean) as RegisteredMealGroupViewModel[];
+  return mealLabelOrder
+    .map(mealLabel => groups.get(mealLabel))
+    .filter(Boolean) as RegisteredMealGroupViewModel[];
 }
