@@ -62,7 +62,7 @@ export default function ChannelsPage() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <TabsList className="h-auto w-full flex-wrap rounded-2xl p-1 sm:w-auto">
               <TabsTrigger value="overview" className="min-w-[140px] rounded-xl px-4 py-2">Canal oficial</TabsTrigger>
-              <TabsTrigger value="connection" className="min-w-[140px] rounded-xl px-4 py-2">Contato do usuário</TabsTrigger>
+              <TabsTrigger value="connection" className="min-w-[140px] rounded-xl px-4 py-2">Vínculo do contato</TabsTrigger>
               <TabsTrigger value="simulation" className="min-w-[140px] rounded-xl px-4 py-2">Simulação</TabsTrigger>
             </TabsList>
             <div className="grid gap-3 sm:grid-cols-3 xl:w-[34rem]">
