@@ -1,23 +1,20 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Link2, MessageCircle, Save, Send, Smartphone, Webhook } from "lucide-react";
+import { Link2, MessageCircle, Send, Smartphone, Webhook } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "wouter";
 
 export default function ChannelsPage() {
-  const utils = trpc.useUtils();
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("almocei arroz, feijão, frango grelhado e salada");
   const [lastSimulation, setLastSimulation] = useState<null | {
     draftId: string;
@@ -30,25 +27,6 @@ export default function ChannelsPage() {
   }>(null);
 
   const statusQuery = trpc.nutrition.whatsapp.status.useQuery();
-
-  useEffect(() => {
-    if (statusQuery.data?.connection) {
-      setPhoneNumber(statusQuery.data.connection.phoneNumber ?? "");
-      setDisplayName(statusQuery.data.connection.displayName ?? "");
-      return;
-    }
-
-    setPhoneNumber("");
-    setDisplayName("");
-  }, [statusQuery.data?.connection]);
-
-  const saveConnection = trpc.nutrition.whatsapp.upsertConnection.useMutation({
-    onSuccess: async result => {
-      toast.success(`Contato ${result.phoneNumber} vinculado com sucesso ao seu usuário.`);
-      await utils.nutrition.whatsapp.status.invalidate();
-    },
-    onError: error => toast.error(error.message || "Não foi possível salvar o contato do WhatsApp agora."),
-  });
 
   const simulateInbound = trpc.nutrition.whatsapp.simulateInbound.useMutation({
     onSuccess: result => {
@@ -69,12 +47,12 @@ export default function ChannelsPage() {
         <PageIntro
           eyebrow="Canais"
           title="Operação do WhatsApp"
-          description="A tela agora separa infraestrutura do canal, vínculo do contato e simulação de mensagens. O fluxo continua o mesmo, mas com menos leitura corrida para entender o próximo passo."
+          description="A tela ficou focada na infraestrutura do canal e na simulação de mensagens. O vínculo do contato do usuário foi movido para Configurações para ficar junto das preferências e acessos pessoais."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat label="Integração" value={isConfigured ? "Ativa" : "Pendente"} helper="status do ambiente" />
               <IntroStat label="Canal oficial" value={hasOfficialChannel ? "Configurado" : "Ausente"} helper="número da solução" />
-              <IntroStat label="Contato vinculado" value={hasConnection ? "Sim" : "Não"} helper="origem do usuário final" />
+              <IntroStat label="Contato vinculado" value={hasConnection ? "Sim" : "Não"} helper="gerenciado em Configurações" />
               <IntroStat label="Usuário atual" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "..."} helper="contexto da sessão" />
             </div>
           }
@@ -84,7 +62,7 @@ export default function ChannelsPage() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <TabsList className="h-auto w-full flex-wrap rounded-2xl p-1 sm:w-auto">
               <TabsTrigger value="overview" className="min-w-[140px] rounded-xl px-4 py-2">Canal oficial</TabsTrigger>
-              <TabsTrigger value="connection" className="min-w-[140px] rounded-xl px-4 py-2">Vínculo do contato</TabsTrigger>
+              <TabsTrigger value="connection" className="min-w-[140px] rounded-xl px-4 py-2">Contato do usuário</TabsTrigger>
               <TabsTrigger value="simulation" className="min-w-[140px] rounded-xl px-4 py-2">Simulação</TabsTrigger>
             </TabsList>
             <div className="grid gap-3 sm:grid-cols-3 xl:w-[34rem]">
@@ -103,7 +81,7 @@ export default function ChannelsPage() {
                     WhatsApp Business Cloud API
                   </CardTitle>
                   <CardDescription>
-                    Infraestrutura do canal oficial da solução. Este bloco foi encurtado para deixar claro o que é ambiente, o que é webhook e o que depende de credenciais válidas.
+                    Infraestrutura do canal oficial da solução. Este bloco deixa claro o que é ambiente, o que é webhook e o que depende de credenciais válidas.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -148,7 +126,7 @@ export default function ChannelsPage() {
                   <CardContent className="grid gap-3">
                     <FlowStep title="1. Ambiente pronto" text={isConfigured ? "As credenciais principais já estão ativas no ambiente." : "Ainda faltam ajustes de ambiente antes do uso real do canal."} />
                     <FlowStep title="2. Canal oficial definido" text={hasOfficialChannel ? "O número oficial da solução já está associado ao canal." : "O número oficial ainda não está disponível no status atual."} />
-                    <FlowStep title="3. Contato do usuário vinculado" text={hasConnection ? "Já existe um telefone de origem associado ao usuário logado." : "Sem vínculo, o sistema não sabe a quem atribuir a mensagem recebida."} />
+                    <FlowStep title="3. Contato do usuário vinculado" text={hasConnection ? "Já existe um telefone de origem associado ao usuário logado em Configurações." : "O vínculo do contato agora é feito em Configurações para evitar duplicidade com a tela de canais."} />
                   </CardContent>
                 </Card>
 
@@ -174,57 +152,21 @@ export default function ChannelsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <Link2 className="h-5 w-5 text-primary" />
-                    Vínculo do contato do usuário
+                    Vínculo agora fica em Configurações
                   </CardTitle>
                   <CardDescription>
-                    Informe o telefone do contato final que envia mensagens para o número oficial da solução. Este valor identifica o usuário correto, mas nunca substitui o canal oficial configurado no ambiente.
+                    O telefone do usuário final foi centralizado em Configurações para ficar junto das preferências pessoais e das solicitações recebidas como paciente.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="whatsapp-phone">Telefone de origem do usuário</Label>
-                    <Input
-                      id="whatsapp-phone"
-                      value={phoneNumber}
-                      onChange={event => setPhoneNumber(event.target.value)}
-                      placeholder="Ex.: 5511999998888"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Não informe aqui o número oficial da solução. Use o telefone do usuário final que aparece no campo `from` do webhook.
-                    </p>
+                  <StatusRow label="Telefone vinculado" value={connection?.phoneNumber || "Nenhum vínculo ativo"} mono emphasize={!hasConnection} />
+                  <StatusRow label="Nome exibido" value={connection?.displayName || "Não informado"} emphasize={!connection?.displayName} />
+                  <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                    Use Configurações para editar esse telefone. A tela Canais continua responsável pelo estado do provedor, do webhook e das simulações técnicas.
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="whatsapp-display-name">Nome exibido no WhatsApp</Label>
-                    <Input
-                      id="whatsapp-display-name"
-                      value={displayName}
-                      onChange={event => setDisplayName(event.target.value)}
-                      placeholder="Ex.: Gaspa"
-                    />
-                  </div>
-
-                  <Button
-                    className="rounded-full"
-                    disabled={saveConnection.isPending || !phoneNumber.trim()}
-                    onClick={() =>
-                      saveConnection.mutate({
-                        phoneNumber,
-                        displayName: displayName.trim() || undefined,
-                      })
-                    }
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {saveConnection.isPending ? "Salvando contato..." : "Salvar contato"}
-                  </Button>
-
-                  {!hasConnection ? (
-                    <UXState
-                      variant="info"
-                      title="Nenhum contato vinculado"
-                      description="Sem esse vínculo, a plataforma não consegue identificar com segurança a quem atribuir alimentos, refeição e horário recebidos pelo webhook."
-                    />
-                  ) : null}
+                  <Link href="/settings">
+                    <Button className="rounded-full" type="button">Abrir configurações</Button>
+                  </Link>
                 </CardContent>
               </Card>
 
@@ -238,7 +180,7 @@ export default function ChannelsPage() {
                 </CardHeader>
                 <CardContent className="grid gap-3">
                   <FlowStep title="1. Configurar o canal oficial" text="O ambiente define um único WHATSAPP_PHONE_NUMBER_ID usado para receber e responder mensagens." />
-                  <FlowStep title="2. Vincular o contato" text="O telefone de origem salvo aqui é associado ao usuário autenticado e passa a resolver o userId correto." />
+                  <FlowStep title="2. Vincular o contato em Configurações" text="O telefone de origem salvo nas configurações é associado ao usuário autenticado e passa a resolver o userId correto." />
                   <FlowStep title="3. Responder pelo canal fixo" text="Após o processamento, a refeição é salva para o contato identificado e a resposta sai pelo Phone Number ID oficial configurado." />
                 </CardContent>
               </Card>
