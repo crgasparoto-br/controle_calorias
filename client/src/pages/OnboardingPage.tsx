@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { getBrowserTimeZone, getPreferredLocale, persistPreferredLocaleSettings } from "@/lib/dateTime";
 import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, Clock3, Plus, Save, Sparkles, Target, Trash2, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Clock3, Globe2, Plus, Save, Sparkles, Target, Trash2, UserRound } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -54,6 +55,21 @@ const DIFFICULTY_OPTIONS = [
   { value: "falta_de_planejamento", label: "Falta de planejamento" },
 ] as const;
 
+const LOCALE_OPTIONS = [
+  { value: "pt-BR", label: "Português (Brasil)" },
+  { value: "en-US", label: "English (United States)" },
+  { value: "es-ES", label: "Español" },
+] as const;
+
+const TIME_ZONE_OPTIONS = [
+  { value: "America/Sao_Paulo", label: "America/Sao_Paulo" },
+  { value: "America/Manaus", label: "America/Manaus" },
+  { value: "America/Belem", label: "America/Belem" },
+  { value: "America/Fortaleza", label: "America/Fortaleza" },
+  { value: "America/Noronha", label: "America/Noronha" },
+  { value: "UTC", label: "UTC" },
+] as const;
+
 const MEAL_LABEL_SUGGESTIONS = ["café da manhã", "almoço", "lanche da tarde", "pré-treino", "pós-treino", "jantar", "ceia", "outro"] as const;
 
 type MealScheduleState = {
@@ -91,6 +107,8 @@ type FormState = {
   dietaryRestrictions: string;
   eatingRoutine: typeof ROUTINE_OPTIONS[number]["value"];
   mainDifficulty: typeof DIFFICULTY_OPTIONS[number]["value"];
+  locale: string;
+  timeZone: string;
 };
 
 const initialForm: FormState = {
@@ -105,6 +123,8 @@ const initialForm: FormState = {
   dietaryRestrictions: "",
   eatingRoutine: "misto",
   mainDifficulty: "falta_de_planejamento",
+  locale: getPreferredLocale(),
+  timeZone: getBrowserTimeZone(),
 };
 
 function splitList(value: string) {
@@ -215,6 +235,12 @@ export default function OnboardingPage() {
       dietaryRestrictions: joinList(profile.dietaryRestrictions),
       eatingRoutine: profile.eatingRoutine,
       mainDifficulty: profile.mainDifficulty,
+      locale: profile.locale ?? getPreferredLocale(),
+      timeZone: profile.timeZone ?? getBrowserTimeZone(),
+    });
+    persistPreferredLocaleSettings({
+      locale: profile.locale ?? "pt-BR",
+      timeZone: profile.timeZone ?? getBrowserTimeZone(),
     });
     setNameEdited(Boolean(profile.name));
     setSavedProfileApplied(true);
@@ -246,6 +272,8 @@ export default function OnboardingPage() {
     dietaryRestrictions: splitList(form.dietaryRestrictions),
     eatingRoutine: form.eatingRoutine,
     mainDifficulty: form.mainDifficulty,
+    locale: form.locale,
+    timeZone: form.timeZone,
   }), [form]);
 
   const validationMessage = useMemo(() => {
@@ -255,6 +283,7 @@ export default function OnboardingPage() {
     if (form.heightCm.trim() && parsed.heightCm === undefined) return "Informe uma altura válida ou deixe o campo em branco.";
     if (parsed.heightCm !== undefined && (parsed.heightCm < 100 || parsed.heightCm > 250)) return "Informe uma altura válida entre 1,00 m e 2,50 m, ou deixe o campo em branco.";
     if (parsed.currentWeightKg !== undefined && (parsed.currentWeightKg < 25 || parsed.currentWeightKg > 350)) return "Informe um peso atual válido ou deixe o campo em branco.";
+    if (!parsed.timeZone.trim()) return "Selecione um fuso horário válido.";
     return null;
   }, [calculatedAgeYears, form.heightCm, parsed]);
 
@@ -270,10 +299,13 @@ export default function OnboardingPage() {
     dietaryRestrictions: parsed.dietaryRestrictions,
     eatingRoutine: parsed.eatingRoutine,
     mainDifficulty: parsed.mainDifficulty,
+    locale: parsed.locale || "pt-BR",
+    timeZone: parsed.timeZone || getBrowserTimeZone(),
   }), [parsed, userName]);
 
   const completeOnboarding = trpc.nutrition.onboarding.complete.useMutation({
     onSuccess: async () => {
+      persistPreferredLocaleSettings({ locale: payload.locale, timeZone: payload.timeZone });
       await Promise.all([
         utils.nutrition.onboarding.profile.invalidate(),
         utils.nutrition.goals.get.invalidate(),
@@ -497,6 +529,22 @@ export default function OnboardingPage() {
           </TabsContent>
         </Tabs>
 
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Globe2 className="h-5 w-5 text-primary" />
+              Preferências regionais
+            </CardTitle>
+            <CardDescription>
+              Defina o idioma base da interface e o fuso horário usado para datas, horas e formulários com registro temporal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <SelectField label="Idioma" value={form.locale} options={LOCALE_OPTIONS} onChange={value => updateField("locale", value)} />
+            <SelectField label="Fuso horário" value={form.timeZone} options={TIME_ZONE_OPTIONS} onChange={value => updateField("timeZone", value)} />
+          </CardContent>
+        </Card>
+
         <div className="flex flex-col gap-3 rounded-[24px] border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -505,7 +553,7 @@ export default function OnboardingPage() {
             <div>
               <p className="font-medium tracking-tight">Tudo salvo no mesmo fluxo</p>
               <p className="text-sm leading-6 text-muted-foreground">
-                Você pode atualizar perfil e refeições habituais separadamente, mas o botão principal mantém a tela pronta para uma revisão completa quando precisar.
+                Você pode atualizar perfil, preferências regionais e refeições habituais separadamente, mas o botão principal mantém a tela pronta para uma revisão completa quando precisar.
               </p>
             </div>
           </div>
