@@ -109,7 +109,7 @@ export function RegisteredMealGroups({
             <div>
               <p className="text-lg font-semibold capitalize tracking-tight">{group.mealLabel}</p>
               <p className="text-sm text-muted-foreground">
-                {group.records.length} refeição{group.records.length === 1 ? "" : "ões"} · {group.items.length} alimento{group.items.length === 1 ? "" : "s"}
+                {group.records.length} {group.records.length === 1 ? "refeição" : "refeições"} · {group.items.length} alimento{group.items.length === 1 ? "" : "s"}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
