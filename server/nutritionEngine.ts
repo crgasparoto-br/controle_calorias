@@ -155,6 +155,29 @@ const mealExtractionJsonSchema = {
   required: ["mealLabel", "confidence", "reasoning", "items"],
 } as const;
 
+const NON_FOOD_TERMS = [
+  "prato",
+  "talher",
+  "garfo",
+  "faca",
+  "colher",
+  "guardanapo",
+  "mesa",
+  "bandeja",
+  "embalagem",
+  "rotulo",
+  "rótulo",
+  "copo",
+  "tigela",
+  "pote",
+  "panela",
+  "travessa",
+  "marmita vazia",
+  "mesa posta",
+  "decoracao",
+  "decoração",
+];
+
 export class MealInferenceError extends Error {
   constructor(message = "Não foi possível gerar um rascunho revisável para esta refeição agora.") {
     super(message);
@@ -314,6 +337,32 @@ function habitsToPrompt(habits: HabitSnapshot[] = []) {
     .join("\n");
 }
 
+function isLikelyNonFoodNoise(item: MealDraftItem) {
+  const normalizedName = normalizeText(`${item.foodName} ${item.canonicalName}`);
+  return NON_FOOD_TERMS.some(term => {
+    const normalizedTerm = normalizeText(term);
+    return normalizedName === normalizedTerm || normalizedName.includes(normalizedTerm);
+  });
+}
+
+function cleanMealItems(items: MealDraftItem[]) {
+  const deduplicated = new Map<string, MealDraftItem>();
+
+  for (const item of items) {
+    if (item.confidence < 0.25 || isLikelyNonFoodNoise(item)) {
+      continue;
+    }
+
+    const key = normalizeText(item.canonicalName || item.foodName);
+    const current = deduplicated.get(key);
+    if (!current || item.confidence > current.confidence) {
+      deduplicated.set(key, item);
+    }
+  }
+
+  return Array.from(deduplicated.values()).slice(0, 8);
+}
+
 async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
   const composedText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n");
   const content: AiInputContentItem[] = [
@@ -324,6 +373,9 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
         `Texto disponível: ${composedText || "não informado"}`,
         `Histórico relevante do usuário:\n${habitsToPrompt(input.habits)}`,
         "Retorne apenas JSON válido no schema solicitado.",
+        "Inclua somente alimentos ou bebidas explicitamente mencionados, fotografados ou claramente visíveis.",
+        "Não inclua prato, talheres, mesa, embalagem, rótulo, marca isolada, decoração ou itens inferidos apenas por hábito.",
+        "Quando houver foto de rótulo, use o rótulo apenas para identificar o alimento real e a porção consumida; não crie itens extras a partir de ingredientes da embalagem.",
         "Não invente totais agregados; detalhe por item com porção, gramas estimados e macronutrientes por item.",
       ].join("\n"),
     },
@@ -346,7 +398,7 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
 
   const response = await getAiProvider().createTextResponse({
     model: ENV.openaiModel,
-    instructions: "Você é um nutricionista assistente. Identifique alimentos, estime porções realistas e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON.",
+    instructions: "Você é um nutricionista assistente. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON.",
     input: aiInput,
     format: {
       type: "json_schema",
@@ -390,9 +442,10 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     extraction = null;
   }
 
-  const items = extraction
+  const rawItems = extraction
     ? buildItemsFromInference(extraction.items)
     : fallbackFromText(sourceText);
+  const items = cleanMealItems(rawItems);
 
   if (!items.length) {
     throw new MealInferenceError();
