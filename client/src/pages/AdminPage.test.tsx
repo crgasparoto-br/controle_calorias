@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -98,12 +98,19 @@ describe("AdminPage", () => {
 
     render(React.createElement(AdminPage));
 
-    const input = screen.getByLabelText("Token de acesso do WhatsApp") as HTMLInputElement;
+    const whatsappCardTitle = screen.getByText("Credenciais do WhatsApp");
+    const whatsappCard = whatsappCardTitle.closest("[data-slot='card']");
+    expect(whatsappCard).toBeTruthy();
+
+    const whatsappCardScope = within(whatsappCard as HTMLElement);
+    await user.click(whatsappCardScope.getByRole("button", { name: /Expandir/i }));
+
+    const input = whatsappCardScope.getByLabelText("Token de acesso do WhatsApp") as HTMLInputElement;
     expect(screen.getByText("EAAcmt••••ABCD")).toBeTruthy();
     expect(document.body.textContent).not.toContain(typedToken);
 
     await user.type(input, typedToken);
-    await user.click(screen.getByRole("button", { name: "Salvar token" }));
+    await user.click(whatsappCardScope.getByRole("button", { name: /Salvar token/i }));
 
     await waitFor(() => {
       expect(mutateUpdateWhatsappTokenMock).toHaveBeenCalledWith({ accessToken: typedToken });

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,15 +47,38 @@ export default function AdminPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-4">
-          <AdminMetric title="Usuários" value={formatCountPtBr(admin.data?.usage.usersCount ?? 0)} />
-          <AdminMetric title="Refeições confirmadas" value={formatCountPtBr(admin.data?.usage.mealsCount ?? 0)} />
-          <AdminMetric title="Inferências pendentes" value={formatCountPtBr(admin.data?.usage.pendingInferences ?? 0)} />
-          <AdminMetric title="Logs registrados" value={formatCountPtBr(admin.data?.usage.logsCount ?? 0)} />
-        </div>
+        <PageIntro
+          eyebrow="Operação e segurança"
+          title="Administração da plataforma"
+          description="Acompanhe o uso do sistema, revise os perfis existentes e atualize a credencial do WhatsApp com um ponto de entrada mais claro. Toda a operação continua igual; o ajuste aqui é de organização visual e leitura da página."
+          stats={(
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <IntroStat
+                label="Usuários"
+                value={formatCountPtBr(admin.data?.usage.usersCount ?? 0)}
+                supporting="perfis conhecidos pela aplicação"
+              />
+              <IntroStat
+                label="Refeições confirmadas"
+                value={formatCountPtBr(admin.data?.usage.mealsCount ?? 0)}
+                supporting="registros consolidados no sistema"
+              />
+              <IntroStat
+                label="WhatsApp"
+                value={tokenStatus?.configured ? "Configurado" : "Pendente"}
+                supporting={tokenStatus?.source === "database" ? "credencial salva no painel" : tokenStatus?.source === "environment" ? "credencial vinda do ambiente" : "nenhuma credencial ativa"}
+              />
+              <IntroStat
+                label="Logs registrados"
+                value={formatCountPtBr(admin.data?.usage.logsCount ?? 0)}
+                supporting={`${formatCountPtBr(admin.data?.usage.pendingInferences ?? 0)} inferências pendentes`}
+              />
+            </div>
+          )}
+        />
 
         <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
-          <Card className="border-0 shadow-sm" defaultOpen>
+          <Card className="border-0 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-primary" />
@@ -191,14 +215,13 @@ export default function AdminPage() {
   );
 }
 
-function AdminMetric({ title, value }: { title: string; value: string }) {
+function IntroStat({ label, value, supporting }: { label: string; value: string; supporting: string }) {
   return (
-    <Card className="border-0 shadow-sm">
-      <CardContent className="p-5">
-        <p className="text-sm text-muted-foreground">{title}</p>
-        <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl border border-border/70 bg-background px-4 py-3">
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{supporting}</p>
+    </div>
   );
 }
 
