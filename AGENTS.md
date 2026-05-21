@@ -10,6 +10,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 4. Implemente a menor mudanca coerente com a arquitetura atual.
 5. Atualize docs geradas/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
 6. Rode `pnpm agent:check` antes de propor merge.
+7. Certifique-se de que o banco de dados de teste está sincronizado com `pnpm db:migrate`.
 
 ## Mapas rapidos
 

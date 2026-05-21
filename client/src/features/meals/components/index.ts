@@ -1,4 +1,14 @@
 export { DayNavigator } from "./DayNavigator";
+export { MealAiTabContent } from "./MealAiTabContent";
+export { MealDateTimeInput } from "./MealDateTimeInput";
+export { MealDayRecordsCard } from "./MealDayRecordsCard";
+export { MealEmptyState } from "./MealEmptyState";
 export { MealItemEditor } from "./MealItemEditor";
+export { MealLabelInput } from "./MealLabelInput";
+export { MealManualEditorCard } from "./MealManualEditorCard";
+export { MealModeGuide } from "./MealModeGuide";
+export { MealPhotoTabContent } from "./MealPhotoTabContent";
+export { MealTotalsBlock } from "./MealTotalsBlock";
+export { MealUploadField } from "./MealUploadField";
 export { RegisteredMealGroups } from "./RegisteredMealGroups";
 export { SummaryPill } from "./SummaryPill";

@@ -1,3 +1,5 @@
+import React from "react";
+
 type SummaryPillProps = {
   label: string;
   value: string;

@@ -1,71 +1,32 @@
 import React, { useMemo, useState } from "react";
-import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
+import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { formatDateTimeInTimeZone, getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
-import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
+import {
+  getBrowserTimeZone,
+  toDateInputValue,
+  toDateTimeLocalValue,
+  zonedDateTimeLocalToIso,
+} from "@/lib/dateTime";
+import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { calculateDayTotals, calculateMealTotals } from "../../../../../shared/mealTotals";
-import { ArrowRight, BrainCircuit, CalendarDays, Clock3, Copy, ImagePlus, ListChecks, Mic, PencilLine, Plus, Save, Sparkles, Star, Trash2, WandSparkles } from "lucide-react";
+import { ArrowRight, CalendarDays, ImagePlus, PencilLine, Star, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
-
-type MealItemState = {
-  foodName: string;
-  canonicalName: string;
-  portionText: string;
-  servings: number;
-  estimatedGrams: number;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  confidence: number;
-  source: "catalog" | "hybrid" | "heuristic";
-};
-
-type DraftState = {
-  draftId: string;
-  processed: {
-    detectedMealLabel: string;
-    sourceText: string;
-    transcript?: string;
-    confidence: number;
-    reasoning: string;
-    items: MealItemState[];
-    totals: { calories: number; protein: number; carbs: number; fat: number };
-  };
-};
-
-type FoodPhotoAnalysisState = {
-  id: string;
-  status: "pending" | "analyzed" | "confirmed" | "rejected";
-  suggestedItems: Array<{
-    foodName: string;
-    estimatedQuantity: number;
-    unit: string;
-    estimatedCalories: number;
-    estimatedMacros: { protein: number; carbs: number; fat: number };
-    confidenceScore: number;
-  }>;
-  editableItems: MealItemState[];
-};
-
-type StoredMeal = {
-  id: number;
-  mealLabel: string;
-  occurredAt: number;
-  notes?: string;
-  source: "web" | "whatsapp";
-  items: MealItemState[];
-  totals: { calories: number; protein: number; carbs: number; fat: number };
-};
+import {
+  MealAiTabContent,
+  MealDayRecordsCard,
+  MealManualEditorCard,
+  MealModeGuide,
+  MealPhotoTabContent,
+  SummaryPill,
+} from "../components";
+import type { DraftState, FoodPhotoAnalysisState, MealItemState, StoredMeal } from "../types";
 
 type MealScheduleState = {
   mealLabel: string;
@@ -74,7 +35,18 @@ type MealScheduleState = {
   enabled: boolean;
 };
 
-const MEAL_LABEL_SUGGESTIONS = ["café da manhã", "almoço", "lanche da tarde", "pré-treino", "pós-treino", "jantar", "ceia", "outro"];
+type MealTab = "ia" | "foto" | "manual" | "hoje";
+
+const MEAL_LABEL_SUGGESTIONS = [
+  "café da manhã",
+  "almoço",
+  "lanche da tarde",
+  "pré-treino",
+  "pós-treino",
+  "jantar",
+  "ceia",
+  "outro",
+];
 
 function createEmptyItem(): MealItemState {
   return {
@@ -104,7 +76,7 @@ function createManualMealState(mealLabel = "almoço", occurredAt = toDateTimeLoc
 
 function minutesFromTime(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
-  return (hours * 60) + minutes;
+  return hours * 60 + minutes;
 }
 
 function isTimeWithinRange(timeMinutes: number, startTime: string, endTime: string) {
@@ -120,13 +92,13 @@ function rangeCenterDistance(timeMinutes: number, startTime: string, endTime: st
   let current = timeMinutes;
   if (end < start) end += 1440;
   if (current < start) current += 1440;
-  return Math.abs(current - (start + ((end - start) / 2)));
+  return Math.abs(current - (start + (end - start) / 2));
 }
 
 function localMinutesFromDateTimeLocal(value: string) {
   const match = value.match(/T(\d{2}):(\d{2})/);
   if (!match) return null;
-  return (Number(match[1]) * 60) + Number(match[2]);
+  return Number(match[1]) * 60 + Number(match[2]);
 }
 
 function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleState[] | undefined) {
@@ -176,9 +148,10 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
 
   const mealSchedules = mealSchedulesQuery.data as MealScheduleState[] | undefined;
-  const defaultMealLabel = suggestMealLabelFromSchedules(toDateTimeLocalValue(undefined, userTimeZone), mealSchedules) ?? "almoço";
+  const defaultMealLabel =
+    suggestMealLabelFromSchedules(toDateTimeLocalValue(undefined, userTimeZone), mealSchedules) ?? "almoço";
 
-  const [activeTab, setActiveTab] = useState("ia");
+  const [activeTab, setActiveTab] = useState<MealTab>("ia");
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -197,14 +170,26 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
   const dayTotalsQuery = trpc.nutrition.meals.dayTotals.useQuery({ date: selectedDay });
 
-  const suggestedManualMealLabel = useMemo(() => suggestMealLabelFromSchedules(manualMeal.occurredAt, mealSchedules), [manualMeal.occurredAt, mealSchedules]);
-  const suggestedPhotoMealLabel = useMemo(() => suggestMealLabelFromSchedules(photoOccurredAt, mealSchedules), [photoOccurredAt, mealSchedules]);
-  const suggestedDraftMealLabel = useMemo(() => suggestMealLabelFromSchedules(occurredAt, mealSchedules), [occurredAt, mealSchedules]);
-  const configuredMealLabels = useMemo(() => Array.from(new Set([...(mealSchedules?.map(schedule => schedule.mealLabel).filter(Boolean) ?? []), ...MEAL_LABEL_SUGGESTIONS])), [mealSchedules]);
+  const suggestedManualMealLabel = useMemo(
+    () => suggestMealLabelFromSchedules(manualMeal.occurredAt, mealSchedules),
+    [manualMeal.occurredAt, mealSchedules],
+  );
+  const suggestedPhotoMealLabel = useMemo(
+    () => suggestMealLabelFromSchedules(photoOccurredAt, mealSchedules),
+    [photoOccurredAt, mealSchedules],
+  );
+  const suggestedDraftMealLabel = useMemo(
+    () => suggestMealLabelFromSchedules(occurredAt, mealSchedules),
+    [occurredAt, mealSchedules],
+  );
+  const configuredMealLabels = useMemo(
+    () => Array.from(new Set([...(mealSchedules?.map(schedule => schedule.mealLabel).filter(Boolean) ?? []), ...MEAL_LABEL_SUGGESTIONS])),
+    [mealSchedules],
+  );
 
   React.useEffect(() => {
     if (!manualMeal.mealId && suggestedManualMealLabel && manualMeal.mealLabel !== suggestedManualMealLabel) {
-      setManualMeal(current => current.mealId ? current : { ...current, mealLabel: suggestedManualMealLabel });
+      setManualMeal(current => (current.mealId ? current : { ...current, mealLabel: suggestedManualMealLabel }));
     }
   }, [manualMeal.mealId, manualMeal.mealLabel, suggestedManualMealLabel]);
 
@@ -281,7 +266,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
 
   const rejectFoodPhoto = trpc.nutrition.foodPhotoAnalysis.reject.useMutation({
     onSuccess: result => {
-      setPhotoAnalysis(current => current ? { ...current, status: result.status } : current);
+      setPhotoAnalysis(current => (current ? { ...current, status: result.status } : current));
       setPhotoEditableItems([]);
       toast.success("Análise rejeitada. Nenhuma refeição foi salva.");
     },
@@ -292,8 +277,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição manual criada com sucesso.");
-      const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
-      setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
+      resetManualMeal();
     },
     onError: error => toast.error(error.message || "Não foi possível criar a refeição manual."),
   });
@@ -302,8 +286,7 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição atualizada com sucesso.");
-      const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
-      setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
+      resetManualMeal();
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar a refeição."),
   });
@@ -312,7 +295,14 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição removida com sucesso.");
-      setManualMeal(current => (current.mealId ? createManualMealState(suggestMealLabelFromSchedules(current.occurredAt, mealSchedules) ?? "almoço", current.occurredAt) : current));
+      setManualMeal(current =>
+        current.mealId
+          ? createManualMealState(
+              suggestMealLabelFromSchedules(current.occurredAt, mealSchedules) ?? "almoço",
+              current.occurredAt,
+            )
+          : current,
+      );
     },
     onError: error => toast.error(error.message || "Não foi possível remover a refeição."),
   });
@@ -359,8 +349,12 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     processDraft.mutate({
       source: "web",
       text: description || undefined,
-      image: imageFile ? { base64: await fileToBase64(imageFile), mimeType: imageFile.type, fileName: imageFile.name } : undefined,
-      audio: audioFile ? { base64: await fileToBase64(audioFile), mimeType: audioFile.type, fileName: audioFile.name } : undefined,
+      image: imageFile
+        ? { base64: await fileToBase64(imageFile), mimeType: imageFile.type, fileName: imageFile.name }
+        : undefined,
+      audio: audioFile
+        ? { base64: await fileToBase64(audioFile), mimeType: audioFile.type, fileName: audioFile.name }
+        : undefined,
     });
   };
 
@@ -390,12 +384,20 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     });
   };
 
-  const updateItem = <K extends keyof MealItemState>(setter: React.Dispatch<React.SetStateAction<MealItemState[]>>, index: number, key: K, value: MealItemState[K]) => {
+  const updateItem = <K extends keyof MealItemState>(
+    setter: React.Dispatch<React.SetStateAction<MealItemState[]>>,
+    index: number,
+    key: K,
+    value: MealItemState[K],
+  ) => {
     setter(current => current.map((item, currentIndex) => (currentIndex === index ? { ...item, [key]: value } : item)));
   };
 
   const updateManualItem = <K extends keyof MealItemState>(index: number, key: K, value: MealItemState[K]) => {
-    setManualMeal(current => ({ ...current, items: current.items.map((item, currentIndex) => (currentIndex === index ? { ...item, [key]: value } : item)) }));
+    setManualMeal(current => ({
+      ...current,
+      items: current.items.map((item, currentIndex) => (currentIndex === index ? { ...item, [key]: value } : item)),
+    }));
   };
 
   const handleSubmitManualMeal = () => {
@@ -433,7 +435,13 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   };
 
   const loadMealForEditing = (meal: StoredMeal) => {
-    setManualMeal({ mealId: meal.id, mealLabel: meal.mealLabel, occurredAt: toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone), notes: meal.notes ?? "", items: meal.items.map(item => ({ ...item })) });
+    setManualMeal({
+      mealId: meal.id,
+      mealLabel: meal.mealLabel,
+      occurredAt: toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone),
+      notes: meal.notes ?? "",
+      items: meal.items.map(item => ({ ...item })),
+    });
     setActiveTab("manual");
     toast.success("Modo manual aberto com a refeição selecionada.");
   };
@@ -441,7 +449,9 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
   const dayTotals = dayTotalsQuery.data?.totals ?? localDayTotals;
   const mealLabelSuggestions = (
     <datalist id="meal-label-suggestions">
-      {configuredMealLabels.map(label => <option key={label} value={label} />)}
+      {configuredMealLabels.map(label => (
+        <option key={label} value={label} />
+      ))}
     </datalist>
   );
 
@@ -456,7 +466,19 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
       </div>
       <div className="flex flex-wrap gap-2">
         {favoriteMealsQuery.data.map(favorite => (
-          <Button key={favorite.id} type="button" variant="outline" className="rounded-full" onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone) })} disabled={reuseFavoriteMeal.isPending}>
+          <Button
+            key={favorite.id}
+            type="button"
+            variant="outline"
+            className="rounded-full"
+            onClick={() =>
+              reuseFavoriteMeal.mutate({
+                favoriteMealId: favorite.id,
+                occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone),
+              })
+            }
+            disabled={reuseFavoriteMeal.isPending}
+          >
             <Star className="mr-2 h-4 w-4" />
             {favorite.name}
           </Button>
@@ -465,131 +487,45 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
     </div>
   ) : null;
 
-  const manualMealEditorBlock = (
-    <div>
-      {mealLabelSuggestions}
-      <Card defaultOpen className="border-0 shadow-sm ring-1 ring-primary/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <PencilLine className="h-5 w-5 text-primary" />
-            {manualMeal.mealId ? "Editar refeição selecionada" : "Criar refeição manual"}
-          </CardTitle>
-          <CardDescription>
-            {manualMeal.mealId ? "A edição abre aqui sem perder o contexto do restante da tela." : "Use nomes livres e ajuste alimentos de forma direta, sem etapas extras."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <MealLabelInput value={manualMeal.mealLabel} onChange={value => setManualMeal(current => ({ ...current, mealLabel: value }))} suggestedLabel={suggestedManualMealLabel} />
-            <DateTimeInput id="manual-occurred-at" label="Data e horário" value={manualMeal.occurredAt} onChange={nextOccurredAt => setManualMeal(current => ({ ...current, occurredAt: nextOccurredAt, mealLabel: suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? current.mealLabel }))} />
-          </div>
+  function resetManualMeal() {
+    const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
+    setManualMeal(
+      createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt),
+    );
+  }
 
-          <div className="space-y-2">
-            <Label htmlFor="manual-notes">Observações</Label>
-            <Textarea id="manual-notes" value={manualMeal.notes} onChange={event => setManualMeal(current => ({ ...current, notes: event.target.value }))} placeholder="Ex.: refeição pré-treino" className="min-h-24 rounded-2xl" />
-          </div>
+  const handleCopyMeal = (meal: StoredMeal) =>
+    copyMeal.mutate({
+      mealId: meal.id,
+      occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone),
+      mealLabel: meal.mealLabel,
+    });
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium tracking-tight">Itens da refeição</p>
-              <Button type="button" variant="outline" className="rounded-full" onClick={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}>
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar item
-              </Button>
-            </div>
+  const handleFavoriteMeal = (meal: StoredMeal) => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel });
+  const handleRemoveMeal = (meal: StoredMeal) => removeMeal.mutate({ mealId: meal.id });
 
-            {manualMeal.items.map((item, index) => (
-              <div key={`manual-${index}`} className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">Item {index + 1}</p>
-                  {manualMeal.items.length > 1 ? (
-                    <Button type="button" size="icon" variant="ghost" onClick={() => setManualMeal(current => ({ ...current, items: current.items.filter((_, currentIndex) => currentIndex !== index) }))}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  ) : null}
-                </div>
-                <MealItemEditor item={item} onChange={(key, value) => updateManualItem(index, key, value)} />
-              </div>
-            ))}
-          </div>
-
-          <TotalsBlock title="Totais da refeição manual" totals={manualTotals} />
-
-          <div className="flex flex-wrap gap-3">
-            <Button className="rounded-full" onClick={handleSubmitManualMeal} disabled={createManualMeal.isPending || updateMeal.isPending}>
-              <Save className="mr-2 h-4 w-4" />
-              {manualMeal.mealId ? (updateMeal.isPending ? "Atualizando..." : "Salvar alterações") : createManualMeal.isPending ? "Criando..." : "Criar refeição manual"}
-            </Button>
-            <Button type="button" variant="outline" className="rounded-full" onClick={() => {
-              const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
-              setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
-            }}>
-              {manualMeal.mealId ? "Cancelar edição" : "Limpar formulário"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-
-  const recentMealsPreview = (
-    <Card defaultOpen className="border-0 shadow-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <ListChecks className="h-5 w-5 text-primary" />
-          Registros do dia
-        </CardTitle>
-        <CardDescription>
-          A edição detalhada continua disponível na tela de Registros; aqui ficam os atalhos para revisar o que acabou de entrar.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {selectedDayMeals.length ? (
-          selectedDayMeals.map(meal => (
-            <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium tracking-tight">{meal.mealLabel}</p>
-                    <Badge variant="secondary">{meal.source === "web" ? "Web" : "WhatsApp"}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{formatDateTimeInTimeZone(meal.occurredAt, userTimeZone)}</p>
-                  {meal.notes ? <p className="mt-2 text-sm text-muted-foreground">{meal.notes}</p> : null}
-                </div>
-                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(meal.totals.calories)}</Badge>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {meal.items.map((item, index) => <Badge key={`${meal.id}-${item.foodName}-${index}`} variant="outline" className="rounded-full px-3 py-1 text-xs">{item.foodName} · {item.portionText}</Badge>)}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Button type="button" variant={manualMeal.mealId === meal.id ? "default" : "outline"} className="rounded-full" onClick={() => loadMealForEditing(meal as StoredMeal)}>
-                  <PencilLine className="mr-2 h-4 w-4" />
-                  {manualMeal.mealId === meal.id ? "Editando agora" : "Editar"}
-                </Button>
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone), mealLabel: meal.mealLabel })} disabled={copyMeal.isPending}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar
-                </Button>
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })} disabled={saveFavoriteMeal.isPending}>
-                  <Star className="mr-2 h-4 w-4" />
-                  Favoritar
-                </Button>
-                <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => removeMeal.mutate({ mealId: meal.id })} disabled={removeMeal.isPending}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Excluir
-                </Button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <EmptyState text={mealsQuery.isLoading ? "Carregando registros..." : "Nenhuma refeição foi registrada para esta data. Use qualquer uma das abas acima para começar."} />
-        )}
-      </CardContent>
-    </Card>
+  const recordsCard = (
+    <MealDayRecordsCard
+      meals={selectedDayMeals as StoredMeal[]}
+      userTimeZone={userTimeZone}
+      selectedMealId={manualMeal.mealId}
+      isLoading={mealsQuery.isLoading}
+      isCopyPending={copyMeal.isPending}
+      isFavoritePending={saveFavoriteMeal.isPending}
+      isRemovePending={removeMeal.isPending}
+      onEditMeal={loadMealForEditing}
+      onCopyMeal={handleCopyMeal}
+      onFavoriteMeal={handleFavoriteMeal}
+      onRemoveMeal={handleRemoveMeal}
+    />
   );
 
   if (registeredOnly) {
-    return <DashboardLayout><div className="space-y-6">{recentMealsPreview}</div></DashboardLayout>;
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">{recordsCard}</div>
+      </DashboardLayout>
+    );
   }
 
   return (
@@ -610,8 +546,16 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
           actions={
             <>
               <div className="w-full min-w-[220px] sm:w-auto">
-                <Label htmlFor="selected-day" className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted-foreground">Dia</Label>
-                <Input id="selected-day" type="date" value={selectedDay} onChange={event => setSelectedDay(event.target.value)} className="h-11 min-w-[220px] rounded-xl" />
+                <Label htmlFor="selected-day" className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted-foreground">
+                  Dia
+                </Label>
+                <Input
+                  id="selected-day"
+                  type="date"
+                  value={selectedDay}
+                  onChange={event => setSelectedDay(event.target.value)}
+                  className="h-11 min-w-[220px] rounded-xl"
+                />
               </div>
               <Link href="/meals">
                 <Button type="button" variant="outline" className="h-11 rounded-full px-5">
@@ -623,7 +567,9 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
           }
         />
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
+        <MealModeGuide activeMode={activeTab} onModeChange={setActiveTab} />
+
+        <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-2 xl:grid-cols-4">
             <TabsTrigger className="min-h-11 rounded-xl" value="ia">
               <WandSparkles className="h-4 w-4" />
@@ -644,258 +590,104 @@ function LogMealPageContent({ registeredOnly = false }: LogMealPageProps = {}) {
           </TabsList>
 
           <TabsContent value="ia" className="space-y-4">
-            <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-              <Card defaultOpen className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <WandSparkles className="h-5 w-5 text-primary" />
-                    Registrar com IA multimodal
-                  </CardTitle>
-                  <CardDescription>
-                    Texto, imagem e áudio podem entrar juntos. A IA organiza tudo em um rascunho revisável antes do salvamento.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="space-y-2">
-                    <Label htmlFor="meal-description">Descrição em texto</Label>
-                    <Textarea id="meal-description" value={description} onChange={event => setDescription(event.target.value)} placeholder="Ex.: almocei arroz, feijão, frango grelhado e salada" className="min-h-36 rounded-2xl" />
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <UploadField id="meal-image" label="Imagem do prato ou rótulo" icon={<ImagePlus className="h-4 w-4 text-primary" />} fileName={imageFile?.name} accept="image/*" onChange={event => setImageFile(event.target.files?.[0] ?? null)} />
-                    <UploadField id="meal-audio" label="Áudio da refeição" icon={<Mic className="h-4 w-4 text-primary" />} fileName={audioFile?.name} accept="audio/*" onChange={event => setAudioFile(event.target.files?.[0] ?? null)} />
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Button className="rounded-full" onClick={handleProcess} disabled={processDraft.isPending}>
-                      <BrainCircuit className="mr-2 h-4 w-4" />
-                      {processDraft.isPending ? "Processando..." : "Gerar inferência"}
-                    </Button>
-                    <Badge variant="secondary">Texto + imagem + áudio juntos</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card defaultOpen className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle>Revisão antes de salvar</CardTitle>
-                  <CardDescription>
-                    O rascunho fica concentrado aqui para correções rápidas, sem misturar com outros modos de registro.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {draft ? (
-                    <>
-                      <div className="rounded-2xl border bg-muted/20 p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Confiança estimada</p>
-                            <p className="text-2xl font-semibold tracking-tight">{formatPercentPtBr(draft.processed.confidence * 100)}%</p>
-                          </div>
-                          <Badge>{formatCountPtBr(draft.processed.items.length, " itens identificados")}</Badge>
-                        </div>
-                        <p className="mt-4 text-sm leading-6 text-muted-foreground">{draft.processed.reasoning}</p>
-                        {draft.processed.transcript ? (
-                          <div className="mt-4 rounded-2xl bg-background p-3 text-sm text-muted-foreground">
-                            <strong className="text-foreground">Transcrição:</strong> {draft.processed.transcript}
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                        <MealLabelInput value={mealLabel} onChange={setMealLabel} suggestedLabel={suggestedDraftMealLabel} />
-                        <DateTimeInput id="occurred-at" label="Data e horário" value={occurredAt} onChange={nextOccurredAt => { setOccurredAt(nextOccurredAt); setMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? mealLabel); }} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="meal-notes">Observações</Label>
-                        <Textarea id="meal-notes" value={notes} onChange={event => setNotes(event.target.value)} placeholder="Observações adicionais do usuário" className="min-h-24 rounded-2xl" />
-                      </div>
-                      <div className="space-y-3">
-                        {editableItems.map((item, index) => <MealItemEditor key={`${item.foodName}-${index}`} item={item} onChange={(key, value) => updateItem(setEditableItems, index, key, value)} />)}
-                      </div>
-                      <TotalsBlock title="Totais após revisão" totals={previewTotals} />
-                      <Button className="w-full rounded-full" disabled={confirmMeal.isPending || editableItems.length === 0} onClick={() => confirmMeal.mutate({ draftId: draft.draftId, mealLabel: (mealLabel || draft.processed.detectedMealLabel).trim(), occurredAt: zonedDateTimeLocalToIso(occurredAt, userTimeZone), notes: notes || undefined, items: editableItems })}>
-                        <Save className="mr-2 h-4 w-4" />
-                        {confirmMeal.isPending ? "Salvando..." : "Confirmar e salvar refeição"}
-                      </Button>
-                    </>
-                  ) : (
-                    <EmptyState text="Nenhuma inferência foi criada ainda. Depois do envio, a revisão aparecerá aqui com alimentos, horários e totais já prontos para ajuste." />
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <MealAiTabContent
+              description={description}
+              onDescriptionChange={setDescription}
+              imageFileName={imageFile?.name}
+              audioFileName={audioFile?.name}
+              onImageChange={event => setImageFile(event.target.files?.[0] ?? null)}
+              onAudioChange={event => setAudioFile(event.target.files?.[0] ?? null)}
+              onProcess={handleProcess}
+              isProcessing={processDraft.isPending}
+              draft={draft}
+              mealLabel={mealLabel}
+              onMealLabelChange={setMealLabel}
+              suggestedMealLabel={suggestedDraftMealLabel}
+              occurredAt={occurredAt}
+              onOccurredAtChange={nextOccurredAt => {
+                setOccurredAt(nextOccurredAt);
+                setMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? mealLabel);
+              }}
+              notes={notes}
+              onNotesChange={setNotes}
+              editableItems={editableItems}
+              onEditableItemChange={(index, key, value) => updateItem(setEditableItems, index, key, value)}
+              previewTotals={previewTotals}
+              onConfirm={() =>
+                confirmMeal.mutate({
+                  draftId: draft?.draftId ?? "",
+                  mealLabel: (mealLabel || draft?.processed.detectedMealLabel || "").trim(),
+                  occurredAt: zonedDateTimeLocalToIso(occurredAt, userTimeZone),
+                  notes: notes || undefined,
+                  items: editableItems,
+                })
+              }
+              isConfirmPending={confirmMeal.isPending}
+            />
           </TabsContent>
 
           <TabsContent value="foto" className="space-y-4">
-            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-              <Card defaultOpen className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <ImagePlus className="h-5 w-5 text-primary" />
-                    Registrar por foto
-                  </CardTitle>
-                  <CardDescription>
-                    A foto gera alimentos prováveis, porções e confiança. Nada é salvo sem sua confirmação.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <UploadField id="photo-analysis-image" label="Foto da refeição" icon={<ImagePlus className="h-4 w-4 text-primary" />} fileName={photoFile?.name} accept="image/*" onChange={event => setPhotoFile(event.target.files?.[0] ?? null)} />
-                  <Button type="button" className="rounded-full" onClick={handleAnalyzeFoodPhoto} disabled={analyzeFoodPhoto.isPending}>
-                    <BrainCircuit className="mr-2 h-4 w-4" />
-                    {analyzeFoodPhoto.isPending ? "Analisando..." : "Analisar foto"}
-                  </Button>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Este modo é melhor quando você quer corrigir rápido uma imagem única sem misturar texto ou áudio.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card defaultOpen className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle>Confirmação da análise</CardTitle>
-                  <CardDescription>
-                    Os itens sugeridos ficam em um único painel para reduzir idas e vindas na revisão.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {photoAnalysis ? (
-                    <>
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 p-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Status da análise</p>
-                          <p className="text-xl font-semibold tracking-tight">{photoAnalysis.status}</p>
-                        </div>
-                        <Badge>{formatCountPtBr(photoAnalysis.suggestedItems.length, " sugestões")}</Badge>
-                      </div>
-                      {photoAnalysis.status === "analyzed" ? (
-                        <>
-                          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                            <MealLabelInput value={photoMealLabel} onChange={setPhotoMealLabel} suggestedLabel={suggestedPhotoMealLabel} />
-                            <DateTimeInput id="photo-occurred-at" label="Data e horário" value={photoOccurredAt} onChange={nextOccurredAt => { setPhotoOccurredAt(nextOccurredAt); setPhotoMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? photoMealLabel); }} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Observações</Label>
-                            <Textarea value={photoNotes} onChange={event => setPhotoNotes(event.target.value)} placeholder="Ex.: porção corrigida após revisar a foto" className="min-h-20 rounded-2xl" />
-                          </div>
-                          <div className="space-y-3">
-                            {photoEditableItems.map((item, index) => (
-                              <div key={`photo-${index}`} className="space-y-2 rounded-2xl border bg-background p-4">
-                                <div className="flex items-center justify-between gap-3">
-                                  <p className="text-sm font-medium">Sugestão {index + 1}</p>
-                                  <Badge variant="secondary">{formatPercentPtBr(item.confidence * 100)}% confiança</Badge>
-                                </div>
-                                <MealItemEditor item={item} onChange={(key, value) => updateItem(setPhotoEditableItems, index, key, value)} />
-                              </div>
-                            ))}
-                          </div>
-                          <div className="flex flex-wrap gap-3">
-                            <Button type="button" className="rounded-full" onClick={handleConfirmFoodPhoto} disabled={confirmFoodPhoto.isPending || !photoEditableItems.length}>
-                              <Save className="mr-2 h-4 w-4" />
-                              {confirmFoodPhoto.isPending ? "Salvando..." : "Confirmar e salvar refeição"}
-                            </Button>
-                            <Button type="button" variant="outline" className="rounded-full" onClick={() => rejectFoodPhoto.mutate({ analysisId: photoAnalysis.id })} disabled={rejectFoodPhoto.isPending}>
-                              Rejeitar análise
-                            </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <EmptyState text="Esta análise não está disponível para confirmação. Nenhuma refeição foi salva automaticamente." />
-                      )}
-                    </>
-                  ) : (
-                    <EmptyState text="As sugestões da foto aparecerão aqui com quantidade, calorias, macros e confiança para correção manual." />
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <MealPhotoTabContent
+              photoFileName={photoFile?.name}
+              onPhotoChange={event => setPhotoFile(event.target.files?.[0] ?? null)}
+              onAnalyze={handleAnalyzeFoodPhoto}
+              isAnalyzing={analyzeFoodPhoto.isPending}
+              photoAnalysis={photoAnalysis}
+              photoMealLabel={photoMealLabel}
+              onPhotoMealLabelChange={setPhotoMealLabel}
+              suggestedPhotoMealLabel={suggestedPhotoMealLabel}
+              photoOccurredAt={photoOccurredAt}
+              onPhotoOccurredAtChange={nextOccurredAt => {
+                setPhotoOccurredAt(nextOccurredAt);
+                setPhotoMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? photoMealLabel);
+              }}
+              photoNotes={photoNotes}
+              onPhotoNotesChange={setPhotoNotes}
+              photoEditableItems={photoEditableItems}
+              onPhotoItemChange={(index, key, value) => updateItem(setPhotoEditableItems, index, key, value)}
+              onConfirm={handleConfirmFoodPhoto}
+              isConfirmPending={confirmFoodPhoto.isPending}
+              onReject={() => photoAnalysis && rejectFoodPhoto.mutate({ analysisId: photoAnalysis.id })}
+              isRejectPending={rejectFoodPhoto.isPending}
+            />
           </TabsContent>
 
           <TabsContent value="manual" className="space-y-4">
             {favoriteMealsBlock}
-            {manualMealEditorBlock}
+            {mealLabelSuggestions}
+            <MealManualEditorCard
+              manualMeal={manualMeal}
+              suggestedManualMealLabel={suggestedManualMealLabel}
+              onMealLabelChange={value => setManualMeal(current => ({ ...current, mealLabel: value }))}
+              onOccurredAtChange={nextOccurredAt =>
+                setManualMeal(current => ({
+                  ...current,
+                  occurredAt: nextOccurredAt,
+                  mealLabel: suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? current.mealLabel,
+                }))
+              }
+              onNotesChange={value => setManualMeal(current => ({ ...current, notes: value }))}
+              onAddItem={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}
+              onRemoveItem={index =>
+                setManualMeal(current => ({
+                  ...current,
+                  items: current.items.filter((_, currentIndex) => currentIndex !== index),
+                }))
+              }
+              onItemChange={(index, key, value) => updateManualItem(index, key, value)}
+              manualTotals={manualTotals}
+              onSubmit={handleSubmitManualMeal}
+              isSubmitting={createManualMeal.isPending || updateMeal.isPending}
+              onReset={resetManualMeal}
+            />
           </TabsContent>
 
           <TabsContent value="hoje" className="space-y-4">
             {favoriteMealsBlock}
-            {recentMealsPreview}
+            {recordsCard}
           </TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
   );
-}
-
-function UploadField({ id, label, icon, fileName, accept, onChange }: { id: string; label: string; icon: React.ReactNode; fileName?: string; accept: string; onChange: React.ChangeEventHandler<HTMLInputElement> }) {
-  return (
-    <div className="space-y-2 rounded-2xl border bg-muted/20 p-4">
-      <Label htmlFor={id} className="flex items-center gap-2 text-sm font-medium">
-        {icon}
-        {label}
-      </Label>
-      <Input id={id} type="file" accept={accept} onChange={onChange} />
-      <p className="text-xs text-muted-foreground">{fileName ?? "Nenhum arquivo selecionado."}</p>
-    </div>
-  );
-}
-
-function MealLabelInput({ value, onChange, suggestedLabel }: { value: string; onChange: (value: string) => void; suggestedLabel?: string | null }) {
-  return (
-    <div className="space-y-2">
-      <Label>Nome da refeição</Label>
-      <Input value={value} onChange={event => onChange(event.target.value)} placeholder="Ex.: pré-treino" list="meal-label-suggestions" />
-      {suggestedLabel ? <p className="flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="h-3 w-3" />Sugestão pelo horário: {suggestedLabel}</p> : null}
-    </div>
-  );
-}
-
-function DateTimeInput({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
-  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label><Input id={id} type="datetime-local" value={value} onChange={event => onChange(event.target.value)} /></div>;
-}
-
-function TotalsBlock({ title, totals }: { title: string; totals: { calories: number; protein: number; carbs: number; fat: number } }) {
-  return <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-sm text-muted-foreground">{title}</p><div className="mt-3 grid gap-3 sm:grid-cols-4"><SummaryPill label="Calorias" value={formatCalories(totals.calories)} /><SummaryPill label="Proteínas" value={formatGrams(totals.protein)} /><SummaryPill label="Carboidratos" value={formatGrams(totals.carbs)} /><SummaryPill label="Gorduras" value={formatGrams(totals.fat)} /></div></div>;
-}
-
-function MealItemEditor({ item, onChange }: { item: MealItemState; onChange: <K extends keyof MealItemState>(key: K, value: MealItemState[K]) => void }) {
-  const foods = trpc.nutrition.foods.search.useQuery({ query: item.foodName, limit: 5 }, { enabled: item.foodName.trim().length >= 2 });
-  const applyFood = (food: NonNullable<typeof foods.data>[number]) => {
-    onChange("foodName", food.name);
-    onChange("canonicalName", food.name);
-    onChange("portionText", `${food.servingSize} ${food.servingUnit}`);
-    onChange("servings", 1);
-    onChange("estimatedGrams", food.servingUnit === "g" ? food.servingSize : 0);
-    onChange("calories", food.calories);
-    onChange("protein", food.protein);
-    onChange("carbs", food.carbs);
-    onChange("fat", food.fat);
-    onChange("confidence", 1);
-    onChange("source", "catalog");
-  };
-
-  return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      <div className="space-y-2"><Label>Alimento</Label><Input value={item.foodName} onChange={event => onChange("foodName", event.target.value)} />{foods.data?.length ? <div className="flex flex-wrap gap-2">{foods.data.map(food => <Button key={food.id} type="button" variant="outline" size="sm" className="h-8 rounded-full" onClick={() => applyFood(food)}>{food.name}</Button>)}</div> : null}</div>
-      <Field label="Nome canônico" value={item.canonicalName} onChange={value => onChange("canonicalName", value)} />
-      <Field label="Unidade" value={item.portionText} onChange={value => onChange("portionText", value)} />
-      <NumberField label="Quantidade" value={item.estimatedGrams} onChange={value => onChange("estimatedGrams", value)} />
-      <NumberField label="Calorias" value={item.calories} onChange={value => onChange("calories", value)} />
-      <NumberField label="Proteínas" value={item.protein} onChange={value => onChange("protein", value)} />
-      <NumberField label="Carboidratos" value={item.carbs} onChange={value => onChange("carbs", value)} />
-      <NumberField label="Gorduras" value={item.fat} onChange={value => onChange("fat", value)} />
-    </div>
-  );
-}
-
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <div className="space-y-2"><Label>{label}</Label><Input value={value} onChange={event => onChange(event.target.value)} /></div>;
-}
-
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <div className="space-y-2"><Label>{label}</Label><Input type="number" value={value} onChange={event => onChange(Number(event.target.value))} /></div>;
-}
-
-function SummaryPill({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-2xl bg-background p-4 text-center shadow-sm"><p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{label}</p><p className="mt-2 text-lg font-semibold tracking-tight">{value}</p></div>;
-}
-
-function EmptyState({ text }: { text: string }) {
-  return <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">{text}</div>;
 }

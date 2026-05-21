@@ -22,6 +22,7 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   Apple,
+  BarChart3,
   Goal,
   HeartPulse,
   LayoutDashboard,
@@ -101,6 +102,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
       { icon: MessageSquareMore, label: "Registro de refeição", path: "/log-meal" },
       { icon: ListChecks, label: "Registros", path: "/meals" },
+      { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
       { icon: MessageCircleMore, label: "Canais", path: "/channels" },
@@ -178,7 +180,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
       <SidebarInset>
         <div className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <div className="flex h-16 items-center justify-between px-4 sm:px-6">
+          <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="h-9 w-9 rounded-xl border bg-background shadow-sm" />
               <div>
@@ -188,11 +190,26 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 </h2>
               </div>
             </div>
-            {isMobile ? null : (
-              <div className="rounded-full border bg-card px-4 py-2 text-xs text-muted-foreground shadow-sm">
-                IA multimodal, metas diárias e acompanhamento em tempo real
-              </div>
-            )}
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <Button
+                type="button"
+                variant={location === "/log-meal" ? "default" : "outline"}
+                className="h-10 rounded-full px-4"
+                onClick={() => setLocation("/log-meal")}
+              >
+                Registrar refeição
+              </Button>
+              {!isMobile ? (
+                <Button
+                  type="button"
+                  variant={location === "/reports" ? "default" : "outline"}
+                  className="h-10 rounded-full px-4"
+                  onClick={() => setLocation("/reports")}
+                >
+                  Ver relatórios
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
         <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background to-muted/20 p-4 sm:p-6">
