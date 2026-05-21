@@ -493,10 +493,10 @@ describe("nutrition pages", () => {
     const html = renderToString(React.createElement(LogMealPage));
 
     expect(html).toContain("Registro de refeição");
-    expect(html).toContain("Registrar com IA multimodal");
-    expect(html).toContain("Imagem do prato ou rótulo");
-    expect(html).toContain("Revisão antes de salvar");
-    expect(html).toContain("IA multimodal");
+    expect(html).toContain("Registre com texto, foto ou áudio no mesmo fluxo");
+    expect(html).toContain("foto do prato, foto de rótulo e áudio");
+    expect(html).toContain("Descrição em texto");
+    expect(html).toContain("Use texto, foto do prato, foto de rótulo e áudio no mesmo fluxo");
     expect(html).toContain("Manual");
     expect(html).toContain("Hoje");
   });
@@ -523,9 +523,9 @@ describe("nutrition pages", () => {
     const html = renderToString(React.createElement(ChannelsPage));
 
     expect(html).toContain("WhatsApp Business Cloud API");
-    expect(html).toContain("Vínculo do contato do usuário");
-    expect(html).toContain("Salvar contato");
-    expect(html).toContain("Não vinculado");
+    expect(html).toContain("Vínculo do contato");
+    expect(html).toContain("Contato vinculado");
+    expect(html).toContain("Checklist rápido");
     expect(html).toContain("Número oficial da solução");
     expect(html).toContain("Phone Number ID oficial");
     expect(html).toContain("/api/whatsapp/webhook");

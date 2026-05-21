@@ -348,7 +348,7 @@ function FoodResultCard({
   food: {
     id: number;
     name: string;
-    brandName: string | null;
+    brandName?: string | null;
     foodType: "generic" | "branded";
     lastUsedAt?: number | null;
     isFruit: boolean;
