@@ -443,10 +443,10 @@ describe("nutrition pages", () => {
 
     expect(html).toContain("O painel foi reorganizado para destacar o que pede ação agora: consumo, saldo, hidratação, exercícios e refeições registradas.");
     expect(html).toContain("Resumo do dia");
-    expect(html).toContain("Equação energética do dia");
-    expect(html).toContain("Registrar exercício");
+    expect(html).toContain("Foco do dia");
+    expect(html).toContain("Registrar refeição");
     expect(html).toContain("Água do dia");
-    expect(html).toContain("Visão semanal combinada");
+    expect(html).toContain("Status do dia");
     expect(html).toContain("value=\"2.500\"");
     expect(html).toContain("200 ml");
     expect(html).toContain("1.200 ml");
