@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { ClipboardList, MessageSquarePlus, ShieldCheck, UserCheck, UserPlus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ClipboardList, Mail, MessageSquarePlus, ShieldCheck, UserCheck, UserPlus, X } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 export default function ProfessionalPage() {
@@ -20,7 +20,7 @@ export default function ProfessionalPage() {
   const history = trpc.nutrition.professionals.history.useQuery();
   const [displayName, setDisplayName] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
-  const [patientId, setPatientId] = useState("");
+  const [patientEmail, setPatientEmail] = useState("");
   const [reason, setReason] = useState("Acompanhamento nutricional com consentimento do paciente.");
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [comment, setComment] = useState("");
@@ -50,6 +50,7 @@ export default function ProfessionalPage() {
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async () => {
       toast.success("Solicitação enviada. O paciente precisa aprovar antes do acesso.");
+      setPatientEmail("");
       await invalidate();
     },
     onError: error => toast.error(error.message || "Não foi possível solicitar acesso."),
@@ -93,7 +94,7 @@ export default function ProfessionalPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat label="Perfil" value={profile.data ? "Ativo" : "Pendente"} helper="dados do profissional" />
               <IntroStat label="Pacientes autorizados" value={String(approvedAccesses.length)} helper="com acesso aprovado" />
-              <IntroStat label="Solicitações pendentes" value={String(pendingRequestsCount)} helper="como paciente" />
+              <IntroStat label="Solicitações recebidas" value={String(pendingRequestsCount)} helper="como paciente" />
               <IntroStat label="Eventos no histórico" value={String(historyCount)} helper="ações registradas" />
             </div>
           }
@@ -132,12 +133,17 @@ export default function ProfessionalPage() {
           <Card className="border-0 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Solicitar acesso</CardTitle>
-              <CardDescription>Informe o ID do paciente. O acesso só abre após aprovação.</CardDescription>
+              <CardDescription>Informe o e-mail do paciente. O acesso só abre após aprovação.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <label className="space-y-2">
-                <Label>ID do paciente</Label>
-                <Input inputMode="numeric" value={patientId} onChange={event => setPatientId(event.target.value.replace(/\D/g, ""))} />
+                <Label>E-mail do paciente</Label>
+                <Input
+                  type="email"
+                  value={patientEmail}
+                  onChange={event => setPatientEmail(event.target.value.trimStart())}
+                  placeholder="paciente@exemplo.com"
+                />
               </label>
               <label className="space-y-2">
                 <Label>Motivo</Label>
@@ -145,9 +151,10 @@ export default function ProfessionalPage() {
               </label>
               <Button
                 className="rounded-full"
-                disabled={requestAccess.isPending || !patientId}
-                onClick={() => requestAccess.mutate({ patientId: Number(patientId), reason })}
+                disabled={requestAccess.isPending || !patientEmail.trim()}
+                onClick={() => requestAccess.mutate({ patientEmail: patientEmail.trim(), reason })}
               >
+                <Mail className="mr-2 h-4 w-4" />
                 Solicitar consentimento
               </Button>
             </CardContent>
@@ -165,7 +172,10 @@ export default function ProfessionalPage() {
                 <div key={access.id} className="rounded-2xl border bg-background p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="font-medium">Paciente #{access.patientUserId}</p>
+                      <p className="font-medium">{access.patient?.name || access.patient?.email || `Paciente #${access.patientUserId}`}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {access.patient?.email || `ID interno #${access.patientUserId}`}
+                      </p>
                       <p className="text-xs text-muted-foreground">Aprovado em {access.approvedAt ? new Date(access.approvedAt).toLocaleString("pt-BR") : "-"}</p>
                     </div>
                     <Button variant="outline" className="rounded-full" onClick={() => setSelectedPatientId(access.patientUserId)}>Abrir dashboard</Button>
@@ -179,7 +189,7 @@ export default function ProfessionalPage() {
 
           <Card className="border-0 shadow-sm">
             <CardHeader>
-              <CardTitle>Solicitações recebidas como paciente</CardTitle>
+              <CardTitle>Solicitações recebidas</CardTitle>
               <CardDescription>Aprove ou revogue compartilhamento dos seus próprios dados.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -216,6 +226,11 @@ export default function ProfessionalPage() {
           <CardContent className="space-y-4">
             {dashboard.data ? (
               <>
+                <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                  <p className="font-medium text-foreground">Paciente selecionado</p>
+                  <p>{dashboard.data.patient?.name || dashboard.data.patient?.email || `Paciente #${dashboard.data.patientId}`}</p>
+                  <p>{dashboard.data.patient?.email || `ID interno #${dashboard.data.patientId}`}</p>
+                </div>
                 <div className="grid gap-3 md:grid-cols-4">
                   <Metric label="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} />
                   <Metric label="Calorias consumidas" value={formatCalories(dashboard.data.calories.consumed)} />
