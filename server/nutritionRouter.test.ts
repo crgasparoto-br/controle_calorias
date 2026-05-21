@@ -869,7 +869,7 @@ describe("nutrition router", () => {
       registrationNumber: "CRN-123",
     });
     const request = await professional.nutrition.professionals.requestAccess({
-      patientId: 911,
+      patientEmail: "user-911@example.com",
       reason: "Acompanhamento semanal consentido.",
     });
     expect(request.status).toBe("pending");
