@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
+import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
@@ -58,193 +60,269 @@ export default function ChannelsPage() {
 
   const connection = statusQuery.data?.connection;
   const hasConnection = Boolean(connection?.phoneNumber);
+  const isConfigured = Boolean(statusQuery.data?.configured);
+  const hasOfficialChannel = Boolean(statusQuery.data?.channel?.phoneNumber);
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         <PageIntro
           eyebrow="Canais"
           title="Operação do WhatsApp"
-          description="A tela foi organizada para separar estado da integração, vínculo do contato do usuário e simulação de mensagens sem misturar conceitos do canal oficial com o número de origem do usuário final."
+          description="A tela agora separa infraestrutura do canal, vínculo do contato e simulação de mensagens. O fluxo continua o mesmo, mas com menos leitura corrida para entender o próximo passo."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <IntroStat label="Integração" value={statusQuery.data?.configured ? "Ativa" : "Pendente"} helper="status do ambiente" />
-              <IntroStat label="Canal oficial" value={statusQuery.data?.channel?.phoneNumber ? "Configurado" : "Ausente"} helper="número da solução" />
+              <IntroStat label="Integração" value={isConfigured ? "Ativa" : "Pendente"} helper="status do ambiente" />
+              <IntroStat label="Canal oficial" value={hasOfficialChannel ? "Configurado" : "Ausente"} helper="número da solução" />
               <IntroStat label="Contato vinculado" value={hasConnection ? "Sim" : "Não"} helper="origem do usuário final" />
               <IntroStat label="Usuário atual" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "..."} helper="contexto da sessão" />
             </div>
           }
         />
 
-        <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <MessageCircle className="h-5 w-5 text-primary" />
-                WhatsApp Business Cloud API
-              </CardTitle>
-              <CardDescription>
-                Painel operacional da integração de mensagens. O WhatsApp oficial da solução é único e vem do ambiente; o telefone salvo por usuário identifica apenas quem enviou a mensagem.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <StatusRow label="Integração configurada" value={statusQuery.data?.configured ? "Sim" : "Não"} emphasize={!statusQuery.data?.configured} />
-              <StatusRow label="Webhook público" value={statusQuery.data?.webhookPath || "/api/whatsapp/webhook"} mono />
-              <StatusRow label="Número oficial da solução" value={statusQuery.data?.channel?.phoneNumber || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumber} mono />
-              <StatusRow label="Phone Number ID oficial" value={statusQuery.data?.channel?.phoneNumberId || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumberId} mono />
-              <StatusRow label="Usuário autenticado" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."} mono />
-              <StatusRow label="Contato de origem vinculado" value={connection?.phoneNumber || "Não vinculado"} emphasize={!hasConnection} mono />
-              <StatusRow label="Status do vínculo" value={connection?.status === "active" ? "Ativo" : hasConnection ? connection?.status || "Pendente" : "Pendente de vínculo"} emphasize={!hasConnection} />
-              <div className="space-y-3 rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-                <p>
-                  Sem um vínculo ativo entre o telefone de origem e o usuário logado, a plataforma não consegue identificar com segurança a quem atribuir os alimentos, a refeição e o horário recebidos pelo webhook.
-                </p>
-                <div className="rounded-2xl border bg-background p-4">
-                  <p className="font-medium text-foreground">Credenciais esperadas para ativação</p>
-                  <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
-                    <div className="rounded-xl border bg-muted/30 p-3 font-mono">WHATSAPP_PHONE_NUMBER</div>
-                    <div className="rounded-xl border bg-muted/30 p-3 font-mono">WHATSAPP_VERIFY_TOKEN</div>
-                    <div className="rounded-xl border bg-muted/30 p-3 font-mono">WHATSAPP_ACCESS_TOKEN</div>
-                    <div className="rounded-xl border bg-muted/30 p-3 font-mono">WHATSAPP_PHONE_NUMBER_ID</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Link2 className="h-5 w-5 text-primary" />
-                Vínculo do contato do usuário
-              </CardTitle>
-              <CardDescription>
-                Informe o telefone do contato final que envia mensagens para o número oficial da solução. Este valor diferencia usuários, mas nunca substitui o canal oficial configurado no ambiente.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="whatsapp-phone">Telefone de origem do usuário</Label>
-                <Input
-                  id="whatsapp-phone"
-                  value={phoneNumber}
-                  onChange={event => setPhoneNumber(event.target.value)}
-                  placeholder="Ex.: 5511999998888"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Não informe aqui o número oficial da solução. Use o telefone do usuário final que aparece no campo `from` do webhook.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="whatsapp-display-name">Nome exibido no WhatsApp</Label>
-                <Input
-                  id="whatsapp-display-name"
-                  value={displayName}
-                  onChange={event => setDisplayName(event.target.value)}
-                  placeholder="Ex.: Gaspa"
-                />
-              </div>
-
-              <Button
-                className="rounded-full"
-                disabled={saveConnection.isPending || !phoneNumber.trim()}
-                onClick={() =>
-                  saveConnection.mutate({
-                    phoneNumber,
-                    displayName: displayName.trim() || undefined,
-                  })
-                }
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {saveConnection.isPending ? "Salvando contato..." : "Salvar contato"}
-              </Button>
-
-              <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-                <p className="font-medium text-foreground">Como o fluxo funciona</p>
-                <div className="mt-3 space-y-3">
-                  <StepCard title="1. Configurar o canal oficial" text="O ambiente define um único WHATSAPP_PHONE_NUMBER_ID usado para receber e responder mensagens." />
-                  <StepCard title="2. Vincular o contato" text="O telefone de origem salvo aqui é associado ao usuário autenticado e passa a resolver o userId correto." />
-                  <StepCard title="3. Responder pelo canal fixo" text="Após o processamento, a refeição é salva para o contato identificado e a resposta sai pelo Phone Number ID oficial configurado." />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Webhook className="h-5 w-5 text-primary" />
-              Simulação de mensagem inbound
-            </CardTitle>
-            <CardDescription>
-              Use esta área para validar o comportamento lógico do canal com o contexto do usuário autenticado, sem precisar informar manualmente o ID interno.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-6 xl:grid-cols-[0.9fr,1.1fr]">
-            <div className="space-y-4">
-              <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-                <div className="flex items-center gap-2 font-medium text-foreground">
-                  <Smartphone className="h-4 w-4 text-primary" />
-                  Contexto da simulação
-                </div>
-                <p className="mt-2">Usuário autenticado: {statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."}</p>
-                <p>Contato atualmente vinculado: {connection?.phoneNumber || "não vinculado"}</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="simulation-message">Mensagem simulada</Label>
-                <Textarea
-                  id="simulation-message"
-                  className="min-h-40 rounded-2xl"
-                  value={message}
-                  onChange={event => setMessage(event.target.value)}
-                  placeholder="Descreva uma refeição como se tivesse chegado pelo WhatsApp"
-                />
-              </div>
-
-              <Button
-                className="rounded-full"
-                disabled={simulateInbound.isPending || !message.trim()}
-                onClick={() => simulateInbound.mutate({ text: message })}
-              >
-                <Send className="mr-2 h-4 w-4" />
-                {simulateInbound.isPending ? "Simulando..." : "Simular mensagem"}
-              </Button>
+        <Tabs defaultValue="overview" className="space-y-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <TabsList className="h-auto w-full flex-wrap rounded-2xl p-1 sm:w-auto">
+              <TabsTrigger value="overview" className="min-w-[140px] rounded-xl px-4 py-2">Canal oficial</TabsTrigger>
+              <TabsTrigger value="connection" className="min-w-[140px] rounded-xl px-4 py-2">Vínculo do contato</TabsTrigger>
+              <TabsTrigger value="simulation" className="min-w-[140px] rounded-xl px-4 py-2">Simulação</TabsTrigger>
+            </TabsList>
+            <div className="grid gap-3 sm:grid-cols-3 xl:w-[34rem]">
+              <SurfaceStat label="Canal" value={isConfigured ? "Pronto para receber mensagens" : "Ainda depende de configuração"} />
+              <SurfaceStat label="Contato" value={hasConnection ? connection?.phoneNumber ?? "Vinculado" : "Sem vínculo ativo"} />
+              <SurfaceStat label="Última simulação" value={lastSimulation ? lastSimulation.processed.detectedMealLabel : "Nenhuma rodada ainda"} />
             </div>
+          </div>
 
-            <div>
-              {lastSimulation ? (
-                <div className="space-y-4 rounded-3xl border bg-muted/20 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Rascunho gerado</p>
-                      <p className="font-mono text-sm text-foreground">{lastSimulation.draftId}</p>
-                    </div>
-                    <Badge>{formatPercentPtBr(lastSimulation.processed.confidence * 100)}% de confiança</Badge>
-                  </div>
-                  <div>
-                    <p className="font-medium tracking-tight">{lastSimulation.processed.detectedMealLabel}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Total estimado: {formatCalories(lastSimulation.processed.totals.calories)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    {lastSimulation.processed.items.map((item, index) => (
-                      <div key={`${item.foodName}-${index}`} className="rounded-2xl border bg-background p-3 text-sm">
-                        <strong className="text-foreground">{item.foodName}</strong>
-                        <span className="text-muted-foreground"> · {item.portionText}</span>
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid gap-4 xl:grid-cols-[1.3fr,0.9fr]">
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <MessageCircle className="h-5 w-5 text-primary" />
+                    WhatsApp Business Cloud API
+                  </CardTitle>
+                  <CardDescription>
+                    Infraestrutura do canal oficial da solução. Este bloco foi encurtado para deixar claro o que é ambiente, o que é webhook e o que depende de credenciais válidas.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {statusQuery.isLoading ? (
+                    <UXState
+                      variant="loading"
+                      title="Carregando estado do canal"
+                      description="Estou reunindo as informações do ambiente, webhook e canal oficial do WhatsApp."
+                    />
+                  ) : statusQuery.isError ? (
+                    <UXState
+                      variant="error"
+                      title="Não foi possível carregar o canal"
+                      description={statusQuery.error.message || "Tente novamente em instantes para revisar o estado da integração."}
+                    />
+                  ) : (
+                    <>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <StatusRow label="Integração configurada" value={isConfigured ? "Sim" : "Não"} emphasize={!isConfigured} />
+                        <StatusRow label="Usuário autenticado" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."} mono />
+                        <StatusRow label="Webhook público" value={statusQuery.data?.webhookPath || "/api/whatsapp/webhook"} mono />
+                        <StatusRow label="Status do vínculo" value={connection?.status === "active" ? "Ativo" : hasConnection ? connection?.status || "Pendente" : "Pendente de vínculo"} emphasize={!hasConnection} />
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-3xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-                  O resultado da simulação aparecerá aqui com o rascunho criado e os alimentos reconhecidos pela inferência nutricional.
-                </div>
-              )}
+                      <div className="grid gap-3">
+                        <StatusRow label="Número oficial da solução" value={statusQuery.data?.channel?.phoneNumber || "Não configurado"} emphasize={!hasOfficialChannel} mono />
+                        <StatusRow label="Phone Number ID oficial" value={statusQuery.data?.channel?.phoneNumberId || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumberId} mono />
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4">
+                <Card className="border-0 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <Webhook className="h-5 w-5 text-primary" />
+                      Checklist rápido
+                    </CardTitle>
+                    <CardDescription>Leitura curta para identificar o próximo bloqueio sem percorrer a página inteira.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-3">
+                    <FlowStep title="1. Ambiente pronto" text={isConfigured ? "As credenciais principais já estão ativas no ambiente." : "Ainda faltam ajustes de ambiente antes do uso real do canal."} />
+                    <FlowStep title="2. Canal oficial definido" text={hasOfficialChannel ? "O número oficial da solução já está associado ao canal." : "O número oficial ainda não está disponível no status atual."} />
+                    <FlowStep title="3. Contato do usuário vinculado" text={hasConnection ? "Já existe um telefone de origem associado ao usuário logado." : "Sem vínculo, o sistema não sabe a quem atribuir a mensagem recebida."} />
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-sm">
+                  <CardHeader>
+                    <CardTitle>Credenciais esperadas</CardTitle>
+                    <CardDescription>Referência visual do que o ambiente precisa expor para a operação do canal.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-2 text-xs sm:grid-cols-2">
+                    <EnvTile value="WHATSAPP_PHONE_NUMBER" />
+                    <EnvTile value="WHATSAPP_VERIFY_TOKEN" />
+                    <EnvTile value="WHATSAPP_ACCESS_TOKEN" />
+                    <EnvTile value="WHATSAPP_PHONE_NUMBER_ID" />
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </TabsContent>
+
+          <TabsContent value="connection" className="space-y-4">
+            <div className="grid gap-4 xl:grid-cols-[1fr,0.95fr]">
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Link2 className="h-5 w-5 text-primary" />
+                    Vínculo do contato do usuário
+                  </CardTitle>
+                  <CardDescription>
+                    Informe o telefone do contato final que envia mensagens para o número oficial da solução. Este valor identifica o usuário correto, mas nunca substitui o canal oficial configurado no ambiente.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp-phone">Telefone de origem do usuário</Label>
+                    <Input
+                      id="whatsapp-phone"
+                      value={phoneNumber}
+                      onChange={event => setPhoneNumber(event.target.value)}
+                      placeholder="Ex.: 5511999998888"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Não informe aqui o número oficial da solução. Use o telefone do usuário final que aparece no campo `from` do webhook.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp-display-name">Nome exibido no WhatsApp</Label>
+                    <Input
+                      id="whatsapp-display-name"
+                      value={displayName}
+                      onChange={event => setDisplayName(event.target.value)}
+                      placeholder="Ex.: Gaspa"
+                    />
+                  </div>
+
+                  <Button
+                    className="rounded-full"
+                    disabled={saveConnection.isPending || !phoneNumber.trim()}
+                    onClick={() =>
+                      saveConnection.mutate({
+                        phoneNumber,
+                        displayName: displayName.trim() || undefined,
+                      })
+                    }
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {saveConnection.isPending ? "Salvando contato..." : "Salvar contato"}
+                  </Button>
+
+                  {!hasConnection ? (
+                    <UXState
+                      variant="info"
+                      title="Nenhum contato vinculado"
+                      description="Sem esse vínculo, a plataforma não consegue identificar com segurança a quem atribuir alimentos, refeição e horário recebidos pelo webhook."
+                    />
+                  ) : null}
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Smartphone className="h-5 w-5 text-primary" />
+                    Como o fluxo funciona
+                  </CardTitle>
+                  <CardDescription>A sequência abaixo deixa explícita a diferença entre número oficial, telefone do usuário final e resposta do sistema.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3">
+                  <FlowStep title="1. Configurar o canal oficial" text="O ambiente define um único WHATSAPP_PHONE_NUMBER_ID usado para receber e responder mensagens." />
+                  <FlowStep title="2. Vincular o contato" text="O telefone de origem salvo aqui é associado ao usuário autenticado e passa a resolver o userId correto." />
+                  <FlowStep title="3. Responder pelo canal fixo" text="Após o processamento, a refeição é salva para o contato identificado e a resposta sai pelo Phone Number ID oficial configurado." />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="simulation" className="space-y-4">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Webhook className="h-5 w-5 text-primary" />
+                  Simulação de mensagem inbound
+                </CardTitle>
+                <CardDescription>
+                  Use esta área para validar o comportamento lógico do canal com o contexto do usuário autenticado, sem precisar informar manualmente o ID interno.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-6 xl:grid-cols-[0.92fr,1.08fr]">
+                <div className="space-y-4">
+                  <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                    <div className="flex items-center gap-2 font-medium text-foreground">
+                      <Smartphone className="h-4 w-4 text-primary" />
+                      Contexto da simulação
+                    </div>
+                    <p className="mt-2">Usuário autenticado: {statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."}</p>
+                    <p>Contato atualmente vinculado: {connection?.phoneNumber || "não vinculado"}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="simulation-message">Mensagem simulada</Label>
+                    <Textarea
+                      id="simulation-message"
+                      className="min-h-40 rounded-2xl"
+                      value={message}
+                      onChange={event => setMessage(event.target.value)}
+                      placeholder="Descreva uma refeição como se tivesse chegado pelo WhatsApp"
+                    />
+                  </div>
+
+                  <Button
+                    className="rounded-full"
+                    disabled={simulateInbound.isPending || !message.trim()}
+                    onClick={() => simulateInbound.mutate({ text: message })}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    {simulateInbound.isPending ? "Simulando..." : "Simular mensagem"}
+                  </Button>
+                </div>
+
+                <div>
+                  {lastSimulation ? (
+                    <div className="space-y-4 rounded-3xl border bg-muted/20 p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Rascunho gerado</p>
+                          <p className="font-mono text-sm text-foreground">{lastSimulation.draftId}</p>
+                        </div>
+                        <Badge>{formatPercentPtBr(lastSimulation.processed.confidence * 100)}% de confiança</Badge>
+                      </div>
+                      <div>
+                        <p className="font-medium tracking-tight">{lastSimulation.processed.detectedMealLabel}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Total estimado: {formatCalories(lastSimulation.processed.totals.calories)}</p>
+                      </div>
+                      <div className="space-y-2">
+                        {lastSimulation.processed.items.map((item, index) => (
+                          <div key={`${item.foodName}-${index}`} className="rounded-2xl border bg-background p-3 text-sm">
+                            <strong className="text-foreground">{item.foodName}</strong>
+                            <span className="text-muted-foreground"> · {item.portionText}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <UXState
+                      variant="empty"
+                      title="Nenhuma simulação executada"
+                      description="O resultado da simulação aparecerá aqui com o rascunho criado e os alimentos reconhecidos pela inferência nutricional."
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
@@ -256,6 +334,15 @@ function IntroStat({ label, value, helper }: { label: string; value: string; hel
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
+  );
+}
+
+function SurfaceStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background px-4 py-3 shadow-sm">
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-sm font-medium leading-6 text-foreground">{value}</p>
     </div>
   );
 }
@@ -279,11 +366,15 @@ function StatusRow({
   );
 }
 
-function StepCard({ title, text }: { title: string; text: string }) {
+function FlowStep({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-2xl border bg-background p-4">
       <p className="font-medium tracking-tight">{title}</p>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
     </div>
   );
+}
+
+function EnvTile({ value }: { value: string }) {
+  return <div className="rounded-xl border bg-muted/30 p-3 font-mono">{value}</div>;
 }
