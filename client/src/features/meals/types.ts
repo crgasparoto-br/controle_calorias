@@ -78,11 +78,11 @@ export type StoredMeal = {
 };
 
 export const MEAL_TYPES = ["café da manhã", "almoço", "jantar", "lanche", "outro"] as const;
-export type MealType = (typeof MEAL_TYPES)[number];
+export type MealType = string;
 
 export type ManualMealState = {
   mealId?: number;
-  mealLabel: MealType;
+  mealLabel: string;
   occurredAt: string;
   notes: string;
   items: MealItemState[];
