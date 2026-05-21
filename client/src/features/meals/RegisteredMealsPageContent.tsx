@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
@@ -17,6 +16,8 @@ import { createEmptyItem, createManualMealState, sumItems } from "./mealFormStat
 import { buildRegisteredMealGroups, normalizeMealType } from "./mealViewModels";
 import { MEAL_TYPES } from "./types";
 import type { MealItemState, MealType, StoredMeal } from "./types";
+
+const EXTRA_MEAL_LABEL_SUGGESTIONS = ["lanche da tarde", "pré-treino", "pós-treino", "ceia"];
 
 export function RegisteredMealsPage() {
   const utils = trpc.useUtils();
@@ -84,6 +85,13 @@ export function RegisteredMealsPage() {
     [mealsQuery.data, selectedDay, userTimeZone],
   );
 
+  const mealLabelSuggestions = useMemo(() => {
+    const labelsFromMeals = ((mealsQuery.data ?? []) as StoredMeal[])
+      .map(meal => meal.mealLabel)
+      .filter(label => label.trim());
+    return Array.from(new Set([...MEAL_TYPES, ...EXTRA_MEAL_LABEL_SUGGESTIONS, ...labelsFromMeals]));
+  }, [mealsQuery.data]);
+
   const dayTotals = useMemo(
     () => registeredMealGroups.reduce(
       (totals, group) => ({
@@ -123,6 +131,7 @@ export function RegisteredMealsPage() {
       return;
     }
 
+    const normalizedMealLabel = manualMeal.mealLabel.trim();
     const normalizedItems = manualMeal.items.map(item => ({
       ...item,
       foodName: item.foodName.trim(),
@@ -131,6 +140,11 @@ export function RegisteredMealsPage() {
       confidence: Number(item.confidence || 1),
     }));
 
+    if (!normalizedMealLabel) {
+      toast.error("Informe o nome da refeição.");
+      return;
+    }
+
     if (!normalizedItems.length || normalizedItems.some(item => !item.foodName)) {
       toast.error("Preencha ao menos um alimento na refeição.");
       return;
@@ -138,7 +152,7 @@ export function RegisteredMealsPage() {
 
     updateMeal.mutate({
       mealId: manualMeal.mealId,
-      mealLabel: manualMeal.mealLabel,
+      mealLabel: normalizedMealLabel,
       occurredAt: zonedDateTimeLocalToIso(manualMeal.occurredAt, userTimeZone),
       notes: manualMeal.notes.trim() || undefined,
       items: normalizedItems,
@@ -155,15 +169,19 @@ export function RegisteredMealsPage() {
         <CardDescription>O editor abre acima da lista para manter o contexto e reduzir deslocamento visual.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <datalist id="registered-meal-label-suggestions">
+          {mealLabelSuggestions.map(label => <option key={label} value={label} />)}
+        </datalist>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="registered-edit-meal-label">Nome da refeição</Label>
-            <Select value={manualMeal.mealLabel} onValueChange={(mealLabel: MealType) => setManualMeal(current => ({ ...current, mealLabel }))}>
-              <SelectTrigger id="registered-edit-meal-label"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Input
+              id="registered-edit-meal-label"
+              value={manualMeal.mealLabel}
+              onChange={event => setManualMeal(current => ({ ...current, mealLabel: event.target.value }))}
+              placeholder="Ex.: pré-treino"
+              list="registered-meal-label-suggestions"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="registered-edit-occurred-at">Data e horário</Label>
@@ -290,7 +308,7 @@ export function RegisteredMealsPage() {
               isFavoritePending={saveFavoriteMeal.isPending}
               isRemovePending={removeMeal.isPending}
               onEditMeal={loadMealForEditing}
-              onCopyMeal={(meal, mealLabel) => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone), mealLabel })}
+              onCopyMeal={(meal, mealLabel: MealType) => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone), mealLabel })}
               onFavoriteMeal={meal => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })}
               onRemoveMeal={meal => removeMeal.mutate({ mealId: meal.id })}
             />
