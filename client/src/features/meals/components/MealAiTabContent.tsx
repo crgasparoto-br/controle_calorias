@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCountPtBr, formatPercentPtBr } from "@/lib/numberFormat";
 import { BrainCircuit, ImagePlus, Mic, Save, WandSparkles } from "lucide-react";
+import type React from "react";
 import { MealDateTimeInput } from "./MealDateTimeInput";
 import { MealEmptyState } from "./MealEmptyState";
 import { MealItemEditor } from "./MealItemEditor";
