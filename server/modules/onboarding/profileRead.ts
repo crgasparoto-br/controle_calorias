@@ -8,6 +8,8 @@ const DEFAULT_ONBOARDING_PROFILE = {
   trackingExperience: "beginner",
   eatingRoutine: "misto",
   mainDifficulty: "falta_de_planejamento",
+  locale: "pt-BR",
+  timeZone: "America/Sao_Paulo",
 } as const;
 
 function parsePreferenceList(value: string | null | undefined) {
@@ -53,6 +55,8 @@ export async function getUserOnboardingProfile(userId: number) {
     dietaryRestrictions,
     eatingRoutine: profile.eatingRoutine ?? DEFAULT_ONBOARDING_PROFILE.eatingRoutine,
     mainDifficulty: profile.mainDifficulty ?? DEFAULT_ONBOARDING_PROFILE.mainDifficulty,
+    locale: profile.locale ?? DEFAULT_ONBOARDING_PROFILE.locale,
+    timeZone: profile.timezone ?? DEFAULT_ONBOARDING_PROFILE.timeZone,
     onboardingCompletedAt: profile.onboardingCompletedAt?.toISOString() ?? null,
   };
 }
