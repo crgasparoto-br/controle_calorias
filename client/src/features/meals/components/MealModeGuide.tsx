@@ -1,9 +1,9 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BrainCircuit, CalendarDays, ImagePlus, PencilLine, WandSparkles } from "lucide-react";
+import { BrainCircuit, CalendarDays, PencilLine, WandSparkles } from "lucide-react";
 
-type MealMode = "ia" | "foto" | "manual" | "hoje";
+type MealMode = "registro" | "manual" | "hoje";
 
 type MealModeGuideProps = {
   activeMode: MealMode;
@@ -12,16 +12,10 @@ type MealModeGuideProps = {
 
 const modeCards = [
   {
-    value: "ia" as const,
-    title: "IA multimodal",
-    description: "Junte texto, imagem e áudio no mesmo fluxo quando quiser montar uma refeição com mais contexto.",
+    value: "registro" as const,
+    title: "Registro de refeição",
+    description: "Use texto, foto do prato, foto de rótulo e áudio juntos em um único rascunho revisável.",
     icon: WandSparkles,
-  },
-  {
-    value: "foto" as const,
-    title: "Foto",
-    description: "Use quando a imagem do prato já basta e você quer corrigir só porções e itens sugeridos.",
-    icon: ImagePlus,
   },
   {
     value: "manual" as const,
@@ -39,7 +33,7 @@ const modeCards = [
 
 export function MealModeGuide({ activeMode, onModeChange }: MealModeGuideProps) {
   return (
-    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <section className="grid gap-3 md:grid-cols-3">
       {modeCards.map(mode => {
         const Icon = mode.icon;
         const isActive = activeMode === mode.value;
@@ -62,7 +56,7 @@ export function MealModeGuide({ activeMode, onModeChange }: MealModeGuideProps) 
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{mode.description}</p>
                 </div>
               </div>
-              {mode.value === "ia" ? <BrainCircuit className="mt-1 h-4 w-4 text-muted-foreground" /> : null}
+              {mode.value === "registro" ? <BrainCircuit className="mt-1 h-4 w-4 text-muted-foreground" /> : null}
             </div>
             <Button
               type="button"
