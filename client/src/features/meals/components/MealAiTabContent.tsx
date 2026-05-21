@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCountPtBr, formatPercentPtBr } from "@/lib/numberFormat";
+import { formatCountPtBr } from "@/lib/numberFormat";
 import { BrainCircuit, ImagePlus, Mic, Save, WandSparkles } from "lucide-react";
-import type React from "react";
 import { MealDateTimeInput } from "./MealDateTimeInput";
 import { MealEmptyState } from "./MealEmptyState";
 import { MealItemEditor } from "./MealItemEditor";
@@ -63,15 +62,15 @@ export function MealAiTabContent({
   isConfirmPending,
 }: MealAiTabContentProps) {
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+    <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
       <Card defaultOpen className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <WandSparkles className="h-5 w-5 text-primary" />
-            Registrar com IA multimodal
+            Registro de refeição
           </CardTitle>
           <CardDescription>
-            Texto, imagem e áudio podem entrar juntos. A IA organiza tudo em um rascunho revisável antes do salvamento.
+            Use texto, foto do prato, foto de rótulo e áudio no mesmo fluxo. A IA prepara um rascunho único para revisão.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -88,7 +87,7 @@ export function MealAiTabContent({
           <div className="grid gap-4 md:grid-cols-2">
             <MealUploadField
               id="meal-image"
-              label="Imagem do prato ou rótulo"
+              label="Foto do prato ou rótulo"
               icon={<ImagePlus className="h-4 w-4 text-primary" />}
               fileName={imageFileName}
               accept="image/*"
@@ -103,41 +102,38 @@ export function MealAiTabContent({
               onChange={onAudioChange}
             />
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button className="rounded-full" onClick={onProcess} disabled={isProcessing}>
               <BrainCircuit className="mr-2 h-4 w-4" />
-              {isProcessing ? "Processando..." : "Gerar inferência"}
+              {isProcessing ? "Processando..." : "Registrar"}
             </Button>
-            <Badge variant="secondary">Texto + imagem + áudio juntos</Badge>
+            <Badge variant="secondary">Texto + foto + rótulo + áudio</Badge>
           </div>
         </CardContent>
       </Card>
 
       <Card defaultOpen className="border-0 shadow-sm">
         <CardHeader>
-          <CardTitle>Revisão antes de salvar</CardTitle>
+          <CardTitle>Revisão rápida</CardTitle>
           <CardDescription>
-            O rascunho fica concentrado aqui para correções rápidas, sem misturar com outros modos de registro.
+            Ajuste a refeição sugerida, data, alimentos, porções, calorias e macros antes de salvar.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {draft ? (
             <>
-              <div className="rounded-2xl border bg-muted/20 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Confiança estimada</p>
-                    <p className="text-2xl font-semibold tracking-tight">{formatPercentPtBr(draft.processed.confidence * 100)}%</p>
-                  </div>
-                  <Badge>{formatCountPtBr(draft.processed.items.length, " itens identificados")}</Badge>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 p-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Rascunho gerado</p>
+                  <p className="text-xl font-semibold tracking-tight">{formatCountPtBr(draft.processed.items.length, " itens identificados")}</p>
                 </div>
-                <p className="mt-4 text-sm leading-6 text-muted-foreground">{draft.processed.reasoning}</p>
-                {draft.processed.transcript ? (
-                  <div className="mt-4 rounded-2xl bg-background p-3 text-sm text-muted-foreground">
-                    <strong className="text-foreground">Transcrição:</strong> {draft.processed.transcript}
-                  </div>
-                ) : null}
+                <Badge variant="secondary">Revise antes de salvar</Badge>
               </div>
+              {draft.processed.transcript ? (
+                <div className="rounded-2xl bg-background p-3 text-sm text-muted-foreground ring-1 ring-border/70">
+                  <strong className="text-foreground">Transcrição:</strong> {draft.processed.transcript}
+                </div>
+              ) : null}
               <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                 <MealLabelInput value={mealLabel} onChange={onMealLabelChange} suggestedLabel={suggestedMealLabel} />
                 <MealDateTimeInput id="occurred-at" label="Data e horário" value={occurredAt} onChange={onOccurredAtChange} />
@@ -164,11 +160,11 @@ export function MealAiTabContent({
               <MealTotalsBlock title="Totais após revisão" totals={previewTotals} />
               <Button className="w-full rounded-full" disabled={isConfirmPending || editableItems.length === 0} onClick={onConfirm}>
                 <Save className="mr-2 h-4 w-4" />
-                {isConfirmPending ? "Salvando..." : "Confirmar e salvar refeição"}
+                {isConfirmPending ? "Salvando..." : "Salvar refeição"}
               </Button>
             </>
           ) : (
-            <MealEmptyState text="Nenhuma inferência foi criada ainda. Depois do envio, a revisão aparecerá aqui com alimentos, horários e totais já prontos para ajuste." />
+            <MealEmptyState text="Informe texto, foto do prato, rótulo ou áudio e clique em Registrar. O rascunho aparecerá aqui para revisão antes de salvar." />
           )}
         </CardContent>
       </Card>
