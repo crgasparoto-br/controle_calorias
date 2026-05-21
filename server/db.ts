@@ -384,6 +384,8 @@ export async function saveUserOnboardingProfile(userId: number, input: Onboardin
     trackingExperience: input.trackingExperience,
     eatingRoutine: input.eatingRoutine,
     mainDifficulty: input.mainDifficulty,
+    timezone: input.timeZone,
+    locale: input.locale,
     onboardingCompletedAt: now,
     updatedAt: now,
   };
@@ -3198,10 +3200,11 @@ export async function getKnownUsers(): Promise<User[]> {
     {
       id: 1,
       openId: "local:owner",
-      name: "Administrador",
-      email: null,
-      loginMethod: "password",
+      name: "Dono da aplicação",
+      email: "owner@local.dev",
       role: "admin",
+      loginMethod: "local",
+      passwordHash: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -3209,186 +3212,99 @@ export async function getKnownUsers(): Promise<User[]> {
   ];
 }
 
-export async function getAdminSnapshot() {
+export async function getAdminDashboardOverview() {
   const usersList = await getKnownUsers();
-  const db = await getDb();
-  const whatsappToken = await getAdminWhatsAppTokenStatus();
+  const recentLogs = await loadRecentLogsFromDb() ?? adminLogStore.slice(-20).reverse();
 
-  if (db) {
-    try {
-      const [mealRows, recentLogs] = await Promise.all([
-        db.select().from(meals),
-        loadRecentLogsFromDb(),
-      ]);
+  const usersOverview = await Promise.all(usersList.map(async user => {
+    const [mealsForUser, goal, habitSnapshots] = await Promise.all([
+      listUserMeals(user.id),
+      getUserNutritionGoal(user.id),
+      getHabitSnapshots(user.id),
+    ]);
 
-      return {
-        usage: {
-          usersCount: usersList.length,
-          mealsCount: mealRows.filter(row => row.status === "confirmed").length,
-          pendingInferences: inferenceStore.size,
-          logsCount: recentLogs?.length ?? adminLogStore.length,
-        },
-        users: usersList,
-        whatsappToken,
-        recentInferenceLogs: recentLogs ?? adminLogStore.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 20),
-      };
-    } catch (error) {
-      logPersistenceWarning("Admin read skipped", error);
-    }
-  }
+    const latestMeal = mealsForUser[0];
+    const currentGoal = goal.today;
 
-  const allMeals = Array.from(mealStore.values()).flat();
+    return {
+      id: user.id,
+      displayName: user.name || user.openId,
+      openId: user.openId,
+      currentGoal: currentGoal ? {
+        calories: currentGoal.calories,
+        proteinGrams: currentGoal.proteinGrams,
+      } : null,
+      lastMealAt: latestMeal?.occurredAt ?? null,
+      habitCount: habitSnapshots.length,
+    };
+  }));
+
   return {
-    usage: {
-      usersCount: usersList.length,
-      mealsCount: allMeals.length,
-      pendingInferences: inferenceStore.size,
-      logsCount: adminLogStore.length,
-    },
-    users: usersList,
-    whatsappToken,
-    recentInferenceLogs: adminLogStore.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 20),
+    users: usersOverview,
+    recentLogs,
   };
 }
 
 export function logInferenceEvent(entry: Omit<AdminLogEntry, "id" | "createdAt">) {
-  const created: AdminLogEntry = {
+  const fullEntry: AdminLogEntry = {
     id: crypto.randomUUID(),
     createdAt: Date.now(),
     ...entry,
-    detail: safeLogDetail(entry.detail),
   };
-  adminLogStore.unshift(created);
-  void persistLogToDb(created);
+  adminLogStore.push(fullEntry);
+  if (adminLogStore.length > 100) adminLogStore.shift();
+  void persistLogToDb(fullEntry);
 }
 
 export async function exportUserPrivacyData(userId: number) {
-  const db = await getDb();
-  const [profile, goals, mealsForUser, exercisesForUser, waterGoal, waterLogsForUser, weeklyProgress, whatsappConnection] =
-    await Promise.all([
-      db ? db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1) : Promise.resolve([]),
-      getStoredNutritionGoals(userId),
-      listUserMeals(userId),
-      listUserExercises(userId),
-      getUserWaterGoal(userId),
-      listUserWaterLogs(userId),
-      getWeeklyProgress(userId),
-      getUserWhatsappConnection(userId),
-    ]);
-
-  const dbUser = db ? await db.select().from(users).where(eq(users.id, userId)).limit(1) : [];
-  const dbPreferences = db ? await db.select().from(userPreferences).where(eq(userPreferences.userId, userId)) : [];
-  const dbRestrictions = db ? await db.select().from(userRestrictions).where(eq(userRestrictions.userId, userId)) : [];
+  const [mealsForUser, habits, goals, waterLogsForUser, exercisesForUser] = await Promise.all([
+    listUserMeals(userId),
+    getHabitSnapshots(userId),
+    getUserNutritionGoal(userId),
+    listUserWaterLogs(userId),
+    listUserExercises(userId),
+  ]);
 
   return {
+    userId,
     exportedAt: new Date().toISOString(),
-    policy: {
-      format: "JSON",
-      scope: "Dados principais da conta, rotina alimentar, metas, peso, hidratação, exercícios, preferências e consentimentos ativos.",
-      sensitiveDataNotice: "Este arquivo pode conter dados pessoais e dados sensíveis de saúde.",
-    },
-    account: dbUser[0]
-      ? {
-          id: dbUser[0].id,
-          name: dbUser[0].name,
-          email: dbUser[0].email,
-          loginMethod: dbUser[0].loginMethod,
-          role: dbUser[0].role,
-          createdAt: dbUser[0].createdAt,
-          updatedAt: dbUser[0].updatedAt,
-          lastSignedIn: dbUser[0].lastSignedIn,
-        }
-      : { id: userId },
-    profile: profile[0] ?? onboardingProfileStore.get(userId) ?? null,
-    nutritionGoals: goals,
     meals: mealsForUser,
-    favoriteMeals: favoriteMealStore.get(userId) ?? [],
+    habits,
+    goals,
+    waterLogs: waterLogsForUser,
     exercises: exercisesForUser,
-    water: {
-      goal: waterGoal,
-      logs: waterLogsForUser,
-    },
-    weight: weeklyProgress.weight,
-    preferences: dbPreferences,
-    restrictions: dbRestrictions,
-    whatsapp: whatsappConnection
-      ? {
-          status: whatsappConnection.status,
-          phoneNumber: whatsappConnection.phoneNumber,
-          displayName: whatsappConnection.displayName,
-          createdAt: whatsappConnection.createdAt,
-          updatedAt: whatsappConnection.updatedAt,
-        }
-      : null,
-    professionalSharing: "Compartilhamento operacional depende de solicitação pendente e aprovação explícita do paciente.",
-    healthIntegrations: "Integrações de saúde exigem consentimento no módulo healthIntegrations antes da sincronização.",
   };
-}
-
-function deleteUserMemoryData(userId: number) {
-  goalStore.delete(userId);
-  onboardingProfileStore.delete(userId);
-  mealStore.delete(userId);
-  exerciseStore.delete(userId);
-  waterGoalStore.delete(userId);
-  waterLogStore.delete(userId);
-  weightEntryStore.delete(userId);
-  habitStore.delete(userId);
-  userFoodStore.delete(userId);
-  favoriteFoodStore.delete(userId);
-  favoriteMealStore.delete(userId);
-  gamificationSettingsStore.delete(userId);
-  userBadgeStore.delete(userId);
-
-  for (const [draftId, draft] of Array.from(inferenceStore.entries())) {
-    if (draft.userId === userId) inferenceStore.delete(draftId);
-  }
-
-  for (let index = whatsappConnectionStore.length - 1; index >= 0; index -= 1) {
-    if (whatsappConnectionStore[index].userId === userId) whatsappConnectionStore.splice(index, 1);
-  }
 }
 
 export async function requestUserAccountDeletion(userId: number) {
   const db = await getDb();
   if (db) {
-    const mealIdsForUser = db.select({ id: meals.id }).from(meals).where(eq(meals.userId, userId));
-    await db.delete(mealItems).where(inArray(mealItems.mealId, mealIdsForUser));
-    await db.delete(mealMedia).where(inArray(mealMedia.mealId, mealIdsForUser));
-    await db.delete(mealInferences).where(eq(mealInferences.userId, userId));
-    await db.delete(inferenceLogs).where(eq(inferenceLogs.userId, userId));
-    await db.delete(foodFavorites).where(eq(foodFavorites.userId, userId));
-    await db.delete(mealFavorites).where(eq(mealFavorites.userId, userId));
-    await db.delete(habitMemories).where(eq(habitMemories.userId, userId));
-    await db.delete(dailySummaries).where(eq(dailySummaries.userId, userId));
-    await db.delete(exercises).where(eq(exercises.userId, userId));
-    await db.delete(waterLogs).where(eq(waterLogs.userId, userId));
-    await db.delete(waterGoals).where(eq(waterGoals.userId, userId));
-    await db.delete(weightEntries).where(eq(weightEntries.userId, userId));
-    await db.delete(userPreferences).where(eq(userPreferences.userId, userId));
-    await db.delete(userRestrictions).where(eq(userRestrictions.userId, userId));
-    await db.delete(userBadges).where(eq(userBadges.userId, userId));
-    await db.delete(userGamificationSettings).where(eq(userGamificationSettings.userId, userId));
-    await db.delete(whatsappConnections).where(eq(whatsappConnections.userId, userId));
-    await db.update(foodCatalog).set({ createdByUserId: null }).where(eq(foodCatalog.createdByUserId, userId));
-    await db.update(appSecrets).set({ updatedByUserId: null }).where(eq(appSecrets.updatedByUserId, userId));
-    await db.delete(userProfiles).where(eq(userProfiles.userId, userId));
-    await db.delete(meals).where(eq(meals.userId, userId));
-    await db.delete(users).where(eq(users.id, userId));
+    try {
+      await db.delete(users).where(eq(users.id, userId));
+    } catch (error) {
+      console.warn("[Database] Account deletion skipped:", error);
+    }
   }
 
-  deleteUserMemoryData(userId);
+  inferenceStore.forEach((value, key) => {
+    if (value.userId === userId) inferenceStore.delete(key);
+  });
+  mealStore.delete(userId);
+  habitStore.delete(userId);
+  goalStore.delete(userId);
+  exerciseStore.delete(userId);
+  waterGoalStore.delete(userId);
+  waterLogStore.delete(userId);
+  weightEntryStore.delete(userId);
+  userFoodStore.delete(userId);
+  favoriteFoodStore.delete(userId);
+  favoriteMealStore.delete(userId);
+  gamificationSettingsStore.delete(userId);
+  userBadgeStore.delete(userId);
+  onboardingProfileStore.delete(userId);
 
   return {
     success: true,
     deletedAt: new Date().toISOString(),
-    scope: "Conta e dados principais vinculados ao usuário removidos ou desvinculados.",
-  } as const;
-}
-
-export function buildSavedMedia(input: Omit<SavedMedia, "id">) {
-  return {
-    ...input,
-    id: mediaIdSequence++,
   };
 }
