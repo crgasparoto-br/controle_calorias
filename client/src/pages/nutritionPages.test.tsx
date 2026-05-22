@@ -500,11 +500,11 @@ describe("nutrition pages", () => {
     const { default: LogMealPage } = await import("./LogMealPage");
     const html = renderToString(React.createElement(LogMealPage));
 
-    expect(html).toContain("Registro de refeição");
-    expect(html).toContain("Registre com texto, foto ou áudio no mesmo fluxo");
-    expect(html).toContain("foto do prato, foto de rótulo e áudio");
+    expect(html).toContain("Registre refeições, água, exercícios e peso no mesmo lugar");
+    expect(html).toContain("Use um único ponto para registrar o dia e revisar tudo sem trocar de tela.");
+    expect(html).toContain("Texto, foto e áudio no mesmo rascunho.");
     expect(html).toContain("Descrição em texto");
-    expect(html).toContain("Use texto, foto do prato, foto de rótulo e áudio no mesmo fluxo");
+    expect(html).toContain("Record com IA");
     expect(html).toContain("Manual");
     expect(html).toContain("Hoje");
   });

@@ -43,7 +43,7 @@ function extractBase64Payload(value: string) {
   return Buffer.from(match ? match[2] : value, "base64");
 }
 
-function buildInlineMediaDataUrl(media: MediaInput) {
+function buildInlineMediaDataUrl(media: NonNullable<MediaInput>) {
   if (media.base64.startsWith("data:")) {
     return media.base64;
   }
@@ -54,7 +54,7 @@ function buildInlineMediaDataUrl(media: MediaInput) {
 async function uploadMedia(params: {
   userId: number;
   type: "image" | "audio";
-  media?: MediaInput;
+  media?: NonNullable<MediaInput>;
 }) {
   if (!params.media) {
     return null;
@@ -79,15 +79,16 @@ async function uploadMedia(params: {
 }
 
 async function resolveDraftImage(params: { userId: number; media?: MediaInput }) {
-  if (!params.media) {
+  const media = params.media;
+  if (!media) {
     return { imageUrl: undefined, media: null as ReturnType<typeof buildSavedMedia> | null };
   }
 
   try {
-    const media = await uploadMedia({ userId: params.userId, type: "image", media: params.media });
+    const uploadedMedia = await uploadMedia({ userId: params.userId, type: "image", media });
     return {
-      imageUrl: media?.storageUrl,
-      media,
+      imageUrl: uploadedMedia?.storageUrl,
+      media: uploadedMedia,
     };
   } catch {
     logInferenceEvent({
@@ -99,7 +100,7 @@ async function resolveDraftImage(params: { userId: number; media?: MediaInput })
     });
 
     return {
-      imageUrl: buildInlineMediaDataUrl(params.media),
+      imageUrl: buildInlineMediaDataUrl(media),
       media: null,
     };
   }

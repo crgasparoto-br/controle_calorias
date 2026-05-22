@@ -103,7 +103,7 @@ describe("AdminPage", () => {
     expect(whatsappCard).toBeTruthy();
 
     const whatsappCardScope = within(whatsappCard as HTMLElement);
-    await user.click(whatsappCardScope.getByRole("button", { name: /Expandir/i }));
+    await user.click(whatsappCardScope.getByRole("button", { name: /Abrir|Expandir/i }));
 
     const input = whatsappCardScope.getByLabelText("Token de acesso do WhatsApp") as HTMLInputElement;
     expect(screen.getByText("EAAcmt••••ABCD")).toBeTruthy();
