@@ -5,7 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
 import type { MealType, StoredMeal } from "../types";
-import { ChevronDown, Copy, PencilLine, Star, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, PencilLine, Star, Trash2 } from "lucide-react";
 
 type RegisteredMealGroupsProps = {
   groups: RegisteredMealGroupViewModel[];
@@ -150,7 +150,12 @@ function RegisteredMealGroupSection({
               <Badge variant="outline">P {formatGrams(group.totals.protein)}</Badge>
               <Badge variant="outline">C {formatGrams(group.totals.carbs)}</Badge>
               <Badge variant="outline">G {formatGrams(group.totals.fat)}</Badge>
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors group-hover:border-primary/30 group-hover:bg-primary/5">
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground group-data-[state=open]:hidden" />
+                <ChevronUp className="hidden h-4 w-4 shrink-0 text-primary group-data-[state=open]:block" />
+                <span className="group-data-[state=open]:hidden">Expandir</span>
+                <span className="hidden group-data-[state=open]:inline">Recolher</span>
+              </span>
             </div>
           </button>
         </CollapsibleTrigger>
