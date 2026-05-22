@@ -16,13 +16,13 @@ export function DayNavigator({ selectedDay, onSelectedDayChange, label = "Dia" }
   const goToNextDay = () => onSelectedDayChange(addDaysToDateInputValue(selectedDay, 1));
 
   return (
-    <div className="space-y-2">
-      <Label htmlFor="meal-selected-day" className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-3">
+      <Label htmlFor="meal-selected-day" className="flex shrink-0 items-center gap-2 whitespace-nowrap">
         <CalendarDays className="h-4 w-4 text-primary" />
         {label}
       </Label>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="icon" className="rounded-full" onClick={goToPreviousDay} aria-label="Dia anterior">
+      <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+        <Button type="button" variant="outline" size="icon" className="shrink-0 rounded-full" onClick={goToPreviousDay} aria-label="Dia anterior">
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <Input
@@ -30,9 +30,9 @@ export function DayNavigator({ selectedDay, onSelectedDayChange, label = "Dia" }
           type="date"
           value={selectedDay}
           onChange={event => onSelectedDayChange(event.target.value)}
-          className="max-w-48"
+          className="h-10 min-w-[10.5rem] shrink-0 sm:w-48"
         />
-        <Button type="button" variant="outline" size="icon" className="rounded-full" onClick={goToNextDay} aria-label="Próximo dia">
+        <Button type="button" variant="outline" size="icon" className="shrink-0 rounded-full" onClick={goToNextDay} aria-label="Próximo dia">
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
