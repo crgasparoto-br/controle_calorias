@@ -22,7 +22,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `meals` | 11 | 3 | 8 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
-| `reports` | 3 | 3 | 0 | protected | Relatórios semanais e insights |
+| `reports` | 4 | 4 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 3 | 2 | 1 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
 
@@ -159,6 +159,7 @@ Fonte: `server/nutritionRouter.ts`.
 
 | Procedure | Operação | Escopo |
 |---|---|---|
+| `bundle` | query | protected |
 | `weekly` | query | protected |
 | `weeklyProgress` | query | protected |
 | `weeklyInsights` | query | protected |
