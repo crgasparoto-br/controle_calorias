@@ -47,6 +47,18 @@ type GoalExceptionForm = GoalTargetForm & {
   durationType: DurationType;
 };
 
+type GoalExceptionQuery = {
+  id?: number;
+  weekday: number;
+  durationType: DurationType;
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  updatedAt?: Date | string | number | null;
+  effectiveFrom?: Date | string | number | null;
+};
+
 type MacroPercentField = "proteinPercent" | "carbsPercent" | "fatPercent";
 type MacroGramField = "proteinGrams" | "carbsGrams" | "fatGrams";
 
@@ -164,6 +176,23 @@ function toGoalPayload(goal: GoalTargetForm): GoalPayload {
   };
 }
 
+function normalizeExceptionsForEditing(exceptions: GoalExceptionQuery[]) {
+  const sorted = exceptions.slice().sort((a, b) => {
+    const updatedDiff = new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime();
+    if (updatedDiff !== 0) return updatedDiff;
+    return new Date(b.effectiveFrom ?? 0).getTime() - new Date(a.effectiveFrom ?? 0).getTime();
+  });
+
+  const seenWeekdays = new Set<number>();
+  return sorted.filter(exception => {
+    if (seenWeekdays.has(exception.weekday)) {
+      return false;
+    }
+    seenWeekdays.add(exception.weekday);
+    return true;
+  });
+}
+
 export default function GoalsPage() {
   const utils = trpc.useUtils();
   const goalQuery = trpc.nutrition.goals.get.useQuery();
@@ -189,7 +218,7 @@ export default function GoalsPage() {
     carbsGrams: goalQuery.data.defaultGoal.carbsGrams,
     fatGrams: goalQuery.data.defaultGoal.fatGrams,
   }) : createGoalTargetForm(DEFAULT_GOAL_BASE));
-  const [exceptions, setExceptions] = useState<GoalExceptionForm[]>(() => goalQuery.data ? goalQuery.data.exceptions.map(exception => ({
+  const [exceptions, setExceptions] = useState<GoalExceptionForm[]>(() => goalQuery.data ? normalizeExceptionsForEditing(goalQuery.data.exceptions).map(exception => ({
     id: exception.id,
     weekday: exception.weekday,
     durationType: exception.durationType,
@@ -211,7 +240,7 @@ export default function GoalsPage() {
       fatGrams: goalQuery.data.defaultGoal.fatGrams,
     }));
 
-    setExceptions(goalQuery.data.exceptions.map(exception => ({
+    setExceptions(normalizeExceptionsForEditing(goalQuery.data.exceptions).map(exception => ({
       id: exception.id,
       weekday: exception.weekday,
       durationType: exception.durationType,
