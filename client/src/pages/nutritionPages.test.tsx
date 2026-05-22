@@ -507,10 +507,13 @@ describe("nutrition pages", () => {
     expect(html).toContain("Record com IA");
     expect(html).toContain("Manual");
     expect(html).toContain("Hoje");
-    expect(html).toContain("Consulte os registros do dia selecionado sem sair de Record.");
     expect(html).toContain("Água do dia");
     expect(html).toContain("Exercícios");
     expect(html).toContain("Peso atual");
+    expect(html).toContain("Consulte os registros do dia selecionado sem sair de Record.");
+    expect(html).toContain("Meta diária (ml)");
+    expect(html).toContain("Gasto estimado (kcal)");
+    expect(html).toContain("Peso salvo");
   });
 
   it("renderiza a página de relatórios com resumo semanal, seções recolhíveis e insights nutricionais", async () => {
