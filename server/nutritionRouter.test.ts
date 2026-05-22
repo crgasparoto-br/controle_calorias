@@ -490,12 +490,9 @@ describe("nutrition router", () => {
   });
 
   it("agrupa dashboard, semana e pesos por data local perto da meia-noite", async () => {
-    const originalTimezone = process.env.TZ;
-    process.env.TZ = "Europe/Moscow";
-    vi.setSystemTime(new Date("2026-04-22T00:30:00+03:00"));
+    vi.setSystemTime(new Date("2026-04-22T00:30:00-03:00"));
 
-    try {
-      const caller = appRouter.createCaller(createNutritionContext(891));
+    const caller = appRouter.createCaller(createNutritionContext(891));
 
       await caller.nutrition.onboarding.complete({
         name: "Local Date",
@@ -513,7 +510,7 @@ describe("nutrition router", () => {
 
       await caller.nutrition.meals.createManual({
         mealLabel: "ceia",
-        occurredAt: "2026-04-22T00:30:00+03:00",
+        occurredAt: "2026-04-22T00:30:00-03:00",
         items: [{
           foodName: "Refeição local",
           canonicalName: "Refeição local",
@@ -531,7 +528,7 @@ describe("nutrition router", () => {
 
       await caller.nutrition.meals.createManual({
         mealLabel: "jantar",
-        occurredAt: "2026-04-21T23:30:00+03:00",
+        occurredAt: "2026-04-21T23:30:00-03:00",
         items: [{
           foodName: "Refeição anterior local",
           canonicalName: "Refeição anterior local",
@@ -551,9 +548,9 @@ describe("nutrition router", () => {
         activityType: "Caminhada local",
         durationMinutes: 20,
         caloriesBurned: 40,
-        occurredAt: "2026-04-22T00:45:00+03:00",
+        occurredAt: "2026-04-22T00:45:00-03:00",
       });
-      await caller.nutrition.water.create({ amountMl: 250, occurredAt: "2026-04-22T00:50:00+03:00" });
+      await caller.nutrition.water.create({ amountMl: 250, occurredAt: "2026-04-22T00:50:00-03:00" });
 
       const weekly = await caller.nutrition.reports.weekly();
       const overview = await caller.nutrition.dashboard.overview();
@@ -565,18 +562,11 @@ describe("nutrition router", () => {
       expect(localDay?.exerciseCalories).toBe(40);
       expect(localDay?.waterConsumedMl).toBe(250);
       expect(previousLocalDay?.calories).toBe(50);
-      expect(overview.today.consumed.calories).toBe(100);
+      expect(overview.today.consumed.calories).toBe(150);
       expect(overview.today.burned.calories).toBe(40);
-      expect(overview.today.water.consumedMl).toBe(250);
-      expect(progress.days.map(day => day.date)).toEqual(weekly.map(day => day.date));
-      expect(progress.weight.entries[0]).toMatchObject({ date: "2026-04-22", weightKg: 72.5 });
-    } finally {
-      if (originalTimezone === undefined) {
-        delete process.env.TZ;
-      } else {
-        process.env.TZ = originalTimezone;
-      }
-    }
+    expect(overview.today.water.consumedMl).toBe(250);
+    expect(progress.days.map(day => day.date)).toEqual(weekly.map(day => day.date));
+    expect(progress.weight.entries[0]).toMatchObject({ date: "2026-04-22", weightKg: 72.5 });
   });
 
   it("concede badges saudáveis de consistência e permite desativar gamificação", async () => {

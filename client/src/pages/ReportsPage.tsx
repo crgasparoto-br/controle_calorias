@@ -6,13 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCalories, formatNumberPtBr } from "@/lib/numberFormat";
+import { getBrowserTimeZone } from "@/lib/dateTime";
+import { formatCalories, formatCountPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
+import { buildRegisteredMealGroups } from "@/features/meals/mealViewModels";
+import { RegisteredMealGroups } from "@/features/meals/components";
+import type { StoredMeal } from "@/features/meals/types";
 import {
+  ArrowLeft,
   ArrowRight,
   BarChart3,
   CalendarDays,
-  Clock3,
+  ChevronDown,
   Droplets,
   Dumbbell,
   Flame,
@@ -21,22 +26,51 @@ import {
   TrendingUp,
   UtensilsCrossed,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Link } from "wouter";
 
 const WEEKDAY_NAMES = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+const INSIGHT_KEY_LABELS: Record<string, string> = {
+  adherencePercent: "Aderência",
+  averageCalories: "Média calórica",
+  averageProtein: "Proteína média",
+  calorieDelta: "Saldo calórico",
+  calories: "Calorias",
+  consumedCalories: "Calorias consumidas",
+  date: "Data",
+  daysAboveGoal: "Dias acima da meta",
+  daysAnalyzed: "Dias analisados",
+  daysBelowGoal: "Dias abaixo da meta",
+  daysWithFood: "Dias com alimentação registrada",
+  daysWithRecords: "Dias com registro",
+  daysWithinGoal: "Dias dentro da meta",
+  daysWithinProtein: "Dias com proteína adequada",
+  deltaCalories: "Diferença calórica",
+  fiberGrams: "Fibras",
+  frequencyPercent: "Frequência",
+  fruitServings: "Frutas",
+  goalCalories: "Meta calórica",
+  lowProteinDays: "Dias com proteína baixa",
+  mealCount: "Refeições",
+  mealId: "ID da refeição",
+  mealLabel: "Refeição",
+  proteinGrams: "Proteína",
+  regularityScore: "Regularidade",
+  targetThresholdPercent: "Faixa de referência",
+  thresholdPercent: "Faixa de referência",
+  totalCalories: "Calorias totais",
+  totalDays: "Total de dias",
+  ultraProcessedServings: "Ultraprocessados",
+  vegetableServings: "Vegetais",
+  waterMl: "Água",
+  weekdayAverageCalories: "Média nos dias úteis",
+  weekendAverageCalories: "Média no fim de semana",
+};
 
 function formatMacro(value: number) {
   return formatNumberPtBr(value, {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
     maximumFractionDigits: 1,
-  });
-}
-
-function formatMealTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
@@ -55,13 +89,60 @@ function formatCalendarDay(date: string) {
   });
 }
 
+function formatWeekRange(days: Array<{ date: string }>) {
+  if (!days.length) return "sem dados no período";
+  const first = new Date(`${days[0].date}T12:00:00`);
+  const last = new Date(`${days[days.length - 1].date}T12:00:00`);
+
+  return `${first.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} a ${last.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}`;
+}
+
 function progressPercent(value: number, goal: number) {
   if (!goal) return 0;
   return Math.min(Math.max((value / goal) * 100, 0), 100);
 }
 
+function getTodayDateKey(timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("sv-SE", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(new Date());
+}
+
+function formatInsightValue(key: string, value: number | string | null) {
+  if (value == null) return "-";
+
+  if (typeof value === "number") {
+    if (key.endsWith("Percent")) {
+      return `${formatNumberPtBr(value)}%`;
+    }
+
+    return formatNumberPtBr(value, {
+      minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+      maximumFractionDigits: 1,
+    });
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  return value;
+}
+
 export default function ReportsPage() {
-  const reportBundle = trpc.nutrition.reports.bundle.useQuery();
+  const [weekOffset, setWeekOffset] = React.useState(0);
+  const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
+  const reportBundle = trpc.nutrition.reports.bundle.useQuery({ weekOffset });
+  const dashboardOverview = trpc.nutrition.dashboard.overview.useQuery();
 
   const caloricTrend = reportBundle.data?.weekly ?? [];
   const progress = reportBundle.data?.progress;
@@ -83,6 +164,17 @@ export default function ReportsPage() {
     carbs: Math.round(day.carbs),
     fat: Math.round(day.fat),
   }));
+  const mealGroupsByDate = React.useMemo(
+    () => detailedMealsByDate.map(group => ({
+      date: group.date,
+      groups: buildRegisteredMealGroups(group.items as StoredMeal[]),
+    })),
+    [detailedMealsByDate],
+  );
+  const weekLabel = weekOffset === 0 ? "Semana atual" : "Semana anterior";
+  const weekRangeLabel = formatWeekRange(progress?.days ?? caloricTrend);
+  const today = dashboardOverview.data?.today;
+  const todayDateKey = React.useMemo(() => getTodayDateKey(userTimeZone), [userTimeZone]);
 
   return (
     <DashboardLayout>
@@ -95,7 +187,7 @@ export default function ReportsPage() {
           </div>
         ) : reportBundle.isError ? (
           <div className="rounded-2xl border bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-            Não foi possível carregar o resumo semanal agora. Tente novamente em instantes para ver tendência e contexto da semana.
+            Não foi possível carregar o resumo semanal agora. Tente novamente em instantes para ver a tendência e o contexto da semana.
           </div>
         ) : null}
 
@@ -103,18 +195,32 @@ export default function ReportsPage() {
           <section className="space-y-4">
             <PageIntro
               eyebrow="Relatórios"
-              title="Progresso nutricional da semana"
+              title={`Progresso nutricional da ${weekLabel.toLowerCase()}`}
               description={progress.summary.message}
               stats={
                 <div className="grid gap-4 lg:grid-cols-4">
-                  <HighlightCard title="Média semanal" value={formatCalories(progress.summary.averageCalories)} description="Média diária na semana atual." />
-                  <HighlightCard title="Total semanal" value={formatCalories(progress.summary.totalCalories)} description={`Meta semanal ${formatCalories(progress.summary.totalGoalCalories)}.`} />
+                  <HighlightCard title="Média semanal" value={formatCalories(progress.summary.averageCalories)} description="Média diária no período selecionado." />
+                  <HighlightCard title="Total semanal" value={formatCalories(progress.summary.totalCalories)} description={`Meta semanal: ${formatCalories(progress.summary.totalGoalCalories)}.`} />
                   <HighlightCard title="Média de proteína" value={`${formatMacro(progress.summary.averageProtein)} g`} description="Média diária de proteína registrada." />
                   <HighlightCard title="Calorias líquidas" value={formatCalories(progress.summary.totalNetCalories)} description={`Exercícios registrados: ${formatCalories(progress.summary.totalExerciseCalories)}.`} />
                 </div>
               }
               actions={
                 <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+                    {weekLabel}: <span className="font-semibold text-foreground">{weekRangeLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full border bg-card p-1 shadow-sm">
+                    <Button type="button" size="icon" variant="ghost" className="rounded-full" onClick={() => setWeekOffset(-1)} disabled={weekOffset === -1}>
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant={weekOffset === 0 ? "default" : "ghost"} className="rounded-full" onClick={() => setWeekOffset(0)}>
+                      Semana atual
+                    </Button>
+                    <Button type="button" variant={weekOffset === -1 ? "default" : "ghost"} className="rounded-full" onClick={() => setWeekOffset(-1)}>
+                      Semana anterior
+                    </Button>
+                  </div>
                   <div className="rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
                     Saldo semanal: <span className="font-semibold text-foreground">{formatCalories(progress.summary.balanceCalories)}</span>
                   </div>
@@ -137,25 +243,25 @@ export default function ReportsPage() {
                       Semana em formato de calendário
                     </CardTitle>
                     <CardDescription>
-                      Visual compacto inspirado em calendário: dias da semana em colunas e totais semanais na lateral.
+                      Visual compacto inspirado em calendário, com os dias da semana em colunas e os totais semanais na lateral.
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground lg:max-w-[520px] lg:justify-end">
-                    <CalendarLegend tone="bg-emerald-500" label="dentro" />
-                    <CalendarLegend tone="bg-amber-500" label="acima" />
-                    <CalendarLegend tone="bg-sky-500" label="abaixo" />
+                    <CalendarLegend tone="bg-emerald-500" label="dentro da meta" />
+                    <CalendarLegend tone="bg-amber-500" label="acima da meta" />
+                    <CalendarLegend tone="bg-sky-500" label="abaixo da meta" />
                     <CalendarLegend tone="bg-muted-foreground" label="sem registro" />
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <WeeklyCalendarBoard progress={progress} caloricTrend={caloricTrend} />
+                <WeeklyCalendarBoard progress={progress} caloricTrend={caloricTrend} todayDateKey={todayDateKey} />
 
                 <div className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
                   <Card className="border bg-muted/10 shadow-none">
                     <CardHeader>
                       <CardTitle>Dias da semana</CardTitle>
-                      <CardDescription>Dias sem registro ficam separados para não distorcer a leitura de consistência.</CardDescription>
+                      <CardDescription>Dias sem registro ficam separados para não distorcer a leitura da consistência.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <StatusTile label="Dentro da meta" value={progress.summary.daysWithinGoal} />
@@ -169,7 +275,7 @@ export default function ReportsPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Scale className="h-5 w-5 text-primary" />
-                        Evolução de peso
+                        Evolução do peso
                       </CardTitle>
                       <CardDescription>Exibida quando houver registros disponíveis.</CardDescription>
                     </CardHeader>
@@ -182,12 +288,12 @@ export default function ReportsPage() {
                             <StatusTile label="Variação" value={`${formatMacro(progress.weight.deltaKg ?? 0)} kg`} />
                           </div>
                           <p className="text-sm leading-6 text-muted-foreground">
-                            Peso é melhor lido como tendência. Oscilações de curto prazo podem refletir hidratação, rotina e horários de medição.
+                            O peso é melhor lido como tendência. Oscilações de curto prazo podem refletir hidratação, rotina e horários de medição.
                           </p>
                         </div>
                       ) : (
                         <div className="rounded-2xl border border-dashed bg-background/70 p-5 text-sm leading-6 text-muted-foreground">
-                          Nenhum peso registrado ainda. Quando houver dados, a tendência aparece aqui junto do contexto semanal.
+                          Ainda não há peso registrado. Quando houver dados, a tendência aparecerá aqui junto do contexto semanal.
                         </div>
                       )}
                     </CardContent>
@@ -207,7 +313,7 @@ export default function ReportsPage() {
             <HighlightCard
               title="Consumo semanal"
               value={formatCalories(caloricTrend.reduce((acc, day) => acc + day.calories, 0))}
-              description="Soma do período monitorado nos últimos sete dias."
+              description="Soma do período monitorado nos sete dias selecionados."
             />
             <HighlightCard
               title="Média diária"
@@ -222,10 +328,42 @@ export default function ReportsPage() {
           </div>
         </section>
 
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Dumbbell className="h-5 w-5 text-primary" />
+              Equação energética do dia
+            </CardTitle>
+            <CardDescription>Visão direta da meta, do consumo alimentar e do gasto com exercícios, agora dentro da área de relatórios.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {today ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <StatusTile label="Meta" value={formatCalories(today.goal.calories ?? 0)} />
+                  <StatusTile label="Alimentos" value={formatCalories(today.consumed.calories ?? 0)} />
+                  <StatusTile label="Exercícios" value={formatCalories(today.burned.calories ?? 0)} />
+                  <StatusTile label="Saldo líquido" value={formatCalories(today.net.calories ?? 0)} />
+                </div>
+                <div className="rounded-2xl border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
+                  Restam <span className="font-semibold text-foreground">{formatCalories(today.net.remainingToGoal ?? 0)}</span> para atingir a meta líquida do dia, considerando o consumo menos os exercícios registrados.
+                </div>
+              </div>
+            ) : dashboardOverview.isLoading ? (
+              <Skeleton className="h-32 rounded-2xl" />
+            ) : (
+              <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
+                A equação energética do dia não está disponível no momento.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <CollapsibleSection
           title="Insights e qualidade alimentar"
-          description="Relatório automático, indicadores de qualidade e sinais práticos ficam agrupados porque explicam o comportamento da semana."
+          description="O relatório automático, os indicadores de qualidade e os sinais práticos ficam agrupados porque explicam o comportamento da semana."
           aside={<Lightbulb className="h-5 w-5 text-primary" />}
+          defaultOpen={true}
         >
           <div className="space-y-4">
             <div>
@@ -256,7 +394,7 @@ export default function ReportsPage() {
                       <div className="mt-4 flex flex-wrap gap-2">
                         {Object.entries(insight.data).map(([key, value]) => (
                           <Badge key={key} variant="outline" className="rounded-full">
-                            {formatInsightKey(key)}: {String(value ?? "-")}
+                            {formatInsightKey(key)}: {formatInsightValue(key, value)}
                           </Badge>
                         ))}
                       </div>
@@ -273,12 +411,12 @@ export default function ReportsPage() {
             <div className="rounded-3xl border bg-muted/10 p-4">
               <div className="mb-3">
                 <h2 className="text-lg font-semibold tracking-tight">Indicadores de qualidade da semana</h2>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Proteína, fibra, água, frutas, vegetais, ultraprocessados e regularidade em um só bloco.</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Proteína, fibras, água, frutas, vegetais, ultraprocessados e regularidade em um só bloco.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <StatusTile label="Proteína" value={`${formatMacro(weeklyQuality.proteinGrams)} g`} />
-                <StatusTile label="Fibra" value={`${formatMacro(weeklyQuality.fiberGrams)} g`} />
-                <StatusTile label="Água" value={`${Math.round(weeklyQuality.waterMl).toLocaleString("pt-BR")} ml`} />
+                <StatusTile label="Fibras" value={`${formatMacro(weeklyQuality.fiberGrams)} g`} />
+                <StatusTile label="Água" value={formatCountPtBr(Math.round(weeklyQuality.waterMl), " ml")} />
                 <StatusTile label="Frutas" value={formatMacro(weeklyQuality.fruitServings)} />
                 <StatusTile label="Vegetais" value={formatMacro(weeklyQuality.vegetableServings)} />
                 <StatusTile label="Ultraprocessados" value={formatMacro(weeklyQuality.ultraProcessedServings)} />
@@ -291,61 +429,31 @@ export default function ReportsPage() {
 
         <CollapsibleSection
           title="Refeições detalhadas"
-          description="Alimentos agrupados por data e refeição para leitura mais rápida do histórico."
+          description="Aplicamos aqui a mesma leitura compacta e agrupada usada na tela de refeições, organizada por dia dentro da semana selecionada."
           aside={<UtensilsCrossed className="h-5 w-5 text-primary" />}
+          defaultOpen={false}
         >
-          {detailedMealsByDate.length ? (
-            <div className="space-y-5">
-              {detailedMealsByDate.map(group => {
-                const dayCalories = group.items.reduce((acc, meal) => acc + meal.totals.calories, 0);
-                return (
-                  <div key={group.date} className="rounded-3xl border bg-muted/10 p-4">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-base font-semibold tracking-tight capitalize">{formatDateHeading(group.date)}</p>
-                        <p className="text-sm text-muted-foreground">{group.items.length} refeições detalhadas neste dia.</p>
-                      </div>
-                      <Badge variant="secondary" className="w-fit">{formatCalories(dayCalories)}</Badge>
+          {mealGroupsByDate.length ? (
+            <div className="space-y-4">
+              {mealGroupsByDate.map(group => (
+                <details key={group.date} className="group rounded-3xl border bg-muted/10 p-4">
+                  <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-base font-semibold tracking-tight capitalize">{formatDateHeading(group.date)}</p>
+                      <p className="text-sm text-muted-foreground">Toque para abrir as refeições deste dia.</p>
                     </div>
-
-                    <div className="mt-4 space-y-4">
-                      {group.items.map(meal => (
-                        <div key={meal.id} className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-1">
-                              <p className="text-base font-semibold tracking-tight text-foreground">{meal.mealLabel}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Total da refeição: {formatMacro(meal.totals.calories)} kcal · {formatMacro(meal.totals.protein)} g proteína · {formatMacro(meal.totals.carbs)} g carboidratos · {formatMacro(meal.totals.fat)} g gorduras
-                              </p>
-                            </div>
-                            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm font-medium text-foreground">
-                              <Clock3 className="h-4 w-4" />
-                              Registro às {formatMealTime(meal.occurredAt)}
-                            </div>
-                          </div>
-
-                          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                            {meal.items.map((item, index) => (
-                              <div key={`${meal.id}-${item.foodName}-${index}`} className="rounded-xl border border-border/70 bg-muted/20 p-4">
-                                <div className="space-y-1">
-                                  <p className="font-semibold text-foreground">{item.foodName}</p>
-                                  <p className="text-sm font-medium text-muted-foreground">Porção: {item.portionText}</p>
-                                </div>
-                                <div className="mt-3 space-y-2 text-sm text-foreground">
-                                  <div className="flex items-center justify-between gap-3"><span>Proteínas</span><span className="font-medium">{formatMacro(item.protein)} g</span></div>
-                                  <div className="flex items-center justify-between gap-3"><span>Carboidratos</span><span className="font-medium">{formatMacro(item.carbs)} g</span></div>
-                                  <div className="flex items-center justify-between gap-3"><span>Gorduras</span><span className="font-medium">{formatMacro(item.fat)} g</span></div>
-                                  <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-2"><span>Calorias</span><span className="font-semibold">{formatMacro(item.calories)} kcal</span></div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary" className="w-fit">
+                        {formatCalories(group.groups.reduce((acc, mealGroup) => acc + mealGroup.totals.calories, 0))}
+                      </Badge>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
                     </div>
+                  </summary>
+                  <div className="pt-4">
+                    <RegisteredMealGroups groups={group.groups} userTimeZone={userTimeZone} emptyMessage="Nenhuma refeição encontrada para este dia." />
                   </div>
-                );
-              })}
+                </details>
+              ))}
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
@@ -358,6 +466,7 @@ export default function ReportsPage() {
           title="Gráficos e leitura analítica"
           description="Gráficos de tendência e comparativos para investigar desvios com mais contexto."
           aside={<BarChart3 className="h-5 w-5 text-primary" />}
+          defaultOpen={true}
         >
           <div className="space-y-6">
             <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
@@ -365,10 +474,10 @@ export default function ReportsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5 text-primary" />
-                    Calorias consumidas versus meta
+                    Calorias consumidas em relação à meta
                   </CardTitle>
                   <CardDescription>
-                    Compare o volume de ingestão de cada dia com a meta calórica diária configurada para o usuário.
+                    Compare o volume ingerido em cada dia com a meta calórica diária configurada para o usuário.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-[360px]">
@@ -380,7 +489,11 @@ export default function ReportsPage() {
                       <Tooltip />
                       <Legend />
                       <Bar dataKey="goalCalories" name="Meta" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
-                      <Bar dataKey="calories" name="Consumido" fill="#10b981" radius={[8, 8, 0, 0]} />
+                      <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
+                        {caloricTrend.map(day => (
+                          <Cell key={day.date} fill={day.calories > day.goalCalories ? "#dc2626" : "#10b981"} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -406,7 +519,7 @@ export default function ReportsPage() {
                           </p>
                         </div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                          Proteínas {formatMacro(day.protein)} g · Carboidratos {formatMacro(day.carbs)} g · Gorduras {formatMacro(day.fat)} g
+                          Proteínas: {formatMacro(day.protein)} g · Carboidratos: {formatMacro(day.carbs)} g · Gorduras: {formatMacro(day.fat)} g
                         </p>
                       </div>
                     );
@@ -419,7 +532,7 @@ export default function ReportsPage() {
               <CardHeader>
                 <CardTitle>Distribuição de macronutrientes</CardTitle>
                 <CardDescription>
-                  Evolução agregada de proteínas, carboidratos e gorduras ao longo da semana. Útil para avaliar consistência alimentar e desvios de estratégia.
+                  Evolução agregada de proteínas, carboidratos e gorduras ao longo da semana. Útil para avaliar a consistência alimentar e possíveis desvios de estratégia.
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-[360px]">
@@ -444,12 +557,13 @@ export default function ReportsPage() {
   );
 }
 
-function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; caloricTrend: any[] }) {
+function WeeklyCalendarBoard({ progress, caloricTrend, todayDateKey }: { progress: any; caloricTrend: any[]; todayDateKey: string }) {
   const totals = progress.days.reduce(
-    (acc: { calories: number; goal: number; net: number; exercise: number; water: number; meals: number; protein: number; carbs: number; fat: number }, day: any) => {
+    (acc: { calories: number; goal: number; balance: number; net: number; exercise: number; water: number; meals: number; protein: number; carbs: number; fat: number }, day: any) => {
       const trendDay = caloricTrend.find(item => item.date === day.date);
       acc.calories += day.calories ?? 0;
       acc.goal += day.goalCalories ?? 0;
+      acc.balance += (day.calories ?? 0) - (day.goalCalories ?? 0);
       acc.net += day.netCalories ?? 0;
       acc.exercise += trendDay?.exerciseCalories ?? 0;
       acc.water += trendDay?.quality?.waterMl ?? 0;
@@ -459,7 +573,7 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
       acc.fat += trendDay?.fat ?? 0;
       return acc;
     },
-    { calories: 0, goal: 0, net: 0, exercise: 0, water: 0, meals: 0, protein: 0, carbs: 0, fat: 0 },
+    { calories: 0, goal: 0, balance: 0, net: 0, exercise: 0, water: 0, meals: 0, protein: 0, carbs: 0, fat: 0 },
   );
 
   return (
@@ -471,28 +585,32 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
               {dayName}
             </div>
           ))}
-          <div className="bg-foreground/70 px-4 py-2 text-center text-background">Totais semanais</div>
+          <div className="bg-foreground/70 px-4 py-2 text-center text-background">Totais da semana</div>
         </div>
 
         <div className="grid grid-cols-[repeat(7,minmax(135px,1fr))_210px]">
           {progress.days.map((day: any) => {
             const trendDay = caloricTrend.find(item => item.date === day.date);
             const delta = day.calories - day.goalCalories;
+            const isToday = day.date === todayDateKey;
             return (
-              <div key={day.date} className={`min-h-[420px] border-r p-2 ${calendarCellTone(day.status)}`}>
+              <div key={day.date} className={`min-h-[420px] border-r p-2 ${calendarCellTone(day.status)} ${isToday ? "ring-2 ring-inset ring-primary/55 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]" : ""}`}>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-xs text-muted-foreground">{formatCalendarDay(day.date)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">{formatCalendarDay(day.date)}</p>
+                      {isToday ? <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px] uppercase tracking-[0.18em]">Hoje</Badge> : null}
+                    </div>
                     <p className="text-sm font-semibold tracking-tight">{day.label}</p>
                   </div>
                   <span className={`h-2.5 w-2.5 rounded-full ${statusDotTone(day.status)}`} />
                 </div>
 
                 <div className="space-y-2">
-                  <CalendarEvent tone="border-l-emerald-500" icon={Flame} title="Calorias" value={formatCalories(day.calories)} detail={`Meta ${formatCalories(day.goalCalories)}`} />
-                  <CalendarEvent tone={delta > 0 ? "border-l-amber-500" : "border-l-sky-500"} icon={TrendingUp} title="Saldo" value={formatCalories(day.netCalories)} detail={`${delta > 0 ? "+" : ""}${formatNumberPtBr(Math.round(delta))} kcal vs. meta`} />
+                  <CalendarEvent tone="border-l-emerald-500" icon={Flame} title="Calorias" value={formatCalories(day.calories)} detail={`Meta: ${formatCalories(day.goalCalories)}`} />
+                  <CalendarEvent tone={delta > 0 ? "border-l-amber-500" : "border-l-sky-500"} icon={TrendingUp} title="Saldo" value={formatCalories(day.netCalories)} detail={`${delta > 0 ? "+" : ""}${formatNumberPtBr(Math.round(delta))} kcal em relação à meta`} />
                   <CalendarEvent tone="border-l-orange-500" icon={Dumbbell} title="Exercícios" value={formatCalories(trendDay?.exerciseCalories ?? 0)} detail="Gasto energético" />
-                  <CalendarEvent tone="border-l-blue-500" icon={Droplets} title="Água" value={`${Math.round(trendDay?.quality?.waterMl ?? 0).toLocaleString("pt-BR")} ml`} detail="Hidratação" />
+                  <CalendarEvent tone="border-l-blue-500" icon={Droplets} title="Água" value={formatCountPtBr(Math.round(trendDay?.quality?.waterMl ?? 0), " ml")} detail="Hidratação" />
                   <div className="rounded-xl border bg-background/85 p-2 text-xs">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="font-medium">Aderência</span>
@@ -501,10 +619,10 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
                     <Progress className="h-1.5" value={progressPercent(day.calories, day.goalCalories)} />
                   </div>
                   <div className="rounded-xl border bg-background/85 p-2 text-xs leading-5 text-muted-foreground">
-                    <p className="font-medium text-foreground">Macros</p>
-                    <p>P {formatMacro(trendDay?.protein ?? 0)} g</p>
-                    <p>C {formatMacro(trendDay?.carbs ?? 0)} g</p>
-                    <p>G {formatMacro(trendDay?.fat ?? 0)} g</p>
+                    <p className="font-medium text-foreground">Macronutrientes</p>
+                    <p>P: {formatMacro(trendDay?.protein ?? 0)} g</p>
+                    <p>C: {formatMacro(trendDay?.carbs ?? 0)} g</p>
+                    <p>G: {formatMacro(trendDay?.fat ?? 0)} g</p>
                   </div>
                 </div>
               </div>
@@ -513,14 +631,14 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
 
           <div className="min-h-[420px] bg-foreground/70 p-4 text-background">
             <p className="mb-4 text-sm font-semibold tracking-tight">Resumo acumulado</p>
-            <WeeklyTotalItem label="Calorias" value={formatCalories(totals.calories)} />
             <WeeklyTotalItem label="Meta" value={formatCalories(totals.goal)} />
-            <WeeklyTotalItem label="Saldo líquido" value={formatCalories(totals.net)} />
+            <WeeklyTotalItem label="Consumo" value={formatCalories(totals.calories)} />
+            <WeeklyTotalItem label="Saldo" value={formatCalories(totals.balance)} />
             <WeeklyTotalItem label="Exercícios" value={formatCalories(totals.exercise)} />
-            <WeeklyTotalItem label="Água" value={`${Math.round(totals.water).toLocaleString("pt-BR")} ml`} />
+            <WeeklyTotalItem label="Água" value={formatCountPtBr(Math.round(totals.water), " ml")} />
             <WeeklyTotalItem label="Refeições" value={String(totals.meals)} />
             <div className="mt-4 border-t border-background/25 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-background/70">Macros</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-background/70">Macronutrientes</p>
               <p className="mt-2 text-sm">Proteínas: {formatMacro(totals.protein)} g</p>
               <p className="text-sm">Carboidratos: {formatMacro(totals.carbs)} g</p>
               <p className="text-sm">Gorduras: {formatMacro(totals.fat)} g</p>
@@ -566,7 +684,7 @@ function SectionHeading({ title, description }: { title: string; description: st
 function CollapsibleSection({
   title,
   description,
-  defaultOpen: _defaultOpen = false,
+  defaultOpen = false,
   aside,
   children,
 }: {
@@ -578,16 +696,21 @@ function CollapsibleSection({
 }) {
   return (
     <Card className="border-0 shadow-sm">
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex gap-3">
-          {aside ? <div className="mt-1">{aside}</div> : null}
-          <div>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
+      <details className="group" open={defaultOpen}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              {aside ? <div className="mt-1">{aside}</div> : null}
+              <div>
+                <CardTitle>{title}</CardTitle>
+                <CardDescription>{description}</CardDescription>
+              </div>
+            </div>
+            <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-open:rotate-180" />
+          </CardHeader>
+        </summary>
+        <CardContent>{children}</CardContent>
+      </details>
     </Card>
   );
 }
@@ -661,6 +784,10 @@ function insightTone(severity: "info" | "positive" | "warning") {
 }
 
 function formatInsightKey(key: string) {
+  if (INSIGHT_KEY_LABELS[key]) {
+    return INSIGHT_KEY_LABELS[key];
+  }
+
   return key
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, value => value.toUpperCase());

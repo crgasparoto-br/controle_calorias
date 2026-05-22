@@ -63,6 +63,7 @@ export type AnalyticsEventMap = {
   };
   weekly_report_viewed: {
     report_type: "summary" | "progress" | "insights" | "bundle";
+    week_offset?: number;
   };
   goal_updated: {
     exception_count: number;

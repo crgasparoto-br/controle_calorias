@@ -316,7 +316,7 @@ const overviewData = {
       mealLabel: "Almoço",
       occurredAt: Date.now(),
       source: "web",
-      items: [{ foodName: "Frango grelhado", portionText: "150 g", calories: 420, protein: 38, carbs: 30, fat: 12 }],
+      items: [{ foodName: "Frango grelhado", canonicalName: "Frango grelhado", portionText: "150 g", servings: 1, estimatedGrams: 150, calories: 420, protein: 38, carbs: 30, fat: 12, confidence: 1, source: "catalog" }],
       totals: { calories: 420, protein: 38, carbs: 30, fat: 12 },
     },
   ],
@@ -512,18 +512,21 @@ describe("nutrition pages", () => {
     expect(html).toContain("Peso atual");
   });
 
-  it("renderiza a página de relatórios com resumo semanal, seções analíticas e insights nutricionais", async () => {
+  it("renderiza a página de relatórios com resumo semanal, navegação entre semanas e equação energética do dia", async () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("Progresso nutricional da semana");
+    expect(html).toContain("Progresso nutricional da semana atual");
+    expect(html).toContain("Semana atual");
+    expect(html).toContain("Semana anterior");
     expect(html).toContain("Média semanal");
     expect(html).toContain("Dias da semana");
-    expect(html).toContain("Evolução de peso");
+    expect(html).toContain("Evolução do peso");
     expect(html).toContain("Insights alimentares da semana");
     expect(html).toContain("Aderência à meta calórica semanal");
     expect(html).toContain("Refeições detalhadas");
-    expect(html).toContain("Alimentos agrupados por data e refeição para leitura mais rápida do histórico.");
+    expect(html).toContain("mesma leitura compacta e agrupada usada na tela de refeições");
+    expect(html).toContain("Equação energética do dia");
     expect(html).toContain("Gráficos e leitura analítica");
     expect(html).toContain("Consumo semanal");
     expect(html).toContain("Calorias líquidas");

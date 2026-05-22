@@ -16,10 +16,10 @@ type RegisteredMealGroupsProps = {
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
-  onEditMeal: (meal: StoredMeal) => void;
-  onCopyMeal: (meal: StoredMeal, mealLabel: MealType) => void;
-  onFavoriteMeal: (meal: StoredMeal) => void;
-  onRemoveMeal: (meal: StoredMeal) => void;
+  onEditMeal?: (meal: StoredMeal) => void;
+  onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
+  onFavoriteMeal?: (meal: StoredMeal) => void;
+  onRemoveMeal?: (meal: StoredMeal) => void;
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 };
 
@@ -79,29 +79,37 @@ function MealFoodRow({
   record: RegisteredMealRecordViewModel;
   userTimeZone: string;
   isSelected: boolean;
-  onEditMeal: (meal: StoredMeal) => void;
+  onEditMeal?: (meal: StoredMeal) => void;
 }) {
   const portionLabel = item.item.portionText.trim() || formatGrams(item.item.estimatedGrams);
+  const className = [
+    "w-full rounded-2xl border px-3 py-3 text-left transition",
+    isSelected ? "border-primary/40 bg-primary/5" : "bg-background/70 hover:border-primary/40 hover:bg-primary/5",
+  ].join(" ");
+  const content = (
+    <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap text-sm">
+      <span className="shrink-0 font-medium text-foreground">{formatTimeLabel(item.registeredAt, userTimeZone)}</span>
+      <span className="shrink-0 text-muted-foreground">{portionLabel}</span>
+      <span className="min-w-fit font-medium tracking-tight text-foreground">{item.item.foodName}</span>
+      <span className="shrink-0 rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground">{formatCalories(item.item.calories)}</span>
+      <NutritionBadge label="Proteínas" value={formatGrams(item.item.protein)} />
+      <NutritionBadge label="Carboidratos" value={formatGrams(item.item.carbs)} />
+      <NutritionBadge label="Gorduras" value={formatGrams(item.item.fat)} />
+      <NutritionBadge label="Qtd." value={formatGrams(item.item.estimatedGrams)} />
+    </div>
+  );
+
+  if (!onEditMeal) {
+    return <div className={className}>{content}</div>;
+  }
 
   return (
     <button
       type="button"
       onClick={() => onEditMeal(record.meal)}
-      className={[
-        "w-full rounded-2xl border px-3 py-3 text-left transition",
-        isSelected ? "border-primary/40 bg-primary/5" : "bg-background/70 hover:border-primary/40 hover:bg-primary/5",
-      ].join(" ")}
+      className={className}
     >
-      <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap text-sm">
-        <span className="shrink-0 font-medium text-foreground">{formatTimeLabel(item.registeredAt, userTimeZone)}</span>
-        <span className="shrink-0 text-muted-foreground">{portionLabel}</span>
-        <span className="min-w-fit font-medium tracking-tight text-foreground">{item.item.foodName}</span>
-        <span className="shrink-0 rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground">{formatCalories(item.item.calories)}</span>
-        <NutritionBadge label="Proteínas" value={formatGrams(item.item.protein)} />
-        <NutritionBadge label="Carboidratos" value={formatGrams(item.item.carbs)} />
-        <NutritionBadge label="Gorduras" value={formatGrams(item.item.fat)} />
-        <NutritionBadge label="Qtd." value={formatGrams(item.item.estimatedGrams)} />
-      </div>
+      {content}
     </button>
   );
 }
@@ -125,16 +133,17 @@ function RegisteredMealGroupSection({
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
-  onEditMeal: (meal: StoredMeal) => void;
-  onCopyMeal: (meal: StoredMeal, mealLabel: MealType) => void;
-  onFavoriteMeal: (meal: StoredMeal) => void;
-  onRemoveMeal: (meal: StoredMeal) => void;
+  onEditMeal?: (meal: StoredMeal) => void;
+  onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
+  onFavoriteMeal?: (meal: StoredMeal) => void;
+  onRemoveMeal?: (meal: StoredMeal) => void;
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const referenceDate = group.records[0]?.registeredAt;
   const imageRecords = group.records.filter(record => record.imageUrl);
   const primaryRecord = group.records[0];
+  const hasActions = Boolean(onEditMeal || onCopyMeal || onFavoriteMeal || onRemoveMeal);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -184,30 +193,38 @@ function RegisteredMealGroupSection({
 
             {primaryRecord?.mealNotes ? <p className="mt-4 text-sm text-muted-foreground">{primaryRecord.mealNotes}</p> : null}
 
-            {primaryRecord ? (
+            {primaryRecord && hasActions ? (
               <div className="mt-4 flex flex-wrap gap-3 border-t pt-4">
-                <Button type="button" variant={selectedMealId === primaryRecord.meal.id ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(primaryRecord.meal)}>
-                  <PencilLine className="mr-2 h-4 w-4" />
-                  {selectedMealId === primaryRecord.meal.id ? "Editando esta refeição" : "Editar refeição"}
-                </Button>
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(primaryRecord.meal, primaryRecord.mealLabel)} disabled={isCopyPending}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar para o dia
-                </Button>
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(primaryRecord.meal)} disabled={isFavoritePending}>
-                  <Star className="mr-2 h-4 w-4" />
-                  Salvar favorita
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
-                  onClick={() => onRemoveMeal(primaryRecord.meal)}
-                  disabled={isRemovePending}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Excluir refeição
-                </Button>
+                {onEditMeal ? (
+                  <Button type="button" variant={selectedMealId === primaryRecord.meal.id ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(primaryRecord.meal)}>
+                    <PencilLine className="mr-2 h-4 w-4" />
+                    {selectedMealId === primaryRecord.meal.id ? "Editando esta refeição" : "Editar refeição"}
+                  </Button>
+                ) : null}
+                {onCopyMeal ? (
+                  <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(primaryRecord.meal, primaryRecord.mealLabel)} disabled={isCopyPending}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiar para o dia
+                  </Button>
+                ) : null}
+                {onFavoriteMeal ? (
+                  <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(primaryRecord.meal)} disabled={isFavoritePending}>
+                    <Star className="mr-2 h-4 w-4" />
+                    Salvar favorita
+                  </Button>
+                ) : null}
+                {onRemoveMeal ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
+                    onClick={() => onRemoveMeal(primaryRecord.meal)}
+                    disabled={isRemovePending}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir refeição
+                  </Button>
+                ) : null}
               </div>
             ) : null}
 

@@ -15,7 +15,7 @@ Personal and health-sensitive raw values must not be sent. Do not send food name
 | `meal_copied` | `target_offset_days` |
 | `favorite_meal_created` | `item_count` |
 | `daily_dashboard_viewed` | `surface` |
-| `weekly_report_viewed` | `report_type` |
+| `weekly_report_viewed` | `report_type`, `week_offset` |
 | `goal_updated` | `exception_count`, `has_safety_warnings` |
 | `weight_logged` | `source` |
 | `subscription_started` | `plan_interval` |
