@@ -21,6 +21,8 @@ const onboardingBaseSchema = z.object({
   birthDate: z.string().trim().min(1, "Informe sua data de nascimento."),
   heightCm: z.number().min(100).max(250),
   currentWeightKg: z.number().min(25).max(350),
+  weightMeasuredAt: z.string().datetime().optional(),
+  weightEntryNote: z.string().trim().max(200).optional(),
   objective: z.enum(["emagrecer", "manter_peso", "ganhar_massa", "melhorar_habitos"]),
   activityLevel: z.enum(["sedentary", "light", "moderate", "active", "very_active"]),
   trackingExperience: z.enum(["beginner", "intermediate", "advanced"]),
