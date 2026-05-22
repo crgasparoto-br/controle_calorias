@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  getBrowserTimeZone,
+  getPreferredTimeZone,
   toDateInputValue,
   toDateTimeLocalValue,
   zonedDateTimeLocalToIso,
@@ -108,7 +108,7 @@ function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleSta
 
   const directMatches = enabledSchedules
     .filter(schedule => isTimeWithinRange(timeMinutes, schedule.startTime, schedule.endTime))
-    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
+    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, b.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
 
   const fallback = enabledSchedules
     .slice()
@@ -135,7 +135,7 @@ export default function LogMealPage() {
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
-  const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
+  const userTimeZone = useMemo(() => getPreferredTimeZone(), []);
 
   const mealSchedules = mealSchedulesQuery.data as MealScheduleState[] | undefined;
   const defaultMealLabel =
@@ -148,10 +148,10 @@ export default function LogMealPage() {
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [mealLabel, setMealLabel] = useState("");
   const [notes, setNotes] = useState("");
-  const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocalValue());
+  const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocalValue(undefined, userTimeZone));
   const [editableItems, setEditableItems] = useState<MealItemState[]>([]);
-  const [manualMeal, setManualMeal] = useState(() => createManualMealState(defaultMealLabel));
-  const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
+  const [manualMeal, setManualMeal] = useState(() => createManualMealState(defaultMealLabel, toDateTimeLocalValue(undefined, userTimeZone)));
+  const [selectedDay, setSelectedDay] = useState(() => toDateInputValue(undefined, userTimeZone));
 
   const suggestedManualMealLabel = useMemo(
     () => suggestMealLabelFromSchedules(manualMeal.occurredAt, mealSchedules),
@@ -272,8 +272,8 @@ export default function LogMealPage() {
   const previewTotals = useMemo(() => sumItems(editableItems), [editableItems]);
   const manualTotals = useMemo(() => sumItems(manualMeal.items), [manualMeal.items]);
   const selectedDayMeals = useMemo(
-    () => (mealsQuery.data ?? []).filter(meal => new Date(meal.occurredAt).toISOString().slice(0, 10) === selectedDay),
-    [mealsQuery.data, selectedDay],
+    () => (mealsQuery.data ?? []).filter(meal => toDateInputValue(new Date(meal.occurredAt), userTimeZone) === selectedDay),
+    [mealsQuery.data, selectedDay, userTimeZone],
   );
   const localDayTotals = useMemo(() => calculateDayTotals(selectedDayMeals), [selectedDayMeals]);
   const dayTotalsQuery = trpc.nutrition.meals.dayTotals.useQuery({ date: selectedDay });
