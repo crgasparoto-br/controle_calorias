@@ -8,6 +8,7 @@ import {
   listUserWaterLogs,
   searchFoods,
 } from "../../db";
+import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
 import { calculateDayTotals, roundNutritionValue } from "../../../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../../../shared/safeMessages";
 import { getDateKeyInTimeZone, getWeekdayIndexInTimeZone, toLogicalDateInTimeZone } from "../../../shared/timeZone";
@@ -102,18 +103,50 @@ function calculateRegularityScore(meals: Array<{ mealLabel: string }>) {
   return Math.min(Math.round(((Math.min(meals.length, 4) / 4) * 60) + ((hasMainMeal / 3) * 40)), 100);
 }
 
+type FoodLookupEntry = {
+  fiber?: number | null;
+  isFruit: boolean;
+  isVegetable: boolean;
+  isUltraProcessed: boolean;
+  servingSize: number;
+};
+
 function createFoodLookup(foods: Awaited<ReturnType<typeof searchFoods>>) {
-  const foodsByName = new Map<string, Awaited<ReturnType<typeof searchFoods>>[number]>();
-  for (const food of foods) {
-    foodsByName.set(normalizeCatalogText(food.name), food);
+  const foodsByName = new Map<string, FoodLookupEntry>();
+
+  for (const food of FOOD_CATALOG_REFERENCE) {
+    const entry: FoodLookupEntry = {
+      fiber: food.fiber ?? null,
+      isFruit: Boolean(food.isFruit),
+      isVegetable: Boolean(food.isVegetable),
+      isUltraProcessed: Boolean(food.isUltraProcessed),
+      servingSize: food.gramsPerServing,
+    };
+
+    foodsByName.set(normalizeCatalogText(food.name), entry);
+    for (const alias of food.aliases) {
+      foodsByName.set(normalizeCatalogText(alias), entry);
+    }
   }
+
+  for (const food of foods) {
+    const existing = foodsByName.get(normalizeCatalogText(food.name));
+    foodsByName.set(normalizeCatalogText(food.name), {
+      fiber: food.fiber ?? existing?.fiber ?? null,
+      isFruit: food.isFruit || existing?.isFruit || false,
+      isVegetable: food.isVegetable || existing?.isVegetable || false,
+      isUltraProcessed: food.isUltraProcessed || existing?.isUltraProcessed || false,
+      servingSize: food.servingSize || existing?.servingSize || 0,
+    });
+  }
+
   return foodsByName;
 }
 
 function calculateQualityIndicators(
   meals: Awaited<ReturnType<typeof listUserMeals>>,
   waterMl: number,
-  foodsByName: Map<string, Awaited<ReturnType<typeof searchFoods>>[number]>,
+  foodsByName: Map<string, FoodLookupEntry>,
 ) {
   if (!meals.length) {
     return {
