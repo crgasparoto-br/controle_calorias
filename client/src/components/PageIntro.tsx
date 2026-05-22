@@ -18,6 +18,8 @@ export default function PageIntro({
   stats,
   className,
 }: PageIntroProps) {
+  const hasHeaderText = Boolean(title || description);
+
   return (
     <section
       className={cn(
@@ -32,10 +34,12 @@ export default function PageIntro({
               {eyebrow}
             </p>
           ) : null}
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1>
-            <p className="text-sm leading-6 text-muted-foreground sm:text-base">{description}</p>
-          </div>
+          {hasHeaderText ? (
+            <div className="space-y-2">
+              {title ? <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1> : null}
+              {description ? <p className="text-sm leading-6 text-muted-foreground sm:text-base">{description}</p> : null}
+            </div>
+          ) : null}
         </div>
         {actions ? (
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
