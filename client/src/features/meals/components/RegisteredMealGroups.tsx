@@ -5,7 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
 import type { MealType, StoredMeal } from "../types";
-import { ChevronDown, ChevronUp, Copy, PencilLine, Star, Trash2 } from "lucide-react";
+import { Copy, Minus, PencilLine, Plus, Star, Trash2 } from "lucide-react";
 
 type RegisteredMealGroupsProps = {
   groups: RegisteredMealGroupViewModel[];
@@ -150,9 +150,11 @@ function RegisteredMealGroupSection({
               <Badge variant="outline">P {formatGrams(group.totals.protein)}</Badge>
               <Badge variant="outline">C {formatGrams(group.totals.carbs)}</Badge>
               <Badge variant="outline">G {formatGrams(group.totals.fat)}</Badge>
-              <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors group-hover:border-primary/30 group-hover:bg-primary/5">
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground group-data-[state=open]:hidden" />
-                <ChevronUp className="hidden h-4 w-4 shrink-0 text-primary group-data-[state=open]:block" />
+              <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition-colors group-hover:border-primary/40 group-hover:bg-primary/10 group-data-[state=open]:border-emerald-200 group-data-[state=open]:bg-emerald-50 group-data-[state=open]:text-emerald-700">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-primary group-data-[state=open]:bg-emerald-100 group-data-[state=open]:text-emerald-700">
+                  <Plus className="h-3.5 w-3.5 group-data-[state=open]:hidden" />
+                  <Minus className="hidden h-3.5 w-3.5 group-data-[state=open]:block" />
+                </span>
                 <span className="group-data-[state=open]:hidden">Expandir</span>
                 <span className="hidden group-data-[state=open]:inline">Recolher</span>
               </span>
