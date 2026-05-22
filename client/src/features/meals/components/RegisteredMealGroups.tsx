@@ -1,11 +1,12 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatDateTimeInTimeZone } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
 import type { MealType, StoredMeal } from "../types";
-import { Copy, PencilLine, Star, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, PencilLine, Star, Trash2 } from "lucide-react";
 
 type RegisteredMealGroupsProps = {
   groups: RegisteredMealGroupViewModel[];
@@ -21,6 +22,28 @@ type RegisteredMealGroupsProps = {
   onRemoveMeal: (meal: StoredMeal) => void;
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 };
+
+function formatDateLabel(value: number, timeZone: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    dateStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatTimeLabel(value: number, timeZone: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function describeMealCount(count: number) {
+  return `${count} ${count === 1 ? "refeição" : "refeições"}`;
+}
+
+function describeFoodCount(count: number) {
+  return `${count} alimento${count === 1 ? "" : "s"}`;
+}
 
 function FoodImage({ record }: { record: RegisteredMealRecordViewModel }) {
   if (!record.imageUrl) {
@@ -39,7 +62,7 @@ function FoodImage({ record }: { record: RegisteredMealRecordViewModel }) {
 
 function NutritionBadge({ label, value }: { label: string; value: string }) {
   return (
-    <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
+    <span className="shrink-0 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
       <strong className="text-foreground">{label}:</strong> {value}
     </span>
   );
@@ -56,34 +79,48 @@ function MealTotalsRow({ record }: { record: RegisteredMealRecordViewModel }) {
   );
 }
 
-function MealFoodRow({ item, userTimeZone }: { item: RegisteredMealItemViewModel; userTimeZone: string }) {
-  return (
-    <div className="rounded-2xl border bg-background/70 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-medium tracking-tight">{item.item.foodName}</p>
-          <p className="text-sm text-muted-foreground">
-            {formatDateTimeInTimeZone(item.registeredAt, userTimeZone)} · {item.item.portionText}
-          </p>
-        </div>
-        <Badge variant="secondary">{formatCalories(item.item.calories)}</Badge>
-      </div>
+function MealFoodRow({
+  item,
+  record,
+  userTimeZone,
+  isSelected,
+  onEditMeal,
+}: {
+  item: RegisteredMealItemViewModel;
+  record: RegisteredMealRecordViewModel;
+  userTimeZone: string;
+  isSelected: boolean;
+  onEditMeal: (meal: StoredMeal) => void;
+}) {
+  const portionLabel = item.item.portionText.trim() || formatGrams(item.item.estimatedGrams);
 
-      <div className="mt-3 flex flex-wrap gap-2">
+  return (
+    <button
+      type="button"
+      onClick={() => onEditMeal(record.meal)}
+      className={[
+        "w-full rounded-2xl border px-3 py-3 text-left transition",
+        isSelected ? "border-primary/40 bg-primary/5" : "bg-background/70 hover:border-primary/40 hover:bg-primary/5",
+      ].join(" ")}
+    >
+      <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap text-sm">
+        <span className="shrink-0 font-medium text-foreground">{formatTimeLabel(item.registeredAt, userTimeZone)}</span>
+        <span className="shrink-0 text-muted-foreground">{portionLabel}</span>
+        <span className="min-w-fit font-medium tracking-tight text-foreground">{item.item.foodName}</span>
+        <span className="shrink-0 rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground">{formatCalories(item.item.calories)}</span>
         <NutritionBadge label="Proteínas" value={formatGrams(item.item.protein)} />
         <NutritionBadge label="Carboidratos" value={formatGrams(item.item.carbs)} />
         <NutritionBadge label="Gorduras" value={formatGrams(item.item.fat)} />
         <NutritionBadge label="Qtd." value={formatGrams(item.item.estimatedGrams)} />
       </div>
-    </div>
+    </button>
   );
 }
 
-export function RegisteredMealGroups({
-  groups,
+function RegisteredMealGroupSection({
+  group,
   userTimeZone,
   selectedMealId,
-  emptyMessage,
   isCopyPending,
   isFavoritePending,
   isRemovePending,
@@ -92,37 +129,47 @@ export function RegisteredMealGroups({
   onFavoriteMeal,
   onRemoveMeal,
   renderEditingForm,
-}: RegisteredMealGroupsProps) {
-  if (!groups.length) {
-    return (
-      <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-        {emptyMessage}
-      </div>
-    );
-  }
+}: {
+  group: RegisteredMealGroupViewModel;
+  userTimeZone: string;
+  selectedMealId?: number;
+  isCopyPending?: boolean;
+  isFavoritePending?: boolean;
+  isRemovePending?: boolean;
+  onEditMeal: (meal: StoredMeal) => void;
+  onCopyMeal: (meal: StoredMeal, mealLabel: MealType) => void;
+  onFavoriteMeal: (meal: StoredMeal) => void;
+  onRemoveMeal: (meal: StoredMeal) => void;
+  renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
+}) {
+  const referenceDate = group.records[0]?.registeredAt;
+  const summary = referenceDate
+    ? `${formatDateLabel(referenceDate, userTimeZone)} · ${describeMealCount(group.records.length)} · ${describeFoodCount(group.items.length)}`
+    : `${describeMealCount(group.records.length)} · ${describeFoodCount(group.items.length)}`;
 
   return (
-    <div className="space-y-4">
-      {groups.map(group => (
-        <section key={group.mealLabel} className="rounded-3xl border bg-background p-4 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+    <Collapsible defaultOpen>
+      <section className="rounded-3xl border bg-background shadow-sm">
+        <CollapsibleTrigger asChild>
+          <button type="button" className="group flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left">
+            <div className="min-w-0 space-y-1">
               <p className="text-lg font-semibold capitalize tracking-tight">{group.mealLabel}</p>
-              <p className="text-sm text-muted-foreground">
-                {group.records.length} {group.records.length === 1 ? "refeição" : "refeições"} · {group.items.length} alimento{group.items.length === 1 ? "" : "s"}
-              </p>
+              <p className="text-sm text-muted-foreground">{summary}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(group.totals.calories)}</Badge>
               <Badge variant="outline">P {formatGrams(group.totals.protein)}</Badge>
               <Badge variant="outline">C {formatGrams(group.totals.carbs)}</Badge>
               <Badge variant="outline">G {formatGrams(group.totals.fat)}</Badge>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
             </div>
-          </div>
+          </button>
+        </CollapsibleTrigger>
 
-          <div className="mt-4 space-y-3">
+        <CollapsibleContent className="border-t bg-muted/10 px-4 pb-4 pt-4">
+          <div className="space-y-3">
             {group.records.map(record => (
-              <div key={record.meal.id} className="rounded-2xl border bg-muted/10 p-4">
+              <div key={record.meal.id} className="rounded-2xl border bg-background p-4">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start">
                   <FoodImage record={record} />
                   <div className="min-w-0 flex-1 space-y-3">
@@ -134,12 +181,15 @@ export function RegisteredMealGroups({
                       <MealTotalsRow record={record} />
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {record.items.map(item => (
                         <MealFoodRow
                           key={`${record.meal.id}-${item.item.foodName}-${item.itemIndex}`}
                           item={item}
+                          record={record}
                           userTimeZone={userTimeZone}
+                          isSelected={selectedMealId === record.meal.id}
+                          onEditMeal={onEditMeal}
                         />
                       ))}
                     </div>
@@ -173,7 +223,51 @@ export function RegisteredMealGroups({
               </div>
             ))}
           </div>
-        </section>
+        </CollapsibleContent>
+      </section>
+    </Collapsible>
+  );
+}
+
+export function RegisteredMealGroups({
+  groups,
+  userTimeZone,
+  selectedMealId,
+  emptyMessage,
+  isCopyPending,
+  isFavoritePending,
+  isRemovePending,
+  onEditMeal,
+  onCopyMeal,
+  onFavoriteMeal,
+  onRemoveMeal,
+  renderEditingForm,
+}: RegisteredMealGroupsProps) {
+  if (!groups.length) {
+    return (
+      <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {groups.map(group => (
+        <RegisteredMealGroupSection
+          key={group.mealLabel}
+          group={group}
+          userTimeZone={userTimeZone}
+          selectedMealId={selectedMealId}
+          isCopyPending={isCopyPending}
+          isFavoritePending={isFavoritePending}
+          isRemovePending={isRemovePending}
+          onEditMeal={onEditMeal}
+          onCopyMeal={onCopyMeal}
+          onFavoriteMeal={onFavoriteMeal}
+          onRemoveMeal={onRemoveMeal}
+          renderEditingForm={renderEditingForm}
+        />
       ))}
     </div>
   );
