@@ -500,16 +500,23 @@ describe("nutrition pages", () => {
     const { default: LogMealPage } = await import("./LogMealPage");
     const html = renderToString(React.createElement(LogMealPage));
 
-    expect(html).toContain("Registro de refeição");
-    expect(html).toContain("Registre com texto, foto ou áudio no mesmo fluxo");
-    expect(html).toContain("foto do prato, foto de rótulo e áudio");
+    expect(html).not.toContain("Registre refeições, água, exercícios e peso no mesmo lugar");
+    expect(html).not.toContain("Use um único ponto para registrar o dia e revisar tudo sem trocar de tela.");
+    expect(html).toContain("Texto, foto e áudio no mesmo rascunho.");
     expect(html).toContain("Descrição em texto");
-    expect(html).toContain("Use texto, foto do prato, foto de rótulo e áudio no mesmo fluxo");
+    expect(html).toContain("Record com IA");
     expect(html).toContain("Manual");
-    expect(html).toContain("Hoje");
+    expect(html).not.toContain("Hoje");
+    expect(html).toContain("Água do dia");
+    expect(html).toContain("Exercícios");
+    expect(html).toContain("Peso atual");
+    expect(html).toContain("Data e hora da medição");
+    expect(html).toContain("Meta diária (ml)");
+    expect(html).toContain("Gasto estimado (kcal)");
+    expect(html).toContain("Peso salvo");
   });
 
-  it("renderiza a página de relatórios com resumo semanal, seções recolhíveis e insights nutricionais", async () => {
+  it("renderiza a página de relatórios com resumo semanal, seções analíticas e insights nutricionais", async () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
@@ -520,7 +527,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Insights alimentares da semana");
     expect(html).toContain("Aderência à meta calórica semanal");
     expect(html).toContain("Refeições detalhadas");
-    expect(html).toContain("Lista completa recolhida por padrão");
+    expect(html).toContain("Alimentos agrupados por data e refeição para leitura mais rápida do histórico.");
     expect(html).toContain("Gráficos e leitura analítica");
     expect(html).toContain("Consumo semanal");
     expect(html).toContain("Calorias líquidas");

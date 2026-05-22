@@ -42,6 +42,7 @@ function Router() {
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/settings" component={OnboardingPage} />
       <Route path="/log-meal" component={LogMealPage} />
+      <Route path="/record" component={LogMealPage} />
       <Route path="/meals" component={RegisteredMealsPage} />
       <Route path="/foods" component={FoodsPage} />
       <Route path="/goals" component={GoalsPage} />

@@ -67,11 +67,9 @@ export function MealAiTabContent({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <WandSparkles className="h-5 w-5 text-primary" />
-            Registro de refeição
+            Record
           </CardTitle>
-          <CardDescription>
-            Use texto, foto do prato, foto de rótulo e áudio no mesmo fluxo. A IA prepara um rascunho único para revisão.
-          </CardDescription>
+          <CardDescription>Texto, foto e áudio no mesmo rascunho.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
@@ -90,7 +88,7 @@ export function MealAiTabContent({
               label="Foto do prato ou rótulo"
               icon={<ImagePlus className="h-4 w-4 text-primary" />}
               fileName={imageFileName}
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
               onChange={onImageChange}
             />
             <MealUploadField
@@ -107,7 +105,7 @@ export function MealAiTabContent({
               <BrainCircuit className="mr-2 h-4 w-4" />
               {isProcessing ? "Processando..." : "Registrar"}
             </Button>
-            <Badge variant="secondary">Texto + foto + rótulo + áudio</Badge>
+            <Badge variant="secondary">Rascunho revisável</Badge>
           </div>
         </CardContent>
       </Card>
@@ -115,9 +113,7 @@ export function MealAiTabContent({
       <Card defaultOpen className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle>Revisão rápida</CardTitle>
-          <CardDescription>
-            Ajuste a refeição sugerida, data, alimentos, porções, calorias e macros antes de salvar.
-          </CardDescription>
+          <CardDescription>Revise os itens antes de salvar.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {draft ? (
@@ -164,7 +160,7 @@ export function MealAiTabContent({
               </Button>
             </>
           ) : (
-            <MealEmptyState text="Informe texto, foto do prato, rótulo ou áudio e clique em Registrar. O rascunho aparecerá aqui para revisão antes de salvar." />
+            <MealEmptyState text="Informe texto, foto, rótulo ou áudio e clique em Registrar. O rascunho aparecerá aqui para revisão antes de salvar." />
           )}
         </CardContent>
       </Card>

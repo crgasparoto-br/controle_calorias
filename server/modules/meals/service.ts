@@ -43,10 +43,18 @@ function extractBase64Payload(value: string) {
   return Buffer.from(match ? match[2] : value, "base64");
 }
 
+function buildInlineMediaDataUrl(media: NonNullable<MediaInput>) {
+  if (media.base64.startsWith("data:")) {
+    return media.base64;
+  }
+
+  return `data:${media.mimeType};base64,${media.base64}`;
+}
+
 async function uploadMedia(params: {
   userId: number;
   type: "image" | "audio";
-  media?: MediaInput;
+  media?: NonNullable<MediaInput>;
 }) {
   if (!params.media) {
     return null;
@@ -68,6 +76,34 @@ async function uploadMedia(params: {
     mimeType: params.media.mimeType,
     originalFileName: params.media.fileName,
   });
+}
+
+async function resolveDraftImage(params: { userId: number; media?: MediaInput }) {
+  const media = params.media;
+  if (!media) {
+    return { imageUrl: undefined, media: null as ReturnType<typeof buildSavedMedia> | null };
+  }
+
+  try {
+    const uploadedMedia = await uploadMedia({ userId: params.userId, type: "image", media });
+    return {
+      imageUrl: uploadedMedia?.storageUrl,
+      media: uploadedMedia,
+    };
+  } catch {
+    logInferenceEvent({
+      userId: params.userId,
+      origin: "web",
+      status: "warning",
+      eventType: "meal_draft.inline_image_used",
+      detail: "O draft usou a imagem inline porque o upload para storage falhou durante o processamento.",
+    });
+
+    return {
+      imageUrl: buildInlineMediaDataUrl(media),
+      media: null,
+    };
+  }
 }
 
 function ensureMealItems(items: Array<MealDraftItem>): MealDraftItem[] {
@@ -118,8 +154,10 @@ export async function reuseMealFavorite(userId: number, input: ReuseFavoriteMeal
 }
 
 export async function processMealDraft(userId: number, input: ProcessMealDraftInput) {
-  const imageMedia = await uploadMedia({ userId, type: "image", media: input.image });
-  const audioMedia = await uploadMedia({ userId, type: "audio", media: input.audio });
+  const [resolvedImage, audioMedia] = await Promise.all([
+    resolveDraftImage({ userId, media: input.image }),
+    uploadMedia({ userId, type: "audio", media: input.audio }),
+  ]);
 
   let transcript: string | undefined;
   if (audioMedia) {
@@ -144,7 +182,7 @@ export async function processMealDraft(userId: number, input: ProcessMealDraftIn
   const processed = await processMealInput({
     text: input.text,
     transcript,
-    imageUrl: imageMedia?.storageUrl,
+    imageUrl: resolvedImage.imageUrl,
     audioUrl: audioMedia?.storageUrl,
     habits: await getHabitSnapshots(userId),
   });
@@ -153,7 +191,7 @@ export async function processMealDraft(userId: number, input: ProcessMealDraftIn
     userId,
     input.source,
     processed,
-    [imageMedia, audioMedia].filter(Boolean) as NonNullable<Awaited<ReturnType<typeof uploadMedia>>>[],
+    [resolvedImage.media, audioMedia].filter(Boolean) as NonNullable<Awaited<ReturnType<typeof uploadMedia>>>[],
   );
 
   return {
