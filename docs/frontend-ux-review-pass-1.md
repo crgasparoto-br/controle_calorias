@@ -36,6 +36,9 @@
 - Mantida a edição de refeição acessível a partir da aba `Hoje`, redirecionando o usuário para o modo manual dentro da mesma tela.
 - Refinada a tela `/meals` com cabeçalho consistente e melhor apresentação do resumo diário.
 - Alinhada a tela `/reports` ao mesmo padrão de entrada visual com `PageIntro`, deixando a abertura da página mais coerente com o restante do app.
+- Ajustado o seletor de dia de `/meals` para manter navegação e data no mesmo bloco horizontal.
+- Tornados recolhíveis os grupos de refeição em `/meals`, com resumo de data e contagem na mesma linha.
+- Compactada a lista de alimentos em linhas únicas clicáveis para abrir a edição da refeição diretamente da revisão do dia.
 
 ## Validação
 
