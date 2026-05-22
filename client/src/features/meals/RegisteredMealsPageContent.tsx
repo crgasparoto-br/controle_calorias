@@ -229,7 +229,7 @@ export function RegisteredMealsPage() {
         <PageIntro
           eyebrow="Registros"
           title="Revise o dia sem perder o foco na refeição certa"
-          description="A tela agora prioriza o resumo do dia, mantém a navegação da data mais compacta e deixa cada refeição recolhível para acelerar revisão e edição."
+          description=""
           stats={
             <div className="grid gap-3 sm:grid-cols-4">
               <SummaryPill label="Calorias" value={formatCalories(dayTotals.calories)} />
@@ -276,9 +276,6 @@ export function RegisteredMealsPage() {
               <ListChecks className="h-5 w-5 text-primary" />
               Alimentos do dia
             </CardTitle>
-            <CardDescription>
-              As refeições ficam recolhíveis por nome, trazem data e contagem na mesma linha e permitem abrir a edição ao clicar em qualquer alimento.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <RegisteredMealGroups
