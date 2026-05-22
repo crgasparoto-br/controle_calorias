@@ -11,6 +11,8 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Relatórios semanais usam semana iniciando na segunda-feira.
 - Refeições confirmadas devem exibir itens, porções, macros, calorias e horário.
 - Dashboard e relatórios devem usar a mesma fonte de totais para evitar divergência.
+- Datas e horários exibidos no cliente devem respeitar locale e fuso horário configurados pelo usuário.
+- Agrupamentos diários exibidos no cliente devem considerar o fuso horário configurado, evitando mudar a refeição de dia por efeito de UTC.
 
 ## Critérios de aceite
 
