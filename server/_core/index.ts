@@ -6,6 +6,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleWhatsAppWebhook, verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
 import { ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
@@ -50,6 +51,9 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.get("/api/health-integrations/strava/callback", (req, res) => {
+    void handleStravaOAuthCallback(req, res);
+  });
   app.get("/api/whatsapp/webhook", verifyWhatsAppWebhook);
   app.post("/api/whatsapp/webhook", (req, res) => {
     void handleWhatsAppWebhook(req, res);

@@ -14,6 +14,7 @@ Controle de Calorias é uma plataforma de nutrição com registro multimodal de 
 | WhatsApp | Entrada e resposta pelo número oficial configurado |
 | Relatórios | Dashboard diário, visão semanal e detalhamento por refeição |
 | Operação administrativa | Status do canal e atualização segura do token do WhatsApp |
+| Saúde externa | Conexão OAuth com Strava e sincronização de atividades recentes |
 
 ## Autenticação própria
 
@@ -57,6 +58,9 @@ Configure estas variáveis no backend/runtime responsável pela API:
 - `WHATSAPP_BUSINESS_ACCOUNT_ID`
 - `WHATSAPP_VERIFY_TOKEN`
 - `WHATSAPP_ACCESS_TOKEN`
+- `STRAVA_CLIENT_ID`
+- `STRAVA_CLIENT_SECRET`
+- `STRAVA_REDIRECT_URI`
 
 `OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
 
@@ -67,6 +71,10 @@ Configure estas variáveis no backend/runtime responsável pela API:
 A integração usa um único número oficial da solução. O `WHATSAPP_PHONE_NUMBER_ID` identifica o canal de envio e recebimento; o telefone de origem do usuário final é salvo apenas como vínculo com o usuário autenticado.
 
 O webhook localiza o usuário pelo telefone de origem, processa a refeição no contexto desse usuário e responde pelo mesmo canal oficial configurado no ambiente.
+
+## Strava
+
+A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde externa inicia a autorização, o callback em `/api/health-integrations/strava/callback` conclui a conexão e a sincronização busca atividades recentes do atleta autenticado.
 
 ## Qualidade e gates
 
@@ -88,6 +96,7 @@ Resumo do rollout:
 - configurar `JWT_SECRET` e `DATABASE_URL` somente no backend;
 - configurar OpenAI apenas no backend do Render ou runtime equivalente;
 - manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
+- configurar as credenciais do Strava apenas no backend;
 - validar cadastro, login, logout e usuário atual;
 - validar web e WhatsApp com smoke tests;
 - monitorar apenas erros sanitizados, sem senha, hash, token ou cookie em logs.

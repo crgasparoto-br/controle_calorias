@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
+import AccessAndChannelsSettings from "@/components/settings/AccessAndChannelsSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -496,6 +497,8 @@ export default function OnboardingPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <AccessAndChannelsSettings />
 
         <div className="flex flex-col gap-3 rounded-[24px] border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">

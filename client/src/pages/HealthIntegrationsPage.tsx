@@ -187,12 +187,12 @@ export default function HealthIntegrationsPage() {
 
                             {setupStatus === "missing_credentials" ? (
                               <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                                Configure STRAVA_CLIENT_ID e STRAVA_REDIRECT_URI no backend para liberar o OAuth do Strava.
+                                Configure STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET e STRAVA_REDIRECT_URI no backend para liberar o OAuth do Strava.
                               </p>
                             ) : null}
                             {isStrava ? (
                               <p className="mt-4 rounded-2xl border bg-muted/20 px-3 py-2 text-sm leading-6 text-muted-foreground">
-                                O Strava usa OAuth 2.0. Esta tela já prepara o início da autorização; a próxima etapa é persistir tokens no callback e consumir atividades para minutos e gasto energético.
+                                O callback OAuth do Strava agora finaliza a conexão nesta aplicação. Depois da autorização, você pode voltar aqui e sincronizar atividades e gasto energético do período recente.
                               </p>
                             ) : null}
                             {connection?.lastError ? (
@@ -207,11 +207,14 @@ export default function HealthIntegrationsPage() {
                                   type="button"
                                   className="rounded-full"
                                   onClick={() => {
+                                    if (!connected) {
+                                      connect.mutate({ provider: "strava", consentAccepted: true, scopes: ["activity", "energy_burned"] });
+                                    }
                                     window.location.href = authorizationUrl;
                                   }}
                                 >
                                   <ExternalLink className="mr-2 h-4 w-4" />
-                                  Conectar Strava
+                                  {connected ? "Reconectar Strava" : "Conectar Strava"}
                                 </Button>
                               ) : (
                                 <Button
@@ -228,7 +231,7 @@ export default function HealthIntegrationsPage() {
                                 type="button"
                                 variant="outline"
                                 className="rounded-full"
-                                disabled={!connected || sync.isPending || isStrava}
+                                disabled={!connected || sync.isPending}
                                 onClick={() => sync.mutate({ provider: provider.provider as HealthProvider })}
                               >
                                 <RefreshCw className="mr-2 h-4 w-4" />

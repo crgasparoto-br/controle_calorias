@@ -1,26 +1,24 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
+import { formatCalories, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { ClipboardList, MessageSquarePlus, ShieldCheck, UserCheck, UserPlus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ClipboardList, Mail, MessageSquarePlus, ShieldCheck, UserCheck, UserPlus, X } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 export default function ProfessionalPage() {
   const utils = trpc.useUtils();
   const profile = trpc.nutrition.professionals.profile.useQuery();
   const accesses = trpc.nutrition.professionals.myAccesses.useQuery();
-  const patientRequests = trpc.nutrition.professionals.patientRequests.useQuery();
   const history = trpc.nutrition.professionals.history.useQuery();
   const [displayName, setDisplayName] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
-  const [patientId, setPatientId] = useState("");
+  const [patientEmail, setPatientEmail] = useState("");
   const [reason, setReason] = useState("Acompanhamento nutricional com consentimento do paciente.");
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [comment, setComment] = useState("");
@@ -50,14 +48,10 @@ export default function ProfessionalPage() {
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async () => {
       toast.success("Solicitação enviada. O paciente precisa aprovar antes do acesso.");
+      setPatientEmail("");
       await invalidate();
     },
     onError: error => toast.error(error.message || "Não foi possível solicitar acesso."),
-  });
-
-  const approveAccess = trpc.nutrition.professionals.approveAccess.useMutation({
-    onSuccess: invalidate,
-    onError: error => toast.error(error.message || "Não foi possível aprovar."),
   });
 
   const revokeAccess = trpc.nutrition.professionals.revokeAccess.useMutation({
@@ -79,7 +73,7 @@ export default function ProfessionalPage() {
   });
 
   const approvedAccesses = accesses.data?.filter(access => access.status === "approved") ?? [];
-  const pendingRequestsCount = patientRequests.data?.filter(request => request.status === "pending").length ?? 0;
+  const awaitingApprovalCount = accesses.data?.filter(access => access.status === "pending").length ?? 0;
   const historyCount = history.data?.length ?? 0;
 
   return (
@@ -88,12 +82,12 @@ export default function ProfessionalPage() {
         <PageIntro
           eyebrow="Profissional"
           title="Acompanhamento profissional"
-          description="A tela foi organizada para separar perfil, consentimento, pacientes autorizados e acompanhamento ativo, mantendo o princípio de que o paciente controla o compartilhamento e pode revogar o acesso a qualquer momento."
+          description="A tela ficou focada em perfil, solicitações enviadas, pacientes autorizados e acompanhamento ativo. As aprovações recebidas como paciente agora ficam centralizadas em Configurações."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat label="Perfil" value={profile.data ? "Ativo" : "Pendente"} helper="dados do profissional" />
               <IntroStat label="Pacientes autorizados" value={String(approvedAccesses.length)} helper="com acesso aprovado" />
-              <IntroStat label="Solicitações pendentes" value={String(pendingRequestsCount)} helper="como paciente" />
+              <IntroStat label="Aguardando aprovação" value={String(awaitingApprovalCount)} helper="solicitações enviadas" />
               <IntroStat label="Eventos no histórico" value={String(historyCount)} helper="ações registradas" />
             </div>
           }
@@ -132,12 +126,17 @@ export default function ProfessionalPage() {
           <Card className="border-0 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Solicitar acesso</CardTitle>
-              <CardDescription>Informe o ID do paciente. O acesso só abre após aprovação.</CardDescription>
+              <CardDescription>Informe o e-mail do paciente. O acesso só abre após aprovação.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <label className="space-y-2">
-                <Label>ID do paciente</Label>
-                <Input inputMode="numeric" value={patientId} onChange={event => setPatientId(event.target.value.replace(/\D/g, ""))} />
+                <Label>E-mail do paciente</Label>
+                <Input
+                  type="email"
+                  value={patientEmail}
+                  onChange={event => setPatientEmail(event.target.value.trimStart())}
+                  placeholder="paciente@exemplo.com"
+                />
               </label>
               <label className="space-y-2">
                 <Label>Motivo</Label>
@@ -145,16 +144,17 @@ export default function ProfessionalPage() {
               </label>
               <Button
                 className="rounded-full"
-                disabled={requestAccess.isPending || !patientId}
-                onClick={() => requestAccess.mutate({ patientId: Number(patientId), reason })}
+                disabled={requestAccess.isPending || !patientEmail.trim()}
+                onClick={() => requestAccess.mutate({ patientEmail: patientEmail.trim(), reason })}
               >
+                <Mail className="mr-2 h-4 w-4" />
                 Solicitar consentimento
               </Button>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[0.9fr,1.1fr]">
+        <div className="grid gap-4 xl:grid-cols-[1fr,0.9fr]">
           <Card className="border-0 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><UserCheck className="h-5 w-5 text-primary" /> Pacientes autorizados</CardTitle>
@@ -165,10 +165,19 @@ export default function ProfessionalPage() {
                 <div key={access.id} className="rounded-2xl border bg-background p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="font-medium">Paciente #{access.patientUserId}</p>
+                      <p className="font-medium">{access.patient?.name || access.patient?.email || `Paciente #${access.patientUserId}`}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {access.patient?.email || `ID interno #${access.patientUserId}`}
+                      </p>
                       <p className="text-xs text-muted-foreground">Aprovado em {access.approvedAt ? new Date(access.approvedAt).toLocaleString("pt-BR") : "-"}</p>
                     </div>
-                    <Button variant="outline" className="rounded-full" onClick={() => setSelectedPatientId(access.patientUserId)}>Abrir dashboard</Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" className="rounded-full" onClick={() => setSelectedPatientId(access.patientUserId)}>Abrir dashboard</Button>
+                      <Button variant="outline" className="rounded-full" onClick={() => revokeAccess.mutate({ accessId: access.id })}>
+                        <X className="mr-2 h-4 w-4" />
+                        Revogar vínculo
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )) : (
@@ -179,31 +188,15 @@ export default function ProfessionalPage() {
 
           <Card className="border-0 shadow-sm">
             <CardHeader>
-              <CardTitle>Solicitações recebidas como paciente</CardTitle>
-              <CardDescription>Aprove ou revogue compartilhamento dos seus próprios dados.</CardDescription>
+              <CardTitle>Consentimento do paciente</CardTitle>
+              <CardDescription>
+                As solicitações recebidas como paciente foram movidas para Configurações, junto do vínculo do WhatsApp e dos demais ajustes pessoais.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {patientRequests.data?.length ? patientRequests.data.map(request => (
-                <div key={request.id} className="rounded-2xl border bg-background p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{request.professional?.displayName ?? `Profissional #${request.professionalUserId}`}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{request.reason}</p>
-                      <Badge className="mt-2" variant="secondary">{request.status}</Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      {request.status === "pending" ? <Button size="sm" onClick={() => approveAccess.mutate({ accessId: request.id })}>Aprovar</Button> : null}
-                      {request.status === "approved" || request.status === "pending" ? (
-                        <Button size="sm" variant="outline" onClick={() => revokeAccess.mutate({ accessId: request.id })}>
-                          <X className="mr-2 h-4 w-4" /> Revogar
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              )) : (
-                <Empty text="Nenhuma solicitação recebida." />
-              )}
+            <CardContent className="grid gap-3">
+              <InfoStep title="1. Envie a solicitação" text="Use o e-mail do paciente para iniciar o pedido de compartilhamento com contexto claro." />
+              <InfoStep title="2. O paciente decide em Configurações" text="A aprovação ou revogação agora fica na área pessoal do usuário para reduzir duplicidade entre telas." />
+              <InfoStep title="3. Acompanhe após aprovação" text="Assim que o consentimento for aprovado, o dashboard do paciente já pode ser aberto por aqui." />
             </CardContent>
           </Card>
         </div>
@@ -216,6 +209,11 @@ export default function ProfessionalPage() {
           <CardContent className="space-y-4">
             {dashboard.data ? (
               <>
+                <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                  <p className="font-medium text-foreground">Paciente selecionado</p>
+                  <p>{dashboard.data.patient?.name || dashboard.data.patient?.email || `Paciente #${dashboard.data.patientId}`}</p>
+                  <p>{dashboard.data.patient?.email || `ID interno #${dashboard.data.patientId}`}</p>
+                </div>
                 <div className="grid gap-3 md:grid-cols-4">
                   <Metric label="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} />
                   <Metric label="Calorias consumidas" value={formatCalories(dashboard.data.calories.consumed)} />
@@ -290,6 +288,15 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border bg-background p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+function InfoStep({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4">
+      <p className="font-medium tracking-tight">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
     </div>
   );
 }

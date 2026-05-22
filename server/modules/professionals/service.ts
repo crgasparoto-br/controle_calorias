@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
-import { getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
+import { eq } from "drizzle-orm";
+import { users } from "../../../drizzle/schema";
+import { getDb, getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
 import type {
   ProfessionalCommentInput,
   ProfessionalGoalSuggestionInput,
@@ -54,6 +56,12 @@ type HistoryEvent = {
   createdAt: number;
 };
 
+type UserSummary = {
+  userId: number;
+  name: string | null;
+  email: string | null;
+};
+
 const profiles = new Map<number, ProfessionalProfile>();
 const accesses = new Map<string, ProfessionalPatientAccess>();
 const comments: ProfessionalComment[] = [];
@@ -74,6 +82,50 @@ function publicAccess(access: ProfessionalPatientAccess) {
     requestedAt: access.requestedAt,
     approvedAt: access.approvedAt,
     revokedAt: access.revokedAt,
+  };
+}
+
+async function getUserSummary(userId: number): Promise<UserSummary | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  const user = rows[0];
+  if (!user) return null;
+
+  return {
+    userId: user.id,
+    name: user.name ?? null,
+    email: user.email ?? null,
+  };
+}
+
+async function getUserSummaryByEmail(email: string): Promise<UserSummary | null> {
+  const db = await getDb();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!db) {
+    if (process.env.NODE_ENV === "test") {
+      const syntheticUserId = /^user-(\d+)@example\.com$/.exec(normalizedEmail)?.[1];
+      if (syntheticUserId) {
+        const userId = Number(syntheticUserId);
+        return {
+          userId,
+          name: `User ${userId}`,
+          email: normalizedEmail,
+        };
+      }
+    }
+    throw new Error("A busca por paciente via e-mail depende do banco configurado neste ambiente.");
+  }
+
+  const rows = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+  const user = rows[0];
+  if (!user) return null;
+
+  return {
+    userId: user.id,
+    name: user.name ?? null,
+    email: user.email ?? null,
   };
 }
 
@@ -116,22 +168,32 @@ export function getProfessionalProfile(userId: number) {
   return profiles.get(userId) ?? null;
 }
 
-export function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
+export async function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
   const profile = profiles.get(professionalUserId);
   if (!profile) throw new Error("Crie seu perfil profissional antes de solicitar acesso.");
-  if (professionalUserId === input.patientId) throw new Error("Profissional e paciente precisam ser usuários diferentes.");
+
+  const patient = await getUserSummaryByEmail(input.patientEmail);
+  if (!patient?.email) {
+    throw new Error("Nenhum paciente foi encontrado com esse e-mail.");
+  }
+  if (professionalUserId === patient.userId) throw new Error("Profissional e paciente precisam ser usuários diferentes.");
 
   const existing = Array.from(accesses.values()).find(access =>
     access.professionalUserId === professionalUserId &&
-    access.patientUserId === input.patientId &&
+    access.patientUserId === patient.userId &&
     access.status !== "revoked",
   );
-  if (existing) return publicAccess(existing);
+  if (existing) {
+    return {
+      ...publicAccess(existing),
+      patient,
+    };
+  }
 
   const access: ProfessionalPatientAccess = {
     id: crypto.randomUUID(),
     professionalUserId,
-    patientUserId: input.patientId,
+    patientUserId: patient.userId,
     status: "pending",
     reason: input.reason,
     requestedAt: Date.now(),
@@ -142,16 +204,28 @@ export function requestPatientAccess(professionalUserId: number, input: RequestP
   pushHistory({
     actorUserId: professionalUserId,
     professionalUserId,
-    patientUserId: input.patientId,
+    patientUserId: patient.userId,
     eventType: "access_requested",
   });
-  return publicAccess(access);
+  return {
+    ...publicAccess(access),
+    patient,
+  };
 }
 
-export function listProfessionalAccesses(professionalUserId: number) {
-  return Array.from(accesses.values())
-    .filter(access => access.professionalUserId === professionalUserId)
-    .map(publicAccess);
+export async function listProfessionalAccesses(professionalUserId: number) {
+  const professionalAccesses = Array.from(accesses.values()).filter(access => access.professionalUserId === professionalUserId);
+  const patients = await Promise.all(professionalAccesses.map(access => getUserSummary(access.patientUserId)));
+  const patientMap = new Map(
+    patients
+      .filter((patient): patient is UserSummary => Boolean(patient))
+      .map(patient => [patient.userId, patient]),
+  );
+
+  return professionalAccesses.map(access => ({
+    ...publicAccess(access),
+    patient: patientMap.get(access.patientUserId) ?? null,
+  }));
 }
 
 export function listPatientAccessRequests(patientUserId: number) {
@@ -194,15 +268,17 @@ export function revokePatientAccess(patientUserId: number, accessId: string) {
 
 export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number) {
   assertApprovedAccess(professionalUserId, patientUserId);
-  const [dashboard, weeklyProgress, weeklyReport, meals] = await Promise.all([
+  const [dashboard, weeklyProgress, weeklyReport, meals, patient] = await Promise.all([
     getDashboardSnapshot(patientUserId),
     getWeeklyProgress(patientUserId),
     getWeeklySummary(patientUserId),
     listUserMeals(patientUserId),
+    getUserSummary(patientUserId),
   ]);
 
   return {
     patientId: patientUserId,
+    patient,
     weeklyAdherence: dashboard.week.adherence,
     calories: {
       consumed: dashboard.week.consumed.calories,

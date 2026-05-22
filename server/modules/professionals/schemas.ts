@@ -7,7 +7,7 @@ export const professionalProfileSchema = z.object({
 });
 
 export const requestPatientAccessSchema = z.object({
-  patientId: z.number().int().positive(),
+  patientEmail: z.string().trim().email("Informe um e-mail válido do paciente."),
   reason: z.string().trim().min(3).max(500),
 });
 
@@ -36,4 +36,3 @@ export type AccessIdInput = z.infer<typeof accessIdSchema>;
 export type PatientIdInput = z.infer<typeof patientIdSchema>;
 export type ProfessionalCommentInput = z.infer<typeof professionalCommentSchema>;
 export type ProfessionalGoalSuggestionInput = z.infer<typeof professionalGoalSuggestionSchema>;
-
