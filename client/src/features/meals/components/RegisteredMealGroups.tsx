@@ -2,7 +2,6 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { formatDateTimeInTimeZone } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
 import type { MealType, StoredMeal } from "../types";
@@ -143,18 +142,17 @@ function RegisteredMealGroupSection({
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 }) {
   const referenceDate = group.records[0]?.registeredAt;
-  const summary = referenceDate
-    ? `${formatDateLabel(referenceDate, userTimeZone)} · ${describeMealCount(group.records.length)} · ${describeFoodCount(group.items.length)}`
-    : `${describeMealCount(group.records.length)} · ${describeFoodCount(group.items.length)}`;
 
   return (
     <Collapsible defaultOpen>
       <section className="rounded-3xl border bg-background shadow-sm">
         <CollapsibleTrigger asChild>
           <button type="button" className="group flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left">
-            <div className="min-w-0 space-y-1">
-              <p className="text-lg font-semibold capitalize tracking-tight">{group.mealLabel}</p>
-              <p className="text-sm text-muted-foreground">{summary}</p>
+            <div className="min-w-0 flex items-center gap-3 overflow-x-auto whitespace-nowrap">
+              <p className="shrink-0 text-lg font-semibold capitalize tracking-tight">{group.mealLabel}</p>
+              {referenceDate ? <span className="shrink-0 text-sm text-muted-foreground">{formatDateLabel(referenceDate, userTimeZone)}</span> : null}
+              <span className="shrink-0 text-sm text-muted-foreground">{describeMealCount(group.records.length)}</span>
+              <span className="shrink-0 text-sm text-muted-foreground">{describeFoodCount(group.items.length)}</span>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(group.totals.calories)}</Badge>
@@ -173,13 +171,7 @@ function RegisteredMealGroupSection({
                 <div className="flex flex-col gap-4 md:flex-row md:items-start">
                   <FoodImage record={record} />
                   <div className="min-w-0 flex-1 space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium tracking-tight">{formatDateTimeInTimeZone(record.registeredAt, userTimeZone)}</p>
-                        {record.mealNotes ? <p className="mt-1 text-sm text-muted-foreground">{record.mealNotes}</p> : null}
-                      </div>
-                      <MealTotalsRow record={record} />
-                    </div>
+                    {record.mealNotes ? <p className="text-sm text-muted-foreground">{record.mealNotes}</p> : null}
 
                     <div className="space-y-2">
                       {record.items.map(item => (
