@@ -32,7 +32,7 @@ type MealScheduleState = {
   enabled: boolean;
 };
 
-type MealTab = "registro" | "manual" | "hoje";
+type MealTab = "registro" | "manual" | "hoje" | "agua" | "exercicios" | "peso";
 
 const MEAL_LABEL_SUGGESTIONS = ["café da manhã", "almoço", "lanche da tarde", "pré-treino", "pós-treino", "jantar", "ceia", "outro"];
 const ONBOARDING_DEFAULTS = {
@@ -359,16 +359,99 @@ export default function LogMealPage() {
     </div>
   ) : null;
 
+  const waterCard = (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-xl"><Droplets className="h-5 w-5 text-primary" />Água do dia</CardTitle>
+        <CardDescription>Meta, registro rápido e histórico recente.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <SummaryPill label="Consumido" value={formatCountPtBr(overviewQuery.data?.today.water.consumedMl ?? 0, " ml")} />
+          <SummaryPill label="Meta" value={formatCountPtBr(overviewQuery.data?.today.water.goalMl ?? 0, " ml")} />
+          <SummaryPill label="Restante" value={formatCountPtBr(overviewQuery.data?.today.water.remainingMl ?? 0, " ml")} />
+        </div>
+        <form className="space-y-3" onSubmit={handleWaterSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="record-water-goal">Meta diária (ml)</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input id="record-water-goal" type="text" inputMode="numeric" value={waterForm.dailyTargetMl} onChange={event => setWaterForm(current => ({ ...current, dailyTargetMl: formatIntegerInputPtBr(event.target.value) }))} className={isWaterGoalInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} />
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => updateWaterGoal.mutate({ dailyTargetMl: waterGoalValue })} disabled={updateWaterGoal.isPending || isWaterGoalInvalid}>{updateWaterGoal.isPending ? "Salvando..." : "Salvar meta"}</Button>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="record-water-amount">Consumo (ml)</Label>
+              <Input id="record-water-amount" type="text" inputMode="numeric" value={waterForm.amountMl} onChange={event => setWaterForm(current => ({ ...current, amountMl: formatIntegerInputPtBr(event.target.value) }))} className={isWaterAmountInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="record-water-occurred-at">Data e hora</Label>
+              <Input id="record-water-occurred-at" type="datetime-local" value={waterForm.occurredAt} onChange={event => setWaterForm(current => ({ ...current, occurredAt: event.target.value }))} />
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">{[200, 300, 500].map(shortcut => <Button key={shortcut} type="button" variant="outline" className="rounded-full" onClick={() => createWaterLog.mutate({ amountMl: shortcut, occurredAt: new Date().toISOString() })} disabled={createWaterLog.isPending}>+ {formatCountPtBr(shortcut, " ml")}</Button>)}</div>
+          <Button type="submit" className="w-full rounded-full" disabled={createWaterLog.isPending || isWaterAmountInvalid}>{createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}</Button>
+        </form>
+        <div className="space-y-2">{(overviewQuery.data?.water.logs ?? []).slice(0, 3).map(log => <QuickLog key={log.id} title={formatCountPtBr(log.amountMl, " ml")} subtitle={new Date(Number(log.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeWaterLog.mutate({ waterLogId: log.id })} disabled={removeWaterLog.isPending} />)}{!(overviewQuery.data?.water.logs ?? []).length ? <EmptyMini text="Nenhum consumo de água foi registrado ainda." /> : null}</div>
+      </CardContent>
+    </Card>
+  );
+
+  const exerciseCard = (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-xl"><Dumbbell className="h-5 w-5 text-primary" />Exercícios</CardTitle>
+        <CardDescription>Registro rápido de atividade e gasto energético.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form className="space-y-3" onSubmit={handleExerciseSubmit}>
+          <Field label="Atividade"><Input value={exerciseForm.activityType} onChange={event => setExerciseForm(current => ({ ...current, activityType: event.target.value }))} placeholder="Ex.: Corrida leve" /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Duração (min)"><Input type="text" inputMode="numeric" value={exerciseForm.durationMinutes} onChange={event => setExerciseForm(current => ({ ...current, durationMinutes: formatIntegerInputPtBr(event.target.value) }))} /></Field>
+            <Field label="Gasto estimado (kcal)"><Input type="text" inputMode="numeric" value={exerciseForm.caloriesBurned} onChange={event => setExerciseForm(current => ({ ...current, caloriesBurned: formatIntegerInputPtBr(event.target.value) }))} /></Field>
+          </div>
+          <Field label="Data e hora"><Input type="datetime-local" value={exerciseForm.occurredAt} onChange={event => setExerciseForm(current => ({ ...current, occurredAt: event.target.value }))} /></Field>
+          <Field label="Observações"><Textarea value={exerciseForm.notes} onChange={event => setExerciseForm(current => ({ ...current, notes: event.target.value }))} className="min-h-24 rounded-2xl" /></Field>
+          <Button type="submit" className="w-full rounded-full" disabled={createExercise.isPending}>{createExercise.isPending ? "Salvando exercício..." : "Registrar exercício"}</Button>
+        </form>
+        <div className="space-y-2">{(overviewQuery.data?.exercises ?? []).slice(0, 3).map(exercise => <QuickLog key={exercise.id} title={exercise.activityType} subtitle={`${formatCountPtBr(exercise.durationMinutes, " min")} · ${formatCalories(exercise.caloriesBurned)}`} extra={new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeExercise.mutate({ exerciseId: exercise.id })} disabled={removeExercise.isPending} />)}{!(overviewQuery.data?.exercises ?? []).length ? <EmptyMini text="Nenhum exercício foi registrado ainda." /> : null}</div>
+      </CardContent>
+    </Card>
+  );
+
+  const weightCard = (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-xl"><Scale className="h-5 w-5 text-primary" />Peso atual</CardTitle>
+        <CardDescription>Atualize o peso sem sair do fluxo principal.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SummaryPill label="Peso salvo" value={currentWeightLabel} />
+          <SummaryPill label="Perfil" value={profileQuery.data?.name?.trim() || "Usuário"} />
+        </div>
+        <form className="space-y-3" onSubmit={handleWeightSubmit}>
+          <Field label="Peso atual (kg)"><Input type="text" inputMode="decimal" value={weightValue} onChange={event => setWeightValue(formatDecimalInputPtBr(event.target.value, 1))} className={isWeightInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} placeholder="Ex.: 72,5" /></Field>
+          <Button type="submit" className="w-full rounded-full" disabled={updateWeight.isPending || isWeightInvalid}>{updateWeight.isPending ? "Salvando peso..." : "Salvar peso"}</Button>
+        </form>
+        <div className="rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground">O peso continua salvo no perfil do usuário, mas agora pode ser atualizado diretamente em Record.</div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <datalist id="meal-label-suggestions">{configuredMealLabels.map(label => <option key={label} value={label} />)}</datalist>
 
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
-          <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3 xl:grid-cols-6">
             <TabsTrigger className="min-h-11 rounded-xl" value="registro"><WandSparkles className="h-4 w-4" />Record com IA</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="manual"><PencilLine className="h-4 w-4" />Manual</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="hoje"><CalendarDays className="h-4 w-4" />Hoje</TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="agua"><Droplets className="h-4 w-4" />Água do dia</TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="exercicios"><Dumbbell className="h-4 w-4" />Exercícios</TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="peso"><Scale className="h-4 w-4" />Peso atual</TabsTrigger>
           </TabsList>
 
           <TabsContent value="registro" className="space-y-4">
@@ -434,83 +517,19 @@ export default function LogMealPage() {
             {favoriteMealsBlock}
             {recordsCard}
           </TabsContent>
+
+          <TabsContent value="agua" className="space-y-4">
+            {waterCard}
+          </TabsContent>
+
+          <TabsContent value="exercicios" className="space-y-4">
+            {exerciseCard}
+          </TabsContent>
+
+          <TabsContent value="peso" className="space-y-4">
+            {weightCard}
+          </TabsContent>
         </Tabs>
-
-        <section className="grid gap-4 xl:grid-cols-3">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl"><Droplets className="h-5 w-5 text-primary" />Água do dia</CardTitle>
-              <CardDescription>Meta, registro rápido e histórico recente.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                <SummaryPill label="Consumido" value={formatCountPtBr(overviewQuery.data?.today.water.consumedMl ?? 0, " ml")} />
-                <SummaryPill label="Meta" value={formatCountPtBr(overviewQuery.data?.today.water.goalMl ?? 0, " ml")} />
-                <SummaryPill label="Restante" value={formatCountPtBr(overviewQuery.data?.today.water.remainingMl ?? 0, " ml")} />
-              </div>
-              <form className="space-y-3" onSubmit={handleWaterSubmit}>
-                <div className="space-y-2">
-                  <Label htmlFor="record-water-goal">Meta diária (ml)</Label>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input id="record-water-goal" type="text" inputMode="numeric" value={waterForm.dailyTargetMl} onChange={event => setWaterForm(current => ({ ...current, dailyTargetMl: formatIntegerInputPtBr(event.target.value) }))} className={isWaterGoalInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} />
-                    <Button type="button" variant="outline" className="rounded-full" onClick={() => updateWaterGoal.mutate({ dailyTargetMl: waterGoalValue })} disabled={updateWaterGoal.isPending || isWaterGoalInvalid}>{updateWaterGoal.isPending ? "Salvando..." : "Salvar meta"}</Button>
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="record-water-amount">Consumo (ml)</Label>
-                    <Input id="record-water-amount" type="text" inputMode="numeric" value={waterForm.amountMl} onChange={event => setWaterForm(current => ({ ...current, amountMl: formatIntegerInputPtBr(event.target.value) }))} className={isWaterAmountInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="record-water-occurred-at">Data e hora</Label>
-                    <Input id="record-water-occurred-at" type="datetime-local" value={waterForm.occurredAt} onChange={event => setWaterForm(current => ({ ...current, occurredAt: event.target.value }))} />
-                  </div>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-3">{[200, 300, 500].map(shortcut => <Button key={shortcut} type="button" variant="outline" className="rounded-full" onClick={() => createWaterLog.mutate({ amountMl: shortcut, occurredAt: new Date().toISOString() })} disabled={createWaterLog.isPending}>+ {formatCountPtBr(shortcut, " ml")}</Button>)}</div>
-                <Button type="submit" className="w-full rounded-full" disabled={createWaterLog.isPending || isWaterAmountInvalid}>{createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}</Button>
-              </form>
-              <div className="space-y-2">{(overviewQuery.data?.water.logs ?? []).slice(0, 3).map(log => <QuickLog key={log.id} title={formatCountPtBr(log.amountMl, " ml")} subtitle={new Date(Number(log.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeWaterLog.mutate({ waterLogId: log.id })} disabled={removeWaterLog.isPending} />)}{!(overviewQuery.data?.water.logs ?? []).length ? <EmptyMini text="Nenhum consumo de água foi registrado ainda." /> : null}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl"><Dumbbell className="h-5 w-5 text-primary" />Exercícios</CardTitle>
-              <CardDescription>Registro rápido de atividade e gasto energético.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <form className="space-y-3" onSubmit={handleExerciseSubmit}>
-                <Field label="Atividade"><Input value={exerciseForm.activityType} onChange={event => setExerciseForm(current => ({ ...current, activityType: event.target.value }))} placeholder="Ex.: Corrida leve" /></Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Duração (min)"><Input type="text" inputMode="numeric" value={exerciseForm.durationMinutes} onChange={event => setExerciseForm(current => ({ ...current, durationMinutes: formatIntegerInputPtBr(event.target.value) }))} /></Field>
-                  <Field label="Gasto estimado (kcal)"><Input type="text" inputMode="numeric" value={exerciseForm.caloriesBurned} onChange={event => setExerciseForm(current => ({ ...current, caloriesBurned: formatIntegerInputPtBr(event.target.value) }))} /></Field>
-                </div>
-                <Field label="Data e hora"><Input type="datetime-local" value={exerciseForm.occurredAt} onChange={event => setExerciseForm(current => ({ ...current, occurredAt: event.target.value }))} /></Field>
-                <Field label="Observações"><Textarea value={exerciseForm.notes} onChange={event => setExerciseForm(current => ({ ...current, notes: event.target.value }))} className="min-h-24 rounded-2xl" /></Field>
-                <Button type="submit" className="w-full rounded-full" disabled={createExercise.isPending}>{createExercise.isPending ? "Salvando exercício..." : "Registrar exercício"}</Button>
-              </form>
-              <div className="space-y-2">{(overviewQuery.data?.exercises ?? []).slice(0, 3).map(exercise => <QuickLog key={exercise.id} title={exercise.activityType} subtitle={`${formatCountPtBr(exercise.durationMinutes, " min")} · ${formatCalories(exercise.caloriesBurned)}`} extra={new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeExercise.mutate({ exerciseId: exercise.id })} disabled={removeExercise.isPending} />)}{!(overviewQuery.data?.exercises ?? []).length ? <EmptyMini text="Nenhum exercício foi registrado ainda." /> : null}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl"><Scale className="h-5 w-5 text-primary" />Peso atual</CardTitle>
-              <CardDescription>Atualize o peso sem sair do fluxo principal.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <SummaryPill label="Peso salvo" value={currentWeightLabel} />
-                <SummaryPill label="Perfil" value={profileQuery.data?.name?.trim() || "Usuário"} />
-              </div>
-              <form className="space-y-3" onSubmit={handleWeightSubmit}>
-                <Field label="Peso atual (kg)"><Input type="text" inputMode="decimal" value={weightValue} onChange={event => setWeightValue(formatDecimalInputPtBr(event.target.value, 1))} className={isWeightInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} placeholder="Ex.: 72,5" /></Field>
-                <Button type="submit" className="w-full rounded-full" disabled={updateWeight.isPending || isWeightInvalid}>{updateWeight.isPending ? "Salvando peso..." : "Salvar peso"}</Button>
-              </form>
-              <div className="rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground">O peso continua salvo no perfil do usuário, mas agora pode ser atualizado diretamente em Record.</div>
-            </CardContent>
-          </Card>
-        </section>
       </div>
     </DashboardLayout>
   );
