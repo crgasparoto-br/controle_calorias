@@ -489,6 +489,96 @@ describe("nutrition router", () => {
     expect(weekly.find(day => day.date === "2026-04-22")?.quality.fruitServings).toBe(1);
   });
 
+  it("agrupa dashboard, semana e pesos por data local perto da meia-noite", async () => {
+    const originalTimezone = process.env.TZ;
+    process.env.TZ = "Europe/Moscow";
+    vi.setSystemTime(new Date("2026-04-22T00:30:00+03:00"));
+
+    try {
+      const caller = appRouter.createCaller(createNutritionContext(891));
+
+      await caller.nutrition.onboarding.complete({
+        name: "Local Date",
+        birthDate: "1990-01-10",
+        heightCm: 170,
+        currentWeightKg: 72.5,
+        objective: "manter_peso",
+        activityLevel: "light",
+        trackingExperience: "beginner",
+        dietaryPreferences: [],
+        dietaryRestrictions: [],
+        eatingRoutine: "misto",
+        mainDifficulty: "falta_de_tempo",
+      });
+
+      await caller.nutrition.meals.createManual({
+        mealLabel: "ceia",
+        occurredAt: "2026-04-22T00:30:00+03:00",
+        items: [{
+          foodName: "Refeição local",
+          canonicalName: "Refeição local",
+          portionText: "1 porção",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 100,
+          protein: 10,
+          carbs: 12,
+          fat: 3,
+          confidence: 1,
+          source: "heuristic",
+        }],
+      });
+
+      await caller.nutrition.meals.createManual({
+        mealLabel: "jantar",
+        occurredAt: "2026-04-21T23:30:00+03:00",
+        items: [{
+          foodName: "Refeição anterior local",
+          canonicalName: "Refeição anterior local",
+          portionText: "1 porção",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 50,
+          protein: 5,
+          carbs: 6,
+          fat: 2,
+          confidence: 1,
+          source: "heuristic",
+        }],
+      });
+
+      await caller.nutrition.exercises.create({
+        activityType: "Caminhada local",
+        durationMinutes: 20,
+        caloriesBurned: 40,
+        occurredAt: "2026-04-22T00:45:00+03:00",
+      });
+      await caller.nutrition.water.create({ amountMl: 250, occurredAt: "2026-04-22T00:50:00+03:00" });
+
+      const weekly = await caller.nutrition.reports.weekly();
+      const overview = await caller.nutrition.dashboard.overview();
+      const progress = await caller.nutrition.reports.weeklyProgress();
+      const localDay = weekly.find(day => day.date === "2026-04-22");
+      const previousLocalDay = weekly.find(day => day.date === "2026-04-21");
+
+      expect(localDay?.calories).toBe(100);
+      expect(localDay?.exerciseCalories).toBe(40);
+      expect(localDay?.waterConsumedMl).toBe(250);
+      expect(previousLocalDay?.calories).toBe(50);
+      expect(overview.today.consumed.calories).toBe(100);
+      expect(overview.today.burned.calories).toBe(40);
+      expect(overview.today.water.consumedMl).toBe(250);
+      expect(progress.days.map(day => day.date)).toEqual(weekly.map(day => day.date));
+      expect(progress.weight.entries[0]).toMatchObject({ date: "2026-04-22", weightKg: 72.5 });
+    } finally {
+      if (originalTimezone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTimezone;
+      }
+    }
+  });
+
   it("concede badges saudáveis de consistência e permite desativar gamificação", async () => {
     const caller = appRouter.createCaller(createNutritionContext(890));
 

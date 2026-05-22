@@ -1,8 +1,9 @@
 import { getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
+import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { weeklyInsightService } from "./weeklyInsightService";
 
 function mealDateKey(meal: { occurredAt: number }) {
-  return new Date(meal.occurredAt).toISOString().slice(0, 10);
+  return getDateKeyInTimeZone(meal.occurredAt);
 }
 
 function groupMealsByDate(meals: Awaited<ReturnType<typeof listUserMeals>>) {

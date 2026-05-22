@@ -1069,8 +1069,22 @@ function startOfDay(date: Date) {
   return value;
 }
 
+function startOfLocalDay(date: Date) {
+  return startOfDay(date);
+}
+
+function startOfLocalWeek(date: Date) {
+  const value = startOfLocalDay(date);
+  value.setDate(value.getDate() - getWeekdayIndex(value));
+  return value;
+}
+
 function dateKey(date: Date) {
-  return startOfDay(date).toISOString().slice(0, 10);
+  const value = startOfLocalDay(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function sumMealItems(items: MealDraftItem[]) {
@@ -1166,7 +1180,7 @@ async function calculateQualityIndicators(userId: number, meals: SavedMeal[], wa
 const round = roundNutritionValue;
 
 function badgeWeekStart() {
-  return dateKey(startOfWeek(new Date()));
+  return dateKey(startOfLocalWeek(new Date()));
 }
 
 function withBadgeDefinition(entry: UserBadgeEntry) {
@@ -2926,10 +2940,7 @@ export async function getWeeklySummary(userId: number) {
   const mealsForUser = await listUserMeals(userId);
   const exercisesForUser = await listUserExercises(userId);
   const waterLogsForUser = await listUserWaterLogs(userId);
-  const today = startOfDay(new Date());
-  const mondayOffset = getWeekdayIndex(today);
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - mondayOffset);
+  const monday = startOfLocalWeek(new Date());
 
   const days = Array.from({ length: 7 }).map((_, index) => {
     const current = new Date(monday);

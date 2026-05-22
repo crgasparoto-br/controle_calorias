@@ -9,10 +9,16 @@ describe("dateTime helpers", () => {
     expect(toDateTimeLocalValue(new Date(iso), "America/Sao_Paulo")).toBe("2026-04-25T12:30");
   });
 
+  it("gera a chave de data local esperada para filtros diários", () => {
+    const instant = "2026-05-22T02:30:00.000Z";
+
+    expect(toDateInputValue(new Date(instant), "America/Sao_Paulo")).toBe("2026-05-21");
+    expect(toDateInputValue(new Date(instant), "UTC")).toBe("2026-05-22");
+  });
+
   it("formata data e hora no fuso informado", () => {
     const instant = "2026-04-25T15:30:00.000Z";
 
-    expect(toDateInputValue(new Date(instant), "America/Sao_Paulo")).toBe("2026-04-25");
     expect(formatDateTimeInTimeZone(instant, "America/Sao_Paulo")).toContain("12:30");
   });
 });
