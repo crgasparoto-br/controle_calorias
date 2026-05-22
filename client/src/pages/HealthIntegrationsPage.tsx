@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDateTimeInTimeZone } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Activity, ExternalLink, HeartPulse, Link2, RefreshCw, ShieldCheck, Unlink } from "lucide-react";
@@ -180,7 +181,7 @@ export default function HealthIntegrationsPage() {
                             </div>
 
                             <div className="mt-4 grid gap-3 md:grid-cols-3">
-                              <StatusLine label="Última sincronização" value={connection?.lastSyncedAt ? new Date(connection.lastSyncedAt).toLocaleString("pt-BR") : "Nunca"} />
+                              <StatusLine label="Última sincronização" value={connection?.lastSyncedAt ? formatDateTimeInTimeZone(connection.lastSyncedAt) : "Nunca"} />
                               <StatusLine label="Origem dos dados" value={provider.provider} />
                               <StatusLine label="Escopos prontos" value={selectedScopeLabels.length ? formatCountPtBr(selectedScopeLabels.length) : "0"} />
                             </div>
@@ -192,7 +193,7 @@ export default function HealthIntegrationsPage() {
                             ) : null}
                             {isStrava ? (
                               <p className="mt-4 rounded-2xl border bg-muted/20 px-3 py-2 text-sm leading-6 text-muted-foreground">
-                                O Strava usa OAuth 2.0. Esta tela já prepara o início da autorização; a próxima etapa é persistir tokens no callback e consumir atividades para minutos e gasto energético.
+                                O Strava usa OAuth 2.0. Esta tela já prepara o início da autorização; depois da conexão, a sincronização traz atividades externas para consolidar minutos e gasto energético.
                               </p>
                             ) : null}
                             {connection?.lastError ? (
@@ -397,7 +398,7 @@ export default function HealthIntegrationsPage() {
                         <div>
                           <p className="font-medium">{formatDataType(record.dataType)}</p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(record.measuredAt).toLocaleString("pt-BR")} · origem: {record.source}
+                            {formatDateTimeInTimeZone(record.measuredAt)} · origem: {record.source}
                           </p>
                         </div>
                         <Badge variant="outline">{record.value} {record.unit}</Badge>
