@@ -17,6 +17,8 @@ Permitir que o usuário registre refeições por texto, imagem, áudio ou entrad
 - O usuário deve conseguir entender quais alimentos foram identificados e quais valores foram estimados.
 - Refeições confirmadas devem aparecer nos relatórios, dashboard e totais diários.
 - Texto original, transcrição e mídia são dados sensíveis; usar apenas pelo tempo necessário e evitar logs crus.
+- O horário padrão e a sugestão de nome da refeição devem respeitar os horários habituais configurados pelo usuário quando existirem.
+- Datas e horários exibidos e enviados pelo cliente devem respeitar o fuso horário configurado pelo usuário.
 
 ## Critérios de aceite
 
