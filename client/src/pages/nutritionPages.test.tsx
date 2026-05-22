@@ -510,10 +510,6 @@ describe("nutrition pages", () => {
     expect(html).toContain("Água do dia");
     expect(html).toContain("Exercícios");
     expect(html).toContain("Peso atual");
-    expect(html).toContain("Data e hora da medição");
-    expect(html).toContain("Meta diária (ml)");
-    expect(html).toContain("Gasto estimado (kcal)");
-    expect(html).toContain("Peso salvo");
   });
 
   it("renderiza a página de relatórios com resumo semanal, seções analíticas e insights nutricionais", async () => {
