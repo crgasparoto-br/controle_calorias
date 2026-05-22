@@ -23,7 +23,7 @@ import { Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucid
 import { toast } from "sonner";
 import { MealAiTabContent, MealManualEditorCard, SummaryPill } from "../components";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
-import type { DraftState, MealItemState, StoredMeal } from "../types";
+import type { DraftState, MealItemState } from "../types";
 
 type MealScheduleState = {
   mealLabel: string;
@@ -108,7 +108,6 @@ async function fileToBase64(file: File) {
 
 export default function LogMealPage() {
   const utils = trpc.useUtils();
-  const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoritesQuery = trpc.nutrition.meals.favorites.useQuery();
   const schedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const overviewQuery = trpc.nutrition.dashboard.overview.useQuery();
@@ -315,12 +314,6 @@ export default function LogMealPage() {
     createManualMeal.mutate(payload);
   };
 
-  const loadMealForEditing = (meal: StoredMeal) => {
-    setManualMeal({ mealId: meal.id, mealLabel: meal.mealLabel, occurredAt: toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone), notes: meal.notes ?? "", items: meal.items.map(item => ({ ...item })) });
-    setActiveTab("manual");
-    toast.success("Modo manual aberto com a refeição selecionada.");
-  };
-
   function resetManualMeal() {
     const nextOccurredAt = toDateTimeLocalValue(undefined, userTimeZone);
     setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
@@ -424,7 +417,7 @@ export default function LogMealPage() {
         </form>
         <div className="space-y-2">
           {weightEntries.slice(0, 5).map(entry => (
-            <QuickLog key={entry.id} title={`${formatNumberPtBr(entry.weightKg, { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg`} subtitle={new Date(`${entry.date}T12:00:00`).toLocaleDateString("pt-BR")} extra={entry.notes || undefined} actionLabel="Histórico" disabled />
+            <QuickLog key={entry.id} title={`${formatNumberPtBr(entry.weightKg, { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg`} subtitle={new Date(`${entry.date}T12:00:00`).toLocaleDateString("pt-BR")} extra={entry.notes || undefined} />
           ))}
           {!weightEntries.length ? <EmptyMini text="Nenhum peso registrado ainda." /> : null}
         </div>
