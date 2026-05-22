@@ -16,11 +16,13 @@ export function DayNavigator({ selectedDay, onSelectedDayChange, label = "Dia" }
   const goToNextDay = () => onSelectedDayChange(addDaysToDateInputValue(selectedDay, 1));
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <Label htmlFor="meal-selected-day" className="flex shrink-0 items-center gap-2 whitespace-nowrap">
-        <CalendarDays className="h-4 w-4 text-primary" />
-        {label}
-      </Label>
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex w-[10.5rem] justify-center sm:w-48">
+        <Label htmlFor="meal-selected-day" className="flex items-center justify-center gap-2 whitespace-nowrap text-center">
+          <CalendarDays className="h-4 w-4 text-primary" />
+          {label}
+        </Label>
+      </div>
       <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
         <Button type="button" variant="outline" size="icon" className="shrink-0 rounded-full" onClick={goToPreviousDay} aria-label="Dia anterior">
           <ChevronLeft className="h-4 w-4" />

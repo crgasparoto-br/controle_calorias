@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DisclosureToggle } from "@/components/ui/disclosure-toggle";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCalories, formatNumberPtBr } from "@/lib/numberFormat";
@@ -13,7 +14,6 @@ import {
   ArrowRight,
   BarChart3,
   CalendarDays,
-  ChevronDown,
   Clock3,
   Droplets,
   Dumbbell,
@@ -593,10 +593,9 @@ function CollapsibleSection({
             </div>
           </div>
           <CollapsibleTrigger asChild>
-            <Button type="button" variant="ghost" className="w-fit rounded-full">
-              {open ? "Recolher" : "Expandir"}
-              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
-            </Button>
+            <button type="button" className="w-fit rounded-full">
+              <DisclosureToggle expanded={open} />
+            </button>
           </CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
