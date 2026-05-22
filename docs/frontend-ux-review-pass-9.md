@@ -25,6 +25,10 @@ Passada de centralização da experiência de registro, com foco na tela `log-me
 - inclusão de data e hora na atualização de peso, com histórico recente para acompanhamento;
 - remoção dos botões de abrir e fechar dos cards e das seções analíticas de relatórios;
 - correção do fluxo de foto com fallback inline quando o upload para storage falha no draft.
+- criação de `AuthShell` reutilizável para a camada de autenticação;
+- reorganização visual das telas de login e cadastro com melhor hierarquia e leitura;
+- manutenção integral da lógica de autenticação, mutações e redirecionamento;
+- simplificação posterior da tela de login, removendo o painel lateral informativo e expondo a opção `Esqueceu a senha?` com orientação honesta sobre a indisponibilidade atual da recuperação automática.
 
 ## Telas alteradas
 
