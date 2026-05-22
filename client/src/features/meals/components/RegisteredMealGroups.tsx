@@ -116,6 +116,71 @@ function MealFoodRow({
   );
 }
 
+function RecordActionRow({
+  record,
+  userTimeZone,
+  selectedMealId,
+  isCopyPending,
+  isFavoritePending,
+  isRemovePending,
+  onEditMeal,
+  onCopyMeal,
+  onFavoriteMeal,
+  onRemoveMeal,
+  renderEditingForm,
+}: {
+  record: RegisteredMealRecordViewModel;
+  userTimeZone: string;
+  selectedMealId?: number;
+  isCopyPending?: boolean;
+  isFavoritePending?: boolean;
+  isRemovePending?: boolean;
+  onEditMeal: (meal: StoredMeal) => void;
+  onCopyMeal: (meal: StoredMeal, mealLabel: MealType) => void;
+  onFavoriteMeal: (meal: StoredMeal) => void;
+  onRemoveMeal: (meal: StoredMeal) => void;
+  renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border bg-muted/20 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{formatTimeLabel(record.registeredAt, userTimeZone)}</span>
+          <span>{describeFoodCount(record.items.length)}</span>
+        </div>
+        <MealTotalsRow record={record} />
+      </div>
+
+      {record.mealNotes ? <p className="mt-3 text-sm text-muted-foreground">{record.mealNotes}</p> : null}
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Button type="button" variant={selectedMealId === record.meal.id ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(record.meal)}>
+          <PencilLine className="mr-2 h-4 w-4" />
+          {selectedMealId === record.meal.id ? "Editando esta refeição" : "Editar refeição"}
+        </Button>
+        <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(record.meal, record.mealLabel)} disabled={isCopyPending}>
+          <Copy className="mr-2 h-4 w-4" />
+          Copiar para o dia
+        </Button>
+        <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(record.meal)} disabled={isFavoritePending}>
+          <Star className="mr-2 h-4 w-4" />
+          Salvar favorita
+        </Button>
+        <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => onRemoveMeal(record.meal)} disabled={isRemovePending}>
+          <Trash2 className="mr-2 h-4 w-4" />
+          Excluir refeição
+        </Button>
+      </div>
+
+      {selectedMealId === record.meal.id && renderEditingForm ? (
+        <div className="mt-5 rounded-3xl border border-primary/30 bg-primary/5 p-3">
+          {renderEditingForm(record.meal)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RegisteredMealGroupSection({
   group,
   userTimeZone,
@@ -142,6 +207,7 @@ function RegisteredMealGroupSection({
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 }) {
   const referenceDate = group.records[0]?.registeredAt;
+  const imageRecords = group.records.filter(record => record.imageUrl);
 
   return (
     <Collapsible defaultOpen>
@@ -165,55 +231,48 @@ function RegisteredMealGroupSection({
         </CollapsibleTrigger>
 
         <CollapsibleContent className="border-t bg-muted/10 px-4 pb-4 pt-4">
-          <div className="space-y-3">
-            {group.records.map(record => (
-              <div key={record.meal.id} className="rounded-2xl border bg-background p-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start">
-                  <FoodImage record={record} />
-                  <div className="min-w-0 flex-1 space-y-3">
-                    {record.mealNotes ? <p className="text-sm text-muted-foreground">{record.mealNotes}</p> : null}
-
-                    <div className="space-y-2">
-                      {record.items.map(item => (
-                        <MealFoodRow
-                          key={`${record.meal.id}-${item.item.foodName}-${item.itemIndex}`}
-                          item={item}
-                          record={record}
-                          userTimeZone={userTimeZone}
-                          isSelected={selectedMealId === record.meal.id}
-                          onEditMeal={onEditMeal}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Button type="button" variant={selectedMealId === record.meal.id ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(record.meal)}>
-                    <PencilLine className="mr-2 h-4 w-4" />
-                    {selectedMealId === record.meal.id ? "Editando esta refeição" : "Editar refeição"}
-                  </Button>
-                  <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(record.meal, record.mealLabel)} disabled={isCopyPending}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copiar para o dia
-                  </Button>
-                  <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(record.meal)} disabled={isFavoritePending}>
-                    <Star className="mr-2 h-4 w-4" />
-                    Salvar favorita
-                  </Button>
-                  <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => onRemoveMeal(record.meal)} disabled={isRemovePending}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Excluir refeição
-                  </Button>
-                </div>
-
-                {selectedMealId === record.meal.id && renderEditingForm ? (
-                  <div className="mt-5 rounded-3xl border border-primary/30 bg-primary/5 p-3">
-                    {renderEditingForm(record.meal)}
-                  </div>
-                ) : null}
+          <div className="rounded-2xl border bg-background p-4">
+            {imageRecords.length ? (
+              <div className="mb-4 flex flex-wrap gap-3">
+                {imageRecords.map(record => (
+                  <FoodImage key={record.meal.id} record={record} />
+                ))}
               </div>
-            ))}
+            ) : null}
+
+            <div className="space-y-2">
+              {group.records.flatMap(record =>
+                record.items.map(item => (
+                  <MealFoodRow
+                    key={`${record.meal.id}-${item.item.foodName}-${item.itemIndex}`}
+                    item={item}
+                    record={record}
+                    userTimeZone={userTimeZone}
+                    isSelected={selectedMealId === record.meal.id}
+                    onEditMeal={onEditMeal}
+                  />
+                )),
+              )}
+            </div>
+
+            <div className="mt-4 space-y-3 border-t pt-4">
+              {group.records.map(record => (
+                <RecordActionRow
+                  key={record.meal.id}
+                  record={record}
+                  userTimeZone={userTimeZone}
+                  selectedMealId={selectedMealId}
+                  isCopyPending={isCopyPending}
+                  isFavoritePending={isFavoritePending}
+                  isRemovePending={isRemovePending}
+                  onEditMeal={onEditMeal}
+                  onCopyMeal={onCopyMeal}
+                  onFavoriteMeal={onFavoriteMeal}
+                  onRemoveMeal={onRemoveMeal}
+                  renderEditingForm={renderEditingForm}
+                />
+              ))}
+            </div>
           </div>
         </CollapsibleContent>
       </section>
