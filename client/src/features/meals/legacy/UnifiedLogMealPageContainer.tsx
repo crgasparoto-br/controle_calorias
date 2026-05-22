@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { getBrowserTimeZone, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import {
   formatCalories,
   formatCountPtBr,
@@ -19,9 +19,9 @@ import {
 } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { calculateMealTotals } from "../../../../../shared/mealTotals";
-import { CalendarDays, Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
+import { Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
-import { MealAiTabContent, MealDayRecordsCard, MealManualEditorCard, SummaryPill } from "../components";
+import { MealAiTabContent, MealManualEditorCard, SummaryPill } from "../components";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
 import type { DraftState, MealItemState, StoredMeal } from "../types";
 
@@ -32,7 +32,7 @@ type MealScheduleState = {
   enabled: boolean;
 };
 
-type MealTab = "registro" | "manual" | "hoje" | "agua" | "exercicios" | "peso";
+type MealTab = "registro" | "manual" | "agua" | "exercicios" | "peso";
 
 const MEAL_LABEL_SUGGESTIONS = ["café da manhã", "almoço", "lanche da tarde", "pré-treino", "pós-treino", "jantar", "ceia", "outro"];
 const ONBOARDING_DEFAULTS = {
@@ -112,6 +112,7 @@ export default function LogMealPage() {
   const favoritesQuery = trpc.nutrition.meals.favorites.useQuery();
   const schedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const overviewQuery = trpc.nutrition.dashboard.overview.useQuery();
+  const reportsBundleQuery = trpc.nutrition.reports.bundle.useQuery();
   const waterGoalQuery = trpc.nutrition.water.goal.useQuery();
   const profileQuery = trpc.nutrition.onboarding.profile.useQuery();
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
@@ -128,10 +129,10 @@ export default function LogMealPage() {
   const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocalValue());
   const [editableItems, setEditableItems] = useState<MealItemState[]>([]);
   const [manualMeal, setManualMeal] = useState(() => createManualMealState(defaultMealLabel));
-  const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
   const [exerciseForm, setExerciseForm] = useState(buildDefaultExerciseForm);
   const [waterForm, setWaterForm] = useState(buildDefaultWaterForm);
   const [weightValue, setWeightValue] = useState("");
+  const [weightMeasuredAt, setWeightMeasuredAt] = useState(() => toDateTimeLocalValue(new Date()));
 
   React.useEffect(() => {
     if (waterGoalQuery.data?.dailyTargetMl) {
@@ -148,6 +149,7 @@ export default function LogMealPage() {
   const suggestedManualMealLabel = useMemo(() => suggestMealLabelFromSchedules(manualMeal.occurredAt, mealSchedules), [manualMeal.occurredAt, mealSchedules]);
   const suggestedDraftMealLabel = useMemo(() => suggestMealLabelFromSchedules(occurredAt, mealSchedules), [occurredAt, mealSchedules]);
   const configuredMealLabels = useMemo(() => Array.from(new Set([...(mealSchedules?.map(schedule => schedule.mealLabel).filter(Boolean) ?? []), ...MEAL_LABEL_SUGGESTIONS])), [mealSchedules]);
+  const weightEntries = useMemo(() => [...(reportsBundleQuery.data?.progress.weight.entries ?? [])].reverse(), [reportsBundleQuery.data?.progress.weight.entries]);
 
   React.useEffect(() => {
     if (!manualMeal.mealId && suggestedManualMealLabel && manualMeal.mealLabel !== suggestedManualMealLabel) {
@@ -166,6 +168,7 @@ export default function LogMealPage() {
       utils.nutrition.meals.dayTotals.invalidate(),
       utils.nutrition.meals.favorites.invalidate(),
       utils.nutrition.reports.weekly.invalidate(),
+      utils.nutrition.reports.bundle.invalidate(),
       utils.nutrition.onboarding.profile.invalidate(),
       utils.nutrition.water.goal.invalidate(),
       utils.nutrition.water.list.invalidate(),
@@ -225,7 +228,6 @@ export default function LogMealPage() {
     onError: error => toast.error(error.message || "Não foi possível remover a refeição."),
   });
 
-  const copyMeal = trpc.nutrition.meals.copy.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Refeição copiada para a data selecionada."); }, onError: error => toast.error(error.message || "Não foi possível copiar a refeição.") });
   const saveFavoriteMeal = trpc.nutrition.meals.saveFavorite.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Refeição salva como favorita."); }, onError: error => toast.error(error.message || "Não foi possível favoritar a refeição.") });
   const reuseFavoriteMeal = trpc.nutrition.meals.reuseFavorite.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Refeição favorita reutilizada."); setActiveTab("manual"); }, onError: error => toast.error(error.message || "Não foi possível reutilizar a favorita.") });
   const createExercise = trpc.nutrition.exercises.create.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Exercício registrado com sucesso."); setExerciseForm(buildDefaultExerciseForm()); }, onError: error => toast.error(error.message || "Não foi possível registrar o exercício.") });
@@ -237,7 +239,6 @@ export default function LogMealPage() {
 
   const previewTotals = useMemo(() => calculateMealTotals(editableItems), [editableItems]);
   const manualTotals = useMemo(() => calculateMealTotals(manualMeal.items), [manualMeal.items]);
-  const selectedDayMeals = useMemo(() => (mealsQuery.data ?? []).filter(meal => new Date(meal.occurredAt).toISOString().slice(0, 10) === selectedDay), [mealsQuery.data, selectedDay]);
   const waterGoalValue = parseIntegerInputPtBr(waterForm.dailyTargetMl);
   const waterAmountValue = parseIntegerInputPtBr(waterForm.amountMl);
   const isWaterGoalInvalid = waterGoalValue < 250 || waterGoalValue > 10000;
@@ -285,6 +286,8 @@ export default function LogMealPage() {
       birthDate: profile.birthDate,
       heightCm: profile.heightCm,
       currentWeightKg: parsedWeight,
+      weightMeasuredAt: zonedDateTimeLocalToIso(weightMeasuredAt, userTimeZone),
+      weightEntryNote: "Peso atualizado na tela Record.",
       objective: profile.objective ?? ONBOARDING_DEFAULTS.objective,
       activityLevel: profile.activityLevel ?? ONBOARDING_DEFAULTS.activityLevel,
       trackingExperience: profile.trackingExperience ?? ONBOARDING_DEFAULTS.trackingExperience,
@@ -323,34 +326,18 @@ export default function LogMealPage() {
     setManualMeal(createManualMealState(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? "almoço", nextOccurredAt));
   }
 
-  const recordsCard = (
-    <MealDayRecordsCard
-      meals={selectedDayMeals as StoredMeal[]}
-      userTimeZone={userTimeZone}
-      selectedMealId={manualMeal.mealId}
-      isLoading={mealsQuery.isLoading}
-      isCopyPending={copyMeal.isPending}
-      isFavoritePending={saveFavoriteMeal.isPending}
-      isRemovePending={removeMeal.isPending}
-      onEditMeal={loadMealForEditing}
-      onCopyMeal={meal => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone), mealLabel: meal.mealLabel })}
-      onFavoriteMeal={meal => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })}
-      onRemoveMeal={meal => removeMeal.mutate({ mealId: meal.id })}
-    />
-  );
-
   const favoriteMealsBlock = favoritesQuery.data?.length ? (
     <div className="rounded-2xl border bg-muted/20 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <p className="font-medium tracking-tight">Favoritas</p>
-          <p className="text-sm text-muted-foreground">Use uma refeição pronta no dia selecionado.</p>
+          <p className="text-sm text-muted-foreground">Use uma refeição pronta na data do cadastro manual.</p>
         </div>
         <Badge variant="secondary">{favoritesQuery.data.length}</Badge>
       </div>
       <div className="flex flex-wrap gap-2">
         {favoritesQuery.data.map(favorite => (
-          <Button key={favorite.id} type="button" variant="outline" className="rounded-full" onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone) })} disabled={reuseFavoriteMeal.isPending}>
+          <Button key={favorite.id} type="button" variant="outline" className="rounded-full" onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(manualMeal.occurredAt, userTimeZone) })} disabled={reuseFavoriteMeal.isPending}>
             <Star className="mr-2 h-4 w-4" />
             {favorite.name}
           </Button>
@@ -423,7 +410,7 @@ export default function LogMealPage() {
     <Card className="border-0 shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl"><Scale className="h-5 w-5 text-primary" />Peso atual</CardTitle>
-        <CardDescription>Atualize o peso sem sair do fluxo principal.</CardDescription>
+        <CardDescription>Registre o peso com data de medição para acompanhar a evolução ao longo do tempo.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -432,9 +419,15 @@ export default function LogMealPage() {
         </div>
         <form className="space-y-3" onSubmit={handleWeightSubmit}>
           <Field label="Peso atual (kg)"><Input type="text" inputMode="decimal" value={weightValue} onChange={event => setWeightValue(formatDecimalInputPtBr(event.target.value, 1))} className={isWeightInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} placeholder="Ex.: 72,5" /></Field>
+          <Field label="Data e hora da medição"><Input type="datetime-local" value={weightMeasuredAt} onChange={event => setWeightMeasuredAt(event.target.value)} /></Field>
           <Button type="submit" className="w-full rounded-full" disabled={updateWeight.isPending || isWeightInvalid}>{updateWeight.isPending ? "Salvando peso..." : "Salvar peso"}</Button>
         </form>
-        <div className="rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground">O peso continua salvo no perfil do usuário, mas agora pode ser atualizado diretamente em Record.</div>
+        <div className="space-y-2">
+          {weightEntries.slice(0, 5).map(entry => (
+            <QuickLog key={entry.id} title={`${formatNumberPtBr(entry.weightKg, { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg`} subtitle={new Date(`${entry.date}T12:00:00`).toLocaleDateString("pt-BR")} extra={entry.notes || undefined} actionLabel="Histórico" disabled />
+          ))}
+          {!weightEntries.length ? <EmptyMini text="Nenhum peso registrado ainda." /> : null}
+        </div>
       </CardContent>
     </Card>
   );
@@ -445,10 +438,9 @@ export default function LogMealPage() {
         <datalist id="meal-label-suggestions">{configuredMealLabels.map(label => <option key={label} value={label} />)}</datalist>
 
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3 xl:grid-cols-6">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3 xl:grid-cols-5">
             <TabsTrigger className="min-h-11 rounded-xl" value="registro"><WandSparkles className="h-4 w-4" />Record com IA</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="manual"><PencilLine className="h-4 w-4" />Manual</TabsTrigger>
-            <TabsTrigger className="min-h-11 rounded-xl" value="hoje"><CalendarDays className="h-4 w-4" />Hoje</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="agua"><Droplets className="h-4 w-4" />Água do dia</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="exercicios"><Dumbbell className="h-4 w-4" />Exercícios</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="peso"><Scale className="h-4 w-4" />Peso atual</TabsTrigger>
@@ -504,20 +496,6 @@ export default function LogMealPage() {
             />
           </TabsContent>
 
-          <TabsContent value="hoje" className="space-y-4">
-            <div className="rounded-2xl border bg-muted/20 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div className="w-full sm:max-w-[220px]">
-                  <Label htmlFor="selected-day" className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted-foreground">Dia</Label>
-                  <Input id="selected-day" type="date" value={selectedDay} onChange={event => setSelectedDay(event.target.value)} className="h-11 rounded-xl" />
-                </div>
-                <p className="text-sm text-muted-foreground">Consulte os registros do dia selecionado sem sair de Record.</p>
-              </div>
-            </div>
-            {favoriteMealsBlock}
-            {recordsCard}
-          </TabsContent>
-
           <TabsContent value="agua" className="space-y-4">
             {waterCard}
           </TabsContent>
@@ -539,7 +517,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
 }
 
-function QuickLog({ title, subtitle, extra, actionLabel, onAction, disabled }: { title: string; subtitle: string; extra?: string; actionLabel: string; onAction: () => void; disabled?: boolean }) {
+function QuickLog({ title, subtitle, extra, actionLabel, onAction, disabled }: { title: string; subtitle: string; extra?: string; actionLabel?: string; onAction?: () => void; disabled?: boolean }) {
   return (
     <div className="rounded-2xl border bg-muted/30 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -548,7 +526,7 @@ function QuickLog({ title, subtitle, extra, actionLabel, onAction, disabled }: {
           <p className="text-sm text-muted-foreground">{subtitle}</p>
           {extra ? <p className="text-xs text-muted-foreground">{extra}</p> : null}
         </div>
-        <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={onAction} disabled={disabled}>{actionLabel}</Button>
+        {actionLabel && onAction ? <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={onAction} disabled={disabled}>{actionLabel}</Button> : null}
       </div>
     </div>
   );
