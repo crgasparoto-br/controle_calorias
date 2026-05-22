@@ -108,7 +108,7 @@ function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleSta
 
   const directMatches = enabledSchedules
     .filter(schedule => isTimeWithinRange(timeMinutes, schedule.startTime, schedule.endTime))
-    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, b.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
+    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
 
   const fallback = enabledSchedules
     .slice()
