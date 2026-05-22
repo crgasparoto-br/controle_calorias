@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -130,12 +130,13 @@ function RegisteredMealGroupSection({
   onRemoveMeal: (meal: StoredMeal) => void;
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 }) {
+  const [isOpen, setIsOpen] = useState(true);
   const referenceDate = group.records[0]?.registeredAt;
   const imageRecords = group.records.filter(record => record.imageUrl);
   const primaryRecord = group.records[0];
 
   return (
-    <Collapsible defaultOpen>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <section className="rounded-3xl border bg-background shadow-sm">
         <CollapsibleTrigger asChild>
           <button type="button" className="group flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left">
@@ -150,13 +151,23 @@ function RegisteredMealGroupSection({
               <Badge variant="outline">P {formatGrams(group.totals.protein)}</Badge>
               <Badge variant="outline">C {formatGrams(group.totals.carbs)}</Badge>
               <Badge variant="outline">G {formatGrams(group.totals.fat)}</Badge>
-              <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition-colors group-hover:border-primary/40 group-hover:bg-primary/10 group-data-[state=open]:border-emerald-200 group-data-[state=open]:bg-emerald-50 group-data-[state=open]:text-emerald-700">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-primary group-data-[state=open]:bg-emerald-100 group-data-[state=open]:text-emerald-700">
-                  <Plus className="h-3.5 w-3.5 group-data-[state=open]:hidden" />
-                  <Minus className="hidden h-3.5 w-3.5 group-data-[state=open]:block" />
+              <span
+                className={[
+                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors",
+                  isOpen
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border border-primary/20 bg-primary/5 text-primary",
+                ].join(" ")}
+              >
+                <span
+                  className={[
+                    "inline-flex h-5 w-5 items-center justify-center rounded-full",
+                    isOpen ? "bg-emerald-100 text-emerald-700" : "bg-primary/15 text-primary",
+                  ].join(" ")}
+                >
+                  {isOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                 </span>
-                <span className="group-data-[state=open]:hidden">Expandir</span>
-                <span className="hidden group-data-[state=open]:inline">Recolher</span>
+                {isOpen ? "Recolher" : "Expandir"}
               </span>
             </div>
           </button>
