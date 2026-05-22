@@ -20,6 +20,7 @@ import {
   formatPercentPtBr,
   parseIntegerInputPtBr,
 } from "@/lib/numberFormat";
+import { toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { trpc } from "@/lib/trpc";
 import { buildDailyNutritionStatus, SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
 import {
@@ -75,7 +76,7 @@ function buildDefaultExerciseForm() {
     activityType: "Corrida",
     durationMinutes: formatIntegerInputPtBr(45),
     caloriesBurned: formatIntegerInputPtBr(450),
-    occurredAt: new Date().toISOString().slice(0, 16),
+    occurredAt: toDateTimeLocalValue(new Date()),
     notes: "",
   };
 }
@@ -83,7 +84,7 @@ function buildDefaultExerciseForm() {
 function buildDefaultWaterForm() {
   return {
     amountMl: formatIntegerInputPtBr(300),
-    occurredAt: new Date().toISOString().slice(0, 16),
+    occurredAt: toDateTimeLocalValue(new Date()),
     dailyTargetMl: formatIntegerInputPtBr(2500),
   };
 }
@@ -99,7 +100,7 @@ function buildExerciseEditForm(exercise: {
     activityType: exercise.activityType,
     durationMinutes: formatIntegerInputPtBr(exercise.durationMinutes),
     caloriesBurned: formatIntegerInputPtBr(exercise.caloriesBurned),
-    occurredAt: new Date(Number(exercise.occurredAt)).toISOString().slice(0, 16),
+    occurredAt: toDateTimeLocalValue(new Date(Number(exercise.occurredAt))),
     notes: exercise.notes ?? "",
   };
 }
@@ -161,7 +162,7 @@ export default function Home() {
       setWaterForm(current => ({
         ...current,
         amountMl: formatIntegerInputPtBr(300),
-        occurredAt: new Date().toISOString().slice(0, 16),
+        occurredAt: toDateTimeLocalValue(new Date()),
       }));
     },
   });
@@ -218,7 +219,7 @@ export default function Home() {
       activityType: exerciseForm.activityType.trim(),
       durationMinutes: parseIntegerInputPtBr(exerciseForm.durationMinutes),
       caloriesBurned: parseIntegerInputPtBr(exerciseForm.caloriesBurned),
-      occurredAt: new Date(exerciseForm.occurredAt).toISOString(),
+      occurredAt: zonedDateTimeLocalToIso(exerciseForm.occurredAt),
       notes: exerciseForm.notes.trim() || undefined,
     });
   };
@@ -227,7 +228,7 @@ export default function Home() {
     event.preventDefault();
     createWaterLog.mutate({
       amountMl: parseIntegerInputPtBr(waterForm.amountMl),
-      occurredAt: new Date(waterForm.occurredAt).toISOString(),
+      occurredAt: zonedDateTimeLocalToIso(waterForm.occurredAt),
     });
   };
 
@@ -280,8 +281,8 @@ export default function Home() {
   const waterAmountValue = parseIntegerInputPtBr(waterForm.amountMl);
   const isWaterGoalInvalid = waterGoalValue < 250 || waterGoalValue > 10000;
   const isWaterAmountInvalid = waterAmountValue < 50 || waterAmountValue > 5000;
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const todaysMeals = (overview.data?.meals ?? []).filter(meal => new Date(meal.occurredAt).toISOString().slice(0, 10) === todayKey);
+  const todayKey = toDateInputValue(new Date());
+  const todaysMeals = (overview.data?.meals ?? []).filter(meal => toDateInputValue(new Date(meal.occurredAt)) === todayKey);
   const consumedCalories = overview.data?.today.consumed.calories ?? 0;
   const calorieGoal = overview.data?.today.goal.calories ?? 0;
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
@@ -784,7 +785,7 @@ export default function Home() {
                                           activityType: editingExerciseForm.activityType.trim(),
                                           durationMinutes: parseIntegerInputPtBr(editingExerciseForm.durationMinutes),
                                           caloriesBurned: parseIntegerInputPtBr(editingExerciseForm.caloriesBurned),
-                                          occurredAt: new Date(editingExerciseForm.occurredAt).toISOString(),
+                                          occurredAt: zonedDateTimeLocalToIso(editingExerciseForm.occurredAt),
                                           notes: editingExerciseForm.notes.trim() || undefined,
                                         })
                                       }
