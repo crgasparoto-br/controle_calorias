@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPasswordHelp, setShowForgotPasswordHelp] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const login = trpc.auth.login.useMutation({
@@ -28,15 +29,12 @@ export default function LoginPage() {
   return (
     <AuthShell
       eyebrow="Acesso"
-      title="Entre e retome sua rotina nutricional"
-      description="Acompanhe refeições, metas e relatórios em um fluxo mais claro desde a primeira tela. A autenticação continua igual, com um ponto de entrada mais organizado e confortável de usar."
+      title="Entre"
+      description="Acesse sua conta com e-mail e senha."
       formTitle="Entrar"
       formDescription="Acesse sua conta com e-mail e senha."
-      metrics={[
-        { label: "Registros", value: "refeições, metas e relatórios" },
-        { label: "Acesso", value: "rápido no desktop e no mobile" },
-        { label: "Fluxo", value: "entrada direta na área principal" },
-      ]}
+      metrics={[]}
+      hideHero
       footer={<>Ainda não tem conta? <Link className="font-medium text-primary" href="/register">Cadastre-se</Link></>}
     >
       <form
@@ -59,7 +57,18 @@ export default function LoginPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="login-password">Senha</Label>
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="login-password">Senha</Label>
+            <button
+              type="button"
+              className="text-sm font-medium text-primary transition-colors hover:text-primary/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-expanded={showForgotPasswordHelp}
+              aria-controls="forgot-password-help"
+              onClick={() => setShowForgotPasswordHelp(current => !current)}
+            >
+              Esqueceu a senha?
+            </button>
+          </div>
           <div className="relative">
             <Input
               id="login-password"
@@ -80,6 +89,11 @@ export default function LoginPage() {
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          {showForgotPasswordHelp ? (
+            <p id="forgot-password-help" className="text-sm leading-6 text-muted-foreground">
+              A recuperação automática de senha ainda não está disponível. Se precisar recuperar o acesso, peça a redefinição para quem administra o app.
+            </p>
+          ) : null}
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <Button className="h-11 w-full" disabled={login.isPending} type="submit">
