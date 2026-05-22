@@ -46,6 +46,7 @@ import {
   foodSearchSchema,
   updateFoodSchema,
 } from "./modules/foods/schemas";
+import { reportsPeriodSchema } from "./modules/insights/schemas";
 import { getDashboardOverview, getWeeklyInsightsReport, getWeeklyProgressReport, getWeeklyReport, getWeeklyReportBundle } from "./modules/insights/service";
 import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
@@ -438,24 +439,24 @@ export const nutritionRouter = router({
   }),
 
   reports: router({
-    bundle: protectedProcedure.query(async ({ ctx }) => {
-      const result = await getWeeklyReportBundle(ctx.user.id);
-      void analyticsService.track("weekly_report_viewed", { report_type: "bundle" });
+    bundle: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
+      const result = await getWeeklyReportBundle(ctx.user.id, input?.weekOffset ?? 0);
+      void analyticsService.track("weekly_report_viewed", { report_type: "bundle", week_offset: input?.weekOffset ?? 0 });
       return result;
     }),
-    weekly: protectedProcedure.query(async ({ ctx }) => {
-      const result = await getWeeklyReport(ctx.user.id);
-      void analyticsService.track("weekly_report_viewed", { report_type: "summary" });
+    weekly: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
+      const result = await getWeeklyReport(ctx.user.id, input?.weekOffset ?? 0);
+      void analyticsService.track("weekly_report_viewed", { report_type: "summary", week_offset: input?.weekOffset ?? 0 });
       return result;
     }),
-    weeklyProgress: protectedProcedure.query(async ({ ctx }) => {
-      const result = await getWeeklyProgressReport(ctx.user.id);
-      void analyticsService.track("weekly_report_viewed", { report_type: "progress" });
+    weeklyProgress: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
+      const result = await getWeeklyProgressReport(ctx.user.id, input?.weekOffset ?? 0);
+      void analyticsService.track("weekly_report_viewed", { report_type: "progress", week_offset: input?.weekOffset ?? 0 });
       return result;
     }),
-    weeklyInsights: protectedProcedure.query(async ({ ctx }) => {
-      const result = await getWeeklyInsightsReport(ctx.user.id);
-      void analyticsService.track("weekly_report_viewed", { report_type: "insights" });
+    weeklyInsights: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
+      const result = await getWeeklyInsightsReport(ctx.user.id, input?.weekOffset ?? 0);
+      void analyticsService.track("weekly_report_viewed", { report_type: "insights", week_offset: input?.weekOffset ?? 0 });
       return result;
     }),
   }),
