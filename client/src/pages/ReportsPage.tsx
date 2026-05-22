@@ -4,8 +4,6 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DisclosureToggle } from "@/components/ui/disclosure-toggle";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCalories, formatNumberPtBr } from "@/lib/numberFormat";
@@ -227,7 +225,6 @@ export default function ReportsPage() {
         <CollapsibleSection
           title="Insights e qualidade alimentar"
           description="Relatório automático, indicadores de qualidade e sinais práticos ficam agrupados porque explicam o comportamento da semana."
-          defaultOpen
           aside={<Lightbulb className="h-5 w-5 text-primary" />}
         >
           <div className="space-y-4">
@@ -294,7 +291,7 @@ export default function ReportsPage() {
 
         <CollapsibleSection
           title="Refeições detalhadas"
-          description="Lista completa recolhida por padrão para reduzir ruído visual; os alimentos ficam agrupados por data e refeição."
+          description="Alimentos agrupados por data e refeição para leitura mais rápida do histórico."
           aside={<UtensilsCrossed className="h-5 w-5 text-primary" />}
         >
           {detailedMealsByDate.length ? (
@@ -359,7 +356,7 @@ export default function ReportsPage() {
 
         <CollapsibleSection
           title="Gráficos e leitura analítica"
-          description="Gráficos de tendência e comparativos ficam recolhidos para consulta quando for necessário investigar desvios."
+          description="Gráficos de tendência e comparativos para investigar desvios com mais contexto."
           aside={<BarChart3 className="h-5 w-5 text-primary" />}
         >
           <div className="space-y-6">
@@ -569,7 +566,7 @@ function SectionHeading({ title, description }: { title: string; description: st
 function CollapsibleSection({
   title,
   description,
-  defaultOpen = false,
+  defaultOpen: _defaultOpen = false,
   aside,
   children,
 }: {
@@ -579,30 +576,19 @@ function CollapsibleSection({
   aside?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
-
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex gap-3">
-            {aside ? <div className="mt-1">{aside}</div> : null}
-            <div>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription>{description}</CardDescription>
-            </div>
+    <Card className="border-0 shadow-sm">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex gap-3">
+          {aside ? <div className="mt-1">{aside}</div> : null}
+          <div>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
           </div>
-          <CollapsibleTrigger asChild>
-            <button type="button" className="w-fit rounded-full">
-              <DisclosureToggle expanded={open} />
-            </button>
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent>{children}</CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
+        </div>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }
 
