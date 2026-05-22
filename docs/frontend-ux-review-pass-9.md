@@ -10,6 +10,8 @@ Passada de centralização da experiência de registro, com foco na tela `log-me
 - o topo da página e o cartão principal repetiam mensagens longas sobre o mesmo fluxo;
 - o usuário precisava alternar entre telas para registrar refeição, água, exercício e peso;
 - a organização anterior deixava água, exercícios e peso muito separados do menu principal da tela;
+- a aba `Hoje` mantinha um fluxo de consulta dentro de uma tela que agora deve ser exclusivamente de cadastro;
+- os controles de abrir e fechar criavam fricção visual em cards e seções que já podem permanecer expostos;
 - o upload de foto podia falhar quando o storage não respondia durante a criação do draft;
 - a rota `log-meal` ainda aparecia com um nome técnico demais para um fluxo cotidiano.
 
@@ -19,9 +21,10 @@ Passada de centralização da experiência de registro, com foco na tela `log-me
 - simplificação dos textos da tela e do cartão principal de registro com IA;
 - criação do alias `/record` e atualização do nome exibido na navegação principal;
 - transformação de água, exercícios e peso atual em abas próprias dentro da `Record`;
-- reposicionamento do seletor de dia para a aba `Hoje`, onde a consulta dos registros realmente acontece;
-- correção do fluxo de foto com fallback inline quando o upload para storage falha no draft;
-- padronização do texto dos controles de abrir e fechar nos cards colapsáveis.
+- remoção da aba `Hoje` para manter a página orientada apenas a entrada de dados;
+- inclusão de data e hora na atualização de peso, com histórico recente para acompanhamento;
+- remoção dos botões de abrir e fechar dos cards e das seções analíticas de relatórios;
+- correção do fluxo de foto com fallback inline quando o upload para storage falha no draft.
 
 ## Telas alteradas
 
@@ -30,6 +33,7 @@ Passada de centralização da experiência de registro, com foco na tela `log-me
 - `client/src/components/DashboardLayout.tsx`
 - `client/src/App.tsx`
 - `client/src/components/ui/card.tsx`
+- `client/src/pages/ReportsPage.tsx`
 - `server/modules/meals/service.ts`
 
 ## Validação
