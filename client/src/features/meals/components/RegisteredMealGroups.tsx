@@ -155,14 +155,14 @@ function RegisteredMealGroupSection({
                 className={[
                   "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors",
                   isOpen
-                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border border-primary/20 bg-primary/5 text-primary",
+                    ? "border border-sky-200 bg-sky-50 text-sky-700"
+                    : "border border-slate-200 bg-slate-50 text-slate-700",
                 ].join(" ")}
               >
                 <span
                   className={[
                     "inline-flex h-5 w-5 items-center justify-center rounded-full",
-                    isOpen ? "bg-emerald-100 text-emerald-700" : "bg-primary/15 text-primary",
+                    isOpen ? "bg-sky-100 text-sky-700" : "bg-slate-200 text-slate-700",
                   ].join(" ")}
                 >
                   {isOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
