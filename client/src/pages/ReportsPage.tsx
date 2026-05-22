@@ -29,6 +29,24 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Responsive
 import { Link } from "wouter";
 
 const WEEKDAY_NAMES = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+const INSIGHT_KEY_LABELS: Record<string, string> = {
+  adherencePercent: "Aderência",
+  averageCalories: "Média calórica",
+  averageProtein: "Proteína média",
+  calorieDelta: "Saldo calórico",
+  daysAboveGoal: "Dias acima da meta",
+  daysBelowGoal: "Dias abaixo da meta",
+  daysWithinGoal: "Dias dentro da meta",
+  fiberGrams: "Fibras",
+  fruitServings: "Frutas",
+  mealCount: "Refeições",
+  proteinGrams: "Proteína",
+  regularityScore: "Regularidade",
+  totalCalories: "Calorias totais",
+  ultraProcessedServings: "Ultraprocessados",
+  vegetableServings: "Vegetais",
+  waterMl: "Água",
+};
 
 function formatMacro(value: number) {
   return formatNumberPtBr(value, {
@@ -125,7 +143,7 @@ export default function ReportsPage() {
           </div>
         ) : reportBundle.isError ? (
           <div className="rounded-2xl border bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-            Não foi possível carregar o resumo semanal agora. Tente novamente em instantes para ver tendência e contexto da semana.
+            Não foi possível carregar o resumo semanal agora. Tente novamente em instantes para ver a tendência e o contexto da semana.
           </div>
         ) : null}
 
@@ -138,7 +156,7 @@ export default function ReportsPage() {
               stats={
                 <div className="grid gap-4 lg:grid-cols-4">
                   <HighlightCard title="Média semanal" value={formatCalories(progress.summary.averageCalories)} description="Média diária no período selecionado." />
-                  <HighlightCard title="Total semanal" value={formatCalories(progress.summary.totalCalories)} description={`Meta semanal ${formatCalories(progress.summary.totalGoalCalories)}.`} />
+                  <HighlightCard title="Total semanal" value={formatCalories(progress.summary.totalCalories)} description={`Meta semanal: ${formatCalories(progress.summary.totalGoalCalories)}.`} />
                   <HighlightCard title="Média de proteína" value={`${formatMacro(progress.summary.averageProtein)} g`} description="Média diária de proteína registrada." />
                   <HighlightCard title="Calorias líquidas" value={formatCalories(progress.summary.totalNetCalories)} description={`Exercícios registrados: ${formatCalories(progress.summary.totalExerciseCalories)}.`} />
                 </div>
@@ -181,13 +199,13 @@ export default function ReportsPage() {
                       Semana em formato de calendário
                     </CardTitle>
                     <CardDescription>
-                      Visual compacto inspirado em calendário: dias da semana em colunas e totais semanais na lateral.
+                      Visual compacto inspirado em calendário, com os dias da semana em colunas e os totais semanais na lateral.
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground lg:max-w-[520px] lg:justify-end">
-                    <CalendarLegend tone="bg-emerald-500" label="dentro" />
-                    <CalendarLegend tone="bg-amber-500" label="acima" />
-                    <CalendarLegend tone="bg-sky-500" label="abaixo" />
+                    <CalendarLegend tone="bg-emerald-500" label="dentro da meta" />
+                    <CalendarLegend tone="bg-amber-500" label="acima da meta" />
+                    <CalendarLegend tone="bg-sky-500" label="abaixo da meta" />
                     <CalendarLegend tone="bg-muted-foreground" label="sem registro" />
                   </div>
                 </div>
@@ -199,7 +217,7 @@ export default function ReportsPage() {
                   <Card className="border bg-muted/10 shadow-none">
                     <CardHeader>
                       <CardTitle>Dias da semana</CardTitle>
-                      <CardDescription>Dias sem registro ficam separados para não distorcer a leitura de consistência.</CardDescription>
+                      <CardDescription>Dias sem registro ficam separados para não distorcer a leitura da consistência.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <StatusTile label="Dentro da meta" value={progress.summary.daysWithinGoal} />
@@ -213,7 +231,7 @@ export default function ReportsPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Scale className="h-5 w-5 text-primary" />
-                        Evolução de peso
+                        Evolução do peso
                       </CardTitle>
                       <CardDescription>Exibida quando houver registros disponíveis.</CardDescription>
                     </CardHeader>
@@ -226,12 +244,12 @@ export default function ReportsPage() {
                             <StatusTile label="Variação" value={`${formatMacro(progress.weight.deltaKg ?? 0)} kg`} />
                           </div>
                           <p className="text-sm leading-6 text-muted-foreground">
-                            Peso é melhor lido como tendência. Oscilações de curto prazo podem refletir hidratação, rotina e horários de medição.
+                            O peso é melhor lido como tendência. Oscilações de curto prazo podem refletir hidratação, rotina e horários de medição.
                           </p>
                         </div>
                       ) : (
                         <div className="rounded-2xl border border-dashed bg-background/70 p-5 text-sm leading-6 text-muted-foreground">
-                          Nenhum peso registrado ainda. Quando houver dados, a tendência aparece aqui junto do contexto semanal.
+                          Ainda não há peso registrado. Quando houver dados, a tendência aparecerá aqui junto do contexto semanal.
                         </div>
                       )}
                     </CardContent>
@@ -272,7 +290,7 @@ export default function ReportsPage() {
               <Dumbbell className="h-5 w-5 text-primary" />
               Equação energética do dia
             </CardTitle>
-            <CardDescription>Visão direta de meta, consumo alimentar e gasto com exercícios, agora dentro da área de relatórios.</CardDescription>
+            <CardDescription>Visão direta da meta, do consumo alimentar e do gasto com exercícios, agora dentro da área de relatórios.</CardDescription>
           </CardHeader>
           <CardContent>
             {today ? (
@@ -284,14 +302,14 @@ export default function ReportsPage() {
                   <StatusTile label="Saldo líquido" value={formatCalories(today.net.calories ?? 0)} />
                 </div>
                 <div className="rounded-2xl border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
-                  Restam <span className="font-semibold text-foreground">{formatCalories(today.net.remainingToGoal ?? 0)}</span> para a meta líquida do dia, considerando consumo menos exercícios registrados.
+                  Restam <span className="font-semibold text-foreground">{formatCalories(today.net.remainingToGoal ?? 0)}</span> para atingir a meta líquida do dia, considerando o consumo menos os exercícios registrados.
                 </div>
               </div>
             ) : dashboardOverview.isLoading ? (
               <Skeleton className="h-32 rounded-2xl" />
             ) : (
               <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
-                A equação energética do dia não está disponível agora.
+                A equação energética do dia não está disponível no momento.
               </div>
             )}
           </CardContent>
@@ -299,7 +317,7 @@ export default function ReportsPage() {
 
         <CollapsibleSection
           title="Insights e qualidade alimentar"
-          description="Relatório automático, indicadores de qualidade e sinais práticos ficam agrupados porque explicam o comportamento da semana."
+          description="O relatório automático, os indicadores de qualidade e os sinais práticos ficam agrupados porque explicam o comportamento da semana."
           aside={<Lightbulb className="h-5 w-5 text-primary" />}
         >
           <div className="space-y-4">
@@ -348,11 +366,11 @@ export default function ReportsPage() {
             <div className="rounded-3xl border bg-muted/10 p-4">
               <div className="mb-3">
                 <h2 className="text-lg font-semibold tracking-tight">Indicadores de qualidade da semana</h2>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Proteína, fibra, água, frutas, vegetais, ultraprocessados e regularidade em um só bloco.</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Proteína, fibras, água, frutas, vegetais, ultraprocessados e regularidade em um só bloco.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <StatusTile label="Proteína" value={`${formatMacro(weeklyQuality.proteinGrams)} g`} />
-                <StatusTile label="Fibra" value={`${formatMacro(weeklyQuality.fiberGrams)} g`} />
+                <StatusTile label="Fibras" value={`${formatMacro(weeklyQuality.fiberGrams)} g`} />
                 <StatusTile label="Água" value={formatCountPtBr(Math.round(weeklyQuality.waterMl), " ml")} />
                 <StatusTile label="Frutas" value={formatMacro(weeklyQuality.fruitServings)} />
                 <StatusTile label="Vegetais" value={formatMacro(weeklyQuality.vegetableServings)} />
@@ -366,7 +384,7 @@ export default function ReportsPage() {
 
         <CollapsibleSection
           title="Refeições detalhadas"
-          description="Aplicamos aqui a mesma leitura compacta e agrupada usada na tela meals, organizada por dia dentro da semana selecionada."
+          description="Aplicamos aqui a mesma leitura compacta e agrupada usada na tela de refeições, organizada por dia dentro da semana selecionada."
           aside={<UtensilsCrossed className="h-5 w-5 text-primary" />}
         >
           {mealGroupsByDate.length ? (
@@ -404,10 +422,10 @@ export default function ReportsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5 text-primary" />
-                    Calorias consumidas versus meta
+                    Calorias consumidas em relação à meta
                   </CardTitle>
                   <CardDescription>
-                    Compare o volume de ingestão de cada dia com a meta calórica diária configurada para o usuário.
+                    Compare o volume ingerido em cada dia com a meta calórica diária configurada para o usuário.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="h-[360px]">
@@ -449,7 +467,7 @@ export default function ReportsPage() {
                           </p>
                         </div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                          Proteínas {formatMacro(day.protein)} g · Carboidratos {formatMacro(day.carbs)} g · Gorduras {formatMacro(day.fat)} g
+                          Proteínas: {formatMacro(day.protein)} g · Carboidratos: {formatMacro(day.carbs)} g · Gorduras: {formatMacro(day.fat)} g
                         </p>
                       </div>
                     );
@@ -462,7 +480,7 @@ export default function ReportsPage() {
               <CardHeader>
                 <CardTitle>Distribuição de macronutrientes</CardTitle>
                 <CardDescription>
-                  Evolução agregada de proteínas, carboidratos e gorduras ao longo da semana. Útil para avaliar consistência alimentar e desvios de estratégia.
+                  Evolução agregada de proteínas, carboidratos e gorduras ao longo da semana. Útil para avaliar a consistência alimentar e possíveis desvios de estratégia.
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-[360px]">
@@ -515,7 +533,7 @@ function WeeklyCalendarBoard({ progress, caloricTrend, todayDateKey }: { progres
               {dayName}
             </div>
           ))}
-          <div className="bg-foreground/70 px-4 py-2 text-center text-background">Totais semanais</div>
+          <div className="bg-foreground/70 px-4 py-2 text-center text-background">Totais da semana</div>
         </div>
 
         <div className="grid grid-cols-[repeat(7,minmax(135px,1fr))_210px]">
@@ -537,8 +555,8 @@ function WeeklyCalendarBoard({ progress, caloricTrend, todayDateKey }: { progres
                 </div>
 
                 <div className="space-y-2">
-                  <CalendarEvent tone="border-l-emerald-500" icon={Flame} title="Calorias" value={formatCalories(day.calories)} detail={`Meta ${formatCalories(day.goalCalories)}`} />
-                  <CalendarEvent tone={delta > 0 ? "border-l-amber-500" : "border-l-sky-500"} icon={TrendingUp} title="Saldo" value={formatCalories(day.netCalories)} detail={`${delta > 0 ? "+" : ""}${formatNumberPtBr(Math.round(delta))} kcal vs. meta`} />
+                  <CalendarEvent tone="border-l-emerald-500" icon={Flame} title="Calorias" value={formatCalories(day.calories)} detail={`Meta: ${formatCalories(day.goalCalories)}`} />
+                  <CalendarEvent tone={delta > 0 ? "border-l-amber-500" : "border-l-sky-500"} icon={TrendingUp} title="Saldo" value={formatCalories(day.netCalories)} detail={`${delta > 0 ? "+" : ""}${formatNumberPtBr(Math.round(delta))} kcal em relação à meta`} />
                   <CalendarEvent tone="border-l-orange-500" icon={Dumbbell} title="Exercícios" value={formatCalories(trendDay?.exerciseCalories ?? 0)} detail="Gasto energético" />
                   <CalendarEvent tone="border-l-blue-500" icon={Droplets} title="Água" value={formatCountPtBr(Math.round(trendDay?.quality?.waterMl ?? 0), " ml")} detail="Hidratação" />
                   <div className="rounded-xl border bg-background/85 p-2 text-xs">
@@ -549,10 +567,10 @@ function WeeklyCalendarBoard({ progress, caloricTrend, todayDateKey }: { progres
                     <Progress className="h-1.5" value={progressPercent(day.calories, day.goalCalories)} />
                   </div>
                   <div className="rounded-xl border bg-background/85 p-2 text-xs leading-5 text-muted-foreground">
-                    <p className="font-medium text-foreground">Macros</p>
-                    <p>P {formatMacro(trendDay?.protein ?? 0)} g</p>
-                    <p>C {formatMacro(trendDay?.carbs ?? 0)} g</p>
-                    <p>G {formatMacro(trendDay?.fat ?? 0)} g</p>
+                    <p className="font-medium text-foreground">Macronutrientes</p>
+                    <p>P: {formatMacro(trendDay?.protein ?? 0)} g</p>
+                    <p>C: {formatMacro(trendDay?.carbs ?? 0)} g</p>
+                    <p>G: {formatMacro(trendDay?.fat ?? 0)} g</p>
                   </div>
                 </div>
               </div>
@@ -568,7 +586,7 @@ function WeeklyCalendarBoard({ progress, caloricTrend, todayDateKey }: { progres
             <WeeklyTotalItem label="Água" value={formatCountPtBr(Math.round(totals.water), " ml")} />
             <WeeklyTotalItem label="Refeições" value={String(totals.meals)} />
             <div className="mt-4 border-t border-background/25 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-background/70">Macros</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-background/70">Macronutrientes</p>
               <p className="mt-2 text-sm">Proteínas: {formatMacro(totals.protein)} g</p>
               <p className="text-sm">Carboidratos: {formatMacro(totals.carbs)} g</p>
               <p className="text-sm">Gorduras: {formatMacro(totals.fat)} g</p>
@@ -709,6 +727,10 @@ function insightTone(severity: "info" | "positive" | "warning") {
 }
 
 function formatInsightKey(key: string) {
+  if (INSIGHT_KEY_LABELS[key]) {
+    return INSIGHT_KEY_LABELS[key];
+  }
+
   return key
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, value => value.toUpperCase());
