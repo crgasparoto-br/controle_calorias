@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCalories, formatNumberPtBr } from "@/lib/numberFormat";
+import { formatCalories, formatCountPtBr, formatNumberPtBr } from "@/lib/numberFormat";
+import { formatTimeInTimeZone, getPreferredLocale, getPreferredTimeZone, toDateInputValue } from "@/lib/dateTime";
 import { trpc } from "@/lib/trpc";
 import {
   ArrowRight,
@@ -35,26 +36,25 @@ function formatMacro(value: number) {
   });
 }
 
-function formatMealTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatMealTime(timestamp: number, timeZone: string, locale: string) {
+  return formatTimeInTimeZone(timestamp, timeZone, locale);
 }
 
-function formatDateHeading(date: string) {
-  return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", {
+function formatDateHeading(date: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "UTC",
     weekday: "long",
     day: "2-digit",
     month: "short",
-  });
+  }).format(new Date(`${date}T12:00:00Z`));
 }
 
-function formatCalendarDay(date: string) {
-  return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", {
+function formatCalendarDay(date: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "UTC",
     day: "2-digit",
     month: "short",
-  });
+  }).format(new Date(`${date}T12:00:00Z`));
 }
 
 function progressPercent(value: number, goal: number) {
@@ -67,6 +67,8 @@ export default function ReportsPage() {
   const weeklyProgress = trpc.nutrition.reports.weeklyProgress.useQuery();
   const weeklyInsights = trpc.nutrition.reports.weeklyInsights.useQuery();
   const meals = trpc.nutrition.meals.list.useQuery();
+  const userTimeZone = getPreferredTimeZone();
+  const userLocale = getPreferredLocale();
 
   const caloricTrend = weekly.data ?? [];
   const progress = weeklyProgress.data;
@@ -81,7 +83,7 @@ export default function ReportsPage() {
     const groups = new Map<string, typeof detailedMeals>();
 
     detailedMeals.forEach(meal => {
-      const dateKey = new Date(meal.occurredAt).toISOString().slice(0, 10);
+      const dateKey = toDateInputValue(new Date(meal.occurredAt), userTimeZone);
       const currentGroup = groups.get(dateKey) ?? ([] as typeof detailedMeals);
       currentGroup.push(meal);
       groups.set(dateKey, currentGroup);
@@ -90,7 +92,7 @@ export default function ReportsPage() {
     return Array.from(groups.entries())
       .sort(([firstDate], [secondDate]) => secondDate.localeCompare(firstDate))
       .map(([date, items]) => ({ date, items }));
-  }, [detailedMeals]);
+  }, [detailedMeals, userTimeZone]);
   const weeklyQuality = caloricTrend.reduce(
     (acc, day) => ({
       proteinGrams: acc.proteinGrams + (day.quality?.proteinGrams ?? 0),
@@ -170,7 +172,7 @@ export default function ReportsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <WeeklyCalendarBoard progress={progress} caloricTrend={caloricTrend} />
+                <WeeklyCalendarBoard progress={progress} caloricTrend={caloricTrend} locale={userLocale} />
 
                 <div className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
                   <Card className="border bg-muted/10 shadow-none">
@@ -304,7 +306,7 @@ export default function ReportsPage() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <StatusTile label="Proteína" value={`${formatMacro(weeklyQuality.proteinGrams)} g`} />
                 <StatusTile label="Fibra" value={`${formatMacro(weeklyQuality.fiberGrams)} g`} />
-                <StatusTile label="Água" value={`${Math.round(weeklyQuality.waterMl).toLocaleString("pt-BR")} ml`} />
+                <StatusTile label="Água" value={formatCountPtBr(Math.round(weeklyQuality.waterMl), " ml")} />
                 <StatusTile label="Frutas" value={formatMacro(weeklyQuality.fruitServings)} />
                 <StatusTile label="Vegetais" value={formatMacro(weeklyQuality.vegetableServings)} />
                 <StatusTile label="Ultraprocessados" value={formatMacro(weeklyQuality.ultraProcessedServings)} />
@@ -328,7 +330,7 @@ export default function ReportsPage() {
                   <div key={group.date} className="rounded-3xl border bg-muted/10 p-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-base font-semibold tracking-tight capitalize">{formatDateHeading(group.date)}</p>
+                        <p className="text-base font-semibold tracking-tight capitalize">{formatDateHeading(group.date, userLocale)}</p>
                         <p className="text-sm text-muted-foreground">{group.items.length} refeições detalhadas neste dia.</p>
                       </div>
                       <Badge variant="secondary" className="w-fit">{formatCalories(dayCalories)}</Badge>
@@ -346,7 +348,7 @@ export default function ReportsPage() {
                             </div>
                             <div className="inline-flex w-fit items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm font-medium text-foreground">
                               <Clock3 className="h-4 w-4" />
-                              Registro às {formatMealTime(meal.occurredAt)}
+                              Registro às {formatMealTime(meal.occurredAt, userTimeZone, userLocale)}
                             </div>
                           </div>
 
@@ -470,7 +472,7 @@ export default function ReportsPage() {
   );
 }
 
-function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; caloricTrend: any[] }) {
+function WeeklyCalendarBoard({ progress, caloricTrend, locale }: { progress: any; caloricTrend: any[]; locale: string }) {
   const totals = progress.days.reduce(
     (acc: { calories: number; goal: number; net: number; exercise: number; water: number; meals: number; protein: number; carbs: number; fat: number }, day: any) => {
       const trendDay = caloricTrend.find(item => item.date === day.date);
@@ -508,7 +510,7 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
               <div key={day.date} className={`min-h-[420px] border-r p-2 ${calendarCellTone(day.status)}`}>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-xs text-muted-foreground">{formatCalendarDay(day.date)}</p>
+                    <p className="text-xs text-muted-foreground">{formatCalendarDay(day.date, locale)}</p>
                     <p className="text-sm font-semibold tracking-tight">{day.label}</p>
                   </div>
                   <span className={`h-2.5 w-2.5 rounded-full ${statusDotTone(day.status)}`} />
@@ -518,7 +520,7 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
                   <CalendarEvent tone="border-l-emerald-500" icon={Flame} title="Calorias" value={formatCalories(day.calories)} detail={`Meta ${formatCalories(day.goalCalories)}`} />
                   <CalendarEvent tone={delta > 0 ? "border-l-amber-500" : "border-l-sky-500"} icon={TrendingUp} title="Saldo" value={formatCalories(day.netCalories)} detail={`${delta > 0 ? "+" : ""}${formatNumberPtBr(Math.round(delta))} kcal vs. meta`} />
                   <CalendarEvent tone="border-l-orange-500" icon={Dumbbell} title="Exercícios" value={formatCalories(trendDay?.exerciseCalories ?? 0)} detail="Gasto energético" />
-                  <CalendarEvent tone="border-l-blue-500" icon={Droplets} title="Água" value={`${Math.round(trendDay?.quality?.waterMl ?? 0).toLocaleString("pt-BR")} ml`} detail="Hidratação" />
+                  <CalendarEvent tone="border-l-blue-500" icon={Droplets} title="Água" value={formatCountPtBr(Math.round(trendDay?.quality?.waterMl ?? 0), " ml")} detail="Hidratação" />
                   <div className="rounded-xl border bg-background/85 p-2 text-xs">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="font-medium">Aderência</span>
@@ -543,7 +545,7 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
             <WeeklyTotalItem label="Meta" value={formatCalories(totals.goal)} />
             <WeeklyTotalItem label="Saldo líquido" value={formatCalories(totals.net)} />
             <WeeklyTotalItem label="Exercícios" value={formatCalories(totals.exercise)} />
-            <WeeklyTotalItem label="Água" value={`${Math.round(totals.water).toLocaleString("pt-BR")} ml`} />
+            <WeeklyTotalItem label="Água" value={formatCountPtBr(Math.round(totals.water), " ml")} />
             <WeeklyTotalItem label="Refeições" value={String(totals.meals)} />
             <div className="mt-4 border-t border-background/25 pt-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-background/70">Macros</p>
