@@ -3,26 +3,46 @@ import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   getBrowserTimeZone,
   toDateInputValue,
   toDateTimeLocalValue,
   zonedDateTimeLocalToIso,
 } from "@/lib/dateTime";
-import { formatCalories, formatGrams } from "@/lib/numberFormat";
+import {
+  formatCalories,
+  formatCountPtBr,
+  formatDecimalInputPtBr,
+  formatGrams,
+  formatIntegerInputPtBr,
+  formatNumberPtBr,
+  parseDecimalInputPtBr,
+  parseIntegerInputPtBr,
+} from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { calculateDayTotals, calculateMealTotals } from "../../../../../shared/mealTotals";
-import { ArrowRight, CalendarDays, PencilLine, Star, WandSparkles } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  CalendarDays,
+  Droplets,
+  Dumbbell,
+  PencilLine,
+  Scale,
+  Star,
+  WandSparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   MealAiTabContent,
   MealDayRecordsCard,
   MealManualEditorCard,
-  MealModeGuide,
   SummaryPill,
 } from "../components";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
@@ -48,6 +68,14 @@ const MEAL_LABEL_SUGGESTIONS = [
   "outro",
 ];
 
+const ONBOARDING_DEFAULTS = {
+  objective: "melhorar_habitos" as const,
+  activityLevel: "moderate" as const,
+  trackingExperience: "beginner" as const,
+  eatingRoutine: "misto" as const,
+  mainDifficulty: "falta_de_planejamento" as const,
+};
+
 function createEmptyItem(): MealItemState {
   return {
     foodName: "",
@@ -71,6 +99,24 @@ function createManualMealState(mealLabel = "almoço", occurredAt = toDateTimeLoc
     occurredAt,
     notes: "",
     items: [createEmptyItem()],
+  };
+}
+
+function buildDefaultExerciseForm() {
+  return {
+    activityType: "Corrida",
+    durationMinutes: formatIntegerInputPtBr(45),
+    caloriesBurned: formatIntegerInputPtBr(450),
+    occurredAt: toDateTimeLocalValue(new Date()),
+    notes: "",
+  };
+}
+
+function buildDefaultWaterForm() {
+  return {
+    amountMl: formatIntegerInputPtBr(300),
+    occurredAt: toDateTimeLocalValue(new Date()),
+    dailyTargetMl: formatIntegerInputPtBr(2500),
   };
 }
 
@@ -135,6 +181,9 @@ export default function LogMealPage() {
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
+  const overviewQuery = trpc.nutrition.dashboard.overview.useQuery();
+  const waterGoalQuery = trpc.nutrition.water.goal.useQuery();
+  const profileQuery = trpc.nutrition.onboarding.profile.useQuery();
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
 
   const mealSchedules = mealSchedulesQuery.data as MealScheduleState[] | undefined;
@@ -152,6 +201,21 @@ export default function LogMealPage() {
   const [editableItems, setEditableItems] = useState<MealItemState[]>([]);
   const [manualMeal, setManualMeal] = useState(() => createManualMealState(defaultMealLabel));
   const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
+  const [exerciseForm, setExerciseForm] = useState(buildDefaultExerciseForm);
+  const [waterForm, setWaterForm] = useState(buildDefaultWaterForm);
+  const [weightValue, setWeightValue] = useState("");
+
+  React.useEffect(() => {
+    if (waterGoalQuery.data?.dailyTargetMl) {
+      setWaterForm(current => ({ ...current, dailyTargetMl: formatIntegerInputPtBr(waterGoalQuery.data.dailyTargetMl) }));
+    }
+  }, [waterGoalQuery.data?.dailyTargetMl]);
+
+  React.useEffect(() => {
+    if (profileQuery.data?.currentWeightKg) {
+      setWeightValue(formatDecimalInputPtBr(profileQuery.data.currentWeightKg, 1));
+    }
+  }, [profileQuery.data?.currentWeightKg]);
 
   const suggestedManualMealLabel = useMemo(
     () => suggestMealLabelFromSchedules(manualMeal.occurredAt, mealSchedules),
@@ -183,6 +247,9 @@ export default function LogMealPage() {
       utils.nutrition.meals.dayTotals.invalidate(),
       utils.nutrition.meals.favorites.invalidate(),
       utils.nutrition.reports.weekly.invalidate(),
+      utils.nutrition.onboarding.profile.invalidate(),
+      utils.nutrition.water.goal.invalidate(),
+      utils.nutrition.water.list.invalidate(),
     ]);
   };
 
@@ -269,6 +336,60 @@ export default function LogMealPage() {
     onError: error => toast.error(error.message || "Não foi possível reutilizar a favorita."),
   });
 
+  const createExercise = trpc.nutrition.exercises.create.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Exercício registrado com sucesso.");
+      setExerciseForm(buildDefaultExerciseForm());
+    },
+    onError: error => toast.error(error.message || "Não foi possível registrar o exercício."),
+  });
+
+  const removeExercise = trpc.nutrition.exercises.remove.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Exercício removido com sucesso.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível remover o exercício."),
+  });
+
+  const createWaterLog = trpc.nutrition.water.create.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Consumo de água registrado com sucesso.");
+      setWaterForm(current => ({
+        ...current,
+        amountMl: formatIntegerInputPtBr(300),
+        occurredAt: toDateTimeLocalValue(new Date()),
+      }));
+    },
+    onError: error => toast.error(error.message || "Não foi possível registrar a água."),
+  });
+
+  const updateWaterGoal = trpc.nutrition.water.updateGoal.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Meta diária de água atualizada.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível atualizar a meta de água."),
+  });
+
+  const removeWaterLog = trpc.nutrition.water.remove.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Consumo de água removido com sucesso.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível remover o consumo de água."),
+  });
+
+  const updateWeight = trpc.nutrition.onboarding.complete.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Peso atualizado com sucesso.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível atualizar o peso."),
+  });
+
   const previewTotals = useMemo(() => sumItems(editableItems), [editableItems]);
   const manualTotals = useMemo(() => sumItems(manualMeal.items), [manualMeal.items]);
   const selectedDayMeals = useMemo(
@@ -278,6 +399,17 @@ export default function LogMealPage() {
   const localDayTotals = useMemo(() => calculateDayTotals(selectedDayMeals), [selectedDayMeals]);
   const dayTotalsQuery = trpc.nutrition.meals.dayTotals.useQuery({ date: selectedDay });
   const dayTotals = dayTotalsQuery.data?.totals ?? localDayTotals;
+  const waterGoalValue = parseIntegerInputPtBr(waterForm.dailyTargetMl);
+  const waterAmountValue = parseIntegerInputPtBr(waterForm.amountMl);
+  const isWaterGoalInvalid = waterGoalValue < 250 || waterGoalValue > 10000;
+  const isWaterAmountInvalid = waterAmountValue < 50 || waterAmountValue > 5000;
+  const parsedWeight = parseDecimalInputPtBr(weightValue);
+  const isWeightInvalid = parsedWeight < 25 || parsedWeight > 350;
+  const recentExercises = overviewQuery.data?.exercises ?? [];
+  const recentWaterLogs = overviewQuery.data?.water.logs ?? [];
+  const currentWeightLabel = profileQuery.data?.currentWeightKg
+    ? `${formatNumberPtBr(profileQuery.data.currentWeightKg, { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg`
+    : "Não informado";
 
   const mealLabelSuggestions = (
     <datalist id="meal-label-suggestions">
@@ -298,6 +430,61 @@ export default function LogMealPage() {
       text: description || undefined,
       image: imageFile ? { base64: await fileToBase64(imageFile), mimeType: imageFile.type, fileName: imageFile.name } : undefined,
       audio: audioFile ? { base64: await fileToBase64(audioFile), mimeType: audioFile.type, fileName: audioFile.name } : undefined,
+    });
+  };
+
+  const handleQuickWater = (amountMl: number) => {
+    createWaterLog.mutate({
+      amountMl,
+      occurredAt: new Date().toISOString(),
+    });
+  };
+
+  const handleExerciseSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    createExercise.mutate({
+      activityType: exerciseForm.activityType.trim(),
+      durationMinutes: parseIntegerInputPtBr(exerciseForm.durationMinutes),
+      caloriesBurned: parseIntegerInputPtBr(exerciseForm.caloriesBurned),
+      occurredAt: zonedDateTimeLocalToIso(exerciseForm.occurredAt),
+      notes: exerciseForm.notes.trim() || undefined,
+    });
+  };
+
+  const handleWaterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    createWaterLog.mutate({
+      amountMl: waterAmountValue,
+      occurredAt: zonedDateTimeLocalToIso(waterForm.occurredAt),
+    });
+  };
+
+  const handleWeightSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const profile = profileQuery.data;
+    if (!profile?.birthDate || !profile?.heightCm) {
+      toast.error("Abra Configurações uma vez para completar o perfil antes de atualizar o peso por aqui.");
+      return;
+    }
+
+    if (isWeightInvalid) {
+      toast.error("Informe um peso entre 25 kg e 350 kg.");
+      return;
+    }
+
+    updateWeight.mutate({
+      name: profile.name?.trim() || "Usuário",
+      birthDate: profile.birthDate,
+      heightCm: profile.heightCm,
+      currentWeightKg: parsedWeight,
+      objective: profile.objective ?? ONBOARDING_DEFAULTS.objective,
+      activityLevel: profile.activityLevel ?? ONBOARDING_DEFAULTS.activityLevel,
+      trackingExperience: profile.trackingExperience ?? ONBOARDING_DEFAULTS.trackingExperience,
+      dietaryPreferences: profile.dietaryPreferences ?? [],
+      dietaryRestrictions: profile.dietaryRestrictions ?? [],
+      eatingRoutine: profile.eatingRoutine ?? ONBOARDING_DEFAULTS.eatingRoutine,
+      mainDifficulty: profile.mainDifficulty ?? ONBOARDING_DEFAULTS.mainDifficulty,
     });
   };
 
@@ -415,9 +602,9 @@ export default function LogMealPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageIntro
-          eyebrow="Registro de refeição"
-          title="Registre com texto, foto ou áudio no mesmo fluxo"
-          description="O registro concentra texto, foto do prato, foto de rótulo e áudio em uma única experiência. Depois da IA preparar os itens, você ajusta alimentos, porções, calorias e macros antes de salvar."
+          eyebrow="Record"
+          title="Registre refeições, água, exercícios e peso no mesmo lugar"
+          description="Use um único ponto para registrar o dia e revisar tudo sem trocar de tela."
           stats={
             <div className="grid gap-3 sm:grid-cols-4">
               <SummaryPill label="Calorias" value={formatCalories(dayTotals.calories)} />
@@ -445,13 +632,12 @@ export default function LogMealPage() {
         />
 
         {mealLabelSuggestions}
-        <MealModeGuide activeMode={activeTab} onModeChange={setActiveTab} />
 
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
           <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3">
             <TabsTrigger className="min-h-11 rounded-xl" value="registro">
               <WandSparkles className="h-4 w-4" />
-              Registro de refeição
+              Record com IA
             </TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="manual">
               <PencilLine className="h-4 w-4" />
@@ -533,6 +719,258 @@ export default function LogMealPage() {
             {recordsCard}
           </TabsContent>
         </Tabs>
+
+        <section className="grid gap-4 xl:grid-cols-3">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Droplets className="h-5 w-5 text-primary" />
+                Água do dia
+              </CardTitle>
+              <CardDescription>Meta, registro rápido e histórico recente de hidratação.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                <SummaryPill label="Consumido" value={formatCountPtBr(overviewQuery.data?.today.water.consumedMl ?? 0, " ml")} />
+                <SummaryPill label="Meta" value={formatCountPtBr(overviewQuery.data?.today.water.goalMl ?? 0, " ml")} />
+                <SummaryPill label="Restante" value={formatCountPtBr(overviewQuery.data?.today.water.remainingMl ?? 0, " ml")} />
+              </div>
+
+              <form className="space-y-3" onSubmit={handleWaterSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="record-water-goal">Meta diária (ml)</Label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      id="record-water-goal"
+                      type="text"
+                      inputMode="numeric"
+                      value={waterForm.dailyTargetMl}
+                      onChange={event =>
+                        setWaterForm(current => ({
+                          ...current,
+                          dailyTargetMl: formatIntegerInputPtBr(event.target.value),
+                        }))
+                      }
+                      className={isWaterGoalInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined}
+                    />
+                    <Button type="button" variant="outline" className="rounded-full" onClick={() => updateWaterGoal.mutate({ dailyTargetMl: waterGoalValue })} disabled={updateWaterGoal.isPending || isWaterGoalInvalid}>
+                      {updateWaterGoal.isPending ? "Salvando..." : "Salvar meta"}
+                    </Button>
+                  </div>
+                  {isWaterGoalInvalid ? <p className="text-xs text-amber-600">Use uma meta diária entre 250 ml e 10.000 ml.</p> : null}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="record-water-amount">Consumo (ml)</Label>
+                    <Input
+                      id="record-water-amount"
+                      type="text"
+                      inputMode="numeric"
+                      value={waterForm.amountMl}
+                      onChange={event =>
+                        setWaterForm(current => ({
+                          ...current,
+                          amountMl: formatIntegerInputPtBr(event.target.value),
+                        }))
+                      }
+                      className={isWaterAmountInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="record-water-occurred-at">Data e hora</Label>
+                    <Input
+                      id="record-water-occurred-at"
+                      type="datetime-local"
+                      value={waterForm.occurredAt}
+                      onChange={event => setWaterForm(current => ({ ...current, occurredAt: event.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {isWaterAmountInvalid ? <p className="text-xs text-amber-600">Informe um consumo entre 50 ml e 5.000 ml por registro.</p> : null}
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[200, 300, 500].map(shortcut => (
+                    <Button key={shortcut} type="button" variant="outline" className="rounded-full" onClick={() => handleQuickWater(shortcut)} disabled={createWaterLog.isPending}>
+                      + {formatCountPtBr(shortcut, " ml")}
+                    </Button>
+                  ))}
+                </div>
+
+                <Button type="submit" className="w-full rounded-full" disabled={createWaterLog.isPending || isWaterAmountInvalid}>
+                  {createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}
+                </Button>
+              </form>
+
+              <div className="space-y-3">
+                <p className="text-sm font-medium tracking-tight">Registros recentes</p>
+                {recentWaterLogs.length ? (
+                  recentWaterLogs.map(log => (
+                    <div key={log.id} className="rounded-2xl border bg-muted/30 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium tracking-tight">{formatCountPtBr(log.amountMl, " ml")}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(Number(log.occurredAt)).toLocaleString("pt-BR")}</p>
+                        </div>
+                        <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => removeWaterLog.mutate({ waterLogId: log.id })} disabled={removeWaterLog.isPending}>
+                          Remover
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                    Nenhum consumo de água foi registrado ainda.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Dumbbell className="h-5 w-5 text-primary" />
+                Exercícios
+              </CardTitle>
+              <CardDescription>Registre o gasto energético e acompanhe os lançamentos mais recentes.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <form className="space-y-3" onSubmit={handleExerciseSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="record-exercise-activity">Atividade</Label>
+                  <Input
+                    id="record-exercise-activity"
+                    value={exerciseForm.activityType}
+                    onChange={event => setExerciseForm(current => ({ ...current, activityType: event.target.value }))}
+                    placeholder="Ex.: Corrida leve"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="record-exercise-duration">Duração (min)</Label>
+                    <Input
+                      id="record-exercise-duration"
+                      type="text"
+                      inputMode="numeric"
+                      value={exerciseForm.durationMinutes}
+                      onChange={event =>
+                        setExerciseForm(current => ({
+                          ...current,
+                          durationMinutes: formatIntegerInputPtBr(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="record-exercise-calories">Gasto estimado (kcal)</Label>
+                    <Input
+                      id="record-exercise-calories"
+                      type="text"
+                      inputMode="numeric"
+                      value={exerciseForm.caloriesBurned}
+                      onChange={event =>
+                        setExerciseForm(current => ({
+                          ...current,
+                          caloriesBurned: formatIntegerInputPtBr(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="record-exercise-occurred-at">Data e hora</Label>
+                  <Input
+                    id="record-exercise-occurred-at"
+                    type="datetime-local"
+                    value={exerciseForm.occurredAt}
+                    onChange={event => setExerciseForm(current => ({ ...current, occurredAt: event.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="record-exercise-notes">Observações</Label>
+                  <Textarea
+                    id="record-exercise-notes"
+                    value={exerciseForm.notes}
+                    onChange={event => setExerciseForm(current => ({ ...current, notes: event.target.value }))}
+                    placeholder="Opcional: intensidade, local ou observação rápida"
+                    className="min-h-24 rounded-2xl"
+                  />
+                </div>
+                <Button type="submit" className="w-full rounded-full" disabled={createExercise.isPending}>
+                  {createExercise.isPending ? "Salvando exercício..." : "Registrar exercício"}
+                </Button>
+              </form>
+
+              <div className="space-y-3">
+                <p className="text-sm font-medium tracking-tight">Exercícios recentes</p>
+                {recentExercises.length ? (
+                  recentExercises.map(exercise => (
+                    <div key={exercise.id} className="rounded-2xl border bg-muted/30 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium tracking-tight">{exercise.activityType}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatCountPtBr(exercise.durationMinutes, " min")} · {formatCalories(exercise.caloriesBurned)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")}</p>
+                          {exercise.notes ? <p className="mt-2 text-sm text-muted-foreground">{exercise.notes}</p> : null}
+                        </div>
+                        <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => removeExercise.mutate({ exerciseId: exercise.id })} disabled={removeExercise.isPending}>
+                          Remover
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                    Nenhum exercício foi registrado ainda.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Scale className="h-5 w-5 text-primary" />
+                Peso atual
+              </CardTitle>
+              <CardDescription>Atualize o peso sem sair do fluxo principal de registro.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <SummaryPill label="Peso salvo" value={currentWeightLabel} />
+                <SummaryPill label="Perfil" value={profileQuery.data?.name?.trim() || "Usuário"} />
+              </div>
+
+              <form className="space-y-3" onSubmit={handleWeightSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="record-weight">Peso atual (kg)</Label>
+                  <Input
+                    id="record-weight"
+                    type="text"
+                    inputMode="decimal"
+                    value={weightValue}
+                    onChange={event => setWeightValue(formatDecimalInputPtBr(event.target.value, 1))}
+                    className={isWeightInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined}
+                    placeholder="Ex.: 72,5"
+                  />
+                  {isWeightInvalid ? <p className="text-xs text-amber-600">Informe um peso entre 25 kg e 350 kg.</p> : null}
+                </div>
+                <Button type="submit" className="w-full rounded-full" disabled={updateWeight.isPending || isWeightInvalid || !weightValue.trim()}>
+                  {updateWeight.isPending ? "Salvando peso..." : "Salvar peso"}
+                </Button>
+              </form>
+
+              <div className="rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+                O peso continua salvo no perfil do usuário, mas agora pode ser atualizado diretamente em Record.
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </DashboardLayout>
   );
