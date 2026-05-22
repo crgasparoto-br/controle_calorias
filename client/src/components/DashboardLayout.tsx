@@ -100,7 +100,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const menuItems = useMemo(() => {
     const baseItems = [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-      { icon: MessageSquareMore, label: "Registro de refeição", path: "/log-meal" },
+      { icon: MessageSquareMore, label: "Record", path: "/record" },
       { icon: ListChecks, label: "Registros", path: "/meals" },
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
@@ -119,7 +119,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     return baseItems;
   }, [user?.role]);
 
-  const activeItem = menuItems.find(item => item.path === location || (item.path === "/settings" && location === "/onboarding"));
+  const activeItem = menuItems.find(
+    item =>
+      item.path === location ||
+      (item.path === "/settings" && location === "/onboarding") ||
+      (item.path === "/record" && location === "/log-meal"),
+  );
 
   return (
     <>
@@ -137,7 +142,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <SidebarContent className="px-3 py-4">
           <SidebarMenu>
             {menuItems.map(item => {
-              const isActive = item.path === location || (item.path === "/settings" && location === "/onboarding");
+              const isActive =
+                item.path === location ||
+                (item.path === "/settings" && location === "/onboarding") ||
+                (item.path === "/record" && location === "/log-meal");
               return (
                 <SidebarMenuItem key={item.path}>
                   <SidebarMenuButton
@@ -193,11 +201,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <Button
                 type="button"
-                variant={location === "/log-meal" ? "default" : "outline"}
+                variant={location === "/record" || location === "/log-meal" ? "default" : "outline"}
                 className="h-10 rounded-full px-4"
-                onClick={() => setLocation("/log-meal")}
+                onClick={() => setLocation("/record")}
               >
-                Registrar refeição
+                Abrir record
               </Button>
               {!isMobile ? (
                 <Button
