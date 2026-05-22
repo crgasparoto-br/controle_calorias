@@ -63,58 +63,39 @@ function progressPercent(value: number, goal: number) {
 }
 
 export default function ReportsPage() {
-  const weekly = trpc.nutrition.reports.weekly.useQuery();
-  const weeklyProgress = trpc.nutrition.reports.weeklyProgress.useQuery();
-  const weeklyInsights = trpc.nutrition.reports.weeklyInsights.useQuery();
-  const meals = trpc.nutrition.meals.list.useQuery();
+  const reportBundle = trpc.nutrition.reports.bundle.useQuery();
 
-  const caloricTrend = weekly.data ?? [];
-  const progress = weeklyProgress.data;
+  const caloricTrend = reportBundle.data?.weekly ?? [];
+  const progress = reportBundle.data?.progress;
+  const weeklyInsights = reportBundle.data?.insights;
+  const detailedMealsByDate = reportBundle.data?.mealsByDate ?? [];
+  const weeklyQuality = reportBundle.data?.quality ?? {
+    proteinGrams: 0,
+    fiberGrams: 0,
+    waterMl: 0,
+    fruitServings: 0,
+    vegetableServings: 0,
+    ultraProcessedServings: 0,
+    mealCount: 0,
+    regularityScore: 0,
+  };
   const macroTrend = caloricTrend.map(day => ({
     label: day.label,
     protein: Math.round(day.protein),
     carbs: Math.round(day.carbs),
     fat: Math.round(day.fat),
   }));
-  const detailedMeals = (meals.data ?? []).filter(meal => meal.items?.length);
-  const detailedMealsByDate = React.useMemo(() => {
-    const groups = new Map<string, typeof detailedMeals>();
-
-    detailedMeals.forEach(meal => {
-      const dateKey = new Date(meal.occurredAt).toISOString().slice(0, 10);
-      const currentGroup = groups.get(dateKey) ?? ([] as typeof detailedMeals);
-      currentGroup.push(meal);
-      groups.set(dateKey, currentGroup);
-    });
-
-    return Array.from(groups.entries())
-      .sort(([firstDate], [secondDate]) => secondDate.localeCompare(firstDate))
-      .map(([date, items]) => ({ date, items }));
-  }, [detailedMeals]);
-  const weeklyQuality = caloricTrend.reduce(
-    (acc, day) => ({
-      proteinGrams: acc.proteinGrams + (day.quality?.proteinGrams ?? 0),
-      fiberGrams: acc.fiberGrams + (day.quality?.fiberGrams ?? 0),
-      waterMl: acc.waterMl + (day.quality?.waterMl ?? 0),
-      fruitServings: acc.fruitServings + (day.quality?.fruitServings ?? 0),
-      vegetableServings: acc.vegetableServings + (day.quality?.vegetableServings ?? 0),
-      ultraProcessedServings: acc.ultraProcessedServings + (day.quality?.ultraProcessedServings ?? 0),
-      mealCount: acc.mealCount + (day.quality?.mealCount ?? 0),
-      regularityScore: acc.regularityScore + ((day.quality?.regularityScore ?? 0) / 7),
-    }),
-    { proteinGrams: 0, fiberGrams: 0, waterMl: 0, fruitServings: 0, vegetableServings: 0, ultraProcessedServings: 0, mealCount: 0, regularityScore: 0 },
-  );
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {weeklyProgress.isLoading ? (
+        {reportBundle.isLoading ? (
           <div className="grid gap-4 lg:grid-cols-3">
             <Skeleton className="h-32 rounded-2xl" />
             <Skeleton className="h-32 rounded-2xl" />
             <Skeleton className="h-32 rounded-2xl" />
           </div>
-        ) : weeklyProgress.isError ? (
+        ) : reportBundle.isError ? (
           <div className="rounded-2xl border bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
             Não foi possível carregar o resumo semanal agora. Tente novamente em instantes para ver tendência e contexto da semana.
           </div>
@@ -255,18 +236,14 @@ export default function ReportsPage() {
                 <Lightbulb className="h-5 w-5 text-primary" />
                 <h2 className="text-lg font-semibold tracking-tight">Insights alimentares da semana</h2>
               </div>
-              {weeklyInsights.isLoading ? (
+              {reportBundle.isLoading ? (
                 <div className="grid gap-4 lg:grid-cols-2">
                   <Skeleton className="h-40 rounded-2xl" />
                   <Skeleton className="h-40 rounded-2xl" />
                 </div>
-              ) : weeklyInsights.isError ? (
-                <div className="rounded-2xl border bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
-                  Não foi possível carregar os insights agora. Os registros continuam disponíveis para gerar o relatório novamente em instantes.
-                </div>
-              ) : weeklyInsights.data?.insights.length ? (
+              ) : weeklyInsights?.insights.length ? (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  {weeklyInsights.data.insights.map(insight => (
+                  {weeklyInsights.insights.map(insight => (
                     <div key={insight.title} className="rounded-2xl border bg-background p-4 shadow-sm">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
