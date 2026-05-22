@@ -1,8 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DisclosureToggle } from "@/components/ui/disclosure-toggle";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
 import type { MealType, StoredMeal } from "../types";
@@ -131,95 +129,89 @@ function RegisteredMealGroupSection({
   onRemoveMeal: (meal: StoredMeal) => void;
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 }) {
-  const [isOpen, setIsOpen] = useState(true);
   const referenceDate = group.records[0]?.registeredAt;
   const imageRecords = group.records.filter(record => record.imageUrl);
   const primaryRecord = group.records[0];
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <section className="rounded-3xl border bg-background shadow-sm">
-        <CollapsibleTrigger asChild>
-          <button type="button" className="group flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left">
-            <div className="min-w-0 flex items-center gap-3 overflow-x-auto whitespace-nowrap">
-              <p className="shrink-0 text-lg font-semibold capitalize tracking-tight">{group.mealLabel}</p>
-              {referenceDate ? <span className="shrink-0 text-sm text-muted-foreground">{formatDateLabel(referenceDate, userTimeZone)}</span> : null}
-              <span className="shrink-0 text-sm text-muted-foreground">{describeMealCount(group.records.length)}</span>
-              <span className="shrink-0 text-sm text-muted-foreground">{describeFoodCount(group.items.length)}</span>
+    <section className="rounded-3xl border bg-background shadow-sm">
+      <div className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left">
+        <div className="min-w-0 flex items-center gap-3 overflow-x-auto whitespace-nowrap">
+          <p className="shrink-0 text-lg font-semibold capitalize tracking-tight">{group.mealLabel}</p>
+          {referenceDate ? <span className="shrink-0 text-sm text-muted-foreground">{formatDateLabel(referenceDate, userTimeZone)}</span> : null}
+          <span className="shrink-0 text-sm text-muted-foreground">{describeMealCount(group.records.length)}</span>
+          <span className="shrink-0 text-sm text-muted-foreground">{describeFoodCount(group.items.length)}</span>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(group.totals.calories)}</Badge>
+          <Badge variant="outline">P {formatGrams(group.totals.protein)}</Badge>
+          <Badge variant="outline">C {formatGrams(group.totals.carbs)}</Badge>
+          <Badge variant="outline">G {formatGrams(group.totals.fat)}</Badge>
+        </div>
+      </div>
+
+      <div className="border-t bg-muted/10 px-4 pb-4 pt-4">
+        <div className="rounded-2xl border bg-background p-4">
+          {imageRecords.length ? (
+            <div className="mb-4 flex flex-wrap gap-3">
+              {imageRecords.map(record => (
+                <FoodImage key={record.meal.id} record={record} />
+              ))}
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(group.totals.calories)}</Badge>
-              <Badge variant="outline">P {formatGrams(group.totals.protein)}</Badge>
-              <Badge variant="outline">C {formatGrams(group.totals.carbs)}</Badge>
-              <Badge variant="outline">G {formatGrams(group.totals.fat)}</Badge>
-              <DisclosureToggle expanded={isOpen} />
-            </div>
-          </button>
-        </CollapsibleTrigger>
+          ) : null}
 
-        <CollapsibleContent className="border-t bg-muted/10 px-4 pb-4 pt-4">
-          <div className="rounded-2xl border bg-background p-4">
-            {imageRecords.length ? (
-              <div className="mb-4 flex flex-wrap gap-3">
-                {imageRecords.map(record => (
-                  <FoodImage key={record.meal.id} record={record} />
-                ))}
-              </div>
-            ) : null}
-
-            <div className="space-y-2">
-              {group.records.flatMap(record =>
-                record.items.map(item => (
-                  <MealFoodRow
-                    key={`${record.meal.id}-${item.item.foodName}-${item.itemIndex}`}
-                    item={item}
-                    record={record}
-                    userTimeZone={userTimeZone}
-                    isSelected={selectedMealId === record.meal.id}
-                    onEditMeal={onEditMeal}
-                  />
-                )),
-              )}
-            </div>
-
-            {primaryRecord?.mealNotes ? <p className="mt-4 text-sm text-muted-foreground">{primaryRecord.mealNotes}</p> : null}
-
-            {primaryRecord ? (
-              <div className="mt-4 flex flex-wrap gap-3 border-t pt-4">
-                <Button type="button" variant={selectedMealId === primaryRecord.meal.id ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(primaryRecord.meal)}>
-                  <PencilLine className="mr-2 h-4 w-4" />
-                  {selectedMealId === primaryRecord.meal.id ? "Editando esta refeição" : "Editar refeição"}
-                </Button>
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(primaryRecord.meal, primaryRecord.mealLabel)} disabled={isCopyPending}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar para o dia
-                </Button>
-                <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(primaryRecord.meal)} disabled={isFavoritePending}>
-                  <Star className="mr-2 h-4 w-4" />
-                  Salvar favorita
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
-                  onClick={() => onRemoveMeal(primaryRecord.meal)}
-                  disabled={isRemovePending}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Excluir refeição
-                </Button>
-              </div>
-            ) : null}
-
-            {primaryRecord && selectedMealId === primaryRecord.meal.id && renderEditingForm ? (
-              <div className="mt-5 rounded-3xl border border-primary/30 bg-primary/5 p-3">
-                {renderEditingForm(primaryRecord.meal)}
-              </div>
-            ) : null}
+          <div className="space-y-2">
+            {group.records.flatMap(record =>
+              record.items.map(item => (
+                <MealFoodRow
+                  key={`${record.meal.id}-${item.item.foodName}-${item.itemIndex}`}
+                  item={item}
+                  record={record}
+                  userTimeZone={userTimeZone}
+                  isSelected={selectedMealId === record.meal.id}
+                  onEditMeal={onEditMeal}
+                />
+              )),
+            )}
           </div>
-        </CollapsibleContent>
-      </section>
-    </Collapsible>
+
+          {primaryRecord?.mealNotes ? <p className="mt-4 text-sm text-muted-foreground">{primaryRecord.mealNotes}</p> : null}
+
+          {primaryRecord ? (
+            <div className="mt-4 flex flex-wrap gap-3 border-t pt-4">
+              <Button type="button" variant={selectedMealId === primaryRecord.meal.id ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(primaryRecord.meal)}>
+                <PencilLine className="mr-2 h-4 w-4" />
+                {selectedMealId === primaryRecord.meal.id ? "Editando esta refeição" : "Editar refeição"}
+              </Button>
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(primaryRecord.meal, primaryRecord.mealLabel)} disabled={isCopyPending}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copiar para o dia
+              </Button>
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(primaryRecord.meal)} disabled={isFavoritePending}>
+                <Star className="mr-2 h-4 w-4" />
+                Salvar favorita
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
+                onClick={() => onRemoveMeal(primaryRecord.meal)}
+                disabled={isRemovePending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir refeição
+              </Button>
+            </div>
+          ) : null}
+
+          {primaryRecord && selectedMealId === primaryRecord.meal.id && renderEditingForm ? (
+            <div className="mt-5 rounded-3xl border border-primary/30 bg-primary/5 p-3">
+              {renderEditingForm(primaryRecord.meal)}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
