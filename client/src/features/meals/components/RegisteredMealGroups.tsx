@@ -196,7 +196,13 @@ function RegisteredMealGroupSection({
                   <Star className="mr-2 h-4 w-4" />
                   Salvar favorita
                 </Button>
-                <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => onRemoveMeal(primaryRecord.meal)} disabled={isRemovePending}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
+                  onClick={() => onRemoveMeal(primaryRecord.meal)}
+                  disabled={isRemovePending}
+                >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Excluir refeição
                 </Button>
