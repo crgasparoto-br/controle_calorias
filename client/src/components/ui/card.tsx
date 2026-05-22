@@ -73,7 +73,7 @@ function Card({ className, children, collapsible, defaultOpen, ...props }: CardP
           className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border bg-background/90 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => setOpen(current => !current)}
         >
-          {open ? "Recolher" : "Expandir"}
+          {open ? "Fechar" : "Abrir"}
           <span className={cn("text-sm leading-none transition-transform", open && "rotate-180")}>⌄</span>
         </button>
       ) : null}
