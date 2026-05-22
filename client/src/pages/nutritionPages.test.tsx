@@ -4,9 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardOverviewMock = vi.fn();
 const goalGetMock = vi.fn();
-const weeklyMock = vi.fn();
-const weeklyProgressMock = vi.fn();
-const weeklyInsightsMock = vi.fn();
+const reportsBundleMock = vi.fn();
 const whatsappStatusMock = vi.fn();
 const adminOverviewMock = vi.fn();
 const adminWhatsappTokenStatusMock = vi.fn();
@@ -29,7 +27,7 @@ const useUtilsMock = vi.fn(() => ({
     mealSchedules: { list: { invalidate: vi.fn() } },
     dashboard: { overview: { invalidate: vi.fn() } },
     meals: { list: { invalidate: vi.fn() }, dayTotals: { invalidate: vi.fn() }, favorites: { invalidate: vi.fn() } },
-    reports: { weekly: { invalidate: vi.fn() } },
+    reports: { weekly: { invalidate: vi.fn() }, bundle: { invalidate: vi.fn() } },
     goals: { get: { invalidate: vi.fn() } },
     gamification: { get: { invalidate: vi.fn() } },
     exercises: { list: { invalidate: vi.fn() } },
@@ -198,14 +196,8 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
       reports: {
-        weekly: {
-          useQuery: weeklyMock,
-        },
-        weeklyProgress: {
-          useQuery: weeklyProgressMock,
-        },
-        weeklyInsights: {
-          useQuery: weeklyInsightsMock,
+        bundle: {
+          useQuery: reportsBundleMock,
         },
       },
       whatsapp: {
@@ -315,8 +307,8 @@ const overviewData = {
     adherence: 25,
   },
   weekly: [
-    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, waterConsumedMl: 900, waterGoalMl: 2500, goalCalories: 2200, status: "within", calorieDelta: -100, netDelta: -400 },
-    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, waterConsumedMl: 1300, waterGoalMl: 2500, goalCalories: 2200, status: "below", calorieDelta: -300, netDelta: -520 },
+    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, waterConsumedMl: 900, waterGoalMl: 2500, quality: { proteinGrams: 150, fiberGrams: 22, waterMl: 900, fruitServings: 2, vegetableServings: 2, ultraProcessedServings: 0, mealCount: 2, regularityScore: 80 }, goalCalories: 2200, status: "within", calorieDelta: -100, netDelta: -400 },
+    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, waterConsumedMl: 1300, waterGoalMl: 2500, quality: { proteinGrams: 140, fiberGrams: 18, waterMl: 1300, fruitServings: 1, vegetableServings: 2, ultraProcessedServings: 1, mealCount: 2, regularityScore: 75 }, goalCalories: 2200, status: "below", calorieDelta: -300, netDelta: -520 },
   ],
   meals: [
     {
@@ -366,48 +358,64 @@ const overviewData = {
 beforeEach(() => {
   dashboardOverviewMock.mockReturnValue({ data: overviewData });
   goalGetMock.mockReturnValue({ data: overviewData.goal });
-  weeklyMock.mockReturnValue({ data: overviewData.weekly });
-  weeklyProgressMock.mockReturnValue({
+  reportsBundleMock.mockReturnValue({
     data: {
-      days: overviewData.weekly,
-      summary: {
-        averageCalories: 2000,
-        totalCalories: 4000,
-        totalGoalCalories: 4400,
-        calorieDelta: -400,
-        daysWithinGoal: 1,
-        daysAboveGoal: 0,
-        daysBelowGoal: 1,
-        daysWithoutRecords: 5,
-        averageProtein: 145,
-        totalExerciseCalories: 520,
-        totalNetCalories: 3480,
-        balanceCalories: 920,
-        message: "A semana mostra boa consistência em torno das metas planejadas.",
+      weekly: overviewData.weekly,
+      progress: {
+        days: overviewData.weekly,
+        summary: {
+          averageCalories: 2000,
+          totalCalories: 4000,
+          totalGoalCalories: 4400,
+          calorieDelta: -400,
+          daysWithinGoal: 1,
+          daysAboveGoal: 0,
+          daysBelowGoal: 1,
+          daysWithoutRecords: 5,
+          averageProtein: 145,
+          totalExerciseCalories: 520,
+          totalNetCalories: 3480,
+          balanceCalories: 920,
+          message: "A semana mostra boa consistência em torno das metas planejadas.",
+        },
+        weight: {
+          entries: [{ id: 1, date: "2026-04-14", weightKg: 82, notes: "Peso informado no onboarding." }],
+          firstWeightKg: 82,
+          lastWeightKg: 82,
+          deltaKg: 0,
+          hasData: true,
+        },
       },
-      weight: {
-        entries: [{ id: 1, date: "2026-04-14", weightKg: 82, notes: "Peso informado no onboarding." }],
-        firstWeightKg: 82,
-        lastWeightKg: 82,
-        deltaKg: 0,
-        hasData: true,
+      insights: {
+        generatedAt: "2026-04-22T15:00:00.000Z",
+        weekStart: "2026-04-20",
+        weekEnd: "2026-04-26",
+        insights: [
+          {
+            title: "Aderência à meta calórica semanal",
+            description: "A semana ficou em 95% da meta calórica planejada.",
+            suggestion: "Mantenha registros consistentes para a média semanal continuar ajudando nas decisões.",
+            severity: "positive",
+            data: { adherencePercent: 95 },
+          },
+        ],
       },
-    },
-  });
-  weeklyInsightsMock.mockReturnValue({
-    data: {
-      generatedAt: "2026-04-22T15:00:00.000Z",
-      weekStart: "2026-04-20",
-      weekEnd: "2026-04-26",
-      insights: [
+      mealsByDate: [
         {
-          title: "Aderência à meta calórica semanal",
-          description: "A semana ficou em 95% da meta calórica planejada.",
-          suggestion: "Mantenha registros consistentes para a média semanal continuar ajudando nas decisões.",
-          severity: "positive",
-          data: { adherencePercent: 95 },
+          date: "2026-04-14",
+          items: overviewData.meals,
         },
       ],
+      quality: {
+        proteinGrams: 290,
+        fiberGrams: 40,
+        waterMl: 2200,
+        fruitServings: 3,
+        vegetableServings: 4,
+        ultraProcessedServings: 1,
+        mealCount: 4,
+        regularityScore: 78,
+      },
     },
   });
   whatsappStatusMock.mockReturnValue({ data: { configured: false, webhookPath: "/api/whatsapp/webhook", currentUserId: 1, connection: null } });
