@@ -258,6 +258,24 @@ const overviewData = {
     },
     exceptions: [
       {
+        id: 12,
+        userId: 1,
+        ruleType: "exception",
+        weekday: 4,
+        durationType: "2_weeks",
+        calories: 2600,
+        proteinGrams: 180,
+        carbsGrams: 290,
+        fatGrams: 78,
+        effectiveFrom: new Date("2026-04-07T00:00:00.000Z"),
+        effectiveUntil: new Date("2026-04-27T23:59:59.999Z"),
+        createdAt: new Date("2026-04-07T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-07T00:00:00.000Z"),
+        label: "Sexta-feira",
+        shortLabel: "sex.",
+        isActive: true,
+      },
+      {
         id: 11,
         userId: 1,
         ruleType: "exception",
@@ -471,6 +489,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("percentual das calorias do dia");
     expect(html).toContain("Metas muito extremas são bloqueadas");
     expect(html).toContain("Exceções por dia da semana");
+    expect((html.match(/Dia da exceção/g) ?? [])).toHaveLength(1);
     expect(html).toContain("Segunda-feira");
     expect(html).toContain("Sexta-feira");
     expect(html).toContain("Soma planejada da semana");
