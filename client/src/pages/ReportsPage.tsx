@@ -17,6 +17,7 @@ import {
   ArrowRight,
   BarChart3,
   CalendarDays,
+  ChevronDown,
   Droplets,
   Dumbbell,
   Flame,
@@ -362,6 +363,7 @@ export default function ReportsPage() {
           title="Insights e qualidade alimentar"
           description="O relatório automático, os indicadores de qualidade e os sinais práticos ficam agrupados porque explicam o comportamento da semana."
           aside={<Lightbulb className="h-5 w-5 text-primary" />}
+          defaultOpen={true}
         >
           <div className="space-y-4">
             <div>
@@ -429,22 +431,28 @@ export default function ReportsPage() {
           title="Refeições detalhadas"
           description="Aplicamos aqui a mesma leitura compacta e agrupada usada na tela de refeições, organizada por dia dentro da semana selecionada."
           aside={<UtensilsCrossed className="h-5 w-5 text-primary" />}
+          defaultOpen={false}
         >
           {mealGroupsByDate.length ? (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {mealGroupsByDate.map(group => (
-                <div key={group.date} className="rounded-3xl border bg-muted/10 p-4">
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <details key={group.date} className="group rounded-3xl border bg-muted/10 p-4">
+                  <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-base font-semibold tracking-tight capitalize">{formatDateHeading(group.date)}</p>
-                      <p className="text-sm text-muted-foreground">Leitura agrupada por refeição e alimento, seguindo o mesmo conceito visual da tela de registros.</p>
+                      <p className="text-sm text-muted-foreground">Toque para abrir as refeições deste dia.</p>
                     </div>
-                    <Badge variant="secondary" className="w-fit">
-                      {formatCalories(group.groups.reduce((acc, mealGroup) => acc + mealGroup.totals.calories, 0))}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary" className="w-fit">
+                        {formatCalories(group.groups.reduce((acc, mealGroup) => acc + mealGroup.totals.calories, 0))}
+                      </Badge>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                    </div>
+                  </summary>
+                  <div className="pt-4">
+                    <RegisteredMealGroups groups={group.groups} userTimeZone={userTimeZone} emptyMessage="Nenhuma refeição encontrada para este dia." />
                   </div>
-                  <RegisteredMealGroups groups={group.groups} userTimeZone={userTimeZone} emptyMessage="Nenhuma refeição encontrada para este dia." />
-                </div>
+                </details>
               ))}
             </div>
           ) : (
@@ -458,6 +466,7 @@ export default function ReportsPage() {
           title="Gráficos e leitura analítica"
           description="Gráficos de tendência e comparativos para investigar desvios com mais contexto."
           aside={<BarChart3 className="h-5 w-5 text-primary" />}
+          defaultOpen={true}
         >
           <div className="space-y-6">
             <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
@@ -675,7 +684,7 @@ function SectionHeading({ title, description }: { title: string; description: st
 function CollapsibleSection({
   title,
   description,
-  defaultOpen: _defaultOpen = false,
+  defaultOpen = false,
   aside,
   children,
 }: {
@@ -687,16 +696,21 @@ function CollapsibleSection({
 }) {
   return (
     <Card className="border-0 shadow-sm">
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex gap-3">
-          {aside ? <div className="mt-1">{aside}</div> : null}
-          <div>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
+      <details className="group" open={defaultOpen}>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              {aside ? <div className="mt-1">{aside}</div> : null}
+              <div>
+                <CardTitle>{title}</CardTitle>
+                <CardDescription>{description}</CardDescription>
+              </div>
+            </div>
+            <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-open:rotate-180" />
+          </CardHeader>
+        </summary>
+        <CardContent>{children}</CardContent>
+      </details>
     </Card>
   );
 }
