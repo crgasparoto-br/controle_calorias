@@ -399,7 +399,7 @@ export default function LogMealPage() {
     <MealDayRecordsCard
       meals={selectedDayMeals as StoredMeal[]}
       userTimeZone={userTimeZone}
-      selectedMealId={manualMeal.mealId}
+      selectedMealId={manualMeal.mealId ?? undefined}
       isLoading={mealsQuery.isLoading}
       isCopyPending={copyMeal.isPending}
       isFavoritePending={saveFavoriteMeal.isPending}

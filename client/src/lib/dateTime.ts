@@ -7,7 +7,7 @@ function pad(value: number) {
   return String(value).padStart(2, "0");
 }
 
-function readStorage(key: string) {
+function readStorage(key: string): string | null {
   if (typeof globalThis === "undefined" || !("localStorage" in globalThis)) {
     return null;
   }
@@ -31,7 +31,7 @@ function writeStorage(key: string, value: string) {
   }
 }
 
-function isValidTimeZone(value: string | null | undefined) {
+function isValidTimeZone(value: string | null | undefined): value is string {
   if (!value) return false;
 
   try {
@@ -42,7 +42,7 @@ function isValidTimeZone(value: string | null | undefined) {
   }
 }
 
-function isValidLocale(value: string | null | undefined) {
+function isValidLocale(value: string | null | undefined): value is string {
   if (!value) return false;
 
   try {
@@ -83,12 +83,12 @@ function getTimeZoneOffsetMs(date: Date, timeZone: string) {
   return localAsUtc - date.getTime();
 }
 
-export function getBrowserTimeZone() {
+export function getBrowserTimeZone(): string {
   const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return isValidTimeZone(detected) ? detected : DEFAULT_TIME_ZONE;
 }
 
-export function getBrowserLocale() {
+export function getBrowserLocale(): string {
   if (typeof navigator !== "undefined") {
     const [preferred] = navigator.languages ?? [];
     if (isValidLocale(preferred)) return preferred;
@@ -111,9 +111,17 @@ export function getPreferredLocale() {
   return getBrowserLocale();
 }
 
-export function persistPreferredLocaleSettings(input: { timeZone?: string; locale?: string }) {
-  const timeZone = isValidTimeZone(input.timeZone) ? input.timeZone : getBrowserTimeZone();
-  const locale = isValidLocale(input.locale) ? input.locale : DEFAULT_LOCALE;
+function normalizeTimeZone(value: string | null | undefined) {
+  return isValidTimeZone(value) ? value : getBrowserTimeZone();
+}
+
+function normalizeLocale(value: string | null | undefined) {
+  return isValidLocale(value) ? value : DEFAULT_LOCALE;
+}
+
+export function persistPreferredLocaleSettings(input: { timeZone?: string | null; locale?: string | null }) {
+  const timeZone = normalizeTimeZone(input.timeZone);
+  const locale = normalizeLocale(input.locale);
 
   writeStorage(TIME_ZONE_STORAGE_KEY, timeZone);
   writeStorage(LOCALE_STORAGE_KEY, locale);
@@ -123,11 +131,11 @@ export function persistPreferredLocaleSettings(input: { timeZone?: string; local
 
 export function formatDateTimeInTimeZone(
   value: number | string | Date,
-  timeZone = getPreferredTimeZone(),
-  locale = getPreferredLocale(),
+  timeZone?: string | null,
+  locale?: string | null,
 ) {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone,
+  return new Intl.DateTimeFormat(normalizeLocale(locale ?? getPreferredLocale()), {
+    timeZone: normalizeTimeZone(timeZone ?? getPreferredTimeZone()),
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
@@ -135,12 +143,12 @@ export function formatDateTimeInTimeZone(
 
 export function formatDateInTimeZone(
   value: number | string | Date,
-  timeZone = getPreferredTimeZone(),
-  locale = getPreferredLocale(),
+  timeZone?: string | null,
+  locale?: string | null,
   options?: Intl.DateTimeFormatOptions,
 ) {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone,
+  return new Intl.DateTimeFormat(normalizeLocale(locale ?? getPreferredLocale()), {
+    timeZone: normalizeTimeZone(timeZone ?? getPreferredTimeZone()),
     dateStyle: "short",
     ...options,
   }).format(new Date(value));
@@ -148,34 +156,35 @@ export function formatDateInTimeZone(
 
 export function formatTimeInTimeZone(
   value: number | string | Date,
-  timeZone = getPreferredTimeZone(),
-  locale = getPreferredLocale(),
+  timeZone?: string | null,
+  locale?: string | null,
 ) {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone,
+  return new Intl.DateTimeFormat(normalizeLocale(locale ?? getPreferredLocale()), {
+    timeZone: normalizeTimeZone(timeZone ?? getPreferredTimeZone()),
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
 }
 
-export function toDateInputValue(date = new Date(), timeZone = getPreferredTimeZone()) {
-  const parts = getDateTimeParts(date, timeZone);
+export function toDateInputValue(date = new Date(), timeZone?: string | null) {
+  const parts = getDateTimeParts(date, normalizeTimeZone(timeZone ?? getPreferredTimeZone()));
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
 }
 
-export function toDateTimeLocalValue(date = new Date(), timeZone = getPreferredTimeZone()) {
-  const parts = getDateTimeParts(date, timeZone);
+export function toDateTimeLocalValue(date = new Date(), timeZone?: string | null) {
+  const parts = getDateTimeParts(date, normalizeTimeZone(timeZone ?? getPreferredTimeZone()));
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
 }
 
-export function zonedDateTimeLocalToIso(value: string, timeZone = getPreferredTimeZone()) {
+export function zonedDateTimeLocalToIso(value: string, timeZone?: string | null) {
+  const normalizedTimeZone = normalizeTimeZone(timeZone ?? getPreferredTimeZone());
   const [datePart, timePart = "00:00"] = value.split("T");
   const [year, month, day] = datePart.split("-").map(Number);
   const [hour, minute] = timePart.split(":").map(Number);
   const utcGuess = new Date(Date.UTC(year, month - 1, day, hour || 0, minute || 0, 0));
-  const firstOffset = getTimeZoneOffsetMs(utcGuess, timeZone);
+  const firstOffset = getTimeZoneOffsetMs(utcGuess, normalizedTimeZone);
   const firstInstant = new Date(utcGuess.getTime() - firstOffset);
-  const secondOffset = getTimeZoneOffsetMs(firstInstant, timeZone);
+  const secondOffset = getTimeZoneOffsetMs(firstInstant, normalizedTimeZone);
 
   return new Date(utcGuess.getTime() - secondOffset).toISOString();
 }

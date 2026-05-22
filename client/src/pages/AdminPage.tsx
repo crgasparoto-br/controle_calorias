@@ -11,6 +11,24 @@ import { trpc } from "@/lib/trpc";
 import { KeyRound, Save, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
 
+type AdminUserSummary = {
+  id: number;
+  name?: string | null;
+  email?: string | null;
+  openId: string;
+  role: "user" | "admin";
+  lastSignedIn: number | string | Date;
+};
+
+type AdminInferenceLog = {
+  id: string;
+  origin: "web" | "whatsapp" | "admin";
+  eventType: string;
+  detail: string;
+  status: "success" | "warning" | "error";
+  createdAt: number | string | Date;
+};
+
 export default function AdminPage() {
   const utils = trpc.useUtils();
   const admin = trpc.nutrition.admin.overview.useQuery(undefined, {
@@ -151,7 +169,7 @@ export default function AdminPage() {
               <CardDescription>Lista resumida dos perfis conhecidos pela aplicação para acompanhamento operacional.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {admin.data?.users.map(user => (
+              {admin.data?.users.map((user: AdminUserSummary) => (
                 <div key={user.id} className="rounded-2xl border bg-muted/20 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -179,7 +197,7 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {admin.data?.recentInferenceLogs.length ? (
-              admin.data.recentInferenceLogs.map(log => (
+              admin.data.recentInferenceLogs.map((log: AdminInferenceLog) => (
                 <div key={log.id} className="rounded-2xl border bg-background p-4 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>

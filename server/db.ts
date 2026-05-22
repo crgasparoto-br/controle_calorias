@@ -719,6 +719,13 @@ type SavedMedia = {
   originalFileName?: string;
 };
 
+export function buildSavedMedia(input: Omit<SavedMedia, "id">): SavedMedia {
+  return {
+    id: mediaIdSequence++,
+    ...input,
+  };
+}
+
 type PendingInference = {
   draftId: string;
   userId: number;
@@ -3204,7 +3211,6 @@ export async function getKnownUsers(): Promise<User[]> {
       email: "owner@local.dev",
       role: "admin",
       loginMethod: "local",
-      passwordHash: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -3242,6 +3248,24 @@ export async function getAdminDashboardOverview() {
   return {
     users: usersOverview,
     recentLogs,
+  };
+}
+
+export async function getAdminSnapshot() {
+  const usersList = await getKnownUsers();
+  const overview = await getAdminDashboardOverview();
+  const mealsCount = Array.from(mealStore.values()).reduce((count, meals) => count + meals.length, 0);
+
+  return {
+    usage: {
+      usersCount: usersList.length,
+      mealsCount,
+      pendingInferences: inferenceStore.size,
+      logsCount: adminLogStore.length,
+    },
+    users: usersList,
+    whatsappToken: await getAdminWhatsAppTokenStatus(),
+    recentInferenceLogs: overview.recentLogs,
   };
 }
 
