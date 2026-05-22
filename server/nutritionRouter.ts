@@ -46,7 +46,7 @@ import {
   foodSearchSchema,
   updateFoodSchema,
 } from "./modules/foods/schemas";
-import { getDashboardOverview, getWeeklyInsightsReport, getWeeklyProgressReport, getWeeklyReport } from "./modules/insights/service";
+import { getDashboardOverview, getWeeklyInsightsReport, getWeeklyProgressReport, getWeeklyReport, getWeeklyReportBundle } from "./modules/insights/service";
 import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingSchema } from "./modules/onboarding/schemas";
@@ -438,6 +438,11 @@ export const nutritionRouter = router({
   }),
 
   reports: router({
+    bundle: protectedProcedure.query(async ({ ctx }) => {
+      const result = await getWeeklyReportBundle(ctx.user.id);
+      void analyticsService.track("weekly_report_viewed", { report_type: "bundle" });
+      return result;
+    }),
     weekly: protectedProcedure.query(async ({ ctx }) => {
       const result = await getWeeklyReport(ctx.user.id);
       void analyticsService.track("weekly_report_viewed", { report_type: "summary" });

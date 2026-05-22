@@ -62,7 +62,7 @@ export type AnalyticsEventMap = {
     surface: "home" | "api";
   };
   weekly_report_viewed: {
-    report_type: "summary" | "progress" | "insights";
+    report_type: "summary" | "progress" | "insights" | "bundle";
   };
   goal_updated: {
     exception_count: number;
@@ -103,4 +103,3 @@ export const SENSITIVE_ANALYTICS_PROPERTY_KEYS = [
   "weight",
   "weightKg",
 ] as const;
-
