@@ -521,11 +521,11 @@ describe("nutrition pages", () => {
     expect(html).toContain("Semana anterior");
     expect(html).toContain("Média semanal");
     expect(html).toContain("Dias da semana");
-    expect(html).toContain("Evolução de peso");
+    expect(html).toContain("Evolução do peso");
     expect(html).toContain("Insights alimentares da semana");
     expect(html).toContain("Aderência à meta calórica semanal");
     expect(html).toContain("Refeições detalhadas");
-    expect(html).toContain("mesma leitura compacta e agrupada usada na tela meals");
+    expect(html).toContain("mesma leitura compacta e agrupada usada na tela de refeições");
     expect(html).toContain("Equação energética do dia");
     expect(html).toContain("Gráficos e leitura analítica");
     expect(html).toContain("Consumo semanal");
