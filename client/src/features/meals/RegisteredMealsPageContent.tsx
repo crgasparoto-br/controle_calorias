@@ -228,7 +228,7 @@ export function RegisteredMealsPage() {
       <div className="space-y-6">
         <PageIntro
           eyebrow="Registros"
-          title="Revise o dia sem perder o foco na refeição certa"
+          title=""
           description=""
           stats={
             <div className="grid gap-3 sm:grid-cols-4">
