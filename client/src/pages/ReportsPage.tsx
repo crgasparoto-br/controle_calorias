@@ -25,7 +25,7 @@ import {
   TrendingUp,
   UtensilsCrossed,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Link } from "wouter";
 
 const WEEKDAY_NAMES = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
@@ -65,6 +65,17 @@ function progressPercent(value: number, goal: number) {
   return Math.min(Math.max((value / goal) * 100, 0), 100);
 }
 
+function getTodayDateKey(timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("sv-SE", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(new Date());
+}
+
 export default function ReportsPage() {
   const [weekOffset, setWeekOffset] = React.useState(0);
   const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
@@ -101,6 +112,7 @@ export default function ReportsPage() {
   const weekLabel = weekOffset === 0 ? "Semana atual" : "Semana anterior";
   const weekRangeLabel = formatWeekRange(progress?.days ?? caloricTrend);
   const today = dashboardOverview.data?.today;
+  const todayDateKey = React.useMemo(() => getTodayDateKey(userTimeZone), [userTimeZone]);
 
   return (
     <DashboardLayout>
@@ -181,7 +193,7 @@ export default function ReportsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <WeeklyCalendarBoard progress={progress} caloricTrend={caloricTrend} />
+                <WeeklyCalendarBoard progress={progress} caloricTrend={caloricTrend} todayDateKey={todayDateKey} />
 
                 <div className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
                   <Card className="border bg-muted/10 shadow-none">
@@ -407,7 +419,11 @@ export default function ReportsPage() {
                       <Tooltip />
                       <Legend />
                       <Bar dataKey="goalCalories" name="Meta" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
-                      <Bar dataKey="calories" name="Consumido" fill="#10b981" radius={[8, 8, 0, 0]} />
+                      <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
+                        {caloricTrend.map(day => (
+                          <Cell key={day.date} fill={day.calories > day.goalCalories ? "#dc2626" : "#10b981"} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -471,12 +487,13 @@ export default function ReportsPage() {
   );
 }
 
-function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; caloricTrend: any[] }) {
+function WeeklyCalendarBoard({ progress, caloricTrend, todayDateKey }: { progress: any; caloricTrend: any[]; todayDateKey: string }) {
   const totals = progress.days.reduce(
-    (acc: { calories: number; goal: number; net: number; exercise: number; water: number; meals: number; protein: number; carbs: number; fat: number }, day: any) => {
+    (acc: { calories: number; goal: number; balance: number; net: number; exercise: number; water: number; meals: number; protein: number; carbs: number; fat: number }, day: any) => {
       const trendDay = caloricTrend.find(item => item.date === day.date);
       acc.calories += day.calories ?? 0;
       acc.goal += day.goalCalories ?? 0;
+      acc.balance += (day.calories ?? 0) - (day.goalCalories ?? 0);
       acc.net += day.netCalories ?? 0;
       acc.exercise += trendDay?.exerciseCalories ?? 0;
       acc.water += trendDay?.quality?.waterMl ?? 0;
@@ -486,7 +503,7 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
       acc.fat += trendDay?.fat ?? 0;
       return acc;
     },
-    { calories: 0, goal: 0, net: 0, exercise: 0, water: 0, meals: 0, protein: 0, carbs: 0, fat: 0 },
+    { calories: 0, goal: 0, balance: 0, net: 0, exercise: 0, water: 0, meals: 0, protein: 0, carbs: 0, fat: 0 },
   );
 
   return (
@@ -505,11 +522,15 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
           {progress.days.map((day: any) => {
             const trendDay = caloricTrend.find(item => item.date === day.date);
             const delta = day.calories - day.goalCalories;
+            const isToday = day.date === todayDateKey;
             return (
-              <div key={day.date} className={`min-h-[420px] border-r p-2 ${calendarCellTone(day.status)}`}>
+              <div key={day.date} className={`min-h-[420px] border-r p-2 ${calendarCellTone(day.status)} ${isToday ? "ring-2 ring-inset ring-primary/55 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]" : ""}`}>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-xs text-muted-foreground">{formatCalendarDay(day.date)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">{formatCalendarDay(day.date)}</p>
+                      {isToday ? <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px] uppercase tracking-[0.18em]">Hoje</Badge> : null}
+                    </div>
                     <p className="text-sm font-semibold tracking-tight">{day.label}</p>
                   </div>
                   <span className={`h-2.5 w-2.5 rounded-full ${statusDotTone(day.status)}`} />
@@ -540,9 +561,9 @@ function WeeklyCalendarBoard({ progress, caloricTrend }: { progress: any; calori
 
           <div className="min-h-[420px] bg-foreground/70 p-4 text-background">
             <p className="mb-4 text-sm font-semibold tracking-tight">Resumo acumulado</p>
-            <WeeklyTotalItem label="Calorias" value={formatCalories(totals.calories)} />
             <WeeklyTotalItem label="Meta" value={formatCalories(totals.goal)} />
-            <WeeklyTotalItem label="Saldo líquido" value={formatCalories(totals.net)} />
+            <WeeklyTotalItem label="Consumo" value={formatCalories(totals.calories)} />
+            <WeeklyTotalItem label="Saldo" value={formatCalories(totals.balance)} />
             <WeeklyTotalItem label="Exercícios" value={formatCalories(totals.exercise)} />
             <WeeklyTotalItem label="Água" value={formatCountPtBr(Math.round(totals.water), " ml")} />
             <WeeklyTotalItem label="Refeições" value={String(totals.meals)} />
