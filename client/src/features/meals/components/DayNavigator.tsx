@@ -16,7 +16,7 @@ export function DayNavigator({ selectedDay, onSelectedDayChange, label = "Dia" }
   const goToNextDay = () => onSelectedDayChange(addDaysToDateInputValue(selectedDay, 1));
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-col items-start gap-2">
       <Label htmlFor="meal-selected-day" className="flex shrink-0 items-center gap-2 whitespace-nowrap">
         <CalendarDays className="h-4 w-4 text-primary" />
         {label}
