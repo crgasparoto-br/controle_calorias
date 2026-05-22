@@ -500,13 +500,17 @@ describe("nutrition pages", () => {
     const { default: LogMealPage } = await import("./LogMealPage");
     const html = renderToString(React.createElement(LogMealPage));
 
-    expect(html).toContain("Registre refeições, água, exercícios e peso no mesmo lugar");
-    expect(html).toContain("Use um único ponto para registrar o dia e revisar tudo sem trocar de tela.");
+    expect(html).not.toContain("Registre refeições, água, exercícios e peso no mesmo lugar");
+    expect(html).not.toContain("Use um único ponto para registrar o dia e revisar tudo sem trocar de tela.");
     expect(html).toContain("Texto, foto e áudio no mesmo rascunho.");
     expect(html).toContain("Descrição em texto");
     expect(html).toContain("Record com IA");
     expect(html).toContain("Manual");
     expect(html).toContain("Hoje");
+    expect(html).toContain("Consulte os registros do dia selecionado sem sair de Record.");
+    expect(html).toContain("Água do dia");
+    expect(html).toContain("Exercícios");
+    expect(html).toContain("Peso atual");
   });
 
   it("renderiza a página de relatórios com resumo semanal, seções recolhíveis e insights nutricionais", async () => {
