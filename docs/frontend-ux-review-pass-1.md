@@ -19,6 +19,7 @@
 
 - Faltava um padrão compartilhado de cabeçalho de página para orientar objetivo, contexto e ações.
 - Botões principais e resumos estavam distribuídos de forma pouco previsível entre telas parecidas.
+- Controles de abrir e fechar ainda não tinham uma assinatura visual única, o que reduzia previsibilidade entre telas.
 
 ## Plano priorizado
 
@@ -41,6 +42,7 @@
 - Compactada a lista de alimentos em linhas únicas clicáveis para abrir a edição da refeição diretamente da revisão do dia.
 - Refinado o cabeçalho de cada grupo de refeição para reunir nome, data e contagens em uma única linha e remover a data repetida dentro dos blocos internos.
 - Unificados em um único bloco os alimentos de lançamentos diferentes dentro da mesma refeição do dia, preservando a edição individual de cada lançamento na faixa de ações.
+- Criado o componente compartilhado `DisclosureToggle` como padrão visual para botões de abrir e fechar, já aplicado em `/meals` e `/reports`.
 
 ## Validação
 
