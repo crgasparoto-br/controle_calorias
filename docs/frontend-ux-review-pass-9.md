@@ -14,7 +14,8 @@ Passada curta de consistência visual focada nas telas `Login` e `Cadastro`.
 
 - criação de `AuthShell` reutilizável para a camada de autenticação;
 - reorganização visual das telas de login e cadastro com melhor hierarquia e leitura;
-- manutenção integral da lógica de autenticação, mutações e redirecionamento.
+- manutenção integral da lógica de autenticação, mutações e redirecionamento;
+- simplificação posterior da tela de login, removendo o painel lateral informativo e expondo a opção `Esqueceu a senha?` com orientação honesta sobre a indisponibilidade atual da recuperação automática.
 
 ## Telas alteradas
 
