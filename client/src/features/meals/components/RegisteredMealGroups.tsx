@@ -2,10 +2,11 @@ import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DisclosureToggle } from "@/components/ui/disclosure-toggle";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
 import type { MealType, StoredMeal } from "../types";
-import { Copy, Minus, PencilLine, Plus, Star, Trash2 } from "lucide-react";
+import { Copy, PencilLine, Star, Trash2 } from "lucide-react";
 
 type RegisteredMealGroupsProps = {
   groups: RegisteredMealGroupViewModel[];
@@ -151,24 +152,7 @@ function RegisteredMealGroupSection({
               <Badge variant="outline">P {formatGrams(group.totals.protein)}</Badge>
               <Badge variant="outline">C {formatGrams(group.totals.carbs)}</Badge>
               <Badge variant="outline">G {formatGrams(group.totals.fat)}</Badge>
-              <span
-                className={[
-                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors",
-                  isOpen
-                    ? "border border-sky-200 bg-sky-50 text-sky-700"
-                    : "border border-slate-200 bg-slate-50 text-slate-700",
-                ].join(" ")}
-              >
-                <span
-                  className={[
-                    "inline-flex h-5 w-5 items-center justify-center rounded-full",
-                    isOpen ? "bg-sky-100 text-sky-700" : "bg-slate-200 text-slate-700",
-                  ].join(" ")}
-                >
-                  {isOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                </span>
-                {isOpen ? "Recolher" : "Expandir"}
-              </span>
+              <DisclosureToggle expanded={isOpen} />
             </div>
           </button>
         </CollapsibleTrigger>
