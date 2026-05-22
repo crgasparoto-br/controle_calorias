@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import PageIntro from "@/components/PageIntro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,17 +12,15 @@ import {
   formatCalories,
   formatCountPtBr,
   formatDecimalInputPtBr,
-  formatGrams,
   formatIntegerInputPtBr,
   formatNumberPtBr,
   parseDecimalInputPtBr,
   parseIntegerInputPtBr,
 } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { calculateDayTotals, calculateMealTotals } from "../../../../../shared/mealTotals";
-import { ArrowRight, CalendarDays, Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
+import { calculateMealTotals } from "../../../../../shared/mealTotals";
+import { CalendarDays, Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
-import { Link } from "wouter";
 import { MealAiTabContent, MealDayRecordsCard, MealManualEditorCard, SummaryPill } from "../components";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
 import type { DraftState, MealItemState, StoredMeal } from "../types";
@@ -241,9 +238,6 @@ export default function LogMealPage() {
   const previewTotals = useMemo(() => calculateMealTotals(editableItems), [editableItems]);
   const manualTotals = useMemo(() => calculateMealTotals(manualMeal.items), [manualMeal.items]);
   const selectedDayMeals = useMemo(() => (mealsQuery.data ?? []).filter(meal => new Date(meal.occurredAt).toISOString().slice(0, 10) === selectedDay), [mealsQuery.data, selectedDay]);
-  const localDayTotals = useMemo(() => calculateDayTotals(selectedDayMeals), [selectedDayMeals]);
-  const dayTotalsQuery = trpc.nutrition.meals.dayTotals.useQuery({ date: selectedDay });
-  const dayTotals = dayTotalsQuery.data?.totals ?? localDayTotals;
   const waterGoalValue = parseIntegerInputPtBr(waterForm.dailyTargetMl);
   const waterAmountValue = parseIntegerInputPtBr(waterForm.amountMl);
   const isWaterGoalInvalid = waterGoalValue < 250 || waterGoalValue > 10000;
@@ -368,27 +362,6 @@ export default function LogMealPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <PageIntro
-          eyebrow="Record"
-          title="Registre refeições, água, exercícios e peso no mesmo lugar"
-          description="Use um único ponto para registrar o dia e revisar tudo sem trocar de tela."
-          actions={
-            <>
-              <div className="w-full min-w-[220px] sm:w-auto">
-                <Label htmlFor="selected-day" className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted-foreground">Dia</Label>
-                <Input id="selected-day" type="date" value={selectedDay} onChange={event => setSelectedDay(event.target.value)} className="h-11 min-w-[220px] rounded-xl" />
-              </div>
-              <Link href="/meals">
-                <Button type="button" variant="outline" className="h-11 rounded-full px-5">
-                  Abrir registros
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            </>
-          }
-          stats={<div className="grid gap-3 sm:grid-cols-4"><SummaryPill label="Calorias" value={formatCalories(dayTotals.calories)} /><SummaryPill label="Proteínas" value={formatGrams(dayTotals.protein)} /><SummaryPill label="Carboidratos" value={formatGrams(dayTotals.carbs)} /><SummaryPill label="Gorduras" value={formatGrams(dayTotals.fat)} /></div>}
-        />
-
         <datalist id="meal-label-suggestions">{configuredMealLabels.map(label => <option key={label} value={label} />)}</datalist>
 
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
@@ -449,6 +422,15 @@ export default function LogMealPage() {
           </TabsContent>
 
           <TabsContent value="hoje" className="space-y-4">
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="w-full sm:max-w-[220px]">
+                  <Label htmlFor="selected-day" className="mb-2 block text-xs uppercase tracking-[0.22em] text-muted-foreground">Dia</Label>
+                  <Input id="selected-day" type="date" value={selectedDay} onChange={event => setSelectedDay(event.target.value)} className="h-11 rounded-xl" />
+                </div>
+                <p className="text-sm text-muted-foreground">Consulte os registros do dia selecionado sem sair de Record.</p>
+              </div>
+            </div>
             {favoriteMealsBlock}
             {recordsCard}
           </TabsContent>
