@@ -34,18 +34,36 @@ const INSIGHT_KEY_LABELS: Record<string, string> = {
   averageCalories: "Média calórica",
   averageProtein: "Proteína média",
   calorieDelta: "Saldo calórico",
+  calories: "Calorias",
+  consumedCalories: "Calorias consumidas",
+  date: "Data",
   daysAboveGoal: "Dias acima da meta",
+  daysAnalyzed: "Dias analisados",
   daysBelowGoal: "Dias abaixo da meta",
+  daysWithFood: "Dias com alimentação registrada",
+  daysWithRecords: "Dias com registro",
   daysWithinGoal: "Dias dentro da meta",
+  daysWithinProtein: "Dias com proteína adequada",
+  deltaCalories: "Diferença calórica",
   fiberGrams: "Fibras",
+  frequencyPercent: "Frequência",
   fruitServings: "Frutas",
+  goalCalories: "Meta calórica",
+  lowProteinDays: "Dias com proteína baixa",
   mealCount: "Refeições",
+  mealId: "ID da refeição",
+  mealLabel: "Refeição",
   proteinGrams: "Proteína",
   regularityScore: "Regularidade",
+  targetThresholdPercent: "Faixa de referência",
+  thresholdPercent: "Faixa de referência",
   totalCalories: "Calorias totais",
+  totalDays: "Total de dias",
   ultraProcessedServings: "Ultraprocessados",
   vegetableServings: "Vegetais",
   waterMl: "Água",
+  weekdayAverageCalories: "Média nos dias úteis",
+  weekendAverageCalories: "Média no fim de semana",
 };
 
 function formatMacro(value: number) {
@@ -92,6 +110,31 @@ function getTodayDateKey(timeZone: string) {
   });
 
   return formatter.format(new Date());
+}
+
+function formatInsightValue(key: string, value: number | string | null) {
+  if (value == null) return "-";
+
+  if (typeof value === "number") {
+    if (key.endsWith("Percent")) {
+      return `${formatNumberPtBr(value)}%`;
+    }
+
+    return formatNumberPtBr(value, {
+      minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+      maximumFractionDigits: 1,
+    });
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  return value;
 }
 
 export default function ReportsPage() {
@@ -349,7 +392,7 @@ export default function ReportsPage() {
                       <div className="mt-4 flex flex-wrap gap-2">
                         {Object.entries(insight.data).map(([key, value]) => (
                           <Badge key={key} variant="outline" className="rounded-full">
-                            {formatInsightKey(key)}: {String(value ?? "-")}
+                            {formatInsightKey(key)}: {formatInsightValue(key, value)}
                           </Badge>
                         ))}
                       </div>
