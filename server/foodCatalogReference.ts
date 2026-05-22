@@ -8,6 +8,10 @@ export type CatalogFoodReference = {
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
+  isFruit?: boolean;
+  isVegetable?: boolean;
+  isUltraProcessed?: boolean;
 };
 
 export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
@@ -21,6 +25,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 2.7,
     carbs: 28.0,
     fat: 0.3,
+    fiber: 0.4,
   },
   {
     slug: "feijao-carioca",
@@ -32,6 +37,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 4.8,
     carbs: 13.6,
     fat: 0.5,
+    fiber: 8.5,
   },
   {
     slug: "frango-grelhado",
@@ -43,6 +49,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 31.0,
     carbs: 0,
     fat: 3.6,
+    fiber: 0,
   },
   {
     slug: "ovo",
@@ -54,6 +61,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 6.3,
     carbs: 0.6,
     fat: 5.3,
+    fiber: 0,
   },
   {
     slug: "banana",
@@ -65,6 +73,8 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 0.9,
     carbs: 18.6,
     fat: 0.2,
+    fiber: 2.1,
+    isFruit: true,
   },
   {
     slug: "aveia",
@@ -76,6 +86,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 4.2,
     carbs: 19.9,
     fat: 2.5,
+    fiber: 2.7,
   },
   {
     slug: "pao-frances",
@@ -87,6 +98,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 4.5,
     carbs: 28.0,
     fat: 1.5,
+    fiber: 1.2,
   },
   {
     slug: "queijo-minas",
@@ -98,6 +110,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 5.2,
     carbs: 1.0,
     fat: 6.2,
+    fiber: 0,
   },
   {
     slug: "iogurte-natural",
@@ -109,6 +122,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 5.9,
     carbs: 7.8,
     fat: 5.5,
+    fiber: 0,
   },
   {
     slug: "batata-doce",
@@ -120,6 +134,8 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 0.6,
     carbs: 18.4,
     fat: 0.1,
+    fiber: 2.2,
+    isVegetable: true,
   },
   {
     slug: "salmao",
@@ -131,6 +147,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 20.4,
     carbs: 0,
     fat: 13.4,
+    fiber: 0,
   },
   {
     slug: "salada-verde",
@@ -142,6 +159,8 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 1.2,
     carbs: 3.2,
     fat: 0.2,
+    fiber: 1.6,
+    isVegetable: true,
   },
   {
     slug: "maca",
@@ -153,6 +172,8 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 0.3,
     carbs: 18.0,
     fat: 0.2,
+    fiber: 3.0,
+    isFruit: true,
   },
   {
     slug: "whey-protein",
@@ -164,6 +185,8 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 24.0,
     carbs: 3.0,
     fat: 2.0,
+    fiber: 0,
+    isUltraProcessed: true,
   },
   {
     slug: "leite-integral",
@@ -175,5 +198,6 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 6.3,
     carbs: 9.4,
     fat: 6.6,
+    fiber: 0,
   },
 ];
