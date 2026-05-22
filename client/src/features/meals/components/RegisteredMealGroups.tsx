@@ -67,21 +67,6 @@ function NutritionBadge({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MealTotalsRow({
-  totals,
-}: {
-  totals: { calories: number; protein: number; carbs: number; fat: number };
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(totals.calories)}</Badge>
-      <Badge variant="outline">P {formatGrams(totals.protein)}</Badge>
-      <Badge variant="outline">C {formatGrams(totals.carbs)}</Badge>
-      <Badge variant="outline">G {formatGrams(totals.fat)}</Badge>
-    </div>
-  );
-}
-
 function MealFoodRow({
   item,
   record,
@@ -198,17 +183,7 @@ function RegisteredMealGroupSection({
             {primaryRecord?.mealNotes ? <p className="mt-4 text-sm text-muted-foreground">{primaryRecord.mealNotes}</p> : null}
 
             {primaryRecord ? (
-              <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t pt-4">
-                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">{group.records.map(record => formatTimeLabel(record.registeredAt, userTimeZone)).join(" · ")}</span>
-                  <span>{describeMealCount(group.records.length)}</span>
-                </div>
-                <MealTotalsRow totals={group.totals} />
-              </div>
-            ) : null}
-
-            {primaryRecord ? (
-              <div className="mt-4 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-3 border-t pt-4">
                 <Button type="button" variant={selectedMealId === primaryRecord.meal.id ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(primaryRecord.meal)}>
                   <PencilLine className="mr-2 h-4 w-4" />
                   {selectedMealId === primaryRecord.meal.id ? "Editando esta refeição" : "Editar refeição"}
