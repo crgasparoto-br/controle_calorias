@@ -111,7 +111,12 @@ type FoodLookupEntry = {
   servingSize: number;
 };
 
-function createFoodLookup(foods: Awaited<ReturnType<typeof searchFoods>>) {
+type FoodLookup = {
+  foodsByName: Map<string, FoodLookupEntry>;
+  fuzzyMatchers: Array<{ key: string; entry: FoodLookupEntry }>;
+};
+
+function createFoodLookup(foods: Awaited<ReturnType<typeof searchFoods>>): FoodLookup {
   const foodsByName = new Map<string, FoodLookupEntry>();
 
   for (const food of FOOD_CATALOG_REFERENCE) {
@@ -140,13 +145,35 @@ function createFoodLookup(foods: Awaited<ReturnType<typeof searchFoods>>) {
     });
   }
 
-  return foodsByName;
+  const fuzzyMatchers = Array.from(foodsByName.entries())
+    .filter(([key, entry]) => key.length >= 4 && (entry.isVegetable || entry.isFruit || entry.isUltraProcessed || entry.fiber))
+    .sort((first, second) => second[0].length - first[0].length)
+    .map(([key, entry]) => ({ key, entry }));
+
+  return {
+    foodsByName,
+    fuzzyMatchers,
+  };
+}
+
+function resolveFoodLookupEntry(foodLookup: FoodLookup, ...names: Array<string | undefined>) {
+  for (const name of names) {
+    if (!name) continue;
+    const normalized = normalizeCatalogText(name);
+    const exact = foodLookup.foodsByName.get(normalized);
+    if (exact) return exact;
+
+    const fuzzy = foodLookup.fuzzyMatchers.find(candidate => normalized.includes(candidate.key) || candidate.key.includes(normalized));
+    if (fuzzy) return fuzzy.entry;
+  }
+
+  return null;
 }
 
 function calculateQualityIndicators(
   meals: Awaited<ReturnType<typeof listUserMeals>>,
   waterMl: number,
-  foodsByName: Map<string, FoodLookupEntry>,
+  foodLookup: FoodLookup,
 ) {
   if (!meals.length) {
     return {
@@ -165,7 +192,7 @@ function calculateQualityIndicators(
     (acc, meal) => {
       for (const item of meal.items) {
         acc.proteinGrams += Number(item.protein || 0);
-        const food = foodsByName.get(normalizeCatalogText(item.canonicalName)) ?? foodsByName.get(normalizeCatalogText(item.foodName));
+        const food = resolveFoodLookupEntry(foodLookup, item.canonicalName, item.foodName, item.portionText);
         if (!food) continue;
 
         const servingFactor = food.servingSize > 0 && item.estimatedGrams > 0 ? item.estimatedGrams / food.servingSize : item.servings || 1;
@@ -212,7 +239,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
     listUserWaterLogs(userId),
     searchFoods(userId, "", 500),
   ]);
-  const foodsByName = createFoodLookup(foods);
+  const foodLookup = createFoodLookup(foods);
 
   return resolveWeekDates(weekOffset).map(day => {
     const date = getDateKeyInTimeZone(day);
@@ -224,7 +251,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
     const totals = calculateDayTotals(dailyMeals);
     const burnedCalories = dailyExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
     const waterConsumedMl = dailyWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
-    const quality = calculateQualityIndicators(dailyMeals, waterConsumedMl, foodsByName);
+    const quality = calculateQualityIndicators(dailyMeals, waterConsumedMl, foodLookup);
 
     return {
       date,
