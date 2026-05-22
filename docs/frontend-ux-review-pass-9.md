@@ -9,6 +9,7 @@ Passada de centralização da experiência de registro, com foco na tela `log-me
 - o cabeçalho superior exibido no print anexo misturava resumo, navegação e contexto em uma área que competia com o cadastro;
 - o topo da página e o cartão principal repetiam mensagens longas sobre o mesmo fluxo;
 - o usuário precisava alternar entre telas para registrar refeição, água, exercício e peso;
+- a organização anterior deixava água, exercícios e peso muito separados do menu principal da tela;
 - o upload de foto podia falhar quando o storage não respondia durante a criação do draft;
 - a rota `log-meal` ainda aparecia com um nome técnico demais para um fluxo cotidiano.
 
@@ -17,7 +18,7 @@ Passada de centralização da experiência de registro, com foco na tela `log-me
 - remoção do cabeçalho superior exibido no print anexo para deixar a tela `Record` focada em cadastro;
 - simplificação dos textos da tela e do cartão principal de registro com IA;
 - criação do alias `/record` e atualização do nome exibido na navegação principal;
-- incorporação dos registros de água, exercício e peso na mesma tela de `Record`;
+- transformação de água, exercícios e peso atual em abas próprias dentro da `Record`;
 - reposicionamento do seletor de dia para a aba `Hoje`, onde a consulta dos registros realmente acontece;
 - correção do fluxo de foto com fallback inline quando o upload para storage falha no draft;
 - padronização do texto dos controles de abrir e fechar nos cards colapsáveis.
