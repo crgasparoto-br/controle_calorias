@@ -55,6 +55,7 @@ type GoalExceptionQuery = {
   proteinGrams: number;
   carbsGrams: number;
   fatGrams: number;
+  isActive?: boolean;
   updatedAt?: Date | string | number | null;
   effectiveFrom?: Date | string | number | null;
 };
@@ -177,7 +178,11 @@ function toGoalPayload(goal: GoalTargetForm): GoalPayload {
 }
 
 function normalizeExceptionsForEditing(exceptions: GoalExceptionQuery[]) {
-  const sorted = exceptions.slice().sort((a, b) => {
+  const editableExceptions = exceptions.some(exception => typeof exception.isActive === "boolean")
+    ? exceptions.filter(exception => exception.isActive !== false)
+    : exceptions;
+
+  const sorted = editableExceptions.slice().sort((a, b) => {
     const updatedDiff = new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime();
     if (updatedDiff !== 0) return updatedDiff;
     return new Date(b.effectiveFrom ?? 0).getTime() - new Date(a.effectiveFrom ?? 0).getTime();
