@@ -99,8 +99,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   const menuItems = useMemo(() => {
     const baseItems = [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-      { icon: MessageSquareMore, label: "Record", path: "/record" },
+      { icon: LayoutDashboard, label: "Hoje", path: "/" },
+      { icon: MessageSquareMore, label: "Registrar", path: "/record" },
       { icon: ListChecks, label: "Registros", path: "/meals" },
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
@@ -205,7 +205,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 className="h-10 rounded-full px-4"
                 onClick={() => setLocation("/record")}
               >
-                Abrir record
+                Registrar
               </Button>
               {!isMobile ? (
                 <Button
