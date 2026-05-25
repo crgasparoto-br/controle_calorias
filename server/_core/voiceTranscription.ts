@@ -40,11 +40,18 @@ const SUPPORTED_AUDIO_MIME_TYPES = new Set([
   "audio/mp4",
 ]);
 
-export type TranscribeOptions = {
-  audioUrl: string;
-  language?: string;
-  prompt?: string;
-};
+export type TranscribeOptions =
+  | {
+      audioUrl: string;
+      language?: string;
+      prompt?: string;
+    }
+  | {
+      audioBase64: string;
+      mimeType?: string;
+      language?: string;
+      prompt?: string;
+    };
 
 export type WhisperSegment = {
   id: number;
@@ -102,6 +109,34 @@ function isWhisperResponse(value: unknown): value is WhisperResponse {
     typeof response.text === "string" &&
     Array.isArray(response.segments)
   );
+}
+
+function hasInlineAudio(options: TranscribeOptions): options is Extract<TranscribeOptions, { audioBase64: string }> {
+  return "audioBase64" in options;
+}
+
+function extractBase64Payload(value: string) {
+  const match = value.match(/^data:(.+);base64,(.*)$/);
+  return {
+    mimeType: normalizeMimeType(match?.[1] ?? null),
+    payload: match ? match[2] : value,
+  };
+}
+
+function decodeInlineAudio(options: Extract<TranscribeOptions, { audioBase64: string }>): DownloadedAudio | TranscriptionError {
+  try {
+    const extracted = extractBase64Payload(options.audioBase64);
+    return {
+      buffer: Buffer.from(extracted.payload, "base64"),
+      mimeType: normalizeMimeType(options.mimeType ?? extracted.mimeType),
+    };
+  } catch {
+    return {
+      error: "Failed to decode inline audio",
+      code: "INVALID_FORMAT",
+      details: "Inline audio payload is not valid base64 data.",
+    };
+  }
 }
 
 async function downloadAudio(audioUrl: string): Promise<DownloadedAudio | TranscriptionError> {
@@ -169,7 +204,9 @@ function toFileBuffer(buffer: Buffer) {
 export async function transcribeAudio(
   options: TranscribeOptions,
 ): Promise<TranscriptionResponse | TranscriptionError> {
-  const downloaded = await downloadAudio(options.audioUrl);
+  const downloaded = hasInlineAudio(options)
+    ? decodeInlineAudio(options)
+    : await downloadAudio(options.audioUrl);
   if ("error" in downloaded) {
     return downloaded;
   }
