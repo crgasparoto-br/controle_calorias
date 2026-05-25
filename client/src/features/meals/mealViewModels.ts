@@ -39,6 +39,20 @@ export type RegisteredMealGroupViewModel = {
   };
 };
 
+export type DateGroupedRegisteredMealsViewModel = {
+  date: string;
+  groups: RegisteredMealGroupViewModel[];
+  meals: StoredMeal[];
+  mealCount: number;
+  itemCount: number;
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+};
+
 export function normalizeMealType(mealLabel: string): MealType {
   return mealLabel.trim() || "outro";
 }
@@ -57,6 +71,32 @@ export function mealMatchesDate(meal: StoredMeal, dateInputValue: string, timeZo
 export function getMealImageUrl(meal: StoredMeal): string | undefined {
   const mediaImageUrl = meal.media?.find(media => media.mediaType === "image" && media.storageUrl)?.storageUrl;
   return meal.supportingImageUrl ?? meal.imageUrl ?? meal.photoUrl ?? mediaImageUrl;
+}
+
+export function sumStoredMealTotals(meals: Array<Pick<StoredMeal, "totals">>) {
+  return meals.reduce(
+    (totals, meal) => ({
+      calories: totals.calories + meal.totals.calories,
+      protein: totals.protein + meal.totals.protein,
+      carbs: totals.carbs + meal.totals.carbs,
+      fat: totals.fat + meal.totals.fat,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+}
+
+export function filterMealsByDateRange(
+  meals: StoredMeal[],
+  options: {
+    startDate: string;
+    endDate: string;
+    timeZone?: string;
+  },
+) {
+  return meals.filter(meal => {
+    const dateKey = toDateInputValue(new Date(meal.occurredAt), options.timeZone);
+    return dateKey >= options.startDate && dateKey <= options.endDate;
+  });
 }
 
 export function buildRegisteredMealGroups(
@@ -128,4 +168,45 @@ export function buildRegisteredMealGroups(
   return mealLabelOrder
     .map(mealLabel => groups.get(mealLabel))
     .filter(Boolean) as RegisteredMealGroupViewModel[];
+}
+
+export function buildDateGroupedMealGroups(
+  meals: StoredMeal[],
+  options: {
+    timeZone?: string;
+    sortDirection?: "asc" | "desc";
+  } = {},
+): DateGroupedRegisteredMealsViewModel[] {
+  const mealsByDate = new Map<string, StoredMeal[]>();
+
+  for (const meal of meals) {
+    const dateKey = toDateInputValue(new Date(meal.occurredAt), options.timeZone);
+    const current = mealsByDate.get(dateKey) ?? [];
+    current.push(meal);
+    mealsByDate.set(dateKey, current);
+  }
+
+  const direction = options.sortDirection ?? "desc";
+  const sortedDates = Array.from(mealsByDate.keys()).sort((left, right) => {
+    if (left === right) {
+      return 0;
+    }
+
+    return direction === "asc" ? left.localeCompare(right) : right.localeCompare(left);
+  });
+
+  return sortedDates.map(date => {
+    const mealsForDate = mealsByDate.get(date) ?? [];
+    const groups = buildRegisteredMealGroups(mealsForDate);
+    const totals = sumStoredMealTotals(mealsForDate);
+
+    return {
+      date,
+      groups,
+      meals: mealsForDate,
+      mealCount: mealsForDate.length,
+      itemCount: mealsForDate.reduce((acc, meal) => acc + meal.items.length, 0),
+      totals,
+    };
+  });
 }
