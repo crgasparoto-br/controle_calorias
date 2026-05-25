@@ -35,6 +35,7 @@ export function RegisteredMealsPage() {
       utils.nutrition.meals.dayTotals.invalidate(),
       utils.nutrition.meals.favorites.invalidate(),
       utils.nutrition.reports.weekly.invalidate(),
+      utils.nutrition.reports.bundle.invalidate(),
     ]);
   };
 
