@@ -9,9 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getBrowserTimeZone } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { buildRegisteredMealGroups } from "@/features/meals/mealViewModels";
-import { RegisteredMealGroups } from "@/features/meals/components";
-import type { StoredMeal } from "@/features/meals/types";
 import {
   ArrowLeft,
   ArrowRight,
@@ -19,12 +16,10 @@ import {
   CalendarDays,
   ChevronDown,
   Droplets,
-  Dumbbell,
   Flame,
   Lightbulb,
   Scale,
   TrendingUp,
-  UtensilsCrossed,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Link } from "wouter";
@@ -71,14 +66,6 @@ function formatMacro(value: number) {
   return formatNumberPtBr(value, {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
     maximumFractionDigits: 1,
-  });
-}
-
-function formatDateHeading(date: string) {
-  return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "short",
   });
 }
 
@@ -142,12 +129,10 @@ export default function ReportsPage() {
   const [weekOffset, setWeekOffset] = React.useState(0);
   const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
   const reportBundle = trpc.nutrition.reports.bundle.useQuery({ weekOffset });
-  const dashboardOverview = trpc.nutrition.dashboard.overview.useQuery();
 
   const caloricTrend = reportBundle.data?.weekly ?? [];
   const progress = reportBundle.data?.progress;
   const weeklyInsights = reportBundle.data?.insights;
-  const detailedMealsByDate = reportBundle.data?.mealsByDate ?? [];
   const weeklyQuality = reportBundle.data?.quality ?? {
     proteinGrams: 0,
     fiberGrams: 0,
@@ -164,16 +149,8 @@ export default function ReportsPage() {
     carbs: Math.round(day.carbs),
     fat: Math.round(day.fat),
   }));
-  const mealGroupsByDate = React.useMemo(
-    () => detailedMealsByDate.map(group => ({
-      date: group.date,
-      groups: buildRegisteredMealGroups(group.items as StoredMeal[]),
-    })),
-    [detailedMealsByDate],
-  );
   const weekLabel = weekOffset === 0 ? "Semana atual" : "Semana anterior";
   const weekRangeLabel = formatWeekRange(progress?.days ?? caloricTrend);
-  const today = dashboardOverview.data?.today;
   const todayDateKey = React.useMemo(() => getTodayDateKey(userTimeZone), [userTimeZone]);
 
   return (
@@ -195,8 +172,8 @@ export default function ReportsPage() {
           <section className="space-y-4">
             <PageIntro
               eyebrow="Relatórios"
-              title={`Progresso nutricional da ${weekLabel.toLowerCase()}`}
-              description={progress.summary.message}
+              title={`Evolução nutricional da ${weekLabel.toLowerCase()}`}
+              description="Esta área fica dedicada à tendência, à aderência e ao contexto analítico da semana, sem duplicar a manutenção operacional dos lançamentos."
               stats={
                 <div className="grid gap-4 lg:grid-cols-4">
                   <HighlightCard title="Média semanal" value={formatCalories(progress.summary.averageCalories)} description="Média diária no período selecionado." />
@@ -224,7 +201,12 @@ export default function ReportsPage() {
                   <div className="rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
                     Saldo semanal: <span className="font-semibold text-foreground">{formatCalories(progress.summary.balanceCalories)}</span>
                   </div>
-                  <Link href="/log-meal">
+                  <Link href="/meals">
+                    <Button variant="outline" className="rounded-full">
+                      Abrir Registros
+                    </Button>
+                  </Link>
+                  <Link href="/registrar">
                     <Button className="rounded-full">
                       Registrar refeição
                       <ArrowRight className="ml-2 h-4 w-4" />
@@ -328,37 +310,6 @@ export default function ReportsPage() {
           </div>
         </section>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Dumbbell className="h-5 w-5 text-primary" />
-              Equação energética do dia
-            </CardTitle>
-            <CardDescription>Visão direta da meta, do consumo alimentar e do gasto com exercícios, agora dentro da área de relatórios.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {today ? (
-              <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <StatusTile label="Meta" value={formatCalories(today.goal.calories ?? 0)} />
-                  <StatusTile label="Alimentos" value={formatCalories(today.consumed.calories ?? 0)} />
-                  <StatusTile label="Exercícios" value={formatCalories(today.burned.calories ?? 0)} />
-                  <StatusTile label="Saldo líquido" value={formatCalories(today.net.calories ?? 0)} />
-                </div>
-                <div className="rounded-2xl border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
-                  Restam <span className="font-semibold text-foreground">{formatCalories(today.net.remainingToGoal ?? 0)}</span> para atingir a meta líquida do dia, considerando o consumo menos os exercícios registrados.
-                </div>
-              </div>
-            ) : dashboardOverview.isLoading ? (
-              <Skeleton className="h-32 rounded-2xl" />
-            ) : (
-              <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
-                A equação energética do dia não está disponível no momento.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         <CollapsibleSection
           title="Insights e qualidade alimentar"
           description="O relatório automático, os indicadores de qualidade e os sinais práticos ficam agrupados porque explicam o comportamento da semana."
@@ -425,41 +376,6 @@ export default function ReportsPage() {
               </div>
             </div>
           </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Refeições detalhadas"
-          description="Aplicamos aqui a mesma leitura compacta e agrupada usada na tela de refeições, organizada por dia dentro da semana selecionada."
-          aside={<UtensilsCrossed className="h-5 w-5 text-primary" />}
-          defaultOpen={false}
-        >
-          {mealGroupsByDate.length ? (
-            <div className="space-y-4">
-              {mealGroupsByDate.map(group => (
-                <details key={group.date} className="group rounded-3xl border bg-muted/10 p-4">
-                  <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-base font-semibold tracking-tight capitalize">{formatDateHeading(group.date)}</p>
-                      <p className="text-sm text-muted-foreground">Toque para abrir as refeições deste dia.</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className="w-fit">
-                        {formatCalories(group.groups.reduce((acc, mealGroup) => acc + mealGroup.totals.calories, 0))}
-                      </Badge>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
-                    </div>
-                  </summary>
-                  <div className="pt-4">
-                    <RegisteredMealGroups groups={group.groups} userTimeZone={userTimeZone} emptyMessage="Nenhuma refeição encontrada para este dia." />
-                  </div>
-                </details>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
-              Nenhuma refeição confirmada foi encontrada para detalhamento no relatório.
-            </div>
-          )}
         </CollapsibleSection>
 
         <CollapsibleSection
@@ -609,7 +525,6 @@ function WeeklyCalendarBoard({ progress, caloricTrend, todayDateKey }: { progres
                 <div className="space-y-2">
                   <CalendarEvent tone="border-l-emerald-500" icon={Flame} title="Calorias" value={formatCalories(day.calories)} detail={`Meta: ${formatCalories(day.goalCalories)}`} />
                   <CalendarEvent tone={delta > 0 ? "border-l-amber-500" : "border-l-sky-500"} icon={TrendingUp} title="Saldo" value={formatCalories(day.netCalories)} detail={`${delta > 0 ? "+" : ""}${formatNumberPtBr(Math.round(delta))} kcal em relação à meta`} />
-                  <CalendarEvent tone="border-l-orange-500" icon={Dumbbell} title="Exercícios" value={formatCalories(trendDay?.exerciseCalories ?? 0)} detail="Gasto energético" />
                   <CalendarEvent tone="border-l-blue-500" icon={Droplets} title="Água" value={formatCountPtBr(Math.round(trendDay?.quality?.waterMl ?? 0), " ml")} detail="Hidratação" />
                   <div className="rounded-xl border bg-background/85 p-2 text-xs">
                     <div className="mb-1 flex items-center justify-between gap-2">
