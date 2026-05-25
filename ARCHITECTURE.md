@@ -41,6 +41,7 @@ shared/*                      -> tipos, cálculos e mensagens sem dependência d
 - O SDK oficial da OpenAI deve ficar restrito à camada `_core` do backend.
 - `voiceTranscription`, inferência nutricional e visual auxiliar não devem chamar o provider legado.
 - Falha de imagem auxiliar nunca deve bloquear criação ou confirmação de refeição.
+- Fluxos multimodais devem usar imagem e áudio inline para inferência e transcrição quando houver mídia anexada; upload para storage serve persistência e não pode ser pré-requisito para a IA consumir a mídia.
 - Dependências legadas remanescentes devem ficar documentadas e fora do fluxo principal de refeição.
 
 ## Privacidade e dados sensíveis
