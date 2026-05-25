@@ -467,13 +467,13 @@ describe("nutrition pages", () => {
     const { default: Home } = await import("./Home");
     const html = renderToString(React.createElement(Home));
 
-    expect(html).toContain("O painel foi reorganizado para destacar o que pede ação agora: consumo, saldo, hidratação, exercícios e refeições registradas.");
-    expect(html).toContain("Resumo do dia");
+    expect(html).toContain("Esta tela fica focada no presente: saldo do dia, macros, água, exercícios, refeições recentes e atalhos para agir rápido.");
+    expect(html).toContain("Calorias consumidas");
     expect(html).toContain("Foco do dia");
     expect(html).toContain("Registrar refeição");
     expect(html).toContain("Água do dia");
     expect(html).toContain("Status do dia");
-    expect(html).toContain("value=\"2.500\"");
+    expect(html).toContain("Meta 2.500 ml");
     expect(html).toContain("200 ml");
     expect(html).toContain("1.200 ml");
     expect(html).toContain("920 kcal");
@@ -535,17 +535,16 @@ describe("nutrition pages", () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("Progresso nutricional da semana atual");
+    expect(html).toContain("Evolução nutricional da semana atual");
     expect(html).toContain("Semana atual");
     expect(html).toContain("Semana anterior");
     expect(html).toContain("Média semanal");
     expect(html).toContain("Dias da semana");
     expect(html).toContain("Evolução do peso");
     expect(html).toContain("Insights alimentares da semana");
-    expect(html).toContain("Aderência à meta calórica semanal");
-    expect(html).toContain("Refeições detalhadas");
-    expect(html).toContain("mesma leitura compacta e agrupada usada na tela de refeições");
-    expect(html).toContain("Equação energética do dia");
+    expect(html).toContain("Semana em formato de calendário");
+    expect(html).toContain("Resumo do período");
+    expect(html).toContain("Indicadores de qualidade da semana");
     expect(html).toContain("Gráficos e leitura analítica");
     expect(html).toContain("Consumo semanal");
     expect(html).toContain("Calorias líquidas");

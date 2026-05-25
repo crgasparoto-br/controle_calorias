@@ -9,9 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { CalendarPlus, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarPlus, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Link } from "wouter";
 import { DayNavigator, MealItemEditor, RegisteredMealGroups, SummaryPill } from "./components";
 import { createEmptyItem, createManualMealState, sumItems } from "./mealFormState";
 import { buildRegisteredMealGroups, normalizeMealType } from "./mealViewModels";
@@ -34,6 +35,7 @@ export function RegisteredMealsPage() {
       utils.nutrition.meals.dayTotals.invalidate(),
       utils.nutrition.meals.favorites.invalidate(),
       utils.nutrition.reports.weekly.invalidate(),
+      utils.nutrition.reports.bundle.invalidate(),
     ]);
   };
 
@@ -228,8 +230,8 @@ export function RegisteredMealsPage() {
       <div className="space-y-6">
         <PageIntro
           eyebrow="Registros"
-          title=""
-          description=""
+          title="O que foi lançado e como corrigir ou reaproveitar?"
+          description="Esta tela concentra consulta operacional, edição, cópia, favoritos e manutenção dos lançamentos, sem misturar tendência histórica profunda."
           stats={
             <div className="grid gap-3 sm:grid-cols-4">
               <SummaryPill label="Calorias" value={formatCalories(dayTotals.calories)} />
@@ -238,7 +240,24 @@ export function RegisteredMealsPage() {
               <SummaryPill label="Gorduras" value={formatGrams(dayTotals.fat)} />
             </div>
           }
-          actions={<DayNavigator selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} />}
+          actions={
+            <div className="flex flex-col gap-3 sm:items-end">
+              <DayNavigator selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} />
+              <div className="flex flex-wrap gap-2">
+                <Link href="/registrar">
+                  <Button className="rounded-full">
+                    Registrar nova refeição
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link href="/reports">
+                  <Button variant="outline" className="rounded-full">
+                    Ver relatório do período
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          }
         />
 
         {favoriteMealsQuery.data?.length ? (
@@ -274,8 +293,9 @@ export function RegisteredMealsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <ListChecks className="h-5 w-5 text-primary" />
-              Alimentos do dia
+              Lançamentos do dia selecionado
             </CardTitle>
+            <CardDescription>Lista agrupada por refeição para editar, copiar, favoritar e excluir sem sair do fluxo operacional.</CardDescription>
           </CardHeader>
           <CardContent>
             <RegisteredMealGroups
