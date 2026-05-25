@@ -23,7 +23,7 @@ function Router() {
   const [location] = useLocation();
 
   useEffect(() => {
-    if (location === "/") {
+    if (location === "/" || location === "/today") {
       trackEvent("daily_dashboard_viewed", { surface: "home" });
     }
     if (location === "/reports") {
@@ -39,10 +39,12 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/" component={Home} />
+      <Route path="/today" component={Home} />
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/settings" component={OnboardingPage} />
       <Route path="/log-meal" component={LogMealPage} />
       <Route path="/record" component={LogMealPage} />
+      <Route path="/registrar" component={LogMealPage} />
       <Route path="/meals" component={RegisteredMealsPage} />
       <Route path="/foods" component={FoodsPage} />
       <Route path="/goals" component={GoalsPage} />
