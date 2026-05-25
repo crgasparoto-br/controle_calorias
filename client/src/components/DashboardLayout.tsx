@@ -97,10 +97,14 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
 
+  const isTodayRoute = location === "/" || location === "/today";
+  const isRegisterRoute = location === "/record" || location === "/log-meal" || location === "/registrar";
+  const isSettingsRoute = location === "/settings" || location === "/onboarding";
+
   const menuItems = useMemo(() => {
     const baseItems = [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-      { icon: MessageSquareMore, label: "Record", path: "/record" },
+      { icon: LayoutDashboard, label: "Hoje", path: "/today" },
+      { icon: MessageSquareMore, label: "Registrar", path: "/registrar" },
       { icon: ListChecks, label: "Registros", path: "/meals" },
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
@@ -119,12 +123,21 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     return baseItems;
   }, [user?.role]);
 
-  const activeItem = menuItems.find(
-    item =>
-      item.path === location ||
-      (item.path === "/settings" && location === "/onboarding") ||
-      (item.path === "/record" && location === "/log-meal"),
-  );
+  const activeItem = menuItems.find(item => {
+    if (item.path === "/today") {
+      return isTodayRoute;
+    }
+
+    if (item.path === "/registrar") {
+      return isRegisterRoute;
+    }
+
+    if (item.path === "/settings") {
+      return isSettingsRoute;
+    }
+
+    return item.path === location;
+  });
 
   return (
     <>
@@ -143,9 +156,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             {menuItems.map(item => {
               const isActive =
-                item.path === location ||
-                (item.path === "/settings" && location === "/onboarding") ||
-                (item.path === "/record" && location === "/log-meal");
+                (item.path === "/today" && isTodayRoute) ||
+                (item.path === "/registrar" && isRegisterRoute) ||
+                (item.path === "/settings" && isSettingsRoute) ||
+                item.path === location;
+
               return (
                 <SidebarMenuItem key={item.path}>
                   <SidebarMenuButton
@@ -194,18 +209,18 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Plataforma</p>
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                  {activeItem?.label || "Painel nutricional"}
+                  {activeItem?.label || "Hoje"}
                 </h2>
               </div>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <Button
                 type="button"
-                variant={location === "/record" || location === "/log-meal" ? "default" : "outline"}
+                variant={isRegisterRoute ? "default" : "outline"}
                 className="h-10 rounded-full px-4"
-                onClick={() => setLocation("/record")}
+                onClick={() => setLocation("/registrar")}
               >
-                Abrir record
+                Ir para registrar
               </Button>
               {!isMobile ? (
                 <Button
