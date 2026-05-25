@@ -535,18 +535,17 @@ describe("nutrition pages", () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("Evolução nutricional da semana atual");
-    expect(html).toContain("Semana atual");
-    expect(html).toContain("Semana anterior");
+    expect(html).toContain("Evolução e aderência semanal");
+    expect(html).toContain("A semana continua sendo a leitura mais completa de consistência, saldo energético e qualidade alimentar.");
+    expect(html).toContain("Semana de referência");
     expect(html).toContain("Média semanal");
     expect(html).toContain("Dias da semana");
     expect(html).toContain("Evolução do peso");
-    expect(html).toContain("Insights alimentares da semana");
-    expect(html).toContain("Semana em formato de calendário");
-    expect(html).toContain("Resumo do período");
-    expect(html).toContain("Indicadores de qualidade da semana");
-    expect(html).toContain("Gráficos e leitura analítica");
-    expect(html).toContain("Consumo semanal");
+    expect(html).toContain("Qualidade e insights");
+    expect(html).toContain("Distribuição de macronutrientes");
+    expect(html).toContain("Refeições detalhadas");
+    expect(html).toContain("Total da semana");
+    expect(html).toContain("Proteína média");
     expect(html).toContain("Calorias líquidas");
   });
 
