@@ -159,7 +159,7 @@ describe("meals service characterization", () => {
     });
   });
 
-  it("processa imagem e audio mockados, reutilizando a transcricao no rascunho", async () => {
+  it("processa texto, imagem e audio juntos usando imagem e audio inline na inferencia", async () => {
     transcribeAudioMock.mockResolvedValue({
       task: "transcribe",
       language: "pt",
@@ -170,6 +170,7 @@ describe("meals service characterization", () => {
 
     const result = await processMealDraft(42, {
       source: "whatsapp",
+      text: "almoco com arroz",
       image: {
         base64: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
         mimeType: "image/jpeg",
@@ -184,15 +185,17 @@ describe("meals service characterization", () => {
 
     expect(storagePutMock).toHaveBeenCalledTimes(2);
     expect(transcribeAudioMock).toHaveBeenCalledWith(expect.objectContaining({
+      audioBase64: "data:audio/ogg;base64,YXVkaW8tZGUtdGVzdGU=",
+      mimeType: "audio/ogg",
       language: "pt",
-      audioUrl: expect.stringContaining("/42/meal-audios/"),
       prompt: expect.stringContaining("Transcreva"),
     }));
 
     const multimodalInput = processMealInputMock.mock.calls[0]?.[0];
     expect(multimodalInput).toEqual(expect.objectContaining({
-      text: undefined,
+      text: "almoco com arroz",
       transcript: "arroz e frango grelhado",
+      imageUrl: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
       habits: [
         {
           foodName: "Arroz branco cozido",
@@ -202,7 +205,6 @@ describe("meals service characterization", () => {
         },
       ],
     }));
-    expect(multimodalInput?.imageUrl).toContain("/42/meal-images/");
     expect(multimodalInput?.audioUrl).toContain("/42/meal-audios/");
 
     expect(result.media).toEqual([
@@ -260,6 +262,51 @@ describe("meals service characterization", () => {
       ],
     }));
     expect(warningInput?.audioUrl).toContain("/7/meal-audios/");
+  });
+
+  it("segue com transcricao inline quando o upload do audio falha", async () => {
+    storagePutMock.mockImplementation(async (key: string) => {
+      if (String(key).includes("meal-audios")) {
+        throw new Error("upload indisponivel");
+      }
+
+      return {
+        key,
+        url: `https://storage.test/${key}`,
+      };
+    });
+    transcribeAudioMock.mockResolvedValue({
+      task: "transcribe",
+      language: "pt",
+      duration: 2.1,
+      text: "omelete com queijo",
+      segments: [],
+    });
+
+    await processMealDraft(9, {
+      source: "web",
+      audio: {
+        base64: "data:audio/ogg;base64,YXVkaW8tZGUtdGVzdGU=",
+        mimeType: "audio/ogg",
+        fileName: "audio.ogg",
+      },
+    });
+
+    expect(logInferenceEventMock).toHaveBeenCalledWith({
+      userId: 9,
+      origin: "web",
+      status: "warning",
+      eventType: "meal_draft.inline_audio_used",
+      detail: "O draft usou o áudio inline porque o upload para storage falhou durante o processamento.",
+    });
+    expect(transcribeAudioMock).toHaveBeenCalledWith(expect.objectContaining({
+      audioBase64: "data:audio/ogg;base64,YXVkaW8tZGUtdGVzdGU=",
+      mimeType: "audio/ogg",
+    }));
+
+    const multimodalInput = processMealInputMock.mock.calls[0]?.[0];
+    expect(multimodalInput?.audioUrl).toBeUndefined();
+    expect(multimodalInput?.transcript).toBe("omelete com queijo");
   });
 
   it("não persiste rascunho quando a inferência falha antes da validação final", async () => {
