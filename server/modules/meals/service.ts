@@ -84,10 +84,12 @@ async function resolveDraftImage(params: { userId: number; media?: MediaInput })
     return { imageUrl: undefined, media: null as ReturnType<typeof buildSavedMedia> | null };
   }
 
+  const inlineImageUrl = buildInlineMediaDataUrl(media);
+
   try {
     const uploadedMedia = await uploadMedia({ userId: params.userId, type: "image", media });
     return {
-      imageUrl: uploadedMedia?.storageUrl,
+      imageUrl: inlineImageUrl,
       media: uploadedMedia,
     };
   } catch {
@@ -100,7 +102,50 @@ async function resolveDraftImage(params: { userId: number; media?: MediaInput })
     });
 
     return {
-      imageUrl: buildInlineMediaDataUrl(media),
+      imageUrl: inlineImageUrl,
+      media: null,
+    };
+  }
+}
+
+async function resolveDraftAudio(params: {
+  userId: number;
+  source: "web" | "whatsapp";
+  media?: MediaInput;
+}) {
+  const media = params.media;
+  if (!media) {
+    return {
+      audioUrl: undefined,
+      inlineAudioDataUrl: undefined,
+      mimeType: undefined,
+      media: null as ReturnType<typeof buildSavedMedia> | null,
+    };
+  }
+
+  const inlineAudioDataUrl = buildInlineMediaDataUrl(media);
+
+  try {
+    const uploadedMedia = await uploadMedia({ userId: params.userId, type: "audio", media });
+    return {
+      audioUrl: uploadedMedia?.storageUrl,
+      inlineAudioDataUrl,
+      mimeType: media.mimeType,
+      media: uploadedMedia,
+    };
+  } catch {
+    logInferenceEvent({
+      userId: params.userId,
+      origin: params.source,
+      status: "warning",
+      eventType: "meal_draft.inline_audio_used",
+      detail: "O draft usou o áudio inline porque o upload para storage falhou durante o processamento.",
+    });
+
+    return {
+      audioUrl: undefined,
+      inlineAudioDataUrl,
+      mimeType: media.mimeType,
       media: null,
     };
   }
@@ -154,15 +199,16 @@ export async function reuseMealFavorite(userId: number, input: ReuseFavoriteMeal
 }
 
 export async function processMealDraft(userId: number, input: ProcessMealDraftInput) {
-  const [resolvedImage, audioMedia] = await Promise.all([
+  const [resolvedImage, resolvedAudio] = await Promise.all([
     resolveDraftImage({ userId, media: input.image }),
-    uploadMedia({ userId, type: "audio", media: input.audio }),
+    resolveDraftAudio({ userId, source: input.source, media: input.audio }),
   ]);
 
   let transcript: string | undefined;
-  if (audioMedia) {
+  if (resolvedAudio.inlineAudioDataUrl) {
     const transcription = await transcribeAudio({
-      audioUrl: audioMedia.storageUrl,
+      audioBase64: resolvedAudio.inlineAudioDataUrl,
+      mimeType: resolvedAudio.mimeType,
       language: "pt",
       prompt: "Transcreva a refeição narrada pelo usuário com foco em alimentos e porções.",
     });
@@ -183,7 +229,7 @@ export async function processMealDraft(userId: number, input: ProcessMealDraftIn
     text: input.text,
     transcript,
     imageUrl: resolvedImage.imageUrl,
-    audioUrl: audioMedia?.storageUrl,
+    audioUrl: resolvedAudio.audioUrl,
     habits: await getHabitSnapshots(userId),
   });
 
@@ -191,7 +237,7 @@ export async function processMealDraft(userId: number, input: ProcessMealDraftIn
     userId,
     input.source,
     processed,
-    [resolvedImage.media, audioMedia].filter(Boolean) as NonNullable<Awaited<ReturnType<typeof uploadMedia>>>[],
+    [resolvedImage.media, resolvedAudio.media].filter(Boolean) as NonNullable<Awaited<ReturnType<typeof uploadMedia>>>[],
   );
 
   return {
