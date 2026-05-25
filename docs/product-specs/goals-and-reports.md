@@ -11,9 +11,13 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Relatórios semanais usam semana iniciando na segunda-feira.
 - Refeições confirmadas devem exibir itens, porções, macros, calorias e horário.
 - Hoje e relatórios devem usar a mesma fonte de totais para evitar divergência.
+- Hoje permanece focado no dia atual e não deve depender de consultas históricas pesadas.
+- Registros deve permitir consulta operacional por dia, semana, mês e período configurável.
+- Relatórios deve permitir análise por dia, semana, mês e período configurável com o mesmo padrão visual de seleção.
 
 ## Critérios de aceite
 
 - Alteração de meta atualiza dashboard e relatórios.
 - Relatório semanal não inclui rascunhos não confirmados.
 - Eventos analíticos não contêm dados sensíveis de saúde ou refeição crua.
+- Registros e Relatórios deixam claro qual período está ativo e qual intervalo está sendo analisado.
