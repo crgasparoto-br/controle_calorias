@@ -1,32 +1,182 @@
-import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
+import PageIntro from "@/components/PageIntro";
+import { PeriodScopeSelector } from "@/components/PeriodScopeSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  formatDateLabel,
+  formatRangeLabel,
+  getMonthRange,
+  getWeekRange,
+  normalizeDateRange,
+  toMonthInputValue,
+  type PeriodScope,
+} from "@/lib/dateRanges";
 import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, CalendarPlus, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
+import { CalendarPlus, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Link } from "wouter";
-import { DayNavigator, MealItemEditor, RegisteredMealGroups, SummaryPill } from "./components";
+import { MealItemEditor, RegisteredMealGroups, SummaryPill } from "./components";
 import { createEmptyItem, createManualMealState, sumItems } from "./mealFormState";
-import { buildRegisteredMealGroups, normalizeMealType } from "./mealViewModels";
+import {
+  type DateGroupedRegisteredMealsViewModel,
+  buildDateGroupedMealGroups,
+  buildRegisteredMealGroups,
+  filterMealsByDateRange,
+  normalizeMealType,
+  sumStoredMealTotals,
+} from "./mealViewModels";
 import { MEAL_TYPES } from "./types";
 import type { MealItemState, MealType, StoredMeal } from "./types";
+
+function buildRecordsHeading(scope: PeriodScope) {
+  switch (scope) {
+    case "day":
+      return {
+        title: "Registros operacionais do dia",
+        description: "Veja o que foi lançado hoje e faça correções, cópias ou reaproveitamento sem sair da área operacional.",
+        listTitle: "Refeições do dia",
+      };
+    case "week":
+      return {
+        title: "Registros agrupados por semana",
+        description: "A semana mostra as refeições agrupadas por dia para facilitar revisão rápida e manutenção do que foi lançado.",
+        listTitle: "Refeições da semana",
+      };
+    case "month":
+      return {
+        title: "Resumo operacional do mês",
+        description: "O mês prioriza um resumo por dia, com expansão sob demanda para manter a tela leve.",
+        listTitle: "Resumo por dia no mês",
+      };
+    case "range":
+      return {
+        title: "Consulta por período configurável",
+        description: "Escolha um intervalo e abra só os dias que precisar revisar ou reaproveitar.",
+        listTitle: "Registros do período",
+      };
+  }
+}
+
+function buildDateSectionDescription(scope: PeriodScope) {
+  switch (scope) {
+    case "week":
+      return "A semana abre com os dias expandidos para acelerar a revisão.";
+    case "month":
+      return "O mês mostra primeiro um resumo por dia. Abra só os dias que precisar detalhar.";
+    case "range":
+      return "Períodos longos ficam recolhidos por padrão para evitar excesso de informação de uma vez.";
+    default:
+      return "";
+  }
+}
+
+function DateGroupedMealsSections({
+  groups,
+  scope,
+  userTimeZone,
+  selectedMealId,
+  emptyMessage,
+  isCopyPending,
+  isFavoritePending,
+  isRemovePending,
+  onEditMeal,
+  onCopyMeal,
+  onFavoriteMeal,
+  onRemoveMeal,
+}: {
+  groups: DateGroupedRegisteredMealsViewModel[];
+  scope: PeriodScope;
+  userTimeZone: string;
+  selectedMealId?: number;
+  emptyMessage: string;
+  isCopyPending?: boolean;
+  isFavoritePending?: boolean;
+  isRemovePending?: boolean;
+  onEditMeal?: (meal: StoredMeal) => void;
+  onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
+  onFavoriteMeal?: (meal: StoredMeal) => void;
+  onRemoveMeal?: (meal: StoredMeal) => void;
+}) {
+  if (!groups.length) {
+    return (
+      <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  const defaultOpen = scope === "week";
+
+  return (
+    <div className="space-y-4">
+      {groups.map(group => (
+        <details key={group.date} className="group rounded-3xl border bg-muted/10 p-4" open={defaultOpen}>
+          <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-base font-semibold tracking-tight">{formatDateLabel(group.date, { weekday: "long", day: "2-digit", month: "short" })}</p>
+              <p className="text-sm text-muted-foreground">
+                {group.mealCount} refeições · {group.itemCount} itens lançados
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <SummaryPill label="Calorias" value={formatCalories(group.totals.calories)} />
+              <SummaryPill label="Proteínas" value={formatGrams(group.totals.protein)} />
+            </div>
+          </summary>
+          <div className="pt-4">
+            <RegisteredMealGroups
+              groups={group.groups}
+              userTimeZone={userTimeZone}
+              selectedMealId={selectedMealId}
+              emptyMessage="Nenhuma refeição encontrada para este dia."
+              isCopyPending={isCopyPending}
+              isFavoritePending={isFavoritePending}
+              isRemovePending={isRemovePending}
+              onEditMeal={onEditMeal}
+              onCopyMeal={onCopyMeal}
+              onFavoriteMeal={onFavoriteMeal}
+              onRemoveMeal={onRemoveMeal}
+            />
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
 
 export function RegisteredMealsPage() {
   const utils = trpc.useUtils();
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
+  const [periodScope, setPeriodScope] = useState<PeriodScope>("day");
   const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
+  const [selectedMonth, setSelectedMonth] = useState(() => toMonthInputValue(new Date(), userTimeZone));
+  const [rangeStart, setRangeStart] = useState(() => toDateInputValue(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), userTimeZone));
+  const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
+  const [copyTargetDay, setCopyTargetDay] = useState(() => toDateInputValue());
   const [manualMeal, setManualMeal] = useState(createManualMealState);
 
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
+
+  const activeRange = useMemo(() => {
+    switch (periodScope) {
+      case "day":
+        return { start: selectedDay, end: selectedDay };
+      case "week":
+        return getWeekRange(selectedDay);
+      case "month":
+        return getMonthRange(selectedMonth);
+      case "range":
+        return normalizeDateRange(rangeStart, rangeEnd);
+    }
+  }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
 
   const invalidateNutritionViews = async () => {
     await Promise.all([
@@ -60,7 +210,7 @@ export function RegisteredMealsPage() {
   const copyMeal = trpc.nutrition.meals.copy.useMutation({
     onSuccess: async () => {
       await invalidateNutritionViews();
-      toast.success("Refeição copiada para a data selecionada.");
+      toast.success("Refeição copiada para a data de destino.");
     },
     onError: error => toast.error(error.message || "Não foi possível copiar a refeição."),
   });
@@ -81,25 +231,25 @@ export function RegisteredMealsPage() {
     onError: error => toast.error(error.message || "Não foi possível reutilizar a favorita."),
   });
 
-  const registeredMealGroups = useMemo(
-    () => buildRegisteredMealGroups((mealsQuery.data ?? []) as StoredMeal[], { selectedDay, timeZone: userTimeZone }),
-    [mealsQuery.data, selectedDay, userTimeZone],
+  const allMeals = (mealsQuery.data ?? []) as StoredMeal[];
+  const filteredMeals = useMemo(
+    () => filterMealsByDateRange(allMeals, { startDate: activeRange.start, endDate: activeRange.end, timeZone: userTimeZone }),
+    [activeRange.end, activeRange.start, allMeals, userTimeZone],
   );
-
-  const dayTotals = useMemo(
-    () => registeredMealGroups.reduce(
-      (totals, group) => ({
-        calories: totals.calories + group.totals.calories,
-        protein: totals.protein + group.totals.protein,
-        carbs: totals.carbs + group.totals.carbs,
-        fat: totals.fat + group.totals.fat,
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    ),
-    [registeredMealGroups],
+  const periodTotals = useMemo(() => sumStoredMealTotals(filteredMeals), [filteredMeals]);
+  const periodMealGroups = useMemo(() => buildRegisteredMealGroups(filteredMeals), [filteredMeals]);
+  const periodDayGroups = useMemo(
+    () => buildDateGroupedMealGroups(filteredMeals, { timeZone: userTimeZone, sortDirection: "desc" }),
+    [filteredMeals, userTimeZone],
   );
-
   const manualTotals = useMemo(() => sumItems(manualMeal.items), [manualMeal.items]);
+  const pageHeading = buildRecordsHeading(periodScope);
+  const activeRangeLabel = formatRangeLabel(activeRange);
+
+  const handleReferenceDayChange = (value: string) => {
+    setSelectedDay(value);
+    setCopyTargetDay(value);
+  };
 
   const loadMealForEditing = (meal: StoredMeal) => {
     setManualMeal({
@@ -230,33 +380,30 @@ export function RegisteredMealsPage() {
       <div className="space-y-6">
         <PageIntro
           eyebrow="Registros"
-          title="O que foi lançado e como corrigir ou reaproveitar?"
-          description="Esta tela concentra consulta operacional, edição, cópia, favoritos e manutenção dos lançamentos, sem misturar tendência histórica profunda."
+          title={pageHeading.title}
+          description={`${pageHeading.description} Intervalo ativo: ${activeRangeLabel}.`}
           stats={
-            <div className="grid gap-3 sm:grid-cols-4">
-              <SummaryPill label="Calorias" value={formatCalories(dayTotals.calories)} />
-              <SummaryPill label="Proteínas" value={formatGrams(dayTotals.protein)} />
-              <SummaryPill label="Carboidratos" value={formatGrams(dayTotals.carbs)} />
-              <SummaryPill label="Gorduras" value={formatGrams(dayTotals.fat)} />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <SummaryPill label="Calorias" value={formatCalories(periodTotals.calories)} />
+              <SummaryPill label="Proteínas" value={formatGrams(periodTotals.protein)} />
+              <SummaryPill label="Carboidratos" value={formatGrams(periodTotals.carbs)} />
+              <SummaryPill label="Refeições" value={String(filteredMeals.length)} />
+              <SummaryPill label="Dias com registros" value={String(periodDayGroups.length)} />
             </div>
           }
           actions={
-            <div className="flex flex-col gap-3 sm:items-end">
-              <DayNavigator selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} />
-              <div className="flex flex-wrap gap-2">
-                <Link href="/registrar">
-                  <Button className="rounded-full">
-                    Registrar nova refeição
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href="/reports">
-                  <Button variant="outline" className="rounded-full">
-                    Ver relatório do período
-                  </Button>
-                </Link>
-              </div>
-            </div>
+            <PeriodScopeSelector
+              scope={periodScope}
+              onScopeChange={setPeriodScope}
+              selectedDay={selectedDay}
+              onSelectedDayChange={handleReferenceDayChange}
+              selectedMonth={selectedMonth}
+              onSelectedMonthChange={setSelectedMonth}
+              rangeStart={rangeStart}
+              onRangeStartChange={setRangeStart}
+              rangeEnd={rangeEnd}
+              onRangeEndChange={setRangeEnd}
+            />
           }
         />
 
@@ -267,22 +414,33 @@ export function RegisteredMealsPage() {
                 <Star className="h-5 w-5 text-primary" />
                 Refeições favoritas
               </CardTitle>
-              <CardDescription>Reutilize uma favorita no dia selecionado com um toque.</CardDescription>
+              <CardDescription>Reutilize uma favorita na data de destino, mesmo enquanto consulta semana, mês ou período.</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {favoriteMealsQuery.data.map(favorite => (
-                <Button
-                  key={favorite.id}
-                  type="button"
-                  variant="outline"
-                  className="rounded-full"
-                  onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone) })}
-                  disabled={reuseFavoriteMeal.isPending}
-                >
-                  <CalendarPlus className="mr-2 h-4 w-4" />
-                  {favorite.name}
-                </Button>
-              ))}
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-end gap-3 rounded-2xl border bg-muted/20 p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="favorite-copy-target">Data de destino</Label>
+                  <Input id="favorite-copy-target" type="date" value={copyTargetDay} onChange={event => setCopyTargetDay(event.target.value)} className="sm:w-44" />
+                </div>
+                <div className="rounded-2xl border bg-background px-4 py-3 text-sm text-muted-foreground">
+                  Cópias e reutilização vão para <span className="font-semibold text-foreground">{formatDateLabel(copyTargetDay)}</span>.
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {favoriteMealsQuery.data.map(favorite => (
+                  <Button
+                    key={favorite.id}
+                    type="button"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone) })}
+                    disabled={reuseFavoriteMeal.isPending}
+                  >
+                    <CalendarPlus className="mr-2 h-4 w-4" />
+                    {favorite.name}
+                  </Button>
+                ))}
+              </div>
             </CardContent>
           </Card>
         ) : null}
@@ -293,24 +451,41 @@ export function RegisteredMealsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <ListChecks className="h-5 w-5 text-primary" />
-              Lançamentos do dia selecionado
+              {pageHeading.listTitle}
             </CardTitle>
-            <CardDescription>Lista agrupada por refeição para editar, copiar, favoritar e excluir sem sair do fluxo operacional.</CardDescription>
+            <CardDescription>{buildDateSectionDescription(periodScope)}</CardDescription>
           </CardHeader>
           <CardContent>
-            <RegisteredMealGroups
-              groups={registeredMealGroups}
-              userTimeZone={userTimeZone}
-              selectedMealId={manualMeal.mealId}
-              emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : "Nenhuma refeição foi registrada para esta data."}
-              isCopyPending={copyMeal.isPending}
-              isFavoritePending={saveFavoriteMeal.isPending}
-              isRemovePending={removeMeal.isPending}
-              onEditMeal={loadMealForEditing}
-              onCopyMeal={(meal, mealLabel) => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${selectedDay}T12:00`, userTimeZone), mealLabel })}
-              onFavoriteMeal={meal => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })}
-              onRemoveMeal={meal => removeMeal.mutate({ mealId: meal.id })}
-            />
+            {periodScope === "day" ? (
+              <RegisteredMealGroups
+                groups={periodMealGroups}
+                userTimeZone={userTimeZone}
+                selectedMealId={manualMeal.mealId}
+                emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : "Nenhuma refeição foi registrada para esta data."}
+                isCopyPending={copyMeal.isPending}
+                isFavoritePending={saveFavoriteMeal.isPending}
+                isRemovePending={removeMeal.isPending}
+                onEditMeal={loadMealForEditing}
+                onCopyMeal={(meal, mealLabel) => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone), mealLabel })}
+                onFavoriteMeal={meal => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })}
+                onRemoveMeal={meal => removeMeal.mutate({ mealId: meal.id })}
+              />
+            ) : (
+              <DateGroupedMealsSections
+                groups={periodDayGroups}
+                scope={periodScope}
+                userTimeZone={userTimeZone}
+                selectedMealId={manualMeal.mealId}
+                emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : `Nenhum registro encontrado para ${activeRangeLabel.toLowerCase()}.`}
+                isCopyPending={copyMeal.isPending}
+                isFavoritePending={saveFavoriteMeal.isPending}
+                isRemovePending={removeMeal.isPending}
+                onEditMeal={loadMealForEditing}
+                onCopyMeal={(meal, mealLabel) => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone), mealLabel })}
+                onFavoriteMeal={meal => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })}
+                onRemoveMeal={meal => removeMeal.mutate({ mealId: meal.id })}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
