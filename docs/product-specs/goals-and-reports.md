@@ -10,7 +10,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Valores potencialmente inseguros devem gerar aviso ou bloqueio antes da persistência.
 - Relatórios semanais usam semana iniciando na segunda-feira.
 - Refeições confirmadas devem exibir itens, porções, macros, calorias e horário.
-- Dashboard e relatórios devem usar a mesma fonte de totais para evitar divergência.
+- Hoje e relatórios devem usar a mesma fonte de totais para evitar divergência.
 
 ## Critérios de aceite
 
