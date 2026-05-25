@@ -11,6 +11,9 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Relatórios semanais usam semana iniciando na segunda-feira.
 - Refeições confirmadas devem exibir itens, porções, macros, calorias e horário.
 - Hoje e relatórios devem usar a mesma fonte de totais para evitar divergência.
+- Hoje deve priorizar leitura diária, contexto imediato e atalhos rápidos.
+- Relatórios devem concentrar análise histórica, tendências, aderência e comparativos.
+- Edição, cópia, exclusão e reaproveitamento de refeições pertencem à área de Registros, não à área de Relatórios.
 
 ## Critérios de aceite
 
