@@ -352,7 +352,8 @@ function ExerciseAnalyticsCard({
   activeDays,
   totalDays,
   totalCalories,
-  totalDurationMinutes,
+  detailLabel,
+  detailValue,
   averageCaloriesPerActiveDay,
   highestDay,
   reading,
@@ -363,7 +364,8 @@ function ExerciseAnalyticsCard({
   activeDays: number;
   totalDays: number;
   totalCalories: number;
-  totalDurationMinutes: number;
+  detailLabel: string;
+  detailValue: string;
   averageCaloriesPerActiveDay: number;
   highestDay: string;
   reading: string;
@@ -374,11 +376,10 @@ function ExerciseAnalyticsCard({
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <CompactMetric label="Dias ativos" value={`${activeDays}/${totalDays}`} />
-          <CompactMetric label="Minutos acumulados" value={formatCountPtBr(Math.round(totalDurationMinutes), " min")} />
+          <CompactMetric label="Gasto total" value={formatCalories(totalCalories)} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <StatusTile label="Dias ativos" value={`${activeDays}/${totalDays} dias`} />
-          <StatusTile label="Gasto total" value={formatCalories(totalCalories)} />
+          <StatusTile label={detailLabel} value={detailValue} />
           <StatusTile label="Média por dia ativo" value={activeDays ? formatCalories(averageCaloriesPerActiveDay) : "0 kcal"} />
           <StatusTile label="Maior dia" value={highestDay} />
         </div>
@@ -702,7 +703,8 @@ export default function ReportsPage() {
                     activeDays={weeklyExerciseActiveDays}
                     totalDays={caloricTrend.length || 0}
                     totalCalories={progress.summary.totalExerciseCalories}
-                    totalDurationMinutes={caloricTrend.reduce((total, day) => total + Number(day.exerciseCalories > 0 ? 0 : 0), 0)}
+                    detailLabel="Distribuição"
+                    detailValue={`${weeklyExerciseActiveDays}/${caloricTrend.length || 0} dias`}
                     averageCaloriesPerActiveDay={weeklyAverageExercisePerActiveDay}
                     highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"}
                     reading={exerciseReading}
@@ -882,7 +884,8 @@ export default function ReportsPage() {
                   activeDays={periodHabitAnalytics?.exercise.activeDays ?? 0}
                   totalDays={periodHabitAnalytics?.range.dayCount ?? 0}
                   totalCalories={periodHabitAnalytics?.exercise.totalCalories ?? 0}
-                  totalDurationMinutes={periodHabitAnalytics?.exercise.totalDurationMinutes ?? 0}
+                  detailLabel="Minutos totais"
+                  detailValue={formatCountPtBr(Math.round(periodHabitAnalytics?.exercise.totalDurationMinutes ?? 0), " min")}
                   averageCaloriesPerActiveDay={periodHabitAnalytics?.exercise.averageCaloriesPerActiveDay ?? 0}
                   highestDay={periodHabitAnalytics?.exercise.highestDay ? `${periodHabitAnalytics.exercise.highestDay.label} · ${formatCalories(periodHabitAnalytics.exercise.highestDay.caloriesBurned)}` : "Sem exercício"}
                   reading={periodExerciseReading}
