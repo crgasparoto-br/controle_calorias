@@ -35,6 +35,8 @@ import {
   BarChart3,
   CalendarDays,
   ChevronDown,
+  Droplets,
+  Dumbbell,
   Lightbulb,
   Scale,
   TrendingUp,
@@ -73,7 +75,7 @@ function buildReportsHeading(scope: PeriodScope) {
     case "week":
       return {
         title: "Evolução e aderência semanal",
-        description: "A semana continua sendo a leitura mais completa de consistência, saldo energético e qualidade alimentar.",
+        description: "A semana continua sendo a leitura mais completa de consistência, saldo energético, hidratação e atividade física.",
       };
     case "month":
       return {
@@ -357,6 +359,40 @@ export default function ReportsPage() {
     [detailedMealsByDate],
   );
 
+  const weeklyWaterTotal = caloricTrend.reduce((total, day) => total + (day.waterConsumedMl ?? 0), 0);
+  const weeklyWaterGoalTotal = caloricTrend.reduce((total, day) => total + (day.waterGoalMl ?? 0), 0);
+  const weeklyWaterGoalHitDays = caloricTrend.filter(day => (day.waterGoalMl ?? 0) > 0 && (day.waterConsumedMl ?? 0) >= (day.waterGoalMl ?? 0)).length;
+  const weeklyAverageWater = averageValue(weeklyWaterTotal, caloricTrend.length);
+  const lowestWaterDay = caloricTrend.reduce<(typeof caloricTrend)[number] | null>((current, day) => {
+    if (!current || (day.waterConsumedMl ?? 0) < (current.waterConsumedMl ?? 0)) {
+      return day;
+    }
+    return current;
+  }, null);
+
+  const weeklyExerciseActiveDays = caloricTrend.filter(day => (day.exerciseCalories ?? 0) > 0).length;
+  const weeklyAverageExercisePerActiveDay = weeklyExerciseActiveDays ? averageValue(progress?.summary.totalExerciseCalories ?? 0, weeklyExerciseActiveDays) : 0;
+  const highestExerciseDay = caloricTrend.reduce<(typeof caloricTrend)[number] | null>((current, day) => {
+    if (!current || (day.exerciseCalories ?? 0) > (current.exerciseCalories ?? 0)) {
+      return day;
+    }
+    return current;
+  }, null);
+
+  const hydrationReading = !caloricTrend.length
+    ? "Ainda não há dados suficientes para interpretar a hidratação da semana."
+    : weeklyWaterGoalHitDays > 0
+      ? `${weeklyWaterGoalHitDays} de ${caloricTrend.length} dias bateram a meta de água, o que já permite enxergar consistência semanal.`
+      : "Nenhum dia bateu a meta de água nesta semana, então vale olhar distribuição e horários dos registros.";
+
+  const exerciseReading = !caloricTrend.length
+    ? "Ainda não há dados suficientes para interpretar a atividade física da semana."
+    : weeklyExerciseActiveDays > 1
+      ? `Os exercícios ficaram distribuídos em ${weeklyExerciseActiveDays} dias da semana, o que reduz a sensação de esforço concentrado em um único dia.`
+      : weeklyExerciseActiveDays === 1
+        ? "Toda a atividade física registrada ficou concentrada em um único dia da semana."
+        : "Nenhum exercício foi registrado nesta semana.";
+
   const introStats = (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <SummaryPill label="Calorias" value={formatCalories(localTotals.calories)} />
@@ -500,6 +536,57 @@ export default function ReportsPage() {
                     </Card>
                   </CardContent>
                 </Card>
+
+                <div className="grid gap-6 xl:grid-cols-2">
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Droplets className="h-5 w-5 text-primary" />
+                        Hidratação na semana
+                      </CardTitle>
+                      <CardDescription>Esta leitura olha aderência à meta, média diária e o ponto mais fraco da semana.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="rounded-2xl border bg-muted/20 p-4">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium tracking-tight">Aderência à meta de água</p>
+                          <p className="text-sm text-muted-foreground">{formatNumberPtBr(Math.round(progressPercent(weeklyWaterTotal, weeklyWaterGoalTotal)))}%</p>
+                        </div>
+                        <Progress className="h-2" value={progressPercent(weeklyWaterTotal, weeklyWaterGoalTotal)} />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <StatusTile label="Meta batida" value={`${weeklyWaterGoalHitDays}/${caloricTrend.length || 0} dias`} />
+                        <StatusTile label="Média diária" value={formatCountPtBr(Math.round(weeklyAverageWater), " ml")} />
+                        <StatusTile label="Total consumido" value={formatCountPtBr(Math.round(weeklyWaterTotal), " ml")} />
+                        <StatusTile label="Menor dia" value={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} />
+                      </div>
+                      <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
+                        {hydrationReading}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Dumbbell className="h-5 w-5 text-primary" />
+                        Atividade física na semana
+                      </CardTitle>
+                      <CardDescription>O objetivo aqui é mostrar frequência, distribuição e concentração do gasto ao longo da semana.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <StatusTile label="Dias ativos" value={`${weeklyExerciseActiveDays}/${caloricTrend.length || 0} dias`} />
+                        <StatusTile label="Gasto total" value={formatCalories(progress.summary.totalExerciseCalories)} />
+                        <StatusTile label="Média por dia ativo" value={weeklyExerciseActiveDays ? formatCalories(weeklyAverageExercisePerActiveDay) : "0 kcal"} />
+                        <StatusTile label="Maior dia" value={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} />
+                      </div>
+                      <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
+                        {exerciseReading}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
                 <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
                   <Card className="border-0 shadow-sm">

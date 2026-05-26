@@ -531,16 +531,19 @@ describe("nutrition pages", () => {
     expect(html).toContain("Peso atual");
   });
 
-  it("renderiza a página de relatórios com resumo semanal, navegação entre semanas e equação energética do dia", async () => {
+  it("renderiza a página de relatórios com resumo semanal, leitura de hidratação e atividade física", async () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
     expect(html).toContain("Evolução e aderência semanal");
-    expect(html).toContain("A semana continua sendo a leitura mais completa de consistência, saldo energético e qualidade alimentar.");
+    expect(html).toContain("A semana continua sendo a leitura mais completa de consistência, saldo energético, hidratação e atividade física.");
     expect(html).toContain("Semana de referência");
     expect(html).toContain("Média semanal");
     expect(html).toContain("Dias da semana");
     expect(html).toContain("Evolução do peso");
+    expect(html).toContain("Hidratação na semana");
+    expect(html).toContain("Atividade física na semana");
+    expect(html).toContain("Aderência à meta de água");
     expect(html).toContain("Qualidade e insights");
     expect(html).toContain("Distribuição de macronutrientes");
     expect(html).toContain("Refeições detalhadas");
