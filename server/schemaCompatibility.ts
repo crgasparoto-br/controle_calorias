@@ -2,6 +2,13 @@ import mysql from "mysql2/promise";
 
 type Connection = mysql.Connection;
 
+const USERS_COLUMNS = [
+  { name: "passwordHash", sql: "`passwordHash` text NULL" },
+  { name: "loginMethod", sql: "`loginMethod` varchar(64) NULL" },
+  { name: "role", sql: "`role` enum('user','admin') DEFAULT 'user' NOT NULL" },
+  { name: "lastSignedIn", sql: "`lastSignedIn` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL" },
+];
+
 const NUTRITION_GOAL_COLUMNS = [
   { name: "weekday", sql: "`weekday` int NULL" },
   { name: "ruleType", sql: "`ruleType` enum('default','exception') DEFAULT 'default' NOT NULL" },
@@ -125,6 +132,7 @@ export async function ensureRuntimeSchemaCompatibility() {
   const connection = await createSchemaConnection(databaseUrl);
   try {
     const added = [
+      ...(await addMissingColumns(connection, "users", USERS_COLUMNS)),
       ...(await addMissingColumns(connection, "nutritionGoals", NUTRITION_GOAL_COLUMNS)),
       ...(await addMissingColumns(connection, "foodCatalog", FOOD_CATALOG_COLUMNS)),
       ...(await addMissingColumns(connection, "mealItems", MEAL_ITEM_COLUMNS)),
