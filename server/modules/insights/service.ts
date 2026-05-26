@@ -87,6 +87,32 @@ function resolveWeekDates(weekOffset = 0) {
   });
 }
 
+function listDateKeysInRange(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${startDate}T12:00:00Z`);
+  const limit = new Date(`${endDate}T12:00:00Z`);
+
+  while (cursor <= limit) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
+function formatPeriodDateLabel(date: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "short",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
+
+function averageValue(total: number, count: number) {
+  if (!count) return 0;
+  return total / count;
+}
+
 function normalizeCatalogText(value: string) {
   return value
     .normalize("NFD")
@@ -369,5 +395,108 @@ export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
     insights: buildWeeklyInsights(progress, weeklyMeals),
     mealsByDate: groupMealsByDate(weeklyMeals),
     quality: buildWeeklyQuality(weekly),
+  };
+}
+
+export async function getHabitAnalyticsReport(
+  userId: number,
+  range: { startDate: string; endDate: string },
+) {
+  const [waterGoal, waterLogs, exercises] = await Promise.all([
+    getUserWaterGoal(userId),
+    listUserWaterLogs(userId),
+    listUserExercises(userId),
+  ]);
+
+  const dates = listDateKeysInRange(range.startDate, range.endDate);
+  const waterByDate = new Map<string, number>(dates.map(date => [date, 0]));
+  const exerciseByDate = new Map<string, { caloriesBurned: number; durationMinutes: number }>(
+    dates.map(date => [date, { caloriesBurned: 0, durationMinutes: 0 }]),
+  );
+
+  waterLogs.forEach(log => {
+    const date = getDateKeyInTimeZone(Number(log.occurredAt));
+    if (!waterByDate.has(date)) return;
+    waterByDate.set(date, roundNutritionValue((waterByDate.get(date) ?? 0) + Number(log.amountMl ?? 0)));
+  });
+
+  exercises.forEach(exercise => {
+    const date = getDateKeyInTimeZone(Number(exercise.occurredAt));
+    if (!exerciseByDate.has(date)) return;
+    const current = exerciseByDate.get(date) ?? { caloriesBurned: 0, durationMinutes: 0 };
+    exerciseByDate.set(date, {
+      caloriesBurned: roundNutritionValue(current.caloriesBurned + Number(exercise.caloriesBurned ?? 0)),
+      durationMinutes: roundNutritionValue(current.durationMinutes + Number(exercise.durationMinutes ?? 0)),
+    });
+  });
+
+  const waterDays = dates.map(date => ({
+    date,
+    label: formatPeriodDateLabel(date),
+    totalMl: roundNutritionValue(waterByDate.get(date) ?? 0),
+  }));
+  const totalConsumedMl = roundNutritionValue(waterDays.reduce((total, day) => total + day.totalMl, 0));
+  const totalGoalMl = roundNutritionValue(waterGoal.dailyTargetMl * dates.length);
+  const goalHitDays = waterGoal.dailyTargetMl > 0
+    ? waterDays.filter(day => day.totalMl >= waterGoal.dailyTargetMl).length
+    : 0;
+  const lowestWaterDay = waterDays.reduce<(typeof waterDays)[number] | null>((current, day) => {
+    if (day.totalMl <= 0) return current;
+    if (!current || day.totalMl < current.totalMl) return day;
+    return current;
+  }, null);
+
+  const exerciseDays = dates.map(date => {
+    const current = exerciseByDate.get(date) ?? { caloriesBurned: 0, durationMinutes: 0 };
+    return {
+      date,
+      label: formatPeriodDateLabel(date),
+      caloriesBurned: roundNutritionValue(current.caloriesBurned),
+      durationMinutes: roundNutritionValue(current.durationMinutes),
+    };
+  });
+  const totalExerciseCalories = roundNutritionValue(exerciseDays.reduce((total, day) => total + day.caloriesBurned, 0));
+  const totalExerciseDurationMinutes = roundNutritionValue(exerciseDays.reduce((total, day) => total + day.durationMinutes, 0));
+  const activeDays = exerciseDays.filter(day => day.caloriesBurned > 0 || day.durationMinutes > 0).length;
+  const highestExerciseDay = exerciseDays.reduce<(typeof exerciseDays)[number] | null>((current, day) => {
+    if (day.caloriesBurned <= 0) return current;
+    if (!current || day.caloriesBurned > current.caloriesBurned) return day;
+    return current;
+  }, null);
+
+  return {
+    range: {
+      startDate: range.startDate,
+      endDate: range.endDate,
+      dayCount: dates.length,
+    },
+    water: {
+      dailyGoalMl: waterGoal.dailyTargetMl,
+      totalGoalMl,
+      totalConsumedMl,
+      goalHitDays,
+      averageDailyMl: roundNutritionValue(averageValue(totalConsumedMl, dates.length)),
+      lowestDay: lowestWaterDay
+        ? {
+            date: lowestWaterDay.date,
+            label: lowestWaterDay.label,
+            totalMl: lowestWaterDay.totalMl,
+          }
+        : null,
+    },
+    exercise: {
+      totalCalories: totalExerciseCalories,
+      totalDurationMinutes: totalExerciseDurationMinutes,
+      activeDays,
+      averageCaloriesPerActiveDay: roundNutritionValue(averageValue(totalExerciseCalories, activeDays)),
+      highestDay: highestExerciseDay
+        ? {
+            date: highestExerciseDay.date,
+            label: highestExerciseDay.label,
+            caloriesBurned: highestExerciseDay.caloriesBurned,
+            durationMinutes: highestExerciseDay.durationMinutes,
+          }
+        : null,
+    },
   };
 }
