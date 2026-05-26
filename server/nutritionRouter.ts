@@ -46,8 +46,15 @@ import {
   foodSearchSchema,
   updateFoodSchema,
 } from "./modules/foods/schemas";
-import { reportsPeriodSchema } from "./modules/insights/schemas";
-import { getDashboardOverview, getWeeklyInsightsReport, getWeeklyProgressReport, getWeeklyReport, getWeeklyReportBundle } from "./modules/insights/service";
+import { reportsHabitAnalyticsSchema, reportsPeriodSchema } from "./modules/insights/schemas";
+import {
+  getDashboardOverview,
+  getHabitAnalyticsReport,
+  getWeeklyInsightsReport,
+  getWeeklyProgressReport,
+  getWeeklyReport,
+  getWeeklyReportBundle,
+} from "./modules/insights/service";
 import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingSchema } from "./modules/onboarding/schemas";
@@ -439,6 +446,14 @@ export const nutritionRouter = router({
   }),
 
   reports: router({
+    habitAnalytics: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
+      const result = await getHabitAnalyticsReport(ctx.user.id, input);
+      void analyticsService.track("period_report_viewed", {
+        report_type: "habit_analytics",
+        period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
+      });
+      return result;
+    }),
     bundle: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
       const result = await getWeeklyReportBundle(ctx.user.id, input?.weekOffset ?? 0);
       void analyticsService.track("weekly_report_viewed", { report_type: "bundle", week_offset: input?.weekOffset ?? 0 });

@@ -65,13 +65,6 @@ function formatDateHeading(date: string) {
   });
 }
 
-function formatShortDateLabel(date: string) {
-  return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-  });
-}
-
 function buildReportsHeading(scope: PeriodScope) {
   switch (scope) {
     case "day":
@@ -113,121 +106,6 @@ function toTrendData(groups: DateGroupedRegisteredMealsViewModel[], goalCalories
 function averageValue(total: number, count: number) {
   if (!count) return 0;
   return total / count;
-}
-
-function listDateKeysInRange(startDate: string, endDate: string) {
-  const dates: string[] = [];
-  const cursor = new Date(`${startDate}T12:00:00Z`);
-  const limit = new Date(`${endDate}T12:00:00Z`);
-
-  while (cursor <= limit) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return dates;
-}
-
-function buildPeriodWaterSummary(
-  logs: Array<{ amountMl: number; occurredAt: number | string }>,
-  range: { start: string; end: string },
-  dailyGoalMl: number,
-  userTimeZone: string,
-) {
-  const dates = listDateKeysInRange(range.start, range.end);
-  const totalsByDate = new Map<string, number>();
-
-  logs.forEach(log => {
-    const date = toDateInputValue(new Date(log.occurredAt), userTimeZone);
-    if (date < range.start || date > range.end) return;
-    totalsByDate.set(date, (totalsByDate.get(date) ?? 0) + Number(log.amountMl ?? 0));
-  });
-
-  const days = dates.map(date => ({
-    date,
-    label: formatShortDateLabel(date),
-    totalMl: totalsByDate.get(date) ?? 0,
-    goalMl: dailyGoalMl,
-  }));
-
-  const totalConsumedMl = days.reduce((total, day) => total + day.totalMl, 0);
-  const totalGoalMl = dailyGoalMl * days.length;
-  const goalHitDays = days.filter(day => day.goalMl > 0 && day.totalMl >= day.goalMl).length;
-  const averageDailyMl = averageValue(totalConsumedMl, days.length);
-  const lowestDay = days.reduce<(typeof days)[number] | null>((current, day) => {
-    if (!current || day.totalMl < current.totalMl) return day;
-    return current;
-  }, null);
-
-  const reading = !days.length
-    ? "Ainda não há dias suficientes no intervalo para interpretar a hidratação."
-    : goalHitDays > 0
-      ? `${goalHitDays} de ${days.length} dias bateram a meta diária atual de água, o que já mostra algum padrão de consistência.`
-      : "Nenhum dia bateu a meta diária atual de água neste intervalo, então vale revisar distribuição e frequência dos registros.";
-
-  return {
-    days,
-    totalConsumedMl,
-    totalGoalMl,
-    goalHitDays,
-    averageDailyMl,
-    lowestDay,
-    reading,
-  };
-}
-
-function buildPeriodExerciseSummary(
-  exercises: Array<{ caloriesBurned: number; durationMinutes: number; occurredAt: number | string }>,
-  range: { start: string; end: string },
-  userTimeZone: string,
-) {
-  const dates = listDateKeysInRange(range.start, range.end);
-  const totalsByDate = new Map<string, { calories: number; duration: number; sessions: number }>();
-
-  exercises.forEach(exercise => {
-    const date = toDateInputValue(new Date(exercise.occurredAt), userTimeZone);
-    if (date < range.start || date > range.end) return;
-    const current = totalsByDate.get(date) ?? { calories: 0, duration: 0, sessions: 0 };
-    current.calories += Number(exercise.caloriesBurned ?? 0);
-    current.duration += Number(exercise.durationMinutes ?? 0);
-    current.sessions += 1;
-    totalsByDate.set(date, current);
-  });
-
-  const days = dates.map(date => ({
-    date,
-    label: formatShortDateLabel(date),
-    calories: totalsByDate.get(date)?.calories ?? 0,
-    duration: totalsByDate.get(date)?.duration ?? 0,
-    sessions: totalsByDate.get(date)?.sessions ?? 0,
-  }));
-
-  const totalCalories = days.reduce((total, day) => total + day.calories, 0);
-  const totalDuration = days.reduce((total, day) => total + day.duration, 0);
-  const activeDays = days.filter(day => day.calories > 0).length;
-  const averageCaloriesPerActiveDay = activeDays ? averageValue(totalCalories, activeDays) : 0;
-  const highestDay = days.reduce<(typeof days)[number] | null>((current, day) => {
-    if (!current || day.calories > current.calories) return day;
-    return current;
-  }, null);
-
-  const reading = !days.length
-    ? "Ainda não há dias suficientes no intervalo para interpretar a atividade física."
-    : activeDays > 1
-      ? `Os exercícios ficaram distribuídos em ${activeDays} de ${days.length} dias, o que ajuda a evitar concentração excessiva em um único ponto do período.`
-      : activeDays === 1
-        ? "Toda a atividade física registrada ficou concentrada em um único dia deste intervalo."
-        : "Nenhum exercício foi registrado neste intervalo.";
-
-  return {
-    days,
-    totalCalories,
-    totalDuration,
-    activeDays,
-    averageCaloriesPerActiveDay,
-    highestDay,
-    reading,
-  };
 }
 
 function MonthComparisonCard({
@@ -412,11 +290,12 @@ export default function ReportsPage() {
     { weekOffset },
     { enabled: periodScope === "week" },
   );
+  const periodHabitAnalyticsQuery = trpc.nutrition.reports.habitAnalytics.useQuery(
+    { startDate: activeRange.start, endDate: activeRange.end },
+    { enabled: periodScope === "month" || periodScope === "range" },
+  );
   const dashboardOverview = trpc.nutrition.dashboard.overview.useQuery();
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
-  const waterGoalQuery = trpc.nutrition.water.goal.useQuery();
-  const waterLogsQuery = trpc.nutrition.water.list.useQuery();
-  const exercisesQuery = trpc.nutrition.exercises.list.useQuery();
 
   const goalCalories = dashboardOverview.data?.today?.goal.calories ?? 0;
   const allMeals = (mealsQuery.data ?? []) as StoredMeal[];
@@ -518,18 +397,20 @@ export default function ReportsPage() {
         ? "Toda a atividade física registrada ficou concentrada em um único dia da semana."
         : "Nenhum exercício foi registrado nesta semana.";
 
-  const periodWaterGoalMl = waterGoalQuery.data?.dailyTargetMl ?? dashboardOverview.data?.today?.water.goalMl ?? 0;
-  const waterLogs = (waterLogsQuery.data ?? []) as Array<{ amountMl: number; occurredAt: number | string }>;
-  const exerciseLogs = (exercisesQuery.data ?? []) as Array<{ caloriesBurned: number; durationMinutes: number; occurredAt: number | string }>;
-  const periodWaterSummary = React.useMemo(
-    () => buildPeriodWaterSummary(waterLogs, activeRange, periodWaterGoalMl, userTimeZone),
-    [activeRange, periodWaterGoalMl, userTimeZone, waterLogs],
-  );
-  const periodExerciseSummary = React.useMemo(
-    () => buildPeriodExerciseSummary(exerciseLogs, activeRange, userTimeZone),
-    [activeRange, exerciseLogs, userTimeZone],
-  );
-  const periodSupportLoading = waterGoalQuery.isLoading || waterLogsQuery.isLoading || exercisesQuery.isLoading;
+  const periodHabitAnalytics = periodHabitAnalyticsQuery.data;
+  const periodSupportLoading = periodHabitAnalyticsQuery.isLoading;
+  const periodHydrationReading = !periodHabitAnalytics
+    ? "Ainda não há dados suficientes para interpretar a hidratação do período."
+    : periodHabitAnalytics.water.goalHitDays > 0
+      ? `${periodHabitAnalytics.water.goalHitDays} de ${periodHabitAnalytics.range.dayCount} dias bateram a meta diária atual de água, o que já mostra algum padrão de consistência.`
+      : "Nenhum dia bateu a meta diária atual de água neste intervalo, então vale revisar distribuição e frequência dos registros.";
+  const periodExerciseReading = !periodHabitAnalytics
+    ? "Ainda não há dados suficientes para interpretar a atividade física do período."
+    : periodHabitAnalytics.exercise.activeDays > 1
+      ? `Os exercícios ficaram distribuídos em ${periodHabitAnalytics.exercise.activeDays} de ${periodHabitAnalytics.range.dayCount} dias, o que ajuda a evitar concentração excessiva em um único ponto do período.`
+      : periodHabitAnalytics.exercise.activeDays === 1
+        ? "Toda a atividade física registrada ficou concentrada em um único dia deste intervalo."
+        : "Nenhum exercício foi registrado neste intervalo.";
 
   const introStats = (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -891,18 +772,23 @@ export default function ReportsPage() {
                     <div className="rounded-2xl border bg-muted/20 p-4">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="text-sm font-medium tracking-tight">Aderência à meta de água</p>
-                        <p className="text-sm text-muted-foreground">{formatNumberPtBr(Math.round(progressPercent(periodWaterSummary.totalConsumedMl, periodWaterSummary.totalGoalMl)))}%</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatNumberPtBr(Math.round(progressPercent(periodHabitAnalytics?.water.totalConsumedMl ?? 0, periodHabitAnalytics?.water.totalGoalMl ?? 0)))}%
+                        </p>
                       </div>
-                      <Progress className="h-2" value={progressPercent(periodWaterSummary.totalConsumedMl, periodWaterSummary.totalGoalMl)} />
+                      <Progress className="h-2" value={progressPercent(periodHabitAnalytics?.water.totalConsumedMl ?? 0, periodHabitAnalytics?.water.totalGoalMl ?? 0)} />
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <StatusTile label="Meta batida" value={`${periodWaterSummary.goalHitDays}/${periodWaterSummary.days.length || 0} dias`} />
-                      <StatusTile label="Média diária" value={formatCountPtBr(Math.round(periodWaterSummary.averageDailyMl), " ml")} />
-                      <StatusTile label="Total consumido" value={formatCountPtBr(Math.round(periodWaterSummary.totalConsumedMl), " ml")} />
-                      <StatusTile label="Menor dia" value={periodWaterSummary.lowestDay ? `${periodWaterSummary.lowestDay.label} · ${formatCountPtBr(periodWaterSummary.lowestDay.totalMl, " ml")}` : "-"} />
+                      <StatusTile label="Meta batida" value={`${periodHabitAnalytics?.water.goalHitDays ?? 0}/${periodHabitAnalytics?.range.dayCount ?? 0} dias`} />
+                      <StatusTile label="Média diária" value={formatCountPtBr(Math.round(periodHabitAnalytics?.water.averageDailyMl ?? 0), " ml")} />
+                      <StatusTile label="Total consumido" value={formatCountPtBr(Math.round(periodHabitAnalytics?.water.totalConsumedMl ?? 0), " ml")} />
+                      <StatusTile
+                        label="Menor dia"
+                        value={periodHabitAnalytics?.water.lowestDay ? `${periodHabitAnalytics.water.lowestDay.label} · ${formatCountPtBr(periodHabitAnalytics.water.lowestDay.totalMl, " ml")}` : "-"}
+                      />
                     </div>
                     <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
-                      {periodWaterSummary.reading}
+                      {periodHydrationReading}
                     </div>
                   </CardContent>
                 </Card>
@@ -917,13 +803,16 @@ export default function ReportsPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <StatusTile label="Dias ativos" value={`${periodExerciseSummary.activeDays}/${periodExerciseSummary.days.length || 0} dias`} />
-                      <StatusTile label="Gasto total" value={formatCalories(periodExerciseSummary.totalCalories)} />
-                      <StatusTile label="Minutos totais" value={formatCountPtBr(Math.round(periodExerciseSummary.totalDuration), " min")} />
-                      <StatusTile label="Maior dia" value={periodExerciseSummary.highestDay && periodExerciseSummary.highestDay.calories > 0 ? `${periodExerciseSummary.highestDay.label} · ${formatCalories(periodExerciseSummary.highestDay.calories)}` : "Sem exercício"} />
+                      <StatusTile label="Dias ativos" value={`${periodHabitAnalytics?.exercise.activeDays ?? 0}/${periodHabitAnalytics?.range.dayCount ?? 0} dias`} />
+                      <StatusTile label="Gasto total" value={formatCalories(periodHabitAnalytics?.exercise.totalCalories ?? 0)} />
+                      <StatusTile label="Minutos totais" value={formatCountPtBr(Math.round(periodHabitAnalytics?.exercise.totalDurationMinutes ?? 0), " min")} />
+                      <StatusTile
+                        label="Maior dia"
+                        value={periodHabitAnalytics?.exercise.highestDay ? `${periodHabitAnalytics.exercise.highestDay.label} · ${formatCalories(periodHabitAnalytics.exercise.highestDay.caloriesBurned)}` : "Sem exercício"}
+                      />
                     </div>
                     <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
-                      {periodExerciseSummary.reading}
+                      {periodExerciseReading}
                     </div>
                   </CardContent>
                 </Card>
