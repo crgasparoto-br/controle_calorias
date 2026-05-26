@@ -67,8 +67,12 @@ export const appRouter = router({
         const user = await authenticateLocalUser(input);
         await setSessionCookie(ctx, user);
         return sanitizeUser(user);
-      } catch {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
+      } catch (error) {
+        if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
+        }
+
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível iniciar a sessão." });
       }
     }),
     logout: publicProcedure.mutation(({ ctx }) => {
