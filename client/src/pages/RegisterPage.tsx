@@ -27,15 +27,12 @@ export default function RegisterPage() {
   return (
     <AuthShell
       eyebrow="Cadastro"
-      title="Crie sua conta e comece com uma entrada mais clara"
-      description="Nome, e-mail e senha continuam sendo o fluxo de cadastro, mas agora com uma apresentação mais consistente com o restante do produto e melhor leitura em telas menores."
+      title="Criar conta"
+      description="Cadastre nome, e-mail e senha para iniciar sua jornada nutricional."
       formTitle="Criar conta"
       formDescription="Cadastre nome, e-mail e senha para iniciar sua jornada nutricional."
-      metrics={[
-        { label: "Cadastro", value: "nome, e-mail e senha" },
-        { label: "Experiência", value: "mais legível e responsiva" },
-        { label: "Continuidade", value: "entrada direta no app" },
-      ]}
+      metrics={[]}
+      hideHero
       footer={<>Já tem conta? <Link className="font-medium text-primary" href="/login">Entrar</Link></>}
     >
       <form
