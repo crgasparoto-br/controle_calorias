@@ -342,8 +342,8 @@ export default function LogMealPage() {
   const waterCard = (
     <Card className="border-0 shadow-sm">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl"><Droplets className="h-5 w-5 text-primary" />Água do dia</CardTitle>
-        <CardDescription>Meta, registro rápido e histórico recente.</CardDescription>
+        <CardTitle className="flex items-center gap-2 text-xl"><Droplets className="h-5 w-5 text-primary" />Registrar água</CardTitle>
+        <CardDescription>Use esta aba para lançar consumo, ajustar a meta diária e revisar lançamentos recentes. O acompanhamento por período fica em Relatórios.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
@@ -380,8 +380,8 @@ export default function LogMealPage() {
   const exerciseCard = (
     <Card className="border-0 shadow-sm">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl"><Dumbbell className="h-5 w-5 text-primary" />Exercícios</CardTitle>
-        <CardDescription>Registro rápido de atividade e gasto energético.</CardDescription>
+        <CardTitle className="flex items-center gap-2 text-xl"><Dumbbell className="h-5 w-5 text-primary" />Registrar exercício</CardTitle>
+        <CardDescription>Use esta aba para lançar atividade, revisar lançamentos recentes e corrigir o dia. O acompanhamento por período fica em Relatórios.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <form className="space-y-3" onSubmit={handleExerciseSubmit}>
@@ -429,6 +429,12 @@ export default function LogMealPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <datalist id="meal-label-suggestions">{configuredMealLabels.map(label => <option key={label} value={label} />)}</datalist>
+
+        <Card className="border-0 bg-muted/20 shadow-sm">
+          <CardContent className="p-5 text-sm leading-6 text-muted-foreground">
+            Esta tela foi organizada para registrar o que aconteceu no dia, revisar rascunhos e corrigir lançamentos rápidos. Para acompanhar padrão, frequência e evolução de água, exercícios e refeições, use Relatórios.
+          </CardContent>
+        </Card>
 
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3 xl:grid-cols-5">
