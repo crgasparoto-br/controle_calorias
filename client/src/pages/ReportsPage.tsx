@@ -18,13 +18,16 @@ import {
 import type { StoredMeal } from "@/features/meals/types";
 import {
   countDaysInRange,
+  formatDateLabel,
   formatMonthLabel,
   formatRangeLabel,
   getMonthRange,
   getWeekOffsetFromToday,
   getWeekRange,
+  listDateRangeDays,
   normalizeDateRange,
   toMonthInputValue,
+  type DateRangeValue,
   type PeriodScope,
 } from "@/lib/dateRanges";
 import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
@@ -44,6 +47,39 @@ import {
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Link } from "wouter";
+
+type WaterLogEntry = {
+  id: number;
+  amountMl: number;
+  occurredAt: number | string | Date;
+};
+
+type ExerciseEntry = {
+  id: number;
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  occurredAt: number | string | Date;
+};
+
+type PeriodHabitAnalytics = {
+  dayCount: number;
+  waterGoalMl: number;
+  waterGoalTotalMl: number;
+  waterTotalMl: number;
+  waterAverageMl: number;
+  waterActiveDays: number;
+  waterGoalHitDays: number;
+  lowestWaterDay: { date: string; label: string; amountMl: number } | null;
+  hydrationReading: string;
+  exerciseActiveDays: number;
+  exerciseTotalCalories: number;
+  exerciseTotalMinutes: number;
+  exerciseAverageCaloriesPerActiveDay: number;
+  highestExerciseDay: { date: string; label: string; caloriesBurned: number } | null;
+  topExerciseTypes: Array<{ activityType: string; sessions: number; caloriesBurned: number; durationMinutes: number }>;
+  exerciseReading: string;
+};
 
 function formatMacro(value: number) {
   return formatNumberPtBr(value, {
@@ -80,12 +116,12 @@ function buildReportsHeading(scope: PeriodScope) {
     case "month":
       return {
         title: "Tendência mensal",
-        description: "O mês resume padrão por dia, médias e comparação com o mês anterior sempre que houver histórico suficiente.",
+        description: "O mês resume padrão por dia, médias, hidratação, atividade física e comparação com o mês anterior sempre que houver histórico suficiente.",
       };
     case "range":
       return {
         title: "Resumo analítico por período",
-        description: "Use um intervalo configurável para consolidar médias, tendência e dias que merecem revisão mais detalhada.",
+        description: "Use um intervalo configurável para consolidar médias, hidratação, atividade física, tendência e dias que merecem revisão mais detalhada.",
       };
   }
 }
@@ -106,6 +142,129 @@ function toTrendData(groups: DateGroupedRegisteredMealsViewModel[], goalCalories
 function averageValue(total: number, count: number) {
   if (!count) return 0;
   return total / count;
+}
+
+function dateInputFromOccurrence(value: number | string | Date, timeZone: string) {
+  if (value instanceof Date) return toDateInputValue(value, timeZone);
+  const timestamp = Number(value);
+  const date = Number.isFinite(timestamp) ? new Date(timestamp) : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return toDateInputValue(date, timeZone);
+}
+
+function summarizePeriodHabits({
+  waterLogs,
+  exercises,
+  range,
+  waterGoalMl,
+  timeZone,
+}: {
+  waterLogs: WaterLogEntry[];
+  exercises: ExerciseEntry[];
+  range: DateRangeValue;
+  waterGoalMl: number;
+  timeZone: string;
+}): PeriodHabitAnalytics {
+  const days = listDateRangeDays(range);
+  const waterByDay = new Map(days.map(day => [day, 0]));
+  const exerciseByDay = new Map(days.map(day => [day, { caloriesBurned: 0, durationMinutes: 0 }]));
+  const exerciseTypeMap = new Map<string, { activityType: string; sessions: number; caloriesBurned: number; durationMinutes: number }>();
+
+  for (const log of waterLogs) {
+    const day = dateInputFromOccurrence(log.occurredAt, timeZone);
+    if (!waterByDay.has(day)) continue;
+    waterByDay.set(day, (waterByDay.get(day) ?? 0) + Number(log.amountMl || 0));
+  }
+
+  for (const exercise of exercises) {
+    const day = dateInputFromOccurrence(exercise.occurredAt, timeZone);
+    if (!exerciseByDay.has(day)) continue;
+
+    const caloriesBurned = Number(exercise.caloriesBurned || 0);
+    const durationMinutes = Number(exercise.durationMinutes || 0);
+    const currentDay = exerciseByDay.get(day) ?? { caloriesBurned: 0, durationMinutes: 0 };
+    exerciseByDay.set(day, {
+      caloriesBurned: currentDay.caloriesBurned + caloriesBurned,
+      durationMinutes: currentDay.durationMinutes + durationMinutes,
+    });
+
+    const normalizedType = exercise.activityType.trim() || "Atividade";
+    const currentType = exerciseTypeMap.get(normalizedType) ?? { activityType: normalizedType, sessions: 0, caloriesBurned: 0, durationMinutes: 0 };
+    exerciseTypeMap.set(normalizedType, {
+      ...currentType,
+      sessions: currentType.sessions + 1,
+      caloriesBurned: currentType.caloriesBurned + caloriesBurned,
+      durationMinutes: currentType.durationMinutes + durationMinutes,
+    });
+  }
+
+  const waterDayValues = days.map(day => ({
+    date: day,
+    label: formatDateLabel(day, { day: "2-digit", month: "short" }),
+    amountMl: waterByDay.get(day) ?? 0,
+  }));
+  const exerciseDayValues = days.map(day => ({
+    date: day,
+    label: formatDateLabel(day, { day: "2-digit", month: "short" }),
+    ...(exerciseByDay.get(day) ?? { caloriesBurned: 0, durationMinutes: 0 }),
+  }));
+
+  const waterTotalMl = waterDayValues.reduce((total, day) => total + day.amountMl, 0);
+  const waterGoalTotalMl = waterGoalMl * days.length;
+  const waterGoalHitDays = waterGoalMl ? waterDayValues.filter(day => day.amountMl >= waterGoalMl).length : 0;
+  const waterActiveDays = waterDayValues.filter(day => day.amountMl > 0).length;
+  const lowestWaterDay = waterDayValues
+    .filter(day => day.amountMl > 0)
+    .reduce<(typeof waterDayValues)[number] | null>((current, day) => {
+      if (!current || day.amountMl < current.amountMl) return day;
+      return current;
+    }, null);
+
+  const exerciseActiveDays = exerciseDayValues.filter(day => day.caloriesBurned > 0 || day.durationMinutes > 0).length;
+  const exerciseTotalCalories = exerciseDayValues.reduce((total, day) => total + day.caloriesBurned, 0);
+  const exerciseTotalMinutes = exerciseDayValues.reduce((total, day) => total + day.durationMinutes, 0);
+  const highestExerciseDay = exerciseDayValues.reduce<(typeof exerciseDayValues)[number] | null>((current, day) => {
+    if (!current || day.caloriesBurned > current.caloriesBurned) return day;
+    return current;
+  }, null);
+  const topExerciseTypes = Array.from(exerciseTypeMap.values())
+    .sort((a, b) => b.caloriesBurned - a.caloriesBurned || b.durationMinutes - a.durationMinutes || a.activityType.localeCompare(b.activityType))
+    .slice(0, 3);
+
+  const hydrationReading = !days.length
+    ? "Ainda não há intervalo suficiente para interpretar a hidratação."
+    : waterActiveDays === 0
+      ? "Nenhum consumo de água foi registrado neste período."
+      : waterGoalHitDays > 0
+        ? `${waterGoalHitDays} de ${days.length} dias bateram a meta de água no período.`
+        : "Houve registros de água, mas nenhum dia bateu a meta configurada.";
+
+  const exerciseReading = !days.length
+    ? "Ainda não há intervalo suficiente para interpretar a atividade física."
+    : exerciseActiveDays === 0
+      ? "Nenhum exercício foi registrado neste período."
+      : exerciseActiveDays === 1
+        ? "A atividade física ficou concentrada em um único dia do período."
+        : `Os exercícios apareceram em ${exerciseActiveDays} de ${days.length} dias do período.`;
+
+  return {
+    dayCount: days.length,
+    waterGoalMl,
+    waterGoalTotalMl,
+    waterTotalMl,
+    waterAverageMl: averageValue(waterTotalMl, days.length),
+    waterActiveDays,
+    waterGoalHitDays,
+    lowestWaterDay,
+    hydrationReading,
+    exerciseActiveDays,
+    exerciseTotalCalories,
+    exerciseTotalMinutes,
+    exerciseAverageCaloriesPerActiveDay: exerciseActiveDays ? averageValue(exerciseTotalCalories, exerciseActiveDays) : 0,
+    highestExerciseDay: highestExerciseDay && highestExerciseDay.caloriesBurned > 0 ? highestExerciseDay : null,
+    topExerciseTypes,
+    exerciseReading,
+  };
 }
 
 function MonthComparisonCard({
@@ -264,6 +423,83 @@ function DailyDetailsSections({
   );
 }
 
+function PeriodHabitAnalyticsSection({ analytics, scope }: { analytics: PeriodHabitAnalytics; scope: PeriodScope }) {
+  const periodLabel = scope === "month" ? "no mês" : "no período";
+  const topExercise = analytics.topExerciseTypes[0];
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-2">
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Droplets className="h-5 w-5 text-primary" />
+            Hidratação {periodLabel}
+          </CardTitle>
+          <CardDescription>Leitura consolidada de aderência, média diária e consistência da água no intervalo ativo.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl border bg-muted/20 p-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-sm font-medium tracking-tight">Aderência à meta de água</p>
+              <p className="text-sm text-muted-foreground">{formatNumberPtBr(Math.round(progressPercent(analytics.waterTotalMl, analytics.waterGoalTotalMl)))}%</p>
+            </div>
+            <Progress className="h-2" value={progressPercent(analytics.waterTotalMl, analytics.waterGoalTotalMl)} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatusTile label="Meta batida" value={`${analytics.waterGoalHitDays}/${analytics.dayCount} dias`} />
+            <StatusTile label="Dias com água" value={`${analytics.waterActiveDays}/${analytics.dayCount} dias`} />
+            <StatusTile label="Média diária" value={formatCountPtBr(Math.round(analytics.waterAverageMl), " ml")} />
+            <StatusTile label="Total consumido" value={formatCountPtBr(Math.round(analytics.waterTotalMl), " ml")} />
+            <StatusTile label="Meta do período" value={formatCountPtBr(Math.round(analytics.waterGoalTotalMl), " ml")} />
+            <StatusTile label="Menor dia com registro" value={analytics.lowestWaterDay ? `${analytics.lowestWaterDay.label} · ${formatCountPtBr(analytics.lowestWaterDay.amountMl, " ml")}` : "Sem registro"} />
+          </div>
+          <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
+            {analytics.hydrationReading}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Dumbbell className="h-5 w-5 text-primary" />
+            Atividade física {periodLabel}
+          </CardTitle>
+          <CardDescription>O objetivo é mostrar frequência, volume e concentração do gasto físico fora da visão semanal.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatusTile label="Dias ativos" value={`${analytics.exerciseActiveDays}/${analytics.dayCount} dias`} />
+            <StatusTile label="Gasto total" value={formatCalories(analytics.exerciseTotalCalories)} />
+            <StatusTile label="Minutos totais" value={formatCountPtBr(Math.round(analytics.exerciseTotalMinutes), " min")} />
+            <StatusTile label="Média por dia ativo" value={analytics.exerciseActiveDays ? formatCalories(analytics.exerciseAverageCaloriesPerActiveDay) : "0 kcal"} />
+            <StatusTile label="Maior dia" value={analytics.highestExerciseDay ? `${analytics.highestExerciseDay.label} · ${formatCalories(analytics.highestExerciseDay.caloriesBurned)}` : "Sem exercício"} />
+            <StatusTile label="Atividade principal" value={topExercise ? `${topExercise.activityType} · ${topExercise.sessions}x` : "Sem exercício"} />
+          </div>
+          {analytics.topExerciseTypes.length ? (
+            <div className="rounded-2xl border bg-muted/10 p-4">
+              <p className="text-sm font-semibold tracking-tight">Atividades mais frequentes</p>
+              <div className="mt-3 space-y-2">
+                {analytics.topExerciseTypes.map(type => (
+                  <div key={type.activityType} className="flex flex-col gap-1 rounded-2xl border bg-background p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <span className="font-medium">{type.activityType}</span>
+                    <span className="text-muted-foreground">
+                      {type.sessions}x · {formatCountPtBr(Math.round(type.durationMinutes), " min")} · {formatCalories(type.caloriesBurned)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
+            {analytics.exerciseReading}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
   const [periodScope, setPeriodScope] = React.useState<PeriodScope>("week");
@@ -292,9 +528,14 @@ export default function ReportsPage() {
   );
   const dashboardOverview = trpc.nutrition.dashboard.overview.useQuery();
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
+  const waterLogsQuery = trpc.nutrition.water.list.useQuery();
+  const exercisesQuery = trpc.nutrition.exercises.list.useQuery();
 
   const goalCalories = dashboardOverview.data?.today?.goal.calories ?? 0;
+  const waterGoalMl = dashboardOverview.data?.today?.water.goalMl ?? dashboardOverview.data?.water?.goal?.dailyTargetMl ?? 0;
   const allMeals = (mealsQuery.data ?? []) as StoredMeal[];
+  const allWaterLogs = (waterLogsQuery.data ?? []) as WaterLogEntry[];
+  const allExercises = (exercisesQuery.data ?? []) as ExerciseEntry[];
   const filteredMeals = React.useMemo(
     () => filterMealsByDateRange(allMeals, { startDate: activeRange.start, endDate: activeRange.end, timeZone: userTimeZone }),
     [activeRange.end, activeRange.start, allMeals, userTimeZone],
@@ -307,6 +548,10 @@ export default function ReportsPage() {
   const localDayGroupsDesc = React.useMemo(() => [...localDayGroupsAsc].reverse(), [localDayGroupsAsc]);
   const localTrendData = React.useMemo(() => toTrendData(localDayGroupsAsc, goalCalories), [goalCalories, localDayGroupsAsc]);
   const localDayMealGroups = React.useMemo(() => buildRegisteredMealGroups(filteredMeals), [filteredMeals]);
+  const periodHabitAnalytics = React.useMemo(
+    () => summarizePeriodHabits({ waterLogs: allWaterLogs, exercises: allExercises, range: activeRange, waterGoalMl, timeZone: userTimeZone }),
+    [activeRange, allExercises, allWaterLogs, userTimeZone, waterGoalMl],
+  );
 
   const previousMonth = React.useMemo(() => {
     const [year, month] = selectedMonth.split("-").map(Number);
@@ -727,6 +972,8 @@ export default function ReportsPage() {
                 previousMonth={previousMonth}
               />
             ) : null}
+
+            <PeriodHabitAnalyticsSection analytics={periodHabitAnalytics} scope={periodScope} />
 
             <LocalTrendSection
               title={periodScope === "month" ? "Tendência diária do mês" : "Tendência diária do período"}
