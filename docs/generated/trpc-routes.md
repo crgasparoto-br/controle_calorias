@@ -22,7 +22,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `meals` | 11 | 3 | 8 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
-| `reports` | 5 | 5 | 0 | protected | Relatórios semanais, insights e analíticos por período |
+| `reports` | 5 | 5 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 3 | 2 | 1 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
 
@@ -188,3 +188,4 @@ Fonte: `server/nutritionRouter.ts`.
 - Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.
 - Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.
 - Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde.
+

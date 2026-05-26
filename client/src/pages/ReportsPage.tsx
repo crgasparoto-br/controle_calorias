@@ -264,6 +264,131 @@ function DailyDetailsSections({
   );
 }
 
+function AnalyticsHeader({
+  icon,
+  title,
+  scopeLabel,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  scopeLabel: string;
+  description: string;
+}) {
+  return (
+    <CardHeader className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
+        <Badge variant="outline" className="rounded-full px-3 py-1 text-xs uppercase tracking-wide">
+          {scopeLabel}
+        </Badge>
+      </div>
+      <CardDescription>{description}</CardDescription>
+    </CardHeader>
+  );
+}
+
+function AnalyticsReading({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-2xl border bg-background px-4 py-3 text-sm leading-6 text-muted-foreground">{children}</div>;
+}
+
+function WaterAnalyticsCard({
+  title,
+  scopeLabel,
+  description,
+  totalConsumedMl,
+  totalGoalMl,
+  goalHitDays,
+  totalDays,
+  averageDailyMl,
+  lowestDay,
+  reading,
+}: {
+  title: string;
+  scopeLabel: string;
+  description: string;
+  totalConsumedMl: number;
+  totalGoalMl: number;
+  goalHitDays: number;
+  totalDays: number;
+  averageDailyMl: number;
+  lowestDay: string;
+  reading: string;
+}) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <AnalyticsHeader icon={<Droplets className="h-5 w-5 text-primary" />} title={title} scopeLabel={scopeLabel} description={description} />
+      <CardContent className="space-y-4">
+        <div className="rounded-3xl border bg-muted/20 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium tracking-tight">Aderência à meta de água</p>
+            <p className="text-sm text-muted-foreground">{formatNumberPtBr(Math.round(progressPercent(totalConsumedMl, totalGoalMl)))}%</p>
+          </div>
+          <Progress className="h-2" value={progressPercent(totalConsumedMl, totalGoalMl)} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CompactMetric label="Meta do período" value={formatCountPtBr(Math.round(totalGoalMl), " ml")} />
+          <CompactMetric label="Consumo acumulado" value={formatCountPtBr(Math.round(totalConsumedMl), " ml")} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StatusTile label="Meta batida" value={`${goalHitDays}/${totalDays} dias`} />
+          <StatusTile label="Média diária" value={formatCountPtBr(Math.round(averageDailyMl), " ml")} />
+          <StatusTile label="Total consumido" value={formatCountPtBr(Math.round(totalConsumedMl), " ml")} />
+          <StatusTile label="Menor dia" value={lowestDay} />
+        </div>
+        <AnalyticsReading>{reading}</AnalyticsReading>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ExerciseAnalyticsCard({
+  title,
+  scopeLabel,
+  description,
+  activeDays,
+  totalDays,
+  totalCalories,
+  detailLabel,
+  detailValue,
+  averageCaloriesPerActiveDay,
+  highestDay,
+  reading,
+}: {
+  title: string;
+  scopeLabel: string;
+  description: string;
+  activeDays: number;
+  totalDays: number;
+  totalCalories: number;
+  detailLabel: string;
+  detailValue: string;
+  averageCaloriesPerActiveDay: number;
+  highestDay: string;
+  reading: string;
+}) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <AnalyticsHeader icon={<Dumbbell className="h-5 w-5 text-primary" />} title={title} scopeLabel={scopeLabel} description={description} />
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CompactMetric label="Dias ativos" value={`${activeDays}/${totalDays}`} />
+          <CompactMetric label="Gasto total" value={formatCalories(totalCalories)} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StatusTile label={detailLabel} value={detailValue} />
+          <StatusTile label="Média por dia ativo" value={activeDays ? formatCalories(averageCaloriesPerActiveDay) : "0 kcal"} />
+          <StatusTile label="Maior dia" value={highestDay} />
+        </div>
+        <AnalyticsReading>{reading}</AnalyticsReading>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ReportsPage() {
   const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
   const [periodScope, setPeriodScope] = React.useState<PeriodScope>("week");
@@ -334,6 +459,7 @@ export default function ReportsPage() {
   }, null);
   const daysAboveGoal = localTrendData.filter(day => goalCalories && day.calories > day.goalCalories).length;
   const reportsHeading = buildReportsHeading(periodScope);
+  const periodScopeLabel = periodScope === "month" ? "Mensal" : "Período";
 
   const caloricTrend = reportBundle.data?.weekly ?? [];
   const progress = reportBundle.data?.progress;
@@ -557,54 +683,32 @@ export default function ReportsPage() {
                 </Card>
 
                 <div className="grid gap-6 xl:grid-cols-2">
-                  <Card className="border-0 shadow-sm">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Droplets className="h-5 w-5 text-primary" />
-                        Hidratação na semana
-                      </CardTitle>
-                      <CardDescription>Esta leitura olha aderência à meta, média diária e o ponto mais fraco da semana.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="rounded-2xl border bg-muted/20 p-4">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium tracking-tight">Aderência à meta de água</p>
-                          <p className="text-sm text-muted-foreground">{formatNumberPtBr(Math.round(progressPercent(weeklyWaterTotal, weeklyWaterGoalTotal)))}%</p>
-                        </div>
-                        <Progress className="h-2" value={progressPercent(weeklyWaterTotal, weeklyWaterGoalTotal)} />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <StatusTile label="Meta batida" value={`${weeklyWaterGoalHitDays}/${caloricTrend.length || 0} dias`} />
-                        <StatusTile label="Média diária" value={formatCountPtBr(Math.round(weeklyAverageWater), " ml")} />
-                        <StatusTile label="Total consumido" value={formatCountPtBr(Math.round(weeklyWaterTotal), " ml")} />
-                        <StatusTile label="Menor dia" value={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} />
-                      </div>
-                      <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
-                        {hydrationReading}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <WaterAnalyticsCard
+                    title="Hidratação na semana"
+                    scopeLabel="Semanal"
+                    description="Esta leitura olha aderência à meta, média diária e o ponto mais fraco da semana."
+                    totalConsumedMl={weeklyWaterTotal}
+                    totalGoalMl={weeklyWaterGoalTotal}
+                    goalHitDays={weeklyWaterGoalHitDays}
+                    totalDays={caloricTrend.length || 0}
+                    averageDailyMl={weeklyAverageWater}
+                    lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"}
+                    reading={hydrationReading}
+                  />
 
-                  <Card className="border-0 shadow-sm">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Dumbbell className="h-5 w-5 text-primary" />
-                        Atividade física na semana
-                      </CardTitle>
-                      <CardDescription>O objetivo aqui é mostrar frequência, distribuição e concentração do gasto ao longo da semana.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <StatusTile label="Dias ativos" value={`${weeklyExerciseActiveDays}/${caloricTrend.length || 0} dias`} />
-                        <StatusTile label="Gasto total" value={formatCalories(progress.summary.totalExerciseCalories)} />
-                        <StatusTile label="Média por dia ativo" value={weeklyExerciseActiveDays ? formatCalories(weeklyAverageExercisePerActiveDay) : "0 kcal"} />
-                        <StatusTile label="Maior dia" value={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} />
-                      </div>
-                      <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
-                        {exerciseReading}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ExerciseAnalyticsCard
+                    title="Atividade física na semana"
+                    scopeLabel="Semanal"
+                    description="O objetivo aqui é mostrar frequência, distribuição e concentração do gasto ao longo da semana."
+                    activeDays={weeklyExerciseActiveDays}
+                    totalDays={caloricTrend.length || 0}
+                    totalCalories={progress.summary.totalExerciseCalories}
+                    detailLabel="Distribuição"
+                    detailValue={`${weeklyExerciseActiveDays}/${caloricTrend.length || 0} dias`}
+                    averageCaloriesPerActiveDay={weeklyAverageExercisePerActiveDay}
+                    highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"}
+                    reading={exerciseReading}
+                  />
                 </div>
 
                 <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
@@ -760,62 +864,32 @@ export default function ReportsPage() {
               </div>
             ) : (
               <div className="grid gap-6 xl:grid-cols-2">
-                <Card className="border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Droplets className="h-5 w-5 text-primary" />
-                      Hidratação no período
-                    </CardTitle>
-                    <CardDescription>Usa a meta diária atual como referência para mostrar consistência, média e dias mais fracos do intervalo.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="rounded-2xl border bg-muted/20 p-4">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium tracking-tight">Aderência à meta de água</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatNumberPtBr(Math.round(progressPercent(periodHabitAnalytics?.water.totalConsumedMl ?? 0, periodHabitAnalytics?.water.totalGoalMl ?? 0)))}%
-                        </p>
-                      </div>
-                      <Progress className="h-2" value={progressPercent(periodHabitAnalytics?.water.totalConsumedMl ?? 0, periodHabitAnalytics?.water.totalGoalMl ?? 0)} />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <StatusTile label="Meta batida" value={`${periodHabitAnalytics?.water.goalHitDays ?? 0}/${periodHabitAnalytics?.range.dayCount ?? 0} dias`} />
-                      <StatusTile label="Média diária" value={formatCountPtBr(Math.round(periodHabitAnalytics?.water.averageDailyMl ?? 0), " ml")} />
-                      <StatusTile label="Total consumido" value={formatCountPtBr(Math.round(periodHabitAnalytics?.water.totalConsumedMl ?? 0), " ml")} />
-                      <StatusTile
-                        label="Menor dia"
-                        value={periodHabitAnalytics?.water.lowestDay ? `${periodHabitAnalytics.water.lowestDay.label} · ${formatCountPtBr(periodHabitAnalytics.water.lowestDay.totalMl, " ml")}` : "-"}
-                      />
-                    </div>
-                    <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
-                      {periodHydrationReading}
-                    </div>
-                  </CardContent>
-                </Card>
+                <WaterAnalyticsCard
+                  title={periodScope === "month" ? "Hidratação no mês" : "Hidratação no período"}
+                  scopeLabel={periodScopeLabel}
+                  description="Usa a meta diária atual como referência para mostrar consistência, média e dias mais fracos do intervalo."
+                  totalConsumedMl={periodHabitAnalytics?.water.totalConsumedMl ?? 0}
+                  totalGoalMl={periodHabitAnalytics?.water.totalGoalMl ?? 0}
+                  goalHitDays={periodHabitAnalytics?.water.goalHitDays ?? 0}
+                  totalDays={periodHabitAnalytics?.range.dayCount ?? 0}
+                  averageDailyMl={periodHabitAnalytics?.water.averageDailyMl ?? 0}
+                  lowestDay={periodHabitAnalytics?.water.lowestDay ? `${periodHabitAnalytics.water.lowestDay.label} · ${formatCountPtBr(periodHabitAnalytics.water.lowestDay.totalMl, " ml")}` : "-"}
+                  reading={periodHydrationReading}
+                />
 
-                <Card className="border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Dumbbell className="h-5 w-5 text-primary" />
-                      Atividade física no período
-                    </CardTitle>
-                    <CardDescription>Mostra frequência, distribuição e volume de gasto ao longo do mês ou do intervalo customizado.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <StatusTile label="Dias ativos" value={`${periodHabitAnalytics?.exercise.activeDays ?? 0}/${periodHabitAnalytics?.range.dayCount ?? 0} dias`} />
-                      <StatusTile label="Gasto total" value={formatCalories(periodHabitAnalytics?.exercise.totalCalories ?? 0)} />
-                      <StatusTile label="Minutos totais" value={formatCountPtBr(Math.round(periodHabitAnalytics?.exercise.totalDurationMinutes ?? 0), " min")} />
-                      <StatusTile
-                        label="Maior dia"
-                        value={periodHabitAnalytics?.exercise.highestDay ? `${periodHabitAnalytics.exercise.highestDay.label} · ${formatCalories(periodHabitAnalytics.exercise.highestDay.caloriesBurned)}` : "Sem exercício"}
-                      />
-                    </div>
-                    <div className="rounded-2xl border bg-background p-4 text-sm leading-6 text-muted-foreground">
-                      {periodExerciseReading}
-                    </div>
-                  </CardContent>
-                </Card>
+                <ExerciseAnalyticsCard
+                  title={periodScope === "month" ? "Atividade física no mês" : "Atividade física no período"}
+                  scopeLabel={periodScopeLabel}
+                  description="Mostra frequência, distribuição e volume de gasto ao longo do mês ou do intervalo customizado."
+                  activeDays={periodHabitAnalytics?.exercise.activeDays ?? 0}
+                  totalDays={periodHabitAnalytics?.range.dayCount ?? 0}
+                  totalCalories={periodHabitAnalytics?.exercise.totalCalories ?? 0}
+                  detailLabel="Minutos totais"
+                  detailValue={formatCountPtBr(Math.round(periodHabitAnalytics?.exercise.totalDurationMinutes ?? 0), " min")}
+                  averageCaloriesPerActiveDay={periodHabitAnalytics?.exercise.averageCaloriesPerActiveDay ?? 0}
+                  highestDay={periodHabitAnalytics?.exercise.highestDay ? `${periodHabitAnalytics.exercise.highestDay.label} · ${formatCalories(periodHabitAnalytics.exercise.highestDay.caloriesBurned)}` : "Sem exercício"}
+                  reading={periodExerciseReading}
+                />
               </div>
             )}
 
@@ -878,6 +952,15 @@ function StatusTile({ label, value }: { label: string; value: string | number })
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+function CompactMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border bg-muted/10 px-4 py-3">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-semibold tracking-tight">{value}</p>
     </div>
   );
 }

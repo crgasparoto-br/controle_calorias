@@ -16,10 +16,10 @@ Personal and health-sensitive raw values must not be sent. Do not send food name
 | `favorite_meal_created` | `item_count` |
 | `daily_dashboard_viewed` | `surface` |
 | `weekly_report_viewed` | `report_type`, `week_offset` |
+| `period_report_viewed` | `report_type`, `period_days` |
 | `goal_updated` | `exception_count`, `has_safety_warnings` |
 | `weight_logged` | `source` |
 | `subscription_started` | `plan_interval` |
 | `subscription_cancelled` | `cancellation_type` |
 
 The current server provider is a no-op provider by default. Replace it by calling `analyticsService.setProvider(...)` during server boot when a product analytics backend is selected.
-

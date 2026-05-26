@@ -9,6 +9,7 @@ export const ANALYTICS_EVENT_NAMES = [
   "favorite_meal_created",
   "daily_dashboard_viewed",
   "weekly_report_viewed",
+  "period_report_viewed",
   "goal_updated",
   "weight_logged",
   "subscription_started",
@@ -64,6 +65,10 @@ export type AnalyticsEventMap = {
   weekly_report_viewed: {
     report_type: "summary" | "progress" | "insights" | "bundle";
     week_offset?: number;
+  };
+  period_report_viewed: {
+    report_type: "habit_analytics";
+    period_days: number;
   };
   goal_updated: {
     exception_count: number;
