@@ -67,7 +67,7 @@ export function MealAiTabContent({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <WandSparkles className="h-5 w-5 text-primary" />
-            Record
+            Registrar com IA
           </CardTitle>
           <CardDescription>Texto, foto e áudio no mesmo rascunho.</CardDescription>
         </CardHeader>
@@ -145,13 +145,27 @@ export function MealAiTabContent({
                 />
               </div>
               <div className="space-y-3">
-                {editableItems.map((item, index) => (
-                  <MealItemEditor
-                    key={`${item.foodName}-${index}`}
-                    item={item}
-                    onChange={(key, value) => onEditableItemChange(index, key, value)}
-                  />
-                ))}
+                {editableItems.map((item, index) => {
+                  const hasFoodSwap =
+                    item.foodName.trim().length > 0 &&
+                    item.canonicalName.trim().length > 0 &&
+                    item.foodName.trim().toLocaleLowerCase("pt-BR") !== item.canonicalName.trim().toLocaleLowerCase("pt-BR");
+
+                  return (
+                    <div key={`${item.foodName}-${index}`} className="space-y-4 rounded-2xl border bg-background p-4 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 pb-3">
+                        <div>
+                          <p className="text-sm font-medium tracking-tight">Alimento {index + 1}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {hasFoodSwap ? "Confira o início e o fim da troca antes de salvar." : "Revise texto e valores nutricionais antes de salvar."}
+                          </p>
+                        </div>
+                        {hasFoodSwap ? <Badge variant="secondary" className="bg-amber-100 text-amber-900 hover:bg-amber-100">Troca de alimento</Badge> : null}
+                      </div>
+                      <MealItemEditor item={item} onChange={(key, value) => onEditableItemChange(index, key, value)} />
+                    </div>
+                  );
+                })}
               </div>
               <MealTotalsBlock title="Totais após revisão" totals={previewTotals} />
               <Button className="w-full rounded-full" disabled={isConfirmPending || editableItems.length === 0} onClick={onConfirm}>
