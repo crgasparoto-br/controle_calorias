@@ -286,7 +286,7 @@ export default function LogMealPage() {
       heightCm: profile.heightCm,
       currentWeightKg: parsedWeight,
       weightMeasuredAt: zonedDateTimeLocalToIso(weightMeasuredAt, userTimeZone),
-      weightEntryNote: "Peso atualizado na tela Record.",
+      weightEntryNote: "Peso atualizado na tela Registrar.",
       objective: profile.objective ?? ONBOARDING_DEFAULTS.objective,
       activityLevel: profile.activityLevel ?? ONBOARDING_DEFAULTS.activityLevel,
       trackingExperience: profile.trackingExperience ?? ONBOARDING_DEFAULTS.trackingExperience,
@@ -438,7 +438,7 @@ export default function LogMealPage() {
 
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3 xl:grid-cols-5">
-            <TabsTrigger className="min-h-11 rounded-xl" value="registro"><WandSparkles className="h-4 w-4" />Record com IA</TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="registro"><WandSparkles className="h-4 w-4" />Registrar com IA</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="manual"><PencilLine className="h-4 w-4" />Manual</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="agua"><Droplets className="h-4 w-4" />Água do dia</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="exercicios"><Dumbbell className="h-4 w-4" />Exercícios</TabsTrigger>
