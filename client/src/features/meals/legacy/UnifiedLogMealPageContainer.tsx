@@ -151,12 +151,6 @@ export default function LogMealPage() {
   const weightEntries = useMemo(() => [...(reportsBundleQuery.data?.progress.weight.entries ?? [])].reverse(), [reportsBundleQuery.data?.progress.weight.entries]);
 
   React.useEffect(() => {
-    if (!manualMeal.mealId && suggestedManualMealLabel && manualMeal.mealLabel !== suggestedManualMealLabel) {
-      setManualMeal(current => (current.mealId ? current : { ...current, mealLabel: suggestedManualMealLabel }));
-    }
-  }, [manualMeal.mealId, manualMeal.mealLabel, suggestedManualMealLabel]);
-
-  React.useEffect(() => {
     if (draft && suggestedDraftMealLabel && !mealLabel.trim()) setMealLabel(suggestedDraftMealLabel);
   }, [draft, mealLabel, suggestedDraftMealLabel]);
 
@@ -460,10 +454,7 @@ export default function LogMealPage() {
               onMealLabelChange={setMealLabel}
               suggestedMealLabel={suggestedDraftMealLabel}
               occurredAt={occurredAt}
-              onOccurredAtChange={nextOccurredAt => {
-                setOccurredAt(nextOccurredAt);
-                setMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? mealLabel);
-              }}
+              onOccurredAtChange={setOccurredAt}
               notes={notes}
               onNotesChange={setNotes}
               editableItems={editableItems}
@@ -483,7 +474,7 @@ export default function LogMealPage() {
               manualMeal={manualMeal}
               suggestedManualMealLabel={suggestedManualMealLabel}
               onMealLabelChange={value => setManualMeal(current => ({ ...current, mealLabel: value }))}
-              onOccurredAtChange={nextOccurredAt => setManualMeal(current => ({ ...current, occurredAt: nextOccurredAt, mealLabel: suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? current.mealLabel }))}
+              onOccurredAtChange={nextOccurredAt => setManualMeal(current => ({ ...current, occurredAt: nextOccurredAt }))}
               onNotesChange={value => setManualMeal(current => ({ ...current, notes: value }))}
               onAddItem={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}
               onRemoveItem={index => setManualMeal(current => ({ ...current, items: current.items.filter((_, currentIndex) => currentIndex !== index) }))}
