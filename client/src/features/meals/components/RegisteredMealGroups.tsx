@@ -289,19 +289,33 @@ export function RegisteredMealGroups({
   const itemMutationActionRef = useRef<"save" | "delete">("save");
   const [editingItemTarget, setEditingItemTarget] = useState<RegisteredMealItemEditTarget | null>(null);
 
+  const invalidateNutritionViews = async () => {
+    await Promise.all([
+      utils.nutrition.dashboard.overview.invalidate(),
+      utils.nutrition.meals.list.invalidate(),
+      utils.nutrition.meals.dayTotals.invalidate(),
+      utils.nutrition.meals.favorites.invalidate(),
+      utils.nutrition.reports.weekly.invalidate(),
+      utils.nutrition.reports.bundle.invalidate(),
+    ]);
+  };
+
   const updateMealItem = trpc.nutrition.meals.update.useMutation({
     onSuccess: async () => {
-      await Promise.all([
-        utils.nutrition.dashboard.overview.invalidate(),
-        utils.nutrition.meals.list.invalidate(),
-        utils.nutrition.meals.dayTotals.invalidate(),
-        utils.nutrition.reports.weekly.invalidate(),
-        utils.nutrition.reports.bundle.invalidate(),
-      ]);
+      await invalidateNutritionViews();
       toast.success(itemMutationActionRef.current === "delete" ? "Alimento removido com sucesso." : "Alimento atualizado com sucesso.");
       setEditingItemTarget(null);
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar o alimento."),
+  });
+
+  const removeMealFromItemDialog = trpc.nutrition.meals.remove.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Alimento removido com sucesso.");
+      setEditingItemTarget(null);
+    },
+    onError: error => toast.error(error.message || "Não foi possível remover o alimento."),
   });
 
   const handleEditMealItem = (meal: StoredMeal, itemIndex: number) => {
@@ -339,12 +353,13 @@ export function RegisteredMealGroups({
       return;
     }
 
+    itemMutationActionRef.current = "delete";
+
     if (editingItemTarget.meal.items.length <= 1) {
-      toast.error("A refeição precisa ter ao menos um alimento. Para remover tudo, exclua a refeição.");
+      removeMealFromItemDialog.mutate({ mealId: editingItemTarget.meal.id });
       return;
     }
 
-    itemMutationActionRef.current = "delete";
     updateMealItem.mutate(buildMealItemUpdatePayload(
       editingItemTarget.meal,
       userTimeZone,
@@ -386,7 +401,7 @@ export function RegisteredMealGroups({
 
       <RegisteredMealItemEditDialog
         target={editingItemTarget}
-        isSaving={updateMealItem.isPending}
+        isSaving={updateMealItem.isPending || removeMealFromItemDialog.isPending}
         onOpenChange={open => {
           if (!open) {
             setEditingItemTarget(null);
