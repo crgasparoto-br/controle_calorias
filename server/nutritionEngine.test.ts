@@ -101,6 +101,43 @@ describe("nutritionEngine.processMealInput", () => {
     });
   });
 
+  it("mantém todos os alimentos retornados pela IA em listas longas", async () => {
+    const items = Array.from({ length: 11 }, (_, index) => ({
+      foodName: `alimento ${index + 1}`,
+      portionText: "1 porção",
+      servings: 1,
+      estimatedGrams: 100,
+      estimatedCalories: 100 + index,
+      estimatedMacros: {
+        protein: 5,
+        carbs: 12,
+        fat: 3,
+      },
+      confidence: 0.8,
+    }));
+
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_many_items",
+      outputText: JSON.stringify({
+        mealLabel: "Almoço",
+        confidence: 0.88,
+        reasoning: "Lista longa informada pelo usuário.",
+        items,
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "almoço com vários alimentos",
+    });
+
+    const request = createTextResponseMock.mock.calls[0][0];
+    expect(request.format.schema.properties.items.maxItems).toBeUndefined();
+    expect(result.items).toHaveLength(11);
+    expect(result.items.map(item => item.foodName)).toContain("alimento 11");
+  });
+
   it("usa fallback heurístico quando a OpenAI falha para uma descrição em texto", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
@@ -113,6 +150,19 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.needsConfirmation).toBe(true);
     expect(result.totals.calories).toBeGreaterThan(0);
     expect(result.reasoning).toContain("heurística");
+  });
+
+  it("não limita o fallback heurístico a 8 alimentos", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const foods = Array.from({ length: 11 }, (_, index) => `alimento ${index + 1}`);
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: foods.join(", "),
+    });
+
+    expect(result.items).toHaveLength(11);
+    expect(result.items.map(item => item.foodName)).toContain("alimento 11");
   });
 
   it("não trata café como café da manhã quando o usuário menciona café como alimento", async () => {
