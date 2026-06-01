@@ -261,10 +261,13 @@ describe("whatsappWebhook smoke", () => {
 
     await handleWhatsAppWebhook(req as never, res as never);
 
+    const expectedAudioBase64 = `data:audio/ogg;base64,${Buffer.from("audio-test").toString("base64")}`;
+
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(transcribeAudioMock).toHaveBeenCalledWith({
-      audioUrl: expect.stringContaining("/whatsapp/audio/5511999999999-audio-media-id.ogg"),
+      audioBase64: expectedAudioBase64,
+      mimeType: "audio/ogg",
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
