@@ -85,6 +85,16 @@ function normalizeItemForSave(item: MealItemState): MealItemState {
   };
 }
 
+function buildMealItemUpdatePayload(meal: StoredMeal, userTimeZone: string, items: MealItemState[]) {
+  return {
+    mealId: meal.id,
+    mealLabel: normalizeMealType(meal.mealLabel),
+    occurredAt: zonedDateTimeLocalToIso(toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone), userTimeZone),
+    notes: meal.notes?.trim() || undefined,
+    items,
+  };
+}
+
 function MealFoodRow({
   item,
   record,
@@ -277,6 +287,7 @@ export function RegisteredMealGroups({
 }: RegisteredMealGroupsProps) {
   const utils = trpc.useUtils();
   const [editingItemTarget, setEditingItemTarget] = useState<RegisteredMealItemEditTarget | null>(null);
+  const [itemMutationAction, setItemMutationAction] = useState<"save" | "delete">("save");
 
   const updateMealItem = trpc.nutrition.meals.update.useMutation({
     onSuccess: async () => {
@@ -287,7 +298,7 @@ export function RegisteredMealGroups({
         utils.nutrition.reports.weekly.invalidate(),
         utils.nutrition.reports.bundle.invalidate(),
       ]);
-      toast.success("Alimento atualizado com sucesso.");
+      toast.success(itemMutationAction === "delete" ? "Alimento removido com sucesso." : "Alimento atualizado com sucesso.");
       setEditingItemTarget(null);
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar o alimento."),
@@ -313,15 +324,34 @@ export function RegisteredMealGroups({
       return;
     }
 
-    updateMealItem.mutate({
-      mealId: editingItemTarget.meal.id,
-      mealLabel: normalizeMealType(editingItemTarget.meal.mealLabel),
-      occurredAt: zonedDateTimeLocalToIso(toDateTimeLocalValue(new Date(editingItemTarget.meal.occurredAt), userTimeZone), userTimeZone),
-      notes: editingItemTarget.meal.notes?.trim() || undefined,
-      items: editingItemTarget.meal.items.map((currentItem, currentIndex) =>
+    setItemMutationAction("save");
+    updateMealItem.mutate(buildMealItemUpdatePayload(
+      editingItemTarget.meal,
+      userTimeZone,
+      editingItemTarget.meal.items.map((currentItem, currentIndex) =>
         currentIndex === editingItemTarget.itemIndex ? normalizedItem : normalizeItemForSave(currentItem),
       ),
-    });
+    ));
+  };
+
+  const handleDeleteMealItem = () => {
+    if (!editingItemTarget) {
+      return;
+    }
+
+    if (editingItemTarget.meal.items.length <= 1) {
+      toast.error("A refeição precisa ter ao menos um alimento. Para remover tudo, exclua a refeição.");
+      return;
+    }
+
+    setItemMutationAction("delete");
+    updateMealItem.mutate(buildMealItemUpdatePayload(
+      editingItemTarget.meal,
+      userTimeZone,
+      editingItemTarget.meal.items
+        .filter((_, currentIndex) => currentIndex !== editingItemTarget.itemIndex)
+        .map(normalizeItemForSave),
+    ));
   };
 
   if (!groups.length) {
@@ -362,6 +392,7 @@ export function RegisteredMealGroups({
             setEditingItemTarget(null);
           }
         }}
+        onDelete={handleDeleteMealItem}
         onSave={handleSaveMealItem}
       />
     </>
