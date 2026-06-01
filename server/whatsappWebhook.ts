@@ -212,6 +212,10 @@ function formatFoodDescription(item: MealProcessingResult["items"][number]) {
   return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
 }
 
+function formatFoodMacroDetails(item: MealProcessingResult["items"][number]) {
+  return `${formatMacro(item.calories)} kcal | P ${formatMacro(item.protein)}g | C ${formatMacro(item.carbs)}g | G ${formatMacro(item.fat)}g`;
+}
+
 function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date()) {
   const mealLabel = processed.detectedMealLabel || "Refeição";
   const mealHeader = `${getMealEmoji(mealLabel)} ${mealLabel}:`;
@@ -227,15 +231,15 @@ function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt
     ].join("\n");
   }
 
-  const foods = processed.items
-    .map(formatFoodDescription)
-    .filter(Boolean)
-    .join("; ");
+  const foodLines = processed.items
+    .map((item, index) => `${index + 1}. ${formatFoodDescription(item)} — ${formatFoodMacroDetails(item)}`)
+    .filter(Boolean);
 
   return [
     mealHeader,
-    `Alimentos: ${foods}.`,
-    `Total estimado: ${calories} kcal.`,
+    "Alimentos e macros:",
+    ...foodLines,
+    `Total estimado: ${calories} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g.`,
     `Horário: ${timeLabel}.`,
   ].join("\n");
 }
