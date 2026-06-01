@@ -22,8 +22,15 @@ type PreparedMessageInput = {
   imageUrl?: string;
   imageAnalysisUrl?: string;
   audioUrl?: string;
+  audioAnalysisBase64?: string;
+  audioAnalysisMimeType?: string;
   media: ReturnType<typeof buildSavedMedia>[];
   summary: string;
+};
+
+type PersistedIncomingMedia = {
+  savedMedia: ReturnType<typeof buildSavedMedia>;
+  analysisDataUrl: string;
 };
 
 type WhatsAppAction = {
@@ -42,6 +49,7 @@ type PendingWhatsAppConfirmation = {
 
 const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation>();
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
+const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 
 async function resolveUserIdFromPhone(sourcePhone: string) {
   return getUserIdByWhatsappPhone(sourcePhone);
@@ -390,7 +398,7 @@ function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
-async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string) {
+async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string): Promise<PersistedIncomingMedia> {
   const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = `${sourcePhone}-${mediaId}.${extension}`;
@@ -405,7 +413,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
 
   return {
     savedMedia,
-    analysisUrl: mediaType === "image" ? buildMediaDataUrl(downloaded.buffer, downloaded.mimeType) : undefined,
+    analysisDataUrl: buildMediaDataUrl(downloaded.buffer, downloaded.mimeType),
   };
 }
 
@@ -420,7 +428,7 @@ async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string
     const storedImage = await persistIncomingMedia(sourcePhone, "image", message.image.id, message.image.mime_type);
     prepared.media.push(storedImage.savedMedia);
     prepared.imageUrl = storedImage.savedMedia.storageUrl;
-    prepared.imageAnalysisUrl = storedImage.analysisUrl;
+    prepared.imageAnalysisUrl = storedImage.analysisDataUrl;
     prepared.summary = prepared.text ? "texto + imagem" : "imagem";
   }
 
@@ -428,6 +436,8 @@ async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string
     const storedAudio = await persistIncomingMedia(sourcePhone, "audio", message.audio.id, message.audio.mime_type);
     prepared.media.push(storedAudio.savedMedia);
     prepared.audioUrl = storedAudio.savedMedia.storageUrl;
+    prepared.audioAnalysisBase64 = storedAudio.analysisDataUrl;
+    prepared.audioAnalysisMimeType = storedAudio.savedMedia.mimeType;
     prepared.summary = prepared.summary === "texto + imagem" || prepared.summary === "imagem"
       ? `${prepared.summary} + áudio`
       : prepared.text
@@ -435,7 +445,8 @@ async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string
         : "áudio";
 
     const transcription = await transcribeAudio({
-      audioUrl: storedAudio.savedMedia.storageUrl,
+      audioBase64: storedAudio.analysisDataUrl,
+      mimeType: storedAudio.savedMedia.mimeType,
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
@@ -618,6 +629,17 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         eventType: "whatsapp.processing_error",
         detail: error instanceof Error ? error.message : "Falha desconhecida ao processar webhook.",
       });
+
+      const replyResult = await sendWhatsAppTextMessage(sourcePhone, PROCESSING_ERROR_REPLY);
+      if (!replyResult.ok) {
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "warning",
+          eventType: "whatsapp.reply_failed",
+          detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+        });
+      }
     }
   }
 
