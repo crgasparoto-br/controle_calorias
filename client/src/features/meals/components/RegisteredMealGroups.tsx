@@ -17,6 +17,7 @@ type RegisteredMealGroupsProps = {
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
   onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealItem?: (meal: StoredMeal, itemIndex: number) => void;
   onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
   onFavoriteMeal?: (meal: StoredMeal) => void;
   onRemoveMeal?: (meal: StoredMeal) => void;
@@ -73,13 +74,13 @@ function MealFoodRow({
   record,
   userTimeZone,
   isSelected,
-  onEditMeal,
+  onEditMealItem,
 }: {
   item: RegisteredMealItemViewModel;
   record: RegisteredMealRecordViewModel;
   userTimeZone: string;
   isSelected: boolean;
-  onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealItem?: (meal: StoredMeal, itemIndex: number) => void;
 }) {
   const portionLabel = item.item.portionText.trim() || formatGrams(item.item.estimatedGrams);
   const className = [
@@ -99,15 +100,16 @@ function MealFoodRow({
     </div>
   );
 
-  if (!onEditMeal) {
+  if (!onEditMealItem) {
     return <div className={className}>{content}</div>;
   }
 
   return (
     <button
       type="button"
-      onClick={() => onEditMeal(record.meal)}
+      onClick={() => onEditMealItem(record.meal, item.itemIndex)}
       className={className}
+      aria-label={`Editar alimento ${item.item.foodName}`}
     >
       {content}
     </button>
@@ -122,6 +124,7 @@ function RegisteredMealGroupSection({
   isFavoritePending,
   isRemovePending,
   onEditMeal,
+  onEditMealItem,
   onCopyMeal,
   onFavoriteMeal,
   onRemoveMeal,
@@ -134,6 +137,7 @@ function RegisteredMealGroupSection({
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
   onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealItem?: (meal: StoredMeal, itemIndex: number) => void;
   onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
   onFavoriteMeal?: (meal: StoredMeal) => void;
   onRemoveMeal?: (meal: StoredMeal) => void;
@@ -185,7 +189,7 @@ function RegisteredMealGroupSection({
                     record={record}
                     userTimeZone={userTimeZone}
                     isSelected={selectedMealId === record.meal.id}
-                    onEditMeal={onEditMeal}
+                    onEditMealItem={onEditMealItem}
                   />
                 )),
               )}
@@ -249,6 +253,7 @@ export function RegisteredMealGroups({
   isFavoritePending,
   isRemovePending,
   onEditMeal,
+  onEditMealItem,
   onCopyMeal,
   onFavoriteMeal,
   onRemoveMeal,
@@ -274,6 +279,7 @@ export function RegisteredMealGroups({
           isFavoritePending={isFavoritePending}
           isRemovePending={isRemovePending}
           onEditMeal={onEditMeal}
+          onEditMealItem={onEditMealItem}
           onCopyMeal={onCopyMeal}
           onFavoriteMeal={onFavoriteMeal}
           onRemoveMeal={onRemoveMeal}
