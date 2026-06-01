@@ -142,6 +142,40 @@ function createMetaAudioPayload() {
   };
 }
 
+function createWhatsAppOkResponse() {
+  return {
+    ok: true,
+    json: async () => ({}),
+  };
+}
+
+function expectMessageMarkedAsRead(messageId: string) {
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining(`"message_id":"${messageId}"`),
+    }),
+  );
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining('"status":"read"'),
+    }),
+  );
+}
+
+function expectProcessingAcknowledgement(contentLabel: string) {
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining(`Recebi sua mensagem de ${contentLabel} e estou processando`),
+    }),
+  );
+}
+
 describe("whatsappWebhook smoke", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -190,10 +224,7 @@ describe("whatsappWebhook smoke", () => {
       segments: [],
     });
 
-    global.fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({}),
-    })) as typeof fetch;
+    global.fetch = vi.fn(async () => createWhatsAppOkResponse()) as typeof fetch;
   });
 
   afterEach(() => {
@@ -210,6 +241,8 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(getUserIdByWhatsappPhoneMock).toHaveBeenCalledWith("5511999999999");
+    expectMessageMarkedAsRead("wamid.smoke-text-1");
+    expectProcessingAcknowledgement("texto");
     expect(processMealInputMock).toHaveBeenCalledWith({
       text: "arroz e frango",
       transcript: undefined,
@@ -239,6 +272,8 @@ describe("whatsappWebhook smoke", () => {
 
     global.fetch = vi
       .fn()
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -254,10 +289,7 @@ describe("whatsappWebhook smoke", () => {
             name.toLowerCase() === "content-type" ? "audio/ogg" : null,
         },
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      }) as typeof fetch;
+      .mockResolvedValueOnce(createWhatsAppOkResponse()) as typeof fetch;
 
     const req = { body: createMetaAudioPayload() };
     const res = createResponse();
@@ -268,6 +300,8 @@ describe("whatsappWebhook smoke", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.smoke-audio-1");
+    expectProcessingAcknowledgement("áudio");
     expect(transcribeAudioMock).toHaveBeenCalledWith({
       audioBase64: expectedAudioBase64,
       mimeType: "audio/ogg",
@@ -301,6 +335,8 @@ describe("whatsappWebhook smoke", () => {
 
     global.fetch = vi
       .fn()
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -316,10 +352,7 @@ describe("whatsappWebhook smoke", () => {
             name.toLowerCase() === "content-type" ? "audio/ogg" : null,
         },
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      }) as typeof fetch;
+      .mockResolvedValueOnce(createWhatsAppOkResponse()) as typeof fetch;
 
     const req = { body: createMetaAudioPayload() };
     const res = createResponse();
@@ -330,6 +363,8 @@ describe("whatsappWebhook smoke", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.smoke-audio-1");
+    expectProcessingAcknowledgement("áudio");
     expect(transcribeAudioMock).toHaveBeenCalledWith({
       audioBase64: expectedAudioBase64,
       mimeType: "audio/ogg",
