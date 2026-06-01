@@ -4,6 +4,7 @@ const getUserIdByWhatsappPhoneMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
+const createUserWaterLogMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
@@ -14,6 +15,7 @@ vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input) => input),
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,
+  createUserWaterLog: createUserWaterLogMock,
   getHabitSnapshots: getHabitSnapshotsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getWhatsAppAccessToken: getWhatsAppAccessTokenMock,
@@ -188,6 +190,7 @@ describe("whatsappWebhook smoke", () => {
     getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
     getHabitSnapshotsMock.mockResolvedValue([]);
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
+    createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     storagePutMock.mockReset();
     storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-smoke-text" });
@@ -250,6 +253,7 @@ describe("whatsappWebhook smoke", () => {
       audioUrl: undefined,
       habits: [],
     });
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
       draftId: "draft-smoke-text",
       userId: 123,
@@ -258,6 +262,31 @@ describe("whatsappWebhook smoke", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("registra água como hidratação sem criar refeição", async () => {
+    const req = { body: createMetaTextPayload("250ml de água") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.smoke-text-1");
+    expectProcessingAcknowledgement("texto");
+    expect(createUserWaterLogMock).toHaveBeenCalledWith(123, {
+      amountMl: 250,
+      occurredAt: "2024-04-21T12:54:00.000Z",
+    });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/phone-number-test/messages"),
+      expect.objectContaining({
+        body: expect.stringContaining("Registrei 250 ml de água"),
+      }),
     );
   });
 
