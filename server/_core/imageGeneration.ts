@@ -39,8 +39,9 @@ function buildPrompt(options: GenerateImageOptions) {
 
   return [
     prompt,
-    "Use a imagem apenas como contexto visual opcional.",
-    "Se houver ambiguidades, priorize uma representação genérica e segura da refeição.",
+    "Use a imagem original como base visual principal.",
+    "Preserve a foto da refeição sempre que possível e adicione apenas legendas/realces úteis.",
+    "Se houver ambiguidades, priorize uma anotação genérica e segura da refeição.",
   ].join("\n\n");
 }
 
@@ -68,6 +69,10 @@ export async function generateImage(
       size: "1024x1024",
       quality: "low",
       outputFormat: "png",
+      originalImages: options.originalImages?.filter(image => image.b64Json).map(image => ({
+        b64Json: image.b64Json as string,
+        mimeType: image.mimeType,
+      })),
     });
 
     const imageBuffer = Buffer.from(generated.b64Json, "base64");
