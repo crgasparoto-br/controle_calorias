@@ -151,12 +151,6 @@ export default function LogMealPage() {
   const weightEntries = useMemo(() => [...(reportsBundleQuery.data?.progress.weight.entries ?? [])].reverse(), [reportsBundleQuery.data?.progress.weight.entries]);
 
   React.useEffect(() => {
-    if (!manualMeal.mealId && suggestedManualMealLabel && manualMeal.mealLabel !== suggestedManualMealLabel) {
-      setManualMeal(current => (current.mealId ? current : { ...current, mealLabel: suggestedManualMealLabel }));
-    }
-  }, [manualMeal.mealId, manualMeal.mealLabel, suggestedManualMealLabel]);
-
-  React.useEffect(() => {
     if (draft && suggestedDraftMealLabel && !mealLabel.trim()) setMealLabel(suggestedDraftMealLabel);
   }, [draft, mealLabel, suggestedDraftMealLabel]);
 
@@ -286,7 +280,7 @@ export default function LogMealPage() {
       heightCm: profile.heightCm,
       currentWeightKg: parsedWeight,
       weightMeasuredAt: zonedDateTimeLocalToIso(weightMeasuredAt, userTimeZone),
-      weightEntryNote: "Peso atualizado na tela Record.",
+      weightEntryNote: "Peso atualizado na tela Registrar.",
       objective: profile.objective ?? ONBOARDING_DEFAULTS.objective,
       activityLevel: profile.activityLevel ?? ONBOARDING_DEFAULTS.activityLevel,
       trackingExperience: profile.trackingExperience ?? ONBOARDING_DEFAULTS.trackingExperience,
@@ -438,7 +432,7 @@ export default function LogMealPage() {
 
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3 xl:grid-cols-5">
-            <TabsTrigger className="min-h-11 rounded-xl" value="registro"><WandSparkles className="h-4 w-4" />Record com IA</TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="registro"><WandSparkles className="h-4 w-4" />Registrar com IA</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="manual"><PencilLine className="h-4 w-4" />Manual</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="agua"><Droplets className="h-4 w-4" />Água do dia</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="exercicios"><Dumbbell className="h-4 w-4" />Exercícios</TabsTrigger>
@@ -460,10 +454,7 @@ export default function LogMealPage() {
               onMealLabelChange={setMealLabel}
               suggestedMealLabel={suggestedDraftMealLabel}
               occurredAt={occurredAt}
-              onOccurredAtChange={nextOccurredAt => {
-                setOccurredAt(nextOccurredAt);
-                setMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? mealLabel);
-              }}
+              onOccurredAtChange={setOccurredAt}
               notes={notes}
               onNotesChange={setNotes}
               editableItems={editableItems}
@@ -483,7 +474,7 @@ export default function LogMealPage() {
               manualMeal={manualMeal}
               suggestedManualMealLabel={suggestedManualMealLabel}
               onMealLabelChange={value => setManualMeal(current => ({ ...current, mealLabel: value }))}
-              onOccurredAtChange={nextOccurredAt => setManualMeal(current => ({ ...current, occurredAt: nextOccurredAt, mealLabel: suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? current.mealLabel }))}
+              onOccurredAtChange={nextOccurredAt => setManualMeal(current => ({ ...current, occurredAt: nextOccurredAt }))}
               onNotesChange={value => setManualMeal(current => ({ ...current, notes: value }))}
               onAddItem={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}
               onRemoveItem={index => setManualMeal(current => ({ ...current, items: current.items.filter((_, currentIndex) => currentIndex !== index) }))}
