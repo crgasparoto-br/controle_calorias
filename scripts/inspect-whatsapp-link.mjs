@@ -30,12 +30,22 @@ function createConnectionOptions(connectionString) {
   };
 }
 
+async function getTableColumns(connection, tableName) {
+  const [rows] = await connection.query(`show columns from \`${tableName}\``);
+  return new Set(rows.map(row => row.Field));
+}
+
+function optionalInferenceSelect(columns, columnName, expression) {
+  return columns.has(columnName) ? `${expression} as ${columnName}Length` : `null as ${columnName}Length`;
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL não configurada');
   }
 
   const connection = await mysql.createConnection(createConnectionOptions(process.env.DATABASE_URL));
+  const inferenceColumns = await getTableColumns(connection, 'mealInferences');
 
   const [users] = await connection.query(`
     select id, openId, name, role, createdAt, updatedAt
@@ -52,7 +62,16 @@ async function main() {
   `);
 
   const [recentInferences] = await connection.query(`
-    select id, draftId, userId, source, requestSummary, sourceText, transcript, confidence, createdAt
+    select
+      id,
+      ${inferenceColumns.has('draftId') ? 'draftId' : 'null as draftId'},
+      userId,
+      source,
+      ${optionalInferenceSelect(inferenceColumns, 'requestSummary', 'char_length(requestSummary)')},
+      ${optionalInferenceSelect(inferenceColumns, 'sourceText', 'char_length(sourceText)')},
+      ${optionalInferenceSelect(inferenceColumns, 'transcript', 'char_length(transcript)')},
+      confidence,
+      createdAt
     from mealInferences
     where source = 'whatsapp'
     order by createdAt desc
