@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
@@ -212,6 +213,10 @@ function formatFoodDescription(item: MealProcessingResult["items"][number]) {
   return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
 }
 
+function formatFoodMacroDetails(item: MealProcessingResult["items"][number]) {
+  return `${formatMacro(item.calories)} kcal | P ${formatMacro(item.protein)}g | C ${formatMacro(item.carbs)}g | G ${formatMacro(item.fat)}g`;
+}
+
 function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date()) {
   const mealLabel = processed.detectedMealLabel || "Refeição";
   const mealHeader = `${getMealEmoji(mealLabel)} ${mealLabel}:`;
@@ -227,17 +232,53 @@ function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt
     ].join("\n");
   }
 
-  const foods = processed.items
-    .map(formatFoodDescription)
-    .filter(Boolean)
-    .join("; ");
+  const foodLines = processed.items
+    .map((item, index) => `${index + 1}. ${formatFoodDescription(item)} — ${formatFoodMacroDetails(item)}`)
+    .filter(Boolean);
 
   return [
     mealHeader,
-    `Alimentos: ${foods}.`,
-    `Total estimado: ${calories} kcal.`,
+    "Alimentos e macros:",
+    ...foodLines,
+    `Total estimado: ${calories} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g.`,
     `Horário: ${timeLabel}.`,
   ].join("\n");
+}
+
+function imageDataFromDataUrl(dataUrl?: string) {
+  const match = dataUrl?.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mimeType: match[1], b64Json: match[2] };
+}
+
+function buildAnnotatedMealImagePrompt(processed: MealProcessingResult) {
+  const labels = processed.items
+    .slice(0, 12)
+    .map((item, index) => `${index + 1}. ${item.foodName}: ${formatMacro(item.calories)} kcal, P ${formatMacro(item.protein)}g, C ${formatMacro(item.carbs)}g, G ${formatMacro(item.fat)}g`)
+    .join("\n");
+
+  return [
+    "Edite a foto original da refeição adicionando legendas visuais sobre os alimentos identificados, no estilo de análise nutricional da imagem de referência.",
+    "Use etiquetas verdes translúcidas com texto grande e linhas discretas apontando para cada alimento quando fizer sentido.",
+    "Cada legenda deve mostrar nome do alimento, calorias e macronutrientes no formato P/C/G em gramas.",
+    "Mantenha a foto realista, preserve o prato original e não adicione alimentos novos.",
+    "Use texto em português do Brasil, grande e legível em celular.",
+    `Itens detectados:\n${labels || "Alimentos identificados na refeição."}`,
+  ].join("\n");
+}
+
+async function generateAnnotatedMealImage(processed: MealProcessingResult, prepared: PreparedMessageInput) {
+  const sourceImage = imageDataFromDataUrl(prepared.imageAnalysisUrl);
+  if (!sourceImage || !processed.items.length) {
+    return null;
+  }
+
+  const generated = await generateImage({
+    prompt: buildAnnotatedMealImagePrompt(processed),
+    originalImages: [sourceImage],
+  });
+
+  return generated.url ? generated : null;
 }
 
 async function handlePendingWhatsAppConfirmation(message: WhatsAppMessage, userId: number) {
@@ -377,6 +418,54 @@ async function sendWhatsAppTextMessage(to: string, body: string) {
     return {
       ok: false,
       detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar resposta automática do WhatsApp.",
+    };
+  }
+}
+
+async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de imagem.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "image",
+        image: {
+          link: imageUrl,
+          caption,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da imagem anotada.`,
+      };
+    }
+
+    return {
+      ok: true,
+      detail: "Imagem anotada enviada com sucesso.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar imagem anotada do WhatsApp.",
     };
   }
 }
@@ -873,6 +962,27 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           eventType: "whatsapp.reply_failed",
           detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
         });
+      }
+
+      if (message.image?.id) {
+        const annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared);
+        if (annotatedImage?.url) {
+          const imageReplyResult = await sendWhatsAppImageMessage(
+            sourcePhone,
+            annotatedImage.url,
+            "Imagem anotada com os alimentos identificados.",
+          );
+
+          if (!imageReplyResult.ok) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.annotated_image_reply_failed",
+              detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
+            });
+          }
+        }
       }
     } catch (error) {
       logInferenceEvent({

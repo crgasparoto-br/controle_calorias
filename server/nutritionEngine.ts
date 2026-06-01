@@ -81,6 +81,12 @@ type LlmItem = {
   confidence: number;
 };
 
+type ParsedFoodText = {
+  foodName: string;
+  portionText?: string;
+  estimatedGrams?: number;
+};
+
 type AiInputContentItem =
   | {
       type: "input_text";
@@ -108,7 +114,7 @@ const mealExtractionSchema = z.object({
       fat: z.number().min(0).max(1000),
     }),
     confidence: z.number().min(0).max(1),
-  })).min(1).max(10),
+  })).min(1),
 });
 
 const mealExtractionJsonSchema = {
@@ -121,7 +127,6 @@ const mealExtractionJsonSchema = {
     items: {
       type: "array",
       minItems: 1,
-      maxItems: 10,
       items: {
         type: "object",
         additionalProperties: false,
@@ -205,6 +210,54 @@ function normalizeText(value: string) {
     .replace(/[^\w\s-]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function cleanFoodName(value: string) {
+  return value
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseDecimalNumber(value: string) {
+  return Number(value.replace(",", "."));
+}
+
+function parseFoodText(value: string): ParsedFoodText {
+  const cleaned = cleanFoodName(value);
+  const leadingGramsMatch = cleaned.match(/^(\d+(?:[,.]\d+)?)\s*(?:g|gr|grama|gramas)\b\s+(.+)$/i);
+  const trailingGramsMatch = cleaned.match(/^(.+?)\s+(\d+(?:[,.]\d+)?)\s*(?:g|gr|grama|gramas)\b$/i);
+  const match = leadingGramsMatch || trailingGramsMatch;
+
+  if (!match) {
+    return { foodName: cleaned };
+  }
+
+  const grams = parseDecimalNumber(leadingGramsMatch ? match[1] : match[2]);
+  const foodName = cleanFoodName(leadingGramsMatch ? match[2] : match[1]);
+
+  if (!foodName || Number.isNaN(grams) || grams <= 0) {
+    return { foodName: cleaned };
+  }
+
+  return {
+    foodName,
+    portionText: `${roundNutritionValue(grams)} g`,
+    estimatedGrams: roundNutritionValue(grams),
+  };
+}
+
+function normalizeLlmItem(item: LlmItem): LlmItem {
+  const parsed = parseFoodText(item.foodName);
+  const estimatedGrams = parsed.estimatedGrams ?? item.estimatedGrams;
+
+  return {
+    ...item,
+    foodName: parsed.foodName || cleanFoodName(item.foodName),
+    portionText: parsed.portionText ?? item.portionText,
+    servings: parsed.estimatedGrams ? Math.max(parsed.estimatedGrams / 100, 0.25) : item.servings,
+    estimatedGrams,
+  };
 }
 
 function minutesFromTime(value: string) {
@@ -297,7 +350,7 @@ function resolveMealLabel(input: MealProcessingInput, sourceText: string) {
 }
 
 function findCatalogFood(foodName: string) {
-  const normalized = normalizeText(foodName);
+  const normalized = normalizeText(cleanFoodName(foodName));
   const catalogSource = getCatalogCache();
   return (
     catalogSource.find(item =>
@@ -352,34 +405,38 @@ function buildHybridItem(llmItem: LlmItem): MealDraftItem {
 }
 
 function buildHeuristicItem(foodName: string): MealDraftItem {
-  const catalog = findCatalogFood(foodName);
+  const parsed = parseFoodText(foodName);
+  const catalog = findCatalogFood(parsed.foodName);
   if (catalog) {
     return buildItemFromCatalog(catalog, {
-      foodName,
-      portionText: catalog.servingLabel,
-      servings: 1,
-      estimatedGrams: catalog.gramsPerServing,
+      foodName: parsed.foodName,
+      portionText: parsed.portionText ?? catalog.servingLabel,
+      servings: parsed.estimatedGrams ? parsed.estimatedGrams / catalog.gramsPerServing : 1,
+      estimatedGrams: parsed.estimatedGrams ?? catalog.gramsPerServing,
       estimatedCalories: catalog.calories,
       estimatedMacros: {
         protein: catalog.protein,
         carbs: catalog.carbs,
         fat: catalog.fat,
       },
-      confidence: 0.45,
+      confidence: parsed.estimatedGrams ? 0.55 : 0.45,
     });
   }
 
+  const estimatedGrams = parsed.estimatedGrams ?? 100;
+  const factor = estimatedGrams / 100;
+
   return {
-    foodName,
-    canonicalName: foodName,
-    portionText: "1 porção",
-    servings: 1,
-    estimatedGrams: 100,
-    calories: 150,
-    protein: 6,
-    carbs: 15,
-    fat: 5,
-    confidence: 0.35,
+    foodName: parsed.foodName,
+    canonicalName: parsed.foodName,
+    portionText: parsed.portionText ?? "1 porção",
+    servings: Math.max(factor, 0.25),
+    estimatedGrams: roundNutritionValue(estimatedGrams),
+    calories: roundNutritionValue(150 * factor),
+    protein: roundNutritionValue(6 * factor),
+    carbs: roundNutritionValue(15 * factor),
+    fat: roundNutritionValue(5 * factor),
+    confidence: parsed.estimatedGrams ? 0.45 : 0.35,
     source: "heuristic",
   };
 }
@@ -388,8 +445,7 @@ function fallbackFromText(sourceText: string): MealDraftItem[] {
   const parts = sourceText
     .split(/,|\be\b|\+|\n/gi)
     .map(value => value.trim())
-    .filter(Boolean)
-    .slice(0, 8);
+    .filter(Boolean);
 
   if (parts.length === 0) {
     return [];
@@ -444,7 +500,7 @@ function cleanMealItems(items: MealDraftItem[]) {
     }
   }
 
-  return Array.from(deduplicated.values()).slice(0, 8);
+  return Array.from(deduplicated.values());
 }
 
 async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
@@ -460,6 +516,7 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
         `Histórico relevante do usuário:\n${habitsToPrompt(input.habits)}`,
         "Retorne apenas JSON válido no schema solicitado.",
         "Inclua somente alimentos ou bebidas explicitamente mencionados, fotografados ou claramente visíveis.",
+        "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': foodName deve ser apenas o alimento, portionText deve conter '140 g' e estimatedGrams deve ser 140.",
         "Não inclua prato, talheres, mesa, embalagem, rótulo, marca isolada, decoração ou itens inferidos apenas por hábito.",
         "Quando houver foto de rótulo, use o rótulo apenas para identificar o alimento real e a porção consumida; não crie itens extras a partir de ingredientes da embalagem.",
         "Não invente totais agregados; detalhe por item com porção, gramas estimados e macronutrientes por item.",
@@ -510,11 +567,12 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
 
 function buildItemsFromInference(items: LlmItem[]) {
   return items.map(item => {
-    const catalog = findCatalogFood(item.foodName);
+    const normalizedItem = normalizeLlmItem(item);
+    const catalog = findCatalogFood(normalizedItem.foodName);
     if (catalog) {
-      return buildItemFromCatalog(catalog, item);
+      return buildItemFromCatalog(catalog, normalizedItem);
     }
-    return buildHybridItem(item);
+    return buildHybridItem(normalizedItem);
   });
 }
 

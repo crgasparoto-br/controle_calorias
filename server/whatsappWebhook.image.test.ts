@@ -9,6 +9,7 @@ const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
 const storagePutMock = vi.fn();
+const generateImageMock = vi.fn();
 
 vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input) => input),
@@ -29,6 +30,10 @@ vi.mock("./nutritionEngine", () => ({
 
 vi.mock("./storage", () => ({
   storagePut: storagePutMock,
+}));
+
+vi.mock("./_core/imageGeneration", () => ({
+  generateImage: generateImageMock,
 }));
 
 vi.mock("./_core/voiceTranscription", () => ({
@@ -139,6 +144,13 @@ function expectProcessingAcknowledgement() {
   );
 }
 
+function findFetchCallByBody(expectedBodyPart: string) {
+  return vi.mocked(global.fetch).mock.calls.find(([, init]) => {
+    const body = init && "body" in init ? init.body : undefined;
+    return typeof body === "string" && body.includes(expectedBodyPart);
+  });
+}
+
 describe("whatsappWebhook image inbound", () => {
   beforeEach(() => {
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
@@ -149,6 +161,8 @@ describe("whatsappWebhook image inbound", () => {
     getHabitSnapshotsMock.mockResolvedValue([]);
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
+    generateImageMock.mockReset();
+    generateImageMock.mockResolvedValue({ skippedReason: "disabled" });
     storagePutMock.mockReset();
     storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-image" });
@@ -235,6 +249,43 @@ describe("whatsappWebhook image inbound", () => {
       draftId: "draft-image",
       userId: 123,
       mealLabel: "Almoço",
+    }));
+  });
+
+  it("envia imagem anotada quando a geração visual retorna URL", async () => {
+    generateImageMock.mockResolvedValue({
+      url: "https://storage.test/generated/meal-support/annotated.png",
+      mimeType: "image/png",
+    });
+    vi.mocked(global.fetch).mockResolvedValueOnce(createWhatsAppOkResponse() as never);
+
+    const req = { body: createMetaImagePayload() };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    const expectedB64 = Buffer.from("image-test").toString("base64");
+
+    expect(res.statusCode).toBe(200);
+    expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
+      originalImages: [
+        expect.objectContaining({
+          mimeType: "image/jpeg",
+          b64Json: expectedB64,
+        }),
+      ],
+      prompt: expect.stringContaining("frango"),
+    }));
+
+    const imageSendCall = findFetchCallByBody('"type":"image"');
+    expect(imageSendCall).toBeTruthy();
+    expect(imageSendCall?.[0]).toEqual(expect.stringContaining("/phone-number-test/messages"));
+    expect(imageSendCall?.[1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("https://storage.test/generated/meal-support/annotated.png"),
+    }));
+    expect(imageSendCall?.[1]).toEqual(expect.objectContaining({
+      body: expect.stringContaining("Imagem anotada com os alimentos identificados."),
     }));
   });
 
