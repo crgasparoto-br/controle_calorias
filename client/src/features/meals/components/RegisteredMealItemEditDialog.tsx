@@ -1,4 +1,3 @@
-import React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
+import { Trash2 } from "lucide-react";
 import { MealItemEditor } from "./MealItemEditor";
 import { SummaryPill } from "./SummaryPill";
 import { createEmptyItem, sumItems } from "../mealFormState";
@@ -24,6 +24,7 @@ type RegisteredMealItemEditDialogProps = {
   target: RegisteredMealItemEditTarget | null;
   isSaving?: boolean;
   onOpenChange: (open: boolean) => void;
+  onDelete: () => void;
   onSave: (item: MealItemState) => void;
 };
 
@@ -35,6 +36,7 @@ export function RegisteredMealItemEditDialog({
   target,
   isSaving,
   onOpenChange,
+  onDelete,
   onSave,
 }: RegisteredMealItemEditDialogProps) {
   const [draftItem, setDraftItem] = useState<MealItemState>(() => getInitialItem(target));
@@ -45,6 +47,7 @@ export function RegisteredMealItemEditDialog({
 
   const totals = useMemo(() => sumItems([draftItem]), [draftItem]);
   const foodName = draftItem.foodName.trim() || "alimento selecionado";
+  const canDeleteItem = Boolean(target && target.meal.items.length > 1);
 
   const updateDraftItem = <K extends keyof MealItemState>(key: K, value: MealItemState[K]) => {
     setDraftItem(current => ({ ...current, [key]: value }));
@@ -56,7 +59,7 @@ export function RegisteredMealItemEditDialog({
         <DialogHeader>
           <DialogTitle>Editar alimento</DialogTitle>
           <DialogDescription>
-            Ajuste somente as informacoes de {foodName}. Os outros alimentos desta refeicao serao preservados.
+            Ajuste somente as informações de {foodName}. Os outros alimentos desta refeição serão preservados.
           </DialogDescription>
         </DialogHeader>
 
@@ -65,7 +68,7 @@ export function RegisteredMealItemEditDialog({
             <p className="text-sm text-muted-foreground">Resumo do alimento</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-4">
               <SummaryPill label="Calorias" value={formatCalories(totals.calories)} />
-              <SummaryPill label="Proteinas" value={formatGrams(totals.protein)} />
+              <SummaryPill label="Proteínas" value={formatGrams(totals.protein)} />
               <SummaryPill label="Carboidratos" value={formatGrams(totals.carbs)} />
               <SummaryPill label="Gorduras" value={formatGrams(totals.fat)} />
             </div>
@@ -74,13 +77,25 @@ export function RegisteredMealItemEditDialog({
           <MealItemEditor item={draftItem} onChange={updateDraftItem} />
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Cancelar
+        <DialogFooter className="gap-3 sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
+            onClick={onDelete}
+            disabled={isSaving || !canDeleteItem}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Excluir alimento
           </Button>
-          <Button type="button" onClick={() => onSave(draftItem)} disabled={isSaving}>
-            {isSaving ? "Salvando..." : "Salvar alimento"}
-          </Button>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => onSave(draftItem)} disabled={isSaving}>
+              {isSaving ? "Salvando..." : "Salvar alimento"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
