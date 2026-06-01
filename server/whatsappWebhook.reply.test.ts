@@ -107,7 +107,7 @@ function outboundTextBodies() {
     .filter((body): body is string => Boolean(body));
 }
 
-describe("whatsappWebhook concise replies", () => {
+describe("whatsappWebhook detailed replies", () => {
   beforeEach(() => {
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
     process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
@@ -124,7 +124,7 @@ describe("whatsappWebhook concise replies", () => {
       sourceText: "arroz e frango",
       confidence: 0.91,
       needsConfirmation: true,
-      reasoning: "Teste de resposta curta.",
+      reasoning: "Teste de resposta detalhada.",
       items: [
         {
           foodName: "arroz",
@@ -166,7 +166,7 @@ describe("whatsappWebhook concise replies", () => {
     vi.restoreAllMocks();
   });
 
-  it("envia resumo sem detalhar macronutrientes por alimento", async () => {
+  it("envia lista de alimentos com macronutrientes por item", async () => {
     const req = { body: createTextPayload("arroz e frango") };
     const res = createResponse();
 
@@ -176,10 +176,9 @@ describe("whatsappWebhook concise replies", () => {
     const finalReply = replies.at(-1) ?? "";
 
     expect(res.statusCode).toBe(200);
-    expect(finalReply).toContain("Alimentos: 100 g arroz; 100 g frango.");
-    expect(finalReply).toContain("Total estimado: 295 kcal.");
-    expect(finalReply).not.toContain("Proteínas:");
-    expect(finalReply).not.toContain("Carboidratos:");
-    expect(finalReply).not.toContain("Gorduras:");
+    expect(finalReply).toContain("Alimentos e macros:");
+    expect(finalReply).toContain("1. 100 g arroz — 130 kcal | P 2.7g | C 28g | G 0.3g");
+    expect(finalReply).toContain("2. 100 g frango — 165 kcal | P 31g | C 0g | G 3.6g");
+    expect(finalReply).toContain("Total estimado: 295 kcal | P 33.7g | C 28g | G 3.9g.");
   });
 });
