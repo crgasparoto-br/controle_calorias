@@ -1,12 +1,41 @@
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 
+function envFlagEnabled(value) {
+  return ['1', 'true', 'yes', 'on'].includes(value?.toLowerCase() ?? '');
+}
+
+function envFlagDisabled(value) {
+  return ['0', 'false', 'no', 'off'].includes(value?.toLowerCase() ?? '');
+}
+
+function shouldEnableDatabaseSsl(connectionString) {
+  const explicitValue = process.env.TIDB_ENABLE_SSL;
+  if (envFlagEnabled(explicitValue)) return true;
+  if (envFlagDisabled(explicitValue)) return false;
+
+  return connectionString.includes('tidbcloud.com');
+}
+
+function createConnectionOptions(connectionString) {
+  if (!shouldEnableDatabaseSsl(connectionString)) {
+    return connectionString;
+  }
+
+  return {
+    uri: connectionString,
+    ssl: {
+      minVersion: 'TLSv1.2',
+    },
+  };
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL não configurada');
   }
 
-  const connection = await mysql.createConnection(process.env.DATABASE_URL);
+  const connection = await mysql.createConnection(createConnectionOptions(process.env.DATABASE_URL));
 
   const [users] = await connection.query(`
     select id, openId, name, role, createdAt, updatedAt
