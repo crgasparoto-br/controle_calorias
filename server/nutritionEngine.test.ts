@@ -152,6 +152,63 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.reasoning).toContain("heurística");
   });
 
+  it("interpreta gramas e nome do alimento no fallback textual", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "140g Carne moída suína 🥩",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Carne moída suína",
+      canonicalName: "Carne moída suína",
+      portionText: "140 g",
+      estimatedGrams: 140,
+    }));
+  });
+
+  it("normaliza nome e gramas quando a IA devolve quantidade junto do foodName", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_grams_in_name",
+      outputText: JSON.stringify({
+        mealLabel: "Almoço",
+        confidence: 0.82,
+        reasoning: "Quantidade veio colada no nome.",
+        items: [
+          {
+            foodName: "140g Carne moída suína 🥩",
+            portionText: "1 porção",
+            servings: 1,
+            estimatedGrams: 0,
+            estimatedCalories: 210,
+            estimatedMacros: {
+              protein: 20,
+              carbs: 0,
+              fat: 14,
+            },
+            confidence: 0.75,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "140g Carne moída suína 🥩",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Carne moída suína",
+      canonicalName: "Carne moída suína",
+      portionText: "140 g",
+      estimatedGrams: 140,
+      source: "hybrid",
+    }));
+  });
+
   it("não limita o fallback heurístico a 8 alimentos", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
