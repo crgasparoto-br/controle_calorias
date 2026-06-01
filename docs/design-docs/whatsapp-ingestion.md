@@ -18,6 +18,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - O campo `from` identifica o contato do usuário final.
 - Tokens e IDs de operação não podem aparecer em logs crus.
 - Simulações devem usar dados controlados e não depender de chamadas externas reais.
+- Mensagens suportadas de texto, imagem e áudio devem ser marcadas como lidas no WhatsApp antes do processamento pesado.
+- Mensagens suportadas de texto, imagem e áudio devem receber uma resposta inicial informando que o conteúdo foi recebido e está sendo processado.
+- Falha ao marcar a mensagem como lida ou enviar a resposta inicial deve gerar aviso operacional, mas não deve bloquear o processamento principal.
 - Imagens recebidas pelo WhatsApp devem ser baixadas pelo backend e enviadas inline para a inferência nutricional, sem depender de URL pública ou assinada do storage para a IA ler a mídia.
 - Áudios recebidos pelo WhatsApp devem ser baixados pelo backend e enviados inline para transcrição, sem depender de URL pública ou assinada do storage para o provider ler a mídia.
 - A URL persistida da mídia deve continuar sendo a URL do storage quando o storage estiver disponível, não a data URL inline usada apenas durante inferência ou transcrição.
@@ -27,8 +30,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 ## Validação recomendada
 
 - Testar texto, imagem e áudio mockados.
+- Testar que texto, imagem e áudio inbound são marcados como lidos e recebem resposta inicial de processamento.
 - Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição quando o storage está disponível.
 - Testar que áudio inbound é enviado inline para transcrição e que apenas a URL do storage é persistida no rascunho/refeição quando o storage está disponível.
-- Testar que falha de storage não bloqueia imagem nem áudio já baixados da Meta.
+- Testar que falha de leitura, confirmação inicial ou storage não bloqueia o processamento quando a mensagem é válida.
 - Testar token ausente, telefone oficial usado como telefone de usuário e vínculo inexistente.
 - Testar que resposta outbound usa sempre `WHATSAPP_PHONE_NUMBER_ID`.
