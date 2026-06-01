@@ -262,7 +262,7 @@ function findExplicitMealLabel(sourceText: string) {
   if (/\b(pre treino|pretreino)\b/.test(normalized)) {
     return "Pré-treino";
   }
-  if (/\b(pos treino|postreino|pos treino)\b/.test(normalized)) {
+  if (/\b(pos treino|postreino)\b/.test(normalized)) {
     return "Pós-treino";
   }
   if (/\b(cafe da manha|cafe de manha|desjejum)\b/.test(normalized)) {
