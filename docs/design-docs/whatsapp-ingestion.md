@@ -20,13 +20,15 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Simulações devem usar dados controlados e não depender de chamadas externas reais.
 - Imagens recebidas pelo WhatsApp devem ser baixadas pelo backend e enviadas inline para a inferência nutricional, sem depender de URL pública ou assinada do storage para a IA ler a mídia.
 - Áudios recebidos pelo WhatsApp devem ser baixados pelo backend e enviados inline para transcrição, sem depender de URL pública ou assinada do storage para o provider ler a mídia.
-- A URL persistida da mídia deve continuar sendo a URL do storage, não a data URL inline usada apenas durante inferência ou transcrição.
+- A URL persistida da mídia deve continuar sendo a URL do storage quando o storage estiver disponível, não a data URL inline usada apenas durante inferência ou transcrição.
+- Falha ao persistir mídia no storage deve gerar aviso operacional, mas não deve bloquear análise de imagem, transcrição de áudio ou registro de refeição quando a mídia já tiver sido baixada da Meta.
 - Quando o processamento da mídia falhar, a resposta automática deve ser genérica e não deve expor token, URL assinada, telefone completo, conteúdo cru ou detalhe interno do provider.
 
 ## Validação recomendada
 
 - Testar texto, imagem e áudio mockados.
-- Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição.
-- Testar que áudio inbound é enviado inline para transcrição e que apenas a URL do storage é persistida no rascunho/refeição.
+- Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição quando o storage está disponível.
+- Testar que áudio inbound é enviado inline para transcrição e que apenas a URL do storage é persistida no rascunho/refeição quando o storage está disponível.
+- Testar que falha de storage não bloqueia imagem nem áudio já baixados da Meta.
 - Testar token ausente, telefone oficial usado como telefone de usuário e vínculo inexistente.
 - Testar que resposta outbound usa sempre `WHATSAPP_PHONE_NUMBER_ID`.
