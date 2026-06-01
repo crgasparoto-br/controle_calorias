@@ -346,7 +346,11 @@ describe("whatsappWebhook smoke", () => {
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",
-      expect.objectContaining({ audioUrl: undefined }),
+      expect.objectContaining({
+        detectedMealLabel: "Almoço",
+        sourceText: "arroz e frango",
+        needsConfirmation: true,
+      }),
       [],
     );
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
