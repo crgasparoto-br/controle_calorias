@@ -257,7 +257,6 @@ async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
   const recentMeals = (await listUserMeals(userId))
     .filter(meal => meal.source === "whatsapp")
     .slice(0, 3);
-
   const matchingMeals = recentMeals.filter(
     meal => canonicalMealLabel(meal.mealLabel) === action.fromMealLabel,
   );
@@ -431,7 +430,7 @@ async function logWhatsAppOperationWarning(input: {
     origin: "whatsapp",
     status: "warning",
     eventType: input.eventType,
-    detail: `Falha ao processar operação automática para ${input.sourcePhone}: ${input.detail}`,
+    detail: `Falha ao processar operação automática do WhatsApp: ${input.detail}`,
   });
 }
 
