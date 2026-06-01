@@ -3,10 +3,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DisclosureToggle } from "@/components/ui/disclosure-toggle";
+import { zonedDateTimeLocalToIso, toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
+import { trpc } from "@/lib/trpc";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
-import type { MealType, StoredMeal } from "../types";
+import { normalizeMealType } from "../mealViewModels";
+import type { MealItemState, MealType, StoredMeal } from "../types";
 import { Copy, PencilLine, Star, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { RegisteredMealItemEditDialog, type RegisteredMealItemEditTarget } from "./RegisteredMealItemEditDialog";
 
 type RegisteredMealGroupsProps = {
   groups: RegisteredMealGroupViewModel[];
@@ -67,6 +72,17 @@ function NutritionBadge({ label, value }: { label: string; value: string }) {
       <strong className="text-foreground">{label}:</strong> {value}
     </span>
   );
+}
+
+function normalizeItemForSave(item: MealItemState): MealItemState {
+  const foodName = item.foodName.trim();
+  return {
+    ...item,
+    foodName,
+    canonicalName: item.canonicalName.trim() || foodName,
+    portionText: item.portionText.trim() || "1 porção",
+    confidence: Number(item.confidence || 1),
+  };
 }
 
 function MealFoodRow({
@@ -259,6 +275,55 @@ export function RegisteredMealGroups({
   onRemoveMeal,
   renderEditingForm,
 }: RegisteredMealGroupsProps) {
+  const utils = trpc.useUtils();
+  const [editingItemTarget, setEditingItemTarget] = useState<RegisteredMealItemEditTarget | null>(null);
+
+  const updateMealItem = trpc.nutrition.meals.update.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.meals.list.invalidate(),
+        utils.nutrition.meals.dayTotals.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+        utils.nutrition.reports.bundle.invalidate(),
+      ]);
+      toast.success("Alimento atualizado com sucesso.");
+      setEditingItemTarget(null);
+    },
+    onError: error => toast.error(error.message || "Não foi possível atualizar o alimento."),
+  });
+
+  const handleEditMealItem = (meal: StoredMeal, itemIndex: number) => {
+    if (onEditMealItem) {
+      onEditMealItem(meal, itemIndex);
+      return;
+    }
+
+    setEditingItemTarget({ meal, itemIndex });
+  };
+
+  const handleSaveMealItem = (item: MealItemState) => {
+    if (!editingItemTarget) {
+      return;
+    }
+
+    const normalizedItem = normalizeItemForSave(item);
+    if (!normalizedItem.foodName) {
+      toast.error("Preencha o nome do alimento.");
+      return;
+    }
+
+    updateMealItem.mutate({
+      mealId: editingItemTarget.meal.id,
+      mealLabel: normalizeMealType(editingItemTarget.meal.mealLabel),
+      occurredAt: zonedDateTimeLocalToIso(toDateTimeLocalValue(new Date(editingItemTarget.meal.occurredAt), userTimeZone), userTimeZone),
+      notes: editingItemTarget.meal.notes?.trim() || undefined,
+      items: editingItemTarget.meal.items.map((currentItem, currentIndex) =>
+        currentIndex === editingItemTarget.itemIndex ? normalizedItem : normalizeItemForSave(currentItem),
+      ),
+    });
+  };
+
   if (!groups.length) {
     return (
       <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
@@ -268,24 +333,37 @@ export function RegisteredMealGroups({
   }
 
   return (
-    <div className="space-y-4">
-      {groups.map(group => (
-        <RegisteredMealGroupSection
-          key={group.mealLabel}
-          group={group}
-          userTimeZone={userTimeZone}
-          selectedMealId={selectedMealId}
-          isCopyPending={isCopyPending}
-          isFavoritePending={isFavoritePending}
-          isRemovePending={isRemovePending}
-          onEditMeal={onEditMeal}
-          onEditMealItem={onEditMealItem}
-          onCopyMeal={onCopyMeal}
-          onFavoriteMeal={onFavoriteMeal}
-          onRemoveMeal={onRemoveMeal}
-          renderEditingForm={renderEditingForm}
-        />
-      ))}
-    </div>
+    <>
+      <div className="space-y-4">
+        {groups.map(group => (
+          <RegisteredMealGroupSection
+            key={group.mealLabel}
+            group={group}
+            userTimeZone={userTimeZone}
+            selectedMealId={selectedMealId}
+            isCopyPending={isCopyPending}
+            isFavoritePending={isFavoritePending}
+            isRemovePending={isRemovePending}
+            onEditMeal={onEditMeal}
+            onEditMealItem={handleEditMealItem}
+            onCopyMeal={onCopyMeal}
+            onFavoriteMeal={onFavoriteMeal}
+            onRemoveMeal={onRemoveMeal}
+            renderEditingForm={renderEditingForm}
+          />
+        ))}
+      </div>
+
+      <RegisteredMealItemEditDialog
+        target={editingItemTarget}
+        isSaving={updateMealItem.isPending}
+        onOpenChange={open => {
+          if (!open) {
+            setEditingItemTarget(null);
+          }
+        }}
+        onSave={handleSaveMealItem}
+      />
+    </>
   );
 }
