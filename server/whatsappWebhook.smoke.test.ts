@@ -8,6 +8,7 @@ const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
 const transcribeAudioMock = vi.fn();
+const storagePutMock = vi.fn();
 
 vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input) => input),
@@ -26,7 +27,7 @@ vi.mock("./nutritionEngine", () => ({
 }));
 
 vi.mock("./storage", () => ({
-  storagePut: vi.fn(async (key: string) => ({ key, url: `https://storage.test/${key}` })),
+  storagePut: storagePutMock,
 }));
 
 vi.mock("./_core/voiceTranscription", () => ({
@@ -153,6 +154,8 @@ describe("whatsappWebhook smoke", () => {
     getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
     getHabitSnapshotsMock.mockResolvedValue([]);
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
+    storagePutMock.mockReset();
+    storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-smoke-text" });
     confirmPendingMealMock.mockResolvedValue({ id: 456, mealLabel: "Almoço" });
     processMealInputMock.mockResolvedValue({
@@ -278,6 +281,78 @@ describe("whatsappWebhook smoke", () => {
       audioUrl: expect.stringContaining("/whatsapp/audio/5511999999999-audio-media-id.ogg"),
       habits: [],
     });
+    expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
+      draftId: "draft-smoke-text",
+      userId: 123,
+      mealLabel: "Almoço",
+      notes: "arroz e feijão",
+    }));
+  });
+
+  it("transcreve e registra áudio mesmo quando o storage da mídia falha", async () => {
+    storagePutMock.mockRejectedValue(new Error("storage unavailable"));
+    transcribeAudioMock.mockResolvedValue({
+      task: "transcribe",
+      language: "pt",
+      duration: 2.1,
+      text: "arroz e feijão",
+      segments: [],
+    });
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          url: "https://media.test/audio-download",
+          mime_type: "audio/ogg",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode("audio-test").buffer,
+        headers: {
+          get: (name: string) =>
+            name.toLowerCase() === "content-type" ? "audio/ogg" : null,
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      }) as typeof fetch;
+
+    const req = { body: createMetaAudioPayload() };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    const expectedAudioBase64 = `data:audio/ogg;base64,${Buffer.from("audio-test").toString("base64")}`;
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(transcribeAudioMock).toHaveBeenCalledWith({
+      audioBase64: expectedAudioBase64,
+      mimeType: "audio/ogg",
+      language: "pt",
+      prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
+    });
+    expect(processMealInputMock).toHaveBeenCalledWith({
+      text: undefined,
+      transcript: "arroz e feijão",
+      imageUrl: undefined,
+      audioUrl: undefined,
+      habits: [],
+    });
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      123,
+      "whatsapp",
+      expect.objectContaining({ audioUrl: undefined }),
+      [],
+    );
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.media_storage_warning",
+      status: "warning",
+    }));
     expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
       draftId: "draft-smoke-text",
       userId: 123,
