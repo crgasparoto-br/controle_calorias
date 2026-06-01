@@ -29,8 +29,10 @@ type PreparedMessageInput = {
 };
 
 type PersistedIncomingMedia = {
-  savedMedia: ReturnType<typeof buildSavedMedia>;
+  savedMedia?: ReturnType<typeof buildSavedMedia>;
   analysisDataUrl: string;
+  mimeType: string;
+  storageWarning?: string;
 };
 
 type WhatsAppAction = {
@@ -50,6 +52,7 @@ type PendingWhatsAppConfirmation = {
 const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation>();
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
+const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 
 async function resolveUserIdFromPhone(sourcePhone: string) {
   return getUserIdByWhatsappPhone(sourcePhone);
@@ -400,21 +403,44 @@ function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
 
 async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string): Promise<PersistedIncomingMedia> {
   const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
+  const analysisDataUrl = buildMediaDataUrl(downloaded.buffer, downloaded.mimeType);
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = `${sourcePhone}-${mediaId}.${extension}`;
-  const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType);
-  const savedMedia = buildSavedMedia({
-    mediaType,
-    storageKey: stored.key,
-    storageUrl: stored.url,
-    mimeType: downloaded.mimeType,
-    originalFileName: fileName,
-  });
 
-  return {
-    savedMedia,
-    analysisDataUrl: buildMediaDataUrl(downloaded.buffer, downloaded.mimeType),
-  };
+  try {
+    const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType);
+    return {
+      savedMedia: buildSavedMedia({
+        mediaType,
+        storageKey: stored.key,
+        storageUrl: stored.url,
+        mimeType: downloaded.mimeType,
+        originalFileName: fileName,
+      }),
+      analysisDataUrl,
+      mimeType: downloaded.mimeType,
+    };
+  } catch {
+    return {
+      analysisDataUrl,
+      mimeType: downloaded.mimeType,
+      storageWarning: MEDIA_STORAGE_WARNING,
+    };
+  }
+}
+
+async function logMediaStorageWarning(sourcePhone: string, warning?: string) {
+  if (!warning) {
+    return;
+  }
+
+  logInferenceEvent({
+    userId: await resolveUserIdFromPhone(sourcePhone),
+    origin: "whatsapp",
+    status: "warning",
+    eventType: "whatsapp.media_storage_warning",
+    detail: warning,
+  });
 }
 
 async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string): Promise<PreparedMessageInput> {
@@ -426,27 +452,33 @@ async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string
 
   if (message.image?.id) {
     const storedImage = await persistIncomingMedia(sourcePhone, "image", message.image.id, message.image.mime_type);
-    prepared.media.push(storedImage.savedMedia);
-    prepared.imageUrl = storedImage.savedMedia.storageUrl;
+    if (storedImage.savedMedia) {
+      prepared.media.push(storedImage.savedMedia);
+      prepared.imageUrl = storedImage.savedMedia.storageUrl;
+    }
     prepared.imageAnalysisUrl = storedImage.analysisDataUrl;
     prepared.summary = prepared.text ? "texto + imagem" : "imagem";
+    await logMediaStorageWarning(sourcePhone, storedImage.storageWarning);
   }
 
   if (message.audio?.id) {
     const storedAudio = await persistIncomingMedia(sourcePhone, "audio", message.audio.id, message.audio.mime_type);
-    prepared.media.push(storedAudio.savedMedia);
-    prepared.audioUrl = storedAudio.savedMedia.storageUrl;
+    if (storedAudio.savedMedia) {
+      prepared.media.push(storedAudio.savedMedia);
+      prepared.audioUrl = storedAudio.savedMedia.storageUrl;
+    }
     prepared.audioAnalysisBase64 = storedAudio.analysisDataUrl;
-    prepared.audioAnalysisMimeType = storedAudio.savedMedia.mimeType;
+    prepared.audioAnalysisMimeType = storedAudio.mimeType;
     prepared.summary = prepared.summary === "texto + imagem" || prepared.summary === "imagem"
       ? `${prepared.summary} + áudio`
       : prepared.text
         ? "texto + áudio"
         : "áudio";
+    await logMediaStorageWarning(sourcePhone, storedAudio.storageWarning);
 
     const transcription = await transcribeAudio({
       audioBase64: storedAudio.analysisDataUrl,
-      mimeType: storedAudio.savedMedia.mimeType,
+      mimeType: storedAudio.mimeType,
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
