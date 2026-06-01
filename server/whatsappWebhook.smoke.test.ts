@@ -277,7 +277,7 @@ describe("whatsappWebhook smoke", () => {
     expectProcessingAcknowledgement("texto");
     expect(createUserWaterLogMock).toHaveBeenCalledWith(123, {
       amountMl: 250,
-      occurredAt: "2024-04-21T12:54:00.000Z",
+      occurredAt: "2024-04-21T14:14:00.000Z",
     });
     expect(processMealInputMock).not.toHaveBeenCalled();
     expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
