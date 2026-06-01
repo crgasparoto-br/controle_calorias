@@ -4,6 +4,7 @@ const getUserIdByWhatsappPhoneMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
+const createUserWaterLogMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
@@ -13,6 +14,7 @@ vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input) => input),
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,
+  createUserWaterLog: createUserWaterLogMock,
   getHabitSnapshots: getHabitSnapshotsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getWhatsAppAccessToken: getWhatsAppAccessTokenMock,
@@ -146,6 +148,7 @@ describe("whatsappWebhook image inbound", () => {
     getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
     getHabitSnapshotsMock.mockResolvedValue([]);
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
+    createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     storagePutMock.mockReset();
     storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-image" });
@@ -214,6 +217,7 @@ describe("whatsappWebhook image inbound", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.image-1");
     expectProcessingAcknowledgement();
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(processMealInputMock).toHaveBeenCalledWith({
       text: undefined,
       transcript: undefined,
@@ -247,6 +251,7 @@ describe("whatsappWebhook image inbound", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.image-1");
     expectProcessingAcknowledgement();
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(processMealInputMock).toHaveBeenCalledWith({
       text: undefined,
       transcript: undefined,
