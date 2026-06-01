@@ -56,12 +56,18 @@ export type AiProviderAudioTranscriptionResponse = {
   raw: unknown;
 };
 
+export type AiProviderImageInput = {
+  b64Json: string;
+  mimeType?: string;
+};
+
 export type AiProviderImageGenerationRequest = {
   prompt: string;
   model: string;
   size?: "1024x1024" | "1024x1536" | "1536x1024";
   quality?: "low" | "medium" | "high";
   outputFormat?: "png" | "webp" | "jpeg";
+  originalImages?: AiProviderImageInput[];
 };
 
 export type AiProviderImageGenerationResponse = {
@@ -134,6 +140,25 @@ function mimeTypeFromOutputFormat(
   return `image/${outputFormat}`;
 }
 
+function imageFileNameFromMimeType(mimeType = "image/png") {
+  if (mimeType.includes("jpeg")) return "meal-photo.jpg";
+  if (mimeType.includes("webp")) return "meal-photo.webp";
+  return "meal-photo.png";
+}
+
+function buildImageEditFile(image: AiProviderImageInput) {
+  const mimeType = image.mimeType || "image/png";
+  return new File(
+    [Buffer.from(image.b64Json, "base64")],
+    imageFileNameFromMimeType(mimeType),
+    { type: mimeType },
+  );
+}
+
+function firstImageData(response: { data?: Array<{ b64_json?: string }> }) {
+  return response.data?.[0]?.b64_json;
+}
+
 export class OpenAiProvider implements AiProvider {
   private resolvedClient: OpenAI | null = null;
 
@@ -195,15 +220,25 @@ export class OpenAiProvider implements AiProvider {
   async createImageGeneration(
     request: AiProviderImageGenerationRequest,
   ): Promise<AiProviderImageGenerationResponse> {
-    const response = await this.getClient().images.generate({
-      model: request.model,
-      prompt: request.prompt,
-      ...(request.size ? { size: request.size } : {}),
-      ...(request.quality ? { quality: request.quality } : {}),
-      ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
-    });
+    const sourceImage = request.originalImages?.find(image => image.b64Json);
+    const client = this.getClient();
+    const response = sourceImage
+      ? await client.images.edit({
+          model: request.model,
+          image: buildImageEditFile(sourceImage),
+          prompt: request.prompt,
+          ...(request.size ? { size: request.size } : {}),
+          ...(request.quality ? { quality: request.quality } : {}),
+        })
+      : await client.images.generate({
+          model: request.model,
+          prompt: request.prompt,
+          ...(request.size ? { size: request.size } : {}),
+          ...(request.quality ? { quality: request.quality } : {}),
+          ...(request.outputFormat ? { output_format: request.outputFormat } : {}),
+        });
 
-    const imageData = response.data?.[0]?.b64_json;
+    const imageData = firstImageData(response);
     if (!imageData) {
       throw new Error("OpenAI image provider returned no image data.");
     }
