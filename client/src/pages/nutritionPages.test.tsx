@@ -549,7 +549,7 @@ describe("nutrition pages", () => {
     expect(html).not.toContain("Use um único ponto para registrar o dia e revisar tudo sem trocar de tela.");
     expect(html).toContain("Texto, foto e áudio no mesmo rascunho.");
     expect(html).toContain("Descrição em texto");
-    expect(html).toContain("Record com IA");
+    expect(html).toContain("Registrar com IA");
     expect(html).toContain("Manual");
     expect(html).not.toContain("Hoje");
     expect(html).toContain("Água do dia");
