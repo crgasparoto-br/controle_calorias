@@ -77,7 +77,18 @@ export type StoredMeal = {
   };
 };
 
-export const MEAL_TYPES = ["café da manhã", "almoço", "jantar", "lanche", "outro"] as const;
+export const MEAL_TYPES = [
+  "café da manhã",
+  "almoço",
+  "lanche da tarde",
+  "pré-treino",
+  "pós-treino",
+  "jantar",
+  "ceia",
+  "lanche",
+  "bebida",
+  "outro",
+] as const;
 export type MealType = string;
 
 export type ManualMealState = {
