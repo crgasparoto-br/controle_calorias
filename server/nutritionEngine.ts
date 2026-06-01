@@ -108,7 +108,7 @@ const mealExtractionSchema = z.object({
       fat: z.number().min(0).max(1000),
     }),
     confidence: z.number().min(0).max(1),
-  })).min(1).max(10),
+  })).min(1),
 });
 
 const mealExtractionJsonSchema = {
@@ -121,7 +121,6 @@ const mealExtractionJsonSchema = {
     items: {
       type: "array",
       minItems: 1,
-      maxItems: 10,
       items: {
         type: "object",
         additionalProperties: false,
@@ -388,8 +387,7 @@ function fallbackFromText(sourceText: string): MealDraftItem[] {
   const parts = sourceText
     .split(/,|\be\b|\+|\n/gi)
     .map(value => value.trim())
-    .filter(Boolean)
-    .slice(0, 8);
+    .filter(Boolean);
 
   if (parts.length === 0) {
     return [];
@@ -444,7 +442,7 @@ function cleanMealItems(items: MealDraftItem[]) {
     }
   }
 
-  return Array.from(deduplicated.values()).slice(0, 8);
+  return Array.from(deduplicated.values());
 }
 
 async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
