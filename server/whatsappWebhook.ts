@@ -6,6 +6,7 @@ import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 
 type WhatsAppMessage = {
+  id?: string;
   from?: string;
   channelPhoneNumberId?: string;
   channelDisplayPhoneNumber?: string;
@@ -348,6 +349,92 @@ async function sendWhatsAppTextMessage(to: string, body: string) {
   }
 }
 
+async function markWhatsAppMessageAsRead(messageId?: string) {
+  if (!messageId) {
+    return { ok: true, detail: "Mensagem sem ID para marcar como lida." };
+  }
+
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para marcar mensagem como lida.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: messageId,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} ao marcar mensagem como lida.`,
+      };
+    }
+
+    return {
+      ok: true,
+      detail: "Mensagem marcada como lida.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao marcar mensagem do WhatsApp como lida.",
+    };
+  }
+}
+
+function listMessageContentTypes(message: WhatsAppMessage) {
+  const types: string[] = [];
+  if (message.text?.body) types.push("texto");
+  if (message.image?.id) types.push("imagem");
+  if (message.audio?.id) types.push("áudio");
+  return types;
+}
+
+function formatContentTypeList(types: string[]) {
+  if (types.length <= 1) {
+    return types[0] || "mensagem";
+  }
+  if (types.length === 2) {
+    return `${types[0]} e ${types[1]}`;
+  }
+  return `${types.slice(0, -1).join(", ")} e ${types[types.length - 1]}`;
+}
+
+function buildProcessingAcknowledgement(message: WhatsAppMessage) {
+  const contentLabel = formatContentTypeList(listMessageContentTypes(message));
+  return `Recebi sua mensagem de ${contentLabel} e estou processando. Assim que terminar, envio o registro por aqui.`;
+}
+
+async function logWhatsAppOperationWarning(input: {
+  userId: number;
+  sourcePhone: string;
+  eventType: string;
+  detail: string;
+}) {
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "whatsapp",
+    status: "warning",
+    eventType: input.eventType,
+    detail: `Falha ao processar operação automática para ${input.sourcePhone}: ${input.detail}`,
+  });
+}
+
 async function getMediaDownloadUrl(mediaId: string) {
   const { accessToken } = await requireWhatsAppMediaConfig();
 
@@ -560,6 +647,16 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       continue;
     }
 
+    const readResult = await markWhatsAppMessageAsRead(message.id);
+    if (!readResult.ok) {
+      await logWhatsAppOperationWarning({
+        userId,
+        sourcePhone,
+        eventType: "whatsapp.read_receipt_failed",
+        detail: readResult.detail,
+      });
+    }
+
     try {
       const pendingConfirmationResult = await handlePendingWhatsAppConfirmation(message, userId);
       if (pendingConfirmationResult) {
@@ -606,6 +703,16 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           });
         }
         continue;
+      }
+
+      const acknowledgementResult = await sendWhatsAppTextMessage(sourcePhone, buildProcessingAcknowledgement(message));
+      if (!acknowledgementResult.ok) {
+        await logWhatsAppOperationWarning({
+          userId,
+          sourcePhone,
+          eventType: "whatsapp.processing_ack_failed",
+          detail: acknowledgementResult.detail,
+        });
       }
 
       const prepared = await prepareMessageInput(message, sourcePhone);
