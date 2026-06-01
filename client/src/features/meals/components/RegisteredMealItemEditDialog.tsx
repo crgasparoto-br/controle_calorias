@@ -1,4 +1,3 @@
-import React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,7 +47,6 @@ export function RegisteredMealItemEditDialog({
 
   const totals = useMemo(() => sumItems([draftItem]), [draftItem]);
   const foodName = draftItem.foodName.trim() || "alimento selecionado";
-  const canDeleteItem = Boolean(target && target.meal.items.length > 1);
 
   const updateDraftItem = <K extends keyof MealItemState>(key: K, value: MealItemState[K]) => {
     setDraftItem(current => ({ ...current, [key]: value }));
@@ -60,7 +58,7 @@ export function RegisteredMealItemEditDialog({
         <DialogHeader>
           <DialogTitle>Editar alimento</DialogTitle>
           <DialogDescription>
-            Ajuste somente as informações de {foodName}. Os outros alimentos desta refeição serão preservados.
+            Ajuste somente as informações de {foodName}. Ao excluir o último alimento de um horário, aquele registro será removido.
           </DialogDescription>
         </DialogHeader>
 
@@ -84,7 +82,7 @@ export function RegisteredMealItemEditDialog({
             variant="outline"
             className="border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
             onClick={onDelete}
-            disabled={isSaving || !canDeleteItem}
+            disabled={isSaving}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Excluir alimento
