@@ -44,6 +44,9 @@ export type MealProcessingInput = {
   imageUrl?: string;
   audioUrl?: string;
   habits?: HabitSnapshot[];
+  occurredAt?: Date | string | number;
+  timeZone?: string;
+  suggestedMealLabel?: string | null;
 };
 
 export type MealProcessingResult = {
@@ -178,6 +181,15 @@ const NON_FOOD_TERMS = [
   "decoração",
 ];
 
+const DEFAULT_MEAL_LABEL_BY_TIME = [
+  { mealLabel: "Café da manhã", startTime: "05:00", endTime: "10:59" },
+  { mealLabel: "Almoço", startTime: "11:00", endTime: "14:59" },
+  { mealLabel: "Lanche da tarde", startTime: "15:00", endTime: "17:29" },
+  { mealLabel: "Pré-treino", startTime: "17:30", endTime: "18:29" },
+  { mealLabel: "Jantar", startTime: "18:30", endTime: "22:59" },
+  { mealLabel: "Ceia", startTime: "23:00", endTime: "04:59" },
+] as const;
+
 export class MealInferenceError extends Error {
   constructor(message = "Não foi possível gerar um rascunho revisável para esta refeição agora.") {
     super(message);
@@ -195,21 +207,93 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function guessMealLabel(sourceText: string) {
-  const normalized = normalizeText(sourceText);
-  if (normalized.includes("cafe") || normalized.includes("café") || normalized.includes("manha")) {
+function minutesFromTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return (hours * 60) + minutes;
+}
+
+function isTimeWithinRange(timeMinutes: number, startTime: string, endTime: string) {
+  const start = minutesFromTime(startTime);
+  const end = minutesFromTime(endTime);
+  if (start <= end) {
+    return timeMinutes >= start && timeMinutes <= end;
+  }
+
+  return timeMinutes >= start || timeMinutes <= end;
+}
+
+function parseDateInput(value: MealProcessingInput["occurredAt"]) {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? new Date() : value;
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+  return new Date();
+}
+
+function getLocalTimeMinutes(date: Date, timeZone = "America/Sao_Paulo") {
+  const formatter = new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const hour = Number(parts.find(part => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find(part => part.type === "minute")?.value ?? "0");
+  return (hour * 60) + minute;
+}
+
+function inferMealLabelByTime(occurredAt: MealProcessingInput["occurredAt"], timeZone?: string) {
+  const timeMinutes = getLocalTimeMinutes(parseDateInput(occurredAt), timeZone);
+  return DEFAULT_MEAL_LABEL_BY_TIME.find(schedule =>
+    isTimeWithinRange(timeMinutes, schedule.startTime, schedule.endTime),
+  )?.mealLabel ?? "Refeição registrada";
+}
+
+function findExplicitMealLabel(sourceText: string) {
+  const normalized = normalizeText(sourceText).replace(/-/g, " ").replace(/\s+/g, " ");
+  if (!normalized) {
+    return null;
+  }
+
+  if (/\b(pre treino|pretreino)\b/.test(normalized)) {
+    return "Pré-treino";
+  }
+  if (/\b(pos treino|postreino)\b/.test(normalized)) {
+    return "Pós-treino";
+  }
+  if (/\b(cafe da manha|cafe de manha|desjejum)\b/.test(normalized)) {
     return "Café da manhã";
   }
-  if (normalized.includes("almoco") || normalized.includes("almoço")) {
+  if (/\balmoco\b/.test(normalized)) {
     return "Almoço";
   }
-  if (normalized.includes("janta") || normalized.includes("jantar")) {
+  if (/\b(jantar|janta)\b/.test(normalized)) {
     return "Jantar";
   }
-  if (normalized.includes("lanche")) {
+  if (/\blanche da tarde\b/.test(normalized)) {
+    return "Lanche da tarde";
+  }
+  if (/\blanche\b/.test(normalized)) {
     return "Lanche";
   }
-  return "Refeição registrada";
+  if (/\bceia\b/.test(normalized)) {
+    return "Ceia";
+  }
+
+  return null;
+}
+
+function resolveMealLabel(input: MealProcessingInput, sourceText: string) {
+  const explicitMealLabel = findExplicitMealLabel(sourceText);
+  if (explicitMealLabel) {
+    return explicitMealLabel;
+  }
+
+  return input.suggestedMealLabel?.trim() || inferMealLabelByTime(input.occurredAt, input.timeZone);
 }
 
 function findCatalogFood(foodName: string) {
@@ -365,18 +449,21 @@ function cleanMealItems(items: MealDraftItem[]) {
 
 async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
   const composedText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n");
+  const suggestedMealLabel = input.suggestedMealLabel?.trim() || inferMealLabelByTime(input.occurredAt, input.timeZone);
   const content: AiInputContentItem[] = [
     {
       type: "input_text",
       text: [
         "Analise a refeição do usuário e extraia itens alimentares para registro nutricional revisável.",
         `Texto disponível: ${composedText || "não informado"}`,
+        `Rótulo sugerido pelo horário: ${suggestedMealLabel}`,
         `Histórico relevante do usuário:\n${habitsToPrompt(input.habits)}`,
         "Retorne apenas JSON válido no schema solicitado.",
         "Inclua somente alimentos ou bebidas explicitamente mencionados, fotografados ou claramente visíveis.",
         "Não inclua prato, talheres, mesa, embalagem, rótulo, marca isolada, decoração ou itens inferidos apenas por hábito.",
         "Quando houver foto de rótulo, use o rótulo apenas para identificar o alimento real e a porção consumida; não crie itens extras a partir de ingredientes da embalagem.",
         "Não invente totais agregados; detalhe por item com porção, gramas estimados e macronutrientes por item.",
+        "Não use nomes de alimentos para inferir o tipo de refeição: café como bebida não significa café da manhã.",
       ].join("\n"),
     },
   ];
@@ -433,7 +520,7 @@ function buildItemsFromInference(items: LlmItem[]) {
 
 export async function processMealInput(input: MealProcessingInput): Promise<MealProcessingResult> {
   const sourceText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n").trim();
-  const initialMealLabel = guessMealLabel(sourceText);
+  const detectedMealLabel = resolveMealLabel(input, sourceText);
 
   let extraction: Awaited<ReturnType<typeof extractWithAi>> = null;
   try {
@@ -456,7 +543,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
   const reasoning = extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
 
   return {
-    detectedMealLabel: extraction?.mealLabel || initialMealLabel,
+    detectedMealLabel,
     sourceText,
     imageUrl: input.imageUrl,
     audioUrl: input.audioUrl,

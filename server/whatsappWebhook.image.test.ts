@@ -4,14 +4,17 @@ const getUserIdByWhatsappPhoneMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
+const createUserWaterLogMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
+const storagePutMock = vi.fn();
 
 vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input) => input),
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,
+  createUserWaterLog: createUserWaterLogMock,
   getHabitSnapshots: getHabitSnapshotsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getWhatsAppAccessToken: getWhatsAppAccessTokenMock,
@@ -25,7 +28,7 @@ vi.mock("./nutritionEngine", () => ({
 }));
 
 vi.mock("./storage", () => ({
-  storagePut: vi.fn(async (key: string) => ({ key, url: `https://storage.test/${key}` })),
+  storagePut: storagePutMock,
 }));
 
 vi.mock("./_core/voiceTranscription", () => ({
@@ -102,6 +105,40 @@ function createMetaImagePayload() {
   };
 }
 
+function createWhatsAppOkResponse() {
+  return {
+    ok: true,
+    json: async () => ({}),
+  };
+}
+
+function expectMessageMarkedAsRead(messageId: string) {
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining(`"message_id":"${messageId}"`),
+    }),
+  );
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining('"status":"read"'),
+    }),
+  );
+}
+
+function expectProcessingAcknowledgement() {
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("Recebi sua mensagem de imagem e estou processando"),
+    }),
+  );
+}
+
 describe("whatsappWebhook image inbound", () => {
   beforeEach(() => {
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
@@ -111,6 +148,9 @@ describe("whatsappWebhook image inbound", () => {
     getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
     getHabitSnapshotsMock.mockResolvedValue([]);
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
+    createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
+    storagePutMock.mockReset();
+    storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-image" });
     confirmPendingMealMock.mockResolvedValue({ id: 456, mealLabel: "Almoço" });
     processMealInputMock.mockImplementation(async (input) => ({
@@ -140,6 +180,8 @@ describe("whatsappWebhook image inbound", () => {
 
     global.fetch = vi
       .fn()
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -155,10 +197,7 @@ describe("whatsappWebhook image inbound", () => {
             name.toLowerCase() === "content-type" ? "image/jpeg" : null,
         },
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      }) as typeof fetch;
+      .mockResolvedValueOnce(createWhatsAppOkResponse()) as typeof fetch;
   });
 
   afterEach(() => {
@@ -176,6 +215,9 @@ describe("whatsappWebhook image inbound", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.image-1");
+    expectProcessingAcknowledgement();
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(processMealInputMock).toHaveBeenCalledWith({
       text: undefined,
       transcript: undefined,
@@ -189,6 +231,44 @@ describe("whatsappWebhook image inbound", () => {
       expect.objectContaining({ imageUrl: expectedStorageUrl }),
       [expect.objectContaining({ storageUrl: expectedStorageUrl, mediaType: "image" })],
     );
+    expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
+      draftId: "draft-image",
+      userId: 123,
+      mealLabel: "Almoço",
+    }));
+  });
+
+  it("analisa e registra imagem mesmo quando o storage da mídia falha", async () => {
+    storagePutMock.mockRejectedValue(new Error("storage unavailable"));
+    const req = { body: createMetaImagePayload() };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    const expectedDataUrl = `data:image/jpeg;base64,${Buffer.from("image-test").toString("base64")}`;
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.image-1");
+    expectProcessingAcknowledgement();
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
+    expect(processMealInputMock).toHaveBeenCalledWith({
+      text: undefined,
+      transcript: undefined,
+      imageUrl: expectedDataUrl,
+      audioUrl: undefined,
+      habits: [],
+    });
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      123,
+      "whatsapp",
+      expect.objectContaining({ imageUrl: undefined }),
+      [],
+    );
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.media_storage_warning",
+      status: "warning",
+    }));
     expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
       draftId: "draft-image",
       userId: 123,

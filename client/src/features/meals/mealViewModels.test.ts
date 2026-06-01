@@ -33,21 +33,23 @@ function buildMeal(overrides: Partial<StoredMeal>): StoredMeal {
 }
 
 describe("meal view models", () => {
-  it("keeps custom meal names", () => {
-    expect(normalizeMealType("pre-treino")).toBe("pre-treino");
+  it("normalizes known meal names and keeps custom labels", () => {
+    expect(normalizeMealType("pre-treino")).toBe("pré-treino");
+    expect(normalizeMealType("Pré-Treino")).toBe("pré-treino");
     expect(normalizeMealType("ceia")).toBe("ceia");
-    expect(normalizeMealType("  pos-treino  ")).toBe("pos-treino");
+    expect(normalizeMealType("  pos-treino  ")).toBe("pós-treino");
+    expect(normalizeMealType("refeição personalizada")).toBe("refeição personalizada");
     expect(normalizeMealType("   ")).toBe("outro");
   });
 
-  it("groups records by free labels without converting them to outro", () => {
+  it("groups records by normalized labels without converting them to outro", () => {
     const groups = buildRegisteredMealGroups([
       buildMeal({ id: 1, mealLabel: "pre-treino", totals: { calories: 80, protein: 1, carbs: 20, fat: 0 } }),
       buildMeal({ id: 2, mealLabel: "ceia", totals: { calories: 120, protein: 12, carbs: 8, fat: 4 } }),
-      buildMeal({ id: 3, mealLabel: "pre-treino", totals: { calories: 100, protein: 10, carbs: 12, fat: 2 } }),
+      buildMeal({ id: 3, mealLabel: "Pré-Treino", totals: { calories: 100, protein: 10, carbs: 12, fat: 2 } }),
     ]);
 
-    expect(groups.map(group => group.mealLabel)).toEqual(["pre-treino", "ceia"]);
+    expect(groups.map(group => group.mealLabel)).toEqual(["pré-treino", "ceia"]);
     expect(groups[0].records).toHaveLength(2);
     expect(groups[0].items).toHaveLength(2);
     expect(groups[0].totals.calories).toBe(180);

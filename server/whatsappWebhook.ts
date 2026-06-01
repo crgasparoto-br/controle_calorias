@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 
 type WhatsAppMessage = {
+  id?: string;
   from?: string;
   channelPhoneNumberId?: string;
   channelDisplayPhoneNumber?: string;
@@ -29,8 +30,10 @@ type PreparedMessageInput = {
 };
 
 type PersistedIncomingMedia = {
-  savedMedia: ReturnType<typeof buildSavedMedia>;
+  savedMedia?: ReturnType<typeof buildSavedMedia>;
   analysisDataUrl: string;
+  mimeType: string;
+  storageWarning?: string;
 };
 
 type WhatsAppAction = {
@@ -50,6 +53,41 @@ type PendingWhatsAppConfirmation = {
 const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation>();
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
+const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
+const MAX_WATER_LOG_AMOUNT_ML = 10000;
+const WATER_LOG_ALLOWED_WORDS = [
+  "agua",
+  "aguas",
+  "ml",
+  "m l",
+  "mililitro",
+  "mililitros",
+  "l",
+  "litro",
+  "litros",
+  "de",
+  "da",
+  "do",
+  "das",
+  "dos",
+  "e",
+  "mais",
+  "bebi",
+  "beber",
+  "tomei",
+  "tomar",
+  "consumi",
+  "registrar",
+  "registra",
+  "registre",
+  "registro",
+  "registrei",
+  "para",
+  "por",
+  "favor",
+  "hoje",
+  "agora",
+];
 
 async function resolveUserIdFromPhone(sourcePhone: string) {
   return getUserIdByWhatsappPhone(sourcePhone);
@@ -178,29 +216,28 @@ function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt
   const mealLabel = processed.detectedMealLabel || "Refeição";
   const mealHeader = `${getMealEmoji(mealLabel)} ${mealLabel}:`;
   const timeLabel = formatReplyTime(registeredAt);
+  const calories = formatMacro(processed.totals.calories);
 
   if (!processed.items.length) {
     return [
       mealHeader,
       processed.sourceText || "Alimento não identificado.",
-      `• Às ${timeLabel}`,
-      `• Proteínas: ${formatMacro(processed.totals.protein)}g`,
-      `• Carboidratos: ${formatMacro(processed.totals.carbs)}g`,
-      `• Gorduras: ${formatMacro(processed.totals.fat)}g`,
-      `• ${formatMacro(processed.totals.calories)}kcal`,
+      `Total estimado: ${calories} kcal.`,
+      `Horário: ${timeLabel}.`,
     ].join("\n");
   }
 
-  const itemBlocks = processed.items.map((item) => [
-    formatFoodDescription(item),
-    `• Às ${timeLabel}`,
-    `• Proteínas: ${formatMacro(item.protein)}g`,
-    `• Carboidratos: ${formatMacro(item.carbs)}g`,
-    `• Gorduras: ${formatMacro(item.fat)}g`,
-    `• ${formatMacro(item.calories)}kcal`,
-  ].join("\n"));
+  const foods = processed.items
+    .map(formatFoodDescription)
+    .filter(Boolean)
+    .join("; ");
 
-  return [mealHeader, "", itemBlocks.join("\n\n")].join("\n");
+  return [
+    mealHeader,
+    `Alimentos: ${foods}.`,
+    `Total estimado: ${calories} kcal.`,
+    `Horário: ${timeLabel}.`,
+  ].join("\n");
 }
 
 async function handlePendingWhatsAppConfirmation(message: WhatsAppMessage, userId: number) {
@@ -253,7 +290,6 @@ async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
   const recentMeals = (await listUserMeals(userId))
     .filter(meal => meal.source === "whatsapp")
     .slice(0, 3);
-
   const matchingMeals = recentMeals.filter(
     meal => canonicalMealLabel(meal.mealLabel) === action.fromMealLabel,
   );
@@ -345,6 +381,145 @@ async function sendWhatsAppTextMessage(to: string, body: string) {
   }
 }
 
+async function markWhatsAppMessageAsRead(messageId?: string) {
+  if (!messageId) {
+    return { ok: true, detail: "Mensagem sem ID para marcar como lida." };
+  }
+
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para marcar mensagem como lida.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: messageId,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} ao marcar mensagem como lida.`,
+      };
+    }
+
+    return {
+      ok: true,
+      detail: "Mensagem marcada como lida.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao marcar mensagem do WhatsApp como lida.",
+    };
+  }
+}
+
+function listMessageContentTypes(message: WhatsAppMessage) {
+  const types: string[] = [];
+  if (message.text?.body) types.push("texto");
+  if (message.image?.id) types.push("imagem");
+  if (message.audio?.id) types.push("áudio");
+  return types;
+}
+
+function formatContentTypeList(types: string[]) {
+  if (types.length <= 1) {
+    return types[0] || "mensagem";
+  }
+  if (types.length === 2) {
+    return `${types[0]} e ${types[1]}`;
+  }
+  return `${types.slice(0, -1).join(", ")} e ${types[types.length - 1]}`;
+}
+
+function buildProcessingAcknowledgement(message: WhatsAppMessage) {
+  const contentLabel = formatContentTypeList(listMessageContentTypes(message));
+  return `Recebi sua mensagem de ${contentLabel} e estou processando. Assim que terminar, envio o registro por aqui.`;
+}
+
+function parseWaterAmountMl(text: string) {
+  const normalized = normalizeIntentText(text);
+  const mlMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m\s*l|ml|mililitros?)\b/);
+  if (mlMatch) {
+    return Math.round(Number(mlMatch[1].replace(",", ".")));
+  }
+
+  const literMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:l|litros?)\b/);
+  if (literMatch) {
+    return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
+  }
+
+  return null;
+}
+
+function isWaterOnlyText(text: string) {
+  const normalized = normalizeIntentText(text);
+  if (!/\baguas?\b/.test(normalized)) {
+    return false;
+  }
+
+  const remaining = normalized
+    .replace(/\d+(?:[,.]\d+)?/g, " ")
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(word => !WATER_LOG_ALLOWED_WORDS.includes(word));
+
+  return remaining.length === 0;
+}
+
+function detectWaterLogFromMessage(message: WhatsAppMessage) {
+  const text = getTextBody(message);
+  if (!text || message.image?.id || message.audio?.id) {
+    return null;
+  }
+
+  if (!isWaterOnlyText(text)) {
+    return null;
+  }
+
+  const amountMl = parseWaterAmountMl(text);
+  if (!amountMl || amountMl <= 0 || amountMl > MAX_WATER_LOG_AMOUNT_ML) {
+    return null;
+  }
+
+  return { amountMl };
+}
+
+function buildWaterLogReply(amountMl: number, occurredAt: Date) {
+  return `Registrei ${formatMacro(amountMl)} ml de água às ${formatReplyTime(occurredAt)}.`;
+}
+
+async function logWhatsAppOperationWarning(input: {
+  userId: number;
+  sourcePhone: string;
+  eventType: string;
+  detail: string;
+}) {
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "whatsapp",
+    status: "warning",
+    eventType: input.eventType,
+    detail: `Falha ao processar operação automática do WhatsApp: ${input.detail}`,
+  });
+}
+
 async function getMediaDownloadUrl(mediaId: string) {
   const { accessToken } = await requireWhatsAppMediaConfig();
 
@@ -400,21 +575,44 @@ function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
 
 async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string): Promise<PersistedIncomingMedia> {
   const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
+  const analysisDataUrl = buildMediaDataUrl(downloaded.buffer, downloaded.mimeType);
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = `${sourcePhone}-${mediaId}.${extension}`;
-  const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType);
-  const savedMedia = buildSavedMedia({
-    mediaType,
-    storageKey: stored.key,
-    storageUrl: stored.url,
-    mimeType: downloaded.mimeType,
-    originalFileName: fileName,
-  });
 
-  return {
-    savedMedia,
-    analysisDataUrl: buildMediaDataUrl(downloaded.buffer, downloaded.mimeType),
-  };
+  try {
+    const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType);
+    return {
+      savedMedia: buildSavedMedia({
+        mediaType,
+        storageKey: stored.key,
+        storageUrl: stored.url,
+        mimeType: downloaded.mimeType,
+        originalFileName: fileName,
+      }),
+      analysisDataUrl,
+      mimeType: downloaded.mimeType,
+    };
+  } catch {
+    return {
+      analysisDataUrl,
+      mimeType: downloaded.mimeType,
+      storageWarning: MEDIA_STORAGE_WARNING,
+    };
+  }
+}
+
+async function logMediaStorageWarning(sourcePhone: string, warning?: string) {
+  if (!warning) {
+    return;
+  }
+
+  logInferenceEvent({
+    userId: await resolveUserIdFromPhone(sourcePhone),
+    origin: "whatsapp",
+    status: "warning",
+    eventType: "whatsapp.media_storage_warning",
+    detail: warning,
+  });
 }
 
 async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string): Promise<PreparedMessageInput> {
@@ -426,27 +624,33 @@ async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string
 
   if (message.image?.id) {
     const storedImage = await persistIncomingMedia(sourcePhone, "image", message.image.id, message.image.mime_type);
-    prepared.media.push(storedImage.savedMedia);
-    prepared.imageUrl = storedImage.savedMedia.storageUrl;
+    if (storedImage.savedMedia) {
+      prepared.media.push(storedImage.savedMedia);
+      prepared.imageUrl = storedImage.savedMedia.storageUrl;
+    }
     prepared.imageAnalysisUrl = storedImage.analysisDataUrl;
     prepared.summary = prepared.text ? "texto + imagem" : "imagem";
+    await logMediaStorageWarning(sourcePhone, storedImage.storageWarning);
   }
 
   if (message.audio?.id) {
     const storedAudio = await persistIncomingMedia(sourcePhone, "audio", message.audio.id, message.audio.mime_type);
-    prepared.media.push(storedAudio.savedMedia);
-    prepared.audioUrl = storedAudio.savedMedia.storageUrl;
+    if (storedAudio.savedMedia) {
+      prepared.media.push(storedAudio.savedMedia);
+      prepared.audioUrl = storedAudio.savedMedia.storageUrl;
+    }
     prepared.audioAnalysisBase64 = storedAudio.analysisDataUrl;
-    prepared.audioAnalysisMimeType = storedAudio.savedMedia.mimeType;
+    prepared.audioAnalysisMimeType = storedAudio.mimeType;
     prepared.summary = prepared.summary === "texto + imagem" || prepared.summary === "imagem"
       ? `${prepared.summary} + áudio`
       : prepared.text
         ? "texto + áudio"
         : "áudio";
+    await logMediaStorageWarning(sourcePhone, storedAudio.storageWarning);
 
     const transcription = await transcribeAudio({
       audioBase64: storedAudio.analysisDataUrl,
-      mimeType: storedAudio.savedMedia.mimeType,
+      mimeType: storedAudio.mimeType,
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
@@ -528,6 +732,16 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       continue;
     }
 
+    const readResult = await markWhatsAppMessageAsRead(message.id);
+    if (!readResult.ok) {
+      await logWhatsAppOperationWarning({
+        userId,
+        sourcePhone,
+        eventType: "whatsapp.read_receipt_failed",
+        detail: readResult.detail,
+      });
+    }
+
     try {
       const pendingConfirmationResult = await handlePendingWhatsAppConfirmation(message, userId);
       if (pendingConfirmationResult) {
@@ -564,6 +778,45 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         });
 
         const replyResult = await sendWhatsAppTextMessage(sourcePhone, actionResult.reply);
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
+        continue;
+      }
+
+      const acknowledgementResult = await sendWhatsAppTextMessage(sourcePhone, buildProcessingAcknowledgement(message));
+      if (!acknowledgementResult.ok) {
+        await logWhatsAppOperationWarning({
+          userId,
+          sourcePhone,
+          eventType: "whatsapp.processing_ack_failed",
+          detail: acknowledgementResult.detail,
+        });
+      }
+
+      const waterLog = detectWaterLogFromMessage(message);
+      if (waterLog) {
+        const occurredAt = resolveOccurredAt(message);
+        await createUserWaterLog(userId, {
+          amountMl: waterLog.amountMl,
+          occurredAt: occurredAt.toISOString(),
+        });
+
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "success",
+          eventType: "whatsapp.water_logged",
+          detail: `Consumo de ${waterLog.amountMl} ml de água registrado pelo WhatsApp às ${formatReplyTime(occurredAt)}.`,
+        });
+
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWaterLogReply(waterLog.amountMl, occurredAt));
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,

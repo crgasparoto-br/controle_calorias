@@ -115,6 +115,33 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.reasoning).toContain("heurística");
   });
 
+  it("não trata café como café da manhã quando o usuário menciona café como alimento", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "café, banana e whey",
+      occurredAt: "2026-06-01T18:20:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.detectedMealLabel).toBe("Pré-treino");
+    expect(result.items.length).toBeGreaterThan(0);
+  });
+
+  it("prioriza rótulo explícito sobre a sugestão por horário", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "café da manhã com ovos",
+      occurredAt: "2026-06-01T18:20:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.detectedMealLabel).toBe("Café da manhã");
+  });
+
   it("não gera rascunho quando a saída da IA é inválida e não há fallback textual", async () => {
     createTextResponseMock.mockResolvedValue({
       id: "resp_invalid",

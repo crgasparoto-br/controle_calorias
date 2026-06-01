@@ -53,8 +53,34 @@ export type DateGroupedRegisteredMealsViewModel = {
   };
 };
 
+function normalizeMealLabelKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function normalizeMealType(mealLabel: string): MealType {
-  return mealLabel.trim() || "outro";
+  const trimmed = mealLabel.trim();
+  if (!trimmed) return "outro";
+
+  const normalized = normalizeMealLabelKey(trimmed);
+  if (["cafe da manha", "cafe de manha", "desjejum"].includes(normalized)) return "café da manhã";
+  if (normalized === "almoco") return "almoço";
+  if (normalized === "lanche da tarde") return "lanche da tarde";
+  if (["pre treino", "pretreino"].includes(normalized)) return "pré-treino";
+  if (["pos treino", "postreino"].includes(normalized)) return "pós-treino";
+  if (["jantar", "janta"].includes(normalized)) return "jantar";
+  if (normalized === "ceia") return "ceia";
+  if (normalized === "lanche") return "lanche";
+  if (normalized === "bebida") return "bebida";
+  if (normalized === "outro") return "outro";
+
+  return trimmed;
 }
 
 export function addDaysToDateInputValue(dateInputValue: string, days: number): string {
