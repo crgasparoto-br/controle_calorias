@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 
@@ -54,6 +54,40 @@ const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
+const MAX_WATER_LOG_AMOUNT_ML = 10000;
+const WATER_LOG_ALLOWED_WORDS = [
+  "agua",
+  "aguas",
+  "ml",
+  "m l",
+  "mililitro",
+  "mililitros",
+  "l",
+  "litro",
+  "litros",
+  "de",
+  "da",
+  "do",
+  "das",
+  "dos",
+  "e",
+  "mais",
+  "bebi",
+  "beber",
+  "tomei",
+  "tomar",
+  "consumi",
+  "registrar",
+  "registra",
+  "registre",
+  "registro",
+  "registrei",
+  "para",
+  "por",
+  "favor",
+  "hoje",
+  "agora",
+];
 
 async function resolveUserIdFromPhone(sourcePhone: string) {
   return getUserIdByWhatsappPhone(sourcePhone);
@@ -419,6 +453,59 @@ function buildProcessingAcknowledgement(message: WhatsAppMessage) {
   return `Recebi sua mensagem de ${contentLabel} e estou processando. Assim que terminar, envio o registro por aqui.`;
 }
 
+function parseWaterAmountMl(text: string) {
+  const normalized = normalizeIntentText(text);
+  const mlMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m\s*l|ml|mililitros?)\b/);
+  if (mlMatch) {
+    return Math.round(Number(mlMatch[1].replace(",", ".")));
+  }
+
+  const literMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:l|litros?)\b/);
+  if (literMatch) {
+    return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
+  }
+
+  return null;
+}
+
+function isWaterOnlyText(text: string) {
+  const normalized = normalizeIntentText(text);
+  if (!/\baguas?\b/.test(normalized)) {
+    return false;
+  }
+
+  const remaining = normalized
+    .replace(/\d+(?:[,.]\d+)?/g, " ")
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(word => !WATER_LOG_ALLOWED_WORDS.includes(word));
+
+  return remaining.length === 0;
+}
+
+function detectWaterLogFromMessage(message: WhatsAppMessage) {
+  const text = getTextBody(message);
+  if (!text || message.image?.id || message.audio?.id) {
+    return null;
+  }
+
+  if (!isWaterOnlyText(text)) {
+    return null;
+  }
+
+  const amountMl = parseWaterAmountMl(text);
+  if (!amountMl || amountMl <= 0 || amountMl > MAX_WATER_LOG_AMOUNT_ML) {
+    return null;
+  }
+
+  return { amountMl };
+}
+
+function buildWaterLogReply(amountMl: number, occurredAt: Date) {
+  return `Registrei ${formatMacro(amountMl)} ml de água às ${formatReplyTime(occurredAt)}.`;
+}
+
 async function logWhatsAppOperationWarning(input: {
   userId: number;
   sourcePhone: string;
@@ -712,6 +799,35 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           eventType: "whatsapp.processing_ack_failed",
           detail: acknowledgementResult.detail,
         });
+      }
+
+      const waterLog = detectWaterLogFromMessage(message);
+      if (waterLog) {
+        const occurredAt = resolveOccurredAt(message);
+        await createUserWaterLog(userId, {
+          amountMl: waterLog.amountMl,
+          occurredAt: occurredAt.toISOString(),
+        });
+
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "success",
+          eventType: "whatsapp.water_logged",
+          detail: `Consumo de ${waterLog.amountMl} ml de água registrado pelo WhatsApp às ${formatReplyTime(occurredAt)}.`,
+        });
+
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWaterLogReply(waterLog.amountMl, occurredAt));
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
+        continue;
       }
 
       const prepared = await prepareMessageInput(message, sourcePhone);
