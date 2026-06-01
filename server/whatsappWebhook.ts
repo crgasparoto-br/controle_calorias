@@ -216,29 +216,28 @@ function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt
   const mealLabel = processed.detectedMealLabel || "Refeição";
   const mealHeader = `${getMealEmoji(mealLabel)} ${mealLabel}:`;
   const timeLabel = formatReplyTime(registeredAt);
+  const calories = formatMacro(processed.totals.calories);
 
   if (!processed.items.length) {
     return [
       mealHeader,
       processed.sourceText || "Alimento não identificado.",
-      `• Às ${timeLabel}`,
-      `• Proteínas: ${formatMacro(processed.totals.protein)}g`,
-      `• Carboidratos: ${formatMacro(processed.totals.carbs)}g`,
-      `• Gorduras: ${formatMacro(processed.totals.fat)}g`,
-      `• ${formatMacro(processed.totals.calories)}kcal`,
+      `Total estimado: ${calories} kcal.`,
+      `Horário: ${timeLabel}.`,
     ].join("\n");
   }
 
-  const itemBlocks = processed.items.map((item) => [
-    formatFoodDescription(item),
-    `• Às ${timeLabel}`,
-    `• Proteínas: ${formatMacro(item.protein)}g`,
-    `• Carboidratos: ${formatMacro(item.carbs)}g`,
-    `• Gorduras: ${formatMacro(item.fat)}g`,
-    `• ${formatMacro(item.calories)}kcal`,
-  ].join("\n"));
+  const foods = processed.items
+    .map(formatFoodDescription)
+    .filter(Boolean)
+    .join("; ");
 
-  return [mealHeader, "", itemBlocks.join("\n\n")].join("\n");
+  return [
+    mealHeader,
+    `Alimentos: ${foods}.`,
+    `Total estimado: ${calories} kcal.`,
+    `Horário: ${timeLabel}.`,
+  ].join("\n");
 }
 
 async function handlePendingWhatsAppConfirmation(message: WhatsAppMessage, userId: number) {
