@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -286,8 +286,8 @@ export function RegisteredMealGroups({
   renderEditingForm,
 }: RegisteredMealGroupsProps) {
   const utils = trpc.useUtils();
+  const itemMutationActionRef = useRef<"save" | "delete">("save");
   const [editingItemTarget, setEditingItemTarget] = useState<RegisteredMealItemEditTarget | null>(null);
-  const [itemMutationAction, setItemMutationAction] = useState<"save" | "delete">("save");
 
   const updateMealItem = trpc.nutrition.meals.update.useMutation({
     onSuccess: async () => {
@@ -298,7 +298,7 @@ export function RegisteredMealGroups({
         utils.nutrition.reports.weekly.invalidate(),
         utils.nutrition.reports.bundle.invalidate(),
       ]);
-      toast.success(itemMutationAction === "delete" ? "Alimento removido com sucesso." : "Alimento atualizado com sucesso.");
+      toast.success(itemMutationActionRef.current === "delete" ? "Alimento removido com sucesso." : "Alimento atualizado com sucesso.");
       setEditingItemTarget(null);
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar o alimento."),
@@ -324,7 +324,7 @@ export function RegisteredMealGroups({
       return;
     }
 
-    setItemMutationAction("save");
+    itemMutationActionRef.current = "save";
     updateMealItem.mutate(buildMealItemUpdatePayload(
       editingItemTarget.meal,
       userTimeZone,
@@ -344,7 +344,7 @@ export function RegisteredMealGroups({
       return;
     }
 
-    setItemMutationAction("delete");
+    itemMutationActionRef.current = "delete";
     updateMealItem.mutate(buildMealItemUpdatePayload(
       editingItemTarget.meal,
       userTimeZone,
