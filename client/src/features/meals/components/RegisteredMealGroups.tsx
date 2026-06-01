@@ -1,12 +1,17 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DisclosureToggle } from "@/components/ui/disclosure-toggle";
+import { zonedDateTimeLocalToIso, toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
+import { trpc } from "@/lib/trpc";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
-import type { MealType, StoredMeal } from "../types";
+import { normalizeMealType } from "../mealViewModels";
+import type { MealItemState, MealType, StoredMeal } from "../types";
 import { Copy, PencilLine, Star, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { RegisteredMealItemEditDialog, type RegisteredMealItemEditTarget } from "./RegisteredMealItemEditDialog";
 
 type RegisteredMealGroupsProps = {
   groups: RegisteredMealGroupViewModel[];
@@ -17,6 +22,7 @@ type RegisteredMealGroupsProps = {
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
   onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealItem?: (meal: StoredMeal, itemIndex: number) => void;
   onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
   onFavoriteMeal?: (meal: StoredMeal) => void;
   onRemoveMeal?: (meal: StoredMeal) => void;
@@ -68,18 +74,39 @@ function NutritionBadge({ label, value }: { label: string; value: string }) {
   );
 }
 
+function normalizeItemForSave(item: MealItemState): MealItemState {
+  const foodName = item.foodName.trim();
+  return {
+    ...item,
+    foodName,
+    canonicalName: item.canonicalName.trim() || foodName,
+    portionText: item.portionText.trim() || "1 porção",
+    confidence: Number(item.confidence || 1),
+  };
+}
+
+function buildMealItemUpdatePayload(meal: StoredMeal, userTimeZone: string, items: MealItemState[]) {
+  return {
+    mealId: meal.id,
+    mealLabel: normalizeMealType(meal.mealLabel),
+    occurredAt: zonedDateTimeLocalToIso(toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone), userTimeZone),
+    notes: meal.notes?.trim() || undefined,
+    items,
+  };
+}
+
 function MealFoodRow({
   item,
   record,
   userTimeZone,
   isSelected,
-  onEditMeal,
+  onEditMealItem,
 }: {
   item: RegisteredMealItemViewModel;
   record: RegisteredMealRecordViewModel;
   userTimeZone: string;
   isSelected: boolean;
-  onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealItem?: (meal: StoredMeal, itemIndex: number) => void;
 }) {
   const portionLabel = item.item.portionText.trim() || formatGrams(item.item.estimatedGrams);
   const className = [
@@ -99,15 +126,16 @@ function MealFoodRow({
     </div>
   );
 
-  if (!onEditMeal) {
+  if (!onEditMealItem) {
     return <div className={className}>{content}</div>;
   }
 
   return (
     <button
       type="button"
-      onClick={() => onEditMeal(record.meal)}
+      onClick={() => onEditMealItem(record.meal, item.itemIndex)}
       className={className}
+      aria-label={`Editar alimento ${item.item.foodName}`}
     >
       {content}
     </button>
@@ -122,6 +150,7 @@ function RegisteredMealGroupSection({
   isFavoritePending,
   isRemovePending,
   onEditMeal,
+  onEditMealItem,
   onCopyMeal,
   onFavoriteMeal,
   onRemoveMeal,
@@ -134,6 +163,7 @@ function RegisteredMealGroupSection({
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
   onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealItem?: (meal: StoredMeal, itemIndex: number) => void;
   onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
   onFavoriteMeal?: (meal: StoredMeal) => void;
   onRemoveMeal?: (meal: StoredMeal) => void;
@@ -185,7 +215,7 @@ function RegisteredMealGroupSection({
                     record={record}
                     userTimeZone={userTimeZone}
                     isSelected={selectedMealId === record.meal.id}
-                    onEditMeal={onEditMeal}
+                    onEditMealItem={onEditMealItem}
                   />
                 )),
               )}
@@ -249,11 +279,81 @@ export function RegisteredMealGroups({
   isFavoritePending,
   isRemovePending,
   onEditMeal,
+  onEditMealItem,
   onCopyMeal,
   onFavoriteMeal,
   onRemoveMeal,
   renderEditingForm,
 }: RegisteredMealGroupsProps) {
+  const utils = trpc.useUtils();
+  const itemMutationActionRef = useRef<"save" | "delete">("save");
+  const [editingItemTarget, setEditingItemTarget] = useState<RegisteredMealItemEditTarget | null>(null);
+
+  const updateMealItem = trpc.nutrition.meals.update.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.meals.list.invalidate(),
+        utils.nutrition.meals.dayTotals.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+        utils.nutrition.reports.bundle.invalidate(),
+      ]);
+      toast.success(itemMutationActionRef.current === "delete" ? "Alimento removido com sucesso." : "Alimento atualizado com sucesso.");
+      setEditingItemTarget(null);
+    },
+    onError: error => toast.error(error.message || "Não foi possível atualizar o alimento."),
+  });
+
+  const handleEditMealItem = (meal: StoredMeal, itemIndex: number) => {
+    if (onEditMealItem) {
+      onEditMealItem(meal, itemIndex);
+      return;
+    }
+
+    setEditingItemTarget({ meal, itemIndex });
+  };
+
+  const handleSaveMealItem = (item: MealItemState) => {
+    if (!editingItemTarget) {
+      return;
+    }
+
+    const normalizedItem = normalizeItemForSave(item);
+    if (!normalizedItem.foodName) {
+      toast.error("Preencha o nome do alimento.");
+      return;
+    }
+
+    itemMutationActionRef.current = "save";
+    updateMealItem.mutate(buildMealItemUpdatePayload(
+      editingItemTarget.meal,
+      userTimeZone,
+      editingItemTarget.meal.items.map((currentItem, currentIndex) =>
+        currentIndex === editingItemTarget.itemIndex ? normalizedItem : normalizeItemForSave(currentItem),
+      ),
+    ));
+  };
+
+  const handleDeleteMealItem = () => {
+    if (!editingItemTarget) {
+      return;
+    }
+
+    if (editingItemTarget.meal.items.length <= 1) {
+      toast.error("A refeição precisa ter ao menos um alimento. Para remover tudo, exclua a refeição.");
+      return;
+    }
+
+    itemMutationActionRef.current = "delete";
+    updateMealItem.mutate(buildMealItemUpdatePayload(
+      editingItemTarget.meal,
+      userTimeZone,
+      editingItemTarget.meal.items
+        .filter((_, currentIndex) => currentIndex !== editingItemTarget.itemIndex)
+        .map(normalizeItemForSave),
+    ));
+  };
+
   if (!groups.length) {
     return (
       <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
@@ -263,23 +363,38 @@ export function RegisteredMealGroups({
   }
 
   return (
-    <div className="space-y-4">
-      {groups.map(group => (
-        <RegisteredMealGroupSection
-          key={group.mealLabel}
-          group={group}
-          userTimeZone={userTimeZone}
-          selectedMealId={selectedMealId}
-          isCopyPending={isCopyPending}
-          isFavoritePending={isFavoritePending}
-          isRemovePending={isRemovePending}
-          onEditMeal={onEditMeal}
-          onCopyMeal={onCopyMeal}
-          onFavoriteMeal={onFavoriteMeal}
-          onRemoveMeal={onRemoveMeal}
-          renderEditingForm={renderEditingForm}
-        />
-      ))}
-    </div>
+    <>
+      <div className="space-y-4">
+        {groups.map(group => (
+          <RegisteredMealGroupSection
+            key={group.mealLabel}
+            group={group}
+            userTimeZone={userTimeZone}
+            selectedMealId={selectedMealId}
+            isCopyPending={isCopyPending}
+            isFavoritePending={isFavoritePending}
+            isRemovePending={isRemovePending}
+            onEditMeal={onEditMeal}
+            onEditMealItem={handleEditMealItem}
+            onCopyMeal={onCopyMeal}
+            onFavoriteMeal={onFavoriteMeal}
+            onRemoveMeal={onRemoveMeal}
+            renderEditingForm={renderEditingForm}
+          />
+        ))}
+      </div>
+
+      <RegisteredMealItemEditDialog
+        target={editingItemTarget}
+        isSaving={updateMealItem.isPending}
+        onOpenChange={open => {
+          if (!open) {
+            setEditingItemTarget(null);
+          }
+        }}
+        onDelete={handleDeleteMealItem}
+        onSave={handleSaveMealItem}
+      />
+    </>
   );
 }
