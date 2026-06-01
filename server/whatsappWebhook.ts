@@ -20,6 +20,7 @@ type PreparedMessageInput = {
   text?: string;
   transcript?: string;
   imageUrl?: string;
+  imageAnalysisUrl?: string;
   audioUrl?: string;
   media: ReturnType<typeof buildSavedMedia>[];
   summary: string;
@@ -385,19 +386,27 @@ function extensionFromMimeType(mimeType: string) {
   return "bin";
 }
 
+function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
 async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string) {
   const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = `${sourcePhone}-${mediaId}.${extension}`;
   const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType);
-
-  return buildSavedMedia({
+  const savedMedia = buildSavedMedia({
     mediaType,
     storageKey: stored.key,
     storageUrl: stored.url,
     mimeType: downloaded.mimeType,
     originalFileName: fileName,
   });
+
+  return {
+    savedMedia,
+    analysisUrl: mediaType === "image" ? buildMediaDataUrl(downloaded.buffer, downloaded.mimeType) : undefined,
+  };
 }
 
 async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string): Promise<PreparedMessageInput> {
@@ -409,15 +418,16 @@ async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string
 
   if (message.image?.id) {
     const storedImage = await persistIncomingMedia(sourcePhone, "image", message.image.id, message.image.mime_type);
-    prepared.media.push(storedImage);
-    prepared.imageUrl = storedImage.storageUrl;
+    prepared.media.push(storedImage.savedMedia);
+    prepared.imageUrl = storedImage.savedMedia.storageUrl;
+    prepared.imageAnalysisUrl = storedImage.analysisUrl;
     prepared.summary = prepared.text ? "texto + imagem" : "imagem";
   }
 
   if (message.audio?.id) {
     const storedAudio = await persistIncomingMedia(sourcePhone, "audio", message.audio.id, message.audio.mime_type);
-    prepared.media.push(storedAudio);
-    prepared.audioUrl = storedAudio.storageUrl;
+    prepared.media.push(storedAudio.savedMedia);
+    prepared.audioUrl = storedAudio.savedMedia.storageUrl;
     prepared.summary = prepared.summary === "texto + imagem" || prepared.summary === "imagem"
       ? `${prepared.summary} + áudio`
       : prepared.text
@@ -425,7 +435,7 @@ async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string
         : "áudio";
 
     const transcription = await transcribeAudio({
-      audioUrl: storedAudio.storageUrl,
+      audioUrl: storedAudio.savedMedia.storageUrl,
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
@@ -559,19 +569,23 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const processed = await processMealInput({
         text: prepared.text,
         transcript: prepared.transcript,
-        imageUrl: prepared.imageUrl,
+        imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
         audioUrl: prepared.audioUrl,
         habits: await getHabitSnapshots(userId),
       });
+      const processedForPersistence = {
+        ...processed,
+        imageUrl: prepared.imageUrl,
+      };
       const occurredAt = resolveOccurredAt(message);
-      const draft = createPendingMealInference(userId, "whatsapp", processed, prepared.media);
+      const draft = createPendingMealInference(userId, "whatsapp", processedForPersistence, prepared.media);
       const savedMeal = await confirmPendingMeal({
         draftId: draft.draftId,
         userId,
-        mealLabel: processed.detectedMealLabel || "Refeição",
+        mealLabel: processedForPersistence.detectedMealLabel || "Refeição",
         occurredAt: occurredAt.toISOString(),
         notes: prepared.text?.trim() || prepared.transcript?.trim() || undefined,
-        items: processed.items,
+        items: processedForPersistence.items,
       });
 
       logInferenceEvent({
@@ -584,7 +598,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const replyResult = await sendWhatsAppTextMessage(
         sourcePhone,
-        buildWhatsAppReplyMessage(processed, occurredAt),
+        buildWhatsAppReplyMessage(processedForPersistence, occurredAt),
       );
 
       if (!replyResult.ok) {
