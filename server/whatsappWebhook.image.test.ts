@@ -103,6 +103,40 @@ function createMetaImagePayload() {
   };
 }
 
+function createWhatsAppOkResponse() {
+  return {
+    ok: true,
+    json: async () => ({}),
+  };
+}
+
+function expectMessageMarkedAsRead(messageId: string) {
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining(`"message_id":"${messageId}"`),
+    }),
+  );
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining('"status":"read"'),
+    }),
+  );
+}
+
+function expectProcessingAcknowledgement() {
+  expect(global.fetch).toHaveBeenCalledWith(
+    expect.stringContaining("/phone-number-test/messages"),
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("Recebi sua mensagem de imagem e estou processando"),
+    }),
+  );
+}
+
 describe("whatsappWebhook image inbound", () => {
   beforeEach(() => {
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
@@ -143,6 +177,8 @@ describe("whatsappWebhook image inbound", () => {
 
     global.fetch = vi
       .fn()
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -158,10 +194,7 @@ describe("whatsappWebhook image inbound", () => {
             name.toLowerCase() === "content-type" ? "image/jpeg" : null,
         },
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      }) as typeof fetch;
+      .mockResolvedValueOnce(createWhatsAppOkResponse()) as typeof fetch;
   });
 
   afterEach(() => {
@@ -179,6 +212,8 @@ describe("whatsappWebhook image inbound", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.image-1");
+    expectProcessingAcknowledgement();
     expect(processMealInputMock).toHaveBeenCalledWith({
       text: undefined,
       transcript: undefined,
@@ -210,6 +245,8 @@ describe("whatsappWebhook image inbound", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.image-1");
+    expectProcessingAcknowledgement();
     expect(processMealInputMock).toHaveBeenCalledWith({
       text: undefined,
       transcript: undefined,
