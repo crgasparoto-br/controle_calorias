@@ -260,8 +260,9 @@ describe("whatsappWebhook", () => {
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
     expect(lastSentWhatsAppBody).toBe([
       "🍽️ Almoço:",
-      "Alimentos: 100 g arroz.",
-      "Total estimado: 130 kcal.",
+      "Alimentos e macros:",
+      "1. 100 g arroz — 130 kcal | P 2.7g | C 28g | G 0.3g",
+      "Total estimado: 130 kcal | P 2.7g | C 28g | G 0.3g.",
       "Horário: 08:52.",
     ].join("\n"));
   });
