@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createExerciseMock = vi.fn();
-const listExercisesMock = vi.fn();
-const updateExerciseMock = vi.fn();
+const exerciseMocks = vi.hoisted(() => ({
+  createExercise: vi.fn(),
+  listExercises: vi.fn(),
+  updateExercise: vi.fn(),
+}));
 
 vi.mock("../exercises/service", () => ({
-  createExercise: createExerciseMock,
-  listExercises: listExercisesMock,
-  updateExercise: updateExerciseMock,
+  createExercise: exerciseMocks.createExercise,
+  listExercises: exerciseMocks.listExercises,
+  updateExercise: exerciseMocks.updateExercise,
 }));
 
 function encodeState(userId: number) {
@@ -25,8 +27,8 @@ describe("healthIntegrationService Strava", () => {
     process.env.STRAVA_CLIENT_ID = "client-id";
     process.env.STRAVA_CLIENT_SECRET = "client-secret";
     process.env.STRAVA_REDIRECT_URI = "https://app.test/api/health-integrations/strava/callback";
-    listExercisesMock.mockResolvedValue([]);
-    createExerciseMock.mockImplementation(async (_userId, input) => ({
+    exerciseMocks.listExercises.mockResolvedValue([]);
+    exerciseMocks.createExercise.mockImplementation(async (_userId, input) => ({
       id: 123,
       userId: _userId,
       ...input,
@@ -34,7 +36,7 @@ describe("healthIntegrationService Strava", () => {
       createdAt: Date.now(),
       updatedAt: new Date(),
     }));
-    updateExerciseMock.mockResolvedValue({ id: 456 });
+    exerciseMocks.updateExercise.mockResolvedValue({ id: 456 });
   });
 
   it("registra atividades recentes do Strava como exercícios no callback OAuth", async () => {
@@ -75,19 +77,19 @@ describe("healthIntegrationService Strava", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(createExerciseMock).toHaveBeenCalledWith(42, {
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
       activityType: "Run",
       durationMinutes: 35,
       caloriesBurned: 321,
       occurredAt: "2026-06-01T10:00:00Z",
       notes: "Importado automaticamente do Strava. Referencia externa: strava:999.",
     });
-    expect(updateExerciseMock).not.toHaveBeenCalled();
+    expect(exerciseMocks.updateExercise).not.toHaveBeenCalled();
     expect(result.message).toContain("1 exercício(s) registrado(s)");
   });
 
   it("atualiza exercício Strava já importado em vez de duplicar", async () => {
-    listExercisesMock.mockResolvedValue([
+    exerciseMocks.listExercises.mockResolvedValue([
       {
         id: 456,
         userId: 42,
@@ -128,8 +130,8 @@ describe("healthIntegrationService Strava", () => {
       scope: "read,activity:read",
     });
 
-    expect(createExerciseMock).not.toHaveBeenCalled();
-    expect(updateExerciseMock).toHaveBeenCalledWith(42, {
+    expect(exerciseMocks.createExercise).not.toHaveBeenCalled();
+    expect(exerciseMocks.updateExercise).toHaveBeenCalledWith(42, {
       exerciseId: 456,
       activityType: "Run",
       durationMinutes: 40,
