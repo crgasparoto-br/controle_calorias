@@ -6,6 +6,70 @@ const exerciseMocks = vi.hoisted(() => ({
   updateExercise: vi.fn(),
 }));
 
+const dbMocks = vi.hoisted(() => {
+  const appSecretRows: Array<{
+    id: number;
+    secretKey: string;
+    valueEncrypted: string;
+    updatedByUserId: number | null;
+  }> = [];
+  let sequence = 1;
+
+  const db = {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => appSecretRows.slice(0, 1)),
+        })),
+      })),
+    })),
+    insert: vi.fn(() => ({
+      values: vi.fn((value: { secretKey: string; valueEncrypted: string; updatedByUserId?: number | null }) => {
+        appSecretRows.push({
+          id: sequence++,
+          secretKey: value.secretKey,
+          valueEncrypted: value.valueEncrypted,
+          updatedByUserId: value.updatedByUserId ?? null,
+        });
+      }),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn((value: { valueEncrypted: string; updatedByUserId?: number | null }) => ({
+        where: vi.fn(() => {
+          if (appSecretRows[0]) {
+            appSecretRows[0].valueEncrypted = value.valueEncrypted;
+            appSecretRows[0].updatedByUserId = value.updatedByUserId ?? null;
+          }
+        }),
+      })),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(() => {
+        appSecretRows.splice(0, appSecretRows.length);
+      }),
+    })),
+  };
+
+  return {
+    appSecretRows,
+    db,
+    getDb: vi.fn(async () => db),
+    reset: () => {
+      appSecretRows.splice(0, appSecretRows.length);
+      sequence = 1;
+      vi.clearAllMocks();
+    },
+  };
+});
+
+vi.mock("../../db", () => ({
+  getDb: dbMocks.getDb,
+}));
+
+vi.mock("../../_core/env", () => ({
+  ENV: { cookieSecret: "test-cookie-secret" },
+}));
+
 vi.mock("../exercises/service", () => ({
   createExercise: exerciseMocks.createExercise,
   listExercises: exerciseMocks.listExercises,
@@ -23,7 +87,10 @@ function jsonResponse(body: unknown) {
 describe("healthIntegrationService Strava", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.clearAllMocks();
+    dbMocks.reset();
+    exerciseMocks.createExercise.mockReset();
+    exerciseMocks.listExercises.mockReset();
+    exerciseMocks.updateExercise.mockReset();
     process.env.STRAVA_CLIENT_ID = "client-id";
     process.env.STRAVA_CLIENT_SECRET = "client-secret";
     process.env.STRAVA_REDIRECT_URI = "https://app.test/api/health-integrations/strava/callback";
@@ -139,5 +206,42 @@ describe("healthIntegrationService Strava", () => {
       occurredAt: "2026-06-01T10:00:00Z",
       notes: "Importado automaticamente do Strava. Referencia externa: strava:999.",
     });
+  });
+
+  it("mantém o Strava conectado após recriar o serviço usando token persistido", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "persisted-access-token",
+        refresh_token: "persisted-refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([])));
+
+    const firstImport = await import("./service");
+    await firstImport.healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    vi.resetModules();
+    const secondImport = await import("./service");
+    const status = await secondImport.healthIntegrationService.getStatus(42);
+    const strava = status.providers.find(provider => provider.provider === "strava");
+
+    expect(strava?.connection?.status).toBe("connected");
+    expect(strava?.athleteName).toBe("Ana Atleta");
+
+    await secondImport.healthIntegrationService.sync(42, { provider: "strava" });
+    expect(fetch).toHaveBeenLastCalledWith(
+      "https://www.strava.com/api/v3/athlete/activities?per_page=20",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer persisted-access-token" },
+      }),
+    );
   });
 });
