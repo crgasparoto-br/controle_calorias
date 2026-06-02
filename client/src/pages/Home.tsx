@@ -208,7 +208,7 @@ export default function Home() {
         <PageIntro
           eyebrow="Hoje"
           title="Como está o seu dia agora?"
-          description="Esta tela fica focada no presente: saldo do dia, macros, água, exercícios, refeições recentes e atalhos para agir rápido."
+          description=""
           actions={
             <>
               <Link href="/registrar">
@@ -266,10 +266,7 @@ export default function Home() {
         />
 
         <section className="space-y-4">
-          <SectionHeading
-            title="Foco do dia"
-            description="Aqui fica o que ajuda a decidir os próximos registros sem misturar histórico operacional ou análise semanal profunda."
-          />
+          <SectionHeading title="Foco do dia" />
           <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
             <div className="space-y-4">
               <Card className="border-0 shadow-sm">
@@ -370,11 +367,11 @@ export default function Home() {
   );
 }
 
-function SectionHeading({ title, description }: { title: string; description: string }) {
+function SectionHeading({ title, description }: { title: string; description?: string }) {
   return (
     <div className="space-y-1">
       <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
+      {description ? <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p> : null}
     </div>
   );
 }
