@@ -38,6 +38,7 @@ export default function HealthIntegrationsPage() {
 
   const invalidate = async () => {
     await utils.nutrition.healthIntegrations.status.invalidate();
+    await utils.nutrition.exercises.list.invalidate();
   };
 
   const connect = trpc.nutrition.healthIntegrations.connect.useMutation({
@@ -50,7 +51,11 @@ export default function HealthIntegrationsPage() {
 
   const sync = trpc.nutrition.healthIntegrations.sync.useMutation({
     onSuccess: async result => {
-      toast.success(`${formatCountPtBr(result.records.length, " registros")} sincronizados com origem identificada.`);
+      const imported = result.importedExercises;
+      const exerciseSummary = imported
+        ? ` ${formatCountPtBr(imported.created, " exercícios criados")}, ${formatCountPtBr(imported.updated, " atualizados")} e ${formatCountPtBr(imported.skipped, " ignorados")}.`
+        : "";
+      toast.success(`${formatCountPtBr(result.records.length, " registros")} sincronizados com origem identificada.${exerciseSummary}`);
       await invalidate();
     },
     onError: error => toast.error(error.message || "Falha ao sincronizar dados de saúde."),
@@ -74,6 +79,7 @@ export default function HealthIntegrationsPage() {
 
   const providers = status.data?.providers ?? [];
   const recentRecords = status.data?.recentRecords ?? [];
+  const recentStravaActivities = recentRecords.filter(record => record.source === "strava" && record.dataType === "activity").length;
 
   const availableProviders = useMemo(() => providers.filter(provider => provider.available).length, [providers]);
   const connectedProviders = useMemo(
@@ -91,13 +97,13 @@ export default function HealthIntegrationsPage() {
         <PageIntro
           eyebrow="Saúde"
           title="Integrações de saúde"
-          description="A tela agora separa permissões, conexões e histórico para reduzir a leitura em bloco único. O fluxo continua o mesmo: escolher consentimentos, conectar o provider e só então acompanhar os dados externos sincronizados."
+          description="Conecte provedores externos com consentimento explícito. No Strava, a sincronização importa atividades recentes e registra exercícios no histórico principal do sistema."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat label="Providers disponíveis" value={String(availableProviders)} helper="prontos para uso" />
               <IntroStat label="Providers conectados" value={String(connectedProviders)} helper="com vínculo ativo" />
               <IntroStat label="Escopos selecionados" value={String(selectedScopes.length)} helper="tipos de dados permitidos" />
-              <IntroStat label="Registros recentes" value={String(recentRecords.length)} helper="itens visíveis agora" />
+              <IntroStat label="Atividades Strava" value={String(recentStravaActivities)} helper="sincronizadas agora" />
             </div>
           }
         />
@@ -119,8 +125,8 @@ export default function HealthIntegrationsPage() {
                 value={availableProviders ? `${availableProviders} disponíveis` : "Aguardando setup"}
               />
               <SurfaceStat
-                label="Últimos dados"
-                value={recentRecords.length ? `${recentRecords.length} registros recentes` : "Sem sincronização ainda"}
+                label="Exercícios importáveis"
+                value={recentStravaActivities ? `${recentStravaActivities} atividades recentes` : "Sem sync do Strava"}
               />
             </div>
           </div>
@@ -134,7 +140,7 @@ export default function HealthIntegrationsPage() {
                     Providers e vínculo ativo
                   </CardTitle>
                   <CardDescription>
-                    Cada integração agora aparece como uma unidade de decisão: disponibilidade, estado atual, última sincronização e ações principais no mesmo lugar.
+                    Cada integração aparece com disponibilidade, estado atual, última sincronização e ações principais. No Strava, sincronizar também atualiza o registro de exercícios.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -192,7 +198,7 @@ export default function HealthIntegrationsPage() {
                             ) : null}
                             {isStrava ? (
                               <p className="mt-4 rounded-2xl border bg-muted/20 px-3 py-2 text-sm leading-6 text-muted-foreground">
-                                O callback OAuth do Strava agora finaliza a conexão nesta aplicação. Depois da autorização, você pode voltar aqui e sincronizar atividades e gasto energético do período recente.
+                                O callback OAuth do Strava finaliza a conexão e tenta uma primeira sincronização. Atividades com duração e calorias válidas entram no histórico de exercícios sem duplicar a mesma atividade Strava.
                               </p>
                             ) : null}
                             {connection?.lastError ? (
@@ -289,7 +295,7 @@ export default function HealthIntegrationsPage() {
                       />
                     )}
                     <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-                      A organização da tela separa melhor o que é autorização, o que é vínculo técnico e o que já foi sincronizado. Isso reduz dúvida operacional no uso diário e deixa mais claro o próximo passo de cada provider.
+                      A organização da tela separa autorização, vínculo técnico e sincronização. Isso reduz dúvida operacional e mostra quando o Strava já pode alimentar o registro de exercícios.
                     </div>
                   </CardContent>
                 </Card>
@@ -302,7 +308,7 @@ export default function HealthIntegrationsPage() {
                   <CardContent className="grid gap-3">
                     <Metric label="Disponibilidade" value={`${availableProviders}/${providers.length || 0} providers`} />
                     <Metric label="Conectados" value={connectedProviders ? `${connectedProviders} ativos` : "Nenhum ativo"} />
-                    <Metric label="Dados externos" value={recentRecords.length ? `${recentRecords.length} registros recentes` : "Sem registros"} />
+                    <Metric label="Atividades Strava" value={recentStravaActivities ? `${recentStravaActivities} recentes` : "Sem sync"} />
                   </CardContent>
                 </Card>
               </div>
@@ -362,7 +368,7 @@ export default function HealthIntegrationsPage() {
                 <CardContent className="grid gap-3">
                   <FlowStep title="1. Escolha o escopo" description="Defina quais dados externos podem entrar antes de qualquer vínculo." />
                   <FlowStep title="2. Conecte o provider" description="Ative a integração apenas quando o provider estiver disponível e com setup pronto." />
-                  <FlowStep title="3. Sincronize e acompanhe" description="Revise os registros recentes sem misturar gasto externo com ingestão alimentar." />
+                  <FlowStep title="3. Sincronize e acompanhe" description="Revise os dados externos e confira os exercícios importados no registro principal." />
                 </CardContent>
               </Card>
             </div>
@@ -376,7 +382,7 @@ export default function HealthIntegrationsPage() {
                   Dados sincronizados
                 </CardTitle>
                 <CardDescription>
-                  Registros externos mantêm tipo, unidade e origem. O bloco abaixo foi isolado para facilitar leitura de métricas e histórico sem disputar espaço com permissões e botões de conexão.
+                  Registros externos mantêm tipo, unidade e origem para auditoria rápida. Atividades Strava com calorias válidas também são registradas como exercícios.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -384,7 +390,7 @@ export default function HealthIntegrationsPage() {
                   <Metric label="Passos" value={formatCountPtBr(status.data?.totals.steps ?? 0)} />
                   <Metric label="Atividade" value={formatCountPtBr(status.data?.totals.activityMinutes ?? 0, " min")} />
                   <Metric label="Gasto externo" value={formatCalories(status.data?.totals.energyBurnedCalories ?? 0)} />
-                  <Metric label="Sono" value={formatCountPtBr(status.data?.totals.sleepMinutes ?? 0, " min")} />
+                  <Metric label="Atividades Strava" value={formatCountPtBr(recentStravaActivities)} />
                 </div>
 
                 {status.isLoading ? (
