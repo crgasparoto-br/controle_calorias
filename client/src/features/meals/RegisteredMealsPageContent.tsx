@@ -16,9 +16,9 @@ import {
   type PeriodScope,
 } from "@/lib/dateRanges";
 import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
-import { formatCalories, formatGrams } from "@/lib/numberFormat";
+import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { CalendarPlus, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
+import { CalendarPlus, ChevronDown, Droplets, Dumbbell, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MealItemEditor, MealLabelInput, RegisteredMealGroups, SummaryPill } from "./components";
@@ -38,6 +38,21 @@ type MealScheduleState = {
   startTime: string;
   endTime: string;
   enabled: boolean;
+};
+
+type WaterLogRecord = {
+  id: number;
+  amountMl: number;
+  occurredAt: string | number | Date;
+};
+
+type ExerciseRecord = {
+  id: number;
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  occurredAt: string | number | Date;
+  notes?: string | null;
 };
 
 function minutesFromTime(value: string) {
@@ -91,7 +106,7 @@ function buildRecordsHeading(scope: PeriodScope) {
     case "week":
       return {
         title: "Registros agrupados por semana",
-        description: "A semana mostra as refeições agrupadas por dia para facilitar revisão rápida e manutenção do que foi lançado.",
+        description: "A semana mostra refeições, água e exercícios agrupados por dia para facilitar revisão rápida e manutenção do que foi lançado.",
         listTitle: "Refeições da semana",
       };
     case "month":
@@ -122,12 +137,39 @@ function buildDateSectionDescription(scope: PeriodScope) {
   }
 }
 
+function toDateKeyInTimeZone(value: string | number | Date, timeZone: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function isDateKeyInRange(dateKey: string, range: { start: string; end: string }) {
+  return Boolean(dateKey) && dateKey >= range.start && dateKey <= range.end;
+}
+
+function formatDateTimeLabel(value: string | number | Date, timeZone: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value)).replace(",", "");
+}
+
 function DateGroupedMealsSections({
   groups,
   scope,
   userTimeZone,
   selectedMealId,
   emptyMessage,
+  forceMealGroupsCollapsed,
   isCopyPending,
   isFavoritePending,
   isRemovePending,
@@ -141,6 +183,7 @@ function DateGroupedMealsSections({
   userTimeZone: string;
   selectedMealId?: number;
   emptyMessage: string;
+  forceMealGroupsCollapsed?: boolean;
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
@@ -173,6 +216,8 @@ function DateGroupedMealsSections({
             <div className="flex flex-wrap items-center gap-2">
               <SummaryPill label="Calorias" value={formatCalories(group.totals.calories)} />
               <SummaryPill label="Proteínas" value={formatGrams(group.totals.protein)} />
+              <SummaryPill label="Carboidratos" value={formatGrams(group.totals.carbs)} />
+              <SummaryPill label="Gorduras" value={formatGrams(group.totals.fat)} />
             </div>
           </summary>
           <div className="pt-4">
@@ -181,6 +226,7 @@ function DateGroupedMealsSections({
               userTimeZone={userTimeZone}
               selectedMealId={selectedMealId}
               emptyMessage="Nenhuma refeição encontrada para este dia."
+              forceCollapsed={forceMealGroupsCollapsed}
               isCopyPending={isCopyPending}
               isFavoritePending={isFavoritePending}
               isRemovePending={isRemovePending}
@@ -196,6 +242,81 @@ function DateGroupedMealsSections({
   );
 }
 
+function HabitRecordsSection({
+  waterLogs,
+  exerciseLogs,
+  userTimeZone,
+  isLoading,
+}: {
+  waterLogs: WaterLogRecord[];
+  exerciseLogs: ExerciseRecord[];
+  userTimeZone: string;
+  isLoading?: boolean;
+}) {
+  const waterTotalMl = waterLogs.reduce((total, log) => total + (log.amountMl ?? 0), 0);
+  const exerciseTotalCalories = exerciseLogs.reduce((total, exercise) => total + (exercise.caloriesBurned ?? 0), 0);
+  const exerciseTotalMinutes = exerciseLogs.reduce((total, exercise) => total + (exercise.durationMinutes ?? 0), 0);
+
+  return (
+    <Card collapsible={false} className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-xl">
+          <Droplets className="h-5 w-5 text-primary" />
+          Água e exercícios no período
+        </CardTitle>
+        <CardDescription>Revise os registros operacionais de hidratação e atividade física no mesmo intervalo selecionado para as refeições.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryPill label="Água" value={formatCountPtBr(waterTotalMl, " ml")} />
+          <SummaryPill label="Registros de água" value={String(waterLogs.length)} />
+          <SummaryPill label="Exercícios" value={formatCalories(exerciseTotalCalories)} />
+          <SummaryPill label="Tempo ativo" value={formatCountPtBr(exerciseTotalMinutes, " min")} />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border bg-muted/10 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium tracking-tight">Registros de água</p>
+                <p className="text-sm text-muted-foreground">{waterLogs.length} {waterLogs.length === 1 ? "lançamento" : "lançamentos"}</p>
+              </div>
+              <Droplets className="h-5 w-5 text-primary" />
+            </div>
+            <div className="space-y-2">
+              {isLoading ? <EmptyOperationalRecord text="Carregando água..." /> : null}
+              {!isLoading && !waterLogs.length ? <EmptyOperationalRecord text="Nenhum consumo de água no intervalo." /> : null}
+              {waterLogs.map(log => (
+                <OperationalRecord key={log.id} label={`${formatDateTimeLabel(log.occurredAt, userTimeZone)} - ${formatCountPtBr(log.amountMl, "ml")}`} />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-muted/10 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium tracking-tight">Registros de exercícios</p>
+                <p className="text-sm text-muted-foreground">{exerciseLogs.length} {exerciseLogs.length === 1 ? "lançamento" : "lançamentos"}</p>
+              </div>
+              <Dumbbell className="h-5 w-5 text-primary" />
+            </div>
+            <div className="space-y-2">
+              {isLoading ? <EmptyOperationalRecord text="Carregando exercícios..." /> : null}
+              {!isLoading && !exerciseLogs.length ? <EmptyOperationalRecord text="Nenhum exercício no intervalo." /> : null}
+              {exerciseLogs.map(exercise => (
+                <OperationalRecord
+                  key={exercise.id}
+                  label={`${formatDateTimeLabel(exercise.occurredAt, userTimeZone)} - ${exercise.activityType} ${formatCountPtBr(exercise.durationMinutes, " min")} . ${formatCalories(exercise.caloriesBurned)}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function RegisteredMealsPage() {
   const utils = trpc.useUtils();
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
@@ -206,10 +327,13 @@ export function RegisteredMealsPage() {
   const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
   const [copyTargetDay, setCopyTargetDay] = useState(() => toDateInputValue());
   const [manualMeal, setManualMeal] = useState(createManualMealState);
+  const [areMealGroupsCollapsed, setAreMealGroupsCollapsed] = useState(false);
 
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
+  const waterLogsQuery = trpc.nutrition.water.list.useQuery();
+  const exercisesQuery = trpc.nutrition.exercises.list.useQuery();
   const mealSchedules = mealSchedulesQuery.data as MealScheduleState[] | undefined;
 
   const activeRange = useMemo(() => {
@@ -279,9 +403,19 @@ export function RegisteredMealsPage() {
   });
 
   const allMeals = (mealsQuery.data ?? []) as StoredMeal[];
+  const allWaterLogs = (waterLogsQuery.data ?? []) as WaterLogRecord[];
+  const allExercises = (exercisesQuery.data ?? []) as ExerciseRecord[];
   const filteredMeals = useMemo(
     () => filterMealsByDateRange(allMeals, { startDate: activeRange.start, endDate: activeRange.end, timeZone: userTimeZone }),
     [activeRange.end, activeRange.start, allMeals, userTimeZone],
+  );
+  const filteredWaterLogs = useMemo(
+    () => allWaterLogs.filter(log => isDateKeyInRange(toDateKeyInTimeZone(log.occurredAt, userTimeZone), activeRange)),
+    [activeRange, allWaterLogs, userTimeZone],
+  );
+  const filteredExercises = useMemo(
+    () => allExercises.filter(exercise => isDateKeyInRange(toDateKeyInTimeZone(exercise.occurredAt, userTimeZone), activeRange)),
+    [activeRange, allExercises, userTimeZone],
   );
   const periodTotals = useMemo(() => sumStoredMealTotals(filteredMeals), [filteredMeals]);
   const periodMealGroups = useMemo(() => buildRegisteredMealGroups(filteredMeals), [filteredMeals]);
@@ -497,10 +631,22 @@ export function RegisteredMealsPage() {
 
         <Card collapsible={false} className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <ListChecks className="h-5 w-5 text-primary" />
-              {pageHeading.listTitle}
-            </CardTitle>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <ListChecks className="h-5 w-5 text-primary" />
+                {pageHeading.listTitle}
+              </CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-fit rounded-full"
+                onClick={() => setAreMealGroupsCollapsed(current => !current)}
+                aria-expanded={!areMealGroupsCollapsed}
+              >
+                <ChevronDown className={`mr-2 h-4 w-4 transition-transform ${areMealGroupsCollapsed ? "-rotate-90" : "rotate-0"}`} />
+                {areMealGroupsCollapsed ? "Expandir todas" : "Recolher todas"}
+              </Button>
+            </div>
             <CardDescription>{buildDateSectionDescription(periodScope)}</CardDescription>
           </CardHeader>
           <CardContent>
@@ -510,6 +656,7 @@ export function RegisteredMealsPage() {
                 userTimeZone={userTimeZone}
                 selectedMealId={manualMeal.mealId}
                 emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : "Nenhuma refeição foi registrada para esta data."}
+                forceCollapsed={areMealGroupsCollapsed}
                 isCopyPending={copyMeal.isPending}
                 isFavoritePending={saveFavoriteMeal.isPending}
                 isRemovePending={removeMeal.isPending}
@@ -525,6 +672,7 @@ export function RegisteredMealsPage() {
                 userTimeZone={userTimeZone}
                 selectedMealId={manualMeal.mealId}
                 emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : `Nenhum registro encontrado para ${activeRangeLabel.toLowerCase()}.`}
+                forceMealGroupsCollapsed={areMealGroupsCollapsed}
                 isCopyPending={copyMeal.isPending}
                 isFavoritePending={saveFavoriteMeal.isPending}
                 isRemovePending={removeMeal.isPending}
@@ -536,7 +684,26 @@ export function RegisteredMealsPage() {
             )}
           </CardContent>
         </Card>
+
+        <HabitRecordsSection
+          waterLogs={filteredWaterLogs}
+          exerciseLogs={filteredExercises}
+          userTimeZone={userTimeZone}
+          isLoading={waterLogsQuery.isLoading || exercisesQuery.isLoading}
+        />
       </div>
     </DashboardLayout>
   );
+}
+
+function OperationalRecord({ label }: { label: string }) {
+  return (
+    <div className="rounded-2xl border bg-background p-3 text-sm font-medium tracking-tight text-foreground">
+      {label}
+    </div>
+  );
+}
+
+function EmptyOperationalRecord({ text }: { text: string }) {
+  return <div className="rounded-2xl border border-dashed bg-background/70 p-4 text-sm text-muted-foreground">{text}</div>;
 }

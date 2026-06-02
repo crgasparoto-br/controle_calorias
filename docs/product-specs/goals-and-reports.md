@@ -13,6 +13,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Hoje e relatórios devem usar a mesma fonte de totais para evitar divergência.
 - Hoje permanece focado no dia atual e não deve depender de consultas históricas pesadas.
 - Registros deve permitir consulta operacional por dia, semana, mês e período configurável.
+- Registros deve incluir refeições, hidratação e atividade física no mesmo intervalo ativo para revisão operacional.
 - Relatórios deve permitir análise por dia, semana, mês e período configurável com o mesmo padrão visual de seleção.
 
 ## Critérios de aceite

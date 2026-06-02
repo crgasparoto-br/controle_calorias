@@ -15,6 +15,7 @@ type RegisteredMealGroupsProps = {
   userTimeZone: string;
   selectedMealId?: number;
   emptyMessage: string;
+  forceCollapsed?: boolean;
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
@@ -211,6 +212,7 @@ function RegisteredMealGroupSection({
   group,
   userTimeZone,
   selectedMealId,
+  forceCollapsed,
   isCopyPending,
   isFavoritePending,
   isRemovePending,
@@ -226,6 +228,7 @@ function RegisteredMealGroupSection({
   group: RegisteredMealGroupViewModel;
   userTimeZone: string;
   selectedMealId?: number;
+  forceCollapsed?: boolean;
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
@@ -251,6 +254,12 @@ function RegisteredMealGroupSection({
   const notes = group.records
     .filter(record => record.mealNotes)
     .map(record => ({ mealId: record.meal.id, mealNotes: record.mealNotes as string }));
+
+  React.useEffect(() => {
+    if (typeof forceCollapsed === "boolean") {
+      setIsCollapsed(forceCollapsed);
+    }
+  }, [forceCollapsed]);
 
   return (
     <section className="space-y-2 rounded-2xl border bg-background p-3 shadow-sm">
@@ -338,6 +347,7 @@ export function RegisteredMealGroups({
   userTimeZone,
   selectedMealId,
   emptyMessage,
+  forceCollapsed,
   isCopyPending,
   isFavoritePending,
   isRemovePending,
@@ -466,6 +476,7 @@ export function RegisteredMealGroups({
             group={group}
             userTimeZone={userTimeZone}
             selectedMealId={selectedMealId}
+            forceCollapsed={forceCollapsed}
             isCopyPending={isCopyPending}
             isFavoritePending={isFavoritePending}
             isRemovePending={isRemovePending}
