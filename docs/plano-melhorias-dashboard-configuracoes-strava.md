@@ -46,9 +46,10 @@ Este plano organiza o pacote de melhorias solicitado para o repositório `crgasp
 - Expor estado de configuração pendente quando `STRAVA_CLIENT_ID` e `STRAVA_REDIRECT_URI` não estiverem definidos.
 - Preparar URL de autorização OAuth com escopos mínimos `read,activity:read`.
 - Concluir callback OAuth, troca de `code` por tokens e sincronização das atividades recentes.
+- Persistir o vínculo OAuth por usuário em `appSecrets`, com tokens criptografados e restritos ao backend.
 - Registrar atividades Strava com duração e calorias válidas como exercícios do sistema.
 - Evitar duplicidade em sincronizações repetidas usando referência externa `strava:<activityId>` nas notas do exercício.
-- Próxima etapa estrutural: persistência segura por usuário dos tokens OAuth para manter a conexão após restart do servidor.
+- Próximas evoluções estruturais: validar com conta Strava real, considerar webhooks de atividade e avaliar colunas dedicadas de origem externa para exercícios.
 
 ## Riscos e dependências
 
@@ -78,6 +79,7 @@ Este plano organiza o pacote de melhorias solicitado para o repositório `crgasp
 - Preparada base de autorização OAuth do Strava no backend quando variáveis de ambiente estiverem presentes.
 - Tela Saúde externa passa a mostrar estado de configuração do Strava e botão `Conectar Strava` quando houver URL de autorização.
 - Callback OAuth do Strava troca `code` por token no backend e tenta sincronização inicial.
+- Vínculo OAuth do Strava é persistido por usuário em `appSecrets`, com tokens criptografados pelo backend.
 - Sincronização do Strava importa atividades recentes com duração e calorias válidas para o registro de exercícios.
 - Sincronizações repetidas atualizam exercícios importados quando a nota contém a mesma referência externa `strava:<activityId>`.
 - Tela de integrações passa a explicar que atividades Strava alimentam o registro de exercícios e invalida a lista de exercícios após sincronizar.
