@@ -81,7 +81,7 @@ A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde e
 
 Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime, e tenta uma primeira sincronização das atividades recentes do atleta autenticado. Com `DATABASE_URL` configurado, o vínculo permanece disponível após restart do servidor; em ambiente sem banco, o vínculo continua apenas em memória para desenvolvimento.
 
-A sincronização lê atividades recentes da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que sincronizações futuras atualizem o mesmo exercício em vez de duplicar o registro.
+A sincronização lê apenas as atividades dos últimos 2 meses da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que sincronizações futuras atualizem o mesmo exercício em vez de duplicar o registro.
 
 Tokens de acesso e refresh do Strava continuam restritos ao backend, são armazenados criptografados e não são expostos ao frontend.
 
@@ -110,6 +110,7 @@ Resumo do rollout:
 - configurar `STRAVA_APP_REDIRECT_BASE_URL` com o domínio público do frontend;
 - validar o redirect URI público do Strava apontando para `/api/health-integrations/strava/callback`;
 - validar que o usuário volta do Strava para o frontend já autenticado;
+- validar que a sincronização do Strava importa apenas exercícios dos últimos 2 meses;
 - validar que o vínculo Strava continua conectado após restart do backend com banco ativo;
 - validar cadastro, login, logout e usuário atual;
 - validar web e WhatsApp com smoke tests;
