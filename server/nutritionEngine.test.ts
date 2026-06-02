@@ -129,7 +129,7 @@ describe("nutritionEngine.processMealInput", () => {
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
-      text: "almoço com vários alimentos",
+      text: items.map(item => item.foodName).join(", "),
     });
 
     const request = createTextResponseMock.mock.calls[0][0];
@@ -207,6 +207,150 @@ describe("nutritionEngine.processMealInput", () => {
       estimatedGrams: 140,
       source: "hybrid",
     }));
+  });
+
+  it("remove alimentos inventados pela IA que não aparecem na mensagem textual", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_extra_habit_food",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.84,
+        reasoning: "Misturou item informado com hábito do usuário.",
+        items: [
+          {
+            foodName: "banana",
+            portionText: "1 unidade",
+            servings: 1,
+            estimatedGrams: 80,
+            estimatedCalories: 72,
+            estimatedMacros: {
+              protein: 0.9,
+              carbs: 18.6,
+              fat: 0.2,
+            },
+            confidence: 0.9,
+          },
+          {
+            foodName: "whey protein",
+            portionText: "1 scoop",
+            servings: 1,
+            estimatedGrams: 30,
+            estimatedCalories: 120,
+            estimatedMacros: {
+              protein: 24,
+              carbs: 3,
+              fat: 2,
+            },
+            confidence: 0.72,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "banana",
+      habits: [
+        {
+          foodName: "whey protein",
+          occurrenceCount: 12,
+        },
+      ],
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].foodName).toBe("banana");
+  });
+
+  it("mantém alimento textual quando a IA usa o nome canônico do catálogo", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_catalog_name",
+      outputText: JSON.stringify({
+        mealLabel: "Almoço",
+        confidence: 0.84,
+        reasoning: "Item informado normalizado para nome canônico.",
+        items: [
+          {
+            foodName: "Arroz branco cozido",
+            portionText: "100 g",
+            servings: 1,
+            estimatedGrams: 100,
+            estimatedCalories: 130,
+            estimatedMacros: {
+              protein: 2.7,
+              carbs: 28,
+              fat: 0.3,
+            },
+            confidence: 0.9,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "arroz",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Arroz branco cozido",
+      canonicalName: "Arroz branco cozido",
+    }));
+  });
+
+  it("usa tabela nutricional da imagem e quantidade exata informada no WhatsApp", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_label_table",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.89,
+        reasoning: "Valores extraídos da tabela nutricional visível no rótulo.",
+        items: [
+          {
+            foodName: "banana",
+            portionText: "100 g",
+            servings: 1,
+            estimatedGrams: 100,
+            estimatedCalories: 400,
+            estimatedMacros: {
+              protein: 20,
+              carbs: 60,
+              fat: 10,
+            },
+            confidence: 0.88,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "registrar 50g desse alimento",
+      imageUrl: "data:image/jpeg;base64,tabela-nutricional",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "banana",
+      canonicalName: "banana",
+      portionText: "50 g",
+      estimatedGrams: 50,
+      calories: 200,
+      protein: 10,
+      carbs: 30,
+      fat: 5,
+      source: "hybrid",
+    }));
+    expect(result.totals).toEqual({
+      calories: 200,
+      protein: 10,
+      carbs: 30,
+      fat: 5,
+    });
   });
 
   it("não limita o fallback heurístico a 8 alimentos", async () => {

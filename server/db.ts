@@ -449,6 +449,70 @@ export async function saveUserOnboardingProfile(userId: number, input: Onboardin
   return profile;
 }
 
+export async function updateUserCurrentWeight(userId: number, input: {
+  weightKg: number;
+  measuredAt: Date;
+  notes?: string;
+}) {
+  if (canUseMemoryPersistenceFallback()) {
+    const existingProfile = onboardingProfileStore.get(userId);
+    if (existingProfile) {
+      onboardingProfileStore.set(userId, {
+        ...existingProfile,
+        currentWeightKg: input.weightKg,
+        weightMeasuredAt: input.measuredAt.toISOString(),
+        weightEntryNote: input.notes,
+      });
+    }
+
+    const entries = weightEntryStore.get(userId) ?? [];
+    const nextId = entries.reduce((max, entry) => Math.max(max, entry.id), 0) + 1;
+    const now = new Date();
+    weightEntryStore.set(userId, [
+      ...entries,
+      {
+        id: nextId,
+        userId,
+        weightKg: input.weightKg,
+        measuredAt: input.measuredAt,
+        notes: input.notes ?? null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+  }
+
+  const db = await getDb();
+  if (!db) {
+    return {
+      userId,
+      weightKg: input.weightKg,
+      measuredAt: input.measuredAt,
+      notes: input.notes ?? null,
+    };
+  }
+
+  const now = new Date();
+  await db.update(userProfiles).set({
+    currentWeightKg: input.weightKg,
+    updatedAt: now,
+  }).where(eq(userProfiles.userId, userId));
+
+  await db.insert(weightEntries).values({
+    userId,
+    weightKg: input.weightKg,
+    measuredAt: input.measuredAt,
+    notes: input.notes ?? "Peso atualizado pelo WhatsApp.",
+  });
+
+  return {
+    userId,
+    weightKg: input.weightKg,
+    measuredAt: input.measuredAt,
+    notes: input.notes ?? null,
+  };
+}
+
 function parsePreferenceList(value: string | null | undefined) {
   if (!value) return [];
   try {

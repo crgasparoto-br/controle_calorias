@@ -87,6 +87,10 @@ type ParsedFoodText = {
   estimatedGrams?: number;
 };
 
+type BuildItemsOptions = {
+  preferInferredNutrition?: boolean;
+};
+
 type AiInputContentItem =
   | {
       type: "input_text";
@@ -212,6 +216,28 @@ function normalizeText(value: string) {
     .trim();
 }
 
+function normalizeForMatching(value: string) {
+  return ` ${normalizeText(value).replace(/-/g, " ").replace(/\s+/g, " ")} `;
+}
+
+function sourceMentionsFood(sourceText: string, foodName: string) {
+  const source = normalizeForMatching(sourceText);
+  const candidates = new Set<string>();
+  const cleanedFoodName = cleanFoodName(foodName);
+  const catalogFood = findCatalogFood(cleanedFoodName);
+
+  candidates.add(cleanedFoodName);
+  if (catalogFood) {
+    candidates.add(catalogFood.name);
+    catalogFood.aliases.forEach(alias => candidates.add(alias));
+  }
+
+  return Array.from(candidates).some(candidate => {
+    const normalizedCandidate = normalizeForMatching(candidate).trim();
+    return normalizedCandidate.length >= 2 && source.includes(` ${normalizedCandidate} `);
+  });
+}
+
 function cleanFoodName(value: string) {
   return value
     .replace(/[^\p{L}\p{N}\s-]/gu, " ")
@@ -245,6 +271,14 @@ function parseFoodText(value: string): ParsedFoodText {
     portionText: `${roundNutritionValue(grams)} g`,
     estimatedGrams: roundNutritionValue(grams),
   };
+}
+
+function extractExplicitGramAmounts(sourceText: string) {
+  const matches = Array.from(sourceText.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:g|gr|grama|gramas)\b/gi));
+  return matches
+    .map(match => parseDecimalNumber(match[1]))
+    .filter(value => Number.isFinite(value) && value > 0)
+    .map(roundNutritionValue);
 }
 
 function normalizeLlmItem(item: LlmItem): LlmItem {
@@ -404,6 +438,33 @@ function buildHybridItem(llmItem: LlmItem): MealDraftItem {
   };
 }
 
+function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceText: string) {
+  const explicitGrams = extractExplicitGramAmounts(sourceText);
+  if (items.length !== 1 || explicitGrams.length !== 1) {
+    return items;
+  }
+
+  const [item] = items;
+  const [estimatedGrams] = explicitGrams;
+  const currentGrams = item.estimatedGrams > 0 ? item.estimatedGrams : estimatedGrams;
+  const factor = currentGrams > 0 ? estimatedGrams / currentGrams : 1;
+
+  return [{
+    ...item,
+    portionText: `${formatQuantityForPortion(estimatedGrams)} g`,
+    estimatedGrams,
+    servings: Math.max(estimatedGrams / 100, 0.25),
+    calories: roundNutritionValue(item.calories * factor),
+    protein: roundNutritionValue(item.protein * factor),
+    carbs: roundNutritionValue(item.carbs * factor),
+    fat: roundNutritionValue(item.fat * factor),
+  }];
+}
+
+function formatQuantityForPortion(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
+}
+
 function buildHeuristicItem(foodName: string): MealDraftItem {
   const parsed = parseFoodText(foodName);
   const catalog = findCatalogFood(parsed.foodName);
@@ -518,7 +579,10 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
         "Inclua somente alimentos ou bebidas explicitamente mencionados, fotografados ou claramente visíveis.",
         "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': foodName deve ser apenas o alimento, portionText deve conter '140 g' e estimatedGrams deve ser 140.",
         "Não inclua prato, talheres, mesa, embalagem, rótulo, marca isolada, decoração ou itens inferidos apenas por hábito.",
-        "Quando houver foto de rótulo, use o rótulo apenas para identificar o alimento real e a porção consumida; não crie itens extras a partir de ingredientes da embalagem.",
+        "Quando houver foto de rótulo ou tabela nutricional, use os valores da tabela para calorias, proteína, carboidratos e gorduras; não substitua por valores genéricos de catálogo.",
+        "Quando usar tabela nutricional visível, cite isso no campo reasoning.",
+        "Se o usuário informar quantidade junto da foto, registre exatamente essa quantidade em portionText e estimatedGrams e ajuste os macronutrientes proporcionalmente à tabela nutricional.",
+        "Use o rótulo apenas para identificar o alimento real e a porção consumida; não crie itens extras a partir de ingredientes da embalagem.",
         "Não invente totais agregados; detalhe por item com porção, gramas estimados e macronutrientes por item.",
         "Não use nomes de alimentos para inferir o tipo de refeição: café como bebida não significa café da manhã.",
       ].join("\n"),
@@ -565,15 +629,23 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
   return validation.data;
 }
 
-function buildItemsFromInference(items: LlmItem[]) {
+function buildItemsFromInference(items: LlmItem[], options: BuildItemsOptions = {}) {
   return items.map(item => {
     const normalizedItem = normalizeLlmItem(item);
     const catalog = findCatalogFood(normalizedItem.foodName);
-    if (catalog) {
+    if (catalog && !options.preferInferredNutrition) {
       return buildItemFromCatalog(catalog, normalizedItem);
     }
     return buildHybridItem(normalizedItem);
   });
+}
+
+function shouldConstrainAiItemsToText(input: MealProcessingInput, sourceText: string) {
+  return Boolean(sourceText) && !input.imageUrl && !input.audioUrl;
+}
+
+function reasoningMentionsNutritionLabel(reasoning?: string) {
+  return reasoning ? /\b(tabela nutricional|informacao nutricional|informacoes nutricionais|r[oó]tulo|rotulo|label)\b/i.test(reasoning.normalize("NFD").replace(/[\u0300-\u036f]/g, "")) : false;
 }
 
 export async function processMealInput(input: MealProcessingInput): Promise<MealProcessingResult> {
@@ -588,7 +660,17 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
   }
 
   const rawItems = extraction
-    ? buildItemsFromInference(extraction.items)
+    ? applyExplicitSingleGramQuantity(buildItemsFromInference(
+      shouldConstrainAiItemsToText(input, sourceText)
+        ? extraction.items.filter(item => sourceMentionsFood(sourceText, normalizeLlmItem(item).foodName))
+        : extraction.items,
+      {
+        preferInferredNutrition: Boolean(
+          input.imageUrl
+          && (extractExplicitGramAmounts(sourceText).length || reasoningMentionsNutritionLabel(extraction.reasoning))
+        ),
+      },
+    ), sourceText)
     : fallbackFromText(sourceText);
   const items = cleanMealItems(rawItems);
 

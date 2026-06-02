@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 
@@ -58,6 +58,8 @@ const MESSAGE_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
+const MIN_WEIGHT_LOG_KG = 25;
+const MAX_WEIGHT_LOG_KG = 350;
 const WATER_LOG_ALLOWED_WORDS = [
   "agua",
   "aguas",
@@ -617,8 +619,46 @@ function detectWaterLogFromMessage(message: WhatsAppMessage) {
   return { amountMl };
 }
 
+function parseWeightKg(text: string) {
+  const normalized = normalizeIntentText(text);
+  const kgMatch = normalized.match(/(?:\bpeso\b|\bpesei\b|\bpesando\b|\bpeso atual\b)?\s*(\d{2,3}(?:[,.]\d{1,2})?)\s*(?:kg|kgs|quilo|quilos)\b/);
+  if (kgMatch) {
+    return Number(kgMatch[1].replace(",", "."));
+  }
+
+  const weightFirstMatch = normalized.match(/\b(?:peso|pesei|pesando|peso atual)\b[^\d]*(\d{2,3}(?:[,.]\d{1,2})?)\b/);
+  if (weightFirstMatch) {
+    return Number(weightFirstMatch[1].replace(",", "."));
+  }
+
+  return null;
+}
+
+function detectWeightLogFromMessage(message: WhatsAppMessage) {
+  const text = getTextBody(message);
+  if (!text || message.image?.id || message.audio?.id) {
+    return null;
+  }
+
+  const normalized = normalizeIntentText(text);
+  if (!/\b(peso|pesei|pesando|kg|kgs|quilo|quilos)\b/.test(normalized)) {
+    return null;
+  }
+
+  const weightKg = parseWeightKg(text);
+  if (!weightKg || weightKg < MIN_WEIGHT_LOG_KG || weightKg > MAX_WEIGHT_LOG_KG) {
+    return null;
+  }
+
+  return { weightKg };
+}
+
 function buildWaterLogReply(amountMl: number, occurredAt: Date) {
   return `Registrei ${formatMacro(amountMl)} ml de água às ${formatReplyTime(occurredAt)}.`;
+}
+
+function buildWeightLogReply(weightKg: number, occurredAt: Date) {
+  return `Atualizei seu peso atual para ${formatMacro(weightKg)} kg às ${formatReplyTime(occurredAt)}.`;
 }
 
 async function logWhatsAppOperationWarning(input: {
@@ -965,6 +1005,36 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         });
 
         const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWaterLogReply(waterLog.amountMl, occurredAt));
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
+        continue;
+      }
+
+      const weightLog = detectWeightLogFromMessage(message);
+      if (weightLog) {
+        const occurredAt = resolveOccurredAt(message);
+        await updateUserCurrentWeight(userId, {
+          weightKg: weightLog.weightKg,
+          measuredAt: occurredAt,
+          notes: "Peso atualizado pelo WhatsApp.",
+        });
+
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "success",
+          eventType: "whatsapp.weight_logged",
+          detail: `Peso de ${formatMacro(weightLog.weightKg)} kg registrado pelo WhatsApp às ${formatReplyTime(occurredAt)}.`,
+        });
+
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWeightLogReply(weightLog.weightKg, occurredAt));
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,

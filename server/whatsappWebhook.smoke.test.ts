@@ -5,6 +5,7 @@ const getHabitSnapshotsMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const createUserWaterLogMock = vi.fn();
+const updateUserCurrentWeightMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
@@ -22,6 +23,7 @@ vi.mock("./db", () => ({
   listUserMeals: vi.fn(async () => []),
   logInferenceEvent: logInferenceEventMock,
   relabelUserMeals: vi.fn(async () => []),
+  updateUserCurrentWeight: updateUserCurrentWeightMock,
 }));
 
 vi.mock("./nutritionEngine", () => ({
@@ -192,6 +194,7 @@ describe("whatsappWebhook smoke", () => {
     getHabitSnapshotsMock.mockResolvedValue([]);
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
+    updateUserCurrentWeightMock.mockResolvedValue({ userId: 123, weightKg: 72.5 });
     storagePutMock.mockReset();
     storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-smoke-text" });
@@ -287,6 +290,32 @@ describe("whatsappWebhook smoke", () => {
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({
         body: expect.stringContaining("Registrei 250 ml de água"),
+      }),
+    );
+  });
+
+  it("registra peso atual sem criar refeição", async () => {
+    const req = { body: createMetaTextPayload("peso 72,5 kg") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.smoke-text-1");
+    expectProcessingAcknowledgement("texto");
+    expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(123, {
+      weightKg: 72.5,
+      measuredAt: new Date("2024-04-21T14:14:00.000Z"),
+      notes: "Peso atualizado pelo WhatsApp.",
+    });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/phone-number-test/messages"),
+      expect.objectContaining({
+        body: expect.stringContaining("Atualizei seu peso atual para 72.5 kg"),
       }),
     );
   });
