@@ -16,9 +16,9 @@ import {
   type PeriodScope,
 } from "@/lib/dateRanges";
 import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
-import { formatCalories, formatGrams } from "@/lib/numberFormat";
+import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { CalendarPlus, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
+import { CalendarPlus, Droplets, Dumbbell, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MealItemEditor, MealLabelInput, RegisteredMealGroups, SummaryPill } from "./components";
@@ -38,6 +38,21 @@ type MealScheduleState = {
   startTime: string;
   endTime: string;
   enabled: boolean;
+};
+
+type WaterLogRecord = {
+  id: number;
+  amountMl: number;
+  occurredAt: string | number | Date;
+};
+
+type ExerciseRecord = {
+  id: number;
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  occurredAt: string | number | Date;
+  notes?: string | null;
 };
 
 function minutesFromTime(value: string) {
@@ -91,7 +106,7 @@ function buildRecordsHeading(scope: PeriodScope) {
     case "week":
       return {
         title: "Registros agrupados por semana",
-        description: "A semana mostra as refeições agrupadas por dia para facilitar revisão rápida e manutenção do que foi lançado.",
+        description: "A semana mostra refeições, água e exercícios agrupados por dia para facilitar revisão rápida e manutenção do que foi lançado.",
         listTitle: "Refeições da semana",
       };
     case "month":
@@ -120,6 +135,29 @@ function buildDateSectionDescription(scope: PeriodScope) {
     default:
       return "";
   }
+}
+
+function toDateKeyInTimeZone(value: string | number | Date, timeZone: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function isDateKeyInRange(dateKey: string, range: { start: string; end: string }) {
+  return Boolean(dateKey) && dateKey >= range.start && dateKey <= range.end;
+}
+
+function formatDateTimeLabel(value: string | number | Date, timeZone: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function DateGroupedMealsSections({
@@ -196,6 +234,83 @@ function DateGroupedMealsSections({
   );
 }
 
+function HabitRecordsSection({
+  waterLogs,
+  exerciseLogs,
+  userTimeZone,
+  isLoading,
+}: {
+  waterLogs: WaterLogRecord[];
+  exerciseLogs: ExerciseRecord[];
+  userTimeZone: string;
+  isLoading?: boolean;
+}) {
+  const waterTotalMl = waterLogs.reduce((total, log) => total + (log.amountMl ?? 0), 0);
+  const exerciseTotalCalories = exerciseLogs.reduce((total, exercise) => total + (exercise.caloriesBurned ?? 0), 0);
+  const exerciseTotalMinutes = exerciseLogs.reduce((total, exercise) => total + (exercise.durationMinutes ?? 0), 0);
+
+  return (
+    <Card collapsible={false} className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-xl">
+          <Droplets className="h-5 w-5 text-primary" />
+          Água e exercícios no período
+        </CardTitle>
+        <CardDescription>Revise os registros operacionais de hidratação e atividade física no mesmo intervalo selecionado para as refeições.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryPill label="Água" value={formatCountPtBr(waterTotalMl, " ml")} />
+          <SummaryPill label="Registros de água" value={String(waterLogs.length)} />
+          <SummaryPill label="Exercícios" value={formatCalories(exerciseTotalCalories)} />
+          <SummaryPill label="Tempo ativo" value={formatCountPtBr(exerciseTotalMinutes, " min")} />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border bg-muted/10 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium tracking-tight">Registros de água</p>
+                <p className="text-sm text-muted-foreground">{waterLogs.length} {waterLogs.length === 1 ? "lançamento" : "lançamentos"}</p>
+              </div>
+              <Droplets className="h-5 w-5 text-primary" />
+            </div>
+            <div className="space-y-2">
+              {isLoading ? <EmptyOperationalRecord text="Carregando água..." /> : null}
+              {!isLoading && !waterLogs.length ? <EmptyOperationalRecord text="Nenhum consumo de água no intervalo." /> : null}
+              {waterLogs.map(log => (
+                <OperationalRecord key={log.id} title={formatCountPtBr(log.amountMl, " ml")} subtitle={formatDateTimeLabel(log.occurredAt, userTimeZone)} />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-muted/10 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium tracking-tight">Registros de exercícios</p>
+                <p className="text-sm text-muted-foreground">{exerciseLogs.length} {exerciseLogs.length === 1 ? "lançamento" : "lançamentos"}</p>
+              </div>
+              <Dumbbell className="h-5 w-5 text-primary" />
+            </div>
+            <div className="space-y-2">
+              {isLoading ? <EmptyOperationalRecord text="Carregando exercícios..." /> : null}
+              {!isLoading && !exerciseLogs.length ? <EmptyOperationalRecord text="Nenhum exercício no intervalo." /> : null}
+              {exerciseLogs.map(exercise => (
+                <OperationalRecord
+                  key={exercise.id}
+                  title={exercise.activityType}
+                  subtitle={`${formatCountPtBr(exercise.durationMinutes, " min")} · ${formatCalories(exercise.caloriesBurned)}`}
+                  extra={exercise.notes || formatDateTimeLabel(exercise.occurredAt, userTimeZone)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function RegisteredMealsPage() {
   const utils = trpc.useUtils();
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
@@ -210,6 +325,8 @@ export function RegisteredMealsPage() {
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
+  const waterLogsQuery = trpc.nutrition.water.list.useQuery();
+  const exercisesQuery = trpc.nutrition.exercises.list.useQuery();
   const mealSchedules = mealSchedulesQuery.data as MealScheduleState[] | undefined;
 
   const activeRange = useMemo(() => {
@@ -279,9 +396,19 @@ export function RegisteredMealsPage() {
   });
 
   const allMeals = (mealsQuery.data ?? []) as StoredMeal[];
+  const allWaterLogs = (waterLogsQuery.data ?? []) as WaterLogRecord[];
+  const allExercises = (exercisesQuery.data ?? []) as ExerciseRecord[];
   const filteredMeals = useMemo(
     () => filterMealsByDateRange(allMeals, { startDate: activeRange.start, endDate: activeRange.end, timeZone: userTimeZone }),
     [activeRange.end, activeRange.start, allMeals, userTimeZone],
+  );
+  const filteredWaterLogs = useMemo(
+    () => allWaterLogs.filter(log => isDateKeyInRange(toDateKeyInTimeZone(log.occurredAt, userTimeZone), activeRange)),
+    [activeRange, allWaterLogs, userTimeZone],
+  );
+  const filteredExercises = useMemo(
+    () => allExercises.filter(exercise => isDateKeyInRange(toDateKeyInTimeZone(exercise.occurredAt, userTimeZone), activeRange)),
+    [activeRange, allExercises, userTimeZone],
   );
   const periodTotals = useMemo(() => sumStoredMealTotals(filteredMeals), [filteredMeals]);
   const periodMealGroups = useMemo(() => buildRegisteredMealGroups(filteredMeals), [filteredMeals]);
@@ -536,7 +663,30 @@ export function RegisteredMealsPage() {
             )}
           </CardContent>
         </Card>
+
+        <HabitRecordsSection
+          waterLogs={filteredWaterLogs}
+          exerciseLogs={filteredExercises}
+          userTimeZone={userTimeZone}
+          isLoading={waterLogsQuery.isLoading || exercisesQuery.isLoading}
+        />
       </div>
     </DashboardLayout>
   );
+}
+
+function OperationalRecord({ title, subtitle, extra }: { title: string; subtitle: string; extra?: string }) {
+  return (
+    <div className="rounded-2xl border bg-background p-3 text-sm">
+      <div className="flex flex-col gap-1">
+        <p className="font-medium tracking-tight text-foreground">{title}</p>
+        <p className="text-muted-foreground">{subtitle}</p>
+        {extra ? <p className="text-xs text-muted-foreground">{extra}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function EmptyOperationalRecord({ text }: { text: string }) {
+  return <div className="rounded-2xl border border-dashed bg-background/70 p-4 text-sm text-muted-foreground">{text}</div>;
 }
