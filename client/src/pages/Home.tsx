@@ -226,13 +226,14 @@ export default function Home() {
                     <p className="text-sm leading-6 text-muted-foreground">{dailyStatus}</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                    <StatBlock label="Meta calórica" value={formatCalories(calorieGoal)} sublabel={overview.data?.today.goal.label ?? "Planejamento diário"} />
+                    <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={`Meta ${formatCalories(calorieGoal)}`} />
                     <StatBlock label="Proteína" value={formatGrams(overview.data?.today.consumed.protein ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.protein ?? 0)}`} />
                     <StatBlock label="Carboidratos" value={formatGrams(overview.data?.today.consumed.carbs ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.carbs ?? 0)}`} />
                     <StatBlock label="Gorduras" value={formatGrams(overview.data?.today.consumed.fat ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.fat ?? 0)}`} />
                     <StatBlock label="Refeições" value={formatCountPtBr(todaysMeals.length)} sublabel="Registradas hoje" />
                   </div>
-                  <div className="grid gap-3 lg:grid-cols-3">
+                  <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+                    <CalorieBar consumed={consumedCalories} goal={calorieGoal} />
                     <MacroBar label="Proteínas" consumed={overview.data?.today.consumed.protein ?? 0} goal={overview.data?.today.goal.protein ?? 0} />
                     <MacroBar label="Carboidratos" consumed={overview.data?.today.consumed.carbs ?? 0} goal={overview.data?.today.goal.carbs ?? 0} />
                     <MacroBar label="Gorduras" consumed={overview.data?.today.consumed.fat ?? 0} goal={overview.data?.today.goal.fat ?? 0} />
@@ -533,6 +534,26 @@ function StatBlock({ label, value, sublabel }: { label: string; value: string; s
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{sublabel}</p>
+    </div>
+  );
+}
+
+function CalorieBar({ consumed, goal }: { consumed: number; goal: number }) {
+  const progress = macroProgress(consumed, goal);
+  const isAboveGoal = goal > 0 && consumed > goal;
+
+  return (
+    <div className="space-y-2 rounded-2xl border bg-muted/30 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-medium tracking-tight">Calorias</p>
+        <p className="text-sm text-muted-foreground">
+          {formatCalories(consumed)} / {formatCalories(goal)}
+        </p>
+      </div>
+      <Progress value={progress} className="h-2" />
+      <p className="text-xs text-muted-foreground">
+        {isAboveGoal ? SAFE_NUTRITION_MESSAGES.caloriesAboveGoal : `${formatPercentPtBr(progress)}% da meta de hoje.`}
+      </p>
     </div>
   );
 }
