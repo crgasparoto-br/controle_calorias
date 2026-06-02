@@ -36,9 +36,32 @@ type AssistantSuggestion = {
   educationalNotice: string;
 };
 
+type MealTotals = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
+type GroupedMealSummary = {
+  id: string;
+  mealLabel: string;
+  totals: MealTotals;
+  count: number;
+};
+
 function macroProgress(consumed: number, goal: number) {
   if (!goal) return 0;
   return Math.min((consumed / goal) * 100, 100);
+}
+
+function dayShare(value: number, total: number) {
+  if (!total || value <= 0) return 0;
+  return (value / total) * 100;
+}
+
+function formatDayShare(value: number, total: number) {
+  return `${formatPercentPtBr(dayShare(value, total))}% do total do dia`;
 }
 
 function positiveRemaining(value: number) {
@@ -110,12 +133,47 @@ export default function Home() {
 
   const todaysMeals = overview.data?.meals ?? [];
   const consumedCalories = overview.data?.today.consumed.calories ?? 0;
+  const consumedProtein = overview.data?.today.consumed.protein ?? 0;
+  const consumedCarbs = overview.data?.today.consumed.carbs ?? 0;
+  const consumedFat = overview.data?.today.consumed.fat ?? 0;
   const calorieGoal = overview.data?.today.goal.calories ?? 0;
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
   const exerciseCalories = overview.data?.today.burned.calories ?? 0;
   const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
   const exerciseCount = overview.data?.exercises.length ?? 0;
   const waterLogCount = overview.data?.water.logs.length ?? 0;
+  const groupedTodaysMeals = React.useMemo<GroupedMealSummary[]>(() => {
+    const mealsByLabel = new Map<string, GroupedMealSummary>();
+
+    todaysMeals.forEach(meal => {
+      const mealLabel = meal.mealLabel.trim() || "Refeição";
+      const key = mealLabel.toLocaleLowerCase("pt-BR");
+      const existing = mealsByLabel.get(key);
+
+      if (existing) {
+        existing.count += 1;
+        existing.totals.calories += meal.totals.calories ?? 0;
+        existing.totals.protein += meal.totals.protein ?? 0;
+        existing.totals.carbs += meal.totals.carbs ?? 0;
+        existing.totals.fat += meal.totals.fat ?? 0;
+        return;
+      }
+
+      mealsByLabel.set(key, {
+        id: meal.id,
+        mealLabel,
+        totals: {
+          calories: meal.totals.calories ?? 0,
+          protein: meal.totals.protein ?? 0,
+          carbs: meal.totals.carbs ?? 0,
+          fat: meal.totals.fat ?? 0,
+        },
+        count: 1,
+      });
+    });
+
+    return Array.from(mealsByLabel.values());
+  }, [todaysMeals]);
 
   if (overview.isLoading) {
     return (
@@ -227,16 +285,16 @@ export default function Home() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={`Meta ${formatCalories(calorieGoal)}`} />
-                    <StatBlock label="Proteína" value={formatGrams(overview.data?.today.consumed.protein ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.protein ?? 0)}`} />
-                    <StatBlock label="Carboidratos" value={formatGrams(overview.data?.today.consumed.carbs ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.carbs ?? 0)}`} />
-                    <StatBlock label="Gorduras" value={formatGrams(overview.data?.today.consumed.fat ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.fat ?? 0)}`} />
-                    <StatBlock label="Refeições" value={formatCountPtBr(todaysMeals.length)} sublabel="Registradas hoje" />
+                    <StatBlock label="Proteína" value={formatGrams(consumedProtein)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.protein ?? 0)}`} />
+                    <StatBlock label="Carboidratos" value={formatGrams(consumedCarbs)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.carbs ?? 0)}`} />
+                    <StatBlock label="Gorduras" value={formatGrams(consumedFat)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.fat ?? 0)}`} />
+                    <StatBlock label="Refeições" value={formatCountPtBr(groupedTodaysMeals.length)} sublabel="Agrupadas por nome" />
                   </div>
                   <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
                     <CalorieBar consumed={consumedCalories} goal={calorieGoal} />
-                    <MacroBar label="Proteínas" consumed={overview.data?.today.consumed.protein ?? 0} goal={overview.data?.today.goal.protein ?? 0} />
-                    <MacroBar label="Carboidratos" consumed={overview.data?.today.consumed.carbs ?? 0} goal={overview.data?.today.goal.carbs ?? 0} />
-                    <MacroBar label="Gorduras" consumed={overview.data?.today.consumed.fat ?? 0} goal={overview.data?.today.goal.fat ?? 0} />
+                    <MacroBar label="Proteínas" consumed={consumedProtein} goal={overview.data?.today.goal.protein ?? 0} />
+                    <MacroBar label="Carboidratos" consumed={consumedCarbs} goal={overview.data?.today.goal.carbs ?? 0} />
+                    <MacroBar label="Gorduras" consumed={consumedFat} goal={overview.data?.today.goal.fat ?? 0} />
                   </div>
                 </CardContent>
               </Card>
@@ -245,7 +303,7 @@ export default function Home() {
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <CardTitle>Refeições do dia</CardTitle>
-                    <CardDescription>Registros confirmados hoje, com calorias e macros por refeição.</CardDescription>
+                    <CardDescription>Registros confirmados hoje, somados por refeição.</CardDescription>
                   </div>
                   <Link href="/meals">
                     <Button variant="ghost" className="gap-2 px-0 sm:px-3">
@@ -255,17 +313,38 @@ export default function Home() {
                   </Link>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {todaysMeals.length ? (
-                    todaysMeals.map(meal => (
+                  {groupedTodaysMeals.length ? (
+                    groupedTodaysMeals.map(meal => (
                       <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p className="font-medium tracking-tight">{meal.mealLabel}</p>
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(meal.totals.calories)}</Badge>
+                          <div>
+                            <p className="font-medium tracking-tight">{meal.mealLabel}</p>
+                            {meal.count > 1 ? (
+                              <p className="mt-1 text-xs text-muted-foreground">{formatCountPtBr(meal.count)} registros somados</p>
+                            ) : null}
+                          </div>
                         </div>
-                        <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-                          <MiniMacro label="Proteínas" value={formatGrams(meal.totals.protein)} />
-                          <MiniMacro label="Carboidratos" value={formatGrams(meal.totals.carbs)} />
-                          <MiniMacro label="Gorduras" value={formatGrams(meal.totals.fat)} />
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                          <MealNutritionMetric
+                            label="Calorias"
+                            value={formatCalories(meal.totals.calories)}
+                            percentage={formatDayShare(meal.totals.calories, consumedCalories)}
+                          />
+                          <MealNutritionMetric
+                            label="Proteínas"
+                            value={formatGrams(meal.totals.protein)}
+                            percentage={formatDayShare(meal.totals.protein, consumedProtein)}
+                          />
+                          <MealNutritionMetric
+                            label="Carboidratos"
+                            value={formatGrams(meal.totals.carbs)}
+                            percentage={formatDayShare(meal.totals.carbs, consumedCarbs)}
+                          />
+                          <MealNutritionMetric
+                            label="Gorduras"
+                            value={formatGrams(meal.totals.fat)}
+                            percentage={formatDayShare(meal.totals.fat, consumedFat)}
+                          />
                         </div>
                       </div>
                     ))
@@ -568,6 +647,16 @@ function MiniMacro({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl bg-muted/40 px-3 py-2">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="font-medium tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+function MealNutritionMetric({ label, value, percentage }: { label: string; value: string; percentage: string }) {
+  return (
+    <div className="rounded-xl bg-muted/40 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-medium tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{percentage}</p>
     </div>
   );
 }
