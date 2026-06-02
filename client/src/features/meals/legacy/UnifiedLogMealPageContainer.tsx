@@ -19,7 +19,7 @@ import {
 } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { calculateMealTotals } from "../../../../../shared/mealTotals";
-import { Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
+import { ChevronDown, Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { MealAiTabContent, MealManualEditorCard, SummaryPill } from "../components";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
@@ -132,6 +132,8 @@ export default function LogMealPage() {
   const [waterForm, setWaterForm] = useState(buildDefaultWaterForm);
   const [weightValue, setWeightValue] = useState("");
   const [weightMeasuredAt, setWeightMeasuredAt] = useState(() => toDateTimeLocalValue(new Date()));
+  const [areWaterLogsExpanded, setAreWaterLogsExpanded] = useState(false);
+  const [areExerciseLogsExpanded, setAreExerciseLogsExpanded] = useState(false);
 
   React.useEffect(() => {
     if (waterGoalQuery.data?.dailyTargetMl) {
@@ -239,6 +241,8 @@ export default function LogMealPage() {
   const parsedWeight = parseDecimalInputPtBr(weightValue);
   const isWeightInvalid = !weightValue.trim() || parsedWeight < 25 || parsedWeight > 350;
   const currentWeightLabel = profileQuery.data?.currentWeightKg ? `${formatNumberPtBr(profileQuery.data.currentWeightKg, { minimumFractionDigits: 0, maximumFractionDigits: 1 })} kg` : "Não informado";
+  const waterLogs = overviewQuery.data?.water.logs ?? [];
+  const exerciseLogs = overviewQuery.data?.exercises ?? [];
 
   const handleProcess = async () => {
     if (!description && !imageFile && !audioFile) {
@@ -366,7 +370,9 @@ export default function LogMealPage() {
           <div className="grid gap-2 sm:grid-cols-3">{[200, 300, 500].map(shortcut => <Button key={shortcut} type="button" variant="outline" className="rounded-full" onClick={() => createWaterLog.mutate({ amountMl: shortcut, occurredAt: new Date().toISOString() })} disabled={createWaterLog.isPending}>+ {formatCountPtBr(shortcut, " ml")}</Button>)}</div>
           <Button type="submit" className="w-full rounded-full" disabled={createWaterLog.isPending || isWaterAmountInvalid}>{createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}</Button>
         </form>
-        <div className="space-y-2">{(overviewQuery.data?.water.logs ?? []).slice(0, 3).map(log => <QuickLog key={log.id} title={formatCountPtBr(log.amountMl, " ml")} subtitle={new Date(Number(log.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeWaterLog.mutate({ waterLogId: log.id })} disabled={removeWaterLog.isPending} />)}{!(overviewQuery.data?.water.logs ?? []).length ? <EmptyMini text="Nenhum consumo de água foi registrado ainda." /> : null}</div>
+        <CollapsibleQuickLogs title="Registros recentes de água" count={waterLogs.length} emptyText="Nenhum consumo de água foi registrado ainda." isExpanded={areWaterLogsExpanded} onToggle={() => setAreWaterLogsExpanded(current => !current)}>
+          {waterLogs.map(log => <QuickLog key={log.id} title={formatCountPtBr(log.amountMl, " ml")} subtitle={new Date(Number(log.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeWaterLog.mutate({ waterLogId: log.id })} disabled={removeWaterLog.isPending} />)}
+        </CollapsibleQuickLogs>
       </CardContent>
     </Card>
   );
@@ -388,7 +394,9 @@ export default function LogMealPage() {
           <Field label="Observações"><Textarea value={exerciseForm.notes} onChange={event => setExerciseForm(current => ({ ...current, notes: event.target.value }))} className="min-h-24 rounded-2xl" /></Field>
           <Button type="submit" className="w-full rounded-full" disabled={createExercise.isPending}>{createExercise.isPending ? "Salvando exercício..." : "Registrar exercício"}</Button>
         </form>
-        <div className="space-y-2">{(overviewQuery.data?.exercises ?? []).slice(0, 3).map(exercise => <QuickLog key={exercise.id} title={exercise.activityType} subtitle={`${formatCountPtBr(exercise.durationMinutes, " min")} · ${formatCalories(exercise.caloriesBurned)}`} extra={new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeExercise.mutate({ exerciseId: exercise.id })} disabled={removeExercise.isPending} />)}{!(overviewQuery.data?.exercises ?? []).length ? <EmptyMini text="Nenhum exercício foi registrado ainda." /> : null}</div>
+        <CollapsibleQuickLogs title="Registros recentes de exercícios" count={exerciseLogs.length} emptyText="Nenhum exercício foi registrado ainda." isExpanded={areExerciseLogsExpanded} onToggle={() => setAreExerciseLogsExpanded(current => !current)}>
+          {exerciseLogs.map(exercise => <QuickLog key={exercise.id} title={exercise.activityType} subtitle={`${formatCountPtBr(exercise.durationMinutes, " min")} · ${formatCalories(exercise.caloriesBurned)}`} extra={new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeExercise.mutate({ exerciseId: exercise.id })} disabled={removeExercise.isPending} />)}
+        </CollapsibleQuickLogs>
       </CardContent>
     </Card>
   );
@@ -505,6 +513,42 @@ export default function LogMealPage() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
+}
+
+function CollapsibleQuickLogs({
+  title,
+  count,
+  emptyText,
+  isExpanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  emptyText: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  if (!count) {
+    return <EmptyMini text={emptyText} />;
+  }
+
+  return (
+    <div className="rounded-2xl border bg-muted/20 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-medium tracking-tight">{title}</p>
+          <p className="text-sm text-muted-foreground">{count} {count === 1 ? "registro" : "registros"}</p>
+        </div>
+        <Button type="button" variant="outline" className="rounded-full" onClick={onToggle} aria-expanded={isExpanded}>
+          <ChevronDown className={`mr-2 h-4 w-4 transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`} />
+          {isExpanded ? "Recolher" : "Mostrar registros"}
+        </Button>
+      </div>
+      {isExpanded ? <div className="mt-3 space-y-2">{children}</div> : null}
+    </div>
+  );
 }
 
 function QuickLog({ title, subtitle, extra, actionLabel, onAction, disabled }: { title: string; subtitle: string; extra?: string; actionLabel?: string; onAction?: () => void; disabled?: boolean }) {
