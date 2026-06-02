@@ -552,7 +552,7 @@ function CalorieBar({ consumed, goal }: { consumed: number; goal: number }) {
       </div>
       <Progress value={progress} className="h-2" />
       <p className="text-xs text-muted-foreground">
-        {isAboveGoal ? SAFE_NUTRITION_MESSAGES.caloriesAboveGoal : `${formatPercentPtBr(progress)}% da meta de hoje.`}
+        {isAboveGoal ? SAFE_NUTRITION_MESSAGES.aboveDailyGoal : `${formatPercentPtBr(progress)}% da meta de hoje.`}
       </p>
     </div>
   );
