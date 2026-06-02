@@ -55,6 +55,27 @@ function macroProgress(consumed: number, goal: number) {
   return Math.min((consumed / goal) * 100, 100);
 }
 
+function uncappedGoalProgress(consumed: number, goal: number) {
+  if (!goal) return 0;
+  return (consumed / goal) * 100;
+}
+
+function formatGoalProgressText(consumed: number, goal: number) {
+  if (!goal) return "Meta não definida.";
+  return `${formatPercentPtBr(uncappedGoalProgress(consumed, goal))}% da meta de hoje.`;
+}
+
+function formatGoalComparison(consumed: number, goal: number, formatter: (value: number) => string) {
+  const goalLabel = `Meta ${formatter(goal)}`;
+  const excess = consumed - goal;
+
+  if (goal > 0 && excess > 0) {
+    return `${goalLabel} · ${formatter(excess)} acima`;
+  }
+
+  return goalLabel;
+}
+
 function dayShare(value: number, total: number) {
   if (!total || value <= 0) return 0;
   return (value / total) * 100;
@@ -137,6 +158,9 @@ export default function Home() {
   const consumedCarbs = overview.data?.today.consumed.carbs ?? 0;
   const consumedFat = overview.data?.today.consumed.fat ?? 0;
   const calorieGoal = overview.data?.today.goal.calories ?? 0;
+  const proteinGoal = overview.data?.today.goal.protein ?? 0;
+  const carbsGoal = overview.data?.today.goal.carbs ?? 0;
+  const fatGoal = overview.data?.today.goal.fat ?? 0;
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
   const exerciseCalories = overview.data?.today.burned.calories ?? 0;
   const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
@@ -234,7 +258,7 @@ export default function Home() {
               <DailyMetric
                 title="Calorias consumidas"
                 value={formatCalories(consumedCalories)}
-                helper={`${formatPercentPtBr(overview.data?.today.adherence ?? 0)}% da meta do dia`}
+                helper={formatGoalProgressText(consumedCalories, calorieGoal)}
                 icon={Flame}
               />
               <DailyMetric
@@ -279,17 +303,17 @@ export default function Home() {
                     <p className="text-sm leading-6 text-muted-foreground">{dailyStatus}</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                    <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={`Meta ${formatCalories(calorieGoal)}`} />
-                    <StatBlock label="Proteína" value={formatGrams(consumedProtein)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.protein ?? 0)}`} />
-                    <StatBlock label="Carboidratos" value={formatGrams(consumedCarbs)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.carbs ?? 0)}`} />
-                    <StatBlock label="Gorduras" value={formatGrams(consumedFat)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.fat ?? 0)}`} />
+                    <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={formatGoalComparison(consumedCalories, calorieGoal, formatCalories)} />
+                    <StatBlock label="Proteína" value={formatGrams(consumedProtein)} sublabel={formatGoalComparison(consumedProtein, proteinGoal, formatGrams)} />
+                    <StatBlock label="Carboidratos" value={formatGrams(consumedCarbs)} sublabel={formatGoalComparison(consumedCarbs, carbsGoal, formatGrams)} />
+                    <StatBlock label="Gorduras" value={formatGrams(consumedFat)} sublabel={formatGoalComparison(consumedFat, fatGoal, formatGrams)} />
                     <StatBlock label="Refeições" value={formatCountPtBr(groupedTodaysMeals.length)} sublabel="Agrupadas por nome" />
                   </div>
                   <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
                     <CalorieBar consumed={consumedCalories} goal={calorieGoal} />
-                    <MacroBar label="Proteínas" consumed={consumedProtein} goal={overview.data?.today.goal.protein ?? 0} />
-                    <MacroBar label="Carboidratos" consumed={consumedCarbs} goal={overview.data?.today.goal.carbs ?? 0} />
-                    <MacroBar label="Gorduras" consumed={consumedFat} goal={overview.data?.today.goal.fat ?? 0} />
+                    <MacroBar label="Proteínas" consumed={consumedProtein} goal={proteinGoal} />
+                    <MacroBar label="Carboidratos" consumed={consumedCarbs} goal={carbsGoal} />
+                    <MacroBar label="Gorduras" consumed={consumedFat} goal={fatGoal} />
                   </div>
                 </CardContent>
               </Card>
@@ -530,6 +554,7 @@ function StatBlock({ label, value, sublabel }: { label: string; value: string; s
 
 function CalorieBar({ consumed, goal }: { consumed: number; goal: number }) {
   const progress = macroProgress(consumed, goal);
+  const progressText = formatGoalProgressText(consumed, goal);
   const isAboveGoal = goal > 0 && consumed > goal;
 
   return (
@@ -542,7 +567,7 @@ function CalorieBar({ consumed, goal }: { consumed: number; goal: number }) {
       </div>
       <Progress value={progress} className="h-2" />
       <p className="text-xs text-muted-foreground">
-        {isAboveGoal ? SAFE_NUTRITION_MESSAGES.aboveDailyGoal : `${formatPercentPtBr(progress)}% da meta de hoje.`}
+        {isAboveGoal ? `${progressText} ${SAFE_NUTRITION_MESSAGES.aboveDailyGoal}` : progressText}
       </p>
     </div>
   );
@@ -550,6 +575,7 @@ function CalorieBar({ consumed, goal }: { consumed: number; goal: number }) {
 
 function MacroBar({ label, consumed, goal }: { label: string; consumed: number; goal: number }) {
   const progress = macroProgress(consumed, goal);
+  const progressText = formatGoalProgressText(consumed, goal);
   const isAboveGoal = goal > 0 && consumed > goal;
 
   return (
@@ -562,7 +588,7 @@ function MacroBar({ label, consumed, goal }: { label: string; consumed: number; 
       </div>
       <Progress value={progress} className="h-2" />
       <p className="text-xs text-muted-foreground">
-        {isAboveGoal ? SAFE_NUTRITION_MESSAGES.macroAboveGoal : `${formatPercentPtBr(progress)}% da meta de hoje.`}
+        {isAboveGoal ? `${progressText} ${SAFE_NUTRITION_MESSAGES.macroAboveGoal}` : progressText}
       </p>
     </div>
   );
