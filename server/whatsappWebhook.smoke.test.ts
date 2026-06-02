@@ -320,6 +320,61 @@ describe("whatsappWebhook smoke", () => {
     );
   });
 
+  it("registra peso atual quando o texto vem como número seguido de peso", async () => {
+    const req = { body: createMetaTextPayload("69,5 peso") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.smoke-text-1");
+    expectProcessingAcknowledgement("seu texto");
+    expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(123, {
+      weightKg: 69.5,
+      measuredAt: new Date("2024-04-21T14:14:00.000Z"),
+      notes: "Peso atualizado pelo WhatsApp.",
+    });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/phone-number-test/messages"),
+      expect.objectContaining({
+        body: expect.stringContaining("Atualizei seu peso atual para 69.5 kg"),
+      }),
+    );
+  });
+
+  it.each([
+    { text: "69.5 peso atual", expectedWeight: 69.5 },
+    { text: "peso atual 69,5", expectedWeight: 69.5 },
+  ])("registra peso atual com variação de texto: $text", async ({ text, expectedWeight }) => {
+    const req = { body: createMetaTextPayload(text) };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expectMessageMarkedAsRead("wamid.smoke-text-1");
+    expectProcessingAcknowledgement("seu texto");
+    expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(123, {
+      weightKg: expectedWeight,
+      measuredAt: new Date("2024-04-21T14:14:00.000Z"),
+      notes: "Peso atualizado pelo WhatsApp.",
+    });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/phone-number-test/messages"),
+      expect.objectContaining({
+        body: expect.stringContaining(`Atualizei seu peso atual para ${expectedWeight} kg`),
+      }),
+    );
+  });
+
   it("processa áudio inbound com transcrição mockada e sem chamada externa real ao provider", async () => {
     transcribeAudioMock.mockResolvedValue({
       task: "transcribe",

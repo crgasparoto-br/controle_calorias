@@ -640,6 +640,11 @@ function parseWeightKg(text: string) {
     return Number(kgMatch[1].replace(",", "."));
   }
 
+  const numberBeforeWeightMatch = normalized.match(/\b(\d{2,3}(?:[,.]\d{1,2})?)\s*(?:de\s*)?(?:peso|pesei|pesando|peso atual)\b/);
+  if (numberBeforeWeightMatch) {
+    return Number(numberBeforeWeightMatch[1].replace(",", "."));
+  }
+
   const weightFirstMatch = normalized.match(/\b(?:peso|pesei|pesando|peso atual)\b[^\d]*(\d{2,3}(?:[,.]\d{1,2})?)\b/);
   if (weightFirstMatch) {
     return Number(weightFirstMatch[1].replace(",", "."));
