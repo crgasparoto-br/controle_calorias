@@ -155,9 +155,12 @@ function isDateKeyInRange(dateKey: string, range: { start: string; end: string }
 function formatDateTimeLabel(value: string | number | Date, timeZone: string) {
   return new Intl.DateTimeFormat("pt-BR", {
     timeZone,
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value)).replace(",", "");
 }
 
 function DateGroupedMealsSections({
@@ -279,7 +282,7 @@ function HabitRecordsSection({
               {isLoading ? <EmptyOperationalRecord text="Carregando água..." /> : null}
               {!isLoading && !waterLogs.length ? <EmptyOperationalRecord text="Nenhum consumo de água no intervalo." /> : null}
               {waterLogs.map(log => (
-                <OperationalRecord key={log.id} title={formatCountPtBr(log.amountMl, " ml")} subtitle={formatDateTimeLabel(log.occurredAt, userTimeZone)} />
+                <OperationalRecord key={log.id} label={`${formatDateTimeLabel(log.occurredAt, userTimeZone)} - ${formatCountPtBr(log.amountMl, "ml")}`} />
               ))}
             </div>
           </div>
@@ -298,9 +301,7 @@ function HabitRecordsSection({
               {exerciseLogs.map(exercise => (
                 <OperationalRecord
                   key={exercise.id}
-                  title={exercise.activityType}
-                  subtitle={`${formatCountPtBr(exercise.durationMinutes, " min")} · ${formatCalories(exercise.caloriesBurned)}`}
-                  extra={exercise.notes || formatDateTimeLabel(exercise.occurredAt, userTimeZone)}
+                  label={`${formatDateTimeLabel(exercise.occurredAt, userTimeZone)} - ${exercise.activityType} ${formatCountPtBr(exercise.durationMinutes, " min")} . ${formatCalories(exercise.caloriesBurned)}`}
                 />
               ))}
             </div>
@@ -675,14 +676,10 @@ export function RegisteredMealsPage() {
   );
 }
 
-function OperationalRecord({ title, subtitle, extra }: { title: string; subtitle: string; extra?: string }) {
+function OperationalRecord({ label }: { label: string }) {
   return (
-    <div className="rounded-2xl border bg-background p-3 text-sm">
-      <div className="flex flex-col gap-1">
-        <p className="font-medium tracking-tight text-foreground">{title}</p>
-        <p className="text-muted-foreground">{subtitle}</p>
-        {extra ? <p className="text-xs text-muted-foreground">{extra}</p> : null}
-      </div>
+    <div className="rounded-2xl border bg-background p-3 text-sm font-medium tracking-tight text-foreground">
+      {label}
     </div>
   );
 }
