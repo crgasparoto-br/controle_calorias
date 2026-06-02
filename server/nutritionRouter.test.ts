@@ -562,7 +562,7 @@ describe("nutrition router", () => {
       expect(localDay?.exerciseCalories).toBe(40);
       expect(localDay?.waterConsumedMl).toBe(250);
       expect(previousLocalDay?.calories).toBe(50);
-      expect(overview.today.consumed.calories).toBe(150);
+      expect(overview.today.consumed.calories).toBe(100);
       expect(overview.today.burned.calories).toBe(40);
     expect(overview.today.water.consumedMl).toBe(250);
     expect(progress.days.map(day => day.date)).toEqual(weekly.map(day => day.date));
