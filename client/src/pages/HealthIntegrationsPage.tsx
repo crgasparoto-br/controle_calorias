@@ -97,7 +97,7 @@ export default function HealthIntegrationsPage() {
         <PageIntro
           eyebrow="Saúde"
           title="Integrações de saúde"
-          description="Conecte provedores externos com consentimento explícito. No Strava, a sincronização importa atividades recentes e registra exercícios no histórico principal do sistema."
+          description="Conecte provedores externos com consentimento explícito. No Strava, o usuário autoriza pelo próprio Strava e o vínculo fica salvo para sincronizar exercícios depois."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat label="Providers disponíveis" value={String(availableProviders)} helper="prontos para uso" />
@@ -140,7 +140,7 @@ export default function HealthIntegrationsPage() {
                     Providers e vínculo ativo
                   </CardTitle>
                   <CardDescription>
-                    Cada integração aparece com disponibilidade, estado atual, última sincronização e ações principais. No Strava, sincronizar também atualiza o registro de exercícios.
+                    Cada integração aparece com disponibilidade, estado atual, última sincronização e ações principais. No Strava, conectar redireciona para autorização no Strava e sincronizar atualiza o registro de exercícios.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -198,7 +198,7 @@ export default function HealthIntegrationsPage() {
                             ) : null}
                             {isStrava ? (
                               <p className="mt-4 rounded-2xl border bg-muted/20 px-3 py-2 text-sm leading-6 text-muted-foreground">
-                                O callback OAuth do Strava finaliza a conexão e tenta uma primeira sincronização. Atividades com duração e calorias válidas entram no histórico de exercícios sem duplicar a mesma atividade Strava.
+                                O usuário é enviado para o Strava, faz login e autoriza o app por lá. O callback salva o vínculo no backend e atividades com duração e calorias válidas entram no histórico de exercícios sem duplicar a mesma atividade Strava.
                               </p>
                             ) : null}
                             {connection?.lastError ? (
@@ -213,9 +213,6 @@ export default function HealthIntegrationsPage() {
                                   type="button"
                                   className="rounded-full"
                                   onClick={() => {
-                                    if (!connected) {
-                                      connect.mutate({ provider: "strava", consentAccepted: true, scopes: ["activity", "energy_burned"] });
-                                    }
                                     window.location.href = authorizationUrl;
                                   }}
                                 >
@@ -276,7 +273,7 @@ export default function HealthIntegrationsPage() {
                       Resumo de consentimento
                     </CardTitle>
                     <CardDescription>
-                      O connect só fica liberado quando existe pelo menos um tipo de dado permitido para a sincronização externa.
+                      O Strava coleta o consentimento na própria tela de autorização externa; providers locais continuam exigindo seleção visível de escopo na interface.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -324,7 +321,7 @@ export default function HealthIntegrationsPage() {
                     Permissões antes da conexão
                   </CardTitle>
                   <CardDescription>
-                    Escolha os tipos de dados permitidos antes de vincular qualquer provider. Você pode voltar aqui a qualquer momento para revisar o consentimento visível na interface.
+                    Escolha os tipos de dados permitidos antes de vincular providers locais. Para Strava, a autorização e os escopos são confirmados diretamente no OAuth externo.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -366,8 +363,8 @@ export default function HealthIntegrationsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3">
-                  <FlowStep title="1. Escolha o escopo" description="Defina quais dados externos podem entrar antes de qualquer vínculo." />
-                  <FlowStep title="2. Conecte o provider" description="Ative a integração apenas quando o provider estiver disponível e com setup pronto." />
+                  <FlowStep title="1. Conecte pelo Strava" description="O botão leva o usuário para login e autorização diretamente no Strava." />
+                  <FlowStep title="2. Salve o vínculo" description="O callback grava o vínculo OAuth criptografado no backend quando o Strava retorna para o app." />
                   <FlowStep title="3. Sincronize e acompanhe" description="Revise os dados externos e confira os exercícios importados no registro principal." />
                 </CardContent>
               </Card>
