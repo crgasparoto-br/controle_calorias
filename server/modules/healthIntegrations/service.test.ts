@@ -1,0 +1,247 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const exerciseMocks = vi.hoisted(() => ({
+  createExercise: vi.fn(),
+  listExercises: vi.fn(),
+  updateExercise: vi.fn(),
+}));
+
+const dbMocks = vi.hoisted(() => {
+  const appSecretRows: Array<{
+    id: number;
+    secretKey: string;
+    valueEncrypted: string;
+    updatedByUserId: number | null;
+  }> = [];
+  let sequence = 1;
+
+  const db = {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => appSecretRows.slice(0, 1)),
+        })),
+      })),
+    })),
+    insert: vi.fn(() => ({
+      values: vi.fn((value: { secretKey: string; valueEncrypted: string; updatedByUserId?: number | null }) => {
+        appSecretRows.push({
+          id: sequence++,
+          secretKey: value.secretKey,
+          valueEncrypted: value.valueEncrypted,
+          updatedByUserId: value.updatedByUserId ?? null,
+        });
+      }),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn((value: { valueEncrypted: string; updatedByUserId?: number | null }) => ({
+        where: vi.fn(() => {
+          if (appSecretRows[0]) {
+            appSecretRows[0].valueEncrypted = value.valueEncrypted;
+            appSecretRows[0].updatedByUserId = value.updatedByUserId ?? null;
+          }
+        }),
+      })),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(() => {
+        appSecretRows.splice(0, appSecretRows.length);
+      }),
+    })),
+  };
+
+  return {
+    appSecretRows,
+    db,
+    getDb: vi.fn(async () => db),
+    reset: () => {
+      appSecretRows.splice(0, appSecretRows.length);
+      sequence = 1;
+      vi.clearAllMocks();
+    },
+  };
+});
+
+vi.mock("../../db", () => ({
+  getDb: dbMocks.getDb,
+}));
+
+vi.mock("../../_core/env", () => ({
+  ENV: { cookieSecret: "test-cookie-secret" },
+}));
+
+vi.mock("../exercises/service", () => ({
+  createExercise: exerciseMocks.createExercise,
+  listExercises: exerciseMocks.listExercises,
+  updateExercise: exerciseMocks.updateExercise,
+}));
+
+function encodeState(userId: number) {
+  return Buffer.from(JSON.stringify({ provider: "strava", userId, createdAt: Date.now() })).toString("base64url");
+}
+
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), { status: 200 });
+}
+
+describe("healthIntegrationService Strava", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    dbMocks.reset();
+    exerciseMocks.createExercise.mockReset();
+    exerciseMocks.listExercises.mockReset();
+    exerciseMocks.updateExercise.mockReset();
+    process.env.STRAVA_CLIENT_ID = "client-id";
+    process.env.STRAVA_CLIENT_SECRET = "client-secret";
+    process.env.STRAVA_REDIRECT_URI = "https://app.test/api/health-integrations/strava/callback";
+    exerciseMocks.listExercises.mockResolvedValue([]);
+    exerciseMocks.createExercise.mockImplementation(async (_userId, input) => ({
+      id: 123,
+      userId: _userId,
+      ...input,
+      occurredAt: new Date(input.occurredAt).getTime(),
+      createdAt: Date.now(),
+      updatedAt: new Date(),
+    }));
+    exerciseMocks.updateExercise.mockResolvedValue({ id: 456 });
+  });
+
+  it("registra atividades recentes do Strava como exercícios no callback OAuth", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 999,
+          name: "Corrida matinal",
+          sport_type: "Run",
+          start_date: "2026-06-01T10:00:00Z",
+          moving_time: 2100,
+          calories: 321.4,
+        },
+        {
+          id: 1000,
+          name: "Atividade sem gasto",
+          sport_type: "Walk",
+          start_date: "2026-06-01T12:00:00Z",
+          moving_time: 900,
+          calories: 0,
+        },
+      ])));
+
+    const { healthIntegrationService } = await import("./service");
+
+    const result = await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
+      activityType: "Run",
+      durationMinutes: 35,
+      caloriesBurned: 321,
+      occurredAt: "2026-06-01T10:00:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:999.",
+    });
+    expect(exerciseMocks.updateExercise).not.toHaveBeenCalled();
+    expect(result.message).toContain("1 exercício(s) registrado(s)");
+  });
+
+  it("atualiza exercício Strava já importado em vez de duplicar", async () => {
+    exerciseMocks.listExercises.mockResolvedValue([
+      {
+        id: 456,
+        userId: 42,
+        activityType: "Run",
+        durationMinutes: 30,
+        caloriesBurned: 280,
+        occurredAt: new Date("2026-06-01T10:00:00Z").getTime(),
+        notes: "Importado automaticamente do Strava. Referencia externa: strava:999.",
+        createdAt: Date.now(),
+        updatedAt: new Date(),
+      },
+    ]);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, username: "atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 999,
+          name: "Corrida matinal atualizada",
+          sport_type: "Run",
+          start_date: "2026-06-01T10:00:00Z",
+          moving_time: 2400,
+          calories: 355,
+        },
+      ])));
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    expect(exerciseMocks.createExercise).not.toHaveBeenCalled();
+    expect(exerciseMocks.updateExercise).toHaveBeenCalledWith(42, {
+      exerciseId: 456,
+      activityType: "Run",
+      durationMinutes: 40,
+      caloriesBurned: 355,
+      occurredAt: "2026-06-01T10:00:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:999.",
+    });
+  });
+
+  it("mantém o Strava conectado após recriar o serviço usando token persistido", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "persisted-access-token",
+        refresh_token: "persisted-refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([])));
+
+    const firstImport = await import("./service");
+    await firstImport.healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    vi.resetModules();
+    const secondImport = await import("./service");
+    const status = await secondImport.healthIntegrationService.getStatus(42);
+    const strava = status.providers.find(provider => provider.provider === "strava");
+
+    expect(strava?.connection?.status).toBe("connected");
+    expect(strava?.athleteName).toBe("Ana Atleta");
+
+    await secondImport.healthIntegrationService.sync(42, { provider: "strava" });
+    expect(fetch).toHaveBeenLastCalledWith(
+      "https://www.strava.com/api/v3/athlete/activities?per_page=20",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer persisted-access-token" },
+      }),
+    );
+  });
+});

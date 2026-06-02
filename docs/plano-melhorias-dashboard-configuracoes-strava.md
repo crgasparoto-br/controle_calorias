@@ -45,7 +45,11 @@ Este plano organiza o pacote de melhorias solicitado para o repositório `crgasp
 - Adicionar Strava como provedor web OAuth.
 - Expor estado de configuração pendente quando `STRAVA_CLIENT_ID` e `STRAVA_REDIRECT_URI` não estiverem definidos.
 - Preparar URL de autorização OAuth com escopos mínimos `read,activity:read`.
-- Próximas etapas: callback OAuth, troca de `code` por tokens, persistência segura dos tokens e sincronização de atividades para minutos/gasto energético.
+- Concluir callback OAuth, troca de `code` por tokens e sincronização das atividades recentes.
+- Persistir o vínculo OAuth por usuário em `appSecrets`, com tokens criptografados e restritos ao backend.
+- Registrar atividades Strava com duração e calorias válidas como exercícios do sistema.
+- Evitar duplicidade em sincronizações repetidas usando referência externa `strava:<activityId>` nas notas do exercício.
+- Próximas evoluções estruturais: validar com conta Strava real, considerar webhooks de atividade e avaliar colunas dedicadas de origem externa para exercícios.
 
 ## Riscos e dependências
 
@@ -54,7 +58,7 @@ Este plano organiza o pacote de melhorias solicitado para o repositório `crgasp
 - **Sugestão automática de refeição:** depende de fuso horário correto e da definição de regra para intervalos sobrepostos.
 - **IA multimodal sem confirmação:** melhora fluidez, mas aumenta impacto de inferências incorretas; precisa manter edição posterior fácil.
 - **Paciente por e-mail:** exige índice/consulta confiável por e-mail e política para e-mails duplicados ou nulos.
-- **Strava:** exige credenciais, callback público HTTPS, armazenamento seguro de tokens e refresh token.
+- **Strava:** exige credenciais, callback público HTTPS, armazenamento seguro de tokens, refresh token e validação operacional com conta Strava real.
 
 ## Dúvidas funcionais
 
@@ -63,6 +67,7 @@ Este plano organiza o pacote de melhorias solicitado para o repositório `crgasp
 3. Em intervalos sobrepostos, a sugestão deve escolher a refeição com horário central mais próximo ou a de maior prioridade configurada?
 4. O contrato do usuário já tem entidade persistida ou hoje é apenas bloco visual?
 5. No Strava, a primeira entrega deve importar apenas atividades recentes ou também manter webhooks para novas atividades?
+6. A rastreabilidade de origem externa dos exercícios deve evoluir para colunas dedicadas (`sourceProvider`, `externalId`) em vez de nota rastreável?
 
 ## Implementação feita nesta branch
 
@@ -73,11 +78,17 @@ Este plano organiza o pacote de melhorias solicitado para o repositório `crgasp
 - Adicionado Strava ao schema de provedores de saúde.
 - Preparada base de autorização OAuth do Strava no backend quando variáveis de ambiente estiverem presentes.
 - Tela Saúde externa passa a mostrar estado de configuração do Strava e botão `Conectar Strava` quando houver URL de autorização.
+- Callback OAuth do Strava troca `code` por token no backend e tenta sincronização inicial.
+- Vínculo OAuth do Strava é persistido por usuário em `appSecrets`, com tokens criptografados pelo backend.
+- Sincronização do Strava importa atividades recentes com duração e calorias válidas para o registro de exercícios.
+- Sincronizações repetidas atualizam exercícios importados quando a nota contém a mesma referência externa `strava:<activityId>`.
+- Tela de integrações passa a explicar que atividades Strava alimentam o registro de exercícios e invalida a lista de exercícios após sincronizar.
 
 ## Validação planejada
 
 - `pnpm check`
 - `pnpm test`
 - `pnpm architecture:check`
+- `pnpm docs:check`
 
-Não foi possível executar validações localmente neste ambiente porque o clone via rede não conseguiu resolver `github.com`. A validação final deve ser feita no CI ou em ambiente local com acesso ao repositório.
+Não foi possível executar validações localmente neste ambiente porque o clone/download do GitHub foi bloqueado por resposta 403 e a CLI `gh` não está instalada. A validação final deve ser feita no CI ou em ambiente local com acesso ao repositório.
