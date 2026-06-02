@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { createExercise, listExercises, updateExercise } from "../exercises/service";
 import type {
   ConnectHealthIntegrationInput,
   DisconnectHealthIntegrationInput,
@@ -69,6 +70,12 @@ type StravaActivity = {
   calories?: number | null;
 };
 
+type StravaExerciseImportSummary = {
+  created: number;
+  updated: number;
+  skipped: number;
+};
+
 const connections = new Map<string, HealthConnection>();
 const records = new Map<number, HealthRecord[]>();
 const stravaTokens = new Map<number, StravaTokenState>();
@@ -77,6 +84,7 @@ const STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize";
 const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
 const STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
 const STRAVA_SCOPES = "read,activity:read";
+const STRAVA_ACTIVITY_NOTE_PREFIX = "Importado automaticamente do Strava";
 
 function hasStravaCredentials() {
   return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET && process.env.STRAVA_REDIRECT_URI);
@@ -264,8 +272,7 @@ async function fetchStravaToken(payload: Record<string, string>) {
   });
 
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Falha ao falar com o OAuth do Strava (${response.status}). ${detail}`);
+    throw new Error(`Falha ao falar com o OAuth do Strava (${response.status}).`);
   }
 
   return await response.json() as StravaTokenResponse;
@@ -321,11 +328,61 @@ async function fetchStravaActivities(userId: number) {
   });
 
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Falha ao buscar atividades do Strava (${response.status}). ${detail}`);
+    throw new Error(`Falha ao buscar atividades do Strava (${response.status}).`);
   }
 
   return await response.json() as StravaActivity[];
+}
+
+function getStravaActivityType(activity: StravaActivity) {
+  return activity.sport_type || activity.type || activity.name || "Atividade Strava";
+}
+
+function getStravaExerciseNote(activity: StravaActivity) {
+  return `${STRAVA_ACTIVITY_NOTE_PREFIX}. Referencia externa: strava:${activity.id}.`;
+}
+
+function toStravaExerciseInput(activity: StravaActivity) {
+  const durationMinutes = Math.max(Math.round((activity.moving_time ?? 0) / 60), 0);
+  const caloriesBurned = typeof activity.calories === "number" ? Math.round(activity.calories) : 0;
+  if (durationMinutes < 1 || caloriesBurned < 1) return null;
+
+  return {
+    activityType: getStravaActivityType(activity),
+    durationMinutes,
+    caloriesBurned,
+    occurredAt: activity.start_date,
+    notes: getStravaExerciseNote(activity),
+  };
+}
+
+async function upsertStravaActivitiesAsExercises(userId: number, activities: StravaActivity[]): Promise<StravaExerciseImportSummary> {
+  const existingExercises = await listExercises(userId);
+  const summary: StravaExerciseImportSummary = { created: 0, updated: 0, skipped: 0 };
+
+  for (const activity of activities) {
+    const exerciseInput = toStravaExerciseInput(activity);
+    if (!exerciseInput) {
+      summary.skipped += 1;
+      continue;
+    }
+
+    const externalReference = `strava:${activity.id}`;
+    const existing = existingExercises.find(exercise => exercise.notes?.includes(externalReference));
+    if (existing) {
+      await updateExercise(userId, {
+        exerciseId: existing.id,
+        ...exerciseInput,
+      });
+      summary.updated += 1;
+    } else {
+      const created = await createExercise(userId, exerciseInput);
+      existingExercises.push(created);
+      summary.created += 1;
+    }
+  }
+
+  return summary;
 }
 
 function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity[]) {
@@ -340,7 +397,7 @@ function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity
         measuredAt: activity.start_date,
         value: Math.max(Math.round((activity.moving_time ?? 0) / 60), 0),
         unit: "minutes",
-        activityType: activity.sport_type || activity.type || activity.name,
+        activityType: getStravaActivityType(activity),
         createdAt: Date.now(),
       },
     ];
@@ -356,7 +413,7 @@ function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity
         value: Math.round(activity.calories),
         unit: "kcal",
         energyKind: "burned",
-        activityType: activity.sport_type || activity.type || activity.name,
+        activityType: getStravaActivityType(activity),
         createdAt: Date.now(),
       });
     }
@@ -380,6 +437,15 @@ function upsertConnectionState(userId: number, patch: Partial<HealthConnection> 
   };
   connections.set(key, next);
   return next;
+}
+
+function formatStravaImportSummary(summary: StravaExerciseImportSummary) {
+  const imported = summary.created + summary.updated;
+  if (imported <= 0) {
+    return "Nenhum exercício novo foi registrado automaticamente.";
+  }
+
+  return `${imported} exercício(s) registrado(s) a partir das atividades recentes.`;
 }
 
 export class HealthIntegrationService {
@@ -490,11 +556,25 @@ export class HealthIntegrationService {
         lastError: null,
       });
 
-      return {
-        ok: true,
-        redirectTo: "/health-integrations?provider=strava&status=connected",
-        message: `Strava conectado com sucesso para o usuário ${connection.userId}.`,
-      } as const;
+      try {
+        const syncResult = await this.sync(decodedState.userId, { provider: "strava" });
+        return {
+          ok: true,
+          redirectTo: "/health-integrations?provider=strava&status=connected",
+          message: `Strava conectado com sucesso para o usuário ${connection.userId}. ${formatStravaImportSummary(syncResult.importedExercises ?? { created: 0, updated: 0, skipped: 0 })}`,
+        } as const;
+      } catch (syncError) {
+        upsertConnectionState(decodedState.userId, {
+          provider: "strava",
+          status: "connected",
+          lastError: syncError instanceof Error ? syncError.message : "Falha desconhecida na sincronização inicial do Strava.",
+        });
+        return {
+          ok: true,
+          redirectTo: "/health-integrations?provider=strava&status=connected",
+          message: `Strava conectado com sucesso para o usuário ${connection.userId}. Sincronize novamente para importar os exercícios recentes.`,
+        } as const;
+      }
     } catch (error) {
       return {
         ok: false,
@@ -530,8 +610,12 @@ export class HealthIntegrationService {
     }
 
     try {
-      const synced = input.provider === "strava"
-        ? mapStravaActivitiesToRecords(userId, await fetchStravaActivities(userId))
+      const stravaActivities = input.provider === "strava" ? await fetchStravaActivities(userId) : null;
+      const importedExercises = stravaActivities
+        ? await upsertStravaActivitiesAsExercises(userId, stravaActivities)
+        : null;
+      const synced = stravaActivities
+        ? mapStravaActivitiesToRecords(userId, stravaActivities)
         : buildMockRecords(userId, input.provider, connection.scopes);
       const existing = (records.get(userId) ?? []).filter(record => record.provider !== input.provider);
       records.set(userId, [...existing, ...synced]);
@@ -544,6 +628,7 @@ export class HealthIntegrationService {
       return {
         connection: publicConnection(next),
         records: synced.map(({ userId: _userId, ...record }) => record),
+        importedExercises,
       };
     } catch (error) {
       const next = upsertConnectionState(userId, {
