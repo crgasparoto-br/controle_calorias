@@ -98,6 +98,7 @@ const STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities"
 const STRAVA_SCOPES = "read,activity:read";
 const STRAVA_ACTIVITY_NOTE_PREFIX = "Importado automaticamente do Strava";
 const STRAVA_TOKEN_SECRET_PREFIX = "strava_oauth_user";
+const STRAVA_SYNC_LOOKBACK_MONTHS = 2;
 
 function hasStravaCredentials() {
   return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET && process.env.STRAVA_REDIRECT_URI);
@@ -286,6 +287,18 @@ async function deleteStoredStravaTokenState(userId: number) {
   }
 }
 
+function parseStravaScopes(scope: string | null | undefined): HealthDataType[] {
+  const normalized = (scope ?? "").split(",").map(item => item.trim()).filter(Boolean);
+  const nextScopes = new Set<HealthDataType>();
+
+  if (normalized.some(item => item === "activity:read" || item === "activity:read_all")) {
+    nextScopes.add("activity");
+    nextScopes.add("energy_burned");
+  }
+
+  return Array.from(nextScopes);
+}
+
 function buildStravaAuthorizationUrl(userId: number) {
   const clientId = process.env.STRAVA_CLIENT_ID;
   const redirectUri = process.env.STRAVA_REDIRECT_URI;
@@ -398,18 +411,6 @@ function buildMockRecords(userId: number, provider: HealthProvider, scopes: Heal
   return candidates.filter(record => scopes.includes(record.dataType));
 }
 
-function parseStravaScopes(scope: string | null | undefined): HealthDataType[] {
-  const normalized = (scope ?? "").split(",").map(item => item.trim()).filter(Boolean);
-  const nextScopes = new Set<HealthDataType>();
-
-  if (normalized.some(item => item === "activity:read" || item === "activity:read_all")) {
-    nextScopes.add("activity");
-    nextScopes.add("energy_burned");
-  }
-
-  return Array.from(nextScopes);
-}
-
 async function fetchStravaToken(payload: Record<string, string>) {
   const response = await fetch(STRAVA_TOKEN_URL, {
     method: "POST",
@@ -467,9 +468,23 @@ async function ensureValidStravaToken(userId: number) {
   return nextToken;
 }
 
+function getStravaActivitiesAfterTimestamp(now = new Date()) {
+  const lookbackDate = new Date(now);
+  lookbackDate.setMonth(lookbackDate.getMonth() - STRAVA_SYNC_LOOKBACK_MONTHS);
+  return Math.floor(lookbackDate.getTime() / 1000);
+}
+
+function buildStravaActivitiesUrl() {
+  const params = new URLSearchParams({
+    per_page: "20",
+    after: String(getStravaActivitiesAfterTimestamp()),
+  });
+  return `${STRAVA_ACTIVITIES_URL}?${params.toString()}`;
+}
+
 async function fetchStravaActivities(userId: number) {
   const token = await ensureValidStravaToken(userId);
-  const response = await fetch(`${STRAVA_ACTIVITIES_URL}?per_page=20`, {
+  const response = await fetch(buildStravaActivitiesUrl(), {
     headers: {
       Authorization: `Bearer ${token.accessToken}`,
     },
