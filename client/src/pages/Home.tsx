@@ -258,29 +258,14 @@ export default function Home() {
                   {todaysMeals.length ? (
                     todaysMeals.map(meal => (
                       <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-medium tracking-tight">{meal.mealLabel}</p>
-                              <Badge variant="secondary">{meal.source === "web" ? "Web" : "WhatsApp"}</Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {new Date(meal.occurredAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                            </p>
-                          </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="font-medium tracking-tight">{meal.mealLabel}</p>
                           <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{formatCalories(meal.totals.calories)}</Badge>
                         </div>
                         <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
                           <MiniMacro label="Proteínas" value={formatGrams(meal.totals.protein)} />
                           <MiniMacro label="Carboidratos" value={formatGrams(meal.totals.carbs)} />
                           <MiniMacro label="Gorduras" value={formatGrams(meal.totals.fat)} />
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {meal.items.map(item => (
-                            <Badge key={`${meal.id}-${item.foodName}`} variant="outline" className="rounded-full px-3 py-1 text-xs">
-                              {item.foodName} · {item.portionText}
-                            </Badge>
-                          ))}
                         </div>
                       </div>
                     ))
