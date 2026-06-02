@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { buildDailyNutritionStatus, SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
@@ -109,8 +108,7 @@ export default function Home() {
     });
   };
 
-  const todayKey = toDateInputValue(new Date());
-  const todaysMeals = (overview.data?.meals ?? []).filter(meal => toDateInputValue(new Date(meal.occurredAt)) === todayKey);
+  const todaysMeals = overview.data?.meals ?? [];
   const consumedCalories = overview.data?.today.consumed.calories ?? 0;
   const calorieGoal = overview.data?.today.goal.calories ?? 0;
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
@@ -220,10 +218,11 @@ export default function Home() {
                   <div className="rounded-2xl border bg-muted/30 p-4">
                     <p className="text-sm leading-6 text-muted-foreground">{dailyStatus}</p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     <StatBlock label="Meta calórica" value={formatCalories(calorieGoal)} sublabel={overview.data?.today.goal.label ?? "Planejamento diário"} />
                     <StatBlock label="Proteína" value={formatGrams(overview.data?.today.consumed.protein ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.protein ?? 0)}`} />
                     <StatBlock label="Carboidratos" value={formatGrams(overview.data?.today.consumed.carbs ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.carbs ?? 0)}`} />
+                    <StatBlock label="Gorduras" value={formatGrams(overview.data?.today.consumed.fat ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.fat ?? 0)}`} />
                     <StatBlock label="Refeições" value={formatCountPtBr(todaysMeals.length)} sublabel="Registradas hoje" />
                   </div>
                   <div className="grid gap-3 lg:grid-cols-3">
