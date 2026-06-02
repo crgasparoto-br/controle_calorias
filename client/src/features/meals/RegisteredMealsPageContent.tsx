@@ -88,7 +88,7 @@ function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleSta
   if (timeMinutes === null || !enabledSchedules.length) return null;
   const directMatches = enabledSchedules
     .filter(schedule => isTimeWithinRange(timeMinutes, schedule.startTime, schedule.endTime))
-    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.startTime));
+    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
   const fallback = enabledSchedules
     .slice()
     .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime))[0];
