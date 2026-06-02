@@ -61,6 +61,7 @@ Configure estas variáveis no backend/runtime responsável pela API:
 - `STRAVA_CLIENT_ID`
 - `STRAVA_CLIENT_SECRET`
 - `STRAVA_REDIRECT_URI`
+- `STRAVA_APP_REDIRECT_BASE_URL`
 
 `OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
 
@@ -76,9 +77,11 @@ O webhook localiza o usuário pelo telefone de origem, processa a refeição no 
 
 A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde externa inicia a autorização, redireciona o usuário para login/autorização no Strava e o callback em `/api/health-integrations/strava/callback` conclui a conexão.
 
+`STRAVA_REDIRECT_URI` deve apontar para o callback público da API, por exemplo `https://api.seudominio.com/api/health-integrations/strava/callback`. `STRAVA_APP_REDIRECT_BASE_URL` deve apontar para o domínio do app web onde o usuário está logado, por exemplo `https://app.seudominio.com`. Depois de salvar o vínculo, o callback usa essa base para devolver o usuário ao frontend em `/health-integrations`.
+
 Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime, e tenta uma primeira sincronização das atividades recentes do atleta autenticado. Com `DATABASE_URL` configurado, o vínculo permanece disponível após restart do servidor; em ambiente sem banco, o vínculo continua apenas em memória para desenvolvimento.
 
-A sincronização lê atividades recentes da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que sincronizações futuras atualizem o mesmo exercício em vez de duplicar o registro.
+A sincronização lê apenas as atividades dos últimos 2 meses da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que sincronizações futuras atualizem o mesmo exercício em vez de duplicar o registro.
 
 Tokens de acesso e refresh do Strava continuam restritos ao backend, são armazenados criptografados e não são expostos ao frontend.
 
@@ -103,7 +106,11 @@ Resumo do rollout:
 - configurar OpenAI apenas no backend do Render ou runtime equivalente;
 - manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
 - configurar as credenciais do Strava apenas no backend;
+- configurar `STRAVA_REDIRECT_URI` com o domínio público da API;
+- configurar `STRAVA_APP_REDIRECT_BASE_URL` com o domínio público do frontend;
 - validar o redirect URI público do Strava apontando para `/api/health-integrations/strava/callback`;
+- validar que o usuário volta do Strava para o frontend já autenticado;
+- validar que a sincronização do Strava importa apenas exercícios dos últimos 2 meses;
 - validar que o vínculo Strava continua conectado após restart do backend com banco ativo;
 - validar cadastro, login, logout e usuário atual;
 - validar web e WhatsApp com smoke tests;
