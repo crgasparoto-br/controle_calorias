@@ -158,7 +158,7 @@ export default function Home() {
       }
 
       mealsByLabel.set(key, {
-        id: meal.id,
+        id: String(meal.id),
         mealLabel,
         totals: {
           calories: meal.totals.calories ?? 0,

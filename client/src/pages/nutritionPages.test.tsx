@@ -493,7 +493,7 @@ describe("nutrition pages", () => {
     const { default: Home } = await import("./Home");
     const html = renderToString(React.createElement(Home));
 
-    expect(html).toContain("Esta tela fica focada no presente: saldo do dia, macros, água, exercícios, refeições recentes e atalhos para agir rápido.");
+    expect(html).toContain("Como está o seu dia agora?");
     expect(html).toContain("Calorias consumidas");
     expect(html).toContain("Foco do dia");
     expect(html).toContain("Registrar refeição");
