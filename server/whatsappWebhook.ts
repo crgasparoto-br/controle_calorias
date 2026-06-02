@@ -52,7 +52,9 @@ type PendingWhatsAppConfirmation = {
 };
 
 const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation>();
+const recentlyHandledWhatsAppMessageIds = new Map<string, number>();
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
+const MESSAGE_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
@@ -764,6 +766,34 @@ function isSupportedMessage(message: WhatsAppMessage) {
   return Boolean(message.text?.body || message.image?.id || message.audio?.id);
 }
 
+function pruneRecentlyHandledMessageIds(now = Date.now()) {
+  for (const [messageId, expiresAt] of recentlyHandledWhatsAppMessageIds) {
+    if (expiresAt <= now) {
+      recentlyHandledWhatsAppMessageIds.delete(messageId);
+    }
+  }
+}
+
+function reserveWhatsAppMessageForProcessing(messageId?: string) {
+  if (!messageId) {
+    return true;
+  }
+
+  const now = Date.now();
+  pruneRecentlyHandledMessageIds(now);
+
+  if (recentlyHandledWhatsAppMessageIds.has(messageId)) {
+    return false;
+  }
+
+  recentlyHandledWhatsAppMessageIds.set(messageId, now + MESSAGE_DEDUPLICATION_TTL_MS);
+  return true;
+}
+
+export function __resetWhatsAppWebhookDeduplicationForTests() {
+  recentlyHandledWhatsAppMessageIds.clear();
+}
+
 export function verifyWhatsAppWebhook(req: Request, res: Response) {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -785,6 +815,10 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
   for (const message of messages) {
     const sourcePhone = message.from || "unknown";
+
+    if (!reserveWhatsAppMessageForProcessing(message.id)) {
+      continue;
+    }
 
     if (!isMessageForConfiguredChannel(message)) {
       logInferenceEvent({
@@ -982,6 +1016,14 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
               detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
             });
           }
+        } else {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.annotated_image_skipped",
+            detail: `Imagem anotada não enviada para ${sourcePhone}: ${annotatedImage?.skippedReason || "geração sem URL"}.`,
+          });
         }
       }
     } catch (error) {

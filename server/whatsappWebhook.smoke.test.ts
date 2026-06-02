@@ -36,7 +36,7 @@ vi.mock("./_core/voiceTranscription", () => ({
   transcribeAudio: transcribeAudioMock,
 }));
 
-const { handleWhatsAppWebhook } = await import("./whatsappWebhook");
+const { __resetWhatsAppWebhookDeduplicationForTests, handleWhatsAppWebhook } = await import("./whatsappWebhook");
 
 type MockResponse = {
   statusCode: number;
@@ -180,6 +180,7 @@ function expectProcessingAcknowledgement(contentLabel: string) {
 
 describe("whatsappWebhook smoke", () => {
   beforeEach(() => {
+    __resetWhatsAppWebhookDeduplicationForTests();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-20T08:52:00-03:00"));
 

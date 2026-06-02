@@ -40,7 +40,7 @@ vi.mock("./_core/voiceTranscription", () => ({
   transcribeAudio: vi.fn(),
 }));
 
-const { handleWhatsAppWebhook } = await import("./whatsappWebhook");
+const { __resetWhatsAppWebhookDeduplicationForTests, handleWhatsAppWebhook } = await import("./whatsappWebhook");
 
 type MockResponse = {
   statusCode: number;
@@ -69,7 +69,7 @@ function createResponse(): MockResponse {
   };
 }
 
-function createMetaImagePayload() {
+function createMetaImagePayload(messageId = "wamid.image-1") {
   return {
     object: "whatsapp_business_account",
     entry: [
@@ -93,7 +93,7 @@ function createMetaImagePayload() {
               messages: [
                 {
                   from: "5511999999999",
-                  id: "wamid.image-1",
+                  id: messageId,
                   timestamp: "1713708840",
                   type: "image",
                   image: {
@@ -153,6 +153,7 @@ function findFetchCallByBody(expectedBodyPart: string) {
 
 describe("whatsappWebhook image inbound", () => {
   beforeEach(() => {
+    __resetWhatsAppWebhookDeduplicationForTests();
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
     process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
@@ -161,6 +162,10 @@ describe("whatsappWebhook image inbound", () => {
     getHabitSnapshotsMock.mockResolvedValue([]);
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
+    createPendingMealInferenceMock.mockReset();
+    confirmPendingMealMock.mockReset();
+    logInferenceEventMock.mockReset();
+    processMealInputMock.mockReset();
     generateImageMock.mockReset();
     generateImageMock.mockResolvedValue({ skippedReason: "disabled" });
     storagePutMock.mockReset();
@@ -219,7 +224,7 @@ describe("whatsappWebhook image inbound", () => {
   });
 
   it("envia a imagem inline para a IA e persiste apenas a URL do storage", async () => {
-    const req = { body: createMetaImagePayload() };
+    const req = { body: createMetaImagePayload("wamid.image-inline") };
     const res = createResponse();
 
     await handleWhatsAppWebhook(req as never, res as never);
@@ -229,7 +234,7 @@ describe("whatsappWebhook image inbound", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    expectMessageMarkedAsRead("wamid.image-1");
+    expectMessageMarkedAsRead("wamid.image-inline");
     expectProcessingAcknowledgement();
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(processMealInputMock).toHaveBeenCalledWith({
@@ -259,7 +264,7 @@ describe("whatsappWebhook image inbound", () => {
     });
     vi.mocked(global.fetch).mockResolvedValueOnce(createWhatsAppOkResponse() as never);
 
-    const req = { body: createMetaImagePayload() };
+    const req = { body: createMetaImagePayload("wamid.image-annotated") };
     const res = createResponse();
 
     await handleWhatsAppWebhook(req as never, res as never);
@@ -291,7 +296,7 @@ describe("whatsappWebhook image inbound", () => {
 
   it("analisa e registra imagem mesmo quando o storage da mídia falha", async () => {
     storagePutMock.mockRejectedValue(new Error("storage unavailable"));
-    const req = { body: createMetaImagePayload() };
+    const req = { body: createMetaImagePayload("wamid.image-storage-fallback") };
     const res = createResponse();
 
     await handleWhatsAppWebhook(req as never, res as never);
@@ -300,7 +305,7 @@ describe("whatsappWebhook image inbound", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    expectMessageMarkedAsRead("wamid.image-1");
+    expectMessageMarkedAsRead("wamid.image-storage-fallback");
     expectProcessingAcknowledgement();
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(processMealInputMock).toHaveBeenCalledWith({
@@ -325,5 +330,26 @@ describe("whatsappWebhook image inbound", () => {
       userId: 123,
       mealLabel: "Almoço",
     }));
+  });
+
+  it("ignora reentrega do mesmo wamid sem reenviar respostas nem criar refeição duplicada", async () => {
+    const req = { body: createMetaImagePayload("wamid.image-duplicate") };
+    const firstRes = createResponse();
+    const duplicateRes = createResponse();
+
+    await handleWhatsAppWebhook(req as never, firstRes as never);
+    await handleWhatsAppWebhook(req as never, duplicateRes as never);
+
+    expect(firstRes.body).toEqual({ ok: true, processed: 1 });
+    expect(duplicateRes.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).toHaveBeenCalledTimes(1);
+    expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
+    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
+    expect(findFetchCallByBody("Recebi sua mensagem de imagem e estou processando")).toBeTruthy();
+    const acknowledgementCalls = vi.mocked(global.fetch).mock.calls.filter(([, init]) => {
+      const body = init && "body" in init ? init.body : undefined;
+      return typeof body === "string" && body.includes("Recebi sua mensagem de imagem e estou processando");
+    });
+    expect(acknowledgementCalls).toHaveLength(1);
   });
 });
