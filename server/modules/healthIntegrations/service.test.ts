@@ -86,6 +86,7 @@ function jsonResponse(body: unknown) {
 
 describe("healthIntegrationService Strava", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.resetModules();
     dbMocks.reset();
     exerciseMocks.createExercise.mockReset();
@@ -209,6 +210,8 @@ describe("healthIntegrationService Strava", () => {
   });
 
   it("mantém o Strava conectado após recriar o serviço usando token persistido", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-02T12:00:00Z"));
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(jsonResponse({
         token_type: "Bearer",
@@ -238,7 +241,7 @@ describe("healthIntegrationService Strava", () => {
 
     await secondImport.healthIntegrationService.sync(42, { provider: "strava" });
     expect(fetch).toHaveBeenLastCalledWith(
-      "https://www.strava.com/api/v3/athlete/activities?per_page=20",
+      "https://www.strava.com/api/v3/athlete/activities?per_page=20&after=1775131200",
       expect.objectContaining({
         headers: { Authorization: "Bearer persisted-access-token" },
       }),
