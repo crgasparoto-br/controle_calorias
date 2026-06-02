@@ -28,8 +28,8 @@ export function calculateMealTotals(items: MealTotalItem[]): MealTotals {
   );
 }
 
-export function calculateDayTotals<T extends { items: MealTotalItem[] }>(meals: T[]): MealTotals {
-  return calculateMealTotals(meals.flatMap(meal => meal.items));
+export function calculateDayTotals<T extends { items: MealTotalItem[]; totals?: MealTotals }>(meals: T[]): MealTotals {
+  return addMealTotals(meals.map(meal => meal.totals ?? calculateMealTotals(meal.items)));
 }
 
 export function addMealTotals(items: MealTotals[]): MealTotals {

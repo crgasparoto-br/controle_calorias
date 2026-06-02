@@ -38,6 +38,24 @@ describe("meal totals", () => {
     });
   });
 
+  it("usa totais salvos da refeição quando disponíveis no resumo diário", () => {
+    const persistedMeal = {
+      occurredAt: "2026-06-02T15:00:00.000Z",
+      items: [
+        { calories: 500, protein: 40, carbs: 25, fat: 34.2 },
+        { calories: 520, protein: 30, carbs: 35, fat: 34.2 },
+      ],
+      totals: { calories: 1020, protein: 70, carbs: 60, fat: 69 },
+    };
+
+    expect(calculateDayTotals([persistedMeal])).toEqual({
+      calories: 1020,
+      protein: 70,
+      carbs: 60,
+      fat: 69,
+    });
+  });
+
   it("reaproveita a mesma regra para agregar totais semanais", () => {
     expect(addMealTotals([
       { calories: 458, protein: 48.5, carbs: 44.3, fat: 8.6 },
