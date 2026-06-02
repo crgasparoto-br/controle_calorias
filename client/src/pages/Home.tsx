@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { buildDailyNutritionStatus, SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
-import { ArrowRight, BrainCircuit, Droplets, Dumbbell, Flame, ListChecks, Salad } from "lucide-react";
+import { ArrowRight, BrainCircuit, Droplets, Dumbbell, Flame, Salad } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
@@ -140,8 +140,6 @@ export default function Home() {
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
   const exerciseCalories = overview.data?.today.burned.calories ?? 0;
   const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
-  const exerciseCount = overview.data?.exercises.length ?? 0;
-  const waterLogCount = overview.data?.water.logs.length ?? 0;
   const groupedTodaysMeals = React.useMemo<GroupedMealSummary[]>(() => {
     const mealsByLabel = new Map<string, GroupedMealSummary>();
 
@@ -367,39 +365,6 @@ export default function Home() {
             />
           </div>
         </section>
-
-        <section className="space-y-4">
-          <SectionHeading
-            title="Rotina de hoje"
-            description="Água, exercícios e próximos passos ficam resumidos aqui, enquanto a edição detalhada e o histórico completo continuam nas telas certas."
-          />
-          <div className="grid gap-4 lg:grid-cols-3">
-            <RoutineSummaryCard
-              icon={Droplets}
-              title="Água"
-              value={formatCountPtBr(overview.data?.today.water.consumedMl ?? 0, " ml")}
-              description={`Meta ${formatCountPtBr(overview.data?.today.water.goalMl ?? 0, " ml")} · ${formatCountPtBr(waterLogCount)} registro(s) hoje`}
-              actionHref="/registrar"
-              actionLabel="Registrar água"
-            />
-            <RoutineSummaryCard
-              icon={Dumbbell}
-              title="Exercícios"
-              value={formatCalories(exerciseCalories)}
-              description={`${formatCountPtBr(exerciseCount)} exercício(s) registrados hoje`}
-              actionHref="/registrar"
-              actionLabel="Registrar exercício"
-            />
-            <RoutineSummaryCard
-              icon={ListChecks}
-              title="Próximos passos"
-              value={todaysMeals.length ? "Dia em andamento" : "Primeiro registro"}
-              description="Abra Registros para corrigir ou reaproveitar lançamentos, sem transformar Hoje em uma tela operacional longa."
-              actionHref="/meals"
-              actionLabel="Abrir Registros"
-            />
-          </div>
-        </section>
       </div>
     </DashboardLayout>
   );
@@ -551,42 +516,6 @@ function FoodAssistantCard({
             <EmptyCopy text="A resposta aparecerá aqui com alimentos sugeridos, calorias, macros e uma observação de segurança quando necessário." />
           )}
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RoutineSummaryCard({
-  icon: Icon,
-  title,
-  value,
-  description,
-  actionHref,
-  actionLabel,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  value: string;
-  description: string;
-  actionHref: string;
-  actionLabel: string;
-}) {
-  return (
-    <Card className="border-0 shadow-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <Icon className="h-5 w-5 text-primary" />
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-3xl font-semibold tracking-tight">{value}</p>
-        <Link href={actionHref}>
-          <Button variant="outline" className="rounded-full">
-            {actionLabel}
-          </Button>
-        </Link>
       </CardContent>
     </Card>
   );
