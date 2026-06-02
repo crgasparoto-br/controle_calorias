@@ -14,7 +14,7 @@ type WhatsAppMessage = {
   timestamp?: string;
   type?: string;
   text?: { body?: string };
-  image?: { id?: string; mime_type?: string };
+  image?: { id?: string; mime_type?: string; caption?: string };
   audio?: { id?: string; mime_type?: string };
 };
 
@@ -173,7 +173,7 @@ function canonicalMealLabel(label: string) {
 }
 
 function getTextBody(message: WhatsAppMessage) {
-  return message.text?.body?.trim() ?? "";
+  return message.text?.body?.trim() || message.image?.caption?.trim() || "";
 }
 
 function detectWhatsAppAction(message: WhatsAppMessage): WhatsAppAction | null {
@@ -566,8 +566,22 @@ function formatContentTypeList(types: string[]) {
 }
 
 function buildProcessingAcknowledgement(message: WhatsAppMessage) {
-  const contentLabel = formatContentTypeList(listMessageContentTypes(message));
-  return `Recebi sua mensagem de ${contentLabel} e estou processando. Assim que terminar, envio o registro por aqui.`;
+  const contentTypes = listMessageContentTypes(message);
+  if (contentTypes.length === 1) {
+    const contentType = contentTypes[0];
+    if (contentType === "imagem") {
+      return "Recebi sua imagem e estou processando.";
+    }
+    if (contentType === "texto") {
+      return "Recebi seu texto e estou processando.";
+    }
+    if (contentType === "áudio") {
+      return "Recebi seu áudio e estou processando.";
+    }
+  }
+
+  const contentLabel = formatContentTypeList(contentTypes);
+  return `Recebi seu conteúdo (${contentLabel}) e estou processando.`;
 }
 
 function parseWaterAmountMl(text: string) {
@@ -772,8 +786,9 @@ async function logMediaStorageWarning(sourcePhone: string, warning?: string) {
 }
 
 async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string): Promise<PreparedMessageInput> {
+  const text = getTextBody(message) || undefined;
   const prepared: PreparedMessageInput = {
-    text: message.text?.body,
+    text,
     media: [],
     summary: "texto",
   };

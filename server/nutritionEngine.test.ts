@@ -329,7 +329,7 @@ describe("nutritionEngine.processMealInput", () => {
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
-      text: "registrar 50g desse alimento",
+      text: "registrar 47g desse alimento",
       imageUrl: "data:image/jpeg;base64,tabela-nutricional",
     });
 
@@ -337,19 +337,19 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "banana",
       canonicalName: "banana",
-      portionText: "50 g",
-      estimatedGrams: 50,
-      calories: 200,
-      protein: 10,
-      carbs: 30,
-      fat: 5,
+      portionText: "47 g",
+      estimatedGrams: 47,
+      calories: 188,
+      protein: 9.4,
+      carbs: 28.2,
+      fat: 4.7,
       source: "hybrid",
     }));
     expect(result.totals).toEqual({
-      calories: 200,
-      protein: 10,
-      carbs: 30,
-      fat: 5,
+      calories: 188,
+      protein: 9.4,
+      carbs: 28.2,
+      fat: 4.7,
     });
   });
 

@@ -175,7 +175,7 @@ function expectProcessingAcknowledgement(contentLabel: string) {
     expect.stringContaining("/phone-number-test/messages"),
     expect.objectContaining({
       method: "POST",
-      body: expect.stringContaining(`Recebi sua mensagem de ${contentLabel} e estou processando`),
+      body: expect.stringContaining(`Recebi ${contentLabel} e estou processando`),
     }),
   );
 }
@@ -249,7 +249,7 @@ describe("whatsappWebhook smoke", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(getUserIdByWhatsappPhoneMock).toHaveBeenCalledWith("5511999999999");
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expectProcessingAcknowledgement("texto");
+    expectProcessingAcknowledgement("seu texto");
     expect(processMealInputMock).toHaveBeenCalledWith({
       text: "arroz e frango",
       transcript: undefined,
@@ -278,7 +278,7 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expectProcessingAcknowledgement("texto");
+    expectProcessingAcknowledgement("seu texto");
     expect(createUserWaterLogMock).toHaveBeenCalledWith(123, {
       amountMl: 250,
       occurredAt: "2024-04-21T14:14:00.000Z",
@@ -303,7 +303,7 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expectProcessingAcknowledgement("texto");
+    expectProcessingAcknowledgement("seu texto");
     expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(123, {
       weightKg: 72.5,
       measuredAt: new Date("2024-04-21T14:14:00.000Z"),
@@ -360,7 +360,7 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-audio-1");
-    expectProcessingAcknowledgement("áudio");
+    expectProcessingAcknowledgement("seu áudio");
     expect(transcribeAudioMock).toHaveBeenCalledWith({
       audioBase64: expectedAudioBase64,
       mimeType: "audio/ogg",
@@ -423,7 +423,7 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-audio-1");
-    expectProcessingAcknowledgement("áudio");
+    expectProcessingAcknowledgement("seu áudio");
     expect(transcribeAudioMock).toHaveBeenCalledWith({
       audioBase64: expectedAudioBase64,
       mimeType: "audio/ogg",

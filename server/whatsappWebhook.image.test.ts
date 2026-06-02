@@ -69,7 +69,7 @@ function createResponse(): MockResponse {
   };
 }
 
-function createMetaImagePayload(messageId = "wamid.image-1") {
+function createMetaImagePayload(messageId = "wamid.image-1", caption?: string) {
   return {
     object: "whatsapp_business_account",
     entry: [
@@ -99,6 +99,7 @@ function createMetaImagePayload(messageId = "wamid.image-1") {
                   image: {
                     id: "image-media-id",
                     mime_type: "image/jpeg",
+                    ...(caption ? { caption } : {}),
                   },
                 },
               ],
@@ -139,7 +140,7 @@ function expectProcessingAcknowledgement() {
     expect.stringContaining("/phone-number-test/messages"),
     expect.objectContaining({
       method: "POST",
-      body: expect.stringContaining("Recebi sua mensagem de imagem e estou processando"),
+      body: expect.stringContaining("Recebi sua imagem e estou processando"),
     }),
   );
 }
@@ -255,6 +256,24 @@ describe("whatsappWebhook image inbound", () => {
       userId: 123,
       mealLabel: "Almoço",
     }));
+  });
+
+  it("usa legenda da imagem como texto para preservar quantidade exata enviada", async () => {
+    const req = { body: createMetaImagePayload("wamid.image-caption-grams", "47g") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    const expectedDataUrl = `data:image/jpeg;base64,${Buffer.from("image-test").toString("base64")}`;
+
+    expect(res.statusCode).toBe(200);
+    expect(processMealInputMock).toHaveBeenCalledWith({
+      text: "47g",
+      transcript: undefined,
+      imageUrl: expectedDataUrl,
+      audioUrl: undefined,
+      habits: [],
+    });
   });
 
   it("envia imagem anotada quando a geração visual retorna URL", async () => {
@@ -376,10 +395,10 @@ describe("whatsappWebhook image inbound", () => {
     expect(processMealInputMock).toHaveBeenCalledTimes(1);
     expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
     expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
-    expect(findFetchCallByBody("Recebi sua mensagem de imagem e estou processando")).toBeTruthy();
+    expect(findFetchCallByBody("Recebi sua imagem e estou processando")).toBeTruthy();
     const acknowledgementCalls = vi.mocked(global.fetch).mock.calls.filter(([, init]) => {
       const body = init && "body" in init ? init.body : undefined;
-      return typeof body === "string" && body.includes("Recebi sua mensagem de imagem e estou processando");
+      return typeof body === "string" && body.includes("Recebi sua imagem e estou processando");
     });
     expect(acknowledgementCalls).toHaveLength(1);
   });
