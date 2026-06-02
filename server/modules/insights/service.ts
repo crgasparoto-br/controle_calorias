@@ -1,5 +1,4 @@
 import {
-  getDashboardSnapshot,
   getUserNutritionGoal,
   getUserWaterGoal,
   getWeeklyProgress,
@@ -307,8 +306,80 @@ function classifyWeeklyDay(day: Awaited<ReturnType<typeof buildWeeklyReportSumma
   return "within" as const;
 }
 
+function emptyQualityIndicators(waterMl = 0) {
+  return {
+    proteinGrams: 0,
+    fiberGrams: 0,
+    waterMl: roundNutritionValue(waterMl),
+    fruitServings: 0,
+    vegetableServings: 0,
+    ultraProcessedServings: 0,
+    mealCount: 0,
+    regularityScore: 0,
+  };
+}
+
 export async function getDashboardOverview(userId: number) {
-  return getDashboardSnapshot(userId);
+  const [goal, waterGoal, meals, exercises, waterLogs] = await Promise.all([
+    getUserNutritionGoal(userId),
+    getUserWaterGoal(userId),
+    listUserMeals(userId),
+    listUserExercises(userId),
+    listUserWaterLogs(userId),
+  ]);
+  const todayKey = getDateKeyInTimeZone(new Date());
+  const todaysMeals = meals.filter(meal => mealDateKey(meal) === todayKey);
+  const todaysExercises = exercises.filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === todayKey);
+  const todaysWaterLogs = waterLogs.filter(log => getDateKeyInTimeZone(Number(log.occurredAt)) === todayKey);
+  const todayTotals = calculateDayTotals(todaysMeals);
+  const todayBurnedCalories = todaysExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
+  const todayWaterMl = todaysWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
+
+  return {
+    goal,
+    today: {
+      date: todayKey,
+      goal: {
+        calories: goal.today.calories,
+        protein: goal.today.proteinGrams,
+        carbs: goal.today.carbsGrams,
+        fat: goal.today.fatGrams,
+        label: goal.today.label,
+      },
+      consumed: {
+        calories: roundNutritionValue(todayTotals.calories),
+        protein: roundNutritionValue(todayTotals.protein),
+        carbs: roundNutritionValue(todayTotals.carbs),
+        fat: roundNutritionValue(todayTotals.fat),
+      },
+      burned: {
+        calories: roundNutritionValue(todayBurnedCalories),
+      },
+      water: {
+        consumedMl: roundNutritionValue(todayWaterMl),
+        goalMl: waterGoal.dailyTargetMl,
+        remainingMl: Math.max(waterGoal.dailyTargetMl - roundNutritionValue(todayWaterMl), 0),
+      },
+      quality: emptyQualityIndicators(todayWaterMl),
+      net: {
+        calories: roundNutritionValue(todayTotals.calories - todayBurnedCalories),
+        remainingToGoal: roundNutritionValue(goal.today.calories - (todayTotals.calories - todayBurnedCalories)),
+      },
+      remaining: {
+        calories: roundNutritionValue(goal.today.calories - todayTotals.calories),
+        protein: roundNutritionValue(goal.today.proteinGrams - todayTotals.protein),
+        carbs: roundNutritionValue(goal.today.carbsGrams - todayTotals.carbs),
+        fat: roundNutritionValue(goal.today.fatGrams - todayTotals.fat),
+      },
+      adherence: roundNutritionValue(goal.today.calories ? Math.min((todayTotals.calories / goal.today.calories) * 100, 100) : 0),
+    },
+    meals: todaysMeals.slice(0, 8),
+    exercises: todaysExercises.slice(0, 8),
+    water: {
+      goal: waterGoal,
+      logs: todaysWaterLogs.slice(0, 8),
+    },
+  };
 }
 
 export async function getWeeklyReport(userId: number, weekOffset = 0) {
