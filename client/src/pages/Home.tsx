@@ -112,6 +112,7 @@ export default function Home() {
   const consumedCalories = overview.data?.today.consumed.calories ?? 0;
   const calorieGoal = overview.data?.today.goal.calories ?? 0;
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
+  const exerciseCalories = overview.data?.today.burned.calories ?? 0;
   const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
   const exerciseCount = overview.data?.exercises.length ?? 0;
   const waterLogCount = overview.data?.water.logs.length ?? 0;
@@ -173,7 +174,7 @@ export default function Home() {
             </>
           }
           stats={
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <DailyMetric
                 title="Calorias consumidas"
                 value={formatCalories(consumedCalories)}
@@ -185,6 +186,12 @@ export default function Home() {
                 value={formatCalories(positiveRemaining(remainingCalories))}
                 helper={remainingCalories < 0 ? "Acima da meta planejada hoje" : "Disponíveis para os próximos registros"}
                 icon={Salad}
+              />
+              <DailyMetric
+                title="Exercícios"
+                value={formatCalories(exerciseCalories)}
+                helper="Queimadas hoje"
+                icon={Dumbbell}
               />
               <DailyMetric
                 title="Saldo líquido"
@@ -218,12 +225,11 @@ export default function Home() {
                   <div className="rounded-2xl border bg-muted/30 p-4">
                     <p className="text-sm leading-6 text-muted-foreground">{dailyStatus}</p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     <StatBlock label="Meta calórica" value={formatCalories(calorieGoal)} sublabel={overview.data?.today.goal.label ?? "Planejamento diário"} />
                     <StatBlock label="Proteína" value={formatGrams(overview.data?.today.consumed.protein ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.protein ?? 0)}`} />
                     <StatBlock label="Carboidratos" value={formatGrams(overview.data?.today.consumed.carbs ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.carbs ?? 0)}`} />
                     <StatBlock label="Gorduras" value={formatGrams(overview.data?.today.consumed.fat ?? 0)} sublabel={`Meta ${formatGrams(overview.data?.today.goal.fat ?? 0)}`} />
-                    <StatBlock label="Exercícios" value={formatCalories(overview.data?.today.burned.calories ?? 0)} sublabel="Queimadas hoje" />
                     <StatBlock label="Refeições" value={formatCountPtBr(todaysMeals.length)} sublabel="Registradas hoje" />
                   </div>
                   <div className="grid gap-3 lg:grid-cols-3">
@@ -314,7 +320,7 @@ export default function Home() {
             <RoutineSummaryCard
               icon={Dumbbell}
               title="Exercícios"
-              value={formatCalories(overview.data?.today.burned.calories ?? 0)}
+              value={formatCalories(exerciseCalories)}
               description={`${formatCountPtBr(exerciseCount)} exercício(s) registrados hoje`}
               actionHref="/registrar"
               actionLabel="Registrar exercício"
