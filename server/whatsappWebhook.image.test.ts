@@ -294,6 +294,37 @@ describe("whatsappWebhook image inbound", () => {
     }));
   });
 
+  it("envia imagem com cards quando a edição da foto original não retorna URL", async () => {
+    generateImageMock
+      .mockResolvedValueOnce({ skippedReason: "provider_failed" })
+      .mockResolvedValueOnce({
+        url: "https://storage.test/generated/meal-support/cards.png",
+        mimeType: "image/png",
+      });
+    vi.mocked(global.fetch).mockResolvedValueOnce(createWhatsAppOkResponse() as never);
+
+    const req = { body: createMetaImagePayload("wamid.image-cards-fallback") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(generateImageMock).toHaveBeenCalledTimes(2);
+    expect(generateImageMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      originalImages: expect.any(Array),
+      prompt: expect.stringContaining("Edite a foto original"),
+    }));
+    expect(generateImageMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      prompt: expect.stringContaining("cards nutricionais"),
+    }));
+
+    const imageSendCall = findFetchCallByBody('"type":"image"');
+    expect(imageSendCall).toBeTruthy();
+    expect(imageSendCall?.[1]).toEqual(expect.objectContaining({
+      body: expect.stringContaining("https://storage.test/generated/meal-support/cards.png"),
+    }));
+  });
+
   it("analisa e registra imagem mesmo quando o storage da mídia falha", async () => {
     storagePutMock.mockRejectedValue(new Error("storage unavailable"));
     const req = { body: createMetaImagePayload("wamid.image-storage-fallback") };

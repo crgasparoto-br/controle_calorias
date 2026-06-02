@@ -21,6 +21,7 @@ export type GenerateImageResponse = {
   url?: string;
   mimeType?: string;
   skippedReason?: GenerateImageSkipReason;
+  detail?: string;
 };
 
 function sanitizePrompt(prompt: string) {
@@ -83,7 +84,10 @@ export async function generateImage(
       url: upload.url,
       mimeType: generated.mimeType,
     };
-  } catch {
-    return { skippedReason: "provider_failed" };
+  } catch (error) {
+    return {
+      skippedReason: "provider_failed",
+      detail: error instanceof Error ? error.message : "Falha desconhecida no provider de imagem.",
+    };
   }
 }

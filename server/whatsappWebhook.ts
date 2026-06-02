@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { generateImage } from "./_core/imageGeneration";
+import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals } from "./db";
@@ -269,18 +269,43 @@ function buildAnnotatedMealImagePrompt(processed: MealProcessingResult) {
   ].join("\n");
 }
 
-async function generateAnnotatedMealImage(processed: MealProcessingResult, prepared: PreparedMessageInput) {
+function buildMealCardsImagePrompt(processed: MealProcessingResult) {
+  const labels = processed.items
+    .slice(0, 12)
+    .map((item, index) => `${index + 1}. ${item.foodName}: ${formatFoodDescription(item)}, ${formatMacro(item.calories)} kcal, proteína ${formatMacro(item.protein)}g, carboidratos ${formatMacro(item.carbs)}g, gorduras ${formatMacro(item.fat)}g`)
+    .join("\n");
+
+  return [
+    "Crie uma imagem quadrada com cards nutricionais limpos e legíveis para celular.",
+    "Use fundo claro, cards organizados, ícones simples de comida e texto em português do Brasil.",
+    "Cada card deve mostrar alimento, porção, calorias e macronutrientes P/C/G.",
+    "Não inclua foto real nem alimentos novos; use apenas os dados abaixo.",
+    `Refeição: ${processed.detectedMealLabel || "Refeição"}`,
+    `Total: ${formatMacro(processed.totals.calories)} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g`,
+    `Itens:\n${labels || "Alimentos identificados na refeição."}`,
+  ].join("\n");
+}
+
+async function generateAnnotatedMealImage(processed: MealProcessingResult, prepared: PreparedMessageInput): Promise<GenerateImageResponse> {
   const sourceImage = imageDataFromDataUrl(prepared.imageAnalysisUrl);
-  if (!sourceImage || !processed.items.length) {
-    return null;
+  if (!processed.items.length) {
+    return { skippedReason: "no_prompt" };
   }
 
-  const generated = await generateImage({
-    prompt: buildAnnotatedMealImagePrompt(processed),
-    originalImages: [sourceImage],
-  });
+  if (sourceImage) {
+    const editedImage = await generateImage({
+      prompt: buildAnnotatedMealImagePrompt(processed),
+      originalImages: [sourceImage],
+    });
 
-  return generated.url ? generated : null;
+    if (editedImage.url) {
+      return editedImage;
+    }
+  }
+
+  return generateImage({
+    prompt: buildMealCardsImagePrompt(processed),
+  });
 }
 
 async function handlePendingWhatsAppConfirmation(message: WhatsAppMessage, userId: number) {
@@ -1022,7 +1047,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.annotated_image_skipped",
-            detail: `Imagem anotada não enviada para ${sourcePhone}: ${annotatedImage?.skippedReason || "geração sem URL"}.`,
+            detail: `Imagem anotada não enviada para ${sourcePhone}: ${annotatedImage?.detail || annotatedImage?.skippedReason || "geração sem URL"}.`,
           });
         }
       }
