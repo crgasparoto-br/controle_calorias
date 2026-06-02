@@ -18,7 +18,7 @@ import {
 import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { CalendarPlus, Droplets, Dumbbell, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
+import { CalendarPlus, ChevronDown, Droplets, Dumbbell, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MealItemEditor, MealLabelInput, RegisteredMealGroups, SummaryPill } from "./components";
@@ -88,7 +88,7 @@ function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleSta
   if (timeMinutes === null || !enabledSchedules.length) return null;
   const directMatches = enabledSchedules
     .filter(schedule => isTimeWithinRange(timeMinutes, schedule.startTime, schedule.endTime))
-    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
+    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.startTime));
   const fallback = enabledSchedules
     .slice()
     .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime))[0];
@@ -169,6 +169,7 @@ function DateGroupedMealsSections({
   userTimeZone,
   selectedMealId,
   emptyMessage,
+  forceMealGroupsCollapsed,
   isCopyPending,
   isFavoritePending,
   isRemovePending,
@@ -182,6 +183,7 @@ function DateGroupedMealsSections({
   userTimeZone: string;
   selectedMealId?: number;
   emptyMessage: string;
+  forceMealGroupsCollapsed?: boolean;
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
@@ -214,6 +216,8 @@ function DateGroupedMealsSections({
             <div className="flex flex-wrap items-center gap-2">
               <SummaryPill label="Calorias" value={formatCalories(group.totals.calories)} />
               <SummaryPill label="Proteínas" value={formatGrams(group.totals.protein)} />
+              <SummaryPill label="Carboidratos" value={formatGrams(group.totals.carbs)} />
+              <SummaryPill label="Gorduras" value={formatGrams(group.totals.fat)} />
             </div>
           </summary>
           <div className="pt-4">
@@ -222,6 +226,7 @@ function DateGroupedMealsSections({
               userTimeZone={userTimeZone}
               selectedMealId={selectedMealId}
               emptyMessage="Nenhuma refeição encontrada para este dia."
+              forceCollapsed={forceMealGroupsCollapsed}
               isCopyPending={isCopyPending}
               isFavoritePending={isFavoritePending}
               isRemovePending={isRemovePending}
@@ -322,6 +327,7 @@ export function RegisteredMealsPage() {
   const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
   const [copyTargetDay, setCopyTargetDay] = useState(() => toDateInputValue());
   const [manualMeal, setManualMeal] = useState(createManualMealState);
+  const [areMealGroupsCollapsed, setAreMealGroupsCollapsed] = useState(false);
 
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
@@ -625,10 +631,22 @@ export function RegisteredMealsPage() {
 
         <Card collapsible={false} className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <ListChecks className="h-5 w-5 text-primary" />
-              {pageHeading.listTitle}
-            </CardTitle>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <ListChecks className="h-5 w-5 text-primary" />
+                {pageHeading.listTitle}
+              </CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-fit rounded-full"
+                onClick={() => setAreMealGroupsCollapsed(current => !current)}
+                aria-expanded={!areMealGroupsCollapsed}
+              >
+                <ChevronDown className={`mr-2 h-4 w-4 transition-transform ${areMealGroupsCollapsed ? "-rotate-90" : "rotate-0"}`} />
+                {areMealGroupsCollapsed ? "Expandir todas" : "Recolher todas"}
+              </Button>
+            </div>
             <CardDescription>{buildDateSectionDescription(periodScope)}</CardDescription>
           </CardHeader>
           <CardContent>
@@ -638,6 +656,7 @@ export function RegisteredMealsPage() {
                 userTimeZone={userTimeZone}
                 selectedMealId={manualMeal.mealId}
                 emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : "Nenhuma refeição foi registrada para esta data."}
+                forceCollapsed={areMealGroupsCollapsed}
                 isCopyPending={copyMeal.isPending}
                 isFavoritePending={saveFavoriteMeal.isPending}
                 isRemovePending={removeMeal.isPending}
@@ -653,6 +672,7 @@ export function RegisteredMealsPage() {
                 userTimeZone={userTimeZone}
                 selectedMealId={manualMeal.mealId}
                 emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : `Nenhum registro encontrado para ${activeRangeLabel.toLowerCase()}.`}
+                forceMealGroupsCollapsed={areMealGroupsCollapsed}
                 isCopyPending={copyMeal.isPending}
                 isFavoritePending={saveFavoriteMeal.isPending}
                 isRemovePending={removeMeal.isPending}
