@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   formatDateLabel,
@@ -22,7 +21,7 @@ import { trpc } from "@/lib/trpc";
 import { CalendarPlus, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { MealItemEditor, RegisteredMealGroups, SummaryPill } from "./components";
+import { MealItemEditor, MealLabelInput, RegisteredMealGroups, SummaryPill } from "./components";
 import { createEmptyItem, createManualMealState, sumItems } from "./mealFormState";
 import {
   type DateGroupedRegisteredMealsViewModel,
@@ -32,8 +31,54 @@ import {
   normalizeMealType,
   sumStoredMealTotals,
 } from "./mealViewModels";
-import { MEAL_TYPES } from "./types";
 import type { MealItemState, MealType, StoredMeal } from "./types";
+
+type MealScheduleState = {
+  mealLabel: string;
+  startTime: string;
+  endTime: string;
+  enabled: boolean;
+};
+
+function minutesFromTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function localMinutesFromDateTimeLocal(value: string) {
+  const match = value.match(/T(\d{2}):(\d{2})/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function rangeCenterDistance(timeMinutes: number, startTime: string, endTime: string) {
+  const start = minutesFromTime(startTime);
+  let end = minutesFromTime(endTime);
+  let current = timeMinutes;
+  if (end < start) end += 1440;
+  if (current < start) current += 1440;
+  return Math.abs(current - (start + (end - start) / 2));
+}
+
+function isTimeWithinRange(timeMinutes: number, startTime: string, endTime: string) {
+  const start = minutesFromTime(startTime);
+  const end = minutesFromTime(endTime);
+  if (start <= end) return timeMinutes >= start && timeMinutes <= end;
+  return timeMinutes >= start || timeMinutes <= end;
+}
+
+function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleState[] | undefined) {
+  const timeMinutes = localMinutesFromDateTimeLocal(value);
+  const enabledSchedules = schedules?.filter(schedule => schedule.enabled && schedule.mealLabel.trim()) ?? [];
+  if (timeMinutes === null || !enabledSchedules.length) return null;
+  const directMatches = enabledSchedules
+    .filter(schedule => isTimeWithinRange(timeMinutes, schedule.startTime, schedule.endTime))
+    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
+  const fallback = enabledSchedules
+    .slice()
+    .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime))[0];
+  return (directMatches[0] ?? fallback)?.mealLabel ?? null;
+}
 
 function buildRecordsHeading(scope: PeriodScope) {
   switch (scope) {
@@ -164,6 +209,8 @@ export function RegisteredMealsPage() {
 
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
+  const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
+  const mealSchedules = mealSchedulesQuery.data as MealScheduleState[] | undefined;
 
   const activeRange = useMemo(() => {
     switch (periodScope) {
@@ -242,6 +289,10 @@ export function RegisteredMealsPage() {
     () => buildDateGroupedMealGroups(filteredMeals, { timeZone: userTimeZone, sortDirection: "desc" }),
     [filteredMeals, userTimeZone],
   );
+  const suggestedManualMealLabel = useMemo(
+    () => suggestMealLabelFromSchedules(manualMeal.occurredAt, mealSchedules),
+    [manualMeal.occurredAt, mealSchedules],
+  );
   const manualTotals = useMemo(() => sumItems(manualMeal.items), [manualMeal.items]);
   const pageHeading = buildRecordsHeading(periodScope);
   const activeRangeLabel = formatRangeLabel(activeRange);
@@ -308,15 +359,11 @@ export function RegisteredMealsPage() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="registered-edit-meal-label">Nome da refeição</Label>
-            <Select value={manualMeal.mealLabel} onValueChange={(mealLabel: MealType) => setManualMeal(current => ({ ...current, mealLabel }))}>
-              <SelectTrigger id="registered-edit-meal-label"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {MEAL_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+          <MealLabelInput
+            value={manualMeal.mealLabel}
+            onChange={mealLabel => setManualMeal(current => ({ ...current, mealLabel }))}
+            suggestedLabel={suggestedManualMealLabel}
+          />
           <div className="space-y-2">
             <Label htmlFor="registered-edit-occurred-at">Data e horário</Label>
             <Input id="registered-edit-occurred-at" type="datetime-local" value={manualMeal.occurredAt} onChange={event => setManualMeal(current => ({ ...current, occurredAt: event.target.value }))} />

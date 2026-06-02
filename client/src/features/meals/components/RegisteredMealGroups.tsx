@@ -172,38 +172,38 @@ function MealGroupActions({
   const isSelected = selectedMealId === meal.id;
 
   return (
-      <div className="flex flex-wrap justify-end gap-2">
-        {onEditMeal ? (
-          <Button type="button" variant={isSelected ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(meal)}>
-            <PencilLine className="mr-2 h-4 w-4" />
-            {isSelected ? "Editando" : "Editar"}
-          </Button>
-        ) : null}
-        {onCopyMeal ? (
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(meal, mealLabel)} disabled={isCopyPending}>
-            <Copy className="mr-2 h-4 w-4" />
-            Copiar
-          </Button>
-        ) : null}
-        {onFavoriteMeal ? (
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(meal)} disabled={isFavoritePending}>
-            <Star className="mr-2 h-4 w-4" />
-            Favorita
-          </Button>
-        ) : null}
-        {onRemoveMeal ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-full border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
-            onClick={() => onRemoveMeal(meal)}
-            disabled={isRemovePending}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Excluir refeição
-          </Button>
-        ) : null}
-      </div>
+    <div className="flex flex-wrap justify-end gap-2">
+      {onEditMeal ? (
+        <Button type="button" variant={isSelected ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(meal)}>
+          <PencilLine className="mr-2 h-4 w-4" />
+          {isSelected ? "Editando" : "Editar"}
+        </Button>
+      ) : null}
+      {onCopyMeal ? (
+        <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(meal, mealLabel)} disabled={isCopyPending}>
+          <Copy className="mr-2 h-4 w-4" />
+          Copiar
+        </Button>
+      ) : null}
+      {onFavoriteMeal ? (
+        <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(meal)} disabled={isFavoritePending}>
+          <Star className="mr-2 h-4 w-4" />
+          Favorita
+        </Button>
+      ) : null}
+      {onRemoveMeal ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-full border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
+          onClick={() => onRemoveMeal(meal)}
+          disabled={isRemovePending}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Excluir refeição
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -239,9 +239,17 @@ function RegisteredMealGroupSection({
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 }) {
   const hasActions = Boolean(onEditMeal || onCopyMeal || onFavoriteMeal || onRemoveMeal);
-  const singleMeal = group.meals.length === 1 ? group.meals[0] : null;
-  const hasMultipleMeals = group.meals.length > 1;
   const imageRecords = group.records.filter(record => record.imageUrl);
+  const activeMeal = group.records.find(record => record.meal.id === selectedMealId)?.meal
+    ?? group.records.reduce<StoredMeal | null>((latestMeal, record) => {
+      if (!latestMeal || record.registeredAt > latestMeal.occurredAt) {
+        return record.meal;
+      }
+      return latestMeal;
+    }, null);
+  const notes = group.records
+    .filter(record => record.mealNotes)
+    .map(record => ({ mealId: record.meal.id, mealNotes: record.mealNotes as string }));
 
   return (
     <section className="space-y-2 rounded-2xl border bg-background p-3 shadow-sm">
@@ -252,9 +260,9 @@ function RegisteredMealGroupSection({
             {group.records.length} {group.records.length === 1 ? "refeição" : "refeições"} · {describeFoodCount(group.items.length)} · {formatCalories(group.totals.calories)} · P {formatGrams(group.totals.protein)} · C {formatGrams(group.totals.carbs)} · G {formatGrams(group.totals.fat)}
           </p>
         </div>
-        {hasActions && singleMeal ? (
+        {hasActions && activeMeal ? (
           <MealGroupActions
-            meal={singleMeal}
+            meal={activeMeal}
             mealLabel={group.mealLabel}
             selectedMealId={selectedMealId}
             isCopyPending={isCopyPending}
@@ -276,44 +284,33 @@ function RegisteredMealGroupSection({
         </div>
       ) : null}
 
-      {group.records.map(record => (
-        <div key={record.meal.id} className="space-y-2">
-          {hasActions && hasMultipleMeals ? (
-            <MealGroupActions
-              meal={record.meal}
-              mealLabel={group.mealLabel}
-              selectedMealId={selectedMealId}
-              isCopyPending={isCopyPending}
-              isFavoritePending={isFavoritePending}
-              isRemovePending={isRemovePending}
-              onEditMeal={onEditMeal}
-              onCopyMeal={onCopyMeal}
-              onFavoriteMeal={onFavoriteMeal}
-              onRemoveMeal={onRemoveMeal}
-            />
-          ) : null}
+      <div className="space-y-2">
+        {group.items.map(item => (
+          <MealFoodRow
+            key={`${item.meal.id}-${item.item.foodName}-${item.itemIndex}`}
+            item={item}
+            userTimeZone={userTimeZone}
+            isSelected={selectedMealId === item.meal.id}
+            isDeleting={isItemDeleting}
+            onEditMealItem={onEditMealItem}
+            onDeleteMealItem={onDeleteMealItem}
+          />
+        ))}
+      </div>
 
-          {record.items.map(item => (
-            <MealFoodRow
-              key={`${item.meal.id}-${item.item.foodName}-${item.itemIndex}`}
-              item={item}
-              userTimeZone={userTimeZone}
-              isSelected={selectedMealId === item.meal.id}
-              isDeleting={isItemDeleting}
-              onEditMealItem={onEditMealItem}
-              onDeleteMealItem={onDeleteMealItem}
-            />
+      {notes.length ? (
+        <div className="space-y-1 px-1 pt-1">
+          {notes.map(note => (
+            <p key={note.mealId} className="text-sm text-muted-foreground">{note.mealNotes}</p>
           ))}
-
-          {record.mealNotes ? <p className="px-1 text-sm text-muted-foreground">{record.mealNotes}</p> : null}
-
-          {selectedMealId === record.meal.id && renderEditingForm ? (
-            <div className="mt-3 rounded-3xl border border-primary/30 bg-primary/5 p-3">
-              {renderEditingForm(record.meal)}
-            </div>
-          ) : null}
         </div>
-      ))}
+      ) : null}
+
+      {activeMeal && selectedMealId === activeMeal.id && renderEditingForm ? (
+        <div className="mt-3 rounded-3xl border border-primary/30 bg-primary/5 p-3">
+          {renderEditingForm(activeMeal)}
+        </div>
+      ) : null}
     </section>
   );
 }
