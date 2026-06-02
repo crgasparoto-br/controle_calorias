@@ -14,7 +14,7 @@ Controle de Calorias é uma plataforma de nutrição com registro multimodal de 
 | WhatsApp | Entrada e resposta pelo número oficial configurado |
 | Relatórios | Dashboard diário, visão semanal e detalhamento por refeição |
 | Operação administrativa | Status do canal e atualização segura do token do WhatsApp |
-| Saúde externa | Conexão OAuth com Strava e sincronização de atividades recentes |
+| Saúde externa | Conexão OAuth com Strava e sincronização de atividades recentes como exercícios |
 
 ## Autenticação própria
 
@@ -74,7 +74,11 @@ O webhook localiza o usuário pelo telefone de origem, processa a refeição no 
 
 ## Strava
 
-A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde externa inicia a autorização, o callback em `/api/health-integrations/strava/callback` conclui a conexão e a sincronização busca atividades recentes do atleta autenticado.
+A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde externa inicia a autorização, o callback em `/api/health-integrations/strava/callback` conclui a conexão e tenta uma primeira sincronização das atividades recentes do atleta autenticado.
+
+A sincronização lê atividades recentes da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que sincronizações futuras atualizem o mesmo exercício em vez de duplicar o registro.
+
+Tokens de acesso e refresh do Strava continuam restritos ao backend e não são expostos ao frontend. Nesta etapa, o estado OAuth permanece em memória no processo; persistência segura por usuário dos tokens deve ser tratada antes de depender da conexão após restart do servidor.
 
 ## Qualidade e gates
 
@@ -97,6 +101,7 @@ Resumo do rollout:
 - configurar OpenAI apenas no backend do Render ou runtime equivalente;
 - manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
 - configurar as credenciais do Strava apenas no backend;
+- validar o redirect URI público do Strava apontando para `/api/health-integrations/strava/callback`;
 - validar cadastro, login, logout e usuário atual;
 - validar web e WhatsApp com smoke tests;
 - monitorar apenas erros sanitizados, sem senha, hash, token ou cookie em logs.
