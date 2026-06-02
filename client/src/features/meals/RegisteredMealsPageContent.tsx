@@ -430,10 +430,11 @@ export function RegisteredMealsPage() {
           title={pageHeading.title}
           description={`${pageHeading.description} Intervalo ativo: ${activeRangeLabel}.`}
           stats={
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
               <SummaryPill label="Calorias" value={formatCalories(periodTotals.calories)} />
               <SummaryPill label="Proteínas" value={formatGrams(periodTotals.protein)} />
               <SummaryPill label="Carboidratos" value={formatGrams(periodTotals.carbs)} />
+              <SummaryPill label="Gorduras" value={formatGrams(periodTotals.fat)} />
               <SummaryPill label="Refeições" value={String(filteredMeals.length)} />
               <SummaryPill label="Dias com registros" value={String(periodDayGroups.length)} />
             </div>
