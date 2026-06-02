@@ -1,4 +1,8 @@
 import crypto from "node:crypto";
+import { eq } from "drizzle-orm";
+import { appSecrets } from "../../../drizzle/schema";
+import { ENV } from "../../_core/env";
+import { getDb } from "../../db";
 import { createExercise, listExercises, updateExercise } from "../exercises/service";
 import type {
   ConnectHealthIntegrationInput,
@@ -37,6 +41,12 @@ type HealthRecord = {
   createdAt: number;
 };
 
+type EncryptedSecretPayload = {
+  iv: string;
+  tag: string;
+  value: string;
+};
+
 type StravaTokenState = {
   accessToken: string;
   refreshToken: string;
@@ -44,6 +54,8 @@ type StravaTokenState = {
   athleteId: number;
   athleteName: string | null;
   scope: string;
+  connectedAt: number;
+  lastSyncedAt: number | null;
 };
 
 type StravaTokenResponse = {
@@ -85,6 +97,7 @@ const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
 const STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
 const STRAVA_SCOPES = "read,activity:read";
 const STRAVA_ACTIVITY_NOTE_PREFIX = "Importado automaticamente do Strava";
+const STRAVA_TOKEN_SECRET_PREFIX = "strava_oauth_user";
 
 function hasStravaCredentials() {
   return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET && process.env.STRAVA_REDIRECT_URI);
@@ -156,6 +169,123 @@ function getProvider(provider: HealthProvider) {
   return PROVIDERS.find(item => item.provider === provider);
 }
 
+function buildStravaSecretKey(userId: number) {
+  return `${STRAVA_TOKEN_SECRET_PREFIX}_${userId}`;
+}
+
+function getSecretCipherKey() {
+  return crypto
+    .createHash("sha256")
+    .update(`controle-calorias::health-integrations::${ENV.cookieSecret}`)
+    .digest();
+}
+
+function encryptSecretValue(value: string) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", getSecretCipherKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return JSON.stringify({
+    iv: iv.toString("base64"),
+    tag: tag.toString("base64"),
+    value: encrypted.toString("base64"),
+  } satisfies EncryptedSecretPayload);
+}
+
+function decryptSecretValue(payload: string) {
+  const parsed = JSON.parse(payload) as EncryptedSecretPayload;
+  const decipher = crypto.createDecipheriv("aes-256-gcm", getSecretCipherKey(), Buffer.from(parsed.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(parsed.tag, "base64"));
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(parsed.value, "base64")),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString("utf8");
+}
+
+function isStravaTokenState(value: unknown): value is StravaTokenState {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<StravaTokenState>;
+  return Boolean(
+    typeof candidate.accessToken === "string" &&
+    typeof candidate.refreshToken === "string" &&
+    typeof candidate.expiresAt === "number" &&
+    typeof candidate.athleteId === "number" &&
+    typeof candidate.scope === "string" &&
+    typeof candidate.connectedAt === "number",
+  );
+}
+
+async function loadStoredStravaTokenState(userId: number) {
+  const cached = stravaTokens.get(userId);
+  if (cached) return cached;
+
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db.select().from(appSecrets).where(eq(appSecrets.secretKey, buildStravaSecretKey(userId))).limit(1);
+    const row = rows[0];
+    if (!row) return null;
+
+    const parsed = JSON.parse(decryptSecretValue(row.valueEncrypted));
+    if (!isStravaTokenState(parsed)) return null;
+
+    const token: StravaTokenState = {
+      ...parsed,
+      athleteName: parsed.athleteName ?? null,
+      lastSyncedAt: parsed.lastSyncedAt ?? null,
+    };
+    stravaTokens.set(userId, token);
+    return token;
+  } catch (error) {
+    console.warn("[HealthIntegrations] Failed to load persisted Strava OAuth state:", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+async function persistStravaTokenState(userId: number, token: StravaTokenState) {
+  stravaTokens.set(userId, token);
+
+  const db = await getDb();
+  if (!db) return;
+
+  const secretKey = buildStravaSecretKey(userId);
+  const valueEncrypted = encryptSecretValue(JSON.stringify(token));
+  try {
+    const existing = await db.select().from(appSecrets).where(eq(appSecrets.secretKey, secretKey)).limit(1);
+    if (existing[0]) {
+      await db
+        .update(appSecrets)
+        .set({ valueEncrypted, updatedByUserId: userId })
+        .where(eq(appSecrets.id, existing[0].id));
+    } else {
+      await db.insert(appSecrets).values({
+        secretKey,
+        valueEncrypted,
+        updatedByUserId: userId,
+      });
+    }
+  } catch (error) {
+    console.warn("[HealthIntegrations] Failed to persist Strava OAuth state:", error instanceof Error ? error.message : error);
+  }
+}
+
+async function deleteStoredStravaTokenState(userId: number) {
+  stravaTokens.delete(userId);
+
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.delete(appSecrets).where(eq(appSecrets.secretKey, buildStravaSecretKey(userId)));
+  } catch (error) {
+    console.warn("[HealthIntegrations] Failed to delete persisted Strava OAuth state:", error instanceof Error ? error.message : error);
+  }
+}
+
 function buildStravaAuthorizationUrl(userId: number) {
   const clientId = process.env.STRAVA_CLIENT_ID;
   const redirectUri = process.env.STRAVA_REDIRECT_URI;
@@ -184,6 +314,22 @@ function publicConnection(connection: HealthConnection) {
     lastSyncedAt: connection.lastSyncedAt,
     lastError: connection.lastError,
   };
+}
+
+function publicStravaConnection(userId: number, token: StravaTokenState) {
+  const current = connections.get(connectionKey(userId, "strava"));
+  if (current) return publicConnection(current);
+
+  return publicConnection({
+    userId,
+    provider: "strava",
+    status: "connected",
+    consentGrantedAt: token.connectedAt,
+    disconnectedAt: null,
+    scopes: parseStravaScopes(token.scope),
+    lastSyncedAt: token.lastSyncedAt,
+    lastError: null,
+  });
 }
 
 function buildMockRecords(userId: number, provider: HealthProvider, scopes: HealthDataType[]) {
@@ -278,21 +424,23 @@ async function fetchStravaToken(payload: Record<string, string>) {
   return await response.json() as StravaTokenResponse;
 }
 
-function toStravaTokenState(token: StravaTokenResponse): StravaTokenState {
-  const athleteName = [token.athlete?.firstname, token.athlete?.lastname].filter(Boolean).join(" ").trim() || token.athlete?.username || null;
+function toStravaTokenState(token: StravaTokenResponse, current?: StravaTokenState | null): StravaTokenState {
+  const athleteName = [token.athlete?.firstname, token.athlete?.lastname].filter(Boolean).join(" ").trim() || token.athlete?.username || current?.athleteName || null;
 
   return {
     accessToken: token.access_token,
     refreshToken: token.refresh_token,
     expiresAt: token.expires_at * 1000,
-    athleteId: token.athlete?.id ?? 0,
+    athleteId: token.athlete?.id ?? current?.athleteId ?? 0,
     athleteName,
-    scope: token.scope ?? STRAVA_SCOPES,
+    scope: token.scope ?? current?.scope ?? STRAVA_SCOPES,
+    connectedAt: current?.connectedAt ?? Date.now(),
+    lastSyncedAt: current?.lastSyncedAt ?? null,
   };
 }
 
 async function ensureValidStravaToken(userId: number) {
-  const token = stravaTokens.get(userId);
+  const token = await loadStoredStravaTokenState(userId);
   if (!token) {
     throw new Error("Conecte o Strava antes de sincronizar atividades.");
   }
@@ -314,8 +462,8 @@ async function ensureValidStravaToken(userId: number) {
     grant_type: "refresh_token",
     refresh_token: token.refreshToken,
   });
-  const nextToken = toStravaTokenState(refreshed);
-  stravaTokens.set(userId, nextToken);
+  const nextToken = toStravaTokenState(refreshed, token);
+  await persistStravaTokenState(userId, nextToken);
   return nextToken;
 }
 
@@ -449,14 +597,18 @@ function formatStravaImportSummary(summary: StravaExerciseImportSummary) {
 }
 
 export class HealthIntegrationService {
-  getStatus(userId: number) {
+  async getStatus(userId: number) {
+    const storedStravaToken = await loadStoredStravaTokenState(userId);
     const userConnections = PROVIDERS.map(provider => {
       const connection = connections.get(connectionKey(userId, provider.provider));
+      const stravaConnection = provider.provider === "strava" && storedStravaToken
+        ? publicStravaConnection(userId, storedStravaToken)
+        : null;
       return {
         ...provider,
         authorizationUrl: provider.provider === "strava" ? buildStravaAuthorizationUrl(userId) : null,
-        connection: connection ? publicConnection(connection) : null,
-        athleteName: provider.provider === "strava" ? (stravaTokens.get(userId)?.athleteName ?? null) : null,
+        connection: connection ? publicConnection(connection) : stravaConnection,
+        athleteName: provider.provider === "strava" ? (storedStravaToken?.athleteName ?? null) : null,
       };
     });
     const userRecords = records.get(userId) ?? [];
@@ -540,19 +692,22 @@ export class HealthIntegrationService {
         throw new Error("Credenciais do Strava ausentes no backend.");
       }
 
+      const existingToken = await loadStoredStravaTokenState(decodedState.userId);
       const token = await fetchStravaToken({
         client_id: clientId,
         client_secret: clientSecret,
         code: input.code,
         grant_type: "authorization_code",
       });
-      stravaTokens.set(decodedState.userId, toStravaTokenState(token));
+      const tokenState = toStravaTokenState(token, existingToken);
+      await persistStravaTokenState(decodedState.userId, tokenState);
       const connection = upsertConnectionState(decodedState.userId, {
         provider: "strava",
         status: "connected",
-        consentGrantedAt: Date.now(),
+        consentGrantedAt: tokenState.connectedAt,
         disconnectedAt: null,
         scopes: parseStravaScopes(input.scope ?? token.scope ?? STRAVA_SCOPES),
+        lastSyncedAt: tokenState.lastSyncedAt,
         lastError: null,
       });
 
@@ -584,7 +739,7 @@ export class HealthIntegrationService {
     }
   }
 
-  disconnect(userId: number, input: DisconnectHealthIntegrationInput) {
+  async disconnect(userId: number, input: DisconnectHealthIntegrationInput) {
     const existing = connections.get(connectionKey(userId, input.provider));
     const next = upsertConnectionState(userId, {
       provider: input.provider,
@@ -597,15 +752,16 @@ export class HealthIntegrationService {
     });
     records.set(userId, (records.get(userId) ?? []).filter(record => record.provider !== input.provider));
     if (input.provider === "strava") {
-      stravaTokens.delete(userId);
+      await deleteStoredStravaTokenState(userId);
     }
     return publicConnection(next);
   }
 
   async sync(userId: number, input: SyncHealthIntegrationInput) {
     const key = connectionKey(userId, input.provider);
+    const storedStravaToken = input.provider === "strava" ? await loadStoredStravaTokenState(userId) : null;
     const connection = connections.get(key);
-    if (!connection || connection.status !== "connected" || !connection.consentGrantedAt) {
+    if ((!connection || connection.status !== "connected" || !connection.consentGrantedAt) && !storedStravaToken) {
       throw new Error("Conceda consentimento antes de sincronizar dados de saúde.");
     }
 
@@ -616,15 +772,24 @@ export class HealthIntegrationService {
         : null;
       const synced = stravaActivities
         ? mapStravaActivitiesToRecords(userId, stravaActivities)
-        : buildMockRecords(userId, input.provider, connection.scopes);
+        : buildMockRecords(userId, input.provider, connection?.scopes ?? []);
       const existing = (records.get(userId) ?? []).filter(record => record.provider !== input.provider);
       records.set(userId, [...existing, ...synced]);
+      const lastSyncedAt = Date.now();
       const next = upsertConnectionState(userId, {
         provider: input.provider,
         status: "connected",
-        lastSyncedAt: Date.now(),
+        consentGrantedAt: connection?.consentGrantedAt ?? storedStravaToken?.connectedAt ?? Date.now(),
+        scopes: connection?.scopes ?? (storedStravaToken ? parseStravaScopes(storedStravaToken.scope) : []),
+        lastSyncedAt,
         lastError: null,
       });
+      if (input.provider === "strava") {
+        const currentToken = await loadStoredStravaTokenState(userId);
+        if (currentToken) {
+          await persistStravaTokenState(userId, { ...currentToken, lastSyncedAt });
+        }
+      }
       return {
         connection: publicConnection(next),
         records: synced.map(({ userId: _userId, ...record }) => record),
@@ -634,6 +799,8 @@ export class HealthIntegrationService {
       const next = upsertConnectionState(userId, {
         provider: input.provider,
         status: "error",
+        consentGrantedAt: connection?.consentGrantedAt ?? storedStravaToken?.connectedAt ?? null,
+        scopes: connection?.scopes ?? (storedStravaToken ? parseStravaScopes(storedStravaToken.scope) : []),
         lastError: error instanceof Error ? error.message : "Falha desconhecida na sincronização.",
       });
       connections.set(key, next);
