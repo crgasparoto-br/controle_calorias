@@ -29,6 +29,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Ao adicionar integração externa, documentar dados enviados, motivo e comportamento de exclusão.
 - Tokens do Strava devem permanecer criptografados em `appSecrets`; logs de sincronização automática devem conter apenas contadores, status e mensagens sanitizadas.
 - Atividades do Strava são importadas para exercícios para manter o diário do usuário atualizado sem sincronização manual.
+- O escopo `activity:read_all` deve ser usado apenas para permitir importação de atividades privadas ou Only Me quando o usuário reconectar e conceder esse acesso.
 - Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
 
 ## Checklist para PRs sensíveis
