@@ -32,6 +32,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Textos de hidratação sem quantidade explícita devem pedir esclarecimento, não criar refeição.
 - Textos que pedem redução de gramas devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Quando o ajuste de gramas não citar alimento, o sistema pode usar o último item da refeição mais recente; quando citar alimento, deve buscar item compatível na última refeição.
+- Pedidos de sugestão de lanche devem responder diretamente ao usuário com opções simples, sem criar refeição por fallback.
+- Pedidos de resumo, relatório ou balanço devem exigir período explícito, aceitar períodos como `hoje`, `ontem`, `semana`, `mês`, `últimos 7 dias` ou intervalo `01/06 a 03/06`, e responder com totais do período.
+- Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a meta estimada do período quando a meta estiver disponível.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
 - Quando o interpretador de texto tratar a mensagem ou transcrição, o webhook real deve registrar evento de inferência com `origin: "whatsapp"`, responder com a mensagem interpretada e impedir que o mesmo conteúdo crie refeição por fallback.
 - Respostas finais de refeição no WhatsApp devem usar linguagem simples, sem títulos técnicos como `Alimentos e macros`, e devem listar alimentos, porções, calorias, proteína, carboidratos e gorduras por item.
@@ -57,6 +60,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
 - Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
 - Testar que texto como `diminuir 30 g` ajusta o último item da última refeição quando não há alimento explícito.
+- Testar que texto como `Me dê uma sugestão para o lanche da tarde` retorna uma sugestão e não chama inferência nutricional.
+- Testar que texto como `Me envie um resumo da semana` retorna relatório do período e não chama inferência nutricional.
+- Testar que pedido de relatório sem período pede esclarecimento antes de executar qualquer ação.
 - Testar que mensagem de texto comum de refeição continua delegando para o fluxo normal de inferência nutricional.
 - Testar que áudio transcrito como `500 ml de água ontem` registra hidratação sem chamar inferência nutricional nem criar refeição.
 - Testar que caption de imagem com texto parecido com comando continua no fluxo multimodal normal.
