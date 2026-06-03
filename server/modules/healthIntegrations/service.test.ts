@@ -92,6 +92,13 @@ function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), { status: 200 });
 }
 
+function stravaRateLimitResponse(retryAfterSeconds = 120) {
+  return new Response(JSON.stringify({ message: "Rate Limit Exceeded" }), {
+    status: 429,
+    headers: { "Retry-After": String(retryAfterSeconds) },
+  });
+}
+
 describe("healthIntegrationService Strava", () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -461,5 +468,34 @@ describe("healthIntegrationService Strava", () => {
         headers: { Authorization: "Bearer persisted-access-token" },
       }),
     );
+  });
+
+  it("respeita cooldown quando o Strava retorna limite 429", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-03T12:00:00Z"));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "persisted-access-token",
+        refresh_token: "persisted-refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(stravaRateLimitResponse(300));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    await expect(healthIntegrationService.sync(42, { provider: "strava" }))
+      .rejects
+      .toThrow("Limite de requisições do Strava atingido");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

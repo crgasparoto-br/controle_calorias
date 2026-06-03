@@ -49,6 +49,7 @@ import {
 import { reportsHabitAnalyticsSchema, reportsPeriodSchema } from "./modules/insights/schemas";
 import {
   getDashboardOverview,
+  getDashboardTodayOverview,
   getHabitAnalyticsReport,
   getWeeklyInsightsReport,
   getWeeklyProgressReport,
@@ -273,6 +274,11 @@ export const nutritionRouter = router({
   dashboard: router({
     overview: protectedProcedure.query(async ({ ctx }) => {
       const result = await getDashboardOverview(ctx.user.id);
+      void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
+      return result;
+    }),
+    today: protectedProcedure.query(async ({ ctx }) => {
+      const result = await getDashboardTodayOverview(ctx.user.id);
       void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
       return result;
     }),

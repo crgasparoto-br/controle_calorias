@@ -206,6 +206,7 @@ export default function GoalsPage() {
       await Promise.all([
         utils.nutrition.goals.get.invalidate(),
         utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.dashboard.today.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
       ]);
       if (result.safetyWarnings.length) {

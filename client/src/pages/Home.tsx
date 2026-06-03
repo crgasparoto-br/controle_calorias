@@ -99,7 +99,7 @@ function positiveRemaining(value: number) {
 
 export default function Home() {
   const utils = trpc.useUtils();
-  const overview = trpc.nutrition.dashboard.overview.useQuery();
+  const overview = trpc.nutrition.dashboard.today.useQuery();
   const [assistantMessage, setAssistantMessage] = React.useState("");
   const [assistantSuggestion, setAssistantSuggestion] = React.useState<AssistantSuggestion | null>(null);
 
@@ -114,6 +114,7 @@ export default function Home() {
     onSuccess: async () => {
       await Promise.all([
         utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.dashboard.today.invalidate(),
         utils.nutrition.meals.list.invalidate(),
         utils.nutrition.meals.dayTotals.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),

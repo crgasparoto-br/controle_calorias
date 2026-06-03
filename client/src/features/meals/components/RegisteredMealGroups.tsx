@@ -365,6 +365,7 @@ export function RegisteredMealGroups({
   const invalidateNutritionViews = async () => {
     await Promise.all([
       utils.nutrition.dashboard.overview.invalidate(),
+      utils.nutrition.dashboard.today.invalidate(),
       utils.nutrition.meals.list.invalidate(),
       utils.nutrition.meals.dayTotals.invalidate(),
       utils.nutrition.meals.favorites.invalidate(),

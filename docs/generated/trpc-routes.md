@@ -15,7 +15,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `professionals` | 11 | 5 | 6 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 2 | 1 | 1 | protected | Conclusão de onboarding nutricional |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
-| `dashboard` | 1 | 1 | 0 | protected | Visão consolidada diária |
+| `dashboard` | 2 | 2 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
 | `foods` | 5 | 2 | 3 | protected | Catálogo, favoritos e busca de alimentos |
@@ -95,6 +95,7 @@ Fonte: `server/nutritionRouter.ts`.
 | Procedure | Operação | Escopo |
 |---|---|---|
 | `overview` | query | protected |
+| `today` | query | protected |
 
 ### goals
 

@@ -157,6 +157,7 @@ type StravaAutoSyncSummary = {
 const connections = new Map<string, HealthConnection>();
 const records = new Map<number, HealthRecord[]>();
 const stravaTokens = new Map<number, StravaTokenState>();
+const stravaRateLimitCooldowns = new Map<number, number>();
 
 const STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize";
 const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
@@ -169,6 +170,18 @@ const STRAVA_SYNC_LOOKBACK_MONTHS = 2;
 const STRAVA_ACTIVITIES_PER_PAGE = 100;
 const STRAVA_MAX_ACTIVITY_PAGES = 20;
 const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 30;
+const DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES = 15;
+
+class StravaRateLimitError extends Error {
+  retryAfterMs: number;
+
+  constructor(retryAfterMs: number) {
+    const retryAt = new Date(Date.now() + retryAfterMs);
+    super(`Limite de requisições do Strava atingido. Tente sincronizar novamente após ${retryAt.toLocaleString("pt-BR")}.`);
+    this.name = "StravaRateLimitError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
 
 function hasStravaCredentials() {
   return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET && process.env.STRAVA_REDIRECT_URI);
@@ -588,6 +601,42 @@ function buildStravaActivityDetailUrl(activityId: number) {
   return `${STRAVA_ACTIVITY_DETAIL_URL}/${activityId}`;
 }
 
+function parseRetryAfterMs(response: Response) {
+  const retryAfter = response.headers.get("retry-after");
+  if (!retryAfter) {
+    return DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES * 60_000;
+  }
+
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return seconds * 1000;
+  }
+
+  const retryAt = Date.parse(retryAfter);
+  if (Number.isFinite(retryAt)) {
+    return Math.max(retryAt - Date.now(), 60_000);
+  }
+
+  return DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES * 60_000;
+}
+
+function createStravaRateLimitError(response: Response) {
+  return new StravaRateLimitError(parseRetryAfterMs(response));
+}
+
+function getStravaCooldownError(userId: number) {
+  const retryAt = stravaRateLimitCooldowns.get(userId);
+  if (!retryAt) return null;
+
+  const retryAfterMs = retryAt - Date.now();
+  if (retryAfterMs <= 0) {
+    stravaRateLimitCooldowns.delete(userId);
+    return null;
+  }
+
+  return new StravaRateLimitError(retryAfterMs);
+}
+
 function getStravaCaloriesBurned(activity: StravaActivity) {
   if (typeof activity.calories === "number" && activity.calories > 0) {
     return Math.round(activity.calories);
@@ -683,6 +732,9 @@ async function fetchStravaActivityDetail(accessToken: string, activityId: number
       activityId,
       status: response.status,
     });
+    if (response.status === 429) {
+      throw createStravaRateLimitError(response);
+    }
     return null;
   }
 
@@ -707,6 +759,11 @@ async function enrichStravaActivitiesWithDetails(accessToken: string, activities
 }
 
 async function fetchStravaActivities(userId: number) {
+  const cooldownError = getStravaCooldownError(userId);
+  if (cooldownError) {
+    throw cooldownError;
+  }
+
   const token = await ensureValidStravaToken(userId);
   const activities: StravaActivity[] = [];
   const after = getStravaActivitiesAfterTimestamp();
@@ -719,6 +776,9 @@ async function fetchStravaActivities(userId: number) {
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        throw createStravaRateLimitError(response);
+      }
       throw new Error(`Falha ao buscar atividades do Strava (${response.status}).`);
     }
 
@@ -1093,6 +1153,9 @@ export class HealthIntegrationService {
         importedExercises,
       };
     } catch (error) {
+      if (error instanceof StravaRateLimitError) {
+        stravaRateLimitCooldowns.set(userId, Date.now() + error.retryAfterMs);
+      }
       const next = upsertConnectionState(userId, {
         provider: input.provider,
         status: "error",
