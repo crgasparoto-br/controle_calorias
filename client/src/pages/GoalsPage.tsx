@@ -600,19 +600,22 @@ export default function GoalsPage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-3">
                   {previewDays.map(day => (
-                    <div key={day.weekday} className="rounded-2xl border bg-muted/20 p-4">
+                    <div key={day.weekday} className="rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="font-medium tracking-tight">{day.label}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-foreground">
                             {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
                           </p>
                         </div>
                         <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
                       </div>
-                      <p className="mt-3 text-sm text-muted-foreground">
-                        {formatCalories(day.calories)} · {formatGrams(day.proteinGrams)} proteína · {formatGrams(day.carbsGrams)} carbo · {formatGrams(day.fatGrams)} gordura
-                      </p>
+                      <div className="mt-3 space-y-1 text-sm text-foreground">
+                        <p>{formatCalories(day.calories)}</p>
+                        <p>{formatGrams(day.proteinGrams)} proteína</p>
+                        <p>{formatGrams(day.carbsGrams)} carbo</p>
+                        <p>{formatGrams(day.fatGrams)} gordura</p>
+                      </div>
                     </div>
                   ))}
                 </div>
