@@ -21,6 +21,9 @@ type ExtractedWhatsAppMessage = WhatsAppMessage & {
   messageIndex: number;
 };
 
+const recentlyHandledTextIntentMessageIds = new Map<string, number>();
+const TEXT_INTENT_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
+
 function extractMessages(payload: any): ExtractedWhatsAppMessage[] {
   const entries = Array.isArray(payload?.entry) ? payload.entry : [];
   return entries.flatMap((entry: any, entryIndex: number) =>
@@ -59,6 +62,34 @@ function getTextBody(message: WhatsAppMessage) {
 
 function canInterpretTextIntent(message: WhatsAppMessage) {
   return Boolean(getTextBody(message) && !message.image?.id && !message.audio?.id);
+}
+
+function getExtractedMessageKey(message: ExtractedWhatsAppMessage) {
+  return `${message.entryIndex}:${message.changeIndex}:${message.messageIndex}`;
+}
+
+function pruneRecentlyHandledTextIntentMessageIds(now = Date.now()) {
+  for (const [messageId, expiresAt] of recentlyHandledTextIntentMessageIds) {
+    if (expiresAt <= now) {
+      recentlyHandledTextIntentMessageIds.delete(messageId);
+    }
+  }
+}
+
+function wasTextIntentMessageAlreadyHandled(messageId?: string) {
+  if (!messageId) {
+    return false;
+  }
+
+  const now = Date.now();
+  pruneRecentlyHandledTextIntentMessageIds(now);
+  return recentlyHandledTextIntentMessageIds.has(messageId);
+}
+
+function markTextIntentMessageHandled(messageId?: string) {
+  if (messageId) {
+    recentlyHandledTextIntentMessageIds.set(messageId, Date.now() + TEXT_INTENT_DEDUPLICATION_TTL_MS);
+  }
 }
 
 async function sendWhatsAppTextMessage(to: string, body: string) {
@@ -115,6 +146,10 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
     return false;
   }
 
+  if (wasTextIntentMessageAlreadyHandled(message.id)) {
+    return true;
+  }
+
   const userId = await getUserIdByWhatsappPhone(sourcePhone);
   if (!userId) {
     return false;
@@ -127,6 +162,8 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
   if (!result) {
     return false;
   }
+
+  markTextIntentMessageHandled(message.id);
 
   logInferenceEvent({
     userId,
@@ -150,19 +187,21 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
   return true;
 }
 
-function clonePayloadWithoutHandledMessages(payload: any, handledMessageIds: Set<string>) {
+function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Set<string>) {
   const cloned = structuredClone(payload);
   const entries = Array.isArray(cloned?.entry) ? cloned.entry : [];
   cloned.entry = entries
-    .map((entry: any) => {
+    .map((entry: any, entryIndex: number) => {
       if (!Array.isArray(entry?.changes)) {
         return entry;
       }
 
       const changes = entry.changes
-        .map((change: any) => {
+        .map((change: any, changeIndex: number) => {
           const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
-          const pendingMessages = messages.filter((message: WhatsAppMessage) => !message.id || !handledMessageIds.has(message.id));
+          const pendingMessages = messages.filter(
+            (_message: WhatsAppMessage, messageIndex: number) => !handledMessageKeys.has(`${entryIndex}:${changeIndex}:${messageIndex}`),
+          );
           return {
             ...change,
             value: {
@@ -189,19 +228,19 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
     return handleWhatsAppWebhook(req, res);
   }
 
-  const handledMessageIds = new Set<string>();
+  const handledMessageKeys = new Set<string>();
   for (const message of messages) {
     const handled = await tryHandleTextIntent(message);
-    if (handled && message.id) {
-      handledMessageIds.add(message.id);
+    if (handled) {
+      handledMessageKeys.add(getExtractedMessageKey(message));
     }
   }
 
-  if (!handledMessageIds.size) {
+  if (!handledMessageKeys.size) {
     return handleWhatsAppWebhook(req, res);
   }
 
-  const remainingPayload = clonePayloadWithoutHandledMessages(req.body, handledMessageIds);
+  const remainingPayload = clonePayloadWithoutHandledMessages(req.body, handledMessageKeys);
   if (!Array.isArray(remainingPayload?.entry) || remainingPayload.entry.length === 0) {
     return res.status(200).json({ ok: true, processed: messages.length });
   }
