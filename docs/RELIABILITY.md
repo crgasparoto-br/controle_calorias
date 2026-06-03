@@ -10,7 +10,7 @@ Garantir que os fluxos críticos possam ser validados por humanos e agentes ante
 - Registro de refeição por texto, imagem e áudio.
 - Confirmação de rascunho de refeição.
 - Relatórios e dashboard.
-- Integrações de saúde, incluindo OAuth e sincronização automática do Strava.
+- Integrações de saúde, incluindo OAuth, sincronização automática do Strava e exibição de métricas detalhadas de atividades.
 - WhatsApp inbound e outbound.
 - Exportação e exclusão de dados.
 - Migrações e integridade referencial.
@@ -36,7 +36,7 @@ pnpm db:check-integrity
 
 - Testes unitários para cálculos nutricionais e validação de schemas.
 - Testes de serviço para confirmação de refeição, metas e WhatsApp.
-- Testes de serviço para integrações de saúde devem cobrir paginação, idempotência, atividade sem calorias no resumo e falhas externas controladas.
+- Testes de serviço para integrações de saúde devem cobrir paginação, idempotência, atividade sem calorias no resumo, metadados detalhados do Strava e falhas externas controladas.
 - Smoke tests futuros para web, WhatsApp e banco.
 - Checks estruturais para impedir drift de arquitetura e documentação.
 - Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
@@ -51,6 +51,7 @@ pnpm db:check-integrity
 - Relatório semanal divergente do dashboard.
 - Integração do Strava limitada à primeira página de atividades recentes.
 - Atividade do Strava ignorada porque o resumo não inclui gasto calórico.
+- Detalhes do Strava exibidos como obrigatórios quando a API não retorna a métrica.
 - Usuário com Strava conectado depender de sync manual para registrar exercícios.
 - Falha externa de IA corrompendo rascunhos ou bloqueando confirmação manual.
 - Falha de imagem auxiliar bloqueando um fluxo que deveria continuar sem ela.
@@ -63,6 +64,7 @@ pnpm db:check-integrity
 - A busca de atividades recentes deve paginar o período de lookback configurado para evitar perda de treinos além da primeira página.
 - Quando o resumo da atividade não trouxer gasto calórico, buscar o detalhe da atividade antes de decidir pular o exercício.
 - O OAuth deve solicitar `activity:read_all` para que atividades privadas ou marcadas como Only Me possam ser importadas após reconexão do usuário.
+- Métricas detalhadas do Strava, como distância, duração, elevação, frequência cardíaca, cadência e potência, devem ser tratadas como opcionais na UI e preservadas apenas quando a API retornar esses campos.
 - Falhas na sincronização automática devem ser registradas de forma segura e não podem impedir o servidor de iniciar.
 - `STRAVA_AUTO_SYNC_INTERVAL_MINUTES` controla o intervalo da rotina; `STRAVA_AUTO_SYNC_DISABLED=true` desativa o agendamento.
 
