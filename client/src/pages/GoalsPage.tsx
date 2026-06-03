@@ -862,8 +862,11 @@ function SelectField({
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border bg-muted/20 p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-medium tracking-tight">{label}</p>
+        <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">total</span>
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">{value}</p>
     </div>
   );
 }
