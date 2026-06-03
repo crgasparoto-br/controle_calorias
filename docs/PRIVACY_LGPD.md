@@ -9,6 +9,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 | Identidade | Nome, e-mail, `openId`, telefone WhatsApp |
 | Saúde/nutrição | Peso, objetivo, restrições, refeições, macros, hidratação, exercícios |
 | Conteúdo bruto | Texto de refeição, transcrição, imagem, áudio |
+| Integrações externas | Tokens OAuth, identificadores externos e atividades importadas do Strava |
 | IA | Prompt, reasoning, confidence, inferências e logs |
 | Operação | Tokens, IDs de canal, URLs de mídia e detalhes técnicos |
 
@@ -18,14 +19,16 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Finalidade: documentar por que cada novo dado sensível é necessário.
 - Transparência: exportação deve ser compreensível para o usuário.
 - Segurança: logs e analytics devem ser sanitizados.
-- Retenção: dados brutos de IA e mídia devem ter retenção intencional, não acidental.
+- Retenção: dados brutos de IA, mídia e integrações externas devem ter retenção intencional, não acidental.
 
 ## Regras práticas
 
-- Não logar `sourceText`, `transcript`, `reasoning`, token, telefone completo ou URL assinada.
+- Não logar `sourceText`, `transcript`, `reasoning`, token, telefone completo, URL assinada ou payload bruto de atividade externa.
 - Não enviar dados de saúde identificáveis para analytics.
 - Usar `safeLogDetail` ou helper equivalente para detalhes operacionais.
 - Ao adicionar integração externa, documentar dados enviados, motivo e comportamento de exclusão.
+- Tokens do Strava devem permanecer criptografados em `appSecrets`; logs de sincronização automática devem conter apenas contadores, status e mensagens sanitizadas.
+- Atividades do Strava são importadas para exercícios para manter o diário do usuário atualizado sem sincronização manual.
 - Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
 
 ## Checklist para PRs sensíveis
