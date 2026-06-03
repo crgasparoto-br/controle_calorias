@@ -14,24 +14,48 @@ import { Link2, MessageCircle, Send, Smartphone, Webhook } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
+type SimulationDraftResult = {
+  draftId: string;
+  processed: {
+    detectedMealLabel: string;
+    confidence: number;
+    items: Array<{ foodName: string; portionText: string }>;
+    totals: { calories: number; protein: number; carbs: number; fat: number };
+  };
+};
+
+type SimulationIntentResult = {
+  handled: true;
+  action: "water_logged" | "meal_item_grams_adjusted" | "clarification_needed";
+  reply: string;
+  eventType: string;
+  detail: string;
+};
+
+type SimulationResult = SimulationDraftResult | SimulationIntentResult;
+
+function isDraftSimulation(result: SimulationResult): result is SimulationDraftResult {
+  return "draftId" in result;
+}
+
+function getSimulationSummary(result: SimulationResult | null) {
+  if (!result) return "Nenhuma rodada ainda";
+  if (isDraftSimulation(result)) return result.processed.detectedMealLabel;
+  if (result.action === "clarification_needed") return "Aguardando esclarecimento";
+  return "Ação interpretada";
+}
+
 export default function ChannelsPage() {
   const [message, setMessage] = useState("almocei arroz, feijão, frango grelhado e salada");
-  const [lastSimulation, setLastSimulation] = useState<null | {
-    draftId: string;
-    processed: {
-      detectedMealLabel: string;
-      confidence: number;
-      items: Array<{ foodName: string; portionText: string }>;
-      totals: { calories: number; protein: number; carbs: number; fat: number };
-    };
-  }>(null);
+  const [lastSimulation, setLastSimulation] = useState<SimulationResult | null>(null);
 
   const statusQuery = trpc.nutrition.whatsapp.status.useQuery();
 
   const simulateInbound = trpc.nutrition.whatsapp.simulateInbound.useMutation({
     onSuccess: result => {
-      toast.success("Mensagem simulada com sucesso. Um rascunho foi criado para o usuário autenticado.");
-      setLastSimulation(result);
+      const simulation = result as SimulationResult;
+      toast.success(isDraftSimulation(simulation) ? "Mensagem simulada com sucesso. Um rascunho foi criado para o usuário autenticado." : simulation.reply);
+      setLastSimulation(simulation);
     },
     onError: error => toast.error(error.message || "Não foi possível simular a mensagem do WhatsApp agora."),
   });
@@ -68,7 +92,7 @@ export default function ChannelsPage() {
             <div className="grid gap-3 sm:grid-cols-3 xl:w-[34rem]">
               <SurfaceStat label="Canal" value={isConfigured ? "Pronto para receber mensagens" : "Ainda depende de configuração"} />
               <SurfaceStat label="Contato" value={hasConnection ? connection?.phoneNumber ?? "Vinculado" : "Sem vínculo ativo"} />
-              <SurfaceStat label="Última simulação" value={lastSimulation ? lastSimulation.processed.detectedMealLabel : "Nenhuma rodada ainda"} />
+              <SurfaceStat label="Última simulação" value={getSimulationSummary(lastSimulation)} />
             </div>
           </div>
 
@@ -232,32 +256,45 @@ export default function ChannelsPage() {
 
                 <div>
                   {lastSimulation ? (
-                    <div className="space-y-4 rounded-3xl border bg-muted/20 p-5">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Rascunho gerado</p>
-                          <p className="font-mono text-sm text-foreground">{lastSimulation.draftId}</p>
-                        </div>
-                        <Badge>{formatPercentPtBr(lastSimulation.processed.confidence * 100)}% de confiança</Badge>
-                      </div>
-                      <div>
-                        <p className="font-medium tracking-tight">{lastSimulation.processed.detectedMealLabel}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Total estimado: {formatCalories(lastSimulation.processed.totals.calories)}</p>
-                      </div>
-                      <div className="space-y-2">
-                        {lastSimulation.processed.items.map((item, index) => (
-                          <div key={`${item.foodName}-${index}`} className="rounded-2xl border bg-background p-3 text-sm">
-                            <strong className="text-foreground">{item.foodName}</strong>
-                            <span className="text-muted-foreground"> · {item.portionText}</span>
+                    isDraftSimulation(lastSimulation) ? (
+                      <div className="space-y-4 rounded-3xl border bg-muted/20 p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Rascunho gerado</p>
+                            <p className="font-mono text-sm text-foreground">{lastSimulation.draftId}</p>
                           </div>
-                        ))}
+                          <Badge>{formatPercentPtBr(lastSimulation.processed.confidence * 100)}% de confiança</Badge>
+                        </div>
+                        <div>
+                          <p className="font-medium tracking-tight">{lastSimulation.processed.detectedMealLabel}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">Total estimado: {formatCalories(lastSimulation.processed.totals.calories)}</p>
+                        </div>
+                        <div className="space-y-2">
+                          {lastSimulation.processed.items.map((item, index) => (
+                            <div key={`${item.foodName}-${index}`} className="rounded-2xl border bg-background p-3 text-sm">
+                              <strong className="text-foreground">{item.foodName}</strong>
+                              <span className="text-muted-foreground"> · {item.portionText}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-4 rounded-3xl border bg-muted/20 p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Ação interpretada</p>
+                            <p className="font-medium tracking-tight">{getSimulationSummary(lastSimulation)}</p>
+                          </div>
+                          <Badge variant={lastSimulation.action === "clarification_needed" ? "secondary" : "default"}>{lastSimulation.action}</Badge>
+                        </div>
+                        <p className="text-sm leading-6 text-muted-foreground">{lastSimulation.reply}</p>
+                      </div>
+                    )
                   ) : (
                     <UXState
                       variant="empty"
                       title="Nenhuma simulação executada"
-                      description="O resultado da simulação aparecerá aqui com o rascunho criado e os alimentos reconhecidos pela inferência nutricional."
+                      description="O resultado da simulação aparecerá aqui com o rascunho criado, ação interpretada ou pedido de esclarecimento."
                     />
                   )}
                 </div>
