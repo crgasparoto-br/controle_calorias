@@ -7,6 +7,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
+import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/service";
 import { handleWhatsAppWebhookWithTextIntent } from "../whatsappIntentWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
@@ -49,6 +50,7 @@ async function startServer() {
   } catch (error) {
     console.warn("[Nutrition] Food catalog sync skipped:", error);
   }
+  startStravaAutoSyncScheduler();
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

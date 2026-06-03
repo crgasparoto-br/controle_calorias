@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { appSecrets } from "../../../drizzle/schema";
 import { ENV } from "../../_core/env";
 import { getDb } from "../../db";
@@ -88,6 +88,13 @@ type StravaExerciseImportSummary = {
   skipped: number;
 };
 
+type StravaAutoSyncSummary = {
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  importedExercises: StravaExerciseImportSummary;
+};
+
 const connections = new Map<string, HealthConnection>();
 const records = new Map<number, HealthRecord[]>();
 const stravaTokens = new Map<number, StravaTokenState>();
@@ -99,6 +106,9 @@ const STRAVA_SCOPES = "read,activity:read";
 const STRAVA_ACTIVITY_NOTE_PREFIX = "Importado automaticamente do Strava";
 const STRAVA_TOKEN_SECRET_PREFIX = "strava_oauth_user";
 const STRAVA_SYNC_LOOKBACK_MONTHS = 2;
+const STRAVA_ACTIVITIES_PER_PAGE = 100;
+const STRAVA_MAX_ACTIVITY_PAGES = 20;
+const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 30;
 
 function hasStravaCredentials() {
   return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET && process.env.STRAVA_REDIRECT_URI);
@@ -172,6 +182,14 @@ function getProvider(provider: HealthProvider) {
 
 function buildStravaSecretKey(userId: number) {
   return `${STRAVA_TOKEN_SECRET_PREFIX}_${userId}`;
+}
+
+function parseStravaUserIdFromSecretKey(secretKey: string) {
+  const prefix = `${STRAVA_TOKEN_SECRET_PREFIX}_`;
+  if (!secretKey.startsWith(prefix)) return null;
+
+  const userId = Number(secretKey.slice(prefix.length));
+  return Number.isInteger(userId) && userId > 0 ? userId : null;
 }
 
 function getSecretCipherKey() {
@@ -285,6 +303,29 @@ async function deleteStoredStravaTokenState(userId: number) {
   } catch (error) {
     console.warn("[HealthIntegrations] Failed to delete persisted Strava OAuth state:", error instanceof Error ? error.message : error);
   }
+}
+
+async function listStoredStravaUserIds() {
+  const userIds = new Set(stravaTokens.keys());
+  const db = await getDb();
+  if (!db) return Array.from(userIds);
+
+  try {
+    const rows = await db
+      .select({ secretKey: appSecrets.secretKey })
+      .from(appSecrets)
+      .where(like(appSecrets.secretKey, `${STRAVA_TOKEN_SECRET_PREFIX}_%`))
+      .limit(500);
+
+    for (const row of rows) {
+      const userId = parseStravaUserIdFromSecretKey(row.secretKey);
+      if (userId) userIds.add(userId);
+    }
+  } catch (error) {
+    console.warn("[HealthIntegrations] Failed to list persisted Strava OAuth users:", error instanceof Error ? error.message : error);
+  }
+
+  return Array.from(userIds);
 }
 
 function parseStravaScopes(scope: string | null | undefined): HealthDataType[] {
@@ -474,27 +515,41 @@ function getStravaActivitiesAfterTimestamp(now = new Date()) {
   return Math.floor(lookbackDate.getTime() / 1000);
 }
 
-function buildStravaActivitiesUrl() {
+function buildStravaActivitiesUrl(page: number, after = getStravaActivitiesAfterTimestamp()) {
   const params = new URLSearchParams({
-    per_page: "20",
-    after: String(getStravaActivitiesAfterTimestamp()),
+    per_page: String(STRAVA_ACTIVITIES_PER_PAGE),
+    page: String(page),
+    after: String(after),
   });
   return `${STRAVA_ACTIVITIES_URL}?${params.toString()}`;
 }
 
 async function fetchStravaActivities(userId: number) {
   const token = await ensureValidStravaToken(userId);
-  const response = await fetch(buildStravaActivitiesUrl(), {
-    headers: {
-      Authorization: `Bearer ${token.accessToken}`,
-    },
-  });
+  const activities: StravaActivity[] = [];
+  const after = getStravaActivitiesAfterTimestamp();
 
-  if (!response.ok) {
-    throw new Error(`Falha ao buscar atividades do Strava (${response.status}).`);
+  for (let page = 1; page <= STRAVA_MAX_ACTIVITY_PAGES; page += 1) {
+    const response = await fetch(buildStravaActivitiesUrl(page, after), {
+      headers: {
+        Authorization: `Bearer ${token.accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Falha ao buscar atividades do Strava (${response.status}).`);
+    }
+
+    const pageActivities = await response.json() as StravaActivity[];
+    if (!Array.isArray(pageActivities)) {
+      throw new Error("Resposta inesperada do Strava ao buscar atividades.");
+    }
+
+    activities.push(...pageActivities);
+    if (pageActivities.length < STRAVA_ACTIVITIES_PER_PAGE) break;
   }
 
-  return await response.json() as StravaActivity[];
+  return activities;
 }
 
 function getStravaActivityType(activity: StravaActivity) {
@@ -609,6 +664,35 @@ function formatStravaImportSummary(summary: StravaExerciseImportSummary) {
   }
 
   return `${imported} exercício(s) registrado(s) a partir das atividades recentes.`;
+}
+
+function mergeStravaImportSummary(target: StravaExerciseImportSummary, source: StravaExerciseImportSummary | null | undefined) {
+  if (!source) return target;
+
+  target.created += source.created;
+  target.updated += source.updated;
+  target.skipped += source.skipped;
+  return target;
+}
+
+function getStravaAutoSyncIntervalMs() {
+  if (["1", "true", "yes", "on"].includes(process.env.STRAVA_AUTO_SYNC_DISABLED?.toLowerCase() ?? "")) {
+    return null;
+  }
+
+  const configuredMinutes = Number(process.env.STRAVA_AUTO_SYNC_INTERVAL_MINUTES ?? DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES);
+  if (!Number.isFinite(configuredMinutes) || configuredMinutes <= 0) {
+    return null;
+  }
+
+  return Math.max(configuredMinutes, 5) * 60_000;
+}
+
+function runTimerWithoutKeepingProcessAlive(timer: ReturnType<typeof setInterval> | ReturnType<typeof setTimeout>) {
+  const maybeUnref = (timer as { unref?: () => void }).unref;
+  if (typeof maybeUnref === "function") {
+    maybeUnref.call(timer);
+  }
 }
 
 export class HealthIntegrationService {
@@ -742,7 +826,7 @@ export class HealthIntegrationService {
         return {
           ok: true,
           redirectTo: "/health-integrations?provider=strava&status=connected",
-          message: `Strava conectado com sucesso para o usuário ${connection.userId}. Sincronize novamente para importar os exercícios recentes.`,
+          message: `Strava conectado com sucesso para o usuário ${connection.userId}. A rotina automática tentará importar os exercícios recentes novamente em segundo plano.`,
         } as const;
       }
     } catch (error) {
@@ -822,6 +906,78 @@ export class HealthIntegrationService {
       throw error;
     }
   }
+
+  async syncConnectedStravaUsers(): Promise<StravaAutoSyncSummary> {
+    const userIds = await listStoredStravaUserIds();
+    const summary: StravaAutoSyncSummary = {
+      attempted: userIds.length,
+      succeeded: 0,
+      failed: 0,
+      importedExercises: { created: 0, updated: 0, skipped: 0 },
+    };
+
+    for (const userId of userIds) {
+      try {
+        const result = await this.sync(userId, { provider: "strava" });
+        mergeStravaImportSummary(summary.importedExercises, result.importedExercises);
+        summary.succeeded += 1;
+      } catch (error) {
+        summary.failed += 1;
+        console.warn("[HealthIntegrations] Automatic Strava sync failed for connected user:", {
+          userId,
+          message: error instanceof Error ? error.message : "Falha desconhecida.",
+        });
+      }
+    }
+
+    return summary;
+  }
 }
 
 export const healthIntegrationService = new HealthIntegrationService();
+
+export function startStravaAutoSyncScheduler() {
+  if (!hasStravaCredentials()) {
+    console.warn("[HealthIntegrations] Automatic Strava sync disabled because OAuth credentials are missing.");
+    return { enabled: false as const, stop: () => undefined };
+  }
+
+  const intervalMs = getStravaAutoSyncIntervalMs();
+  if (!intervalMs) {
+    console.warn("[HealthIntegrations] Automatic Strava sync disabled by configuration.");
+    return { enabled: false as const, stop: () => undefined };
+  }
+
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const summary = await healthIntegrationService.syncConnectedStravaUsers();
+      if (summary.attempted > 0) {
+        console.log("[HealthIntegrations] Automatic Strava sync completed:", summary);
+      }
+    } catch (error) {
+      console.warn("[HealthIntegrations] Automatic Strava sync skipped:", error instanceof Error ? error.message : error);
+    } finally {
+      running = false;
+    }
+  };
+
+  const initialRun = setTimeout(() => {
+    void run();
+  }, 5_000);
+  const interval = setInterval(() => {
+    void run();
+  }, intervalMs);
+  runTimerWithoutKeepingProcessAlive(initialRun);
+  runTimerWithoutKeepingProcessAlive(interval);
+
+  return {
+    enabled: true as const,
+    stop: () => {
+      clearTimeout(initialRun);
+      clearInterval(interval);
+    },
+  };
+}
