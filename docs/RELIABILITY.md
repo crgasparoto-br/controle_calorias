@@ -36,7 +36,7 @@ pnpm db:check-integrity
 
 - Testes unitários para cálculos nutricionais e validação de schemas.
 - Testes de serviço para confirmação de refeição, metas e WhatsApp.
-- Testes de serviço para integrações de saúde devem cobrir paginação, idempotência e falhas externas controladas.
+- Testes de serviço para integrações de saúde devem cobrir paginação, idempotência, atividade sem calorias no resumo e falhas externas controladas.
 - Smoke tests futuros para web, WhatsApp e banco.
 - Checks estruturais para impedir drift de arquitetura e documentação.
 - Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
@@ -50,6 +50,7 @@ pnpm db:check-integrity
 - Falha silenciosa no envio WhatsApp.
 - Relatório semanal divergente do dashboard.
 - Integração do Strava limitada à primeira página de atividades recentes.
+- Atividade do Strava ignorada porque o resumo não inclui gasto calórico.
 - Usuário com Strava conectado depender de sync manual para registrar exercícios.
 - Falha externa de IA corrompendo rascunhos ou bloqueando confirmação manual.
 - Falha de imagem auxiliar bloqueando um fluxo que deveria continuar sem ela.
@@ -60,6 +61,8 @@ pnpm db:check-integrity
 - Tokens OAuth ficam criptografados em `appSecrets` e nunca devem ser logados.
 - Sincronização automática deve ser idempotente, usando a referência externa `strava:<activityId>` nas notas do exercício.
 - A busca de atividades recentes deve paginar o período de lookback configurado para evitar perda de treinos além da primeira página.
+- Quando o resumo da atividade não trouxer gasto calórico, buscar o detalhe da atividade antes de decidir pular o exercício.
+- O OAuth deve solicitar `activity:read_all` para que atividades privadas ou marcadas como Only Me possam ser importadas após reconexão do usuário.
 - Falhas na sincronização automática devem ser registradas de forma segura e não podem impedir o servidor de iniciar.
 - `STRAVA_AUTO_SYNC_INTERVAL_MINUTES` controla o intervalo da rotina; `STRAVA_AUTO_SYNC_DISABLED=true` desativa o agendamento.
 
