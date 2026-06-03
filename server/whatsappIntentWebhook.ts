@@ -1,0 +1,211 @@
+import { Request, Response } from "express";
+import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { getUserIdByWhatsappPhone, logInferenceEvent } from "./db";
+import { getWhatsAppChannelConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
+import { handleWhatsAppWebhook } from "./whatsappWebhook";
+
+type WhatsAppMessage = {
+  id?: string;
+  from?: string;
+  channelPhoneNumberId?: string;
+  timestamp?: string;
+  type?: string;
+  text?: { body?: string };
+  image?: { id?: string; caption?: string };
+  audio?: { id?: string };
+};
+
+type ExtractedWhatsAppMessage = WhatsAppMessage & {
+  entryIndex: number;
+  changeIndex: number;
+  messageIndex: number;
+};
+
+function extractMessages(payload: any): ExtractedWhatsAppMessage[] {
+  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+  return entries.flatMap((entry: any, entryIndex: number) =>
+    Array.isArray(entry?.changes)
+      ? entry.changes.flatMap((change: any, changeIndex: number) => {
+          const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
+          return messages.map((message: WhatsAppMessage, messageIndex: number) => ({
+            ...message,
+            entryIndex,
+            changeIndex,
+            messageIndex,
+            channelPhoneNumberId: change?.value?.metadata?.phone_number_id,
+          }));
+        })
+      : [],
+  );
+}
+
+function isMessageForConfiguredChannel(message: WhatsAppMessage) {
+  const configuredPhoneNumberId = getWhatsAppChannelConfig().phoneNumberId;
+  return !message.channelPhoneNumberId || !configuredPhoneNumberId || message.channelPhoneNumberId === configuredPhoneNumberId;
+}
+
+function resolveOccurredAt(message: WhatsAppMessage) {
+  const parsed = Number(message.timestamp);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return new Date();
+  }
+
+  return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
+}
+
+function getTextBody(message: WhatsAppMessage) {
+  return message.text?.body?.trim() || "";
+}
+
+function canInterpretTextIntent(message: WhatsAppMessage) {
+  return Boolean(getTextBody(message) && !message.image?.id && !message.audio?.id);
+}
+
+async function sendWhatsAppTextMessage(to: string, body: string) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de resposta.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "text",
+        text: {
+          preview_url: false,
+          body,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da resposta automática.`,
+      };
+    }
+
+    return {
+      ok: true,
+      detail: "Resposta automática enviada com sucesso.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar resposta automática do WhatsApp.",
+    };
+  }
+}
+
+async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
+  const sourcePhone = message.from || "unknown";
+  if (!isMessageForConfiguredChannel(message) || !canInterpretTextIntent(message)) {
+    return false;
+  }
+
+  const userId = await getUserIdByWhatsappPhone(sourcePhone);
+  if (!userId) {
+    return false;
+  }
+
+  const result = await executeWhatsappTextIntent(userId, {
+    text: getTextBody(message),
+    receivedAt: resolveOccurredAt(message),
+  });
+  if (!result) {
+    return false;
+  }
+
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: result.action === "clarification_needed" ? "warning" : "success",
+    eventType: result.eventType,
+    detail: result.detail,
+  });
+
+  const replyResult = await sendWhatsAppTextMessage(sourcePhone, result.reply);
+  if (!replyResult.ok) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.reply_failed",
+      detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+    });
+  }
+
+  return true;
+}
+
+function clonePayloadWithoutHandledMessages(payload: any, handledMessageIds: Set<string>) {
+  const cloned = structuredClone(payload);
+  const entries = Array.isArray(cloned?.entry) ? cloned.entry : [];
+  cloned.entry = entries
+    .map((entry: any) => {
+      if (!Array.isArray(entry?.changes)) {
+        return entry;
+      }
+
+      const changes = entry.changes
+        .map((change: any) => {
+          const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
+          const pendingMessages = messages.filter((message: WhatsAppMessage) => !message.id || !handledMessageIds.has(message.id));
+          return {
+            ...change,
+            value: {
+              ...change.value,
+              messages: pendingMessages,
+            },
+          };
+        })
+        .filter((change: any) => Array.isArray(change?.value?.messages) && change.value.messages.length > 0);
+
+      return {
+        ...entry,
+        changes,
+      };
+    })
+    .filter((entry: any) => Array.isArray(entry?.changes) && entry.changes.length > 0);
+
+  return cloned;
+}
+
+export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Response) {
+  const messages = extractMessages(req.body);
+  if (!messages.length) {
+    return handleWhatsAppWebhook(req, res);
+  }
+
+  const handledMessageIds = new Set<string>();
+  for (const message of messages) {
+    const handled = await tryHandleTextIntent(message);
+    if (handled && message.id) {
+      handledMessageIds.add(message.id);
+    }
+  }
+
+  if (!handledMessageIds.size) {
+    return handleWhatsAppWebhook(req, res);
+  }
+
+  const remainingPayload = clonePayloadWithoutHandledMessages(req.body, handledMessageIds);
+  if (!Array.isArray(remainingPayload?.entry) || remainingPayload.entry.length === 0) {
+    return res.status(200).json({ ok: true, processed: messages.length });
+  }
+
+  req.body = remainingPayload;
+  return handleWhatsAppWebhook(req, res);
+}
