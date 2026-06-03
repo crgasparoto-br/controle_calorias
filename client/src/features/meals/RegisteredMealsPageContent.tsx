@@ -19,7 +19,7 @@ import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTi
 import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarPlus, ChevronDown, Droplets, Dumbbell, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MealItemEditor, MealLabelInput, RegisteredMealGroups, SummaryPill } from "./components";
 import { createEmptyItem, createManualMealState, sumItems } from "./mealFormState";
@@ -138,7 +138,7 @@ function buildDateSectionDescription(scope: PeriodScope) {
 }
 
 function toDateKeyInTimeZone(value: string | number | Date, timeZone: string) {
-  const date = new Date(value);
+  const date = toRecordDate(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -152,6 +152,14 @@ function isDateKeyInRange(dateKey: string, range: { start: string; end: string }
   return Boolean(dateKey) && dateKey >= range.start && dateKey <= range.end;
 }
 
+function toRecordDate(value: string | number | Date) {
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return new Date(Number(trimmed));
+  return new Date(trimmed);
+}
+
 function formatDateTimeLabel(value: string | number | Date, timeZone: string) {
   return new Intl.DateTimeFormat("pt-BR", {
     timeZone,
@@ -160,7 +168,20 @@ function formatDateTimeLabel(value: string | number | Date, timeZone: string) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value)).replace(",", "");
+  }).format(toRecordDate(value)).replace(",", "");
+}
+
+function formatTimeOnlyLabel(value: string | number | Date, timeZone: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(toRecordDate(value));
+}
+
+function calculateExerciseIntensity(exercise: ExerciseRecord) {
+  if (!exercise.durationMinutes) return 0;
+  return exercise.caloriesBurned / exercise.durationMinutes;
 }
 
 function DateGroupedMealsSections({
@@ -256,6 +277,14 @@ function HabitRecordsSection({
   const waterTotalMl = waterLogs.reduce((total, log) => total + (log.amountMl ?? 0), 0);
   const exerciseTotalCalories = exerciseLogs.reduce((total, exercise) => total + (exercise.caloriesBurned ?? 0), 0);
   const exerciseTotalMinutes = exerciseLogs.reduce((total, exercise) => total + (exercise.durationMinutes ?? 0), 0);
+  const sortedWaterLogs = useMemo(
+    () => waterLogs.slice().sort((first, second) => toRecordDate(second.occurredAt).getTime() - toRecordDate(first.occurredAt).getTime()),
+    [waterLogs],
+  );
+  const sortedExerciseLogs = useMemo(
+    () => exerciseLogs.slice().sort((first, second) => toRecordDate(second.occurredAt).getTime() - toRecordDate(first.occurredAt).getTime()),
+    [exerciseLogs],
+  );
 
   return (
     <Card collapsible={false} className="border-0 shadow-sm">
@@ -286,7 +315,7 @@ function HabitRecordsSection({
             <div className="space-y-2">
               {isLoading ? <EmptyOperationalRecord text="Carregando água..." /> : null}
               {!isLoading && !waterLogs.length ? <EmptyOperationalRecord text="Nenhum consumo de água no intervalo." /> : null}
-              {waterLogs.map(log => (
+              {sortedWaterLogs.map(log => (
                 <OperationalRecord key={log.id} label={`${formatDateTimeLabel(log.occurredAt, userTimeZone)} - ${formatCountPtBr(log.amountMl, "ml")}`} />
               ))}
             </div>
@@ -303,17 +332,54 @@ function HabitRecordsSection({
             <div className="space-y-2">
               {isLoading ? <EmptyOperationalRecord text="Carregando exercícios..." /> : null}
               {!isLoading && !exerciseLogs.length ? <EmptyOperationalRecord text="Nenhum exercício no intervalo." /> : null}
-              {exerciseLogs.map(exercise => (
-                <OperationalRecord
-                  key={exercise.id}
-                  label={`${formatDateTimeLabel(exercise.occurredAt, userTimeZone)} - ${exercise.activityType} ${formatCountPtBr(exercise.durationMinutes, " min")} . ${formatCalories(exercise.caloriesBurned)}`}
-                />
+              {sortedExerciseLogs.map(exercise => (
+                <ExerciseOperationalRecord key={exercise.id} exercise={exercise} userTimeZone={userTimeZone} />
               ))}
             </div>
           </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function ExerciseOperationalRecord({ exercise, userTimeZone }: { exercise: ExerciseRecord; userTimeZone: string }) {
+  const intensity = calculateExerciseIntensity(exercise);
+
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-medium tracking-tight">{exercise.activityType}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{formatDateTimeLabel(exercise.occurredAt, userTimeZone)}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <SummaryPill label="Gasto" value={formatCalories(exercise.caloriesBurned)} />
+          <SummaryPill label="Duração" value={formatCountPtBr(exercise.durationMinutes, " min")} />
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <CompactOperationalMetric label="Horário" value={formatTimeOnlyLabel(exercise.occurredAt, userTimeZone)} />
+        <CompactOperationalMetric label="Intensidade" value={`${formatCountPtBr(Math.round(intensity), " kcal/min")}`} />
+        <CompactOperationalMetric label="ID do registro" value={`#${exercise.id}`} />
+      </div>
+
+      {exercise.notes ? (
+        <div className="mt-3 rounded-xl border bg-muted/20 px-3 py-2 text-sm leading-5 text-muted-foreground">
+          {exercise.notes}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CompactOperationalMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border bg-muted/10 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium tracking-tight">{value}</p>
+    </div>
   );
 }
 

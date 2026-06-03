@@ -362,7 +362,7 @@ const overviewData = {
       activityType: "Corrida",
       durationMinutes: 45,
       caloriesBurned: 320,
-      occurredAt: Date.now(),
+      occurredAt: String(Date.now()),
       notes: "Rodagem leve",
     },
   ],
@@ -591,6 +591,17 @@ describe("nutrition pages", () => {
     expect(html).toContain("Água do dia");
     expect(html).toContain("Exercícios");
     expect(html).toContain("Peso atual");
+  });
+
+  it("renderiza todos os exercícios do intervalo com detalhes operacionais", async () => {
+    const { RegisteredMealsPage } = await import("@/features/meals/RegisteredMealsPageContent");
+    const html = renderToString(React.createElement(RegisteredMealsPage));
+
+    expect(html).toContain("Registros de exercícios");
+    expect(html).toContain("Corrida");
+    expect(html).toContain("Rodagem leve");
+    expect(html).toContain("Intensidade");
+    expect(html).toContain("#99");
   });
 
   it("renderiza a página de relatórios com resumo semanal, leitura de hidratação e atividade física", async () => {
