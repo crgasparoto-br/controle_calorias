@@ -50,14 +50,6 @@ type GroupedMealSummary = {
   count: number;
 };
 
-const MACRO_CALORIES_PER_GRAM = {
-  protein: 4,
-  carbs: 4,
-  fat: 9,
-} as const;
-
-type MacroKind = keyof typeof MACRO_CALORIES_PER_GRAM;
-
 function macroProgress(consumed: number, goal: number) {
   if (!goal) return 0;
   return Math.min((consumed / goal) * 100, 100);
@@ -93,12 +85,12 @@ function formatDayShare(value: number, total: number) {
   return `${formatPercentPtBr(dayShare(value, total))}% do total do dia`;
 }
 
-function macroCalories(grams: number, macro: MacroKind) {
-  return grams * MACRO_CALORIES_PER_GRAM[macro];
+function macroGramTotal(protein: number, carbs: number, fat: number) {
+  return protein + carbs + fat;
 }
 
-function formatMacroCalorieShare(grams: number, totalCalories: number, macro: MacroKind, label: string) {
-  return `${label}: ${formatPercentPtBr(dayShare(macroCalories(grams, macro), totalCalories))}% das calorias`;
+function formatMacroGramShare(grams: number, totalGrams: number, label: string) {
+  return `${label}: ${formatPercentPtBr(dayShare(grams, totalGrams))}% do total em gramas`;
 }
 
 function positiveRemaining(value: number) {
@@ -177,6 +169,8 @@ export default function Home() {
   const proteinGoal = overview.data?.today.goal.protein ?? 0;
   const carbsGoal = overview.data?.today.goal.carbs ?? 0;
   const fatGoal = overview.data?.today.goal.fat ?? 0;
+  const consumedMacroTotal = macroGramTotal(consumedProtein, consumedCarbs, consumedFat);
+  const goalMacroTotal = macroGramTotal(proteinGoal, carbsGoal, fatGoal);
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
   const exerciseCalories = overview.data?.today.burned.calories ?? 0;
   const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
@@ -325,8 +319,8 @@ export default function Home() {
                       value={formatGrams(consumedProtein)}
                       sublabel={formatGoalComparison(consumedProtein, proteinGoal, formatGrams)}
                       details={[
-                        formatMacroCalorieShare(consumedProtein, consumedCalories, "protein", "Consumido"),
-                        formatMacroCalorieShare(proteinGoal, calorieGoal, "protein", "Meta"),
+                        formatMacroGramShare(consumedProtein, consumedMacroTotal, "Consumido"),
+                        formatMacroGramShare(proteinGoal, goalMacroTotal, "Meta"),
                       ]}
                     />
                     <StatBlock
@@ -334,8 +328,8 @@ export default function Home() {
                       value={formatGrams(consumedCarbs)}
                       sublabel={formatGoalComparison(consumedCarbs, carbsGoal, formatGrams)}
                       details={[
-                        formatMacroCalorieShare(consumedCarbs, consumedCalories, "carbs", "Consumido"),
-                        formatMacroCalorieShare(carbsGoal, calorieGoal, "carbs", "Meta"),
+                        formatMacroGramShare(consumedCarbs, consumedMacroTotal, "Consumido"),
+                        formatMacroGramShare(carbsGoal, goalMacroTotal, "Meta"),
                       ]}
                     />
                     <StatBlock
@@ -343,8 +337,8 @@ export default function Home() {
                       value={formatGrams(consumedFat)}
                       sublabel={formatGoalComparison(consumedFat, fatGoal, formatGrams)}
                       details={[
-                        formatMacroCalorieShare(consumedFat, consumedCalories, "fat", "Consumido"),
-                        formatMacroCalorieShare(fatGoal, calorieGoal, "fat", "Meta"),
+                        formatMacroGramShare(consumedFat, consumedMacroTotal, "Consumido"),
+                        formatMacroGramShare(fatGoal, goalMacroTotal, "Meta"),
                       ]}
                     />
                     <StatBlock label="Refeições" value={formatCountPtBr(groupedTodaysMeals.length)} sublabel="Agrupadas por nome" />
