@@ -10,6 +10,7 @@ Garantir que os fluxos críticos possam ser validados por humanos e agentes ante
 - Registro de refeição por texto, imagem e áudio.
 - Confirmação de rascunho de refeição.
 - Relatórios e dashboard.
+- Integrações de saúde, incluindo OAuth e sincronização automática do Strava.
 - WhatsApp inbound e outbound.
 - Exportação e exclusão de dados.
 - Migrações e integridade referencial.
@@ -35,6 +36,7 @@ pnpm db:check-integrity
 
 - Testes unitários para cálculos nutricionais e validação de schemas.
 - Testes de serviço para confirmação de refeição, metas e WhatsApp.
+- Testes de serviço para integrações de saúde devem cobrir paginação, idempotência e falhas externas controladas.
 - Smoke tests futuros para web, WhatsApp e banco.
 - Checks estruturais para impedir drift de arquitetura e documentação.
 - Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
@@ -47,9 +49,19 @@ pnpm db:check-integrity
 - Log de dados sensíveis.
 - Falha silenciosa no envio WhatsApp.
 - Relatório semanal divergente do dashboard.
+- Integração do Strava limitada à primeira página de atividades recentes.
+- Usuário com Strava conectado depender de sync manual para registrar exercícios.
 - Falha externa de IA corrompendo rascunhos ou bloqueando confirmação manual.
 - Falha de imagem auxiliar bloqueando um fluxo que deveria continuar sem ela.
 - Chave ou configuração de IA exposta no frontend.
+
+## Guardrails para integração Strava
+
+- Tokens OAuth ficam criptografados em `appSecrets` e nunca devem ser logados.
+- Sincronização automática deve ser idempotente, usando a referência externa `strava:<activityId>` nas notas do exercício.
+- A busca de atividades recentes deve paginar o período de lookback configurado para evitar perda de treinos além da primeira página.
+- Falhas na sincronização automática devem ser registradas de forma segura e não podem impedir o servidor de iniciar.
+- `STRAVA_AUTO_SYNC_INTERVAL_MINUTES` controla o intervalo da rotina; `STRAVA_AUTO_SYNC_DISABLED=true` desativa o agendamento.
 
 ## Guardrails para migração OpenAI
 
