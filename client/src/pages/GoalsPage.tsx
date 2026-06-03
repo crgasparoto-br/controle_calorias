@@ -616,12 +616,7 @@ export default function GoalsPage() {
                     </div>
                   ))}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  <SummaryTile label="Calorias semanais" value={formatCalories(weeklyTotals.calories)} />
-                  <SummaryTile label="Proteínas na semana" value={formatGrams(weeklyTotals.proteinGrams)} />
-                  <SummaryTile label="Carboidratos na semana" value={formatGrams(weeklyTotals.carbsGrams)} />
-                  <SummaryTile label="Gorduras na semana" value={formatGrams(weeklyTotals.fatGrams)} />
-                </div>
+                <WeeklyTotalsCard totals={weeklyTotals} />
               </CardContent>
             </Card>
 
@@ -859,11 +854,19 @@ function SelectField({
   );
 }
 
-function SummaryTile({ label, value }: { label: string; value: string }) {
+function WeeklyTotalsCard({ totals }: { totals: GoalTargetBase }) {
   return (
     <div className="rounded-2xl border bg-muted/20 p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-medium tracking-tight">Totais semanais</p>
+          <p className="text-sm text-muted-foreground">Soma das metas planejadas para a semana.</p>
+        </div>
+        <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">total</span>
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">
+        {formatCalories(totals.calories)} · {formatGrams(totals.proteinGrams)} proteína · {formatGrams(totals.carbsGrams)} carbo · {formatGrams(totals.fatGrams)} gordura
+      </p>
     </div>
   );
 }
