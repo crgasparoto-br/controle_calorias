@@ -852,7 +852,7 @@ function SelectField({
         onChange={event => onChange(event.target.value)}
       >
         {options.map(option => (
-          <option key={option.value} value={option.label}>{option.label}</option>
+          <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>
     </div>
