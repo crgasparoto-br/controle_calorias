@@ -616,11 +616,16 @@ export default function GoalsPage() {
                     </div>
                   ))}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  <SummaryTile label="Calorias semanais" value={formatCalories(weeklyTotals.calories)} />
-                  <SummaryTile label="Proteínas na semana" value={formatGrams(weeklyTotals.proteinGrams)} />
-                  <SummaryTile label="Carboidratos na semana" value={formatGrams(weeklyTotals.carbsGrams)} />
-                  <SummaryTile label="Gorduras na semana" value={formatGrams(weeklyTotals.fatGrams)} />
+                <div className="rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-4">
+                  <p className="text-sm text-foreground">
+                    Soma das metas planejadas para a semana.
+                  </p>
+                  <div className="mt-3 space-y-1 text-sm text-foreground">
+                    <p>{formatCalories(weeklyTotals.calories)}</p>
+                    <p>{formatGrams(weeklyTotals.proteinGrams)} proteína</p>
+                    <p>{formatGrams(weeklyTotals.carbsGrams)} carbo</p>
+                    <p>{formatGrams(weeklyTotals.fatGrams)} gordura</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
