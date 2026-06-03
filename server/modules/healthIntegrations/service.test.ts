@@ -160,7 +160,7 @@ describe("healthIntegrationService Strava", () => {
       durationMinutes: 35,
       caloriesBurned: 321,
       occurredAt: "2026-06-01T10:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:999.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Calorias: 321 kcal.",
     });
     expect(exerciseMocks.updateExercise).not.toHaveBeenCalled();
     expect(result.message).toContain("1 exercício(s) registrado(s)");
@@ -190,8 +190,32 @@ describe("healthIntegrationService Strava", () => {
         name: "Treino sem calorias no resumo",
         sport_type: "Run",
         start_date: "2026-06-02T23:00:00Z",
+        start_date_local: "2026-06-02T20:00:00Z",
+        timezone: "America/Sao_Paulo",
         moving_time: 1800,
+        elapsed_time: 1980,
         calories: 412,
+        distance: 11000,
+        total_elevation_gain: 16,
+        average_speed: 2.723,
+        max_speed: 4.7,
+        average_heartrate: 147,
+        max_heartrate: 180,
+        average_cadence: 82.5,
+        average_watts: 210,
+        max_watts: 420,
+        weighted_average_watts: 235,
+        device_name: "Garmin Edge",
+        gear_id: "b123",
+        visibility: "followers_only",
+        achievement_count: 2,
+        kudos_count: 5,
+        pr_count: 1,
+        trainer: false,
+        commute: false,
+        manual: false,
+        private: true,
+        has_heartrate: true,
       })));
 
     const { healthIntegrationService } = await import("./service");
@@ -212,7 +236,41 @@ describe("healthIntegrationService Strava", () => {
       durationMinutes: 30,
       caloriesBurned: 412,
       occurredAt: "2026-06-02T23:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:998.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:998. Distancia: 11,00 km. Calorias: 412 kcal. Elevacao: 16 m. FC media: 147 bpm. Ritmo medio: 6:07/km.",
+    });
+
+    const status = await healthIntegrationService.getStatus(42);
+    const activityRecord = status.recentRecords.find(record => record.id === "998:activity");
+    expect(activityRecord?.metadata).toMatchObject({
+      externalId: "998",
+      name: "Treino sem calorias no resumo",
+      sportType: "Run",
+      distanceMeters: 11000,
+      movingTimeSeconds: 1800,
+      elapsedTimeSeconds: 1980,
+      calories: 412,
+      totalElevationGainMeters: 16,
+      averageSpeedMetersPerSecond: 2.723,
+      maxSpeedMetersPerSecond: 4.7,
+      averageHeartRate: 147,
+      maxHeartRate: 180,
+      averageCadence: 82.5,
+      averageWatts: 210,
+      maxWatts: 420,
+      weightedAverageWatts: 235,
+      deviceName: "Garmin Edge",
+      gearId: "b123",
+      startDateLocal: "2026-06-02T20:00:00Z",
+      timezone: "America/Sao_Paulo",
+      visibility: "followers_only",
+      achievementCount: 2,
+      kudosCount: 5,
+      prCount: 1,
+      trainer: false,
+      commute: false,
+      manual: false,
+      private: true,
+      hasHeartRate: true,
     });
   });
 
@@ -316,7 +374,7 @@ describe("healthIntegrationService Strava", () => {
       durationMinutes: 40,
       caloriesBurned: 355,
       occurredAt: "2026-06-01T10:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:999.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Calorias: 355 kcal.",
     });
   });
 
@@ -362,7 +420,7 @@ describe("healthIntegrationService Strava", () => {
       durationMinutes: 30,
       caloriesBurned: 240,
       occurredAt: "2026-06-02T23:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:999.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Calorias: 240 kcal.",
     });
   });
 
