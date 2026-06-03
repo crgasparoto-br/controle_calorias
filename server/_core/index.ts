@@ -8,7 +8,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/service";
-import { handleWhatsAppWebhookWithTextIntent } from "../whatsappIntentWebhook";
+import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdempotencyWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
 import { ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
@@ -59,7 +59,7 @@ async function startServer() {
   });
   app.get("/api/whatsapp/webhook", verifyWhatsAppWebhook);
   app.post("/api/whatsapp/webhook", (req, res) => {
-    void handleWhatsAppWebhookWithTextIntent(req, res);
+    void handleWhatsAppWebhookWithImageIdempotency(req, res);
   });
   // tRPC API
   app.use(
@@ -80,7 +80,7 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    console.log(`Port ${preferredPort} is busy, using ${port} instead`);
   }
 
   server.listen(port, () => {
