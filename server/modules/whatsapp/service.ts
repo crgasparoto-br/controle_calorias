@@ -11,6 +11,7 @@ import {
   normalizeWhatsAppPhoneNumber,
 } from "../../whatsappConfig";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
+import { executeWhatsappTextIntent } from "./intentActions";
 
 export class OfficialWhatsappNumberError extends Error {
   constructor() {
@@ -67,5 +68,21 @@ export async function updateWhatsappConnection(userId: number, input: WhatsappCo
 }
 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
+  const interpreted = await executeWhatsappTextIntent(userId, {
+    text: input.text,
+    receivedAt: new Date(),
+  });
+
+  if (interpreted) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: interpreted.action === "clarification_needed" ? "warning" : "success",
+      eventType: interpreted.eventType,
+      detail: interpreted.detail,
+    });
+    return interpreted;
+  }
+
   return processMealDraft(userId, { source: "whatsapp", text: input.text });
 }
