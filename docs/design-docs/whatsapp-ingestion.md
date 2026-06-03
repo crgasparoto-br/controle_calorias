@@ -32,6 +32,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Textos de hidratação sem quantidade explícita devem pedir esclarecimento, não criar refeição.
 - Textos que pedem redução de gramas devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Quando o ajuste de gramas não citar alimento, o sistema pode usar o último item da refeição mais recente; quando citar alimento, deve buscar item compatível na última refeição.
+- Textos que adicionam café sem açúcar a uma refeição existente, como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã`, devem atualizar a refeição indicada e não criar uma nova refeição por fallback.
+- Quando a refeição indicada para adicionar café não existir ou faltar quantidade/refeição, o sistema deve pedir esclarecimento antes de alterar qualquer registro.
 - Pedidos de sugestão de lanche devem responder diretamente ao usuário com opções simples, sem criar refeição por fallback.
 - Pedidos de resumo, relatório ou balanço devem exigir período explícito, aceitar períodos como `hoje`, `ontem`, `semana`, `mês`, `últimos 7 dias` ou intervalo `01/06 a 03/06`, e responder com totais do período.
 - Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a meta estimada do período quando a meta estiver disponível.
@@ -60,6 +62,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
 - Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
 - Testar que texto como `diminuir 30 g` ajusta o último item da última refeição quando não há alimento explícito.
+- Testar que texto como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã` adiciona café à refeição indicada e não chama inferência nutricional.
+- Testar que pedido para adicionar café sem refeição ou sem quantidade suficiente pede esclarecimento e não altera registros.
 - Testar que texto como `Me dê uma sugestão para o lanche da tarde` retorna uma sugestão e não chama inferência nutricional.
 - Testar que texto como `Me envie um resumo da semana` retorna relatório do período e não chama inferência nutricional.
 - Testar que pedido de relatório sem período pede esclarecimento antes de executar qualquer ação.
