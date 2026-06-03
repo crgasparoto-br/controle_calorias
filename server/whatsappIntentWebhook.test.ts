@@ -213,6 +213,47 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
   });
 
+  it("adiciona café sem açúcar à refeição existente e não delega para inferência nutricional", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 12,
+        userId: 42,
+        mealLabel: "Café da manhã",
+        occurredAt: new Date("2026-06-03T10:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 12,
+      ...input,
+    }));
+    const req = createTextWebhookRequest("Adicionar 3 xícaras de café sem açúcar a refeição café da manhã", { id: "add-coffee" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 12,
+      mealLabel: "Café da manhã",
+      items: [
+        riceItem,
+        expect.objectContaining({
+          foodName: "Café sem açúcar",
+          portionText: "3 xícaras (150 ml)",
+          calories: 6,
+        }),
+      ],
+    }));
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_item_added",
+    }));
+    expect(sentMessages.at(-1)).toContain("Adicionei 3 xícaras (150 ml) de café sem açúcar");
+  });
+
   it("envia sugestão de lanche e não delega para inferência nutricional", async () => {
     const req = createTextWebhookRequest("Me dê uma sugestão para o lanche da tarde", { id: "snack-suggestion" });
     const res = createResponse();
