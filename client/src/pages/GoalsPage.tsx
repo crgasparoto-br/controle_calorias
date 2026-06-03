@@ -598,17 +598,17 @@ export default function GoalsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-3">
+                <div className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-8 xl:overflow-visible xl:pb-0">
                   {previewDays.map(day => (
-                    <div key={day.weekday} className="rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-medium tracking-tight">{day.label}</p>
-                          <p className="text-sm text-foreground">
-                            {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
-                          </p>
+                    <div key={day.weekday} className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate font-medium tracking-tight">{day.label}</p>
+                          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
                         </div>
-                        <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
+                        <p className="min-h-10 text-sm leading-5 text-foreground">
+                          {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
+                        </p>
                       </div>
                       <div className="mt-3 space-y-1 text-sm text-foreground">
                         <p>{formatCalories(day.calories)}</p>
@@ -618,16 +618,22 @@ export default function GoalsPage() {
                       </div>
                     </div>
                   ))}
-                </div>
-                <div className="rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-4">
-                  <p className="text-sm text-foreground">
-                    Soma das metas planejadas para a semana.
-                  </p>
-                  <div className="mt-3 space-y-1 text-sm text-foreground">
-                    <p>{formatCalories(weeklyTotals.calories)}</p>
-                    <p>{formatGrams(weeklyTotals.proteinGrams)} proteína</p>
-                    <p>{formatGrams(weeklyTotals.carbsGrams)} carbo</p>
-                    <p>{formatGrams(weeklyTotals.fatGrams)} gordura</p>
+                  <div className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate font-medium tracking-tight">Total</p>
+                        <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">sem.</span>
+                      </div>
+                      <p className="min-h-10 text-sm leading-5 text-foreground">
+                        Soma das metas planejadas para a semana.
+                      </p>
+                    </div>
+                    <div className="mt-3 space-y-1 text-sm text-foreground">
+                      <p>{formatCalories(weeklyTotals.calories)}</p>
+                      <p>{formatGrams(weeklyTotals.proteinGrams)} proteína</p>
+                      <p>{formatGrams(weeklyTotals.carbsGrams)} carbo</p>
+                      <p>{formatGrams(weeklyTotals.fatGrams)} gordura</p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
