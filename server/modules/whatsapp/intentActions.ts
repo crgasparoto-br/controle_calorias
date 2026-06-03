@@ -7,6 +7,10 @@ const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
 const MIN_FOOD_GRAMS = 1;
 
+const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 1,
+});
+
 type WhatsappIntentResult = {
   handled: true;
   action: "water_logged" | "meal_item_grams_adjusted" | "meal_suggestion" | "period_report" | "clarification_needed";
@@ -52,7 +56,7 @@ function normalizeIntentText(value: string) {
 }
 
 function formatNumber(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+  return ptBrNumberFormatter.format(value);
 }
 
 function formatReplyDateTime(date: Date) {
@@ -87,11 +91,12 @@ function getZonedParts(date: Date, timeZone = SAO_PAULO_TIME_ZONE): ZonedParts {
     hour12: false,
   });
   const parts = Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]));
+  const hour = Number(parts.hour);
   return {
     year: Number(parts.year),
     month: Number(parts.month),
     day: Number(parts.day),
-    hour: Number(parts.hour),
+    hour: hour === 24 ? 0 : hour,
     minute: Number(parts.minute),
     second: Number(parts.second),
   };
