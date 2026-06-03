@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getUserIdByWhatsappPhoneMock = vi.fn();
+const getUserNutritionGoalMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const handleWhatsAppWebhookMock = vi.fn();
 const createWaterLogMock = vi.fn();
@@ -9,6 +10,7 @@ const updateMealMock = vi.fn();
 
 vi.mock("./db", () => ({
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
+  getUserNutritionGoal: getUserNutritionGoalMock,
   logInferenceEvent: logInferenceEventMock,
 }));
 
@@ -108,6 +110,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     vi.setSystemTime(new Date("2026-06-03T12:00:00.000Z"));
     sentMessages = [];
     getUserIdByWhatsappPhoneMock.mockReset();
+    getUserNutritionGoalMock.mockReset();
     logInferenceEventMock.mockReset();
     handleWhatsAppWebhookMock.mockReset();
     createWaterLogMock.mockReset();
@@ -115,6 +118,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     updateMealMock.mockReset();
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
+    getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
     createWaterLogMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
       id: 91,
       userId: 42,
@@ -207,6 +211,46 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.meal_item_grams_adjusted",
     }));
     expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
+  });
+
+  it("envia sugestão de lanche e não delega para inferência nutricional", async () => {
+    const req = createTextWebhookRequest("Me dê uma sugestão para o lanche da tarde", { id: "snack-suggestion" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_suggestion",
+    }));
+    expect(sentMessages.at(-1)).toContain("Sugestão para o lanche da tarde");
+  });
+
+  it("envia relatório do período e não delega para inferência nutricional", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 20,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        items: [riceItem],
+      },
+    ]);
+    const req = createTextWebhookRequest("Me envie um resumo da semana", { id: "week-report" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.period_report",
+    }));
+    expect(sentMessages.at(-1)).toContain("Resumo de semana");
+    expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
   });
 
   it("mantém texto comum de refeição no fluxo normal de inferência", async () => {
