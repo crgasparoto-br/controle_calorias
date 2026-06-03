@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { getUserIdByWhatsappPhone, logInferenceEvent } from "./db";
 import { getWhatsAppChannelConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
-import { handleWhatsAppWebhook } from "./whatsappWebhook";
+import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 
 type WhatsAppMessage = {
   id?: string;
@@ -225,7 +225,7 @@ function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Se
 export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Response) {
   const messages = extractMessages(req.body);
   if (!messages.length) {
-    return handleWhatsAppWebhook(req, res);
+    return handleWhatsAppWebhookWithAnnotatedImages(req, res);
   }
 
   const handledMessageKeys = new Set<string>();
@@ -237,7 +237,7 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
   }
 
   if (!handledMessageKeys.size) {
-    return handleWhatsAppWebhook(req, res);
+    return handleWhatsAppWebhookWithAnnotatedImages(req, res);
   }
 
   const remainingPayload = clonePayloadWithoutHandledMessages(req.body, handledMessageKeys);
@@ -246,5 +246,5 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
   }
 
   req.body = remainingPayload;
-  return handleWhatsAppWebhook(req, res);
+  return handleWhatsAppWebhookWithAnnotatedImages(req, res);
 }
