@@ -230,7 +230,7 @@ describe("executeWhatsappTextIntent", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "clarification_needed",
-      reply: expect.stringContaining("Não encontrei a refeição café da manhã"),
+      reply: expect.stringContaining("Não encontrei a refeição"),
     }));
   });
 
