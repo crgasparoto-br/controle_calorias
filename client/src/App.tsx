@@ -1,23 +1,35 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import AdminPage from "@/pages/AdminPage";
-import ChannelsPage from "@/pages/ChannelsPage";
-import GoalsPage from "@/pages/GoalsPage";
-import FoodsPage from "@/pages/FoodsPage";
-import Home from "@/pages/Home";
-import HealthIntegrationsPage from "@/pages/HealthIntegrationsPage";
-import LogMealPage, { RegisteredMealsPage } from "@/pages/LogMealPage";
-import LoginPage from "@/pages/LoginPage";
-import NotFound from "@/pages/NotFound";
-import OnboardingPage from "@/pages/OnboardingPage";
-import ProfessionalPage from "@/pages/ProfessionalPage";
-import RegisterPage from "@/pages/RegisterPage";
-import ReportsPage from "@/pages/ReportsPage";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
+
+const AdminPage = lazy(() => import("@/pages/AdminPage"));
+const ChannelsPage = lazy(() => import("@/pages/ChannelsPage"));
+const FoodsPage = lazy(() => import("@/pages/FoodsPage"));
+const GoalsPage = lazy(() => import("@/pages/GoalsPage"));
+const HealthIntegrationsPage = lazy(() => import("@/pages/HealthIntegrationsPage"));
+const Home = lazy(() => import("@/pages/Home"));
+const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
+const ProfessionalPage = lazy(() => import("@/pages/ProfessionalPage"));
+const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
+const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const RegisteredMealsPage = lazy(() =>
+  import("@/pages/LogMealPage").then(module => ({ default: module.RegisteredMealsPage }))
+);
+
+function PageLoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted-foreground" role="status" aria-live="polite">
+      Carregando tela...
+    </div>
+  );
+}
 
 function Router() {
   const [location] = useLocation();
@@ -35,27 +47,29 @@ function Router() {
   }, [location]);
 
   return (
-    <Switch>
-      <Route path="/login" component={LoginPage} />
-      <Route path="/register" component={RegisterPage} />
-      <Route path="/" component={Home} />
-      <Route path="/today" component={Home} />
-      <Route path="/onboarding" component={OnboardingPage} />
-      <Route path="/settings" component={OnboardingPage} />
-      <Route path="/log-meal" component={LogMealPage} />
-      <Route path="/record" component={LogMealPage} />
-      <Route path="/registrar" component={LogMealPage} />
-      <Route path="/meals" component={RegisteredMealsPage} />
-      <Route path="/foods" component={FoodsPage} />
-      <Route path="/goals" component={GoalsPage} />
-      <Route path="/reports" component={ReportsPage} />
-      <Route path="/channels" component={ChannelsPage} />
-      <Route path="/health-integrations" component={HealthIntegrationsPage} />
-      <Route path="/professional" component={ProfessionalPage} />
-      <Route path="/admin" component={AdminPage} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<PageLoadingFallback />}>
+      <Switch>
+        <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
+        <Route path="/" component={Home} />
+        <Route path="/today" component={Home} />
+        <Route path="/onboarding" component={OnboardingPage} />
+        <Route path="/settings" component={OnboardingPage} />
+        <Route path="/log-meal" component={LogMealPage} />
+        <Route path="/record" component={LogMealPage} />
+        <Route path="/registrar" component={LogMealPage} />
+        <Route path="/meals" component={RegisteredMealsPage} />
+        <Route path="/foods" component={FoodsPage} />
+        <Route path="/goals" component={GoalsPage} />
+        <Route path="/reports" component={ReportsPage} />
+        <Route path="/channels" component={ChannelsPage} />
+        <Route path="/health-integrations" component={HealthIntegrationsPage} />
+        <Route path="/professional" component={ProfessionalPage} />
+        <Route path="/admin" component={AdminPage} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
