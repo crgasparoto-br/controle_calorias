@@ -19,6 +19,7 @@ export type GenerateImageSkipReason =
 
 export type GenerateImageResponse = {
   url?: string;
+  storageKey?: string;
   mimeType?: string;
   skippedReason?: GenerateImageSkipReason;
   detail?: string;
@@ -82,6 +83,7 @@ export async function generateImage(
 
     return {
       url: upload.url,
+      storageKey: upload.key || storageKey,
       mimeType: generated.mimeType,
     };
   } catch (error) {
