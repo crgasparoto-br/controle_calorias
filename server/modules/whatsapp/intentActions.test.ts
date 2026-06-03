@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const createWaterLogMock = vi.fn();
+const getUserNutritionGoalMock = vi.fn();
+
+vi.mock("../../db", () => ({
+  getUserNutritionGoal: getUserNutritionGoalMock,
+}));
 
 vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,
@@ -48,11 +53,17 @@ describe("executeWhatsappTextIntent", () => {
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     createWaterLogMock.mockReset();
+    getUserNutritionGoalMock.mockReset();
     createWaterLogMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
       id: 91,
       userId: 42,
       ...input,
     }));
+    getUserNutritionGoalMock.mockResolvedValue({
+      today: {
+        calories: 2200,
+      },
+    });
   });
 
   it("registra água na data relativa indicada pelo texto", async () => {
@@ -157,6 +168,81 @@ describe("executeWhatsappTextIntent", () => {
           portionText: "70 g",
         }),
       ],
+    }));
+  });
+
+  it("envia sugestão de lanche quando o usuário pede uma ideia", async () => {
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Me dê uma sugestão para o lanche da tarde",
+      receivedAt: new Date("2026-06-03T18:00:00.000Z"),
+    });
+
+    expect(listMealsMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_suggestion",
+      eventType: "whatsapp.intent.meal_suggestion",
+      reply: expect.stringContaining("Sugestão para o lanche da tarde"),
+    }));
+  });
+
+  it("envia relatório do período solicitado", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 20,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        items: [riceItem, beansItem],
+      },
+      {
+        id: 21,
+        userId: 42,
+        mealLabel: "Jantar",
+        occurredAt: new Date("2026-06-02T22:00:00.000Z").getTime(),
+        items: [
+          {
+            ...riceItem,
+            foodName: "Frango grelhado",
+            canonicalName: "Frango grelhado",
+            portionText: "120 g",
+            estimatedGrams: 120,
+            calories: 198,
+            protein: 37,
+            carbs: 0,
+            fat: 4,
+          },
+        ],
+      },
+    ]);
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Me envie um resumo da semana",
+      receivedAt: new Date("2026-06-03T18:00:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "period_report",
+      eventType: "whatsapp.intent.period_report",
+      reply: expect.stringContaining("Resumo de semana"),
+    }));
+    expect(result?.reply).toContain("Refeições registradas: 2");
+    expect(result?.reply).toContain("Total consumido: 469 kcal");
+    expect(result?.reply).toContain("Meta estimada: 15.400 kcal");
+  });
+
+  it("pede período quando o usuário solicita relatório sem período", async () => {
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Me mande um relatório",
+      receivedAt: new Date("2026-06-03T18:00:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "clarification_needed",
+      reply: expect.stringContaining("Me diga o período"),
     }));
   });
 
