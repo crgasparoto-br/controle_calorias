@@ -10,6 +10,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Serviço de WhatsApp em `server/modules/whatsapp/service.ts`.
 - Interpretação de comandos de texto em `server/modules/whatsapp/intentActions.ts`.
 - Formatação de respostas nutricionais em `server/modules/whatsapp/replyMessages.ts`.
+- Wrapper de idempotência de imagens em `server/whatsappImageIdempotencyWebhook.ts`, responsável por absorver reentregas do mesmo `message.id` de imagem antes do processamento pesado.
 - Wrapper do webhook real em `server/whatsappIntentWebhook.ts`, executado antes do fallback de inferência nutricional.
 - Wrapper de imagens anotadas em `server/whatsappAnnotatedImageWebhook.ts`, responsável por devolver e persistir a imagem auxiliar gerada após a análise visual.
 - Schemas em `server/modules/whatsapp/schemas.ts`.
@@ -24,6 +25,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Simulações devem usar dados controlados e não depender de chamadas externas reais.
 - Mensagens suportadas de texto, imagem e áudio devem ser marcadas como lidas no WhatsApp antes do processamento pesado.
 - Mensagens suportadas de texto, imagem e áudio devem receber uma resposta inicial informando que o conteúdo foi recebido e está sendo processado, exceto quando um texto puro for interpretado como ação e receber resposta final própria antes da inferência.
+- Reentregas do mesmo `message.id` de imagem devem ser absorvidas antes do fluxo nutricional para evitar acknowledgements e refeições duplicadas enquanto a reserva de idempotência estiver ativa.
 - Apenas mensagens de texto puro, sem imagem e sem áudio, podem ser tratadas pelo interpretador de ações antes do acknowledgement e antes do fluxo nutricional.
 - Áudios sem imagem podem ser transcritos e, depois da resposta inicial de processamento, a transcrição pode ser tratada pelo mesmo interpretador de ações antes da inferência nutricional.
 - Captions de imagem continuam no caminho multimodal normal e não devem ser interceptadas como intenção, para não perder a análise visual da foto.
@@ -57,6 +59,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 
 - Testar texto, imagem e áudio mockados.
 - Testar que texto, imagem e áudio inbound são marcados como lidos e recebem resposta inicial de processamento quando seguem para o fluxo nutricional normal.
+- Testar que uma reentrega do mesmo `message.id` de imagem não reenvia acknowledgement nem delega novamente ao fluxo nutricional.
 - Testar que texto como `250ml de água` registra consumo de água sem chamar inferência nutricional nem criar refeição.
 - Testar que texto como `500 ml de água ontem` registra consumo de água no dia anterior em `America/Sao_Paulo`.
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
