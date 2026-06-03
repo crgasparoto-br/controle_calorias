@@ -80,6 +80,7 @@ type StravaActivity = {
   start_date: string;
   moving_time: number;
   calories?: number | null;
+  kilojoules?: number | null;
 };
 
 type StravaExerciseImportSummary = {
@@ -102,7 +103,8 @@ const stravaTokens = new Map<number, StravaTokenState>();
 const STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize";
 const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
 const STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
-const STRAVA_SCOPES = "read,activity:read";
+const STRAVA_ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities";
+const STRAVA_SCOPES = "read,activity:read_all";
 const STRAVA_ACTIVITY_NOTE_PREFIX = "Importado automaticamente do Strava";
 const STRAVA_TOKEN_SECRET_PREFIX = "strava_oauth_user";
 const STRAVA_SYNC_LOOKBACK_MONTHS = 2;
@@ -524,6 +526,61 @@ function buildStravaActivitiesUrl(page: number, after = getStravaActivitiesAfter
   return `${STRAVA_ACTIVITIES_URL}?${params.toString()}`;
 }
 
+function buildStravaActivityDetailUrl(activityId: number) {
+  return `${STRAVA_ACTIVITY_DETAIL_URL}/${activityId}`;
+}
+
+function getStravaCaloriesBurned(activity: StravaActivity) {
+  if (typeof activity.calories === "number" && activity.calories > 0) {
+    return Math.round(activity.calories);
+  }
+
+  if (typeof activity.kilojoules === "number" && activity.kilojoules > 0) {
+    return Math.round(activity.kilojoules * 0.239006);
+  }
+
+  return 0;
+}
+
+function shouldFetchStravaActivityDetail(activity: StravaActivity) {
+  return activity.calories == null && activity.kilojoules == null;
+}
+
+async function fetchStravaActivityDetail(accessToken: string, activityId: number) {
+  const response = await fetch(buildStravaActivityDetailUrl(activityId), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    console.warn("[HealthIntegrations] Failed to fetch Strava activity detail:", {
+      activityId,
+      status: response.status,
+    });
+    return null;
+  }
+
+  const detail = await response.json() as StravaActivity;
+  return detail;
+}
+
+async function enrichStravaActivitiesWithDetails(accessToken: string, activities: StravaActivity[]) {
+  const enrichedActivities: StravaActivity[] = [];
+
+  for (const activity of activities) {
+    if (!shouldFetchStravaActivityDetail(activity)) {
+      enrichedActivities.push(activity);
+      continue;
+    }
+
+    const detail = await fetchStravaActivityDetail(accessToken, activity.id);
+    enrichedActivities.push(detail ? { ...activity, ...detail } : activity);
+  }
+
+  return enrichedActivities;
+}
+
 async function fetchStravaActivities(userId: number) {
   const token = await ensureValidStravaToken(userId);
   const activities: StravaActivity[] = [];
@@ -545,7 +602,7 @@ async function fetchStravaActivities(userId: number) {
       throw new Error("Resposta inesperada do Strava ao buscar atividades.");
     }
 
-    activities.push(...pageActivities);
+    activities.push(...await enrichStravaActivitiesWithDetails(token.accessToken, pageActivities));
     if (pageActivities.length < STRAVA_ACTIVITIES_PER_PAGE) break;
   }
 
@@ -562,7 +619,7 @@ function getStravaExerciseNote(activity: StravaActivity) {
 
 function toStravaExerciseInput(activity: StravaActivity) {
   const durationMinutes = Math.max(Math.round((activity.moving_time ?? 0) / 60), 0);
-  const caloriesBurned = typeof activity.calories === "number" ? Math.round(activity.calories) : 0;
+  const caloriesBurned = getStravaCaloriesBurned(activity);
   if (durationMinutes < 1 || caloriesBurned < 1) return null;
 
   return {
@@ -605,6 +662,7 @@ async function upsertStravaActivitiesAsExercises(userId: number, activities: Str
 
 function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity[]) {
   return activities.flatMap(activity => {
+    const caloriesBurned = getStravaCaloriesBurned(activity);
     const recordsForActivity: HealthRecord[] = [
       {
         id: `${activity.id}:activity`,
@@ -620,7 +678,7 @@ function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity
       },
     ];
 
-    if (typeof activity.calories === "number" && activity.calories > 0) {
+    if (caloriesBurned > 0) {
       recordsForActivity.push({
         id: `${activity.id}:energy`,
         userId,
@@ -628,7 +686,7 @@ function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity
         source: "strava",
         dataType: "energy_burned",
         measuredAt: activity.start_date,
-        value: Math.round(activity.calories),
+        value: caloriesBurned,
         unit: "kcal",
         energyKind: "burned",
         activityType: getStravaActivityType(activity),

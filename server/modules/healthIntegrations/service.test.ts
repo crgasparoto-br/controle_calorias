@@ -166,6 +166,56 @@ describe("healthIntegrationService Strava", () => {
     expect(result.message).toContain("1 exercício(s) registrado(s)");
   });
 
+  it("busca o detalhe da atividade quando o resumo do Strava vem sem calorias", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read_all",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 998,
+          name: "Treino sem calorias no resumo",
+          sport_type: "Run",
+          start_date: "2026-06-02T23:00:00Z",
+          moving_time: 1800,
+        },
+      ]))
+      .mockResolvedValueOnce(jsonResponse({
+        id: 998,
+        name: "Treino sem calorias no resumo",
+        sport_type: "Run",
+        start_date: "2026-06-02T23:00:00Z",
+        moving_time: 1800,
+        calories: 412,
+      })));
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read_all",
+    });
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "https://www.strava.com/api/v3/activities/998",
+      expect.objectContaining({ headers: { Authorization: "Bearer access-token" } }),
+    );
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
+      activityType: "Run",
+      durationMinutes: 30,
+      caloriesBurned: 412,
+      occurredAt: "2026-06-02T23:00:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:998.",
+    });
+  });
+
   it("busca todas as páginas recentes do Strava antes de registrar exercícios", async () => {
     const firstPage = Array.from({ length: 100 }, (_, index) => ({
       id: 1_000 + index,
