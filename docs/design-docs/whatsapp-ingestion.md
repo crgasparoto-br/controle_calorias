@@ -8,6 +8,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 
 - Webhook HTTP para validação e inbound.
 - Serviço de WhatsApp em `server/modules/whatsapp/service.ts`.
+- Interpretação de comandos de texto em `server/modules/whatsapp/intentActions.ts`.
 - Schemas em `server/modules/whatsapp/schemas.ts`.
 - Configuração por variáveis `WHATSAPP_*`.
 - Persistência de vínculo em `whatsappConnections`.
@@ -21,6 +22,11 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Mensagens suportadas de texto, imagem e áudio devem ser marcadas como lidas no WhatsApp antes do processamento pesado.
 - Mensagens suportadas de texto, imagem e áudio devem receber uma resposta inicial informando que o conteúdo foi recebido e está sendo processado.
 - Textos que descrevem apenas consumo de água com quantidade explícita devem atualizar hidratação, não criar refeição ou item alimentar.
+- Textos de hidratação com data relativa, como `ontem` ou `anteontem`, devem registrar o consumo no dia interpretado em `America/Sao_Paulo`.
+- Textos de hidratação sem quantidade explícita devem pedir esclarecimento, não criar refeição.
+- Textos que pedem redução de gramas devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
+- Quando o ajuste de gramas não citar alimento, o sistema pode usar o último item da refeição mais recente; quando citar alimento, deve buscar item compatível na última refeição.
+- Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
 - Respostas finais de refeição no WhatsApp devem listar alimentos com calorias, proteína, carboidratos e gorduras por item, além do total estimado da refeição.
 - Falha ao marcar a mensagem como lida ou enviar a resposta inicial deve gerar aviso operacional, mas não deve bloquear o processamento principal.
 - Imagens recebidas pelo WhatsApp devem ser baixadas pelo backend e enviadas inline para a inferência nutricional, sem depender de URL pública ou assinada do storage para a IA ler a mídia.
@@ -36,6 +42,10 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar texto, imagem e áudio mockados.
 - Testar que texto, imagem e áudio inbound são marcados como lidos e recebem resposta inicial de processamento.
 - Testar que texto como `250ml de água` registra consumo de água sem chamar inferência nutricional nem criar refeição.
+- Testar que texto como `500 ml de água ontem` registra consumo de água no dia anterior em `America/Sao_Paulo`.
+- Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
+- Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
+- Testar que texto como `diminuir 30 g` ajusta o último item da última refeição quando não há alimento explícito.
 - Testar que resposta final de refeição no WhatsApp lista os alimentos com calorias e macros por alimento, além dos totais estimados.
 - Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição quando o storage está disponível.
 - Testar que imagem inbound pode gerar resposta visual anotada com a foto original, alimentos identificados, calorias e macros por item.
