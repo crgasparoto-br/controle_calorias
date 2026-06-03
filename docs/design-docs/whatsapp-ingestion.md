@@ -9,6 +9,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Webhook HTTP para validação e inbound.
 - Serviço de WhatsApp em `server/modules/whatsapp/service.ts`.
 - Interpretação de comandos de texto em `server/modules/whatsapp/intentActions.ts`.
+- Formatação de respostas nutricionais em `server/modules/whatsapp/replyMessages.ts`.
 - Wrapper do webhook real em `server/whatsappIntentWebhook.ts`, executado antes do fallback de inferência nutricional.
 - Wrapper de imagens anotadas em `server/whatsappAnnotatedImageWebhook.ts`, responsável por devolver e persistir a imagem auxiliar gerada após a análise visual.
 - Schemas em `server/modules/whatsapp/schemas.ts`.
@@ -33,7 +34,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Quando o ajuste de gramas não citar alimento, o sistema pode usar o último item da refeição mais recente; quando citar alimento, deve buscar item compatível na última refeição.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
 - Quando o interpretador de texto tratar a mensagem ou transcrição, o webhook real deve registrar evento de inferência com `origin: "whatsapp"`, responder com a mensagem interpretada e impedir que o mesmo conteúdo crie refeição por fallback.
-- Respostas finais de refeição no WhatsApp devem listar alimentos com calorias, proteína, carboidratos e gorduras por item, além do total estimado da refeição.
+- Respostas finais de refeição no WhatsApp devem usar linguagem simples, sem títulos técnicos como `Alimentos e macros`, e devem listar alimentos, porções, calorias, proteína, carboidratos e gorduras por item.
+- Respostas finais de refeição devem mostrar o total da refeição e, quando houver meta disponível, um resumo curto de meta diária com calorias consumidas, meta e quanto falta ou excedeu.
+- Falha ao carregar a meta diária não deve bloquear o registro da refeição nem a resposta nutricional principal.
 - Falha ao marcar a mensagem como lida ou enviar a resposta inicial deve gerar aviso operacional, mas não deve bloquear o processamento principal.
 - Falha ao enviar resposta de intenção interpretada deve gerar aviso operacional, mas não deve reprocessar a mensagem como refeição.
 - Imagens recebidas pelo WhatsApp devem ser baixadas pelo backend e enviadas inline para a inferência nutricional, sem depender de URL pública ou assinada do storage para a IA ler a mídia.
@@ -58,6 +61,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que áudio transcrito como `500 ml de água ontem` registra hidratação sem chamar inferência nutricional nem criar refeição.
 - Testar que caption de imagem com texto parecido com comando continua no fluxo multimodal normal.
 - Testar que resposta final de refeição no WhatsApp lista os alimentos com calorias e macros por alimento, além dos totais estimados.
+- Testar que resposta final de imagem no WhatsApp usa o formato simplificado com `Itens`, `Total da refeição` e `Meta de hoje`.
 - Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição quando o storage está disponível.
 - Testar que imagem inbound pode gerar resposta visual anotada com a foto original, alimentos identificados, calorias e macros por item.
 - Testar que a imagem anotada gerada é vinculada à refeição em `mealMedia`, junto com a imagem original recebida pelo WhatsApp.
