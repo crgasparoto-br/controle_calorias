@@ -171,6 +171,69 @@ describe("executeWhatsappTextIntent", () => {
     }));
   });
 
+  it("adiciona café sem açúcar à refeição indicada", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 12,
+        userId: 42,
+        mealLabel: "Café da manhã",
+        occurredAt: new Date("2026-06-03T10:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 12,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Adicionar 3 xícaras de café sem açúcar a refeição café da manhã",
+      receivedAt: new Date("2026-06-03T12:00:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 12,
+      mealLabel: "Café da manhã",
+      items: [
+        riceItem,
+        expect.objectContaining({
+          foodName: "Café sem açúcar",
+          canonicalName: "Café preto sem açúcar",
+          portionText: "3 xícaras (150 ml)",
+          estimatedGrams: 150,
+          calories: 6,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          source: "heuristic",
+        }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_added",
+      eventType: "whatsapp.intent.meal_item_added",
+      reply: expect.stringContaining("Adicionei 3 xícaras (150 ml) de café sem açúcar"),
+    }));
+  });
+
+  it("pede esclarecimento quando não encontra a refeição para adicionar café", async () => {
+    listMealsMock.mockResolvedValue([]);
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Adicionar 3 xícaras de café sem açúcar a refeição café da manhã",
+      receivedAt: new Date("2026-06-03T12:00:00.000Z"),
+    });
+
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "clarification_needed",
+      reply: expect.stringContaining("Não encontrei a refeição café da manhã"),
+    }));
+  });
+
   it("envia sugestão de lanche quando o usuário pede uma ideia", async () => {
     const result = await executeWhatsappTextIntent(42, {
       text: "Me dê uma sugestão para o lanche da tarde",
