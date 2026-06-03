@@ -733,6 +733,26 @@ function MacroField({
   onGramChange: (value: number) => void;
   onPercentChange: (value: number) => void;
 }) {
+  const formattedPercent = formatDecimalInputPtBr(percent, 1);
+  const [percentInputValue, setPercentInputValue] = useState(formattedPercent);
+  const [isPercentFocused, setIsPercentFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isPercentFocused) {
+      setPercentInputValue(formattedPercent);
+    }
+  }, [formattedPercent, isPercentFocused]);
+
+  function handlePercentChange(value: string) {
+    setPercentInputValue(value);
+    onPercentChange(parseDecimalInputPtBr(value));
+  }
+
+  function handlePercentBlur() {
+    setIsPercentFocused(false);
+    setPercentInputValue(formatDecimalInputPtBr(percent, 1));
+  }
+
   return (
     <div className="space-y-2 rounded-2xl border bg-background p-4">
       <Label>{label}</Label>
@@ -748,8 +768,10 @@ function MacroField({
           <Input
             type="text"
             inputMode="decimal"
-            value={formatDecimalInputPtBr(percent, 1)}
-            onChange={event => onPercentChange(parseDecimalInputPtBr(event.target.value))}
+            value={percentInputValue}
+            onFocus={() => setIsPercentFocused(true)}
+            onChange={event => handlePercentChange(event.target.value)}
+            onBlur={handlePercentBlur}
           />
         )}
         <span className="text-sm text-muted-foreground">{mode === "grams" ? "g" : "%"}</span>
@@ -840,8 +862,14 @@ function SelectField({
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border bg-muted/20 p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-medium tracking-tight">{label}</p>
+          <p className="text-sm text-muted-foreground">Total planejado para a semana.</p>
+        </div>
+        <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">sem.</span>
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">{value}</p>
     </div>
   );
 }
