@@ -357,11 +357,16 @@ describe("nutrition router", () => {
     expect(copiedMeal.totals).toEqual(editedMeal.totals);
 
     const dayTotals = await caller.nutrition.meals.dayTotals({ date: "2026-04-22" });
+    const today = await caller.nutrition.dashboard.today();
     const dashboard = await caller.nutrition.dashboard.overview();
     const weeklyView = await caller.nutrition.reports.weeklyProgress();
     const weeklyReport = await caller.nutrition.reports.weekly();
 
     expect(dayTotals.totals).toEqual(editedMeal.totals);
+    expect(today.today.goal.calories).toBe(2200);
+    expect(today.today.consumed.calories).toBe(458);
+    expect(today.today.remaining.calories).toBe(1742);
+    expect(today.meals).toHaveLength(1);
     expect(dashboard.today.goal.calories).toBe(2200);
     expect(dashboard.today.consumed.calories).toBe(458);
     expect(dashboard.today.remaining.calories).toBe(1742);

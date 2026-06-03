@@ -5,8 +5,11 @@ import {
   getUserWaterGoal,
   getWeeklyProgress,
   listUserExercises,
+  listUserExercisesByDate,
   listUserMeals,
+  listUserMealsByDate,
   listUserWaterLogs,
+  listUserWaterLogsByDate,
   searchFoods,
 } from "../../db";
 import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
@@ -200,7 +203,7 @@ function resolveFoodLookupEntry(foodLookup: FoodLookup, ...names: Array<string |
 function calculateQualityIndicators(
   meals: Awaited<ReturnType<typeof listUserMeals>>,
   waterMl: number,
-  foodLookup: FoodLookup,
+  foodLookup?: FoodLookup,
 ) {
   if (!meals.length) {
     return {
@@ -219,6 +222,7 @@ function calculateQualityIndicators(
     (acc, meal) => {
       for (const item of meal.items) {
         acc.proteinGrams += Number(item.protein || 0);
+        if (!foodLookup) continue;
         const food = resolveFoodLookupEntry(foodLookup, item.canonicalName, item.foodName, item.portionText);
         if (!food) continue;
 
@@ -322,7 +326,7 @@ function emptyQualityIndicators(waterMl = 0) {
 }
 
 export async function getDashboardOverview(userId: number) {
-  const todayOverview = await getDashboardTodayOverview(userId);
+  const todayOverview = await getDashboardTodayOverview(userId, { includeQualityDetails: true });
   const { goal, today, meals, exercises, water } = todayOverview;
 
   const [weekly, habits] = await Promise.all([
@@ -403,24 +407,20 @@ export async function getDashboardOverview(userId: number) {
   };
 }
 
-export async function getDashboardTodayOverview(userId: number) {
-  const [goal, waterGoal, meals, exercises, waterLogs, foods] = await Promise.all([
+export async function getDashboardTodayOverview(userId: number, options: { includeQualityDetails?: boolean } = {}) {
+  const todayKey = getDateKeyInTimeZone(new Date());
+  const [goal, waterGoal, todaysMeals, todaysExercises, todaysWaterLogs, foods] = await Promise.all([
     getUserNutritionGoal(userId),
     getUserWaterGoal(userId),
-    listUserMeals(userId),
-    listUserExercises(userId),
-    listUserWaterLogs(userId),
-    searchFoods(userId, "", 500),
+    listUserMealsByDate(userId, todayKey, { includeMedia: false }),
+    listUserExercisesByDate(userId, todayKey),
+    listUserWaterLogsByDate(userId, todayKey),
+    options.includeQualityDetails ? searchFoods(userId, "", 500) : Promise.resolve(null),
   ]);
-  const foodLookup = createFoodLookup(foods);
-  const todayKey = getDateKeyInTimeZone(new Date());
-  const todaysMeals = meals.filter(meal => mealDateKey(meal) === todayKey);
-  const todaysExercises = exercises.filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === todayKey);
-  const todaysWaterLogs = waterLogs.filter(log => getDateKeyInTimeZone(Number(log.occurredAt)) === todayKey);
   const todayTotals = calculateDayTotals(todaysMeals);
   const todayBurnedCalories = todaysExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
   const todayWaterMl = todaysWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
-  const todayQuality = calculateQualityIndicators(todaysMeals, todayWaterMl, foodLookup);
+  const todayQuality = calculateQualityIndicators(todaysMeals, todayWaterMl, foods ? createFoodLookup(foods) : undefined);
 
   return {
     goal,

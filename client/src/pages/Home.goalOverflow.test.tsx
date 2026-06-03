@@ -17,7 +17,7 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
       nutrition: {
-        dashboard: { overview: { invalidate: invalidateMock } },
+        dashboard: { overview: { invalidate: invalidateMock }, today: { invalidate: invalidateMock } },
         meals: { list: { invalidate: invalidateMock }, dayTotals: { invalidate: invalidateMock } },
         reports: { weekly: { invalidate: invalidateMock } },
       },
@@ -29,6 +29,9 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
       dashboard: {
+        today: {
+          useQuery: dashboardOverviewMock,
+        },
         overview: {
           useQuery: dashboardOverviewMock,
         },
