@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
+const getUserDayMealTotalsMock = vi.fn();
+const getUserNutritionGoalMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const processMealInputMock = vi.fn();
@@ -18,7 +20,9 @@ vi.mock("./db", () => ({
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,
   getHabitSnapshots: getHabitSnapshotsMock,
+  getUserDayMealTotals: getUserDayMealTotalsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
+  getUserNutritionGoal: getUserNutritionGoalMock,
   logInferenceEvent: logInferenceEventMock,
 }));
 
@@ -120,6 +124,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     getUserIdByWhatsappPhoneMock.mockReset();
     logInferenceEventMock.mockReset();
     getHabitSnapshotsMock.mockReset();
+    getUserDayMealTotalsMock.mockReset();
+    getUserNutritionGoalMock.mockReset();
     createPendingMealInferenceMock.mockReset();
     confirmPendingMealMock.mockReset();
     processMealInputMock.mockReset();
@@ -129,6 +135,21 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getHabitSnapshotsMock.mockResolvedValue([]);
+    getUserDayMealTotalsMock.mockResolvedValue({
+      date: "2026-06-03",
+      meals: [],
+      totals: {
+        calories: 1620,
+        protein: 92,
+        carbs: 180,
+        fat: 43,
+      },
+    });
+    getUserNutritionGoalMock.mockResolvedValue({
+      today: {
+        calories: 2200,
+      },
+    });
     storagePutMock.mockImplementation(async (key: string, _buffer: Buffer, mimeType: string) => ({
       key,
       url: `https://storage.test/${key}`,
@@ -244,6 +265,21 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       mealLabel: "Almoço",
     }));
     expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
+    expect(sentTextMessages[1]).toBe([
+      "Almoço registrado.",
+      "",
+      "Itens:",
+      "• arroz, 100 g",
+      "  130 kcal | Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "",
+      "Total da refeição:",
+      "130 kcal",
+      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "",
+      "Meta de hoje:",
+      "Você já consumiu 1.620 de 2.200 kcal.",
+      "Faltam 580 kcal para sua meta.",
+    ].join("\n"));
     expect(sentImageMessages).toEqual([
       {
         link: "https://storage.test/generated/meal-support/annotated.png",
