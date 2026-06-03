@@ -550,7 +550,10 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   }
 
   const reportPeriod = parseReportPeriod(text, receivedAt);
-  if (reportPeriod && "kind" in reportPeriod && reportPeriod.kind === "clarification") {
+  if (!reportPeriod) {
+    return null;
+  }
+  if ("kind" in reportPeriod) {
     return {
       handled: true,
       action: "clarification_needed",
@@ -559,9 +562,6 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
       detail: "Pedido de relatório sem período explícito.",
     };
   }
-  if (reportPeriod) {
-    return handlePeriodReportIntent(userId, reportPeriod);
-  }
 
-  return null;
+  return handlePeriodReportIntent(userId, reportPeriod);
 }
