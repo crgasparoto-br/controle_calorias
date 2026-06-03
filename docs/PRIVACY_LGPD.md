@@ -9,7 +9,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 | Identidade | Nome, e-mail, `openId`, telefone WhatsApp |
 | Saúde/nutrição | Peso, objetivo, restrições, refeições, macros, hidratação, exercícios |
 | Conteúdo bruto | Texto de refeição, transcrição, imagem, áudio |
-| Integrações externas | Tokens OAuth, identificadores externos e atividades importadas do Strava |
+| Integrações externas | Tokens OAuth, identificadores externos, atividades importadas do Strava, distância, duração, elevação, frequência cardíaca, cadência e potência |
 | IA | Prompt, reasoning, confidence, inferências e logs |
 | Operação | Tokens, IDs de canal, URLs de mídia e detalhes técnicos |
 
@@ -29,6 +29,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Ao adicionar integração externa, documentar dados enviados, motivo e comportamento de exclusão.
 - Tokens do Strava devem permanecer criptografados em `appSecrets`; logs de sincronização automática devem conter apenas contadores, status e mensagens sanitizadas.
 - Atividades do Strava são importadas para exercícios para manter o diário do usuário atualizado sem sincronização manual.
+- Métricas detalhadas do Strava, incluindo frequência cardíaca, cadência, potência, equipamento, visibilidade e contadores sociais, devem ser exibidas apenas para o usuário autenticado e não devem aparecer em logs ou analytics.
 - O escopo `activity:read_all` deve ser usado apenas para permitir importação de atividades privadas ou Only Me quando o usuário reconectar e conceder esse acesso.
 - Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
 

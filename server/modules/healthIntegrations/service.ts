@@ -27,6 +27,39 @@ type HealthConnection = {
   lastError: string | null;
 };
 
+type StravaActivityMetadata = {
+  externalId: string;
+  name: string;
+  sportType: string;
+  distanceMeters: number | null;
+  movingTimeSeconds: number | null;
+  elapsedTimeSeconds: number | null;
+  calories: number | null;
+  kilojoules: number | null;
+  totalElevationGainMeters: number | null;
+  averageSpeedMetersPerSecond: number | null;
+  maxSpeedMetersPerSecond: number | null;
+  averageHeartRate: number | null;
+  maxHeartRate: number | null;
+  averageCadence: number | null;
+  averageWatts: number | null;
+  maxWatts: number | null;
+  weightedAverageWatts: number | null;
+  deviceName: string | null;
+  gearId: string | null;
+  startDateLocal: string | null;
+  timezone: string | null;
+  visibility: string | null;
+  achievementCount: number | null;
+  kudosCount: number | null;
+  prCount: number | null;
+  trainer: boolean | null;
+  commute: boolean | null;
+  manual: boolean | null;
+  private: boolean | null;
+  hasHeartRate: boolean | null;
+};
+
 type HealthRecord = {
   id: string;
   userId: number;
@@ -38,6 +71,7 @@ type HealthRecord = {
   unit: "count" | "kg" | "kcal" | "minutes";
   activityType?: string;
   energyKind?: "burned";
+  metadata?: StravaActivityMetadata;
   createdAt: number;
 };
 
@@ -78,9 +112,33 @@ type StravaActivity = {
   sport_type?: string;
   type?: string;
   start_date: string;
+  start_date_local?: string | null;
+  timezone?: string | null;
   moving_time: number;
+  elapsed_time?: number | null;
   calories?: number | null;
   kilojoules?: number | null;
+  distance?: number | null;
+  total_elevation_gain?: number | null;
+  average_speed?: number | null;
+  max_speed?: number | null;
+  average_heartrate?: number | null;
+  max_heartrate?: number | null;
+  average_cadence?: number | null;
+  average_watts?: number | null;
+  max_watts?: number | null;
+  weighted_average_watts?: number | null;
+  device_name?: string | null;
+  gear_id?: string | null;
+  visibility?: string | null;
+  achievement_count?: number | null;
+  kudos_count?: number | null;
+  pr_count?: number | null;
+  trainer?: boolean | null;
+  commute?: boolean | null;
+  manual?: boolean | null;
+  private?: boolean | null;
+  has_heartrate?: boolean | null;
 };
 
 type StravaExerciseImportSummary = {
@@ -542,6 +600,73 @@ function getStravaCaloriesBurned(activity: StravaActivity) {
   return 0;
 }
 
+function getOptionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function getOptionalBoolean(value: unknown) {
+  return typeof value === "boolean" ? value : null;
+}
+
+function getOptionalString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function getStravaActivityMetadata(activity: StravaActivity): StravaActivityMetadata {
+  return {
+    externalId: String(activity.id),
+    name: activity.name,
+    sportType: getStravaActivityType(activity),
+    distanceMeters: getOptionalNumber(activity.distance),
+    movingTimeSeconds: getOptionalNumber(activity.moving_time),
+    elapsedTimeSeconds: getOptionalNumber(activity.elapsed_time),
+    calories: getStravaCaloriesBurned(activity) || null,
+    kilojoules: getOptionalNumber(activity.kilojoules),
+    totalElevationGainMeters: getOptionalNumber(activity.total_elevation_gain),
+    averageSpeedMetersPerSecond: getOptionalNumber(activity.average_speed),
+    maxSpeedMetersPerSecond: getOptionalNumber(activity.max_speed),
+    averageHeartRate: getOptionalNumber(activity.average_heartrate),
+    maxHeartRate: getOptionalNumber(activity.max_heartrate),
+    averageCadence: getOptionalNumber(activity.average_cadence),
+    averageWatts: getOptionalNumber(activity.average_watts),
+    maxWatts: getOptionalNumber(activity.max_watts),
+    weightedAverageWatts: getOptionalNumber(activity.weighted_average_watts),
+    deviceName: getOptionalString(activity.device_name),
+    gearId: getOptionalString(activity.gear_id),
+    startDateLocal: getOptionalString(activity.start_date_local),
+    timezone: getOptionalString(activity.timezone),
+    visibility: getOptionalString(activity.visibility),
+    achievementCount: getOptionalNumber(activity.achievement_count),
+    kudosCount: getOptionalNumber(activity.kudos_count),
+    prCount: getOptionalNumber(activity.pr_count),
+    trainer: getOptionalBoolean(activity.trainer),
+    commute: getOptionalBoolean(activity.commute),
+    manual: getOptionalBoolean(activity.manual),
+    private: getOptionalBoolean(activity.private),
+    hasHeartRate: getOptionalBoolean(activity.has_heartrate),
+  };
+}
+
+function formatDecimal(value: number, fractionDigits = 1) {
+  return value.toFixed(fractionDigits).replace(".", ",");
+}
+
+function formatDistanceKm(distanceMeters: number) {
+  return `${formatDecimal(distanceMeters / 1000, 2)} km`;
+}
+
+function formatSpeedKmH(speedMetersPerSecond: number) {
+  return `${formatDecimal(speedMetersPerSecond * 3.6, 1)} km/h`;
+}
+
+function formatPace(speedMetersPerSecond: number) {
+  if (speedMetersPerSecond <= 0) return null;
+  const secondsPerKm = Math.round(1000 / speedMetersPerSecond);
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = String(secondsPerKm % 60).padStart(2, "0");
+  return `${minutes}:${seconds}/km`;
+}
+
 function shouldFetchStravaActivityDetail(activity: StravaActivity) {
   return activity.calories == null && activity.kilojoules == null;
 }
@@ -614,7 +739,19 @@ function getStravaActivityType(activity: StravaActivity) {
 }
 
 function getStravaExerciseNote(activity: StravaActivity) {
-  return `${STRAVA_ACTIVITY_NOTE_PREFIX}. Referencia externa: strava:${activity.id}.`;
+  const metadata = getStravaActivityMetadata(activity);
+  const fragments = [`${STRAVA_ACTIVITY_NOTE_PREFIX}. Referencia externa: strava:${activity.id}.`];
+
+  if (metadata.distanceMeters) fragments.push(`Distancia: ${formatDistanceKm(metadata.distanceMeters)}.`);
+  if (metadata.calories) fragments.push(`Calorias: ${metadata.calories} kcal.`);
+  if (metadata.totalElevationGainMeters) fragments.push(`Elevacao: ${Math.round(metadata.totalElevationGainMeters)} m.`);
+  if (metadata.averageHeartRate) fragments.push(`FC media: ${Math.round(metadata.averageHeartRate)} bpm.`);
+  if (metadata.averageSpeedMetersPerSecond) {
+    const pace = formatPace(metadata.averageSpeedMetersPerSecond);
+    fragments.push(pace ? `Ritmo medio: ${pace}.` : `Velocidade media: ${formatSpeedKmH(metadata.averageSpeedMetersPerSecond)}.`);
+  }
+
+  return fragments.join(" ").slice(0, 500);
 }
 
 function toStravaExerciseInput(activity: StravaActivity) {
@@ -663,6 +800,7 @@ async function upsertStravaActivitiesAsExercises(userId: number, activities: Str
 function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity[]) {
   return activities.flatMap(activity => {
     const caloriesBurned = getStravaCaloriesBurned(activity);
+    const metadata = getStravaActivityMetadata(activity);
     const recordsForActivity: HealthRecord[] = [
       {
         id: `${activity.id}:activity`,
@@ -674,6 +812,7 @@ function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity
         value: Math.max(Math.round((activity.moving_time ?? 0) / 60), 0),
         unit: "minutes",
         activityType: getStravaActivityType(activity),
+        metadata,
         createdAt: Date.now(),
       },
     ];
@@ -690,6 +829,7 @@ function mapStravaActivitiesToRecords(userId: number, activities: StravaActivity
         unit: "kcal",
         energyKind: "burned",
         activityType: getStravaActivityType(activity),
+        metadata,
         createdAt: Date.now(),
       });
     }
