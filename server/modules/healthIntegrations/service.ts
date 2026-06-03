@@ -16,6 +16,17 @@ type HealthConnectionStatus = "connected" | "disconnected" | "error" | "pending"
 type HealthSetupStatus = "ready" | "missing_credentials" | "native_required" | "dev_only";
 type IntegrationKind = "native" | "oauth" | "mock";
 
+type HealthConnection = {
+  userId: number;
+  provider: HealthProvider;
+  status: HealthConnectionStatus;
+  consentGrantedAt: number | null;
+  disconnectedAt: number | null;
+  scopes: HealthDataType[];
+  lastSyncedAt: number | null;
+  lastError: string | null;
+};
+
 type StravaActivityMetadata = {
   externalId: string;
   name: string;
