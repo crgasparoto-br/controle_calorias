@@ -3,6 +3,7 @@ import { generateImage, type GenerateImageResponse } from "./_core/imageGenerati
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
+import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 
@@ -50,6 +51,8 @@ type PendingWhatsAppConfirmation = {
   expiresAt: number;
   summary: string;
 };
+
+type WhatsAppTextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
 
 const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation>();
 const recentlyHandledWhatsAppMessageIds = new Map<string, number>();
@@ -695,6 +698,35 @@ async function logWhatsAppOperationWarning(input: {
   });
 }
 
+async function sendInterpretedTextIntentReply(input: {
+  userId: number;
+  sourcePhone: string;
+  interpreted: WhatsAppTextIntentResult;
+}) {
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "whatsapp",
+    status: input.interpreted.action === "clarification_needed" ? "warning" : "success",
+    eventType: input.interpreted.eventType,
+    detail: input.interpreted.detail,
+  });
+
+  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.interpreted.reply);
+  if (!replyResult.ok) {
+    logInferenceEvent({
+      userId: input.userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.reply_failed",
+      detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}`,
+    });
+  }
+}
+
+function canInterpretAudioTranscriptIntent(message: WhatsAppMessage, prepared: PreparedMessageInput) {
+  return Boolean(message.audio?.id && !message.image?.id && prepared.transcript?.trim());
+}
+
 async function getMediaDownloadUrl(mediaId: string) {
   const { accessToken } = await requireWhatsAppMediaConfig();
 
@@ -1068,6 +1100,22 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       const prepared = await prepareMessageInput(message, sourcePhone);
+      if (canInterpretAudioTranscriptIntent(message, prepared)) {
+        const interpreted = await executeWhatsappTextIntent(userId, {
+          text: prepared.transcript,
+          receivedAt: resolveOccurredAt(message),
+        });
+
+        if (interpreted) {
+          await sendInterpretedTextIntentReply({
+            userId,
+            sourcePhone,
+            interpreted,
+          });
+          continue;
+        }
+      }
+
       const processed = await processMealInput({
         text: prepared.text,
         transcript: prepared.transcript,
