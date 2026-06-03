@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dashboardOverviewMock = vi.fn();
 const goalGetMock = vi.fn();
 const reportsBundleMock = vi.fn();
+const reportsPeriodBundleMock = vi.fn();
 const reportsHabitAnalyticsMock = vi.fn();
 const whatsappStatusMock = vi.fn();
 const adminOverviewMock = vi.fn();
@@ -28,7 +29,7 @@ const useUtilsMock = vi.fn(() => ({
     mealSchedules: { list: { invalidate: vi.fn() } },
     dashboard: { overview: { invalidate: vi.fn() }, today: { invalidate: vi.fn() } },
     meals: { list: { invalidate: vi.fn() }, dayTotals: { invalidate: vi.fn() }, favorites: { invalidate: vi.fn() } },
-    reports: { weekly: { invalidate: vi.fn() }, bundle: { invalidate: vi.fn() }, habitAnalytics: { invalidate: vi.fn() } },
+    reports: { weekly: { invalidate: vi.fn() }, bundle: { invalidate: vi.fn() }, periodBundle: { invalidate: vi.fn() }, habitAnalytics: { invalidate: vi.fn() } },
     goals: { get: { invalidate: vi.fn() } },
     gamification: { get: { invalidate: vi.fn() } },
     exercises: { list: { invalidate: vi.fn() } },
@@ -202,6 +203,9 @@ vi.mock("@/lib/trpc", () => ({
       reports: {
         bundle: {
           useQuery: reportsBundleMock,
+        },
+        periodBundle: {
+          useQuery: reportsPeriodBundleMock,
         },
         habitAnalytics: {
           useQuery: reportsHabitAnalyticsMock,
@@ -463,6 +467,35 @@ beforeEach(() => {
       },
     },
     isLoading: false,
+    error: null,
+  });
+  reportsPeriodBundleMock.mockReturnValue({
+    data: {
+      range: { startDate: "2026-04-01", endDate: "2026-04-14", dayCount: 14 },
+      goal: { calories: 2200, protein: 160, carbs: 240, fat: 70, label: "Segunda-feira" },
+      totals: overviewData.today.consumed,
+      mealsByDate: [{ date: "2026-04-14", items: overviewData.meals }],
+      habitAnalytics: {
+        range: { startDate: "2026-04-01", endDate: "2026-04-14", dayCount: 14 },
+        water: {
+          dailyGoalMl: 2500,
+          totalGoalMl: 35000,
+          totalConsumedMl: 9800,
+          goalHitDays: 2,
+          averageDailyMl: 700,
+          lowestDay: { date: "2026-04-10", label: "10 de abr.", totalMl: 300 },
+        },
+        exercise: {
+          totalCalories: 640,
+          totalDurationMinutes: 90,
+          activeDays: 2,
+          averageCaloriesPerActiveDay: 320,
+          highestDay: { date: "2026-04-12", label: "12 de abr.", caloriesBurned: 320, durationMinutes: 45 },
+        },
+      },
+    },
+    isLoading: false,
+    isError: false,
     error: null,
   });
   whatsappStatusMock.mockReturnValue({ data: { configured: false, webhookPath: "/api/whatsapp/webhook", currentUserId: 1, connection: null } });

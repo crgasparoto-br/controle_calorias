@@ -556,6 +556,44 @@ export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
   };
 }
 
+export async function getPeriodReportBundle(
+  userId: number,
+  range: { startDate: string; endDate: string },
+) {
+  const [goal, habitAnalytics] = await Promise.all([
+    getUserNutritionGoal(userId),
+    getHabitAnalyticsReport(userId, range),
+  ]);
+  const dates = listDateKeysInRange(range.startDate, range.endDate);
+  const mealsByDay = await Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false })));
+  const meals = mealsByDay.flat();
+  const totals = calculateDayTotals(meals);
+  const mealsByDate = groupMealsByDate(meals);
+
+  return {
+    range: {
+      startDate: range.startDate,
+      endDate: range.endDate,
+      dayCount: dates.length,
+    },
+    goal: {
+      calories: goal.today.calories,
+      protein: goal.today.proteinGrams,
+      carbs: goal.today.carbsGrams,
+      fat: goal.today.fatGrams,
+      label: goal.today.label,
+    },
+    totals: {
+      calories: roundNutritionValue(totals.calories),
+      protein: roundNutritionValue(totals.protein),
+      carbs: roundNutritionValue(totals.carbs),
+      fat: roundNutritionValue(totals.fat),
+    },
+    mealsByDate,
+    habitAnalytics,
+  };
+}
+
 export async function getHabitAnalyticsReport(
   userId: number,
   range: { startDate: string; endDate: string },

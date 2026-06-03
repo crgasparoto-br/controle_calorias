@@ -12,8 +12,6 @@ import {
   type DateGroupedRegisteredMealsViewModel,
   buildDateGroupedMealGroups,
   buildRegisteredMealGroups,
-  filterMealsByDateRange,
-  sumStoredMealTotals,
 } from "@/features/meals/mealViewModels";
 import type { StoredMeal } from "@/features/meals/types";
 import {
@@ -415,39 +413,62 @@ export default function ReportsPage() {
     { weekOffset },
     { enabled: periodScope === "week" },
   );
-  const periodHabitAnalyticsQuery = trpc.nutrition.reports.habitAnalytics.useQuery(
+  const periodBundle = trpc.nutrition.reports.periodBundle.useQuery(
     { startDate: activeRange.start, endDate: activeRange.end },
-    { enabled: periodScope === "month" || periodScope === "range" },
+    { enabled: periodScope !== "week" },
   );
-  const dashboardOverview = trpc.nutrition.dashboard.overview.useQuery();
-  const mealsQuery = trpc.nutrition.meals.list.useQuery();
-
-  const goalCalories = dashboardOverview.data?.today?.goal.calories ?? 0;
-  const allMeals = (mealsQuery.data ?? []) as StoredMeal[];
-  const filteredMeals = React.useMemo(
-    () => filterMealsByDateRange(allMeals, { startDate: activeRange.start, endDate: activeRange.end, timeZone: userTimeZone }),
-    [activeRange.end, activeRange.start, allMeals, userTimeZone],
-  );
-  const localTotals = React.useMemo(() => sumStoredMealTotals(filteredMeals), [filteredMeals]);
-  const localDayGroupsAsc = React.useMemo(
-    () => buildDateGroupedMealGroups(filteredMeals, { timeZone: userTimeZone, sortDirection: "asc" }),
-    [filteredMeals, userTimeZone],
-  );
-  const localDayGroupsDesc = React.useMemo(() => [...localDayGroupsAsc].reverse(), [localDayGroupsAsc]);
-  const localTrendData = React.useMemo(() => toTrendData(localDayGroupsAsc, goalCalories), [goalCalories, localDayGroupsAsc]);
-  const localDayMealGroups = React.useMemo(() => buildRegisteredMealGroups(filteredMeals), [filteredMeals]);
-
   const previousMonth = React.useMemo(() => {
     const [year, month] = selectedMonth.split("-").map(Number);
     const date = new Date(Date.UTC(year, month - 1, 1));
     date.setUTCMonth(date.getUTCMonth() - 1);
     return date.toISOString().slice(0, 7);
   }, [selectedMonth]);
-  const previousMonthMeals = React.useMemo(() => {
-    const range = getMonthRange(previousMonth);
-    return filterMealsByDateRange(allMeals, { startDate: range.start, endDate: range.end, timeZone: userTimeZone });
-  }, [allMeals, previousMonth, userTimeZone]);
-  const previousMonthTotals = React.useMemo(() => sumStoredMealTotals(previousMonthMeals), [previousMonthMeals]);
+  const previousMonthRange = React.useMemo(() => getMonthRange(previousMonth), [previousMonth]);
+  const previousMonthBundle = trpc.nutrition.reports.periodBundle.useQuery(
+    { startDate: previousMonthRange.start, endDate: previousMonthRange.end },
+    { enabled: periodScope === "month" },
+  );
+
+  const periodMeals = React.useMemo(
+    () => (periodBundle.data?.mealsByDate ?? []).flatMap(group => group.items as StoredMeal[]),
+    [periodBundle.data?.mealsByDate],
+  );
+  const goalCalories = periodScope === "week"
+    ? reportBundle.data?.weekly?.[0]?.goalCalories ?? 0
+    : periodBundle.data?.goal.calories ?? 0;
+  const localTotals = periodScope === "week"
+    ? {
+        calories: reportBundle.data?.progress.summary.totalCalories ?? 0,
+        protein: reportBundle.data?.weekly.reduce((total, day) => total + day.protein, 0) ?? 0,
+        carbs: reportBundle.data?.weekly.reduce((total, day) => total + day.carbs, 0) ?? 0,
+        fat: reportBundle.data?.weekly.reduce((total, day) => total + day.fat, 0) ?? 0,
+      }
+    : periodBundle.data?.totals ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const localDayGroupsAsc = React.useMemo(
+    () => periodScope === "week"
+      ? (reportBundle.data?.mealsByDate ?? []).slice().reverse().map(group => ({
+          date: group.date,
+          meals: group.items as StoredMeal[],
+          mealCount: group.items.length,
+          itemCount: (group.items as StoredMeal[]).reduce((total, meal) => total + (meal.items?.length ?? 0), 0),
+          totals: group.items.reduce(
+            (totals, meal) => ({
+              calories: totals.calories + (meal.totals?.calories ?? 0),
+              protein: totals.protein + (meal.totals?.protein ?? 0),
+              carbs: totals.carbs + (meal.totals?.carbs ?? 0),
+              fat: totals.fat + (meal.totals?.fat ?? 0),
+            }),
+            { calories: 0, protein: 0, carbs: 0, fat: 0 },
+          ),
+          groups: buildRegisteredMealGroups(group.items as StoredMeal[]),
+        }))
+      : buildDateGroupedMealGroups(periodMeals, { timeZone: userTimeZone, sortDirection: "asc" }),
+    [periodMeals, periodScope, reportBundle.data?.mealsByDate, userTimeZone],
+  );
+  const localDayGroupsDesc = React.useMemo(() => [...localDayGroupsAsc].reverse(), [localDayGroupsAsc]);
+  const localTrendData = React.useMemo(() => toTrendData(localDayGroupsAsc, goalCalories), [goalCalories, localDayGroupsAsc]);
+  const localDayMealGroups = React.useMemo(() => buildRegisteredMealGroups(periodMeals), [periodMeals]);
+  const previousMonthTotals = previousMonthBundle.data?.totals ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
 
   const localAverageCalories = averageValue(localTotals.calories, Math.max(localDayGroupsAsc.length, 1));
   const longestRangeDays = countDaysInRange(activeRange);
@@ -523,8 +544,8 @@ export default function ReportsPage() {
         ? "Toda a atividade física registrada ficou concentrada em um único dia da semana."
         : "Nenhum exercício foi registrado nesta semana.";
 
-  const periodHabitAnalytics = periodHabitAnalyticsQuery.data;
-  const periodSupportLoading = periodHabitAnalyticsQuery.isLoading;
+  const periodHabitAnalytics = periodBundle.data?.habitAnalytics;
+  const periodSupportLoading = periodBundle.isLoading;
   const periodHydrationReading = !periodHabitAnalytics
     ? "Ainda não há dados suficientes para interpretar a hidratação do período."
     : periodHabitAnalytics.water.goalHitDays > 0
@@ -578,7 +599,7 @@ export default function ReportsPage() {
               <HighlightCard title="Meta atual" value={formatCalories(goalCalories)} description="Meta líquida usada como referência para o comparativo." />
               <HighlightCard title="Consumo do dia" value={formatCalories(localTotals.calories)} description="Soma das refeições registradas na data selecionada." />
               <HighlightCard title="Saldo contra meta" value={formatCalories(localTotals.calories - goalCalories)} description="Diferença simples entre consumo e meta atual." />
-              <HighlightCard title="Refeições" value={String(filteredMeals.length)} description="Quantidade de refeições encontradas na data ativa." />
+              <HighlightCard title="Refeições" value={String(periodMeals.length)} description="Quantidade de refeições encontradas na data ativa." />
             </div>
 
             <Card className="border-0 shadow-sm">
@@ -614,7 +635,7 @@ export default function ReportsPage() {
                 <CardDescription>O detalhamento operacional continua acessível dentro do relatório diário.</CardDescription>
               </CardHeader>
               <CardContent>
-                <RegisteredMealGroups groups={localDayMealGroups} userTimeZone={userTimeZone} emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : "Nenhuma refeição encontrada para este dia."} />
+                <RegisteredMealGroups groups={localDayMealGroups} userTimeZone={userTimeZone} emptyMessage={periodBundle.isLoading ? "Carregando refeições..." : "Nenhuma refeição encontrada para este dia."} />
               </CardContent>
             </Card>
           </>
@@ -904,7 +925,7 @@ export default function ReportsPage() {
               <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <StatusTile label="Dias no intervalo" value={longestRangeDays} />
                 <StatusTile label="Dias com refeições" value={localDayGroupsAsc.length} />
-                <StatusTile label="Refeições registradas" value={filteredMeals.length} />
+                <StatusTile label="Refeições registradas" value={periodMeals.length} />
                 <StatusTile label="Meta de referência" value={formatCalories(goalCalories)} />
               </CardContent>
             </Card>

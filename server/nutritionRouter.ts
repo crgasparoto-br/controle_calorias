@@ -51,6 +51,7 @@ import {
   getDashboardOverview,
   getDashboardTodayOverview,
   getHabitAnalyticsReport,
+  getPeriodReportBundle,
   getWeeklyInsightsReport,
   getWeeklyProgressReport,
   getWeeklyReport,
@@ -452,6 +453,14 @@ export const nutritionRouter = router({
   }),
 
   reports: router({
+    periodBundle: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
+      const result = await getPeriodReportBundle(ctx.user.id, input);
+      void analyticsService.track("period_report_viewed", {
+        report_type: "habit_analytics",
+        period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
+      });
+      return result;
+    }),
     habitAnalytics: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
       const result = await getHabitAnalyticsReport(ctx.user.id, input);
       void analyticsService.track("period_report_viewed", {
