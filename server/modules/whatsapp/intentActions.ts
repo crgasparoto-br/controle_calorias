@@ -6,6 +6,8 @@ import type { MealItemInput } from "../meals/schemas";
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
 const MIN_FOOD_GRAMS = 1;
+const UNSWEETENED_COFFEE_CUP_ML = 50;
+const UNSWEETENED_COFFEE_CALORIES_PER_CUP = 2;
 
 const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 1,
@@ -13,7 +15,7 @@ const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
 
 type WhatsappIntentResult = {
   handled: true;
-  action: "water_logged" | "meal_item_grams_adjusted" | "meal_suggestion" | "period_report" | "clarification_needed";
+  action: "water_logged" | "meal_item_added" | "meal_item_grams_adjusted" | "meal_suggestion" | "period_report" | "clarification_needed";
   reply: string;
   eventType: string;
   detail: string;
@@ -45,6 +47,19 @@ type NutritionTotals = {
   protein: number;
   carbs: number;
   fat: number;
+};
+
+type CoffeeAdditionIntent = {
+  cups: number;
+  mealLabel: string | null;
+};
+
+type ExistingMeal = {
+  id: number;
+  mealLabel: string;
+  occurredAt: number | string | Date;
+  notes?: string;
+  items?: MealItemInput[];
 };
 
 function normalizeIntentText(value: string) {
@@ -228,6 +243,33 @@ function parseMealItemGramsAdjustment(text: string) {
   };
 }
 
+function parseCoffeeAdditionIntent(text: string): CoffeeAdditionIntent | null {
+  const normalized = normalizeIntentText(text);
+  if (!/\b(adicionar|adiciona|inclui|incluir|registrar|registra)\b/.test(normalized)) {
+    return null;
+  }
+  if (!/\bcafe\b/.test(normalized) || !/\bsem acucar\b/.test(normalized)) {
+    return null;
+  }
+
+  const amountMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:xicaras?|xicara?s?|copos?)\b/);
+  if (!amountMatch) {
+    return { cups: 0, mealLabel: null };
+  }
+
+  const cups = Number(amountMatch[1].replace(",", "."));
+  if (!Number.isFinite(cups) || cups <= 0) {
+    return { cups: 0, mealLabel: null };
+  }
+
+  const mealMatch = normalized.match(/\brefeicao\s+(.+)$/);
+  const mealLabel = mealMatch?.[1]
+    ?.replace(/\b(?:hoje|ontem|agora|por favor|pfv)\b/g, "")
+    .trim() || null;
+
+  return { cups, mealLabel };
+}
+
 function parseSnackSuggestionIntent(text: string) {
   const normalized = normalizeIntentText(text);
   if (!/\b(sugestao|sugira|sugerir|dica|ideia|indica|indique)\b/.test(normalized)) {
@@ -332,6 +374,21 @@ function findTargetMealItem(items: MealItemInput[], targetFood: string | null) {
   return { item: items[index], index };
 }
 
+function findMealByLabel(meals: ExistingMeal[], mealLabel: string, receivedAt: Date) {
+  const normalizedLabel = normalizeIntentText(mealLabel);
+  const todayStart = startOfZonedDay(receivedAt).getTime();
+  const todayEnd = endOfZonedDay(receivedAt).getTime();
+  const matches = meals.filter(meal => {
+    const candidate = normalizeIntentText(meal.mealLabel);
+    return candidate === normalizedLabel || candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate);
+  });
+
+  return matches.find(meal => {
+    const occurredAt = new Date(meal.occurredAt).getTime();
+    return occurredAt >= todayStart && occurredAt <= todayEnd;
+  }) ?? matches[0] ?? null;
+}
+
 function scaleMealItem(item: MealItemInput, nextGrams: number): MealItemInput {
   const previousGrams = Number(item.estimatedGrams || 0);
   const ratio = previousGrams > 0 ? nextGrams / previousGrams : 1;
@@ -344,6 +401,26 @@ function scaleMealItem(item: MealItemInput, nextGrams: number): MealItemInput {
     protein: Number((Number(item.protein || 0) * ratio).toFixed(1)),
     carbs: Number((Number(item.carbs || 0) * ratio).toFixed(1)),
     fat: Number((Number(item.fat || 0) * ratio).toFixed(1)),
+  };
+}
+
+function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
+  const volumeMl = Math.round(cups * UNSWEETENED_COFFEE_CUP_ML);
+  const calories = Math.round(cups * UNSWEETENED_COFFEE_CALORIES_PER_CUP);
+  const cupLabel = cups === 1 ? "xícara" : "xícaras";
+
+  return {
+    foodName: "Café sem açúcar",
+    canonicalName: "Café preto sem açúcar",
+    portionText: `${formatNumber(cups)} ${cupLabel} (${formatNumber(volumeMl)} ml)`,
+    servings: Math.max(cups, 0.1),
+    estimatedGrams: volumeMl,
+    calories,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    confidence: 0.8,
+    source: "heuristic",
   };
 }
 
@@ -440,6 +517,54 @@ async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<
       foodName: target.item.foodName,
       previousGrams,
       nextGrams,
+    },
+  };
+}
+
+async function handleCoffeeAdditionIntent(userId: number, addition: CoffeeAdditionIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
+  if (!addition.cups || !addition.mealLabel) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: "Entendi que você quer adicionar café sem açúcar. Me diga a quantidade e a refeição. Exemplo: adicionar 3 xícaras de café sem açúcar à refeição café da manhã.",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido para adicionar café sem açúcar sem quantidade ou refeição explícita.",
+    };
+  }
+
+  const meals = await listMeals(userId);
+  const targetMeal = findMealByLabel(meals, addition.mealLabel, receivedAt);
+  if (!targetMeal) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Não encontrei a refeição ${addition.mealLabel}. Me diga em qual refeição devo adicionar o café.`,
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido para adicionar café sem açúcar sem refeição compatível.",
+    };
+  }
+
+  const coffeeItem = buildUnsweetenedCoffeeItem(addition.cups);
+  const updatedMeal = await updateMeal(userId, {
+    mealId: targetMeal.id,
+    mealLabel: targetMeal.mealLabel,
+    occurredAt: new Date(targetMeal.occurredAt).toISOString(),
+    notes: targetMeal.notes,
+    items: [...(targetMeal.items ?? []), coffeeItem],
+  });
+
+  return {
+    handled: true,
+    action: "meal_item_added",
+    reply: `Adicionei ${coffeeItem.portionText} de café sem açúcar à refeição ${targetMeal.mealLabel}. Estimativa: ${formatTotalsLine(coffeeItem)}.`,
+    eventType: "whatsapp.intent.meal_item_added",
+    detail: `Café sem açúcar adicionado à refeição ${targetMeal.mealLabel} via WhatsApp.`,
+    data: {
+      mealId: updatedMeal.id,
+      mealLabel: targetMeal.mealLabel,
+      foodName: coffeeItem.foodName,
+      cups: addition.cups,
+      calories: coffeeItem.calories,
     },
   };
 }
@@ -548,6 +673,11 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   const gramsAdjustment = parseMealItemGramsAdjustment(text);
   if (gramsAdjustment) {
     return handleMealItemAdjustment(userId, gramsAdjustment);
+  }
+
+  const coffeeAddition = parseCoffeeAdditionIntent(text);
+  if (coffeeAddition) {
+    return handleCoffeeAdditionIntent(userId, coffeeAddition, receivedAt);
   }
 
   if (parseSnackSuggestionIntent(text)) {
