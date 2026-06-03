@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ExternalLink, HeartPulse, Link2, RefreshCw, ShieldCheck, Unlink } from "lucide-react";
+import { Activity, ExternalLink, Gauge, HeartPulse, Link2, Mountain, RefreshCw, Route, ShieldCheck, Timer, Unlink, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +22,50 @@ const DATA_TYPES = [
 
 type HealthDataType = typeof DATA_TYPES[number]["value"];
 type HealthProvider = "apple_health" | "health_connect" | "google_fit" | "strava" | "mock";
+
+type StravaActivityMetadata = {
+  externalId: string;
+  name: string;
+  sportType: string;
+  distanceMeters: number | null;
+  movingTimeSeconds: number | null;
+  elapsedTimeSeconds: number | null;
+  calories: number | null;
+  kilojoules: number | null;
+  totalElevationGainMeters: number | null;
+  averageSpeedMetersPerSecond: number | null;
+  maxSpeedMetersPerSecond: number | null;
+  averageHeartRate: number | null;
+  maxHeartRate: number | null;
+  averageCadence: number | null;
+  averageWatts: number | null;
+  maxWatts: number | null;
+  weightedAverageWatts: number | null;
+  deviceName: string | null;
+  gearId: string | null;
+  startDateLocal: string | null;
+  timezone: string | null;
+  visibility: string | null;
+  achievementCount: number | null;
+  kudosCount: number | null;
+  prCount: number | null;
+  trainer: boolean | null;
+  commute: boolean | null;
+  manual: boolean | null;
+  private: boolean | null;
+  hasHeartRate: boolean | null;
+};
+
+type SyncedHealthRecord = {
+  id: string;
+  source: string;
+  dataType: string;
+  measuredAt: string;
+  value: number;
+  unit: string;
+  activityType?: string;
+  metadata?: StravaActivityMetadata | null;
+};
 
 const CONNECTION_STATUS_LABELS: Record<string, string> = {
   connected: "Conectado",
@@ -79,7 +123,10 @@ export default function HealthIntegrationsPage() {
 
   const providers = status.data?.providers ?? [];
   const recentRecords = status.data?.recentRecords ?? [];
-  const recentStravaActivities = recentRecords.filter(record => record.source === "strava" && record.dataType === "activity").length;
+  const recentStravaActivityRecords = recentRecords.filter(record => record.source === "strava" && record.dataType === "activity");
+  const recentStravaActivities = recentStravaActivityRecords.length;
+  const stravaDistanceKm = recentStravaActivityRecords.reduce((sum, record) => sum + ((record.metadata?.distanceMeters ?? 0) / 1000), 0);
+  const stravaActivitiesWithHeartRate = recentStravaActivityRecords.filter(record => record.metadata?.averageHeartRate).length;
 
   const availableProviders = useMemo(() => providers.filter(provider => provider.available).length, [providers]);
   const connectedProviders = useMemo(
@@ -382,12 +429,13 @@ export default function HealthIntegrationsPage() {
                   Registros externos mantêm tipo, unidade e origem para auditoria rápida. Atividades Strava com calorias válidas também são registradas como exercícios.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <CardContent className="space-y-5">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <Metric label="Passos" value={formatCountPtBr(status.data?.totals.steps ?? 0)} />
                   <Metric label="Atividade" value={formatCountPtBr(status.data?.totals.activityMinutes ?? 0, " min")} />
                   <Metric label="Gasto externo" value={formatCalories(status.data?.totals.energyBurnedCalories ?? 0)} />
-                  <Metric label="Atividades Strava" value={formatCountPtBr(recentStravaActivities)} />
+                  <Metric label="Distância Strava" value={stravaDistanceKm > 0 ? `${formatNumber(stravaDistanceKm, 2)} km` : "0 km"} />
+                  <Metric label="Com FC" value={formatCountPtBr(stravaActivitiesWithHeartRate)} />
                 </div>
 
                 {status.isLoading ? (
@@ -397,18 +445,45 @@ export default function HealthIntegrationsPage() {
                     description="Estou reunindo os últimos registros sincronizados para preencher este painel."
                   />
                 ) : recentRecords.length ? (
-                  <div className="grid gap-2">
-                    {recentRecords.map(record => (
-                      <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-background px-4 py-3 text-sm shadow-sm">
-                        <div>
-                          <p className="font-medium">{formatDataType(record.dataType)}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(record.measuredAt).toLocaleString("pt-BR")} · origem: {record.source}
-                          </p>
+                  <div className="space-y-5">
+                    {recentStravaActivityRecords.length ? (
+                      <section className="space-y-3" aria-labelledby="strava-activities-title">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h2 id="strava-activities-title" className="text-base font-semibold tracking-tight">Atividades Strava detalhadas</h2>
+                            <p className="text-sm text-muted-foreground">Distância, tempo, ritmo, elevação, frequência cardíaca e dados técnicos quando o Strava disponibilizar.</p>
+                          </div>
+                          <Badge variant="secondary" className="rounded-full px-3 py-1">
+                            {formatCountPtBr(recentStravaActivityRecords.length, " atividades")}
+                          </Badge>
                         </div>
-                        <Badge variant="outline">{record.value} {record.unit}</Badge>
+                        <div className="grid gap-3 xl:grid-cols-2">
+                          {recentStravaActivityRecords.map(record => (
+                            <StravaActivityPanel key={record.id} record={record as SyncedHealthRecord} />
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
+
+                    <section className="space-y-3" aria-labelledby="synced-records-title">
+                      <div>
+                        <h2 id="synced-records-title" className="text-base font-semibold tracking-tight">Registros brutos sincronizados</h2>
+                        <p className="text-sm text-muted-foreground">Auditoria operacional com origem, tipo, unidade e horário medido.</p>
                       </div>
-                    ))}
+                      <div className="grid gap-2">
+                        {recentRecords.map(record => (
+                          <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-background px-4 py-3 text-sm shadow-sm">
+                            <div>
+                              <p className="font-medium">{record.metadata?.name || formatDataType(record.dataType)}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(record.measuredAt).toLocaleString("pt-BR")} · origem: {record.source}
+                              </p>
+                            </div>
+                            <Badge variant="outline">{record.value} {record.unit}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
                   </div>
                 ) : (
                   <UXState
@@ -472,6 +547,97 @@ function FlowStep({ title, description }: { title: string; description: string }
   );
 }
 
+function StravaActivityPanel({ record }: { record: SyncedHealthRecord }) {
+  const metadata = record.metadata;
+  const sportType = metadata?.sportType || record.activityType || "Atividade";
+  const measuredAt = metadata?.startDateLocal || record.measuredAt;
+  const primaryMetrics = [
+    {
+      icon: Route,
+      label: "Distância",
+      value: metadata?.distanceMeters ? formatDistance(metadata.distanceMeters) : "Não informado",
+    },
+    {
+      icon: Timer,
+      label: "Tempo",
+      value: formatDuration(metadata?.movingTimeSeconds ?? record.value * 60),
+    },
+    {
+      icon: Zap,
+      label: "Calorias",
+      value: metadata?.calories ? formatCalories(metadata.calories) : "Não informado",
+    },
+    {
+      icon: Gauge,
+      label: isPaceActivity(sportType) ? "Ritmo médio" : "Velocidade média",
+      value: metadata?.averageSpeedMetersPerSecond ? formatPaceOrSpeed(metadata.averageSpeedMetersPerSecond, sportType) : "Não informado",
+    },
+  ];
+  const details = [
+    metadata?.elapsedTimeSeconds ? ["Tempo total", formatDuration(metadata.elapsedTimeSeconds)] : null,
+    metadata?.totalElevationGainMeters ? ["Elevação", `${Math.round(metadata.totalElevationGainMeters)} m`] : null,
+    metadata?.averageHeartRate ? ["FC média", `${Math.round(metadata.averageHeartRate)} bpm`] : null,
+    metadata?.maxHeartRate ? ["FC máxima", `${Math.round(metadata.maxHeartRate)} bpm`] : null,
+    metadata?.averageCadence ? ["Cadência", formatNumber(metadata.averageCadence, 1)] : null,
+    metadata?.averageWatts ? ["Potência média", `${Math.round(metadata.averageWatts)} W`] : null,
+    metadata?.weightedAverageWatts ? ["Potência ponderada", `${Math.round(metadata.weightedAverageWatts)} W`] : null,
+    metadata?.maxWatts ? ["Potência máxima", `${Math.round(metadata.maxWatts)} W`] : null,
+    metadata?.maxSpeedMetersPerSecond ? ["Velocidade máxima", formatSpeed(metadata.maxSpeedMetersPerSecond)] : null,
+    metadata?.kilojoules ? ["Energia", `${formatNumber(metadata.kilojoules, 1)} kJ`] : null,
+    metadata?.deviceName ? ["Dispositivo", metadata.deviceName] : null,
+    metadata?.gearId ? ["Equipamento", metadata.gearId] : null,
+    metadata?.visibility ? ["Visibilidade", metadata.visibility] : null,
+    metadata?.achievementCount ? ["Conquistas", formatCountPtBr(metadata.achievementCount)] : null,
+    metadata?.prCount ? ["Recordes", formatCountPtBr(metadata.prCount)] : null,
+    metadata?.kudosCount ? ["Kudos", formatCountPtBr(metadata.kudosCount)] : null,
+    metadata?.trainer === true ? ["Tipo", "Indoor"] : null,
+    metadata?.commute === true ? ["Deslocamento", "Sim"] : null,
+    metadata?.manual === true ? ["Entrada manual", "Sim"] : null,
+    metadata?.private === true ? ["Privada", "Sim"] : null,
+  ].filter(Boolean) as Array<[string, string]>;
+
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="truncate text-base font-semibold tracking-tight">{metadata?.name || formatDataType(record.dataType)}</p>
+          <p className="text-sm text-muted-foreground">{new Date(measuredAt).toLocaleString("pt-BR")}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="secondary" className="rounded-full px-3 py-1">{sportType}</Badge>
+          {metadata?.hasHeartRate ? <Badge variant="outline" className="rounded-full px-3 py-1">FC</Badge> : null}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {primaryMetrics.map(metric => (
+          <div key={metric.label} className="rounded-2xl border bg-muted/20 p-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <metric.icon className="h-4 w-4" />
+              <span className="text-xs font-medium uppercase tracking-[0.14em]">{metric.label}</span>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-foreground">{metric.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {details.length ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {details.map(([label, value]) => (
+            <span key={`${label}-${value}`} className="rounded-full border bg-muted/20 px-3 py-1 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{label}:</span> {value}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-2xl border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+          O Strava não retornou métricas adicionais para esta atividade.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function formatConnectionStatus(status?: string) {
   if (!status) return CONNECTION_STATUS_LABELS.disconnected;
   return CONNECTION_STATUS_LABELS[status] ?? status;
@@ -480,4 +646,44 @@ function formatConnectionStatus(status?: string) {
 function formatDataType(dataType: string) {
   const match = DATA_TYPES.find(item => item.value === dataType);
   return match?.label ?? dataType;
+}
+
+function formatNumber(value: number, fractionDigits = 1) {
+  return value.toLocaleString("pt-BR", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+}
+
+function formatDistance(distanceMeters: number) {
+  return `${formatNumber(distanceMeters / 1000, 2)} km`;
+}
+
+function formatDuration(totalSeconds: number) {
+  const safeSeconds = Math.max(Math.round(totalSeconds), 0);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatSpeed(speedMetersPerSecond: number) {
+  return `${formatNumber(speedMetersPerSecond * 3.6, 1)} km/h`;
+}
+
+function isPaceActivity(sportType: string) {
+  return /run|walk|hike|corrida|caminhada|trilha/i.test(sportType);
+}
+
+function formatPaceOrSpeed(speedMetersPerSecond: number, sportType: string) {
+  if (speedMetersPerSecond <= 0) return "Não informado";
+  if (!isPaceActivity(sportType)) return formatSpeed(speedMetersPerSecond);
+
+  const secondsPerKm = Math.round(1000 / speedMetersPerSecond);
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = String(secondsPerKm % 60).padStart(2, "0");
+  return `${minutes}:${seconds}/km`;
 }
