@@ -733,6 +733,26 @@ function MacroField({
   onGramChange: (value: number) => void;
   onPercentChange: (value: number) => void;
 }) {
+  const formattedPercent = formatDecimalInputPtBr(percent, 1);
+  const [percentInputValue, setPercentInputValue] = useState(formattedPercent);
+  const [isPercentFocused, setIsPercentFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isPercentFocused) {
+      setPercentInputValue(formattedPercent);
+    }
+  }, [formattedPercent, isPercentFocused]);
+
+  function handlePercentChange(value: string) {
+    setPercentInputValue(value);
+    onPercentChange(parseDecimalInputPtBr(value));
+  }
+
+  function handlePercentBlur() {
+    setIsPercentFocused(false);
+    setPercentInputValue(formatDecimalInputPtBr(percent, 1));
+  }
+
   return (
     <div className="space-y-2 rounded-2xl border bg-background p-4">
       <Label>{label}</Label>
@@ -748,8 +768,10 @@ function MacroField({
           <Input
             type="text"
             inputMode="decimal"
-            value={formatDecimalInputPtBr(percent, 1)}
-            onChange={event => onPercentChange(parseDecimalInputPtBr(event.target.value))}
+            value={percentInputValue}
+            onFocus={() => setIsPercentFocused(true)}
+            onChange={event => handlePercentChange(event.target.value)}
+            onBlur={handlePercentBlur}
           />
         )}
         <span className="text-sm text-muted-foreground">{mode === "grams" ? "g" : "%"}</span>
