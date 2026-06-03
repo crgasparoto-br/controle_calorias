@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, logInferenceEvent } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, logInferenceEvent } from "./db";
+import { buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { storagePut } from "./storage";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
@@ -117,52 +118,10 @@ function formatReplyTime(date: Date) {
   });
 }
 
-function getMealEmoji(mealLabel: string) {
-  const normalized = mealLabel.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-  if (normalized.includes("cafe")) return "☕";
-  if (normalized.includes("almoco")) return "🍽️";
-  if (normalized.includes("jantar")) return "🌙";
-  if (normalized.includes("lanche")) return "🥪";
-  return "🍎";
-}
-
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
   const portionHasGrams = /\d\s*g\b/i.test(item.portionText);
   const gramsLabel = !portionHasGrams && item.estimatedGrams > 0 ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)` : "";
   return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
-}
-
-function formatFoodMacroDetails(item: MealProcessingResult["items"][number]) {
-  return `${formatMacro(item.calories)} kcal | P ${formatMacro(item.protein)}g | C ${formatMacro(item.carbs)}g | G ${formatMacro(item.fat)}g`;
-}
-
-function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date()) {
-  const mealLabel = processed.detectedMealLabel || "Refeição";
-  const mealHeader = `${getMealEmoji(mealLabel)} ${mealLabel}:`;
-  const timeLabel = formatReplyTime(registeredAt);
-  const calories = formatMacro(processed.totals.calories);
-
-  if (!processed.items.length) {
-    return [
-      mealHeader,
-      processed.sourceText || "Alimento não identificado.",
-      `Total estimado: ${calories} kcal.`,
-      `Horário: ${timeLabel}.`,
-    ].join("\n");
-  }
-
-  const foodLines = processed.items
-    .map((item, index) => `${index + 1}. ${formatFoodDescription(item)} — ${formatFoodMacroDetails(item)}`)
-    .filter(Boolean);
-
-  return [
-    mealHeader,
-    "Alimentos e macros:",
-    ...foodLines,
-    `Total estimado: ${calories} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g.`,
-    `Horário: ${timeLabel}.`,
-  ].join("\n");
 }
 
 function imageDataFromDataUrl(dataUrl?: string) {
@@ -238,6 +197,29 @@ function buildAnnotatedImageMedia(annotatedImage: GenerateImageResponse) {
     mimeType: annotatedImage.mimeType || "image/png",
     originalFileName: "whatsapp-annotated-meal.png",
   });
+}
+
+function formatDateKeyInSaoPaulo(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date) {
+  const [goalSummary, dayTotals] = await Promise.all([
+    getUserNutritionGoal(userId),
+    getUserDayMealTotals(userId, formatDateKeyInSaoPaulo(occurredAt)),
+  ]);
+
+  return {
+    consumedCalories: dayTotals.totals.calories,
+    goalCalories: goalSummary.today.calories,
+  };
 }
 
 async function sendWhatsAppTextMessage(to: string, body: string) {
@@ -609,7 +591,10 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppMessage)
 
   const replyResult = await sendWhatsAppTextMessage(
     sourcePhone,
-    buildWhatsAppReplyMessage(processedForPersistence, occurredAt),
+    buildWhatsAppMealReplyMessage(processedForPersistence, {
+      registeredAt: occurredAt,
+      goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+    }),
   );
 
   if (!replyResult.ok) {
