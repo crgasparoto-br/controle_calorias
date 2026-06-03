@@ -50,6 +50,14 @@ type GroupedMealSummary = {
   count: number;
 };
 
+const MACRO_CALORIES_PER_GRAM = {
+  protein: 4,
+  carbs: 4,
+  fat: 9,
+} as const;
+
+type MacroKind = keyof typeof MACRO_CALORIES_PER_GRAM;
+
 function macroProgress(consumed: number, goal: number) {
   if (!goal) return 0;
   return Math.min((consumed / goal) * 100, 100);
@@ -83,6 +91,14 @@ function dayShare(value: number, total: number) {
 
 function formatDayShare(value: number, total: number) {
   return `${formatPercentPtBr(dayShare(value, total))}% do total do dia`;
+}
+
+function macroCalories(grams: number, macro: MacroKind) {
+  return grams * MACRO_CALORIES_PER_GRAM[macro];
+}
+
+function formatMacroCalorieShare(grams: number, totalCalories: number, macro: MacroKind, label: string) {
+  return `${label}: ${formatPercentPtBr(dayShare(macroCalories(grams, macro), totalCalories))}% das calorias`;
 }
 
 function positiveRemaining(value: number) {
@@ -304,9 +320,33 @@ export default function Home() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={formatGoalComparison(consumedCalories, calorieGoal, formatCalories)} />
-                    <StatBlock label="Proteína" value={formatGrams(consumedProtein)} sublabel={formatGoalComparison(consumedProtein, proteinGoal, formatGrams)} />
-                    <StatBlock label="Carboidratos" value={formatGrams(consumedCarbs)} sublabel={formatGoalComparison(consumedCarbs, carbsGoal, formatGrams)} />
-                    <StatBlock label="Gorduras" value={formatGrams(consumedFat)} sublabel={formatGoalComparison(consumedFat, fatGoal, formatGrams)} />
+                    <StatBlock
+                      label="Proteína"
+                      value={formatGrams(consumedProtein)}
+                      sublabel={formatGoalComparison(consumedProtein, proteinGoal, formatGrams)}
+                      details={[
+                        formatMacroCalorieShare(consumedProtein, consumedCalories, "protein", "Consumido"),
+                        formatMacroCalorieShare(proteinGoal, calorieGoal, "protein", "Meta"),
+                      ]}
+                    />
+                    <StatBlock
+                      label="Carboidratos"
+                      value={formatGrams(consumedCarbs)}
+                      sublabel={formatGoalComparison(consumedCarbs, carbsGoal, formatGrams)}
+                      details={[
+                        formatMacroCalorieShare(consumedCarbs, consumedCalories, "carbs", "Consumido"),
+                        formatMacroCalorieShare(carbsGoal, calorieGoal, "carbs", "Meta"),
+                      ]}
+                    />
+                    <StatBlock
+                      label="Gorduras"
+                      value={formatGrams(consumedFat)}
+                      sublabel={formatGoalComparison(consumedFat, fatGoal, formatGrams)}
+                      details={[
+                        formatMacroCalorieShare(consumedFat, consumedCalories, "fat", "Consumido"),
+                        formatMacroCalorieShare(fatGoal, calorieGoal, "fat", "Meta"),
+                      ]}
+                    />
                     <StatBlock label="Refeições" value={formatCountPtBr(groupedTodaysMeals.length)} sublabel="Agrupadas por nome" />
                   </div>
                   <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
@@ -542,12 +582,21 @@ function FoodAssistantCard({
   );
 }
 
-function StatBlock({ label, value, sublabel }: { label: string; value: string; sublabel: string }) {
+function StatBlock({ label, value, sublabel, details }: { label: string; value: string; sublabel: string; details?: string[] }) {
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{sublabel}</p>
+      {details?.length ? (
+        <div className="mt-3 space-y-1 border-t pt-3">
+          {details.map(detail => (
+            <p key={detail} className="text-xs leading-5 text-muted-foreground">
+              {detail}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
