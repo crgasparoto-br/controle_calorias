@@ -467,7 +467,9 @@ describe("executeWhatsappTextIntent", () => {
     }));
     expect(result?.reply).toContain("Refeições registradas: 2");
     expect(result?.reply).toContain("Total consumido: 469 kcal");
-    expect(result?.reply).toContain("Meta estimada: 15.400 kcal");
+    expect(result?.reply).toContain("*Meta do resumo:*");
+    expect(result?.reply).toContain("• Meta estimada: 15.400 kcal");
+    expect(result?.reply).toContain("• Déficit: 14.931 kcal para a meta estimada do período");
   });
 
   it("pede período quando o usuário solicita relatório sem período", async () => {
