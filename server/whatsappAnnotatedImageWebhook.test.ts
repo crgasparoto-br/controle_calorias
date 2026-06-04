@@ -269,7 +269,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       "Almoço registrado.",
       "",
       "Itens:",
-      "• arroz, 100 g",
+      "• 🍚 arroz, 100 g",
       "  130 kcal | Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
       "",
       "Total da refeição:",

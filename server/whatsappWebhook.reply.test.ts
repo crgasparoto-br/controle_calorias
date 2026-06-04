@@ -184,9 +184,9 @@ describe("whatsappWebhook detailed replies", () => {
     expect(res.statusCode).toBe(200);
     expect(finalReply).toContain("Almoço registrado.");
     expect(finalReply).toContain("Itens:");
-    expect(finalReply).toContain("• arroz, 100 g");
+    expect(finalReply).toContain("• 🍚 arroz, 100 g");
     expect(finalReply).toContain("  130 kcal | Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g");
-    expect(finalReply).toContain("• frango, 100 g");
+    expect(finalReply).toContain("• 🍗 frango, 100 g");
     expect(finalReply).toContain("  165 kcal | Prot. 31 g | Carb. 0 g | Gord. 3,6 g");
     expect(finalReply).toContain("Total da refeição:");
     expect(finalReply).toContain("295 kcal");
