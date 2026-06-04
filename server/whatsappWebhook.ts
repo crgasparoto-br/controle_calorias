@@ -2,8 +2,9 @@ import { Request, Response } from "express";
 import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 
@@ -138,14 +139,38 @@ function formatReplyTime(date: Date) {
   });
 }
 
-function getMealEmoji(mealLabel: string) {
-  const normalized = mealLabel.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function formatDateKeyInSaoPaulo(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
 
-  if (normalized.includes("cafe")) return "☕";
-  if (normalized.includes("almoco")) return "🍽️";
-  if (normalized.includes("jantar")) return "🌙";
-  if (normalized.includes("lanche")) return "🥪";
-  return "🍎";
+async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date): Promise<WhatsAppMealGoalProgress | null> {
+  try {
+    const [goalSummary, dayTotals] = await Promise.all([
+      getUserNutritionGoal(userId),
+      getUserDayMealTotals(userId, formatDateKeyInSaoPaulo(occurredAt)),
+    ]);
+
+    return {
+      consumedCalories: dayTotals.totals.calories,
+      goalCalories: goalSummary.today.calories,
+    };
+  } catch (error) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.goal_progress_warning",
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao calcular progresso da meta para resposta do WhatsApp.",
+    });
+    return null;
+  }
 }
 
 function resolveOccurredAt(message: WhatsAppMessage) {
@@ -220,36 +245,8 @@ function formatFoodDescription(item: MealProcessingResult["items"][number]) {
   return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
 }
 
-function formatFoodMacroDetails(item: MealProcessingResult["items"][number]) {
-  return `${formatMacro(item.calories)} kcal | P ${formatMacro(item.protein)}g | C ${formatMacro(item.carbs)}g | G ${formatMacro(item.fat)}g`;
-}
-
-function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date()) {
-  const mealLabel = processed.detectedMealLabel || "Refeição";
-  const mealHeader = `${getMealEmoji(mealLabel)} ${mealLabel}:`;
-  const timeLabel = formatReplyTime(registeredAt);
-  const calories = formatMacro(processed.totals.calories);
-
-  if (!processed.items.length) {
-    return [
-      mealHeader,
-      processed.sourceText || "Alimento não identificado.",
-      `Total estimado: ${calories} kcal.`,
-      `Horário: ${timeLabel}.`,
-    ].join("\n");
-  }
-
-  const foodLines = processed.items
-    .map((item, index) => `${index + 1}. ${formatFoodDescription(item)} — ${formatFoodMacroDetails(item)}`)
-    .filter(Boolean);
-
-  return [
-    mealHeader,
-    "Alimentos e macros:",
-    ...foodLines,
-    `Total estimado: ${calories} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g.`,
-    `Horário: ${timeLabel}.`,
-  ].join("\n");
+function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date(), goalProgress?: WhatsAppMealGoalProgress | null) {
+  return buildWhatsAppMealReplyMessage(processed, { registeredAt, goalProgress });
 }
 
 function imageDataFromDataUrl(dataUrl?: string) {
@@ -1128,7 +1125,41 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         imageUrl: prepared.imageUrl,
       };
       const occurredAt = resolveOccurredAt(message);
-      const draft = createPendingMealInference(userId, "whatsapp", processedForPersistence, prepared.media);
+      const mediaForPersistence = [...prepared.media];
+      let annotatedImage: GenerateImageResponse | null = null;
+
+      if (message.image?.id) {
+        try {
+          annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared);
+          if (annotatedImage?.url) {
+            mediaForPersistence.push(buildSavedMedia({
+              mediaType: "image",
+              storageKey: annotatedImage.storageKey ?? annotatedImage.url,
+              storageUrl: annotatedImage.url,
+              mimeType: annotatedImage.mimeType ?? "image/png",
+              originalFileName: "whatsapp-annotated-meal.png",
+            }));
+          } else {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.annotated_image_skipped",
+              detail: `Imagem anotada não vinculada à refeição ${prepared.summary} de ${sourcePhone}: ${annotatedImage?.detail || annotatedImage?.skippedReason || "geração sem URL"}.`,
+            });
+          }
+        } catch (annotationError) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.annotated_image_skipped",
+            detail: `Falha ao gerar imagem anotada para ${prepared.summary} de ${sourcePhone}: ${annotationError instanceof Error ? annotationError.message : "erro desconhecido"}.`,
+          });
+        }
+      }
+
+      const draft = createPendingMealInference(userId, "whatsapp", processedForPersistence, mediaForPersistence);
       const savedMeal = await confirmPendingMeal({
         draftId: draft.draftId,
         userId,
@@ -1148,7 +1179,11 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const replyResult = await sendWhatsAppTextMessage(
         sourcePhone,
-        buildWhatsAppReplyMessage(processedForPersistence, occurredAt),
+        buildWhatsAppReplyMessage(
+          processedForPersistence,
+          occurredAt,
+          await getWhatsAppMealGoalProgress(userId, occurredAt),
+        ),
       );
 
       if (!replyResult.ok) {
@@ -1161,31 +1196,20 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         });
       }
 
-      if (message.image?.id) {
-        const annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared);
-        if (annotatedImage?.url) {
-          const imageReplyResult = await sendWhatsAppImageMessage(
-            sourcePhone,
-            annotatedImage.url,
-            "Imagem anotada com os alimentos identificados.",
-          );
+      if (annotatedImage?.url) {
+        const imageReplyResult = await sendWhatsAppImageMessage(
+          sourcePhone,
+          annotatedImage.url,
+          "Imagem anotada com os alimentos identificados.",
+        );
 
-          if (!imageReplyResult.ok) {
-            logInferenceEvent({
-              userId,
-              origin: "whatsapp",
-              status: "warning",
-              eventType: "whatsapp.annotated_image_reply_failed",
-              detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
-            });
-          }
-        } else {
+        if (!imageReplyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
-            eventType: "whatsapp.annotated_image_skipped",
-            detail: `Imagem anotada não enviada para ${sourcePhone}: ${annotatedImage?.detail || annotatedImage?.skippedReason || "geração sem URL"}.`,
+            eventType: "whatsapp.annotated_image_reply_failed",
+            detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
           });
         }
       }

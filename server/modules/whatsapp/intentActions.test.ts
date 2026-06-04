@@ -48,6 +48,34 @@ const beansItem = {
   source: "catalog" as const,
 };
 
+const bananaItem = {
+  foodName: "Banana",
+  canonicalName: "Banana prata",
+  portionText: "120 g",
+  servings: 1,
+  estimatedGrams: 120,
+  calories: 106,
+  protein: 1.3,
+  carbs: 27.6,
+  fat: 0.4,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
+const mayonnaiseItem = {
+  foodName: "Maionese",
+  canonicalName: "Maionese",
+  portionText: "30 g",
+  servings: 1,
+  estimatedGrams: 30,
+  calories: 198,
+  protein: 0.3,
+  carbs: 0.4,
+  fat: 21,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
 describe("executeWhatsappTextIntent", () => {
   beforeEach(() => {
     listMealsMock.mockReset();
@@ -136,6 +164,98 @@ describe("executeWhatsappTextIntent", () => {
       action: "meal_item_grams_adjusted",
       reply: expect.stringContaining("de 150 g para 100 g"),
     }));
+  });
+
+  it("substitui a quantidade anterior pelo peso informado para o alimento", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 13,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [bananaItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 13,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Mudar banana para 79g",
+      receivedAt: new Date("2026-06-03T18:10:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 13,
+      mealLabel: "Lanche",
+      items: [
+        expect.objectContaining({
+          foodName: "Banana",
+          estimatedGrams: 79,
+          portionText: "79 g",
+          calories: 69.8,
+          protein: 0.9,
+          carbs: 18.2,
+          fat: 0.3,
+        }),
+        riceItem,
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+      reply: expect.stringContaining("de 120 g para 79 g"),
+    }));
+  });
+
+  it("substitui o alimento identificado por outro informado pelo usuário e recalcula os macros", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 14,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro por imagem",
+        items: [mayonnaiseItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 14,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "não é maionese é requeijão",
+      receivedAt: new Date("2026-06-03T18:10:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 14,
+      mealLabel: "Lanche",
+      items: [
+        expect.objectContaining({
+          foodName: "requeijão",
+          canonicalName: "requeijão",
+          estimatedGrams: 30,
+          portionText: "30 g",
+          calories: 45,
+          protein: 1.8,
+          carbs: 4.5,
+          fat: 1.5,
+          source: "heuristic",
+        }),
+        riceItem,
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_replaced",
+      eventType: "whatsapp.intent.meal_item_replaced",
+      reply: expect.stringContaining("recalculei os macros"),
+    }));
+    expect(result?.reply).toContain("45 kcal");
   });
 
   it("usa o último item da última refeição quando o alimento não é citado", async () => {

@@ -1,4 +1,6 @@
+import { roundNutritionValue } from "../../../shared/mealTotals";
 import { getUserNutritionGoal } from "../../db";
+import { getCatalogCache } from "../../catalogRuntime";
 import { listMeals, updateMeal } from "../meals/service";
 import { createWaterLog } from "../water/service";
 import type { MealItemInput } from "../meals/schemas";
@@ -8,6 +10,12 @@ const MAX_WATER_LOG_AMOUNT_ML = 10000;
 const MIN_FOOD_GRAMS = 1;
 const UNSWEETENED_COFFEE_CUP_ML = 50;
 const UNSWEETENED_COFFEE_CALORIES_PER_CUP = 2;
+const HEURISTIC_REPLACEMENT_NUTRITION_PER_100G = {
+  calories: 150,
+  protein: 6,
+  carbs: 15,
+  fat: 5,
+};
 
 const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 1,
@@ -15,7 +23,7 @@ const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
 
 type WhatsappIntentResult = {
   handled: true;
-  action: "water_logged" | "meal_item_added" | "meal_item_grams_adjusted" | "meal_suggestion" | "period_report" | "clarification_needed";
+  action: "water_logged" | "meal_item_added" | "meal_item_grams_adjusted" | "meal_item_replaced" | "meal_suggestion" | "period_report" | "clarification_needed";
   reply: string;
   eventType: string;
   detail: string;
@@ -54,6 +62,11 @@ type CoffeeAdditionIntent = {
   mealLabel: string | null;
 };
 
+type FoodReplacementIntent = {
+  fromFood: string;
+  toFood: string;
+};
+
 type ExistingMeal = {
   id: number;
   mealLabel: string;
@@ -68,6 +81,39 @@ function normalizeIntentText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function normalizeCatalogText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[^\w\s-]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function cleanCatalogFoodName(value: string) {
+  return value
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getCatalogFoodNames(food: ReturnType<typeof getCatalogCache>[number]) {
+  return [food.name, ...food.aliases]
+    .map(alias => normalizeCatalogText(alias))
+    .filter(Boolean);
+}
+
+function findCatalogFood(foodName: string) {
+  const normalized = normalizeCatalogText(cleanCatalogFoodName(foodName));
+  if (!normalized) {
+    return null;
+  }
+
+  const catalogSource = getCatalogCache();
+  return catalogSource.find(food => getCatalogFoodNames(food).some(alias => alias === normalized))
+    ?? catalogSource.find(food => getCatalogFoodNames(food).some(alias => normalized.includes(alias) || alias.includes(normalized)))
+    ?? null;
 }
 
 function formatNumber(value: number) {
@@ -219,6 +265,37 @@ function parseWaterIntent(text: string) {
   return { kind: "water" as const, amountMl };
 }
 
+function cleanTargetFoodText(value?: string) {
+  return value
+    ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/gi, "")
+    .replace(/[.,;:!?]+$/g, "")
+    .replace(/^\b(?:o|a|os|as|do|da|de|dos|das)\b\s+/i, "")
+    .trim() || null;
+}
+
+function parseMealItemGramsReplacement(text: string) {
+  const normalized = normalizeIntentText(text);
+  const match = normalized.match(/\b(?:mudar|alterar|ajustar|trocar|corrigir)\b\s+(.+?)\s+(?:para|por)\s+(\d+(?:[,.]\d+)?)\s*(?:g|gramas?)\b/);
+  if (!match) {
+    return null;
+  }
+
+  const nextGrams = Number(match[2].replace(",", "."));
+  if (!Number.isFinite(nextGrams) || nextGrams < MIN_FOOD_GRAMS) {
+    return null;
+  }
+
+  const targetFood = cleanTargetFoodText(match[1]);
+  if (!targetFood) {
+    return null;
+  }
+
+  return {
+    nextGrams,
+    targetFood,
+  };
+}
+
 function parseMealItemGramsAdjustment(text: string) {
   const normalized = normalizeIntentText(text);
   const match = normalized.match(/\b(?:diminuir|diminui|diminuia|reduzir|reduz|reduza|tirar|remover)\b[^\d]*(\d+(?:[,.]\d+)?)\s*(?:g|gramas?)\b/);
@@ -233,14 +310,28 @@ function parseMealItemGramsAdjustment(text: string) {
 
   const afterAmount = normalized.slice((match.index ?? 0) + match[0].length);
   const targetMatch = afterAmount.match(/(?:\bdo\b|\bda\b|\bde\b)\s+(.+)/);
-  const rawTargetFood = targetMatch?.[1]
-    ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/g, "")
-    .trim();
 
   return {
     gramsDelta,
-    targetFood: rawTargetFood || null,
+    targetFood: cleanTargetFoodText(targetMatch?.[1]),
   };
+}
+
+function parseFoodReplacementIntent(text: string): FoodReplacementIntent | null {
+  const correctionMatch = text.match(/\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i);
+  const swapMatch = text.match(/\b(?:trocar|troque|troca|mudar|alterar|corrigir)\b\s+(.+?)\s+(?:por|para)\s+(.+)$/i);
+  const match = correctionMatch || swapMatch;
+  if (!match) {
+    return null;
+  }
+
+  const fromFood = cleanTargetFoodText(match[1]);
+  const toFood = cleanTargetFoodText(match[2]);
+  if (!fromFood || !toFood || /\d/.test(toFood)) {
+    return null;
+  }
+
+  return { fromFood, toFood };
 }
 
 function parseCoffeeAdditionIntent(text: string): CoffeeAdditionIntent | null {
@@ -404,6 +495,52 @@ function scaleMealItem(item: MealItemInput, nextGrams: number): MealItemInput {
   };
 }
 
+function buildCatalogMealItem(item: MealItemInput, nextFoodName: string, nextGrams: number, catalogFood: ReturnType<typeof getCatalogCache>[number]): MealItemInput {
+  const factor = nextGrams / catalogFood.gramsPerServing;
+  return {
+    ...item,
+    foodName: nextFoodName,
+    canonicalName: catalogFood.name,
+    estimatedGrams: nextGrams,
+    portionText: item.portionText || `${formatNumber(nextGrams)} g`,
+    servings: Math.max(nextGrams / catalogFood.gramsPerServing, 0.1),
+    calories: roundNutritionValue(catalogFood.calories * factor),
+    protein: roundNutritionValue(catalogFood.protein * factor),
+    carbs: roundNutritionValue(catalogFood.carbs * factor),
+    fat: roundNutritionValue(catalogFood.fat * factor),
+    confidence: Math.min(Math.max(Number(item.confidence || 0.8), 0.1), 0.95),
+    source: "catalog",
+  };
+}
+
+function buildHeuristicReplacementItem(item: MealItemInput, nextFoodName: string, nextGrams: number): MealItemInput {
+  const factor = nextGrams / 100;
+  return {
+    ...item,
+    foodName: nextFoodName,
+    canonicalName: nextFoodName,
+    estimatedGrams: nextGrams,
+    portionText: item.portionText || `${formatNumber(nextGrams)} g`,
+    servings: Math.max(Number(item.servings || 1), 0.1),
+    calories: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.calories * factor),
+    protein: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.protein * factor),
+    carbs: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.carbs * factor),
+    fat: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.fat * factor),
+    confidence: Math.min(Number(item.confidence || 0.8), 0.7),
+    source: "heuristic",
+  };
+}
+
+function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealItemInput {
+  const nextGrams = Math.max(Number(item.estimatedGrams || 0), MIN_FOOD_GRAMS);
+  const catalogFood = findCatalogFood(nextFoodName);
+  if (catalogFood) {
+    return buildCatalogMealItem(item, nextFoodName, nextGrams, catalogFood);
+  }
+
+  return buildHeuristicReplacementItem(item, nextFoodName, nextGrams);
+}
+
 function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
   const volumeMl = Math.round(cups * UNSWEETENED_COFFEE_CUP_ML);
   const calories = Math.round(cups * UNSWEETENED_COFFEE_CALORIES_PER_CUP);
@@ -472,8 +609,13 @@ async function handleWaterIntent(userId: number, text: string, receivedAt: Date,
   };
 }
 
-async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<ReturnType<typeof parseMealItemGramsAdjustment>>): Promise<WhatsappIntentResult> {
-  const latestMeal = (await listMeals(userId))[0];
+async function updateLatestMealItemGrams(input: {
+  userId: number;
+  targetFood: string | null;
+  resolveNextGrams: (previousGrams: number) => number;
+  detail: string;
+}) {
+  const latestMeal = (await listMeals(input.userId))[0];
   if (!latestMeal?.items?.length) {
     return {
       handled: true,
@@ -481,10 +623,10 @@ async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<
       reply: "Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada.",
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de ajuste de gramas sem refeição recente disponível.",
-    };
+    } satisfies WhatsappIntentResult;
   }
 
-  const target = findTargetMealItem(latestMeal.items, adjustment.targetFood);
+  const target = findTargetMealItem(latestMeal.items, input.targetFood);
   if (!target) {
     return {
       handled: true,
@@ -492,13 +634,13 @@ async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<
       reply: "Não encontrei esse alimento na última refeição. Me diga qual item devo ajustar.",
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de ajuste de gramas sem alimento compatível na última refeição.",
-    };
+    } satisfies WhatsappIntentResult;
   }
 
   const previousGrams = Number(target.item.estimatedGrams || 0);
-  const nextGrams = Math.max(previousGrams - adjustment.gramsDelta, MIN_FOOD_GRAMS);
+  const nextGrams = Math.max(input.resolveNextGrams(previousGrams), MIN_FOOD_GRAMS);
   const nextItems = latestMeal.items.map((item, index) => index === target.index ? scaleMealItem(item, nextGrams) : item);
-  const updatedMeal = await updateMeal(userId, {
+  const updatedMeal = await updateMeal(input.userId, {
     mealId: latestMeal.id,
     mealLabel: latestMeal.mealLabel,
     occurredAt: new Date(latestMeal.occurredAt).toISOString(),
@@ -511,12 +653,84 @@ async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<
     action: "meal_item_grams_adjusted",
     reply: `Ajustei ${target.item.foodName}: de ${formatNumber(previousGrams)} g para ${formatNumber(nextGrams)} g na última refeição.`,
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: `Último item compatível ajustado em ${formatNumber(adjustment.gramsDelta)} g via WhatsApp.`,
+    detail: input.detail,
     data: {
       mealId: updatedMeal.id,
       foodName: target.item.foodName,
       previousGrams,
       nextGrams,
+    },
+  } satisfies WhatsappIntentResult;
+}
+
+async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<ReturnType<typeof parseMealItemGramsAdjustment>>): Promise<WhatsappIntentResult> {
+  return updateLatestMealItemGrams({
+    userId,
+    targetFood: adjustment.targetFood,
+    resolveNextGrams: previousGrams => previousGrams - adjustment.gramsDelta,
+    detail: `Último item compatível ajustado em ${formatNumber(adjustment.gramsDelta)} g via WhatsApp.`,
+  });
+}
+
+async function handleMealItemReplacement(userId: number, replacement: NonNullable<ReturnType<typeof parseMealItemGramsReplacement>>): Promise<WhatsappIntentResult> {
+  return updateLatestMealItemGrams({
+    userId,
+    targetFood: replacement.targetFood,
+    resolveNextGrams: () => replacement.nextGrams,
+    detail: `Quantidade de ${replacement.targetFood} substituída para ${formatNumber(replacement.nextGrams)} g via WhatsApp.`,
+  });
+}
+
+async function handleFoodReplacementIntent(userId: number, replacement: FoodReplacementIntent): Promise<WhatsappIntentResult> {
+  const latestMeal = (await listMeals(userId))[0];
+  if (!latestMeal?.items?.length) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: "Não encontrei uma refeição recente para corrigir. Me diga qual alimento devo trocar.",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de substituição de alimento sem refeição recente disponível.",
+    };
+  }
+
+  const target = findTargetMealItem(latestMeal.items, replacement.fromFood);
+  if (!target) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Não encontrei ${replacement.fromFood} na última refeição. Me diga qual alimento devo trocar.`,
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de substituição de alimento sem item compatível na última refeição.",
+    };
+  }
+
+  const nextItems = latestMeal.items.map((item, index) => index === target.index ? replaceMealItemFood(item, replacement.toFood) : item);
+  const replacedItem = nextItems[target.index];
+  const recalculationSource = replacedItem.source === "catalog" ? "com base no catálogo" : "por estimativa";
+  const updatedMeal = await updateMeal(userId, {
+    mealId: latestMeal.id,
+    mealLabel: latestMeal.mealLabel,
+    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
+    notes: latestMeal.notes,
+    items: nextItems,
+  });
+
+  return {
+    handled: true,
+    action: "meal_item_replaced",
+    reply: `Troquei ${target.item.foodName} por ${replacement.toFood} na última refeição e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(replacedItem.estimatedGrams)} g. Estimativa: ${formatTotalsLine(replacedItem)}.`,
+    eventType: "whatsapp.intent.meal_item_replaced",
+    detail: `Alimento ${target.item.foodName} substituído por ${replacement.toFood} via WhatsApp com macros recalculados.`,
+    data: {
+      mealId: updatedMeal.id,
+      previousFoodName: target.item.foodName,
+      nextFoodName: replacement.toFood,
+      estimatedGrams: replacedItem.estimatedGrams,
+      calories: replacedItem.calories,
+      protein: replacedItem.protein,
+      carbs: replacedItem.carbs,
+      fat: replacedItem.fat,
+      nutritionSource: replacedItem.source,
     },
   };
 }
@@ -670,9 +884,19 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return handleWaterIntent(userId, text, receivedAt, waterIntent.amountMl);
   }
 
+  const gramsReplacement = parseMealItemGramsReplacement(text);
+  if (gramsReplacement) {
+    return handleMealItemReplacement(userId, gramsReplacement);
+  }
+
   const gramsAdjustment = parseMealItemGramsAdjustment(text);
   if (gramsAdjustment) {
     return handleMealItemAdjustment(userId, gramsAdjustment);
+  }
+
+  const foodReplacement = parseFoodReplacementIntent(text);
+  if (foodReplacement) {
+    return handleFoodReplacementIntent(userId, foodReplacement);
   }
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);

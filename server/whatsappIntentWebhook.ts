@@ -22,7 +22,9 @@ type ExtractedWhatsAppMessage = WhatsAppMessage & {
 };
 
 const recentlyHandledTextIntentMessageIds = new Map<string, number>();
+const pendingTextIntentContexts = new Map<number, { kind: "period_report"; expiresAt: number }>();
 const TEXT_INTENT_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
 
 function extractMessages(payload: any): ExtractedWhatsAppMessage[] {
   const entries = Array.isArray(payload?.entry) ? payload.entry : [];
@@ -92,6 +94,35 @@ function markTextIntentMessageHandled(messageId?: string) {
   }
 }
 
+function getPendingTextIntentContext(userId: number) {
+  const pending = pendingTextIntentContexts.get(userId);
+  if (!pending) return null;
+
+  if (pending.expiresAt <= Date.now()) {
+    pendingTextIntentContexts.delete(userId);
+    return null;
+  }
+
+  return pending;
+}
+
+function rememberPendingTextIntentContext(userId: number, result: NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>) {
+  if (result.action === "clarification_needed" && result.detail === "Pedido de relatório sem período explícito.") {
+    pendingTextIntentContexts.set(userId, {
+      kind: "period_report",
+      expiresAt: Date.now() + TEXT_INTENT_CONTEXT_TTL_MS,
+    });
+    return;
+  }
+
+  pendingTextIntentContexts.delete(userId);
+}
+
+export function __resetWhatsAppTextIntentContextForTests() {
+  pendingTextIntentContexts.clear();
+  recentlyHandledTextIntentMessageIds.clear();
+}
+
 async function sendWhatsAppTextMessage(to: string, body: string) {
   let config;
   try {
@@ -155,8 +186,12 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
     return false;
   }
 
+  const text = getTextBody(message);
+  const pendingContext = getPendingTextIntentContext(userId);
+  const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : text;
+
   const result = await executeWhatsappTextIntent(userId, {
-    text: getTextBody(message),
+    text: textForIntent,
     receivedAt: resolveOccurredAt(message),
   });
   if (!result) {
@@ -164,6 +199,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
   }
 
   markTextIntentMessageHandled(message.id);
+  rememberPendingTextIntentContext(userId, result);
 
   logInferenceEvent({
     userId,

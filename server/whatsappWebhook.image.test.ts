@@ -279,6 +279,7 @@ describe("whatsappWebhook image inbound", () => {
   it("envia imagem anotada quando a geração visual retorna URL", async () => {
     generateImageMock.mockResolvedValue({
       url: "https://storage.test/generated/meal-support/annotated.png",
+      storageKey: "generated/meal-support/annotated.png",
       mimeType: "image/png",
     });
     vi.mocked(global.fetch).mockResolvedValueOnce(createWhatsAppOkResponse() as never);
@@ -311,6 +312,25 @@ describe("whatsappWebhook image inbound", () => {
     expect(imageSendCall?.[1]).toEqual(expect.objectContaining({
       body: expect.stringContaining("Imagem anotada com os alimentos identificados."),
     }));
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      123,
+      "whatsapp",
+      expect.objectContaining({ imageUrl: "https://storage.test/whatsapp/image/5511999999999-image-media-id.jpg" }),
+      [
+        expect.objectContaining({
+          mediaType: "image",
+          storageUrl: "https://storage.test/whatsapp/image/5511999999999-image-media-id.jpg",
+        }),
+        expect.objectContaining({
+          mediaType: "image",
+          storageKey: "generated/meal-support/annotated.png",
+          storageUrl: "https://storage.test/generated/meal-support/annotated.png",
+          mimeType: "image/png",
+          originalFileName: "whatsapp-annotated-meal.png",
+        }),
+      ],
+    );
+    expect(processMealInputMock).toHaveBeenCalled();
   });
 
   it("envia imagem com cards quando a edição da foto original não retorna URL", async () => {

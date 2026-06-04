@@ -44,6 +44,12 @@ const processMealInputMock = vi.fn(async () => ({
   },
 }));
 
+const generateImageMock = vi.fn(async () => ({
+  url: "https://storage.test/generated/meal-support/annotated.png",
+  storageKey: "generated/meal-support/annotated.png",
+  mimeType: "image/png",
+}));
+
 vi.mock("./nutritionEngine", async () => {
   const actual = await vi.importActual<typeof import("./nutritionEngine")>("./nutritionEngine");
   return {
@@ -51,6 +57,10 @@ vi.mock("./nutritionEngine", async () => {
     processMealInput: processMealInputMock,
   };
 });
+
+vi.mock("./_core/imageGeneration", () => ({
+  generateImage: generateImageMock,
+}));
 
 const { handleWhatsAppWebhook, verifyWhatsAppWebhook } = await import("./whatsappWebhook");
 const { getAdminSnapshot, listUserMeals, upsertUserWhatsappConnection } = await import("./db");
@@ -66,6 +76,7 @@ type MockResponse = {
 
 let lastSentWhatsAppBody: string | null = null;
 let lastSentWhatsAppUrl: string | null = null;
+let sentWhatsAppPayloads: any[] = [];
 
 function createResponse(): MockResponse {
   return {
@@ -96,6 +107,13 @@ describe("whatsappWebhook", () => {
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
     lastSentWhatsAppBody = null;
     lastSentWhatsAppUrl = null;
+    sentWhatsAppPayloads = [];
+    generateImageMock.mockReset();
+    generateImageMock.mockResolvedValue({
+      url: "https://storage.test/generated/meal-support/annotated.png",
+      storageKey: "generated/meal-support/annotated.png",
+      mimeType: "image/png",
+    });
     processMealInputMock.mockReset();
     processMealInputMock.mockResolvedValue({
       detectedMealLabel: "Almoço",
@@ -132,6 +150,7 @@ describe("whatsappWebhook", () => {
       if (url.includes("/messages")) {
         const payload = init?.body ? JSON.parse(String(init.body)) : {};
         lastSentWhatsAppUrl = url;
+        sentWhatsAppPayloads.push(payload);
         lastSentWhatsAppBody = payload?.text?.body ?? null;
         return {
           ok: true,
@@ -259,11 +278,19 @@ describe("whatsappWebhook", () => {
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
     expect(lastSentWhatsAppBody).toBe([
-      "🍽️ Almoço:",
-      "Alimentos e macros:",
-      "1. 100 g arroz — 130 kcal | P 2.7g | C 28g | G 0.3g",
-      "Total estimado: 130 kcal | P 2.7g | C 28g | G 0.3g.",
-      "Horário: 08:52.",
+      "Almoço registrado.",
+      "",
+      "Itens:",
+      "• arroz, 100 g",
+      "  130 kcal | Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "",
+      "Total da refeição:",
+      "130 kcal",
+      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "",
+      "Meta de hoje:",
+      "Você já consumiu 130 de 2.200 kcal.",
+      "Faltam 2.070 kcal para sua meta.",
     ].join("\n"));
   });
 
@@ -308,6 +335,21 @@ describe("whatsappWebhook", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).toHaveBeenCalled();
+    expect(sentWhatsAppPayloads.some(payload => payload.type === "image" && payload.image?.link === "https://storage.test/generated/meal-support/annotated.png")).toBe(true);
+    const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
+    const savedMeal = savedMeals[0];
+    expect(savedMeal?.media).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        mediaType: "image",
+        storageUrl: "https://storage.test/whatsapp/image/5511777777777-image-media-id.jpg",
+      }),
+      expect.objectContaining({
+        mediaType: "image",
+        storageUrl: "https://storage.test/generated/meal-support/annotated.png",
+        originalFileName: "whatsapp-annotated-meal.png",
+      }),
+    ]));
   });
 
   it("registra warning explícito quando a resposta automática do WhatsApp falha", async () => {

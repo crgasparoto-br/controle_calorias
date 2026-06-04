@@ -35,7 +35,7 @@ vi.mock("./modules/meals/service", () => ({
   updateMeal: updateMealMock,
 }));
 
-const { handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
+const { __resetWhatsAppTextIntentContextForTests, handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
 
 type MockResponse = {
   statusCode: number;
@@ -54,6 +54,34 @@ const riceItem = {
   protein: 4.1,
   carbs: 42,
   fat: 0.5,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
+const bananaItem = {
+  foodName: "Banana",
+  canonicalName: "Banana prata",
+  portionText: "120 g",
+  servings: 1,
+  estimatedGrams: 120,
+  calories: 106,
+  protein: 1.3,
+  carbs: 27.6,
+  fat: 0.4,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
+const mayonnaiseItem = {
+  foodName: "Maionese",
+  canonicalName: "Maionese",
+  portionText: "30 g",
+  servings: 1,
+  estimatedGrams: 30,
+  calories: 198,
+  protein: 0.3,
+  carbs: 0.4,
+  fat: 21,
   confidence: 0.9,
   source: "catalog" as const,
 };
@@ -108,6 +136,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-03T12:00:00.000Z"));
+    __resetWhatsAppTextIntentContextForTests();
     sentMessages = [];
     getUserIdByWhatsappPhoneMock.mockReset();
     getUserNutritionGoalMock.mockReset();
@@ -213,6 +242,96 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
   });
 
+  it("substitui gramas do alimento existente e não delega para inferência nutricional", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 13,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [bananaItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 13,
+      ...input,
+    }));
+    const req = createTextWebhookRequest("Mudar banana para 79g", { id: "replace-banana-grams" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 13,
+      mealLabel: "Lanche",
+      items: [
+        expect.objectContaining({
+          foodName: "Banana",
+          estimatedGrams: 79,
+          portionText: "79 g",
+          calories: 69.8,
+        }),
+        riceItem,
+      ],
+    }));
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    }));
+    expect(sentMessages.at(-1)).toContain("de 120 g para 79 g");
+  });
+
+  it("troca alimento existente, recalcula macros e não delega para inferência nutricional", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 14,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro por imagem",
+        items: [mayonnaiseItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 14,
+      ...input,
+    }));
+    const req = createTextWebhookRequest("troque a maionese por requeijão", { id: "replace-food" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 14,
+      mealLabel: "Lanche",
+      items: [
+        expect.objectContaining({
+          foodName: "requeijão",
+          canonicalName: "requeijão",
+          estimatedGrams: 30,
+          portionText: "30 g",
+          calories: 45,
+          protein: 1.8,
+          carbs: 4.5,
+          fat: 1.5,
+          source: "heuristic",
+        }),
+        riceItem,
+      ],
+    }));
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_item_replaced",
+    }));
+    expect(sentMessages.at(-1)).toContain("recalculei os macros");
+    expect(sentMessages.at(-1)).toContain("45 kcal");
+  });
+
   it("adiciona café sem açúcar à refeição existente e não delega para inferência nutricional", async () => {
     listMealsMock.mockResolvedValue([
       {
@@ -291,6 +410,39 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.period_report",
     }));
     expect(sentMessages.at(-1)).toContain("Resumo de semana");
+    expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
+  });
+
+  it("mantém contexto de resumo quando o usuário responde apenas o período solicitado", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 20,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        items: [riceItem],
+      },
+    ]);
+    const askSummary = createTextWebhookRequest("Resumo", { id: "summary-without-period" });
+    const askResponse = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(askSummary as never, askResponse as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(sentMessages.at(-1)).toContain("Me diga o período");
+
+    const periodAnswer = createTextWebhookRequest("Hoje", { id: "summary-period-answer" });
+    const periodResponse = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(periodAnswer as never, periodResponse as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.period_report",
+    }));
+    expect(sentMessages.at(-1)).toContain("Resumo de hoje");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
   });
 
