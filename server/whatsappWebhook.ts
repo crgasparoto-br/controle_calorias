@@ -1125,7 +1125,41 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         imageUrl: prepared.imageUrl,
       };
       const occurredAt = resolveOccurredAt(message);
-      const draft = createPendingMealInference(userId, "whatsapp", processedForPersistence, prepared.media);
+      const mediaForPersistence = [...prepared.media];
+      let annotatedImage: GenerateImageResponse | null = null;
+
+      if (message.image?.id) {
+        try {
+          annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared);
+          if (annotatedImage?.url) {
+            mediaForPersistence.push(buildSavedMedia({
+              mediaType: "image",
+              storageKey: annotatedImage.storageKey ?? annotatedImage.url,
+              storageUrl: annotatedImage.url,
+              mimeType: annotatedImage.mimeType ?? "image/png",
+              originalFileName: "whatsapp-annotated-meal.png",
+            }));
+          } else {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.annotated_image_skipped",
+              detail: `Imagem anotada não vinculada à refeição ${prepared.summary} de ${sourcePhone}: ${annotatedImage?.detail || annotatedImage?.skippedReason || "geração sem URL"}.`,
+            });
+          }
+        } catch (annotationError) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.annotated_image_skipped",
+            detail: `Falha ao gerar imagem anotada para ${prepared.summary} de ${sourcePhone}: ${annotationError instanceof Error ? annotationError.message : "erro desconhecido"}.`,
+          });
+        }
+      }
+
+      const draft = createPendingMealInference(userId, "whatsapp", processedForPersistence, mediaForPersistence);
       const savedMeal = await confirmPendingMeal({
         draftId: draft.draftId,
         userId,
@@ -1162,31 +1196,20 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         });
       }
 
-      if (message.image?.id) {
-        const annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared);
-        if (annotatedImage?.url) {
-          const imageReplyResult = await sendWhatsAppImageMessage(
-            sourcePhone,
-            annotatedImage.url,
-            "Imagem anotada com os alimentos identificados.",
-          );
+      if (annotatedImage?.url) {
+        const imageReplyResult = await sendWhatsAppImageMessage(
+          sourcePhone,
+          annotatedImage.url,
+          "Imagem anotada com os alimentos identificados.",
+        );
 
-          if (!imageReplyResult.ok) {
-            logInferenceEvent({
-              userId,
-              origin: "whatsapp",
-              status: "warning",
-              eventType: "whatsapp.annotated_image_reply_failed",
-              detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
-            });
-          }
-        } else {
+        if (!imageReplyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
-            eventType: "whatsapp.annotated_image_skipped",
-            detail: `Imagem anotada não enviada para ${sourcePhone}: ${annotatedImage?.detail || annotatedImage?.skippedReason || "geração sem URL"}.`,
+            eventType: "whatsapp.annotated_image_reply_failed",
+            detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
           });
         }
       }
