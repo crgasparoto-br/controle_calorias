@@ -210,7 +210,7 @@ describe("executeWhatsappTextIntent", () => {
     }));
   });
 
-  it("substitui o alimento identificado por outro informado pelo usuário", async () => {
+  it("substitui o alimento identificado por outro informado pelo usuário e recalcula os macros", async () => {
     listMealsMock.mockResolvedValue([
       {
         id: 14,
@@ -240,10 +240,10 @@ describe("executeWhatsappTextIntent", () => {
           canonicalName: "requeijão",
           estimatedGrams: 30,
           portionText: "30 g",
-          calories: 198,
-          protein: 0.3,
-          carbs: 0.4,
-          fat: 21,
+          calories: 45,
+          protein: 1.8,
+          carbs: 4.5,
+          fat: 1.5,
           source: "heuristic",
         }),
         riceItem,
@@ -253,8 +253,9 @@ describe("executeWhatsappTextIntent", () => {
       handled: true,
       action: "meal_item_replaced",
       eventType: "whatsapp.intent.meal_item_replaced",
-      reply: expect.stringContaining("Troquei Maionese por requeijão"),
+      reply: expect.stringContaining("recalculei os macros"),
     }));
+    expect(result?.reply).toContain("45 kcal");
   });
 
   it("usa o último item da última refeição quando o alimento não é citado", async () => {
