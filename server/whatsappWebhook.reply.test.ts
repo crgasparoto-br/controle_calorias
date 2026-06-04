@@ -182,18 +182,19 @@ describe("whatsappWebhook detailed replies", () => {
     const finalReply = replies.at(-1) ?? "";
 
     expect(res.statusCode).toBe(200);
-    expect(finalReply).toContain("Almoço registrado.");
+    expect(finalReply).toContain("Almoço Registrado às 11:14hs.");
     expect(finalReply).toContain("Itens:");
-    expect(finalReply).toContain("• 🍚 arroz, 100 g");
-    expect(finalReply).toContain("  130 kcal | Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g");
-    expect(finalReply).toContain("• 🍗 frango, 100 g");
-    expect(finalReply).toContain("  165 kcal | Prot. 31 g | Carb. 0 g | Gord. 3,6 g");
+    expect(finalReply).toContain("arroz, 100g - 130 Kcal");
+    expect(finalReply).toContain("Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g");
+    expect(finalReply).toContain("frango, 100g - 165 Kcal");
+    expect(finalReply).toContain("Prot. 31 g | Carb. 0 g | Gord. 3,6 g");
     expect(finalReply).toContain("Total da refeição:");
-    expect(finalReply).toContain("295 kcal");
+    expect(finalReply).toContain("295 Kcal");
     expect(finalReply).toContain("Prot. 33,7 g | Carb. 28 g | Gord. 3,9 g");
-    expect(finalReply).toContain("Meta de hoje:");
-    expect(finalReply).toContain("Você consumiu 795 kcal de 2.200 kcal da meta.");
-    expect(finalReply).toContain("Você está em déficit de 1.405 kcal em relação à meta ajustada.");
+    expect(finalReply).toContain("*Meta de hoje:*");
+    expect(finalReply).toContain("• Meta: 2.200 Kcal");
+    expect(finalReply).toContain("• Meta ajustada: 2.200 Kcal");
+    expect(finalReply).toContain("• Déficit: 1.405 Kcal");
     expect(finalReply).not.toContain("Alimentos e macros:");
     expect(finalReply).not.toContain("Total estimado:");
   });
