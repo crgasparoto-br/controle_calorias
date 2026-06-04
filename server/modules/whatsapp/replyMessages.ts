@@ -37,9 +37,23 @@ function formatDateKeyInSaoPaulo(date?: Date) {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
+function portionUsesWeightUnit(portionText: string) {
+  return /\d\s*(?:g|gramas?|kg|quilogramas?)\b/i.test(portionText);
+}
+
+function portionUsesVolumeUnit(portionText: string) {
+  return /\d\s*(?:ml|m\s*l|l|litros?)\b/i.test(portionText)
+    || /\b(?:copo|copos|xicara|xicaras|xícara|xícaras|colher|colheres|dose|doses)\b/i.test(portionText);
+}
+
+function shouldShowApproximateGrams(item: MealProcessingResult["items"][number]) {
+  return item.estimatedGrams > 0
+    && !portionUsesWeightUnit(item.portionText)
+    && !portionUsesVolumeUnit(item.portionText);
+}
+
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
-  const portionHasGrams = /\d\s*g\b/i.test(item.portionText);
-  const gramsLabel = !portionHasGrams && item.estimatedGrams > 0 ? ` (aprox. ${formatMacro(item.estimatedGrams)} g)` : "";
+  const gramsLabel = shouldShowApproximateGrams(item) ? ` (aprox. ${formatMacro(item.estimatedGrams)} g)` : "";
   return `${item.foodName}, ${item.portionText}${gramsLabel}`.trim();
 }
 
