@@ -1,4 +1,6 @@
+import { roundNutritionValue } from "../../../shared/mealTotals";
 import { getUserNutritionGoal } from "../../db";
+import { getCatalogCache } from "../../catalogRuntime";
 import { listMeals, updateMeal } from "../meals/service";
 import { createWaterLog } from "../water/service";
 import type { MealItemInput } from "../meals/schemas";
@@ -8,6 +10,12 @@ const MAX_WATER_LOG_AMOUNT_ML = 10000;
 const MIN_FOOD_GRAMS = 1;
 const UNSWEETENED_COFFEE_CUP_ML = 50;
 const UNSWEETENED_COFFEE_CALORIES_PER_CUP = 2;
+const HEURISTIC_REPLACEMENT_NUTRITION_PER_100G = {
+  calories: 150,
+  protein: 6,
+  carbs: 15,
+  fat: 5,
+};
 
 const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 1,
@@ -73,6 +81,39 @@ function normalizeIntentText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function normalizeCatalogText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[^\w\s-]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function cleanCatalogFoodName(value: string) {
+  return value
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getCatalogFoodNames(food: ReturnType<typeof getCatalogCache>[number]) {
+  return [food.name, ...food.aliases]
+    .map(alias => normalizeCatalogText(alias))
+    .filter(Boolean);
+}
+
+function findCatalogFood(foodName: string) {
+  const normalized = normalizeCatalogText(cleanCatalogFoodName(foodName));
+  if (!normalized) {
+    return null;
+  }
+
+  const catalogSource = getCatalogCache();
+  return catalogSource.find(food => getCatalogFoodNames(food).some(alias => alias === normalized))
+    ?? catalogSource.find(food => getCatalogFoodNames(food).some(alias => normalized.includes(alias) || alias.includes(normalized)))
+    ?? null;
 }
 
 function formatNumber(value: number) {
@@ -454,14 +495,50 @@ function scaleMealItem(item: MealItemInput, nextGrams: number): MealItemInput {
   };
 }
 
-function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealItemInput {
+function buildCatalogMealItem(item: MealItemInput, nextFoodName: string, nextGrams: number, catalogFood: ReturnType<typeof getCatalogCache>[number]): MealItemInput {
+  const factor = nextGrams / catalogFood.gramsPerServing;
+  return {
+    ...item,
+    foodName: nextFoodName,
+    canonicalName: catalogFood.name,
+    estimatedGrams: nextGrams,
+    portionText: item.portionText || `${formatNumber(nextGrams)} g`,
+    servings: Math.max(nextGrams / catalogFood.gramsPerServing, 0.1),
+    calories: roundNutritionValue(catalogFood.calories * factor),
+    protein: roundNutritionValue(catalogFood.protein * factor),
+    carbs: roundNutritionValue(catalogFood.carbs * factor),
+    fat: roundNutritionValue(catalogFood.fat * factor),
+    confidence: Math.min(Math.max(Number(item.confidence || 0.8), 0.1), 0.95),
+    source: "catalog",
+  };
+}
+
+function buildHeuristicReplacementItem(item: MealItemInput, nextFoodName: string, nextGrams: number): MealItemInput {
+  const factor = nextGrams / 100;
   return {
     ...item,
     foodName: nextFoodName,
     canonicalName: nextFoodName,
-    confidence: Math.min(Number(item.confidence || 0.8), 0.8),
+    estimatedGrams: nextGrams,
+    portionText: item.portionText || `${formatNumber(nextGrams)} g`,
+    servings: Math.max(Number(item.servings || 1), 0.1),
+    calories: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.calories * factor),
+    protein: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.protein * factor),
+    carbs: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.carbs * factor),
+    fat: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.fat * factor),
+    confidence: Math.min(Number(item.confidence || 0.8), 0.7),
     source: "heuristic",
   };
+}
+
+function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealItemInput {
+  const nextGrams = Math.max(Number(item.estimatedGrams || 0), MIN_FOOD_GRAMS);
+  const catalogFood = findCatalogFood(nextFoodName);
+  if (catalogFood) {
+    return buildCatalogMealItem(item, nextFoodName, nextGrams, catalogFood);
+  }
+
+  return buildHeuristicReplacementItem(item, nextFoodName, nextGrams);
 }
 
 function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
@@ -628,6 +705,8 @@ async function handleFoodReplacementIntent(userId: number, replacement: FoodRepl
   }
 
   const nextItems = latestMeal.items.map((item, index) => index === target.index ? replaceMealItemFood(item, replacement.toFood) : item);
+  const replacedItem = nextItems[target.index];
+  const recalculationSource = replacedItem.source === "catalog" ? "com base no catálogo" : "por estimativa";
   const updatedMeal = await updateMeal(userId, {
     mealId: latestMeal.id,
     mealLabel: latestMeal.mealLabel,
@@ -639,13 +718,19 @@ async function handleFoodReplacementIntent(userId: number, replacement: FoodRepl
   return {
     handled: true,
     action: "meal_item_replaced",
-    reply: `Troquei ${target.item.foodName} por ${replacement.toFood} na última refeição. Mantive a quantidade e os macros estimados; se quiser, envie a quantidade correta em gramas para ajustar também.`,
+    reply: `Troquei ${target.item.foodName} por ${replacement.toFood} na última refeição e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(replacedItem.estimatedGrams)} g. Estimativa: ${formatTotalsLine(replacedItem)}.`,
     eventType: "whatsapp.intent.meal_item_replaced",
-    detail: `Alimento ${target.item.foodName} substituído por ${replacement.toFood} via WhatsApp.`,
+    detail: `Alimento ${target.item.foodName} substituído por ${replacement.toFood} via WhatsApp com macros recalculados.`,
     data: {
       mealId: updatedMeal.id,
       previousFoodName: target.item.foodName,
       nextFoodName: replacement.toFood,
+      estimatedGrams: replacedItem.estimatedGrams,
+      calories: replacedItem.calories,
+      protein: replacedItem.protein,
+      carbs: replacedItem.carbs,
+      fat: replacedItem.fat,
+      nutritionSource: replacedItem.source,
     },
   };
 }
