@@ -36,7 +36,7 @@ pnpm db:check-integrity
 
 - Testes unitários para cálculos nutricionais e validação de schemas.
 - Testes de serviço para confirmação de refeição, metas e WhatsApp.
-- Testes de serviço para integrações de saúde devem cobrir paginação, idempotência, atividade sem calorias no resumo, metadados detalhados do Strava e falhas externas controladas.
+- Testes de serviço para integrações de saúde devem cobrir paginação, idempotência, atividade sem calorias no resumo, fallback estimado para treino de força, metadados detalhados do Strava e falhas externas controladas.
 - Smoke tests futuros para web, WhatsApp e banco.
 - Checks estruturais para impedir drift de arquitetura e documentação.
 - Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
@@ -51,6 +51,7 @@ pnpm db:check-integrity
 - Relatório semanal divergente do dashboard.
 - Integração do Strava limitada à primeira página de atividades recentes.
 - Atividade do Strava ignorada porque o resumo não inclui gasto calórico.
+- Treino de força do Strava ignorado porque a API não retornou calorias.
 - Detalhes do Strava exibidos como obrigatórios quando a API não retorna a métrica.
 - Usuário com Strava conectado depender de sync manual para registrar exercícios.
 - Falha externa de IA corrompendo rascunhos ou bloqueando confirmação manual.
@@ -65,6 +66,7 @@ pnpm db:check-integrity
 - Quando o resumo da atividade não trouxer gasto calórico, buscar o detalhe da atividade antes de decidir pular o exercício.
 - O OAuth deve solicitar `activity:read_all` para que atividades privadas ou marcadas como Only Me possam ser importadas após reconexão do usuário.
 - Métricas detalhadas do Strava, como distância, duração, elevação, frequência cardíaca, cadência e potência, devem ser tratadas como opcionais na UI e preservadas apenas quando a API retornar esses campos.
+- Quando treino de força, HIIT, CrossFit ou workout não retornar calorias, o backend pode estimar o gasto por MET e deve marcar o valor como estimado em metadados, nota do exercício e UI.
 - Falhas na sincronização automática devem ser registradas de forma segura e não podem impedir o servidor de iniciar.
 - `STRAVA_AUTO_SYNC_INTERVAL_MINUTES` controla o intervalo da rotina; `STRAVA_AUTO_SYNC_DISABLED=true` desativa o agendamento.
 
