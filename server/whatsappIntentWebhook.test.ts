@@ -225,6 +225,33 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
   });
 
+  it("soma gramas ao alimento existente e não delega para inferência nutricional", async () => {
+    const currentRiceItem = {
+      ...riceItem,
+      portionText: "100 g",
+      estimatedGrams: 100,
+      calories: 130,
+      protein: 2.7,
+      carbs: 28,
+      fat: 0.3,
+    };
+    listMealsMock.mockResolvedValue([{ id: 10, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [currentRiceItem] }]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 10, ...input }));
+    const req = createTextWebhookRequest("somar 45g ao arroz", { id: "increment-rice" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 10,
+      items: [expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 145, portionText: "145 g", calories: 188.5 })],
+    }));
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
+    expect(sentMessages.at(-1)).toContain("de 100 g para 145 g");
+    expect(sentMessages.at(-1)).toContain("recalculei os macros");
+  });
+
   it("substitui gramas do alimento existente e não delega para inferência nutricional", async () => {
     listMealsMock.mockResolvedValue([{ id: 13, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [bananaItem, riceItem] }]);
     updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 13, ...input }));

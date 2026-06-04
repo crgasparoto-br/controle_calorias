@@ -166,6 +166,60 @@ describe("executeWhatsappTextIntent", () => {
     }));
   });
 
+  it("soma gramas ao alimento informado na última refeição", async () => {
+    const currentRiceItem = {
+      ...riceItem,
+      portionText: "100 g",
+      estimatedGrams: 100,
+      calories: 130,
+      protein: 2.7,
+      carbs: 28,
+      fat: 0.3,
+    };
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [currentRiceItem, beansItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 10,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "somar 45g ao arroz",
+      receivedAt: new Date("2026-06-03T16:00:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 10,
+      mealLabel: "Almoço",
+      items: [
+        expect.objectContaining({
+          foodName: "Arroz branco",
+          estimatedGrams: 145,
+          portionText: "145 g",
+          calories: 188.5,
+          protein: 3.9,
+          carbs: 40.6,
+          fat: 0.4,
+        }),
+        beansItem,
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+      reply: expect.stringContaining("de 100 g para 145 g"),
+    }));
+    expect(result?.reply).toContain("recalculei os macros");
+  });
+
   it("substitui a quantidade anterior pelo peso informado para o alimento", async () => {
     listMealsMock.mockResolvedValue([
       {

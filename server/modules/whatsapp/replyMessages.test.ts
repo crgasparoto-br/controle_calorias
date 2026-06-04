@@ -32,7 +32,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• Leite integral, 100 ml");
+    expect(reply).toContain("• 🥛 Leite integral, 100 ml");
     expect(reply).not.toContain("aprox. 100 g");
   });
 
@@ -65,6 +65,6 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• Banana, 1 unidade (aprox. 80 g)");
+    expect(reply).toContain("• 🍌 Banana, 1 unidade (aprox. 80 g)");
   });
 });

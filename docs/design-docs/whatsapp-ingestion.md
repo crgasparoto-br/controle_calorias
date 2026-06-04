@@ -33,6 +33,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Textos de hidratação com data relativa, como `ontem` ou `anteontem`, devem registrar o consumo no dia interpretado em `America/Sao_Paulo`.
 - Textos de hidratação sem quantidade explícita devem pedir esclarecimento, não criar refeição.
 - Textos que pedem redução de gramas devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
+- Textos que pedem incremento de gramas, como `somar 45 g ao arroz`, devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Quando o ajuste de gramas não citar alimento, o sistema pode usar o último item da refeição mais recente; quando citar alimento, deve buscar item compatível na última refeição.
 - Textos que adicionam café sem açúcar a uma refeição existente, como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã`, devem atualizar a refeição indicada e não criar uma nova refeição por fallback.
 - Quando a refeição indicada para adicionar café não existir ou faltar quantidade/refeição, o sistema deve pedir esclarecimento antes de alterar qualquer registro.
@@ -66,6 +67,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que texto como `500 ml de água ontem` registra consumo de água no dia anterior em `America/Sao_Paulo`.
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
 - Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
+- Testar que texto ou áudio transcrito como `somar 45 g ao arroz` ajusta o item compatível da última refeição e não chama inferência nutricional.
 - Testar que texto como `diminuir 30 g` ajusta o último item da última refeição quando não há alimento explícito.
 - Testar que texto como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã` adiciona café à refeição indicada e não chama inferência nutricional.
 - Testar que pedido para adicionar café sem refeição ou sem quantidade suficiente pede esclarecimento e não altera registros.
