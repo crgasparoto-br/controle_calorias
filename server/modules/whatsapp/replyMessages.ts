@@ -1,4 +1,5 @@
 import type { MealProcessingResult } from "../../nutritionEngine";
+import { getWhatsAppExerciseCaloriesForDateKey } from "./goalProgressContext";
 
 export type WhatsAppMealGoalProgress = {
   consumedCalories: number;
@@ -19,6 +20,21 @@ function formatNumber(value: number) {
 
 function formatMacro(value: number) {
   return formatNumber(value);
+}
+
+function formatDateKeyInSaoPaulo(date?: Date) {
+  if (!date) {
+    return undefined;
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
@@ -44,14 +60,15 @@ function buildMealTitle(mealLabel?: string) {
   return `${label} registrado.`;
 }
 
-function buildGoalProgressLines(progress?: WhatsAppMealGoalProgress | null) {
+function buildGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
   if (!progress || progress.goalCalories <= 0) {
     return [];
   }
 
   const consumedCalories = Math.max(0, Math.round(progress.consumedCalories));
   const goalCalories = Math.round(progress.goalCalories);
-  const exerciseCalories = Math.max(0, Math.round(progress.exerciseCalories ?? 0));
+  const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
+  const exerciseCalories = Math.max(0, Math.round(progress.exerciseCalories ?? contextualExerciseCalories ?? 0));
   const adjustedGoalCalories = goalCalories + exerciseCalories;
   const remainingCalories = adjustedGoalCalories - consumedCalories;
   const statusLine = remainingCalories >= 0
@@ -69,7 +86,7 @@ function buildGoalProgressLines(progress?: WhatsAppMealGoalProgress | null) {
 
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
   const title = buildMealTitle(processed.detectedMealLabel);
-  const goalLines = buildGoalProgressLines(options.goalProgress);
+  const goalLines = buildGoalProgressLines(options.goalProgress, options.registeredAt);
 
   if (!processed.items.length) {
     return [
