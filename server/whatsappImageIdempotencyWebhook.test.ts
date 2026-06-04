@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const downstreamWebhookMock = vi.fn();
+const getUserIdByWhatsappPhoneMock = vi.fn();
+const listUserExercisesMock = vi.fn();
+const logInferenceEventMock = vi.fn();
+
+vi.mock("./db", () => ({
+  getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
+  listUserExercises: listUserExercisesMock,
+  logInferenceEvent: logInferenceEventMock,
+}));
 
 vi.mock("./whatsappIntentWebhook", () => ({
   handleWhatsAppWebhookWithTextIntent: downstreamWebhookMock,
@@ -44,6 +53,8 @@ function createImageWebhookRequest() {
                 messages: [
                   {
                     id: "wamid-image-1",
+                    from: "5511999999999",
+                    timestamp: "1780502400",
                     type: "image",
                     image: {
                       id: "media-image-1",
@@ -64,6 +75,11 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
   beforeEach(() => {
     __resetWhatsAppImageIdempotencyForTests();
     downstreamWebhookMock.mockReset();
+    getUserIdByWhatsappPhoneMock.mockReset();
+    listUserExercisesMock.mockReset();
+    logInferenceEventMock.mockReset();
+    getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
+    listUserExercisesMock.mockResolvedValue([]);
     downstreamWebhookMock.mockImplementation(async (_req, res: MockResponse) => (
       res.status(200).json({ ok: true, processed: 1 })
     ));
