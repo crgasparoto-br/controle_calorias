@@ -2,8 +2,9 @@ import { Request, Response } from "express";
 import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 
@@ -138,14 +139,38 @@ function formatReplyTime(date: Date) {
   });
 }
 
-function getMealEmoji(mealLabel: string) {
-  const normalized = mealLabel.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function formatDateKeyInSaoPaulo(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
 
-  if (normalized.includes("cafe")) return "☕";
-  if (normalized.includes("almoco")) return "🍽️";
-  if (normalized.includes("jantar")) return "🌙";
-  if (normalized.includes("lanche")) return "🥪";
-  return "🍎";
+async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date): Promise<WhatsAppMealGoalProgress | null> {
+  try {
+    const [goalSummary, dayTotals] = await Promise.all([
+      getUserNutritionGoal(userId),
+      getUserDayMealTotals(userId, formatDateKeyInSaoPaulo(occurredAt)),
+    ]);
+
+    return {
+      consumedCalories: dayTotals.totals.calories,
+      goalCalories: goalSummary.today.calories,
+    };
+  } catch (error) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.goal_progress_warning",
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao calcular progresso da meta para resposta do WhatsApp.",
+    });
+    return null;
+  }
 }
 
 function resolveOccurredAt(message: WhatsAppMessage) {
@@ -220,36 +245,8 @@ function formatFoodDescription(item: MealProcessingResult["items"][number]) {
   return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
 }
 
-function formatFoodMacroDetails(item: MealProcessingResult["items"][number]) {
-  return `${formatMacro(item.calories)} kcal | P ${formatMacro(item.protein)}g | C ${formatMacro(item.carbs)}g | G ${formatMacro(item.fat)}g`;
-}
-
-function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date()) {
-  const mealLabel = processed.detectedMealLabel || "Refeição";
-  const mealHeader = `${getMealEmoji(mealLabel)} ${mealLabel}:`;
-  const timeLabel = formatReplyTime(registeredAt);
-  const calories = formatMacro(processed.totals.calories);
-
-  if (!processed.items.length) {
-    return [
-      mealHeader,
-      processed.sourceText || "Alimento não identificado.",
-      `Total estimado: ${calories} kcal.`,
-      `Horário: ${timeLabel}.`,
-    ].join("\n");
-  }
-
-  const foodLines = processed.items
-    .map((item, index) => `${index + 1}. ${formatFoodDescription(item)} — ${formatFoodMacroDetails(item)}`)
-    .filter(Boolean);
-
-  return [
-    mealHeader,
-    "Alimentos e macros:",
-    ...foodLines,
-    `Total estimado: ${calories} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g.`,
-    `Horário: ${timeLabel}.`,
-  ].join("\n");
+function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date(), goalProgress?: WhatsAppMealGoalProgress | null) {
+  return buildWhatsAppMealReplyMessage(processed, { registeredAt, goalProgress });
 }
 
 function imageDataFromDataUrl(dataUrl?: string) {
@@ -1148,7 +1145,11 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const replyResult = await sendWhatsAppTextMessage(
         sourcePhone,
-        buildWhatsAppReplyMessage(processedForPersistence, occurredAt),
+        buildWhatsAppReplyMessage(
+          processedForPersistence,
+          occurredAt,
+          await getWhatsAppMealGoalProgress(userId, occurredAt),
+        ),
       );
 
       if (!replyResult.ok) {
