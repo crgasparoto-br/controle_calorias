@@ -146,6 +146,20 @@ function mockNutritionResult() {
   };
 }
 
+const riceItem = {
+  foodName: "Arroz branco",
+  canonicalName: "Arroz branco cozido",
+  portionText: "100 g",
+  servings: 1,
+  estimatedGrams: 100,
+  calories: 130,
+  protein: 2.7,
+  carbs: 28,
+  fat: 0.3,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
 describe("handleWhatsAppWebhook media text intents", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -238,6 +252,55 @@ describe("handleWhatsAppWebhook media text intents", () => {
     }));
     expect(sentMessages[0]).toBe("Recebi seu áudio e estou processando.");
     expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
+  });
+
+  it("interpreta áudio transcrito como incremento de gramas e não chama inferência nutricional", async () => {
+    transcribeAudioMock.mockResolvedValue({
+      text: "somar 45g ao arroz",
+      language: "pt",
+      segments: [],
+    });
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 10,
+      ...input,
+    }));
+    const req = createWebhookRequest({
+      id: "audio-increment-rice-intent",
+      from: "5511999999999",
+      timestamp: "1780502400",
+      type: "audio",
+      audio: { id: "audio-media-id", mime_type: "audio/ogg" },
+    });
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 10,
+      items: [expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 145, portionText: "145 g", calories: 188.5 })],
+    }));
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    }));
+    expect(sentMessages[0]).toBe("Recebi seu áudio e estou processando.");
+    expect(sentMessages.at(-1)).toContain("de 100 g para 145 g");
   });
 
   it("mantém caption de imagem no fluxo multimodal normal", async () => {

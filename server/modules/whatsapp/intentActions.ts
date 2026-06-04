@@ -317,6 +317,27 @@ function parseMealItemGramsAdjustment(text: string) {
   };
 }
 
+function parseMealItemGramsIncrement(text: string) {
+  const normalized = normalizeIntentText(text);
+  const match = normalized.match(/\b(?:somar|soma|some|adicionar|adiciona|adicione|acrescentar|acrescenta|acrescente|colocar\s+mais|coloca\s+mais|coloque\s+mais|aumentar|aumenta|aumente)\b[^\d]*(\d+(?:[,.]\d+)?)\s*(?:g|gramas?)\b/);
+  if (!match) {
+    return null;
+  }
+
+  const gramsDelta = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(gramsDelta) || gramsDelta <= 0) {
+    return null;
+  }
+
+  const afterAmount = normalized.slice((match.index ?? 0) + match[0].length);
+  const targetMatch = afterAmount.match(/(?:\bao\b|\bno\b|\bna\b|\bdo\b|\bda\b|\bde\b)\s+(.+)/);
+
+  return {
+    gramsDelta,
+    targetFood: cleanTargetFoodText(targetMatch?.[1]),
+  };
+}
+
 function parseFoodReplacementIntent(text: string): FoodReplacementIntent | null {
   const correctionMatch = text.match(/\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i);
   const swapMatch = text.match(/\b(?:trocar|troque|troca|mudar|alterar|corrigir)\b\s+(.+?)\s+(?:por|para)\s+(.+)$/i);
@@ -651,7 +672,7 @@ async function updateLatestMealItemGrams(input: {
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: `Ajustei ${target.item.foodName}: de ${formatNumber(previousGrams)} g para ${formatNumber(nextGrams)} g na última refeição.`,
+    reply: `Ajustei ${target.item.foodName}: de ${formatNumber(previousGrams)} g para ${formatNumber(nextGrams)} g na última refeição e recalculei os macros.`,
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: input.detail,
     data: {
@@ -669,6 +690,15 @@ async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<
     targetFood: adjustment.targetFood,
     resolveNextGrams: previousGrams => previousGrams - adjustment.gramsDelta,
     detail: `Último item compatível ajustado em ${formatNumber(adjustment.gramsDelta)} g via WhatsApp.`,
+  });
+}
+
+async function handleMealItemIncrement(userId: number, increment: NonNullable<ReturnType<typeof parseMealItemGramsIncrement>>): Promise<WhatsappIntentResult> {
+  return updateLatestMealItemGrams({
+    userId,
+    targetFood: increment.targetFood,
+    resolveNextGrams: previousGrams => previousGrams + increment.gramsDelta,
+    detail: `Último item compatível incrementado em ${formatNumber(increment.gramsDelta)} g via WhatsApp.`,
   });
 }
 
@@ -887,6 +917,11 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   const gramsReplacement = parseMealItemGramsReplacement(text);
   if (gramsReplacement) {
     return handleMealItemReplacement(userId, gramsReplacement);
+  }
+
+  const gramsIncrement = parseMealItemGramsIncrement(text);
+  if (gramsIncrement) {
+    return handleMealItemIncrement(userId, gramsIncrement);
   }
 
   const gramsAdjustment = parseMealItemGramsAdjustment(text);
