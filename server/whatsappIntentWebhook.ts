@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { getCatalogCache } from "./catalogRuntime";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { getUserIdByWhatsappPhone, logInferenceEvent } from "./db";
 import { getWhatsAppChannelConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
@@ -25,6 +26,11 @@ const recentlyHandledTextIntentMessageIds = new Map<string, number>();
 const pendingTextIntentContexts = new Map<number, { kind: "period_report"; expiresAt: number }>();
 const TEXT_INTENT_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
+const UNKNOWN_FOOD_REPLY = [
+  "Não encontrei esse alimento no catálogo ainda.",
+  "Me envie com mais detalhes, como marca, porção ou uma foto do rótulo, para eu conseguir registrar corretamente.",
+  "Exemplo: 1 unidade de bisnaguinha Panco ou 30 g de queijo.",
+].join("\n\n");
 
 function extractMessages(payload: any): ExtractedWhatsAppMessage[] {
   const entries = Array.isArray(payload?.entry) ? payload.entry : [];
@@ -68,6 +74,64 @@ function canInterpretTextIntent(message: WhatsAppMessage) {
 
 function getExtractedMessageKey(message: ExtractedWhatsAppMessage) {
   return `${message.entryIndex}:${message.changeIndex}:${message.messageIndex}`;
+}
+
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractSimpleFoodCandidate(text: string) {
+  const normalized = normalizeText(text);
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    /[,;+\n]/.test(text)
+    || /\b(e|com)\b/.test(normalized)
+    || /\b(resumo|relatorio|balanco|sugestao|agua|peso|mudar|alterar|trocar|corrigir|reduzir|aumentar|adicionar|registrar|registra|registre|inclua|remover|tirar|almocei|jantei|comi|lanchei|refeicao)\b/.test(normalized)
+  ) {
+    return null;
+  }
+
+  const candidate = normalized
+    .replace(/^\d+(?:[,.]\d+)?\s*/, "")
+    .replace(/^(?:um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+/, "")
+    .replace(/^(?:unidades?|unid|und|porcoes?|porcao|fatias?|pedacos?|xicaras?|copos?|colheres?)\s+(?:de\s+)?/, "")
+    .trim();
+
+  if (!candidate || candidate.split(/\s+/).length < 2 || candidate.split(/\s+/).length > 5) {
+    return null;
+  }
+
+  return candidate;
+}
+
+function catalogContainsFood(candidate: string) {
+  const normalizedCandidate = normalizeText(candidate);
+  return getCatalogCache().some(item => {
+    const names = [item.name, ...item.aliases].map(normalizeText).filter(Boolean);
+    return names.some(name =>
+      name === normalizedCandidate
+      || normalizedCandidate.includes(name)
+      || name.includes(normalizedCandidate),
+    );
+  });
+}
+
+function buildUnknownFoodReply(text: string) {
+  const candidate = extractSimpleFoodCandidate(text);
+  if (!candidate || catalogContainsFood(candidate)) {
+    return null;
+  }
+
+  return UNKNOWN_FOOD_REPLY;
 }
 
 function pruneRecentlyHandledTextIntentMessageIds(now = Date.now()) {
@@ -171,6 +235,34 @@ async function sendWhatsAppTextMessage(to: string, body: string) {
   }
 }
 
+async function sendAndLogTextReply(input: {
+  userId: number;
+  sourcePhone: string;
+  reply: string;
+  eventType: string;
+  detail: string;
+  status: "success" | "warning";
+}) {
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "whatsapp",
+    status: input.status,
+    eventType: input.eventType,
+    detail: input.detail,
+  });
+
+  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
+  if (!replyResult.ok) {
+    logInferenceEvent({
+      userId: input.userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.reply_failed",
+      detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}`,
+    });
+  }
+}
+
 async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
   const sourcePhone = message.from || "unknown";
   if (!isMessageForConfiguredChannel(message) || !canInterpretTextIntent(message)) {
@@ -195,30 +287,35 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
     receivedAt: resolveOccurredAt(message),
   });
   if (!result) {
-    return false;
+    const unknownFoodReply = buildUnknownFoodReply(text);
+    if (!unknownFoodReply) {
+      return false;
+    }
+
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      reply: unknownFoodReply,
+      eventType: "whatsapp.intent.food_not_found",
+      detail: "Alimento simples informado por texto não encontrado no catálogo antes da inferência nutricional.",
+      status: "warning",
+    });
+    return true;
   }
 
   markTextIntentMessageHandled(message.id);
   rememberPendingTextIntentContext(userId, result);
 
-  logInferenceEvent({
+  await sendAndLogTextReply({
     userId,
-    origin: "whatsapp",
-    status: result.action === "clarification_needed" ? "warning" : "success",
+    sourcePhone,
+    reply: result.reply,
     eventType: result.eventType,
     detail: result.detail,
+    status: result.action === "clarification_needed" ? "warning" : "success",
   });
-
-  const replyResult = await sendWhatsAppTextMessage(sourcePhone, result.reply);
-  if (!replyResult.ok) {
-    logInferenceEvent({
-      userId,
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.reply_failed",
-      detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
-    });
-  }
 
   return true;
 }
