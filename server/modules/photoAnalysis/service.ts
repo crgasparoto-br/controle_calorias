@@ -36,35 +36,6 @@ export type FoodPhotoAnalysis = {
 
 const photoAnalysisStore = new Map<string, FoodPhotoAnalysis>();
 
-function mockAnalyzeImage(): FoodPhotoSuggestedItem[] {
-  return [
-    {
-      foodName: "Arroz cozido",
-      estimatedQuantity: 100,
-      unit: "g",
-      estimatedCalories: 128,
-      estimatedMacros: { protein: 2.5, carbs: 28, fat: 0.2 },
-      confidenceScore: 0.72,
-    },
-    {
-      foodName: "Feijão cozido",
-      estimatedQuantity: 120,
-      unit: "g",
-      estimatedCalories: 91,
-      estimatedMacros: { protein: 6, carbs: 16, fat: 1 },
-      confidenceScore: 0.68,
-    },
-    {
-      foodName: "Frango grelhado",
-      estimatedQuantity: 110,
-      unit: "g",
-      estimatedCalories: 182,
-      estimatedMacros: { protein: 34, carbs: 0, fat: 4 },
-      confidenceScore: 0.64,
-    },
-  ];
-}
-
 function sanitizeAnalysis(analysis: FoodPhotoAnalysis) {
   return {
     id: analysis.id,
@@ -198,7 +169,6 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
   );
 
   let suggestedItems: FoodPhotoSuggestedItem[];
-  let usedInferenceFallback = false;
 
   try {
     const processed = await processMealInput({
@@ -211,16 +181,17 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
       throw error;
     }
 
-    suggestedItems = mockAnalyzeImage();
-    usedInferenceFallback = true;
     logInferenceEvent({
       userId,
       origin: "web",
-      status: "warning",
-      eventType: "food_photo.fallback_used",
+      status: "error",
+      eventType: "food_photo.inference_failed",
       detail:
-        "A análise de foto usou um fallback seguro após falha controlada da inferência principal.",
+        "A análise de foto não identificou alimentos com segurança suficiente para sugerir uma refeição.",
     });
+    throw new MealInferenceError(
+      "Não consegui identificar alimentos com segurança nessa foto. Tente enviar novamente ou descreva os alimentos em texto para registrar.",
+    );
   }
 
   if (usedInlineFallback) {
@@ -266,9 +237,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
     origin: "web",
     status: "success",
     eventType: "food_photo.analyzed",
-    detail: usedInferenceFallback
-      ? `Foto analisada com ${analyzed.suggestedItems.length} sugestões após fallback seguro.`
-      : `Foto analisada com ${analyzed.suggestedItems.length} sugestões estruturadas pelo núcleo compartilhado.`,
+    detail: `Foto analisada com ${analyzed.suggestedItems.length} sugestões estruturadas pelo núcleo compartilhado.`,
   });
 
   return sanitizeAnalysis(analyzed);
