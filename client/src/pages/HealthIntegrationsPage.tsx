@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ExternalLink, Gauge, HeartPulse, Link2, Mountain, RefreshCw, Route, ShieldCheck, Timer, Unlink, Zap } from "lucide-react";
+import { Activity, ExternalLink, Gauge, HeartPulse, Link2, RefreshCw, Route, ShieldCheck, Timer, Unlink, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -31,6 +31,10 @@ type StravaActivityMetadata = {
   movingTimeSeconds: number | null;
   elapsedTimeSeconds: number | null;
   calories: number | null;
+  caloriesSource: "strava" | "kilojoules" | "estimated_strength" | null;
+  estimatedCalories: boolean;
+  estimatedCaloriesWeightKg: number | null;
+  estimatedCaloriesMet: number | null;
   kilojoules: number | null;
   totalElevationGainMeters: number | null;
   averageSpeedMetersPerSecond: number | null;
@@ -560,6 +564,9 @@ function StravaActivityPanel({ record }: { record: SyncedHealthRecord }) {
   const metadata = record.metadata;
   const sportType = metadata?.sportType || record.activityType || "Atividade";
   const measuredAt = metadata?.startDateLocal || record.measuredAt;
+  const caloriesLabel = metadata?.calories
+    ? `${formatCalories(metadata.calories)}${metadata.estimatedCalories ? " estimadas" : ""}`
+    : "Não informado";
   const primaryMetrics = [
     {
       icon: Route,
@@ -574,7 +581,7 @@ function StravaActivityPanel({ record }: { record: SyncedHealthRecord }) {
     {
       icon: Zap,
       label: "Calorias",
-      value: metadata?.calories ? formatCalories(metadata.calories) : "Não informado",
+      value: caloriesLabel,
     },
     {
       icon: Gauge,
@@ -584,6 +591,9 @@ function StravaActivityPanel({ record }: { record: SyncedHealthRecord }) {
   ];
   const details = [
     metadata?.elapsedTimeSeconds ? ["Tempo total", formatDuration(metadata.elapsedTimeSeconds)] : null,
+    metadata?.estimatedCalories ? ["Origem das calorias", "Estimativa do sistema"] : null,
+    metadata?.estimatedCaloriesMet ? ["MET estimado", formatNumber(metadata.estimatedCaloriesMet, 1)] : null,
+    metadata?.estimatedCaloriesWeightKg ? ["Peso de referência", `${formatNumber(metadata.estimatedCaloriesWeightKg, 0)} kg`] : null,
     metadata?.totalElevationGainMeters ? ["Elevação", `${Math.round(metadata.totalElevationGainMeters)} m`] : null,
     metadata?.averageHeartRate ? ["FC média", `${Math.round(metadata.averageHeartRate)} bpm`] : null,
     metadata?.maxHeartRate ? ["FC máxima", `${Math.round(metadata.maxHeartRate)} bpm`] : null,
@@ -614,6 +624,7 @@ function StravaActivityPanel({ record }: { record: SyncedHealthRecord }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary" className="rounded-full px-3 py-1">{sportType}</Badge>
+          {metadata?.estimatedCalories ? <Badge variant="outline" className="rounded-full px-3 py-1">Calorias estimadas</Badge> : null}
           {metadata?.hasHeartRate ? <Badge variant="outline" className="rounded-full px-3 py-1">FC</Badge> : null}
         </div>
       </div>
