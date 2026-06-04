@@ -3,10 +3,58 @@ import { buildWhatsAppMealReplyMessage } from "./replyMessages";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
 describe("buildWhatsAppMealReplyMessage", () => {
+  it("inclui horário no cabeçalho e alimento com calorias na mesma linha", () => {
+    const processed: MealProcessingResult = {
+      detectedMealLabel: "Almoço",
+      sourceText: "frango grelhado",
+      imageUrl: undefined,
+      audioUrl: undefined,
+      transcript: undefined,
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "Teste de formatação.",
+      items: [
+        {
+          foodName: "Frango grelhado",
+          canonicalName: "Frango grelhado",
+          portionText: "150 g",
+          servings: 1,
+          estimatedGrams: 150,
+          calories: 247.5,
+          protein: 46.5,
+          carbs: 0,
+          fat: 5.4,
+          confidence: 0.9,
+          source: "catalog",
+        },
+      ],
+      totals: {
+        calories: 247.5,
+        protein: 46.5,
+        carbs: 0,
+        fat: 5.4,
+      },
+    };
+
+    const reply = buildWhatsAppMealReplyMessage(processed, {
+      registeredAt: new Date("2026-06-04T16:00:00.000Z"),
+    });
+
+    expect(reply).toContain("Almoço Registrado às 13:00hs.");
+    expect(reply).toContain("Frango grelhado, 150g - 247,5 Kcal");
+    expect(reply).toContain("Prot. 46,5 g | Carb. 0 g | Gord. 5,4 g");
+  });
+
   it("não mostra equivalência aproximada em gramas para porções líquidas em ml", () => {
     const processed: MealProcessingResult = {
       detectedMealLabel: "Café da manhã",
       sourceText: "whey, creatina e leite",
+      imageUrl: undefined,
+      audioUrl: undefined,
+      transcript: undefined,
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "Teste de formatação.",
       items: [
         {
           foodName: "Leite integral",
@@ -32,14 +80,20 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• 🥛 Leite integral, 100 ml");
-    expect(reply).not.toContain("aprox. 100 g");
+    expect(reply).toContain("Leite integral, 100 ml - 61 Kcal");
+    expect(reply).not.toContain("aprox. 100g");
   });
 
   it("mantém equivalência aproximada em gramas para porções unitárias", () => {
     const processed: MealProcessingResult = {
       detectedMealLabel: "Lanche",
       sourceText: "1 banana",
+      imageUrl: undefined,
+      audioUrl: undefined,
+      transcript: undefined,
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "Teste de formatação.",
       items: [
         {
           foodName: "Banana",
@@ -65,6 +119,53 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• 🍌 Banana, 1 unidade (aprox. 80 g)");
+    expect(reply).toContain("Banana, 1 unidade (aprox. 80g) - 72 Kcal");
+  });
+
+  it("resume meta em negrito com bullets", () => {
+    const processed: MealProcessingResult = {
+      detectedMealLabel: "Almoço",
+      sourceText: "frango grelhado",
+      imageUrl: undefined,
+      audioUrl: undefined,
+      transcript: undefined,
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "Teste de formatação.",
+      items: [
+        {
+          foodName: "Frango grelhado",
+          canonicalName: "Frango grelhado",
+          portionText: "150 g",
+          servings: 1,
+          estimatedGrams: 150,
+          calories: 247.5,
+          protein: 46.5,
+          carbs: 0,
+          fat: 5.4,
+          confidence: 0.9,
+          source: "catalog",
+        },
+      ],
+      totals: {
+        calories: 247.5,
+        protein: 46.5,
+        carbs: 0,
+        fat: 5.4,
+      },
+    };
+
+    const reply = buildWhatsAppMealReplyMessage(processed, {
+      registeredAt: new Date("2026-06-04T16:00:00.000Z"),
+      goalProgress: {
+        consumedCalories: 1165,
+        goalCalories: 2000,
+      },
+    });
+
+    expect(reply).toContain("*Meta de hoje:*");
+    expect(reply).toContain("• Meta: 2.000 Kcal");
+    expect(reply).toContain("• Meta ajustada: 2.000 Kcal");
+    expect(reply).toContain("• Déficit: 835 Kcal");
   });
 });
