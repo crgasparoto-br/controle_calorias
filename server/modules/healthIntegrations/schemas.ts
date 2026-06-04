@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const healthProviderSchema = z.enum(["apple_health", "health_connect", "google_fit", "strava", "mock"]);
+export const healthProviderSchema = z.enum(["apple_health", "health_connect", "google_fit", "strava", "garmin_connect", "mock"]);
 export const healthDataTypeSchema = z.enum(["steps", "weight", "activity", "energy_burned", "sleep"]);
 
 export const connectHealthIntegrationSchema = z.object({

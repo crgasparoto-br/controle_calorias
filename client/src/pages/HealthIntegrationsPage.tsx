@@ -21,7 +21,7 @@ const DATA_TYPES = [
 ] as const;
 
 type HealthDataType = typeof DATA_TYPES[number]["value"];
-type HealthProvider = "apple_health" | "health_connect" | "google_fit" | "strava" | "mock";
+type HealthProvider = "apple_health" | "health_connect" | "google_fit" | "strava" | "garmin_connect" | "mock";
 
 type StravaActivityMetadata = {
   externalId: string;
@@ -210,6 +210,8 @@ export default function HealthIntegrationsPage() {
                         const connected = connection?.status === "connected";
                         const authorizationUrl = "authorizationUrl" in provider ? provider.authorizationUrl : null;
                         const isStrava = provider.provider === "strava";
+                        const isGarminConnect = provider.provider === "garmin_connect";
+                        const isPendingOAuth = isStrava || isGarminConnect;
                         const setupStatus = "setupStatus" in provider ? provider.setupStatus : undefined;
                         return (
                           <div key={provider.provider} className="rounded-3xl border bg-background p-4 shadow-sm">
@@ -218,7 +220,7 @@ export default function HealthIntegrationsPage() {
                                 <div className="flex flex-wrap items-center gap-2">
                                   <h2 className="text-lg font-semibold tracking-tight">{provider.label}</h2>
                                   <Badge variant={provider.available ? "secondary" : "outline"}>
-                                    {provider.available ? "Disponível" : isStrava ? "Configuração pendente" : "Requer app nativo"}
+                                    {provider.available ? "Disponível" : isPendingOAuth ? "Configuração pendente" : "Requer app nativo"}
                                   </Badge>
                                   {connected ? <Badge variant="outline">Vínculo ativo</Badge> : null}
                                 </div>
@@ -240,12 +242,19 @@ export default function HealthIntegrationsPage() {
 
                             {setupStatus === "missing_credentials" ? (
                               <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                                Configure STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET e STRAVA_REDIRECT_URI no backend para liberar o OAuth do Strava.
+                                {isGarminConnect
+                                  ? "Configure as credenciais OAuth do Garmin Connect e implemente o callback Garmin no backend para liberar a sincronização automática de exercícios."
+                                  : "Configure STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET e STRAVA_REDIRECT_URI no backend para liberar o OAuth do Strava."}
                               </p>
                             ) : null}
                             {isStrava ? (
                               <p className="mt-4 rounded-2xl border bg-muted/20 px-3 py-2 text-sm leading-6 text-muted-foreground">
                                 O usuário é enviado para o Strava, faz login e autoriza o app por lá. O callback salva o vínculo no backend e atividades com duração e calorias válidas entram no histórico de exercícios sem duplicar a mesma atividade Strava.
+                              </p>
+                            ) : null}
+                            {isGarminConnect ? (
+                              <p className="mt-4 rounded-2xl border bg-muted/20 px-3 py-2 text-sm leading-6 text-muted-foreground">
+                                O Garmin Connect ficará disponível para importar atividades e gasto energético quando a aplicação tiver credenciais OAuth e callback dedicados ao Garmin.
                               </p>
                             ) : null}
                             {connection?.lastError ? (
@@ -270,7 +279,7 @@ export default function HealthIntegrationsPage() {
                                 <Button
                                   type="button"
                                   className="rounded-full"
-                                  disabled={!provider.available || connect.isPending || selectedScopes.length === 0 || connected || isStrava}
+                                  disabled={!provider.available || connect.isPending || selectedScopes.length === 0 || connected || isPendingOAuth}
                                   onClick={() => connect.mutate({ provider: provider.provider as HealthProvider, consentAccepted: true, scopes: selectedScopes })}
                                 >
                                   <Link2 className="mr-2 h-4 w-4" />

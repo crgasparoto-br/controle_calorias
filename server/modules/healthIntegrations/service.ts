@@ -236,6 +236,16 @@ const PROVIDERS: Array<{
     docsUrl: "https://developers.strava.com/docs/authentication/",
   },
   {
+    provider: "garmin_connect",
+    label: "Garmin Connect",
+    platform: "web",
+    available: false,
+    supportedDataTypes: ["activity", "energy_burned"],
+    integrationKind: "oauth",
+    setupStatus: "missing_credentials",
+    docsUrl: "https://developer.garmin.com/health-api/overview/",
+  },
+  {
     provider: "mock",
     label: "Mock de desenvolvimento",
     platform: "web",
@@ -1006,6 +1016,9 @@ export class HealthIntegrationService {
   connect(userId: number, input: ConnectHealthIntegrationInput) {
     const provider = getProvider(input.provider);
     if (!provider) throw new Error("Provedor de saúde desconhecido.");
+    if (provider.integrationKind === "oauth" && provider.provider !== "strava") {
+      throw new Error(`${provider.label} ainda precisa de implementação OAuth no backend antes de conectar exercícios automaticamente.`);
+    }
     if (provider.provider === "strava") {
       if (!provider.available) {
         throw new Error("Configure STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET e STRAVA_REDIRECT_URI antes de iniciar o OAuth do Strava.");

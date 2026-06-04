@@ -898,6 +898,9 @@ describe("nutrition router", () => {
     const initial = await caller.nutrition.healthIntegrations.status();
     expect(initial.platform).toBe("web");
     expect(initial.providers.find(provider => provider.provider === "apple_health")?.available).toBe(false);
+    const garminConnect = initial.providers.find(provider => provider.provider === "garmin_connect");
+    expect(garminConnect?.available).toBe(false);
+    expect(garminConnect?.supportedDataTypes).toEqual(["activity", "energy_burned"]);
 
     await expect(caller.nutrition.healthIntegrations.sync({ provider: "mock" })).rejects.toThrow("Conceda consentimento");
 
