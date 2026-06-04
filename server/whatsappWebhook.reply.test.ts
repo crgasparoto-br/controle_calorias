@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
+const getUserDayMealTotalsMock = vi.fn();
+const getUserNutritionGoalMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const createUserWaterLogMock = vi.fn();
@@ -15,7 +17,9 @@ vi.mock("./db", () => ({
   createPendingMealInference: createPendingMealInferenceMock,
   createUserWaterLog: createUserWaterLogMock,
   getHabitSnapshots: getHabitSnapshotsMock,
+  getUserDayMealTotals: getUserDayMealTotalsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
+  getUserNutritionGoal: getUserNutritionGoalMock,
   getWhatsAppAccessToken: getWhatsAppAccessTokenMock,
   listUserMeals: vi.fn(async () => []),
   logInferenceEvent: logInferenceEventMock,
@@ -115,6 +119,8 @@ describe("whatsappWebhook detailed replies", () => {
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
     getHabitSnapshotsMock.mockResolvedValue([]);
+    getUserDayMealTotalsMock.mockResolvedValue({ totals: { calories: 795 } });
+    getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-reply" });
@@ -166,7 +172,7 @@ describe("whatsappWebhook detailed replies", () => {
     vi.restoreAllMocks();
   });
 
-  it("envia lista de alimentos com macronutrientes por item", async () => {
+  it("envia lista de alimentos com macronutrientes por item e comparação com a meta", async () => {
     const req = { body: createTextPayload("arroz e frango") };
     const res = createResponse();
 
@@ -176,9 +182,19 @@ describe("whatsappWebhook detailed replies", () => {
     const finalReply = replies.at(-1) ?? "";
 
     expect(res.statusCode).toBe(200);
-    expect(finalReply).toContain("Alimentos e macros:");
-    expect(finalReply).toContain("1. 100 g arroz — 130 kcal | P 2.7g | C 28g | G 0.3g");
-    expect(finalReply).toContain("2. 100 g frango — 165 kcal | P 31g | C 0g | G 3.6g");
-    expect(finalReply).toContain("Total estimado: 295 kcal | P 33.7g | C 28g | G 3.9g.");
+    expect(finalReply).toContain("Almoço registrado.");
+    expect(finalReply).toContain("Itens:");
+    expect(finalReply).toContain("• arroz, 100 g");
+    expect(finalReply).toContain("  130 kcal | Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g");
+    expect(finalReply).toContain("• frango, 100 g");
+    expect(finalReply).toContain("  165 kcal | Prot. 31 g | Carb. 0 g | Gord. 3,6 g");
+    expect(finalReply).toContain("Total da refeição:");
+    expect(finalReply).toContain("295 kcal");
+    expect(finalReply).toContain("Prot. 33,7 g | Carb. 28 g | Gord. 3,9 g");
+    expect(finalReply).toContain("Meta de hoje:");
+    expect(finalReply).toContain("Você já consumiu 795 de 2.200 kcal.");
+    expect(finalReply).toContain("Faltam 1.405 kcal para sua meta.");
+    expect(finalReply).not.toContain("Alimentos e macros:");
+    expect(finalReply).not.toContain("Total estimado:");
   });
 });
