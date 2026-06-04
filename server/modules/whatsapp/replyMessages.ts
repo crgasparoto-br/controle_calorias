@@ -3,6 +3,7 @@ import type { MealProcessingResult } from "../../nutritionEngine";
 export type WhatsAppMealGoalProgress = {
   consumedCalories: number;
   goalCalories: number;
+  exerciseCalories?: number;
 };
 
 export type WhatsAppMealReplyOptions = {
@@ -50,14 +51,18 @@ function buildGoalProgressLines(progress?: WhatsAppMealGoalProgress | null) {
 
   const consumedCalories = Math.max(0, Math.round(progress.consumedCalories));
   const goalCalories = Math.round(progress.goalCalories);
-  const diff = consumedCalories - goalCalories;
-  const statusLine = diff > 0
-    ? `Passou ${formatNumber(diff)} kcal da sua meta.`
-    : `Faltam ${formatNumber(Math.abs(diff))} kcal para sua meta.`;
+  const exerciseCalories = Math.max(0, Math.round(progress.exerciseCalories ?? 0));
+  const adjustedGoalCalories = goalCalories + exerciseCalories;
+  const remainingCalories = adjustedGoalCalories - consumedCalories;
+  const statusLine = remainingCalories >= 0
+    ? `Você está em déficit de ${formatNumber(remainingCalories)} kcal em relação à meta ajustada.`
+    : `Você está em superávit de ${formatNumber(Math.abs(remainingCalories))} kcal em relação à meta ajustada.`;
 
   return [
     "Meta de hoje:",
-    `Você já consumiu ${formatNumber(consumedCalories)} de ${formatNumber(goalCalories)} kcal.`,
+    `Você consumiu ${formatNumber(consumedCalories)} kcal de ${formatNumber(goalCalories)} kcal da meta.`,
+    ...(exerciseCalories > 0 ? [`Exercícios: ${formatNumber(exerciseCalories)} kcal gastas.`] : []),
+    ...(exerciseCalories > 0 ? [`Meta ajustada: ${formatNumber(adjustedGoalCalories)} kcal.`] : []),
     statusLine,
   ];
 }
