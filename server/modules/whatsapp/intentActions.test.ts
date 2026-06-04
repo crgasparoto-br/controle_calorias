@@ -62,6 +62,20 @@ const bananaItem = {
   source: "catalog" as const,
 };
 
+const mayonnaiseItem = {
+  foodName: "Maionese",
+  canonicalName: "Maionese",
+  portionText: "30 g",
+  servings: 1,
+  estimatedGrams: 30,
+  calories: 198,
+  protein: 0.3,
+  carbs: 0.4,
+  fat: 21,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
 describe("executeWhatsappTextIntent", () => {
   beforeEach(() => {
     listMealsMock.mockReset();
@@ -193,6 +207,53 @@ describe("executeWhatsappTextIntent", () => {
       handled: true,
       action: "meal_item_grams_adjusted",
       reply: expect.stringContaining("de 120 g para 79 g"),
+    }));
+  });
+
+  it("substitui o alimento identificado por outro informado pelo usuário", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 14,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro por imagem",
+        items: [mayonnaiseItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 14,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "não é maionese é requeijão",
+      receivedAt: new Date("2026-06-03T18:10:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 14,
+      mealLabel: "Lanche",
+      items: [
+        expect.objectContaining({
+          foodName: "requeijão",
+          canonicalName: "requeijão",
+          estimatedGrams: 30,
+          portionText: "30 g",
+          calories: 198,
+          protein: 0.3,
+          carbs: 0.4,
+          fat: 21,
+          source: "heuristic",
+        }),
+        riceItem,
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_replaced",
+      eventType: "whatsapp.intent.meal_item_replaced",
+      reply: expect.stringContaining("Troquei Maionese por requeijão"),
     }));
   });
 
