@@ -82,7 +82,7 @@ function createResponse(): MockResponse {
   };
 }
 
-function createImageWebhookRequest() {
+function createImageWebhookRequest(messageId = "image-with-foods") {
   return {
     body: {
       entry: [
@@ -95,7 +95,7 @@ function createImageWebhookRequest() {
                 },
                 messages: [
                   {
-                    id: "image-with-foods",
+                    id: messageId,
                     from: "5511999999999",
                     timestamp: "1780502400",
                     type: "image",
@@ -286,5 +286,28 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
         caption: "Imagem anotada com os alimentos identificados.",
       },
     ]);
+  });
+
+  it("responde com erro controlado quando a análise da imagem falha", async () => {
+    processMealInputMock.mockRejectedValue(new Error("provider timeout"));
+    const req = createImageWebhookRequest("image-analysis-failure");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(fallbackWebhookMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
+    expect(sentTextMessages.at(-1)).toBe("Não consegui processar essa imagem agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.");
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      origin: "whatsapp",
+      status: "error",
+      eventType: "whatsapp.processing_error",
+      detail: "provider timeout",
+    }));
   });
 });
