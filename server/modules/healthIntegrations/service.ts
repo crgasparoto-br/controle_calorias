@@ -169,6 +169,7 @@ const STRAVA_TOKEN_SECRET_PREFIX = "strava_oauth_user";
 const STRAVA_SYNC_LOOKBACK_MONTHS = 2;
 const STRAVA_ACTIVITIES_PER_PAGE = 100;
 const STRAVA_MAX_ACTIVITY_PAGES = 20;
+const DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = 20;
 const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 30;
 const DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES = 15;
 
@@ -717,7 +718,16 @@ function formatPace(speedMetersPerSecond: number) {
 }
 
 function shouldFetchStravaActivityDetail(activity: StravaActivity) {
-  return activity.calories == null && activity.kilojoules == null;
+  return activity.calories == null && activity.kilojoules == null && (activity.moving_time ?? 0) > 0;
+}
+
+function getStravaMaxActivityDetailRequestsPerSync() {
+  const configured = Number(process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC ?? DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC);
+  if (!Number.isFinite(configured) || configured < 0) {
+    return DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC;
+  }
+
+  return Math.floor(configured);
 }
 
 async function fetchStravaActivityDetail(accessToken: string, activityId: number) {
@@ -742,8 +752,9 @@ async function fetchStravaActivityDetail(accessToken: string, activityId: number
   return detail;
 }
 
-async function enrichStravaActivitiesWithDetails(accessToken: string, activities: StravaActivity[]) {
+async function enrichStravaActivitiesWithDetails(accessToken: string, activities: StravaActivity[], remainingDetailRequests: number) {
   const enrichedActivities: StravaActivity[] = [];
+  let usedDetailRequests = 0;
 
   for (const activity of activities) {
     if (!shouldFetchStravaActivityDetail(activity)) {
@@ -751,11 +762,17 @@ async function enrichStravaActivitiesWithDetails(accessToken: string, activities
       continue;
     }
 
+    if (usedDetailRequests >= remainingDetailRequests) {
+      enrichedActivities.push(activity);
+      continue;
+    }
+
+    usedDetailRequests += 1;
     const detail = await fetchStravaActivityDetail(accessToken, activity.id);
     enrichedActivities.push(detail ? { ...activity, ...detail } : activity);
   }
 
-  return enrichedActivities;
+  return { activities: enrichedActivities, usedDetailRequests };
 }
 
 async function fetchStravaActivities(userId: number) {
@@ -767,6 +784,7 @@ async function fetchStravaActivities(userId: number) {
   const token = await ensureValidStravaToken(userId);
   const activities: StravaActivity[] = [];
   const after = getStravaActivitiesAfterTimestamp();
+  let remainingDetailRequests = getStravaMaxActivityDetailRequestsPerSync();
 
   for (let page = 1; page <= STRAVA_MAX_ACTIVITY_PAGES; page += 1) {
     const response = await fetch(buildStravaActivitiesUrl(page, after), {
@@ -787,7 +805,9 @@ async function fetchStravaActivities(userId: number) {
       throw new Error("Resposta inesperada do Strava ao buscar atividades.");
     }
 
-    activities.push(...await enrichStravaActivitiesWithDetails(token.accessToken, pageActivities));
+    const enrichedPage = await enrichStravaActivitiesWithDetails(token.accessToken, pageActivities, remainingDetailRequests);
+    remainingDetailRequests = Math.max(remainingDetailRequests - enrichedPage.usedDetailRequests, 0);
+    activities.push(...enrichedPage.activities);
     if (pageActivities.length < STRAVA_ACTIVITIES_PER_PAGE) break;
   }
 

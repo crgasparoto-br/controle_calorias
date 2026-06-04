@@ -112,6 +112,7 @@ describe("healthIntegrationService Strava", () => {
     process.env.STRAVA_REDIRECT_URI = "https://app.test/api/health-integrations/strava/callback";
     delete process.env.STRAVA_AUTO_SYNC_DISABLED;
     delete process.env.STRAVA_AUTO_SYNC_INTERVAL_MINUTES;
+    delete process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC;
     exerciseMocks.listExercises.mockResolvedValue([]);
     exerciseMocks.createExercise.mockImplementation(async (_userId, input) => ({
       id: 123,
@@ -330,6 +331,52 @@ describe("healthIntegrationService Strava", () => {
       expect.objectContaining({ headers: { Authorization: "Bearer access-token" } }),
     );
     expect(exerciseMocks.createExercise).toHaveBeenCalledTimes(101);
+  });
+
+  it("limita buscas de detalhe do Strava para não consumir a cota em uma única sincronização", async () => {
+    process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = "2";
+    const activitiesWithoutCalories = Array.from({ length: 5 }, (_, index) => ({
+      id: 3_000 + index,
+      name: `Treino sem calorias ${index + 1}`,
+      sport_type: "Run",
+      start_date: "2026-06-01T10:00:00Z",
+      moving_time: 1800,
+    }));
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read_all",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse(activitiesWithoutCalories))
+      .mockResolvedValueOnce(jsonResponse({ ...activitiesWithoutCalories[0], calories: 210 }))
+      .mockResolvedValueOnce(jsonResponse({ ...activitiesWithoutCalories[1], calories: 220 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read_all",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://www.strava.com/api/v3/activities/3000",
+      expect.objectContaining({ headers: { Authorization: "Bearer access-token" } }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://www.strava.com/api/v3/activities/3001",
+      expect.objectContaining({ headers: { Authorization: "Bearer access-token" } }),
+    );
+    expect(exerciseMocks.createExercise).toHaveBeenCalledTimes(2);
   });
 
   it("atualiza exercício Strava já importado em vez de duplicar", async () => {
