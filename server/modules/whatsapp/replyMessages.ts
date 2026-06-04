@@ -1,8 +1,10 @@
 import type { MealProcessingResult } from "../../nutritionEngine";
+import { getWhatsAppExerciseCaloriesForDateKey } from "./goalProgressContext";
 
 export type WhatsAppMealGoalProgress = {
   consumedCalories: number;
   goalCalories: number;
+  exerciseCalories?: number;
 };
 
 export type WhatsAppMealReplyOptions = {
@@ -20,9 +22,38 @@ function formatMacro(value: number) {
   return formatNumber(value);
 }
 
+function formatDateKeyInSaoPaulo(date?: Date) {
+  if (!date) {
+    return undefined;
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function portionUsesWeightUnit(portionText: string) {
+  return /\d\s*(?:g|gramas?|kg|quilogramas?)\b/i.test(portionText);
+}
+
+function portionUsesVolumeUnit(portionText: string) {
+  return /\d\s*(?:ml|m\s*l|l|litros?)\b/i.test(portionText)
+    || /\b(?:copo|copos|xicara|xicaras|xícara|xícaras|colher|colheres|dose|doses)\b/i.test(portionText);
+}
+
+function shouldShowApproximateGrams(item: MealProcessingResult["items"][number]) {
+  return item.estimatedGrams > 0
+    && !portionUsesWeightUnit(item.portionText)
+    && !portionUsesVolumeUnit(item.portionText);
+}
+
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
-  const portionHasGrams = /\d\s*g\b/i.test(item.portionText);
-  const gramsLabel = !portionHasGrams && item.estimatedGrams > 0 ? ` (aprox. ${formatMacro(item.estimatedGrams)} g)` : "";
+  const gramsLabel = shouldShowApproximateGrams(item) ? ` (aprox. ${formatMacro(item.estimatedGrams)} g)` : "";
   return `${item.foodName}, ${item.portionText}${gramsLabel}`.trim();
 }
 
@@ -43,28 +74,33 @@ function buildMealTitle(mealLabel?: string) {
   return `${label} registrado.`;
 }
 
-function buildGoalProgressLines(progress?: WhatsAppMealGoalProgress | null) {
+function buildGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
   if (!progress || progress.goalCalories <= 0) {
     return [];
   }
 
   const consumedCalories = Math.max(0, Math.round(progress.consumedCalories));
   const goalCalories = Math.round(progress.goalCalories);
-  const diff = consumedCalories - goalCalories;
-  const statusLine = diff > 0
-    ? `Passou ${formatNumber(diff)} kcal da sua meta.`
-    : `Faltam ${formatNumber(Math.abs(diff))} kcal para sua meta.`;
+  const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
+  const exerciseCalories = Math.max(0, Math.round(progress.exerciseCalories ?? contextualExerciseCalories ?? 0));
+  const adjustedGoalCalories = goalCalories + exerciseCalories;
+  const remainingCalories = adjustedGoalCalories - consumedCalories;
+  const statusLine = remainingCalories >= 0
+    ? `Você está em déficit de ${formatNumber(remainingCalories)} kcal em relação à meta ajustada.`
+    : `Você está em superávit de ${formatNumber(Math.abs(remainingCalories))} kcal em relação à meta ajustada.`;
 
   return [
     "Meta de hoje:",
-    `Você já consumiu ${formatNumber(consumedCalories)} de ${formatNumber(goalCalories)} kcal.`,
+    `Você consumiu ${formatNumber(consumedCalories)} kcal de ${formatNumber(goalCalories)} kcal da meta.`,
+    ...(exerciseCalories > 0 ? [`Exercícios: ${formatNumber(exerciseCalories)} kcal gastas.`] : []),
+    ...(exerciseCalories > 0 ? [`Meta ajustada: ${formatNumber(adjustedGoalCalories)} kcal.`] : []),
     statusLine,
   ];
 }
 
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
   const title = buildMealTitle(processed.detectedMealLabel);
-  const goalLines = buildGoalProgressLines(options.goalProgress);
+  const goalLines = buildGoalProgressLines(options.goalProgress, options.registeredAt);
 
   if (!processed.items.length) {
     return [

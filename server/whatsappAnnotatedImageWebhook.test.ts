@@ -277,8 +277,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
       "",
       "Meta de hoje:",
-      "Você já consumiu 1.620 de 2.200 kcal.",
-      "Faltam 580 kcal para sua meta.",
+      "Você consumiu 1.620 kcal de 2.200 kcal da meta.",
+      "Você está em déficit de 580 kcal em relação à meta ajustada.",
     ].join("\n"));
     expect(sentImageMessages).toEqual([
       {
