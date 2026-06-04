@@ -259,11 +259,19 @@ describe("whatsappWebhook", () => {
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
     expect(lastSentWhatsAppBody).toBe([
-      "🍽️ Almoço:",
-      "Alimentos e macros:",
-      "1. 100 g arroz — 130 kcal | P 2.7g | C 28g | G 0.3g",
-      "Total estimado: 130 kcal | P 2.7g | C 28g | G 0.3g.",
-      "Horário: 08:52.",
+      "Almoço registrado.",
+      "",
+      "Itens:",
+      "• arroz, 100 g",
+      "  130 kcal | Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "",
+      "Total da refeição:",
+      "130 kcal",
+      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "",
+      "Meta de hoje:",
+      "Você já consumiu 130 de 2.200 kcal.",
+      "Faltam 2.070 kcal para sua meta.",
     ].join("\n"));
   });
 
