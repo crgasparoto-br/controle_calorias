@@ -118,7 +118,7 @@ const mealExtractionSchema = z.object({
       fat: z.number().min(0).max(1000),
     }),
     confidence: z.number().min(0).max(1),
-  })).min(1),
+  })),
 });
 
 const mealExtractionJsonSchema = {
@@ -130,7 +130,7 @@ const mealExtractionJsonSchema = {
     reasoning: { type: "string" },
     items: {
       type: "array",
-      minItems: 1,
+      minItems: 0,
       items: {
         type: "object",
         additionalProperties: false,
@@ -577,6 +577,9 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
         `Histórico relevante do usuário:\n${habitsToPrompt(input.habits)}`,
         "Retorne apenas JSON válido no schema solicitado.",
         "Inclua somente alimentos ou bebidas explicitamente mencionados, fotografados ou claramente visíveis.",
+        "Se a imagem não mostrar alimento ou bebida consumível com segurança suficiente, retorne items como lista vazia, confidence baixo e explique a incerteza no reasoning.",
+        "Use o histórico apenas para calibrar porções de alimentos já mencionados ou claramente visíveis; nunca inclua alimentos apenas porque aparecem nos hábitos do usuário.",
+        "Em fotos de embalagem, pote, rótulo, etiqueta ou balança, identifique no máximo os alimentos consumíveis claramente visíveis ou rotulados; não transforme a cena em uma refeição completa.",
         "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': foodName deve ser apenas o alimento, portionText deve conter '140 g' e estimatedGrams deve ser 140.",
         "Não inclua prato, talheres, mesa, embalagem, rótulo, marca isolada, decoração ou itens inferidos apenas por hábito.",
         "Quando houver foto de rótulo ou tabela nutricional, use os valores da tabela para calorias, proteína, carboidratos e gorduras; não substitua por valores genéricos de catálogo.",
@@ -606,7 +609,7 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
 
   const response = await getAiProvider().createTextResponse({
     model: ENV.openaiModel,
-    instructions: "Você é um nutricionista assistente. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON.",
+    instructions: "Você é um nutricionista assistente. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a foto não permitir identificar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar.",
     input: aiInput,
     format: {
       type: "json_schema",
