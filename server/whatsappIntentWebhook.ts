@@ -5,6 +5,7 @@ import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logI
 import { listMeals } from "./modules/meals/service";
 import { getWhatsAppChannelConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
+import { toLogicalDateInTimeZone } from "../shared/timeZone";
 
 type WhatsAppMessage = {
   id?: string;
@@ -24,6 +25,12 @@ type ExtractedWhatsAppMessage = WhatsAppMessage & {
 };
 
 type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
+type NutritionTotals = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
 
 const recentlyHandledTextIntentMessageIds = new Map<string, number>();
 const pendingTextIntentContexts = new Map<number, { kind: "period_report"; expiresAt: number }>();
@@ -134,8 +141,8 @@ function isInsidePeriod(value: number | string | Date, start: Date, end: Date) {
   return time >= start.getTime() && time <= end.getTime();
 }
 
-function sumMealItems(items: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }>) {
-  return items.reduce(
+function sumMealItems(items: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }>): NutritionTotals {
+  return items.reduce<NutritionTotals>(
     (acc, item) => ({
       calories: acc.calories + Number(item.calories || 0),
       protein: acc.protein + Number(item.protein || 0),
@@ -147,10 +154,8 @@ function sumMealItems(items: Array<{ calories?: number; protein?: number; carbs?
 }
 
 function countPeriodDays(start: Date, end: Date) {
-  const startDay = new Date(start);
-  startDay.setHours(0, 0, 0, 0);
-  const endDay = new Date(end);
-  endDay.setHours(0, 0, 0, 0);
+  const startDay = toLogicalDateInTimeZone(start);
+  const endDay = toLogicalDateInTimeZone(end);
   return Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
 }
 
@@ -171,7 +176,7 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
   ]);
   const mealsInPeriod = meals.filter(meal => isInsidePeriod(meal.occurredAt, start, end));
   const exercisesInPeriod = exercises.filter(exercise => isInsidePeriod(Number(exercise.occurredAt), start, end));
-  const totals = mealsInPeriod.reduce((acc, meal) => {
+  const totals = mealsInPeriod.reduce<NutritionTotals>((acc, meal) => {
     const itemTotals = sumMealItems(meal.items ?? []);
     acc.calories += itemTotals.calories;
     acc.protein += itemTotals.protein;
