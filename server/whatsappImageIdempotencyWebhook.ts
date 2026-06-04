@@ -1,8 +1,12 @@
 import { Request, Response } from "express";
+import { getUserIdByWhatsappPhone, listUserExercises, logInferenceEvent } from "./db";
+import { runWithWhatsAppGoalProgressContext } from "./modules/whatsapp/goalProgressContext";
 import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
 
 type WhatsAppMessage = {
   id?: string;
+  from?: string;
+  timestamp?: string;
   image?: { id?: string };
 };
 
@@ -27,6 +31,71 @@ function extractMessages(payload: any): IndexedMessage[] {
         })
       : [],
   );
+}
+
+function resolveOccurredAt(message: WhatsAppMessage) {
+  const parsed = Number(message.timestamp);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return new Date();
+  }
+
+  return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
+}
+
+function formatDateKeyInSaoPaulo(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function isSameDateKeyInSaoPaulo(value: number | string | Date, dateKey: string) {
+  return formatDateKeyInSaoPaulo(new Date(value)) === dateKey;
+}
+
+async function buildExerciseCaloriesContext(messages: IndexedMessage[]) {
+  const context: Record<string, number> = {};
+  const seen = new Set<string>();
+
+  for (const item of messages) {
+    const sourcePhone = item.message.from;
+    if (!sourcePhone) {
+      continue;
+    }
+
+    const dateKey = formatDateKeyInSaoPaulo(resolveOccurredAt(item.message));
+    const cacheKey = `${sourcePhone}:${dateKey}`;
+    if (seen.has(cacheKey)) {
+      continue;
+    }
+    seen.add(cacheKey);
+
+    try {
+      const userId = await getUserIdByWhatsappPhone(sourcePhone);
+      if (!userId) {
+        continue;
+      }
+
+      const exercises = await listUserExercises(userId);
+      context[dateKey] = (context[dateKey] ?? 0) + exercises
+        .filter(exercise => isSameDateKeyInSaoPaulo(Number(exercise.occurredAt), dateKey))
+        .reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0);
+    } catch (error) {
+      logInferenceEvent({
+        userId: 0,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.exercise_context_warning",
+        detail: error instanceof Error ? error.message : "Falha desconhecida ao calcular exercícios para contexto da resposta do WhatsApp.",
+      });
+    }
+  }
+
+  return { exerciseCaloriesByDateKey: context };
 }
 
 function pruneReservations(now = Date.now()) {
@@ -110,5 +179,6 @@ export async function handleWhatsAppWebhookWithImageIdempotency(req: Request, re
     req.body = remainingPayload;
   }
 
-  return handleWhatsAppWebhookWithTextIntent(req, res);
+  const context = await buildExerciseCaloriesContext(extractMessages(req.body));
+  return runWithWhatsAppGoalProgressContext(context, () => handleWhatsAppWebhookWithTextIntent(req, res));
 }
