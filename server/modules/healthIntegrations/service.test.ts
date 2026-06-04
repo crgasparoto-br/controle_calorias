@@ -72,6 +72,9 @@ const dbMocks = vi.hoisted(() => {
 
 vi.mock("../../db", () => ({
   getDb: dbMocks.getDb,
+  getUserWhatsappConnection: vi.fn(async () => null),
+  getWhatsAppAccessToken: vi.fn(async () => "whatsapp-access-token"),
+  logInferenceEvent: vi.fn(),
 }));
 
 vi.mock("../../_core/env", () => ({
@@ -100,16 +103,24 @@ function stravaRateLimitResponse(retryAfterSeconds = 120) {
 }
 
 describe("healthIntegrationService Strava", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.useRealTimers();
     vi.resetModules();
     dbMocks.reset();
     exerciseMocks.createExercise.mockReset();
     exerciseMocks.listExercises.mockReset();
     exerciseMocks.updateExercise.mockReset();
+    const dbModule = await import("../../db");
+    vi.mocked(dbModule.getUserWhatsappConnection).mockReset();
+    vi.mocked(dbModule.getUserWhatsappConnection).mockResolvedValue(null);
+    vi.mocked(dbModule.getWhatsAppAccessToken).mockReset();
+    vi.mocked(dbModule.getWhatsAppAccessToken).mockResolvedValue("whatsapp-access-token");
+    vi.mocked(dbModule.logInferenceEvent).mockReset();
     process.env.STRAVA_CLIENT_ID = "client-id";
     process.env.STRAVA_CLIENT_SECRET = "client-secret";
     process.env.STRAVA_REDIRECT_URI = "https://app.test/api/health-integrations/strava/callback";
+    delete process.env.WHATSAPP_PHONE_NUMBER;
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID;
     delete process.env.STRAVA_AUTO_SYNC_DISABLED;
     delete process.env.STRAVA_AUTO_SYNC_INTERVAL_MINUTES;
     delete process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC;
@@ -172,6 +183,87 @@ describe("healthIntegrationService Strava", () => {
     });
     expect(exerciseMocks.updateExercise).not.toHaveBeenCalled();
     expect(result.message).toContain("1 exercício(s) registrado(s)");
+  });
+
+  it("envia WhatsApp ao importar novo exercício do Strava", async () => {
+    process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
+    const dbModule = await import("../../db");
+    vi.mocked(dbModule.getUserWhatsappConnection).mockResolvedValue({
+      id: 1,
+      userId: 42,
+      phoneNumber: "5511999999999",
+      displayName: "Ana",
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 996,
+          name: "Treinamento com peso noturno",
+          start_date: "2026-06-02T23:00:00Z",
+          moving_time: 360,
+          calories: 49,
+        },
+      ]))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://graph.facebook.com/v20.0/phone-number-test/messages",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer whatsapp-access-token",
+          "Content-Type": "application/json",
+        }),
+      }),
+    );
+    const body = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
+    expect(body).toMatchObject({
+      messaging_product: "whatsapp",
+      to: "5511999999999",
+      type: "interactive",
+      interactive: {
+        type: "button",
+        action: {
+          buttons: [
+            {
+              type: "reply",
+              reply: {
+                id: "daily_summary",
+                title: "Ver resumo do dia",
+              },
+            },
+          ],
+        },
+      },
+    });
+    expect(body.interactive.body.text).toBe([
+      "*Treino importado do Strava com sucesso: (06min)*",
+      "*Treinamento com peso noturno e 49 calorias*",
+      "*queimadas no dia 02/06* 🔥",
+    ].join("\n"));
   });
 
   it("busca o detalhe da atividade quando o resumo do Strava vem sem calorias", async () => {
