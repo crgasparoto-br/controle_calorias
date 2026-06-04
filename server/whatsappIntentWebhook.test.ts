@@ -58,6 +58,20 @@ const riceItem = {
   source: "catalog" as const,
 };
 
+const bananaItem = {
+  foodName: "Banana",
+  canonicalName: "Banana prata",
+  portionText: "120 g",
+  servings: 1,
+  estimatedGrams: 120,
+  calories: 106,
+  protein: 1.3,
+  carbs: 27.6,
+  fat: 0.4,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
 let sentMessages: string[];
 
 function createResponse(): MockResponse {
@@ -211,6 +225,48 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.meal_item_grams_adjusted",
     }));
     expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
+  });
+
+  it("substitui gramas do alimento existente e não delega para inferência nutricional", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 13,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [bananaItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 13,
+      ...input,
+    }));
+    const req = createTextWebhookRequest("Mudar banana para 79g", { id: "replace-banana-grams" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 13,
+      mealLabel: "Lanche",
+      items: [
+        expect.objectContaining({
+          foodName: "Banana",
+          estimatedGrams: 79,
+          portionText: "79 g",
+          calories: 69.8,
+        }),
+        riceItem,
+      ],
+    }));
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    }));
+    expect(sentMessages.at(-1)).toContain("de 120 g para 79 g");
   });
 
   it("adiciona café sem açúcar à refeição existente e não delega para inferência nutricional", async () => {
