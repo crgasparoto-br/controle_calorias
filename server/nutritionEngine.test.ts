@@ -393,6 +393,28 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.detectedMealLabel).toBe("Café da manhã");
   });
 
+  it("não gera rascunho quando a IA informa que não há item confiável na imagem", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_empty_items",
+      outputText: JSON.stringify({
+        mealLabel: "Refeição registrada",
+        confidence: 0.12,
+        reasoning: "A imagem não mostra alimento consumível com segurança suficiente.",
+        items: [],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
+
+    await expect(processMealInput({
+      imageUrl: "https://storage.test/foto-sem-alimento-confiavel.jpg",
+    })).rejects.toBeInstanceOf(MealInferenceError);
+
+    const request = createTextResponseMock.mock.calls[0][0];
+    expect(request.format.schema.properties.items.minItems).toBe(0);
+  });
+
   it("não gera rascunho quando a saída da IA é inválida e não há fallback textual", async () => {
     createTextResponseMock.mockResolvedValue({
       id: "resp_invalid",

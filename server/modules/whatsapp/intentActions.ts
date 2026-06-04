@@ -609,6 +609,21 @@ function formatTotalsLine(totals: NutritionTotals) {
   return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
 }
 
+function buildPeriodGoalSummaryLines(goalCalories: number, diff: number) {
+  if (goalCalories <= 0) {
+    return [];
+  }
+
+  const balanceLabel = diff > 0 ? "Superávit" : "Déficit";
+  const balanceDetail = diff > 0 ? "da meta estimada do período" : "para a meta estimada do período";
+
+  return [
+    "*Meta do resumo:*",
+    `• Meta estimada: ${formatNumber(goalCalories)} kcal`,
+    `• ${balanceLabel}: ${formatNumber(Math.abs(diff))} kcal ${balanceDetail}`,
+  ];
+}
+
 async function handleWaterIntent(userId: number, text: string, receivedAt: Date, amountMl: number): Promise<WhatsappIntentResult> {
   const occurredAt = resolveRelativeOccurredAt(text, receivedAt);
   const created = await createWaterLog(userId, {
@@ -858,11 +873,7 @@ async function handlePeriodReportIntent(userId: number, period: PeriodRange): Pr
   const periodDays = countPeriodDays(period);
   const goalCalories = Math.round((goal.today?.calories ?? 0) * periodDays);
   const diff = Math.round(totals.calories - goalCalories);
-  const goalLine = goalCalories > 0
-    ? diff > 0
-      ? `Você passou ${formatNumber(diff)} kcal da meta estimada do período.`
-      : `Faltaram ${formatNumber(Math.abs(diff))} kcal para a meta estimada do período.`
-    : null;
+  const goalSummaryLines = buildPeriodGoalSummaryLines(goalCalories, diff);
 
   const reply = mealsInPeriod.length
     ? [
@@ -870,7 +881,7 @@ async function handlePeriodReportIntent(userId: number, period: PeriodRange): Pr
         "",
         `Refeições registradas: ${mealsInPeriod.length}`,
         `Total consumido: ${formatTotalsLine(totals)}`,
-        ...(goalLine ? [`Meta estimada: ${formatNumber(goalCalories)} kcal`, goalLine] : []),
+        ...(goalSummaryLines.length ? ["", ...goalSummaryLines] : []),
       ].join("\n")
     : [
         `Resumo de ${period.label}:`,

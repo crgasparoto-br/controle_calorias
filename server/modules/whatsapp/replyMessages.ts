@@ -37,6 +37,19 @@ function formatDateKeyInSaoPaulo(date?: Date) {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
+function formatTimeInSaoPaulo(date?: Date) {
+  if (!date) {
+    return undefined;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 function portionUsesWeightUnit(portionText: string) {
   return /\d\s*(?:g|gramas?|kg|quilogramas?)\b/i.test(portionText);
 }
@@ -52,51 +65,30 @@ function shouldShowApproximateGrams(item: MealProcessingResult["items"][number])
     && !portionUsesVolumeUnit(item.portionText);
 }
 
-function getFoodIcon(item: MealProcessingResult["items"][number]) {
-  const text = `${item.foodName} ${item.canonicalName}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-  if (/\b(banana)\b/.test(text)) return "🍌";
-  if (/\b(maca|apple)\b/.test(text)) return "🍎";
-  if (/\b(laranja|orange)\b/.test(text)) return "🍊";
-  if (/\b(morango|strawberry)\b/.test(text)) return "🍓";
-  if (/\b(uva|grape)\b/.test(text)) return "🍇";
-  if (/\b(abacate|avocado)\b/.test(text)) return "🥑";
-  if (/\b(ovo|omelete)\b/.test(text)) return "🥚";
-  if (/\b(frango|chicken|carne|bife|steak)\b/.test(text)) return "🍗";
-  if (/\b(peixe|fish|salmao|atum|tilapia)\b/.test(text)) return "🐟";
-  if (/\b(arroz|rice|feijao|lentilha|grao de bico)\b/.test(text)) return "🍚";
-  if (/\b(macarrao|massa|pasta)\b/.test(text)) return "🍝";
-  if (/\b(pao|torrada|bisnaguinha|sandui?che)\b/.test(text)) return "🍞";
-  if (/\b(queijo|cheese)\b/.test(text)) return "🧀";
-  if (/\b(leite|iogurte|whey)\b/.test(text)) return "🥛";
-  if (/\b(cafe|coffee)\b/.test(text)) return "☕";
-  if (/\b(salada|alface|legume|brocolis|tomate|cenoura)\b/.test(text)) return "🥗";
-  if (/\b(batata|mandioca|aipim)\b/.test(text)) return "🥔";
-  if (/\b(chocolate|doce|bolo)\b/.test(text)) return "🍫";
-
-  return "🍽️";
+function formatPortionText(item: MealProcessingResult["items"][number]) {
+  const gramsLabel = shouldShowApproximateGrams(item) ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)` : "";
+  const compactPortion = item.portionText.replace(/(\d+(?:[,.]\d+)?)\s+g\b/gi, "$1g");
+  return `${compactPortion}${gramsLabel}`;
 }
 
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
-  const gramsLabel = shouldShowApproximateGrams(item) ? ` (aprox. ${formatMacro(item.estimatedGrams)} g)` : "";
-  return `${item.foodName}, ${item.portionText}${gramsLabel}`.trim();
+  return `${item.foodName}, ${formatPortionText(item)} - ${formatMacro(item.calories)} Kcal`.trim();
 }
 
 function formatItemMacros(item: MealProcessingResult["items"][number]) {
-  return `${formatMacro(item.calories)} kcal | Prot. ${formatMacro(item.protein)} g | Carb. ${formatMacro(item.carbs)} g | Gord. ${formatMacro(item.fat)} g`;
+  return `Prot. ${formatMacro(item.protein)} g | Carb. ${formatMacro(item.carbs)} g | Gord. ${formatMacro(item.fat)} g`;
 }
 
-function buildMealTitle(mealLabel?: string) {
+function buildMealTitle(mealLabel?: string, registeredAt?: Date) {
   const label = mealLabel?.trim();
-  if (!label || label === "Refeição") {
-    return "Refeição registrada.";
+  const time = formatTimeInSaoPaulo(registeredAt);
+  const suffix = time ? ` às ${time}hs.` : ".";
+
+  if (!label || label.toLowerCase() === "refeição") {
+    return `Refeição registrada${suffix}`;
   }
 
-  if (label.toLowerCase() === "refeição") {
-    return "Refeição registrada.";
-  }
-
-  return `${label} registrado.`;
+  return `${label} Registrado${suffix}`;
 }
 
 function buildGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
@@ -109,22 +101,19 @@ function buildGoalProgressLines(progress: WhatsAppMealGoalProgress | null | unde
   const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
   const exerciseCalories = Math.max(0, Math.round(progress.exerciseCalories ?? contextualExerciseCalories ?? 0));
   const adjustedGoalCalories = goalCalories + exerciseCalories;
-  const remainingCalories = adjustedGoalCalories - consumedCalories;
-  const statusLine = remainingCalories >= 0
-    ? `Você está em déficit de ${formatNumber(remainingCalories)} kcal em relação à meta ajustada.`
-    : `Você está em superávit de ${formatNumber(Math.abs(remainingCalories))} kcal em relação à meta ajustada.`;
+  const balanceCalories = adjustedGoalCalories - consumedCalories;
+  const balanceLabel = balanceCalories >= 0 ? "Déficit" : "Superávit";
 
   return [
-    "Meta de hoje:",
-    `Você consumiu ${formatNumber(consumedCalories)} kcal de ${formatNumber(goalCalories)} kcal da meta.`,
-    ...(exerciseCalories > 0 ? [`Exercícios: ${formatNumber(exerciseCalories)} kcal gastas.`] : []),
-    ...(exerciseCalories > 0 ? [`Meta ajustada: ${formatNumber(adjustedGoalCalories)} kcal.`] : []),
-    statusLine,
+    "*Meta de hoje:*",
+    `• Meta: ${formatNumber(goalCalories)} Kcal`,
+    `• Meta ajustada: ${formatNumber(adjustedGoalCalories)} Kcal`,
+    `• ${balanceLabel}: ${formatNumber(Math.abs(balanceCalories))} Kcal`,
   ];
 }
 
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
-  const title = buildMealTitle(processed.detectedMealLabel);
+  const title = buildMealTitle(processed.detectedMealLabel, options.registeredAt);
   const goalLines = buildGoalProgressLines(options.goalProgress, options.registeredAt);
 
   if (!processed.items.length) {
@@ -134,15 +123,15 @@ export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, o
       processed.sourceText || "Não consegui identificar os alimentos com segurança.",
       "",
       "Total da refeição:",
-      `${formatMacro(processed.totals.calories)} kcal`,
+      `${formatMacro(processed.totals.calories)} Kcal`,
       `Prot. ${formatMacro(processed.totals.protein)} g | Carb. ${formatMacro(processed.totals.carbs)} g | Gord. ${formatMacro(processed.totals.fat)} g`,
       ...(goalLines.length ? ["", ...goalLines] : []),
     ].join("\n");
   }
 
   const itemLines = processed.items.flatMap(item => [
-    `• ${getFoodIcon(item)} ${formatFoodDescription(item)}`,
-    `  ${formatItemMacros(item)}`,
+    formatFoodDescription(item),
+    formatItemMacros(item),
     "",
   ]);
   if (itemLines.at(-1) === "") {
@@ -156,7 +145,7 @@ export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, o
     ...itemLines,
     "",
     "Total da refeição:",
-    `${formatMacro(processed.totals.calories)} kcal`,
+    `${formatMacro(processed.totals.calories)} Kcal`,
     `Prot. ${formatMacro(processed.totals.protein)} g | Carb. ${formatMacro(processed.totals.carbs)} g | Gord. ${formatMacro(processed.totals.fat)} g`,
     ...(goalLines.length ? ["", ...goalLines] : []),
   ].join("\n");

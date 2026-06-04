@@ -133,24 +133,25 @@ describe("photoAnalysis service", () => {
     );
   });
 
-  it("mantém fallback seguro quando a inferência principal falha de forma controlada", async () => {
+  it("propaga falha controlada quando a inferência não identifica alimento com segurança", async () => {
     const { MealInferenceError } = await import("../../nutritionEngine");
     processMealInputMock.mockRejectedValue(new MealInferenceError("falha controlada"));
 
     const { analyzeFoodPhoto } = await import("./service");
-    const result = await analyzeFoodPhoto(42, {
+
+    await expect(analyzeFoodPhoto(42, {
       image: {
         base64: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
         mimeType: "image/jpeg",
         fileName: "foto.jpg",
       },
-    });
+    })).rejects.toBeInstanceOf(MealInferenceError);
 
-    expect(result.suggestedItems).toHaveLength(3);
+    expect(generateImageMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "warning",
-        eventType: "food_photo.fallback_used",
+        status: "error",
+        eventType: "food_photo.inference_failed",
       }),
     );
   });

@@ -278,19 +278,20 @@ describe("whatsappWebhook", () => {
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
     expect(lastSentWhatsAppBody).toBe([
-      "Almoço registrado.",
+      "Almoço Registrado às 08:52hs.",
       "",
       "Itens:",
-      "• 🍚 arroz, 100 g",
-      "  130 kcal | Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
-      "",
-      "Total da refeição:",
-      "130 kcal",
+      "arroz, 100g - 130 Kcal",
       "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
       "",
-      "Meta de hoje:",
-      "Você consumiu 130 kcal de 2.200 kcal da meta.",
-      "Você está em déficit de 2.070 kcal em relação à meta ajustada.",
+      "Total da refeição:",
+      "130 Kcal",
+      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "",
+      "*Meta de hoje:*",
+      "• Meta: 2.200 Kcal",
+      "• Meta ajustada: 2.200 Kcal",
+      "• Déficit: 2.070 Kcal",
     ].join("\n"));
   });
 

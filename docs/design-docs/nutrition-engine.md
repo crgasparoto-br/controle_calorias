@@ -17,6 +17,7 @@ entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> re
 - Persistência deve separar refeição (`meals`), itens (`mealItems`), mídia (`mealMedia`) e rascunho/inferência (`mealInferences`).
 - Campos `sourceText`, `transcript`, `reasoning` e `mediaJson` devem ser tratados como sensíveis.
 - Novos modelos de saída de IA devem ser validados com Zod antes de persistir.
+- Fotos sem alimento ou bebida consumível identificado com segurança devem gerar falha controlada e pedir nova mídia ou descrição textual; o sistema não deve criar itens de fallback nem registrar refeição automaticamente.
 
 ## Pontos de atenção para agentes
 
