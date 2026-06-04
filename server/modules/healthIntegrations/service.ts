@@ -15,6 +15,7 @@ import type {
 type HealthConnectionStatus = "connected" | "disconnected" | "error" | "pending";
 type HealthSetupStatus = "ready" | "missing_credentials" | "native_required" | "dev_only";
 type IntegrationKind = "native" | "oauth" | "mock";
+type StravaCaloriesSource = "strava" | "kilojoules" | "estimated_strength" | null;
 
 type HealthConnection = {
   userId: number;
@@ -35,6 +36,10 @@ type StravaActivityMetadata = {
   movingTimeSeconds: number | null;
   elapsedTimeSeconds: number | null;
   calories: number | null;
+  caloriesSource: StravaCaloriesSource;
+  estimatedCalories: boolean;
+  estimatedCaloriesWeightKg: number | null;
+  estimatedCaloriesMet: number | null;
   kilojoules: number | null;
   totalElevationGainMeters: number | null;
   averageSpeedMetersPerSecond: number | null;
@@ -169,6 +174,7 @@ const STRAVA_SYNC_LOOKBACK_MONTHS = 2;
 const STRAVA_ACTIVITIES_PER_PAGE = 100;
 const STRAVA_MAX_ACTIVITY_PAGES = 20;
 const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 30;
+const DEFAULT_STRENGTH_ESTIMATION_WEIGHT_KG = 75;
 
 function hasStravaCredentials() {
   return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET && process.env.STRAVA_REDIRECT_URI);
@@ -588,16 +594,82 @@ function buildStravaActivityDetailUrl(activityId: number) {
   return `${STRAVA_ACTIVITY_DETAIL_URL}/${activityId}`;
 }
 
-function getStravaCaloriesBurned(activity: StravaActivity) {
+function getStravaActivityType(activity: StravaActivity) {
+  return activity.sport_type || activity.type || activity.name || "Atividade Strava";
+}
+
+function isStravaStrengthActivity(activity: StravaActivity) {
+  const value = `${activity.sport_type ?? ""} ${activity.type ?? ""} ${activity.name ?? ""}`;
+  return /weight|strength|workout|crossfit|hiit|highintensity|training|musculacao|muscula[cç][aã]o|for[cç]a|peso/i.test(value);
+}
+
+function getStrengthActivityMet(activity: StravaActivity) {
+  const value = `${activity.sport_type ?? ""} ${activity.type ?? ""} ${activity.name ?? ""}`;
+  if (/crossfit|hiit|highintensity/i.test(value)) return 8;
+  if (/workout|training/i.test(value)) return 5;
+  return 3.5;
+}
+
+function estimateStravaStrengthCalories(activity: StravaActivity) {
+  if (!isStravaStrengthActivity(activity)) return null;
+
+  const durationMinutes = Math.max(Math.round((activity.moving_time ?? activity.elapsed_time ?? 0) / 60), 0);
+  if (durationMinutes < 1) return null;
+
+  const met = getStrengthActivityMet(activity);
+  const calories = Math.round((met * 3.5 * DEFAULT_STRENGTH_ESTIMATION_WEIGHT_KG * durationMinutes) / 200);
+  return calories > 0
+    ? {
+      calories,
+      met,
+      weightKg: DEFAULT_STRENGTH_ESTIMATION_WEIGHT_KG,
+    }
+    : null;
+}
+
+function getStravaCaloriesInfo(activity: StravaActivity) {
   if (typeof activity.calories === "number" && activity.calories > 0) {
-    return Math.round(activity.calories);
+    return {
+      calories: Math.round(activity.calories),
+      source: "strava" as const,
+      estimated: false,
+      estimatedWeightKg: null,
+      estimatedMet: null,
+    };
   }
 
   if (typeof activity.kilojoules === "number" && activity.kilojoules > 0) {
-    return Math.round(activity.kilojoules * 0.239006);
+    return {
+      calories: Math.round(activity.kilojoules * 0.239006),
+      source: "kilojoules" as const,
+      estimated: false,
+      estimatedWeightKg: null,
+      estimatedMet: null,
+    };
   }
 
-  return 0;
+  const estimated = estimateStravaStrengthCalories(activity);
+  if (estimated) {
+    return {
+      calories: estimated.calories,
+      source: "estimated_strength" as const,
+      estimated: true,
+      estimatedWeightKg: estimated.weightKg,
+      estimatedMet: estimated.met,
+    };
+  }
+
+  return {
+    calories: 0,
+    source: null,
+    estimated: false,
+    estimatedWeightKg: null,
+    estimatedMet: null,
+  };
+}
+
+function getStravaCaloriesBurned(activity: StravaActivity) {
+  return getStravaCaloriesInfo(activity).calories;
 }
 
 function getOptionalNumber(value: unknown) {
@@ -613,6 +685,7 @@ function getOptionalString(value: unknown) {
 }
 
 function getStravaActivityMetadata(activity: StravaActivity): StravaActivityMetadata {
+  const caloriesInfo = getStravaCaloriesInfo(activity);
   return {
     externalId: String(activity.id),
     name: activity.name,
@@ -620,7 +693,11 @@ function getStravaActivityMetadata(activity: StravaActivity): StravaActivityMeta
     distanceMeters: getOptionalNumber(activity.distance),
     movingTimeSeconds: getOptionalNumber(activity.moving_time),
     elapsedTimeSeconds: getOptionalNumber(activity.elapsed_time),
-    calories: getStravaCaloriesBurned(activity) || null,
+    calories: caloriesInfo.calories || null,
+    caloriesSource: caloriesInfo.source,
+    estimatedCalories: caloriesInfo.estimated,
+    estimatedCaloriesWeightKg: caloriesInfo.estimatedWeightKg,
+    estimatedCaloriesMet: caloriesInfo.estimatedMet,
     kilojoules: getOptionalNumber(activity.kilojoules),
     totalElevationGainMeters: getOptionalNumber(activity.total_elevation_gain),
     averageSpeedMetersPerSecond: getOptionalNumber(activity.average_speed),
@@ -734,16 +811,15 @@ async function fetchStravaActivities(userId: number) {
   return activities;
 }
 
-function getStravaActivityType(activity: StravaActivity) {
-  return activity.sport_type || activity.type || activity.name || "Atividade Strava";
-}
-
 function getStravaExerciseNote(activity: StravaActivity) {
   const metadata = getStravaActivityMetadata(activity);
   const fragments = [`${STRAVA_ACTIVITY_NOTE_PREFIX}. Referencia externa: strava:${activity.id}.`];
 
   if (metadata.distanceMeters) fragments.push(`Distancia: ${formatDistanceKm(metadata.distanceMeters)}.`);
-  if (metadata.calories) fragments.push(`Calorias: ${metadata.calories} kcal.`);
+  if (metadata.calories) {
+    const label = metadata.estimatedCalories ? "Calorias estimadas" : "Calorias";
+    fragments.push(`${label}: ${metadata.calories} kcal.`);
+  }
   if (metadata.totalElevationGainMeters) fragments.push(`Elevacao: ${Math.round(metadata.totalElevationGainMeters)} m.`);
   if (metadata.averageHeartRate) fragments.push(`FC media: ${Math.round(metadata.averageHeartRate)} bpm.`);
   if (metadata.averageSpeedMetersPerSecond) {
