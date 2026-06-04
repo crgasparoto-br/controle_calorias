@@ -15,7 +15,7 @@ const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
 
 type WhatsappIntentResult = {
   handled: true;
-  action: "water_logged" | "meal_item_added" | "meal_item_grams_adjusted" | "meal_suggestion" | "period_report" | "clarification_needed";
+  action: "water_logged" | "meal_item_added" | "meal_item_grams_adjusted" | "meal_item_replaced" | "meal_suggestion" | "period_report" | "clarification_needed";
   reply: string;
   eventType: string;
   detail: string;
@@ -52,6 +52,11 @@ type NutritionTotals = {
 type CoffeeAdditionIntent = {
   cups: number;
   mealLabel: string | null;
+};
+
+type FoodReplacementIntent = {
+  fromFood: string;
+  toFood: string;
 };
 
 type ExistingMeal = {
@@ -221,8 +226,9 @@ function parseWaterIntent(text: string) {
 
 function cleanTargetFoodText(value?: string) {
   return value
-    ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/g, "")
-    .replace(/^\b(?:o|a|os|as|do|da|de|dos|das)\b\s+/, "")
+    ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/gi, "")
+    .replace(/[.,;:!?]+$/g, "")
+    .replace(/^\b(?:o|a|os|as|do|da|de|dos|das)\b\s+/i, "")
     .trim() || null;
 }
 
@@ -268,6 +274,23 @@ function parseMealItemGramsAdjustment(text: string) {
     gramsDelta,
     targetFood: cleanTargetFoodText(targetMatch?.[1]),
   };
+}
+
+function parseFoodReplacementIntent(text: string): FoodReplacementIntent | null {
+  const correctionMatch = text.match(/\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i);
+  const swapMatch = text.match(/\b(?:trocar|troque|troca|mudar|alterar|corrigir)\b\s+(.+?)\s+(?:por|para)\s+(.+)$/i);
+  const match = correctionMatch || swapMatch;
+  if (!match) {
+    return null;
+  }
+
+  const fromFood = cleanTargetFoodText(match[1]);
+  const toFood = cleanTargetFoodText(match[2]);
+  if (!fromFood || !toFood || /\d/.test(toFood)) {
+    return null;
+  }
+
+  return { fromFood, toFood };
 }
 
 function parseCoffeeAdditionIntent(text: string): CoffeeAdditionIntent | null {
@@ -431,6 +454,16 @@ function scaleMealItem(item: MealItemInput, nextGrams: number): MealItemInput {
   };
 }
 
+function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealItemInput {
+  return {
+    ...item,
+    foodName: nextFoodName,
+    canonicalName: nextFoodName,
+    confidence: Math.min(Number(item.confidence || 0.8), 0.8),
+    source: "heuristic",
+  };
+}
+
 function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
   const volumeMl = Math.round(cups * UNSWEETENED_COFFEE_CUP_ML);
   const calories = Math.round(cups * UNSWEETENED_COFFEE_CALORIES_PER_CUP);
@@ -569,6 +602,52 @@ async function handleMealItemReplacement(userId: number, replacement: NonNullabl
     resolveNextGrams: () => replacement.nextGrams,
     detail: `Quantidade de ${replacement.targetFood} substituída para ${formatNumber(replacement.nextGrams)} g via WhatsApp.`,
   });
+}
+
+async function handleFoodReplacementIntent(userId: number, replacement: FoodReplacementIntent): Promise<WhatsappIntentResult> {
+  const latestMeal = (await listMeals(userId))[0];
+  if (!latestMeal?.items?.length) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: "Não encontrei uma refeição recente para corrigir. Me diga qual alimento devo trocar.",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de substituição de alimento sem refeição recente disponível.",
+    };
+  }
+
+  const target = findTargetMealItem(latestMeal.items, replacement.fromFood);
+  if (!target) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Não encontrei ${replacement.fromFood} na última refeição. Me diga qual alimento devo trocar.`,
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de substituição de alimento sem item compatível na última refeição.",
+    };
+  }
+
+  const nextItems = latestMeal.items.map((item, index) => index === target.index ? replaceMealItemFood(item, replacement.toFood) : item);
+  const updatedMeal = await updateMeal(userId, {
+    mealId: latestMeal.id,
+    mealLabel: latestMeal.mealLabel,
+    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
+    notes: latestMeal.notes,
+    items: nextItems,
+  });
+
+  return {
+    handled: true,
+    action: "meal_item_replaced",
+    reply: `Troquei ${target.item.foodName} por ${replacement.toFood} na última refeição. Mantive a quantidade e os macros estimados; se quiser, envie a quantidade correta em gramas para ajustar também.`,
+    eventType: "whatsapp.intent.meal_item_replaced",
+    detail: `Alimento ${target.item.foodName} substituído por ${replacement.toFood} via WhatsApp.`,
+    data: {
+      mealId: updatedMeal.id,
+      previousFoodName: target.item.foodName,
+      nextFoodName: replacement.toFood,
+    },
+  };
 }
 
 async function handleCoffeeAdditionIntent(userId: number, addition: CoffeeAdditionIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
@@ -728,6 +807,11 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   const gramsAdjustment = parseMealItemGramsAdjustment(text);
   if (gramsAdjustment) {
     return handleMealItemAdjustment(userId, gramsAdjustment);
+  }
+
+  const foodReplacement = parseFoodReplacementIntent(text);
+  if (foodReplacement) {
+    return handleFoodReplacementIntent(userId, foodReplacement);
   }
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
