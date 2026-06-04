@@ -315,24 +315,24 @@ describe("healthIntegrationService Strava", () => {
     expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
       activityType: "WeightTraining",
       durationMinutes: 45,
-      caloriesBurned: 207,
+      caloriesBurned: 295,
       occurredAt: "2026-06-02T22:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:997. Calorias estimadas: 207 kcal.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:997. Calorias estimadas: 295 kcal.",
     });
 
     const status = await healthIntegrationService.getStatus(42);
     const activityRecord = status.recentRecords.find(record => record.id === "997:activity");
     const energyRecord = status.recentRecords.find(record => record.id === "997:energy");
     expect(activityRecord?.metadata).toMatchObject({
-      calories: 207,
+      calories: 295,
       caloriesSource: "estimated_strength",
       estimatedCalories: true,
       estimatedCaloriesWeightKg: 75,
-      estimatedCaloriesMet: 3.5,
+      estimatedCaloriesMet: 5,
     });
     expect(energyRecord).toMatchObject({
       dataType: "energy_burned",
-      value: 207,
+      value: 295,
       unit: "kcal",
     });
   });
