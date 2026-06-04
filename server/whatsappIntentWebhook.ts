@@ -134,6 +134,11 @@ function buildUnknownFoodReply(text: string) {
   return UNKNOWN_FOOD_REPLY;
 }
 
+function isBareDailySummaryRequest(text: string) {
+  const normalized = normalizeText(text);
+  return normalized === "resumo" || normalized === "relatorio" || normalized === "balanco";
+}
+
 function pruneRecentlyHandledTextIntentMessageIds(now = Date.now()) {
   for (const [messageId, expiresAt] of recentlyHandledTextIntentMessageIds) {
     if (expiresAt <= now) {
@@ -280,7 +285,11 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
 
   const text = getTextBody(message);
   const pendingContext = getPendingTextIntentContext(userId);
-  const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : text;
+  const textForIntent = pendingContext?.kind === "period_report"
+    ? `Resumo ${text}`
+    : isBareDailySummaryRequest(text)
+      ? "Resumo hoje"
+      : text;
 
   const result = await executeWhatsappTextIntent(userId, {
     text: textForIntent,
