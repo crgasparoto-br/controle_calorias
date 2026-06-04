@@ -249,6 +249,8 @@ describe("healthIntegrationService Strava", () => {
       movingTimeSeconds: 1800,
       elapsedTimeSeconds: 1980,
       calories: 412,
+      caloriesSource: "strava",
+      estimatedCalories: false,
       totalElevationGainMeters: 16,
       averageSpeedMetersPerSecond: 2.723,
       maxSpeedMetersPerSecond: 4.7,
@@ -271,6 +273,67 @@ describe("healthIntegrationService Strava", () => {
       manual: false,
       private: true,
       hasHeartRate: true,
+    });
+  });
+
+  it("estima calorias para treino com peso quando o Strava não retorna gasto energético", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read_all",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 997,
+          name: "Treino de força",
+          sport_type: "WeightTraining",
+          start_date: "2026-06-02T22:00:00Z",
+          moving_time: 2700,
+        },
+      ]))
+      .mockResolvedValueOnce(jsonResponse({
+        id: 997,
+        name: "Treino de força",
+        sport_type: "WeightTraining",
+        start_date: "2026-06-02T22:00:00Z",
+        moving_time: 2700,
+        elapsed_time: 3000,
+      })));
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read_all",
+    });
+
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
+      activityType: "WeightTraining",
+      durationMinutes: 45,
+      caloriesBurned: 207,
+      occurredAt: "2026-06-02T22:00:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:997. Calorias estimadas: 207 kcal.",
+    });
+
+    const status = await healthIntegrationService.getStatus(42);
+    const activityRecord = status.recentRecords.find(record => record.id === "997:activity");
+    const energyRecord = status.recentRecords.find(record => record.id === "997:energy");
+    expect(activityRecord?.metadata).toMatchObject({
+      calories: 207,
+      caloriesSource: "estimated_strength",
+      estimatedCalories: true,
+      estimatedCaloriesWeightKg: 75,
+      estimatedCaloriesMet: 3.5,
+    });
+    expect(energyRecord).toMatchObject({
+      dataType: "energy_burned",
+      value: 207,
+      unit: "kcal",
     });
   });
 
