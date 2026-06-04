@@ -219,6 +219,36 @@ function parseWaterIntent(text: string) {
   return { kind: "water" as const, amountMl };
 }
 
+function cleanTargetFoodText(value?: string) {
+  return value
+    ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/g, "")
+    .replace(/^\b(?:o|a|os|as|do|da|de|dos|das)\b\s+/, "")
+    .trim() || null;
+}
+
+function parseMealItemGramsReplacement(text: string) {
+  const normalized = normalizeIntentText(text);
+  const match = normalized.match(/\b(?:mudar|alterar|ajustar|trocar|corrigir)\b\s+(.+?)\s+(?:para|por)\s+(\d+(?:[,.]\d+)?)\s*(?:g|gramas?)\b/);
+  if (!match) {
+    return null;
+  }
+
+  const nextGrams = Number(match[2].replace(",", "."));
+  if (!Number.isFinite(nextGrams) || nextGrams < MIN_FOOD_GRAMS) {
+    return null;
+  }
+
+  const targetFood = cleanTargetFoodText(match[1]);
+  if (!targetFood) {
+    return null;
+  }
+
+  return {
+    nextGrams,
+    targetFood,
+  };
+}
+
 function parseMealItemGramsAdjustment(text: string) {
   const normalized = normalizeIntentText(text);
   const match = normalized.match(/\b(?:diminuir|diminui|diminuia|reduzir|reduz|reduza|tirar|remover)\b[^\d]*(\d+(?:[,.]\d+)?)\s*(?:g|gramas?)\b/);
@@ -233,13 +263,10 @@ function parseMealItemGramsAdjustment(text: string) {
 
   const afterAmount = normalized.slice((match.index ?? 0) + match[0].length);
   const targetMatch = afterAmount.match(/(?:\bdo\b|\bda\b|\bde\b)\s+(.+)/);
-  const rawTargetFood = targetMatch?.[1]
-    ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/g, "")
-    .trim();
 
   return {
     gramsDelta,
-    targetFood: rawTargetFood || null,
+    targetFood: cleanTargetFoodText(targetMatch?.[1]),
   };
 }
 
@@ -472,8 +499,13 @@ async function handleWaterIntent(userId: number, text: string, receivedAt: Date,
   };
 }
 
-async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<ReturnType<typeof parseMealItemGramsAdjustment>>): Promise<WhatsappIntentResult> {
-  const latestMeal = (await listMeals(userId))[0];
+async function updateLatestMealItemGrams(input: {
+  userId: number;
+  targetFood: string | null;
+  resolveNextGrams: (previousGrams: number) => number;
+  detail: string;
+}) {
+  const latestMeal = (await listMeals(input.userId))[0];
   if (!latestMeal?.items?.length) {
     return {
       handled: true,
@@ -481,10 +513,10 @@ async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<
       reply: "Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada.",
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de ajuste de gramas sem refeição recente disponível.",
-    };
+    } satisfies WhatsappIntentResult;
   }
 
-  const target = findTargetMealItem(latestMeal.items, adjustment.targetFood);
+  const target = findTargetMealItem(latestMeal.items, input.targetFood);
   if (!target) {
     return {
       handled: true,
@@ -492,13 +524,13 @@ async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<
       reply: "Não encontrei esse alimento na última refeição. Me diga qual item devo ajustar.",
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de ajuste de gramas sem alimento compatível na última refeição.",
-    };
+    } satisfies WhatsappIntentResult;
   }
 
   const previousGrams = Number(target.item.estimatedGrams || 0);
-  const nextGrams = Math.max(previousGrams - adjustment.gramsDelta, MIN_FOOD_GRAMS);
+  const nextGrams = Math.max(input.resolveNextGrams(previousGrams), MIN_FOOD_GRAMS);
   const nextItems = latestMeal.items.map((item, index) => index === target.index ? scaleMealItem(item, nextGrams) : item);
-  const updatedMeal = await updateMeal(userId, {
+  const updatedMeal = await updateMeal(input.userId, {
     mealId: latestMeal.id,
     mealLabel: latestMeal.mealLabel,
     occurredAt: new Date(latestMeal.occurredAt).toISOString(),
@@ -511,14 +543,32 @@ async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<
     action: "meal_item_grams_adjusted",
     reply: `Ajustei ${target.item.foodName}: de ${formatNumber(previousGrams)} g para ${formatNumber(nextGrams)} g na última refeição.`,
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: `Último item compatível ajustado em ${formatNumber(adjustment.gramsDelta)} g via WhatsApp.`,
+    detail: input.detail,
     data: {
       mealId: updatedMeal.id,
       foodName: target.item.foodName,
       previousGrams,
       nextGrams,
     },
-  };
+  } satisfies WhatsappIntentResult;
+}
+
+async function handleMealItemAdjustment(userId: number, adjustment: NonNullable<ReturnType<typeof parseMealItemGramsAdjustment>>): Promise<WhatsappIntentResult> {
+  return updateLatestMealItemGrams({
+    userId,
+    targetFood: adjustment.targetFood,
+    resolveNextGrams: previousGrams => previousGrams - adjustment.gramsDelta,
+    detail: `Último item compatível ajustado em ${formatNumber(adjustment.gramsDelta)} g via WhatsApp.`,
+  });
+}
+
+async function handleMealItemReplacement(userId: number, replacement: NonNullable<ReturnType<typeof parseMealItemGramsReplacement>>): Promise<WhatsappIntentResult> {
+  return updateLatestMealItemGrams({
+    userId,
+    targetFood: replacement.targetFood,
+    resolveNextGrams: () => replacement.nextGrams,
+    detail: `Quantidade de ${replacement.targetFood} substituída para ${formatNumber(replacement.nextGrams)} g via WhatsApp.`,
+  });
 }
 
 async function handleCoffeeAdditionIntent(userId: number, addition: CoffeeAdditionIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
@@ -668,6 +718,11 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   }
   if (waterIntent?.kind === "water") {
     return handleWaterIntent(userId, text, receivedAt, waterIntent.amountMl);
+  }
+
+  const gramsReplacement = parseMealItemGramsReplacement(text);
+  if (gramsReplacement) {
+    return handleMealItemReplacement(userId, gramsReplacement);
   }
 
   const gramsAdjustment = parseMealItemGramsAdjustment(text);
