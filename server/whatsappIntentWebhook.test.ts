@@ -35,7 +35,7 @@ vi.mock("./modules/meals/service", () => ({
   updateMeal: updateMealMock,
 }));
 
-const { handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
+const { __resetWhatsAppTextIntentContextForTests, handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
 
 type MockResponse = {
   statusCode: number;
@@ -136,6 +136,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-03T12:00:00.000Z"));
+    __resetWhatsAppTextIntentContextForTests();
     sentMessages = [];
     getUserIdByWhatsappPhoneMock.mockReset();
     getUserNutritionGoalMock.mockReset();
@@ -409,6 +410,39 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.period_report",
     }));
     expect(sentMessages.at(-1)).toContain("Resumo de semana");
+    expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
+  });
+
+  it("mantém contexto de resumo quando o usuário responde apenas o período solicitado", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 20,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(),
+        items: [riceItem],
+      },
+    ]);
+    const askSummary = createTextWebhookRequest("Resumo", { id: "summary-without-period" });
+    const askResponse = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(askSummary as never, askResponse as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(sentMessages.at(-1)).toContain("Me diga o período");
+
+    const periodAnswer = createTextWebhookRequest("Hoje", { id: "summary-period-answer" });
+    const periodResponse = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(periodAnswer as never, periodResponse as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.period_report",
+    }));
+    expect(sentMessages.at(-1)).toContain("Resumo de hoje");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
   });
 

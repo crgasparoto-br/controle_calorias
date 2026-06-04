@@ -38,6 +38,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Quando a refeição indicada para adicionar café não existir ou faltar quantidade/refeição, o sistema deve pedir esclarecimento antes de alterar qualquer registro.
 - Pedidos de sugestão de lanche devem responder diretamente ao usuário com opções simples, sem criar refeição por fallback.
 - Pedidos de resumo, relatório ou balanço devem exigir período explícito, aceitar períodos como `hoje`, `ontem`, `semana`, `mês`, `últimos 7 dias` ou intervalo `01/06 a 03/06`, e responder com totais do período.
+- Quando um pedido de resumo vier sem período, o sistema deve manter contexto temporário para que a próxima mensagem textual curta, como `hoje`, `ontem` ou `semana`, complete o pedido em vez de cair no fluxo de registro de refeição.
 - Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a meta estimada do período quando a meta estiver disponível.
 - Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber uma notificação curta pelo WhatsApp com duração, nome do treino, calorias queimadas, data e botão `Ver resumo do dia`.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
@@ -71,6 +72,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que texto como `Me dê uma sugestão para o lanche da tarde` retorna uma sugestão e não chama inferência nutricional.
 - Testar que texto como `Me envie um resumo da semana` retorna relatório do período e não chama inferência nutricional.
 - Testar que pedido de relatório sem período pede esclarecimento antes de executar qualquer ação.
+- Testar que a resposta ao pedido de período, como `Hoje`, mantém o contexto do resumo e não delega para criação de refeição.
 - Testar que mensagem de texto comum de refeição continua delegando para o fluxo normal de inferência nutricional.
 - Testar que áudio transcrito como `500 ml de água ontem` registra hidratação sem chamar inferência nutricional nem criar refeição.
 - Testar que caption de imagem com texto parecido com comando continua no fluxo multimodal normal.
