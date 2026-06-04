@@ -72,6 +72,20 @@ const bananaItem = {
   source: "catalog" as const,
 };
 
+const mayonnaiseItem = {
+  foodName: "Maionese",
+  canonicalName: "Maionese",
+  portionText: "30 g",
+  servings: 1,
+  estimatedGrams: 30,
+  calories: 198,
+  protein: 0.3,
+  carbs: 0.4,
+  fat: 21,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
 let sentMessages: string[];
 
 function createResponse(): MockResponse {
@@ -267,6 +281,50 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.meal_item_grams_adjusted",
     }));
     expect(sentMessages.at(-1)).toContain("de 120 g para 79 g");
+  });
+
+  it("troca alimento existente e não delega para inferência nutricional", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 14,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(),
+        notes: "Registro por imagem",
+        items: [mayonnaiseItem, riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 14,
+      ...input,
+    }));
+    const req = createTextWebhookRequest("troque a maionese por requeijão", { id: "replace-food" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 14,
+      mealLabel: "Lanche",
+      items: [
+        expect.objectContaining({
+          foodName: "requeijão",
+          canonicalName: "requeijão",
+          estimatedGrams: 30,
+          portionText: "30 g",
+          calories: 198,
+          source: "heuristic",
+        }),
+        riceItem,
+      ],
+    }));
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_item_replaced",
+    }));
+    expect(sentMessages.at(-1)).toContain("Troquei Maionese por requeijão");
   });
 
   it("adiciona café sem açúcar à refeição existente e não delega para inferência nutricional", async () => {
