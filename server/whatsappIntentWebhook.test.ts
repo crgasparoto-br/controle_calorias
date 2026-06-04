@@ -283,7 +283,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("de 120 g para 79 g");
   });
 
-  it("troca alimento existente e não delega para inferência nutricional", async () => {
+  it("troca alimento existente, recalcula macros e não delega para inferência nutricional", async () => {
     listMealsMock.mockResolvedValue([
       {
         id: 14,
@@ -312,7 +312,10 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
           canonicalName: "requeijão",
           estimatedGrams: 30,
           portionText: "30 g",
-          calories: 198,
+          calories: 45,
+          protein: 1.8,
+          carbs: 4.5,
+          fat: 1.5,
           source: "heuristic",
         }),
         riceItem,
@@ -324,7 +327,8 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       status: "success",
       eventType: "whatsapp.intent.meal_item_replaced",
     }));
-    expect(sentMessages.at(-1)).toContain("Troquei Maionese por requeijão");
+    expect(sentMessages.at(-1)).toContain("recalculei os macros");
+    expect(sentMessages.at(-1)).toContain("45 kcal");
   });
 
   it("adiciona café sem açúcar à refeição existente e não delega para inferência nutricional", async () => {
