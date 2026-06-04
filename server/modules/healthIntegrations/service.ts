@@ -162,6 +162,7 @@ type StravaAutoSyncSummary = {
 const connections = new Map<string, HealthConnection>();
 const records = new Map<number, HealthRecord[]>();
 const stravaTokens = new Map<number, StravaTokenState>();
+const stravaRateLimitCooldowns = new Map<number, number>();
 
 const STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize";
 const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
@@ -173,8 +174,21 @@ const STRAVA_TOKEN_SECRET_PREFIX = "strava_oauth_user";
 const STRAVA_SYNC_LOOKBACK_MONTHS = 2;
 const STRAVA_ACTIVITIES_PER_PAGE = 100;
 const STRAVA_MAX_ACTIVITY_PAGES = 20;
+const DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = 20;
 const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 30;
 const DEFAULT_STRENGTH_ESTIMATION_WEIGHT_KG = 75;
+const DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES = 15;
+
+class StravaRateLimitError extends Error {
+  retryAfterMs: number;
+
+  constructor(retryAfterMs: number) {
+    const retryAt = new Date(Date.now() + retryAfterMs);
+    super(`Limite de requisições do Strava atingido. Tente sincronizar novamente após ${retryAt.toLocaleString("pt-BR")}.`);
+    this.name = "StravaRateLimitError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
 
 function hasStravaCredentials() {
   return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET && process.env.STRAVA_REDIRECT_URI);
@@ -226,6 +240,16 @@ const PROVIDERS: Array<{
     integrationKind: "oauth",
     setupStatus: hasStravaCredentials() ? "ready" : "missing_credentials",
     docsUrl: "https://developers.strava.com/docs/authentication/",
+  },
+  {
+    provider: "garmin_connect",
+    label: "Garmin Connect",
+    platform: "web",
+    available: false,
+    supportedDataTypes: ["activity", "energy_burned"],
+    integrationKind: "oauth",
+    setupStatus: "missing_credentials",
+    docsUrl: "https://developer.garmin.com/health-api/overview/",
   },
   {
     provider: "mock",
@@ -627,6 +651,42 @@ function estimateStravaStrengthCalories(activity: StravaActivity) {
     : null;
 }
 
+function parseRetryAfterMs(response: Response) {
+  const retryAfter = response.headers.get("retry-after");
+  if (!retryAfter) {
+    return DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES * 60_000;
+  }
+
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return seconds * 1000;
+  }
+
+  const retryAt = Date.parse(retryAfter);
+  if (Number.isFinite(retryAt)) {
+    return Math.max(retryAt - Date.now(), 60_000);
+  }
+
+  return DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES * 60_000;
+}
+
+function createStravaRateLimitError(response: Response) {
+  return new StravaRateLimitError(parseRetryAfterMs(response));
+}
+
+function getStravaCooldownError(userId: number) {
+  const retryAt = stravaRateLimitCooldowns.get(userId);
+  if (!retryAt) return null;
+
+  const retryAfterMs = retryAt - Date.now();
+  if (retryAfterMs <= 0) {
+    stravaRateLimitCooldowns.delete(userId);
+    return null;
+  }
+
+  return new StravaRateLimitError(retryAfterMs);
+}
+
 function getStravaCaloriesInfo(activity: StravaActivity) {
   if (typeof activity.calories === "number" && activity.calories > 0) {
     return {
@@ -745,7 +805,16 @@ function formatPace(speedMetersPerSecond: number) {
 }
 
 function shouldFetchStravaActivityDetail(activity: StravaActivity) {
-  return activity.calories == null && activity.kilojoules == null;
+  return activity.calories == null && activity.kilojoules == null && (activity.moving_time ?? 0) > 0;
+}
+
+function getStravaMaxActivityDetailRequestsPerSync() {
+  const configured = Number(process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC ?? DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC);
+  if (!Number.isFinite(configured) || configured < 0) {
+    return DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC;
+  }
+
+  return Math.floor(configured);
 }
 
 async function fetchStravaActivityDetail(accessToken: string, activityId: number) {
@@ -760,6 +829,9 @@ async function fetchStravaActivityDetail(accessToken: string, activityId: number
       activityId,
       status: response.status,
     });
+    if (response.status === 429) {
+      throw createStravaRateLimitError(response);
+    }
     return null;
   }
 
@@ -767,8 +839,9 @@ async function fetchStravaActivityDetail(accessToken: string, activityId: number
   return detail;
 }
 
-async function enrichStravaActivitiesWithDetails(accessToken: string, activities: StravaActivity[]) {
+async function enrichStravaActivitiesWithDetails(accessToken: string, activities: StravaActivity[], remainingDetailRequests: number) {
   const enrichedActivities: StravaActivity[] = [];
+  let usedDetailRequests = 0;
 
   for (const activity of activities) {
     if (!shouldFetchStravaActivityDetail(activity)) {
@@ -776,17 +849,29 @@ async function enrichStravaActivitiesWithDetails(accessToken: string, activities
       continue;
     }
 
+    if (usedDetailRequests >= remainingDetailRequests) {
+      enrichedActivities.push(activity);
+      continue;
+    }
+
+    usedDetailRequests += 1;
     const detail = await fetchStravaActivityDetail(accessToken, activity.id);
     enrichedActivities.push(detail ? { ...activity, ...detail } : activity);
   }
 
-  return enrichedActivities;
+  return { activities: enrichedActivities, usedDetailRequests };
 }
 
 async function fetchStravaActivities(userId: number) {
+  const cooldownError = getStravaCooldownError(userId);
+  if (cooldownError) {
+    throw cooldownError;
+  }
+
   const token = await ensureValidStravaToken(userId);
   const activities: StravaActivity[] = [];
   const after = getStravaActivitiesAfterTimestamp();
+  let remainingDetailRequests = getStravaMaxActivityDetailRequestsPerSync();
 
   for (let page = 1; page <= STRAVA_MAX_ACTIVITY_PAGES; page += 1) {
     const response = await fetch(buildStravaActivitiesUrl(page, after), {
@@ -796,6 +881,9 @@ async function fetchStravaActivities(userId: number) {
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        throw createStravaRateLimitError(response);
+      }
       throw new Error(`Falha ao buscar atividades do Strava (${response.status}).`);
     }
 
@@ -804,7 +892,9 @@ async function fetchStravaActivities(userId: number) {
       throw new Error("Resposta inesperada do Strava ao buscar atividades.");
     }
 
-    activities.push(...await enrichStravaActivitiesWithDetails(token.accessToken, pageActivities));
+    const enrichedPage = await enrichStravaActivitiesWithDetails(token.accessToken, pageActivities, remainingDetailRequests);
+    remainingDetailRequests = Math.max(remainingDetailRequests - enrichedPage.usedDetailRequests, 0);
+    activities.push(...enrichedPage.activities);
     if (pageActivities.length < STRAVA_ACTIVITIES_PER_PAGE) break;
   }
 
@@ -1002,6 +1092,9 @@ export class HealthIntegrationService {
   connect(userId: number, input: ConnectHealthIntegrationInput) {
     const provider = getProvider(input.provider);
     if (!provider) throw new Error("Provedor de saúde desconhecido.");
+    if (provider.integrationKind === "oauth" && provider.provider !== "strava") {
+      throw new Error(`${provider.label} ainda precisa de implementação OAuth no backend antes de conectar exercícios automaticamente.`);
+    }
     if (provider.provider === "strava") {
       if (!provider.available) {
         throw new Error("Configure STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET e STRAVA_REDIRECT_URI antes de iniciar o OAuth do Strava.");
@@ -1169,6 +1262,9 @@ export class HealthIntegrationService {
         importedExercises,
       };
     } catch (error) {
+      if (error instanceof StravaRateLimitError) {
+        stravaRateLimitCooldowns.set(userId, Date.now() + error.retryAfterMs);
+      }
       const next = upsertConnectionState(userId, {
         provider: input.provider,
         status: "error",

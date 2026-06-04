@@ -15,14 +15,14 @@ Fonte: `server/nutritionRouter.ts`.
 | `professionals` | 11 | 5 | 6 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 2 | 1 | 1 | protected | Conclusão de onboarding nutricional |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
-| `dashboard` | 1 | 1 | 0 | protected | Visão consolidada diária |
+| `dashboard` | 2 | 2 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
 | `foods` | 5 | 2 | 3 | protected | Catálogo, favoritos e busca de alimentos |
 | `meals` | 11 | 3 | 8 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
-| `reports` | 5 | 5 | 0 | protected | Relatórios semanais e insights |
+| `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 3 | 2 | 1 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
 
@@ -95,6 +95,7 @@ Fonte: `server/nutritionRouter.ts`.
 | Procedure | Operação | Escopo |
 |---|---|---|
 | `overview` | query | protected |
+| `today` | query | protected |
 
 ### goals
 
@@ -159,6 +160,7 @@ Fonte: `server/nutritionRouter.ts`.
 
 | Procedure | Operação | Escopo |
 |---|---|---|
+| `periodBundle` | query | protected |
 | `habitAnalytics` | query | protected |
 | `bundle` | query | protected |
 | `weekly` | query | protected |

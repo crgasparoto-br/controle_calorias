@@ -279,6 +279,7 @@ export default function OnboardingPage() {
         utils.nutrition.onboarding.profile.invalidate(),
         utils.nutrition.goals.get.invalidate(),
         utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.dashboard.today.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
       ]);
       toast.success("Perfil salvo com sucesso.");

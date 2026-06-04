@@ -206,6 +206,7 @@ export default function GoalsPage() {
       await Promise.all([
         utils.nutrition.goals.get.invalidate(),
         utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.dashboard.today.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
       ]);
       if (result.safetyWarnings.length) {
@@ -597,29 +598,43 @@ export default function GoalsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-3">
+                <div className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-8 xl:overflow-visible xl:pb-0">
                   {previewDays.map(day => (
-                    <div key={day.weekday} className="rounded-2xl border bg-muted/20 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-medium tracking-tight">{day.label}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
-                          </p>
+                    <div key={day.weekday} className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate font-medium tracking-tight">{day.label}</p>
+                          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
                         </div>
-                        <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
+                        <p className="min-h-10 text-sm leading-5 text-foreground">
+                          {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
+                        </p>
                       </div>
-                      <p className="mt-3 text-sm text-muted-foreground">
-                        {formatCalories(day.calories)} · {formatGrams(day.proteinGrams)} proteína · {formatGrams(day.carbsGrams)} carbo · {formatGrams(day.fatGrams)} gordura
-                      </p>
+                      <div className="mt-3 space-y-1 text-sm text-foreground">
+                        <p>{formatCalories(day.calories)}</p>
+                        <p>{formatGrams(day.proteinGrams)} proteína</p>
+                        <p>{formatGrams(day.carbsGrams)} carbo</p>
+                        <p>{formatGrams(day.fatGrams)} gordura</p>
+                      </div>
                     </div>
                   ))}
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  <SummaryTile label="Calorias semanais" value={formatCalories(weeklyTotals.calories)} />
-                  <SummaryTile label="Proteínas na semana" value={formatGrams(weeklyTotals.proteinGrams)} />
-                  <SummaryTile label="Carboidratos na semana" value={formatGrams(weeklyTotals.carbsGrams)} />
-                  <SummaryTile label="Gorduras na semana" value={formatGrams(weeklyTotals.fatGrams)} />
+                  <div className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate font-medium tracking-tight">Total</p>
+                        <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">sem.</span>
+                      </div>
+                      <p className="min-h-10 text-sm leading-5 text-foreground">
+                        Soma das metas planejadas para a semana.
+                      </p>
+                    </div>
+                    <div className="mt-3 space-y-1 text-sm text-foreground">
+                      <p>{formatCalories(weeklyTotals.calories)}</p>
+                      <p>{formatGrams(weeklyTotals.proteinGrams)} proteína</p>
+                      <p>{formatGrams(weeklyTotals.carbsGrams)} carbo</p>
+                      <p>{formatGrams(weeklyTotals.fatGrams)} gordura</p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -732,6 +747,26 @@ function MacroField({
   onGramChange: (value: number) => void;
   onPercentChange: (value: number) => void;
 }) {
+  const formattedPercent = formatDecimalInputPtBr(percent, 1);
+  const [percentInputValue, setPercentInputValue] = useState(formattedPercent);
+  const [isPercentFocused, setIsPercentFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isPercentFocused) {
+      setPercentInputValue(formattedPercent);
+    }
+  }, [formattedPercent, isPercentFocused]);
+
+  function handlePercentChange(value: string) {
+    setPercentInputValue(value);
+    onPercentChange(parseDecimalInputPtBr(value));
+  }
+
+  function handlePercentBlur() {
+    setIsPercentFocused(false);
+    setPercentInputValue(formatDecimalInputPtBr(percent, 1));
+  }
+
   return (
     <div className="space-y-2 rounded-2xl border bg-background p-4">
       <Label>{label}</Label>
@@ -747,8 +782,10 @@ function MacroField({
           <Input
             type="text"
             inputMode="decimal"
-            value={formatDecimalInputPtBr(percent, 1)}
-            onChange={event => onPercentChange(parseDecimalInputPtBr(event.target.value))}
+            value={percentInputValue}
+            onFocus={() => setIsPercentFocused(true)}
+            onChange={event => handlePercentChange(event.target.value)}
+            onBlur={handlePercentBlur}
           />
         )}
         <span className="text-sm text-muted-foreground">{mode === "grams" ? "g" : "%"}</span>
@@ -839,8 +876,14 @@ function SelectField({
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border bg-muted/20 p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-medium tracking-tight">{label}</p>
+          <p className="text-sm text-muted-foreground">Total planejado para a semana.</p>
+        </div>
+        <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">sem.</span>
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">{value}</p>
     </div>
   );
 }

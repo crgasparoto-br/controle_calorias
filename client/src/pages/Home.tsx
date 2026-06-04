@@ -85,13 +85,21 @@ function formatDayShare(value: number, total: number) {
   return `${formatPercentPtBr(dayShare(value, total))}% do total do dia`;
 }
 
+function macroGramTotal(protein: number, carbs: number, fat: number) {
+  return protein + carbs + fat;
+}
+
+function formatMacroGramShare(grams: number, totalGrams: number, label: string) {
+  return `${label}: ${formatPercentPtBr(dayShare(grams, totalGrams))}% do total em gramas`;
+}
+
 function positiveRemaining(value: number) {
   return Math.max(value, 0);
 }
 
 export default function Home() {
   const utils = trpc.useUtils();
-  const overview = trpc.nutrition.dashboard.overview.useQuery();
+  const overview = trpc.nutrition.dashboard.today.useQuery();
   const [assistantMessage, setAssistantMessage] = React.useState("");
   const [assistantSuggestion, setAssistantSuggestion] = React.useState<AssistantSuggestion | null>(null);
 
@@ -106,6 +114,7 @@ export default function Home() {
     onSuccess: async () => {
       await Promise.all([
         utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.dashboard.today.invalidate(),
         utils.nutrition.meals.list.invalidate(),
         utils.nutrition.meals.dayTotals.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
@@ -161,6 +170,8 @@ export default function Home() {
   const proteinGoal = overview.data?.today.goal.protein ?? 0;
   const carbsGoal = overview.data?.today.goal.carbs ?? 0;
   const fatGoal = overview.data?.today.goal.fat ?? 0;
+  const consumedMacroTotal = macroGramTotal(consumedProtein, consumedCarbs, consumedFat);
+  const goalMacroTotal = macroGramTotal(proteinGoal, carbsGoal, fatGoal);
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
   const exerciseCalories = overview.data?.today.burned.calories ?? 0;
   const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
@@ -304,9 +315,33 @@ export default function Home() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={formatGoalComparison(consumedCalories, calorieGoal, formatCalories)} />
-                    <StatBlock label="Proteína" value={formatGrams(consumedProtein)} sublabel={formatGoalComparison(consumedProtein, proteinGoal, formatGrams)} />
-                    <StatBlock label="Carboidratos" value={formatGrams(consumedCarbs)} sublabel={formatGoalComparison(consumedCarbs, carbsGoal, formatGrams)} />
-                    <StatBlock label="Gorduras" value={formatGrams(consumedFat)} sublabel={formatGoalComparison(consumedFat, fatGoal, formatGrams)} />
+                    <StatBlock
+                      label="Proteína"
+                      value={formatGrams(consumedProtein)}
+                      sublabel={formatGoalComparison(consumedProtein, proteinGoal, formatGrams)}
+                      details={[
+                        formatMacroGramShare(consumedProtein, consumedMacroTotal, "Consumido"),
+                        formatMacroGramShare(proteinGoal, goalMacroTotal, "Meta"),
+                      ]}
+                    />
+                    <StatBlock
+                      label="Carboidratos"
+                      value={formatGrams(consumedCarbs)}
+                      sublabel={formatGoalComparison(consumedCarbs, carbsGoal, formatGrams)}
+                      details={[
+                        formatMacroGramShare(consumedCarbs, consumedMacroTotal, "Consumido"),
+                        formatMacroGramShare(carbsGoal, goalMacroTotal, "Meta"),
+                      ]}
+                    />
+                    <StatBlock
+                      label="Gorduras"
+                      value={formatGrams(consumedFat)}
+                      sublabel={formatGoalComparison(consumedFat, fatGoal, formatGrams)}
+                      details={[
+                        formatMacroGramShare(consumedFat, consumedMacroTotal, "Consumido"),
+                        formatMacroGramShare(fatGoal, goalMacroTotal, "Meta"),
+                      ]}
+                    />
                     <StatBlock label="Refeições" value={formatCountPtBr(groupedTodaysMeals.length)} sublabel="Agrupadas por nome" />
                   </div>
                   <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
@@ -542,12 +577,21 @@ function FoodAssistantCard({
   );
 }
 
-function StatBlock({ label, value, sublabel }: { label: string; value: string; sublabel: string }) {
+function StatBlock({ label, value, sublabel, details }: { label: string; value: string; sublabel: string; details?: string[] }) {
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{sublabel}</p>
+      {details?.length ? (
+        <div className="mt-3 space-y-1 border-t pt-3">
+          {details.map(detail => (
+            <p key={detail} className="text-xs leading-5 text-muted-foreground">
+              {detail}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

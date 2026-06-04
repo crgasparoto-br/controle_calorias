@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createPool, type Pool } from "mysql2/promise";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   appSecrets,
@@ -34,6 +34,7 @@ import { ENV } from "./_core/env";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
+import { getDateKeyInTimeZone } from "../shared/timeZone";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
 import { createDrizzleExercisesRepository } from "./repositories/exercisesRepository";
 import { canUseMemoryPersistenceFallback } from "./repositories/memoryFallback";
@@ -2022,63 +2023,92 @@ async function loadGoalFromDb(userId: number) {
   return nutritionGoalsRepository.findByUserId(userId);
 }
 
-async function loadMealsFromDb(userId: number) {
+type OccurredAtRange = {
+  startAt?: Date;
+  endAt?: Date;
+};
+
+type MealLoadOptions = OccurredAtRange & {
+  includeMedia?: boolean;
+};
+
+function buildOccurredAtRange(date: string): Required<OccurredAtRange> {
+  const start = new Date(`${date}T00:00:00.000Z`);
+  const end = new Date(start);
+  start.setUTCDate(start.getUTCDate() - 1);
+  end.setUTCDate(end.getUTCDate() + 2);
+  return { startAt: start, endAt: end };
+}
+
+async function loadMealsFromDb(userId: number, options: MealLoadOptions = {}) {
   const db = await getDb();
   if (!db) return null;
 
   try {
-    const mealRows = await db.select().from(meals).where(eq(meals.userId, userId));
+    const predicates = [
+      eq(meals.userId, userId),
+      eq(meals.status, "confirmed"),
+      ...(options.startAt ? [gte(meals.occurredAt, options.startAt)] : []),
+      ...(options.endAt ? [lt(meals.occurredAt, options.endAt)] : []),
+    ];
+    const mealRows = await db.select().from(meals).where(and(...predicates)).orderBy(desc(meals.occurredAt));
     if (!mealRows.length) return [];
 
-    const builtMeals = await Promise.all(
-      mealRows
-        .filter(row => row.status === "confirmed")
-        .map(async row => {
-          const [itemRows, mediaRows] = await Promise.all([
-            db.select().from(mealItems).where(eq(mealItems.mealId, row.id)),
-            db.select().from(mealMedia).where(eq(mealMedia.mealId, row.id)),
-          ]);
+    const mealIds = mealRows.map(row => row.id);
+    const includeMedia = options.includeMedia ?? true;
+    const [itemRows, mediaRows] = await Promise.all([
+      db.select().from(mealItems).where(inArray(mealItems.mealId, mealIds)),
+      includeMedia ? db.select().from(mealMedia).where(inArray(mealMedia.mealId, mealIds)) : Promise.resolve([]),
+    ]);
 
-          const items: MealDraftItem[] = itemRows.map(item => ({
-            foodName: item.foodName,
-            canonicalName: item.canonicalName,
-            portionText: item.portionText,
-            servings: item.servings,
-            estimatedGrams: item.estimatedGrams,
-            calories: item.calories,
-            protein: item.protein,
-            carbs: item.carbs,
-            fat: item.fat,
-            confidence: 0.9,
-            source: item.source,
-          }));
+    const itemsByMealId = new Map<number, MealDraftItem[]>();
+    for (const item of itemRows) {
+      const items = itemsByMealId.get(item.mealId) ?? [];
+      items.push({
+        foodName: item.foodName,
+        canonicalName: item.canonicalName,
+        portionText: item.portionText,
+        servings: item.servings,
+        estimatedGrams: item.estimatedGrams,
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+        confidence: 0.9,
+        source: item.source,
+      });
+      itemsByMealId.set(item.mealId, items);
+    }
 
-          const media: SavedMedia[] = mediaRows.map(media => ({
-            id: media.id,
-            mediaType: media.mediaType,
-            storageKey: media.storageKey,
-            storageUrl: media.storageUrl,
-            mimeType: media.mimeType,
-            originalFileName: media.originalFileName ?? undefined,
-          }));
+    const mediaByMealId = new Map<number, SavedMedia[]>();
+    for (const media of mediaRows) {
+      const mediaItems = mediaByMealId.get(media.mealId) ?? [];
+      mediaItems.push({
+        id: media.id,
+        mediaType: media.mediaType,
+        storageKey: media.storageKey,
+        storageUrl: media.storageUrl,
+        mimeType: media.mimeType,
+        originalFileName: media.originalFileName ?? undefined,
+      });
+      mediaByMealId.set(media.mealId, mediaItems);
+    }
 
-          return {
-            id: row.id,
-            userId: row.userId,
-            source: row.source,
-            mealLabel: row.mealLabel,
-            status: "confirmed" as const,
-            occurredAt: new Date(row.occurredAt).getTime(),
-            notes: row.notes ?? undefined,
-            sourceText: row.sourceText ?? "",
-            transcript: row.transcript ?? undefined,
-            confidence: row.confidence,
-            items,
-            media,
-            createdAt: new Date(row.createdAt).getTime(),
-          } satisfies SavedMeal;
-        }),
-    );
+    const builtMeals = mealRows.map(row => ({
+      id: row.id,
+      userId: row.userId,
+      source: row.source,
+      mealLabel: row.mealLabel,
+      status: "confirmed" as const,
+      occurredAt: new Date(row.occurredAt).getTime(),
+      notes: row.notes ?? undefined,
+      sourceText: row.sourceText ?? "",
+      transcript: row.transcript ?? undefined,
+      confidence: row.confidence,
+      items: itemsByMealId.get(row.id) ?? [],
+      media: mediaByMealId.get(row.id) ?? [],
+      createdAt: new Date(row.createdAt).getTime(),
+    } satisfies SavedMeal));
 
     builtMeals.sort((a, b) => b.occurredAt - a.occurredAt);
     return builtMeals;
@@ -2092,12 +2122,56 @@ async function loadExercisesFromDb(userId: number) {
   return exercisesRepository.findByUserId(userId);
 }
 
+async function loadExercisesFromDbByRange(userId: number, range: Required<OccurredAtRange>) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db
+      .select()
+      .from(exercises)
+      .where(and(eq(exercises.userId, userId), gte(exercises.occurredAt, range.startAt), lt(exercises.occurredAt, range.endAt)))
+      .orderBy(desc(exercises.occurredAt));
+    return rows.map((row: typeof exercises.$inferSelect) => ({
+      ...row,
+      occurredAt: new Date(row.occurredAt).getTime(),
+      createdAt: new Date(row.createdAt).getTime(),
+      updatedAt: new Date(row.updatedAt),
+    }));
+  } catch (error) {
+    logPersistenceWarning("Exercise range read skipped", error);
+    return null;
+  }
+}
+
 async function loadWaterGoalFromDb(userId: number) {
   return waterRepository.findGoalByUserId(userId);
 }
 
 async function loadWaterLogsFromDb(userId: number) {
   return waterRepository.findLogsByUserId(userId);
+}
+
+async function loadWaterLogsFromDbByRange(userId: number, range: Required<OccurredAtRange>) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db
+      .select()
+      .from(waterLogs)
+      .where(and(eq(waterLogs.userId, userId), gte(waterLogs.occurredAt, range.startAt), lt(waterLogs.occurredAt, range.endAt)))
+      .orderBy(desc(waterLogs.occurredAt));
+    return rows.map((row: typeof waterLogs.$inferSelect) => ({
+      ...row,
+      occurredAt: new Date(row.occurredAt).getTime(),
+      createdAt: new Date(row.createdAt).getTime(),
+      updatedAt: new Date(row.updatedAt),
+    }));
+  } catch (error) {
+    logPersistenceWarning("Water log range read skipped", error);
+    return null;
+  }
 }
 
 async function loadWeightEntriesFromDb(userId: number) {
@@ -2483,10 +2557,24 @@ export async function listUserMeals(userId: number) {
     }));
 }
 
+export async function listUserMealsByDate(userId: number, date: string, options: { includeMedia?: boolean } = {}) {
+  const range = buildOccurredAtRange(date);
+  const dbMeals = await loadMealsFromDb(userId, { ...range, includeMedia: options.includeMedia });
+  const mealsForUser = dbMeals ?? mealStore.get(userId) ?? [];
+
+  return mealsForUser
+    .filter(meal => getDateKeyInTimeZone(meal.occurredAt) === date)
+    .slice()
+    .sort((a, b) => b.occurredAt - a.occurredAt)
+    .map(meal => ({
+      ...meal,
+      totals: sumMealItems(meal.items),
+    }));
+}
+
 export async function getUserDayMealTotals(userId: number, date: string) {
   const key = date || dateKey(new Date());
-  const mealsForUser = await listUserMeals(userId);
-  const mealsOnDay = mealsForUser.filter(meal => dateKey(new Date(meal.occurredAt)) === key);
+  const mealsOnDay = await listUserMealsByDate(userId, key);
   return {
     date: key,
     meals: mealsOnDay,
@@ -2816,6 +2904,16 @@ export async function listUserWaterLogs(userId: number) {
   return logs.slice().sort((a, b) => b.occurredAt - a.occurredAt);
 }
 
+export async function listUserWaterLogsByDate(userId: number, date: string) {
+  const range = buildOccurredAtRange(date);
+  const dbLogs = await loadWaterLogsFromDbByRange(userId, range);
+  const logs = dbLogs ?? (canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : []);
+  return logs
+    .filter(log => getDateKeyInTimeZone(Number(log.occurredAt)) === date)
+    .slice()
+    .sort((a, b) => b.occurredAt - a.occurredAt);
+}
+
 export async function updateUserWaterGoal(userId: number, dailyTargetMl: number) {
   const current = await getStoredWaterGoal(userId);
   const updated: WaterGoalEntry = {
@@ -2898,6 +2996,16 @@ async function getStoredExercises(userId: number) {
 export async function listUserExercises(userId: number) {
   const exercisesForUser = await getStoredExercises(userId);
   return exercisesForUser.slice().sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
+}
+
+export async function listUserExercisesByDate(userId: number, date: string) {
+  const range = buildOccurredAtRange(date);
+  const dbExercises = await loadExercisesFromDbByRange(userId, range);
+  const exercisesForUser = dbExercises ?? (canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : []);
+  return exercisesForUser
+    .filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === date)
+    .slice()
+    .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
 }
 
 export async function createUserExercise(userId: number, input: {

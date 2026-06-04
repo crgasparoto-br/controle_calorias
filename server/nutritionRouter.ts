@@ -49,7 +49,9 @@ import {
 import { reportsHabitAnalyticsSchema, reportsPeriodSchema } from "./modules/insights/schemas";
 import {
   getDashboardOverview,
+  getDashboardTodayOverview,
   getHabitAnalyticsReport,
+  getPeriodReportBundle,
   getWeeklyInsightsReport,
   getWeeklyProgressReport,
   getWeeklyReport,
@@ -276,6 +278,11 @@ export const nutritionRouter = router({
       void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
       return result;
     }),
+    today: protectedProcedure.query(async ({ ctx }) => {
+      const result = await getDashboardTodayOverview(ctx.user.id);
+      void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
+      return result;
+    }),
   }),
 
   goals: router({
@@ -446,6 +453,14 @@ export const nutritionRouter = router({
   }),
 
   reports: router({
+    periodBundle: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
+      const result = await getPeriodReportBundle(ctx.user.id, input);
+      void analyticsService.track("period_report_viewed", {
+        report_type: "habit_analytics",
+        period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
+      });
+      return result;
+    }),
     habitAnalytics: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
       const result = await getHabitAnalyticsReport(ctx.user.id, input);
       void analyticsService.track("period_report_viewed", {
