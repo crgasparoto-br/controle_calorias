@@ -8,10 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { buildDailyNutritionStatus, SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
-import { ArrowRight, BrainCircuit, Droplets, Dumbbell, Flame, Salad } from "lucide-react";
+import { ArrowRight, BrainCircuit, ChevronLeft, ChevronRight, Droplets, Dumbbell, Flame, Salad } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
@@ -62,7 +63,7 @@ function uncappedGoalProgress(consumed: number, goal: number) {
 
 function formatGoalProgressText(consumed: number, goal: number) {
   if (!goal) return "Meta não definida.";
-  return `${formatPercentPtBr(uncappedGoalProgress(consumed, goal))}% da meta de hoje.`;
+  return `${formatPercentPtBr(uncappedGoalProgress(consumed, goal))}% da meta do dia.`;
 }
 
 function formatGoalComparison(consumed: number, goal: number, formatter: (value: number) => string) {
@@ -97,9 +98,42 @@ function positiveRemaining(value: number) {
   return Math.max(value, 0);
 }
 
+function toUtcNoonDate(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00Z`);
+}
+
+function addDaysToDateKey(dateKey: string, days: number) {
+  const date = toUtcNoonDate(dateKey);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatSelectedDateLabel(dateKey: string, todayKey: string) {
+  if (dateKey === todayKey) return "Hoje";
+  if (dateKey === addDaysToDateKey(todayKey, -1)) return "Ontem";
+  if (dateKey === addDaysToDateKey(todayKey, 1)) return "Amanhã";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "UTC",
+    weekday: "long",
+  }).format(toUtcNoonDate(dateKey));
+}
+
+function formatSelectedDateSubtitle(dateKey: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(toUtcNoonDate(dateKey));
+}
+
 export default function Home() {
   const utils = trpc.useUtils();
-  const overview = trpc.nutrition.dashboard.today.useQuery();
+  const todayKey = toDateInputValue();
+  const [selectedDate, setSelectedDate] = React.useState(todayKey);
+  const isViewingToday = selectedDate === todayKey;
+  const overview = trpc.nutrition.dashboard.today.useQuery({ date: selectedDate });
   const [assistantMessage, setAssistantMessage] = React.useState("");
   const [assistantSuggestion, setAssistantSuggestion] = React.useState<AssistantSuggestion | null>(null);
 
@@ -240,6 +274,15 @@ export default function Home() {
   return (
     <DashboardLayout>
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
+        <DateNavigator
+          selectedDate={selectedDate}
+          todayKey={todayKey}
+          isViewingToday={isViewingToday}
+          onPreviousDay={() => setSelectedDate(current => addDaysToDateKey(current, -1))}
+          onNextDay={() => setSelectedDate(current => addDaysToDateKey(current, 1))}
+          onToday={() => setSelectedDate(todayKey)}
+        />
+
         <PageIntro
           eyebrow="Hoje"
           title="Como está o seu dia agora?"
@@ -254,7 +297,7 @@ export default function Home() {
               </Link>
               <Link href="/meals">
                 <Button variant="outline" className="rounded-full">
-                  Ver registros de hoje
+                  Ver registros do dia
                 </Button>
               </Link>
               <Link href="/reports">
@@ -275,13 +318,13 @@ export default function Home() {
               <DailyMetric
                 title="Calorias restantes"
                 value={formatCalories(positiveRemaining(remainingCalories))}
-                helper={remainingCalories < 0 ? "Acima da meta planejada hoje" : "Disponíveis para os próximos registros"}
+                helper={remainingCalories < 0 ? "Acima da meta planejada para o dia" : "Disponíveis para os próximos registros"}
                 icon={Salad}
               />
               <DailyMetric
                 title="Exercícios"
                 value={formatCalories(exerciseCalories)}
-                helper="Queimadas hoje"
+                helper="Queimadas no dia"
                 icon={Dumbbell}
               />
               <DailyMetric
@@ -357,7 +400,7 @@ export default function Home() {
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <CardTitle>Refeições do dia</CardTitle>
-                    <CardDescription>Registros confirmados hoje, somados por refeição.</CardDescription>
+                    <CardDescription>Registros confirmados no dia selecionado, somados por refeição.</CardDescription>
                   </div>
                   <Link href="/meals">
                     <Button variant="ghost" className="gap-2 px-0 sm:px-3">
@@ -403,7 +446,7 @@ export default function Home() {
                       </div>
                     ))
                   ) : (
-                    <EmptyCopy text="Nenhuma refeição foi registrada hoje. Um primeiro registro simples já ajuda a visualizar o dia com mais clareza." />
+                    <EmptyCopy text="Nenhuma refeição foi registrada neste dia. Um primeiro registro simples já ajuda a visualizar o dia com mais clareza." />
                   )}
                 </CardContent>
               </Card>
@@ -423,6 +466,43 @@ export default function Home() {
         </section>
       </div>
     </DashboardLayout>
+  );
+}
+
+function DateNavigator({
+  selectedDate,
+  todayKey,
+  isViewingToday,
+  onPreviousDay,
+  onNextDay,
+  onToday,
+}: {
+  selectedDate: string;
+  todayKey: string;
+  isViewingToday: boolean;
+  onPreviousDay: () => void;
+  onNextDay: () => void;
+  onToday: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
+      <div>
+        <p className="text-sm font-medium text-muted-foreground">Dia selecionado</p>
+        <h1 className="text-2xl font-semibold tracking-tight capitalize">{formatSelectedDateLabel(selectedDate, todayKey)}</h1>
+        <p className="text-sm text-muted-foreground">{formatSelectedDateSubtitle(selectedDate)}</p>
+      </div>
+      <div className="flex items-center gap-2 rounded-full border bg-background p-1 shadow-sm">
+        <Button type="button" variant="ghost" className="h-10 w-10 rounded-full p-0" onClick={onPreviousDay} aria-label="Dia anterior">
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant={isViewingToday ? "secondary" : "ghost"} className="rounded-full px-4" onClick={onToday} disabled={isViewingToday}>
+          Hoje
+        </Button>
+        <Button type="button" variant="ghost" className="h-10 w-10 rounded-full p-0" onClick={onNextDay} aria-label="Próximo dia">
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
   );
 }
 

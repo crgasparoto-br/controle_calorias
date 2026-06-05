@@ -46,7 +46,7 @@ import {
   foodSearchSchema,
   updateFoodSchema,
 } from "./modules/foods/schemas";
-import { reportsHabitAnalyticsSchema, reportsPeriodSchema } from "./modules/insights/schemas";
+import { dashboardTodaySchema, reportsHabitAnalyticsSchema, reportsPeriodSchema } from "./modules/insights/schemas";
 import {
   getDashboardOverview,
   getDashboardTodayOverview,
@@ -278,8 +278,8 @@ export const nutritionRouter = router({
       void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
       return result;
     }),
-    today: protectedProcedure.query(async ({ ctx }) => {
-      const result = await getDashboardTodayOverview(ctx.user.id);
+    today: protectedProcedure.input(dashboardTodaySchema).query(async ({ ctx, input }) => {
+      const result = await getDashboardTodayOverview(ctx.user.id, { date: input?.date });
       void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
       return result;
     }),

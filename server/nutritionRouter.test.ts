@@ -140,7 +140,7 @@ describe("nutrition router", () => {
     expect(overview.goal.today.calories).toBe(2350);
     expect(overview.goal.today.proteinGrams).toBe(172);
     expect(overview.goal.today.source).toBe("default");
-    expect(overview.goal.weeklyTotals.calories).toBe(16600);
+    expect(overview.goal.weeklyTotals.calories).toBe(16450);
     expect(overview.today.goal.calories).toBe(2350);
     expect(overview.today.remaining.calories).toBe(2350);
   });

@@ -2,6 +2,12 @@ import { z } from "zod";
 
 const reportDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use datas no formato YYYY-MM-DD.");
 
+export const dashboardTodaySchema = z
+  .object({
+    date: reportDateSchema.optional(),
+  })
+  .optional();
+
 export const reportsPeriodSchema = z
   .object({
     weekOffset: z.number().int().min(-1).max(0).default(0),
