@@ -130,10 +130,12 @@ function buildGoalProgressLines(progress: WhatsAppMealGoalProgress | null | unde
   const balanceLabel = balanceCalories >= 0 ? "Déficit" : "Superávit";
 
   return [
-    "*Meta de hoje:*",
-    `• Meta: ${formatNumber(goalCalories)} Kcal`,
-    `• Meta ajustada: ${formatNumber(adjustedGoalCalories)} Kcal`,
-    `• ${balanceLabel}: ${formatNumber(Math.abs(balanceCalories))} Kcal`,
+    "Meta de hoje:",
+    `* Meta estimada: ${formatNumber(goalCalories)} kcal`,
+    ...(exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(exerciseCalories)} kcal`] : []),
+    `* Meta ajustada: ${formatNumber(adjustedGoalCalories)} kcal`,
+    `* Consumo: ${formatNumber(consumedCalories)} kcal`,
+    `* ${balanceLabel}: ${formatNumber(Math.abs(balanceCalories))} kcal`,
   ];
 }
 
