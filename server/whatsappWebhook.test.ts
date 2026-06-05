@@ -288,10 +288,11 @@ describe("whatsappWebhook", () => {
       "130 Kcal",
       "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
       "",
-      "*Meta de hoje:*",
-      "• Meta: 2.200 Kcal",
-      "• Meta ajustada: 2.200 Kcal",
-      "• Déficit: 2.070 Kcal",
+      "Meta de hoje:",
+      "* Meta estimada: 2.200 kcal",
+      "* Meta ajustada: 2.200 kcal",
+      "* Consumo: 130 kcal",
+      "* Déficit: 2.070 kcal",
     ].join("\n"));
   });
 
