@@ -1,62 +1,22 @@
 import { Request, Response } from "express";
 import { createUserWaterLog, getUserIdByWhatsappPhone, listUserExercises, logInferenceEvent } from "./db";
 import { runWithWhatsAppGoalProgressContext } from "./modules/whatsapp/goalProgressContext";
+import {
+  extractIndexedWhatsAppWebhookMessages,
+  formatDateKeyInSaoPaulo,
+  normalizeWhatsAppIntentText,
+  resolveWhatsAppMessageOccurredAt,
+  sendWhatsAppTextMessage,
+  type IndexedWhatsAppWebhookMessage,
+  type WhatsAppWebhookMessage,
+} from "./modules/whatsapp/webhookUtils";
 import { processMealInput, type MealProcessingResult } from "./nutritionEngine";
-import { requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
+import { requireWhatsAppMediaConfig } from "./whatsappConfig";
 import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
-
-type WhatsAppMessage = {
-  id?: string;
-  from?: string;
-  timestamp?: string;
-  text?: { body?: string };
-  image?: { id?: string; mime_type?: string; caption?: string };
-  audio?: { id?: string };
-};
-
-type IndexedMessage = {
-  key: string;
-  message: WhatsAppMessage;
-};
 
 const reservedImageMessageIds = new Map<string, number>();
 const IMAGE_MESSAGE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
-
-function extractMessages(payload: any): IndexedMessage[] {
-  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
-  return entries.flatMap((entry: any, entryIndex: number) =>
-    Array.isArray(entry?.changes)
-      ? entry.changes.flatMap((change: any, changeIndex: number) => {
-          const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
-          return messages.map((message: WhatsAppMessage, messageIndex: number) => ({
-            key: `${entryIndex}:${changeIndex}:${messageIndex}`,
-            message,
-          }));
-        })
-      : [],
-  );
-}
-
-function resolveOccurredAt(message: WhatsAppMessage) {
-  const parsed = Number(message.timestamp);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return new Date();
-  }
-
-  return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
-}
-
-function formatDateKeyInSaoPaulo(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
 
 function formatReplyTime(date: Date) {
   return date.toLocaleTimeString("pt-BR", {
@@ -70,16 +30,8 @@ function formatNumber(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
 }
 
-function normalizeIntentText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
 function parseWaterAmountMl(text: string) {
-  const normalized = normalizeIntentText(text);
+  const normalized = normalizeWhatsAppIntentText(text);
   const mlMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m\s*l|ml|mililitros?)\b/);
   if (mlMatch) {
     return Math.round(Number(mlMatch[1].replace(",", ".")));
@@ -94,7 +46,7 @@ function parseWaterAmountMl(text: string) {
 }
 
 function mentionsWater(text?: string) {
-  const normalized = normalizeIntentText(text || "");
+  const normalized = normalizeWhatsAppIntentText(text || "");
   return /\baguas?\b/.test(normalized) || /\bhidratacao\b/.test(normalized) || /\bwater\b/.test(normalized);
 }
 
@@ -110,7 +62,7 @@ function isSameDateKeyInSaoPaulo(value: number | string | Date, dateKey: string)
   return formatDateKeyInSaoPaulo(new Date(value)) === dateKey;
 }
 
-function getImageCaption(message: WhatsAppMessage) {
+function getImageCaption(message: WhatsAppWebhookMessage) {
   return message.image?.caption?.trim() || message.text?.body?.trim() || "";
 }
 
@@ -130,52 +82,7 @@ function isWaterLikeMealResult(processed: MealProcessingResult) {
   return !hasNonWaterItem && Number(processed.totals?.calories || 0) <= 10;
 }
 
-async function sendWhatsAppTextMessage(to: string, body: string) {
-  let config;
-  try {
-    config = await requireWhatsAppSendConfig();
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de resposta.",
-    };
-  }
-
-  try {
-    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: {
-          preview_url: false,
-          body,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio da resposta automática.`,
-      };
-    }
-
-    return { ok: true, detail: "Resposta automática enviada com sucesso." };
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar resposta automática do WhatsApp.",
-    };
-  }
-}
-
-async function downloadImageForAnalysis(message: WhatsAppMessage) {
+async function downloadImageForAnalysis(message: WhatsAppWebhookMessage) {
   const mediaId = message.image?.id;
   if (!mediaId) {
     return null;
@@ -206,7 +113,7 @@ async function downloadImageForAnalysis(message: WhatsAppMessage) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
-async function handleWaterImageMessage(item: IndexedMessage) {
+async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage) {
   const message = item.message;
   if (!message.image?.id || message.audio?.id || !message.from) {
     return false;
@@ -231,7 +138,7 @@ async function handleWaterImageMessage(item: IndexedMessage) {
       userId,
       sourcePhone: message.from,
       amountMl: amountFromCaption,
-      occurredAt: resolveOccurredAt(message),
+      occurredAt: resolveWhatsAppMessageOccurredAt(message),
       detail: "Imagem de água com quantidade explícita na legenda registrada pelo WhatsApp.",
     });
     return true;
@@ -313,7 +220,7 @@ async function sendWaterImageClarification(input: { userId: number; sourcePhone:
   }
 }
 
-async function buildExerciseCaloriesContext(messages: IndexedMessage[]) {
+async function buildExerciseCaloriesContext(messages: IndexedWhatsAppWebhookMessage[]) {
   const context: Record<string, number> = {};
   const seen = new Set<string>();
 
@@ -323,7 +230,7 @@ async function buildExerciseCaloriesContext(messages: IndexedMessage[]) {
       continue;
     }
 
-    const dateKey = formatDateKeyInSaoPaulo(resolveOccurredAt(item.message));
+    const dateKey = formatDateKeyInSaoPaulo(resolveWhatsAppMessageOccurredAt(item.message));
     const cacheKey = `${sourcePhone}:${dateKey}`;
     if (seen.has(cacheKey)) {
       continue;
@@ -362,7 +269,7 @@ function pruneReservations(now = Date.now()) {
   }
 }
 
-function reserveImageMessages(messages: IndexedMessage[]) {
+function reserveImageMessages(messages: IndexedWhatsAppWebhookMessage[]) {
   const duplicateKeys = new Set<string>();
   const now = Date.now();
   pruneReservations(now);
@@ -395,7 +302,7 @@ function clonePayloadWithoutKeys(payload: any, handledKeys: Set<string>) {
         .map((change: any, changeIndex: number) => {
           const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
           const filteredMessages = messages.filter(
-            (_message: WhatsAppMessage, messageIndex: number) => !handledKeys.has(`${entryIndex}:${changeIndex}:${messageIndex}`),
+            (_message: WhatsAppWebhookMessage, messageIndex: number) => !handledKeys.has(`${entryIndex}:${changeIndex}:${messageIndex}`),
           );
 
           return {
@@ -423,7 +330,7 @@ export function __resetWhatsAppImageIdempotencyForTests() {
 }
 
 export async function handleWhatsAppWebhookWithImageIdempotency(req: Request, res: Response) {
-  const messages = extractMessages(req.body);
+  const messages = extractIndexedWhatsAppWebhookMessages(req.body);
   const duplicateKeys = reserveImageMessages(messages);
   const handledKeys = new Set(duplicateKeys);
 
@@ -449,6 +356,6 @@ export async function handleWhatsAppWebhookWithImageIdempotency(req: Request, re
     req.body = remainingPayload;
   }
 
-  const context = await buildExerciseCaloriesContext(extractMessages(req.body));
+  const context = await buildExerciseCaloriesContext(extractIndexedWhatsAppWebhookMessages(req.body));
   return runWithWhatsAppGoalProgressContext(context, () => handleWhatsAppWebhookWithTextIntent(req, res));
 }

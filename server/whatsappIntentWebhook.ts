@@ -3,26 +3,17 @@ import { getCatalogCache } from "./catalogRuntime";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
 import { listMeals } from "./modules/meals/service";
-import { getWhatsAppChannelConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
+import {
+  extractWhatsAppWebhookMessages,
+  getExtractedWhatsAppMessageKey,
+  isWhatsAppMessageForConfiguredChannel,
+  resolveWhatsAppMessageOccurredAt,
+  sendWhatsAppTextMessage,
+  type ExtractedWhatsAppWebhookMessage,
+  type WhatsAppWebhookMessage,
+} from "./modules/whatsapp/webhookUtils";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
-
-type WhatsAppMessage = {
-  id?: string;
-  from?: string;
-  channelPhoneNumberId?: string;
-  timestamp?: string;
-  type?: string;
-  text?: { body?: string };
-  image?: { id?: string; caption?: string };
-  audio?: { id?: string };
-};
-
-type ExtractedWhatsAppMessage = WhatsAppMessage & {
-  entryIndex: number;
-  changeIndex: number;
-  messageIndex: number;
-};
 
 type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
 type NutritionTotals = {
@@ -42,45 +33,12 @@ const UNKNOWN_FOOD_REPLY = [
   "Exemplo: 1 unidade de bisnaguinha Panco ou 30 g de queijo.",
 ].join("\n\n");
 
-function extractMessages(payload: any): ExtractedWhatsAppMessage[] {
-  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
-  return entries.flatMap((entry: any, entryIndex: number) =>
-    Array.isArray(entry?.changes)
-      ? entry.changes.flatMap((change: any, changeIndex: number) => {
-          const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
-          return messages.map((message: WhatsAppMessage, messageIndex: number) => ({
-            ...message,
-            entryIndex,
-            changeIndex,
-            messageIndex,
-            channelPhoneNumberId: change?.value?.metadata?.phone_number_id,
-          }));
-        })
-      : [],
-  );
-}
-
-function isMessageForConfiguredChannel(message: WhatsAppMessage) {
-  const configuredPhoneNumberId = getWhatsAppChannelConfig().phoneNumberId;
-  return !message.channelPhoneNumberId || !configuredPhoneNumberId || message.channelPhoneNumberId === configuredPhoneNumberId;
-}
-
-function resolveOccurredAt(message: WhatsAppMessage) {
-  const parsed = Number(message.timestamp);
-  if (!Number.isFinite(parsed) || parsed <= 0) return new Date();
-  return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
-}
-
-function getTextBody(message: WhatsAppMessage) {
+function getTextBody(message: WhatsAppWebhookMessage) {
   return message.text?.body?.trim() || "";
 }
 
-function canInterpretTextIntent(message: WhatsAppMessage) {
+function canInterpretTextIntent(message: WhatsAppWebhookMessage) {
   return Boolean(getTextBody(message) && !message.image?.id && !message.audio?.id);
-}
-
-function getExtractedMessageKey(message: ExtractedWhatsAppMessage) {
-  return `${message.entryIndex}:${message.changeIndex}:${message.messageIndex}`;
 }
 
 function normalizeText(value: string) {
@@ -242,27 +200,6 @@ export function __resetWhatsAppTextIntentContextForTests() {
   recentlyHandledTextIntentMessageIds.clear();
 }
 
-async function sendWhatsAppTextMessage(to: string, body: string) {
-  let config;
-  try {
-    config = await requireWhatsAppSendConfig();
-  } catch (error) {
-    return { ok: false, detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de resposta." };
-  }
-
-  try {
-    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${config.accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { preview_url: false, body } }),
-    });
-    if (!response.ok) return { ok: false, detail: `Meta retornou ${response.status} ${response.statusText} no envio da resposta automática.` };
-    return { ok: true, detail: "Resposta automática enviada com sucesso." };
-  } catch (error) {
-    return { ok: false, detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar resposta automática do WhatsApp." };
-  }
-}
-
 async function sendAndLogTextReply(input: { userId: number; sourcePhone: string; reply: string; eventType: string; detail: string; status: "success" | "warning" }) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
   const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
@@ -271,9 +208,9 @@ async function sendAndLogTextReply(input: { userId: number; sourcePhone: string;
   }
 }
 
-async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
+async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage) {
   const sourcePhone = message.from || "unknown";
-  if (!isMessageForConfiguredChannel(message) || !canInterpretTextIntent(message)) return false;
+  if (!isWhatsAppMessageForConfiguredChannel(message) || !canInterpretTextIntent(message)) return false;
   if (wasTextIntentMessageAlreadyHandled(message.id)) return true;
 
   const userId = await getUserIdByWhatsappPhone(sourcePhone);
@@ -283,7 +220,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppMessage) {
   const pendingContext = getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
-  const result = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: resolveOccurredAt(message) });
+  const result = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
   if (!result) {
     const unknownFoodReply = buildUnknownFoodReply(text);
     if (!unknownFoodReply) return false;
@@ -315,7 +252,7 @@ function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Se
       const changes = entry.changes
         .map((change: any, changeIndex: number) => {
           const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
-          const pendingMessages = messages.filter((_message: WhatsAppMessage, messageIndex: number) => !handledMessageKeys.has(`${entryIndex}:${changeIndex}:${messageIndex}`));
+          const pendingMessages = messages.filter((_message: WhatsAppWebhookMessage, messageIndex: number) => !handledMessageKeys.has(`${entryIndex}:${changeIndex}:${messageIndex}`));
           return { ...change, value: { ...change.value, messages: pendingMessages } };
         })
         .filter((change: any) => Array.isArray(change?.value?.messages) && change.value.messages.length > 0);
@@ -326,13 +263,13 @@ function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Se
 }
 
 export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Response) {
-  const messages = extractMessages(req.body);
+  const messages = extractWhatsAppWebhookMessages(req.body);
   if (!messages.length) return handleWhatsAppWebhookWithAnnotatedImages(req, res);
 
   const handledMessageKeys = new Set<string>();
   for (const message of messages) {
     const handled = await tryHandleTextIntent(message);
-    if (handled) handledMessageKeys.add(getExtractedMessageKey(message));
+    if (handled) handledMessageKeys.add(getExtractedWhatsAppMessageKey(message));
   }
 
   if (!handledMessageKeys.size) return handleWhatsAppWebhookWithAnnotatedImages(req, res);

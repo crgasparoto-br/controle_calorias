@@ -2,27 +2,20 @@ import { Request, Response } from "express";
 import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, logInferenceEvent } from "./db";
 import { buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
+import {
+  extractWhatsAppWebhookMessages,
+  formatDateKeyInSaoPaulo,
+  getExtractedWhatsAppMessageKey,
+  isWhatsAppMessageForConfiguredChannel,
+  resolveWhatsAppMessageOccurredAt,
+  sendWhatsAppTextMessage,
+  type ExtractedWhatsAppWebhookMessage,
+  type WhatsAppWebhookMessage,
+} from "./modules/whatsapp/webhookUtils";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { storagePut } from "./storage";
-import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
+import { requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
-
-type WhatsAppMessage = {
-  id?: string;
-  from?: string;
-  channelPhoneNumberId?: string;
-  timestamp?: string;
-  type?: string;
-  text?: { body?: string };
-  image?: { id?: string; mime_type?: string; caption?: string };
-  audio?: { id?: string; mime_type?: string };
-};
-
-type ExtractedWhatsAppMessage = WhatsAppMessage & {
-  entryIndex: number;
-  changeIndex: number;
-  messageIndex: number;
-};
 
 type SavedMedia = ReturnType<typeof buildSavedMedia>;
 
@@ -39,48 +32,12 @@ const ANNOTATED_IMAGE_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa imagem agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 
-function extractMessages(payload: any): ExtractedWhatsAppMessage[] {
-  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
-  return entries.flatMap((entry: any, entryIndex: number) =>
-    Array.isArray(entry?.changes)
-      ? entry.changes.flatMap((change: any, changeIndex: number) => {
-          const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
-          return messages.map((message: WhatsAppMessage, messageIndex: number) => ({
-            ...message,
-            entryIndex,
-            changeIndex,
-            messageIndex,
-            channelPhoneNumberId: change?.value?.metadata?.phone_number_id,
-          }));
-        })
-      : [],
-  );
-}
-
-function getExtractedMessageKey(message: Pick<ExtractedWhatsAppMessage, "entryIndex" | "changeIndex" | "messageIndex">) {
-  return `${message.entryIndex}:${message.changeIndex}:${message.messageIndex}`;
-}
-
-function isMessageForConfiguredChannel(message: WhatsAppMessage) {
-  const configuredPhoneNumberId = getWhatsAppChannelConfig().phoneNumberId;
-  return !message.channelPhoneNumberId || !configuredPhoneNumberId || message.channelPhoneNumberId === configuredPhoneNumberId;
-}
-
-function getTextBody(message: WhatsAppMessage) {
+function getTextBody(message: WhatsAppWebhookMessage) {
   return message.text?.body?.trim() || message.image?.caption?.trim() || "";
 }
 
-function canHandleAnnotatedImageMessage(message: WhatsAppMessage) {
+function canHandleAnnotatedImageMessage(message: WhatsAppWebhookMessage) {
   return Boolean(message.image?.id && !message.audio?.id);
-}
-
-function resolveOccurredAt(message: WhatsAppMessage) {
-  const parsed = Number(message.timestamp);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return new Date();
-  }
-
-  return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
 }
 
 function pruneRecentlyHandledAnnotatedImageMessageIds(now = Date.now()) {
@@ -200,17 +157,6 @@ function buildAnnotatedImageMedia(annotatedImage: GenerateImageResponse) {
   });
 }
 
-function formatDateKeyInSaoPaulo(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
 async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date) {
   const [goalSummary, dayTotals] = await Promise.all([
     getUserNutritionGoal(userId),
@@ -221,54 +167,6 @@ async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date) {
     consumedCalories: dayTotals.totals.calories,
     goalCalories: goalSummary.today.calories,
   };
-}
-
-async function sendWhatsAppTextMessage(to: string, body: string) {
-  let config;
-  try {
-    config = await requireWhatsAppSendConfig();
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de resposta.",
-    };
-  }
-
-  try {
-    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: {
-          preview_url: false,
-          body,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio da resposta automática.`,
-      };
-    }
-
-    return {
-      ok: true,
-      detail: "Resposta automática enviada com sucesso.",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar resposta automática do WhatsApp.",
-    };
-  }
 }
 
 async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {
@@ -416,7 +314,7 @@ function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
-async function prepareImageMessage(message: WhatsAppMessage, sourcePhone: string): Promise<PreparedImageMessage> {
+async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedImageMessage> {
   const imageId = message.image?.id;
   if (!imageId) {
     throw new Error("Mensagem sem imagem para processamento anotado.");
@@ -463,7 +361,7 @@ function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Se
         .map((change: any, changeIndex: number) => {
           const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
           const pendingMessages = messages.filter(
-            (_message: WhatsAppMessage, messageIndex: number) => !handledMessageKeys.has(getExtractedMessageKey({
+            (_message: WhatsAppWebhookMessage, messageIndex: number) => !handledMessageKeys.has(getExtractedWhatsAppMessageKey({
               entryIndex,
               changeIndex,
               messageIndex,
@@ -503,9 +401,9 @@ async function logWhatsAppOperationWarning(input: {
   });
 }
 
-async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppMessage) {
+async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookMessage) {
   const sourcePhone = message.from || "unknown";
-  if (!isMessageForConfiguredChannel(message) || !canHandleAnnotatedImageMessage(message)) {
+  if (!isWhatsAppMessageForConfiguredChannel(message) || !canHandleAnnotatedImageMessage(message)) {
     return false;
   }
 
@@ -574,7 +472,7 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppMessage)
       });
     }
 
-    const occurredAt = resolveOccurredAt(message);
+    const occurredAt = resolveWhatsAppMessageOccurredAt(message);
     const draft = createPendingMealInference(userId, "whatsapp", processedForPersistence, prepared.media);
     const savedMeal = await confirmPendingMeal({
       draftId: draft.draftId,
@@ -665,7 +563,7 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppMessage)
 }
 
 export async function handleWhatsAppWebhookWithAnnotatedImages(req: Request, res: Response) {
-  const messages = extractMessages(req.body);
+  const messages = extractWhatsAppWebhookMessages(req.body);
   if (!messages.length) {
     return handleWhatsAppWebhook(req, res);
   }
@@ -674,7 +572,7 @@ export async function handleWhatsAppWebhookWithAnnotatedImages(req: Request, res
   for (const message of messages) {
     const handled = await tryHandleAnnotatedImageMessage(message);
     if (handled) {
-      handledMessageKeys.add(getExtractedMessageKey(message));
+      handledMessageKeys.add(getExtractedWhatsAppMessageKey(message));
     }
   }
 

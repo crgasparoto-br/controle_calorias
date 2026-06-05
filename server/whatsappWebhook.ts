@@ -5,20 +5,17 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
+import {
+  extractWhatsAppWebhookMessages,
+  formatDateKeyInSaoPaulo,
+  isWhatsAppMessageForConfiguredChannel,
+  normalizeWhatsAppIntentText,
+  resolveWhatsAppMessageOccurredAt,
+  sendWhatsAppTextMessage,
+  type WhatsAppWebhookMessage,
+} from "./modules/whatsapp/webhookUtils";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
-
-type WhatsAppMessage = {
-  id?: string;
-  from?: string;
-  channelPhoneNumberId?: string;
-  channelDisplayPhoneNumber?: string;
-  timestamp?: string;
-  type?: string;
-  text?: { body?: string };
-  image?: { id?: string; mime_type?: string; caption?: string };
-  audio?: { id?: string; mime_type?: string };
-};
 
 type PreparedMessageInput = {
   text?: string;
@@ -106,27 +103,6 @@ function getVerifyToken() {
   return getWhatsAppChannelConfig().verifyToken;
 }
 
-function extractMessages(payload: any): WhatsAppMessage[] {
-  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
-  return entries.flatMap((entry: any) =>
-    Array.isArray(entry?.changes)
-      ? entry.changes.flatMap((change: any) => {
-          const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
-          return messages.map((message: WhatsAppMessage) => ({
-            ...message,
-            channelPhoneNumberId: change?.value?.metadata?.phone_number_id,
-            channelDisplayPhoneNumber: change?.value?.metadata?.display_phone_number,
-          }));
-        })
-      : [],
-  );
-}
-
-function isMessageForConfiguredChannel(message: WhatsAppMessage) {
-  const configuredPhoneNumberId = getWhatsAppChannelConfig().phoneNumberId;
-  return !message.channelPhoneNumberId || !configuredPhoneNumberId || message.channelPhoneNumberId === configuredPhoneNumberId;
-}
-
 function formatMacro(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
 }
@@ -137,17 +113,6 @@ function formatReplyTime(date: Date) {
     minute: "2-digit",
     timeZone: "America/Sao_Paulo",
   });
-}
-
-function formatDateKeyInSaoPaulo(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date): Promise<WhatsAppMealGoalProgress | null> {
@@ -173,25 +138,8 @@ async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date): Pr
   }
 }
 
-function resolveOccurredAt(message: WhatsAppMessage) {
-  const parsed = Number(message.timestamp);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return new Date();
-  }
-
-  return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
-}
-
-function normalizeIntentText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
 function canonicalMealLabel(label: string) {
-  const normalized = normalizeIntentText(label);
+  const normalized = normalizeWhatsAppIntentText(label);
   if (normalized.includes("cafe") || normalized.includes("manha")) return "Café da manhã";
   if (normalized.includes("almoco")) return "Almoço";
   if (normalized.includes("janta")) return "Jantar";
@@ -200,17 +148,17 @@ function canonicalMealLabel(label: string) {
   return label.trim();
 }
 
-function getTextBody(message: WhatsAppMessage) {
+function getTextBody(message: WhatsAppWebhookMessage) {
   return message.text?.body?.trim() || message.image?.caption?.trim() || "";
 }
 
-function detectWhatsAppAction(message: WhatsAppMessage): WhatsAppAction | null {
+function detectWhatsAppAction(message: WhatsAppWebhookMessage): WhatsAppAction | null {
   const text = getTextBody(message);
   if (!text || message.image?.id || message.audio?.id) {
     return null;
   }
 
-  const normalized = normalizeIntentText(text);
+  const normalized = normalizeWhatsAppIntentText(text);
   const match = normalized.match(/(?:mudar|trocar|alterar)\s+a?\s*refeicao\s+(.+?)\s+para\s+(.+)/i);
   if (!match) {
     return null;
@@ -229,13 +177,13 @@ function detectWhatsAppAction(message: WhatsAppMessage): WhatsAppAction | null {
   };
 }
 
-function isConfirmationMessage(message: WhatsAppMessage) {
-  const normalized = normalizeIntentText(getTextBody(message));
+function isConfirmationMessage(message: WhatsAppWebhookMessage) {
+  const normalized = normalizeWhatsAppIntentText(getTextBody(message));
   return ["sim", "confirmar", "confirma", "pode confirmar", "ok", "pode seguir"].includes(normalized);
 }
 
-function isCancellationMessage(message: WhatsAppMessage) {
-  const normalized = normalizeIntentText(getTextBody(message));
+function isCancellationMessage(message: WhatsAppWebhookMessage) {
+  const normalized = normalizeWhatsAppIntentText(getTextBody(message));
   return ["nao", "não", "cancelar", "cancela", "parar", "desfazer"].includes(normalized);
 }
 
@@ -310,7 +258,7 @@ async function generateAnnotatedMealImage(processed: MealProcessingResult, prepa
   });
 }
 
-async function handlePendingWhatsAppConfirmation(message: WhatsAppMessage, userId: number) {
+async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhookMessage, userId: number) {
   const pending = pendingWhatsAppConfirmations.get(userId);
   if (!pending) {
     return null;
@@ -401,54 +349,6 @@ async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
     eventType: "whatsapp.action_confirmation_requested",
     detail: `Confirmação solicitada para ${summary} em ${matchingMeals.length} registro(s).`,
   };
-}
-
-async function sendWhatsAppTextMessage(to: string, body: string) {
-  let config;
-  try {
-    config = await requireWhatsAppSendConfig();
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de resposta.",
-    };
-  }
-
-  try {
-    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: {
-          preview_url: false,
-          body,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio da resposta automática.`,
-      };
-    }
-
-    return {
-      ok: true,
-      detail: "Resposta automática enviada com sucesso.",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar resposta automática do WhatsApp.",
-    };
-  }
 }
 
 async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {
@@ -547,7 +447,7 @@ async function markWhatsAppMessageAsRead(messageId?: string) {
   }
 }
 
-function listMessageContentTypes(message: WhatsAppMessage) {
+function listMessageContentTypes(message: WhatsAppWebhookMessage) {
   const types: string[] = [];
   if (message.text?.body) types.push("texto");
   if (message.image?.id) types.push("imagem");
@@ -565,7 +465,7 @@ function formatContentTypeList(types: string[]) {
   return `${types.slice(0, -1).join(", ")} e ${types[types.length - 1]}`;
 }
 
-function buildProcessingAcknowledgement(message: WhatsAppMessage) {
+function buildProcessingAcknowledgement(message: WhatsAppWebhookMessage) {
   const contentTypes = listMessageContentTypes(message);
   if (contentTypes.length === 1) {
     const contentType = contentTypes[0];
@@ -585,7 +485,7 @@ function buildProcessingAcknowledgement(message: WhatsAppMessage) {
 }
 
 function parseWaterAmountMl(text: string) {
-  const normalized = normalizeIntentText(text);
+  const normalized = normalizeWhatsAppIntentText(text);
   const mlMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m\s*l|ml|mililitros?)\b/);
   if (mlMatch) {
     return Math.round(Number(mlMatch[1].replace(",", ".")));
@@ -600,7 +500,7 @@ function parseWaterAmountMl(text: string) {
 }
 
 function isWaterOnlyText(text: string) {
-  const normalized = normalizeIntentText(text);
+  const normalized = normalizeWhatsAppIntentText(text);
   if (!/\baguas?\b/.test(normalized)) {
     return false;
   }
@@ -615,7 +515,7 @@ function isWaterOnlyText(text: string) {
   return remaining.length === 0;
 }
 
-function detectWaterLogFromMessage(message: WhatsAppMessage) {
+function detectWaterLogFromMessage(message: WhatsAppWebhookMessage) {
   const text = getTextBody(message);
   if (!text || message.image?.id || message.audio?.id) {
     return null;
@@ -634,7 +534,7 @@ function detectWaterLogFromMessage(message: WhatsAppMessage) {
 }
 
 function parseWeightKg(text: string) {
-  const normalized = normalizeIntentText(text);
+  const normalized = normalizeWhatsAppIntentText(text);
   const kgMatch = normalized.match(/(?:\bpeso\b|\bpesei\b|\bpesando\b|\bpeso atual\b)?\s*(\d{2,3}(?:[,.]\d{1,2})?)\s*(?:kg|kgs|quilo|quilos)\b/);
   if (kgMatch) {
     return Number(kgMatch[1].replace(",", "."));
@@ -653,13 +553,13 @@ function parseWeightKg(text: string) {
   return null;
 }
 
-function detectWeightLogFromMessage(message: WhatsAppMessage) {
+function detectWeightLogFromMessage(message: WhatsAppWebhookMessage) {
   const text = getTextBody(message);
   if (!text || message.image?.id || message.audio?.id) {
     return null;
   }
 
-  const normalized = normalizeIntentText(text);
+  const normalized = normalizeWhatsAppIntentText(text);
   if (!/\b(peso|pesei|pesando|kg|kgs|quilo|quilos)\b/.test(normalized)) {
     return null;
   }
@@ -720,7 +620,7 @@ async function sendInterpretedTextIntentReply(input: {
   }
 }
 
-function canInterpretAudioTranscriptIntent(message: WhatsAppMessage, prepared: PreparedMessageInput) {
+function canInterpretAudioTranscriptIntent(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
   return Boolean(message.audio?.id && !message.image?.id && prepared.transcript?.trim());
 }
 
@@ -819,7 +719,7 @@ async function logMediaStorageWarning(sourcePhone: string, warning?: string) {
   });
 }
 
-async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string): Promise<PreparedMessageInput> {
+async function prepareMessageInput(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedMessageInput> {
   const text = getTextBody(message) || undefined;
   const prepared: PreparedMessageInput = {
     text,
@@ -876,7 +776,7 @@ async function prepareMessageInput(message: WhatsAppMessage, sourcePhone: string
   return prepared;
 }
 
-function isSupportedMessage(message: WhatsAppMessage) {
+function isSupportedMessage(message: WhatsAppWebhookMessage) {
   return Boolean(message.text?.body || message.image?.id || message.audio?.id);
 }
 
@@ -921,7 +821,7 @@ export function verifyWhatsAppWebhook(req: Request, res: Response) {
 }
 
 export async function handleWhatsAppWebhook(req: Request, res: Response) {
-  const messages = extractMessages(req.body);
+  const messages = extractWhatsAppWebhookMessages(req.body);
 
   if (!messages.length) {
     return res.status(200).json({ ok: true, processed: 0 });
@@ -934,7 +834,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       continue;
     }
 
-    if (!isMessageForConfiguredChannel(message)) {
+    if (!isWhatsAppMessageForConfiguredChannel(message)) {
       logInferenceEvent({
         userId: null,
         origin: "whatsapp",
@@ -1039,7 +939,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const waterLog = detectWaterLogFromMessage(message);
       if (waterLog) {
-        const occurredAt = resolveOccurredAt(message);
+        const occurredAt = resolveWhatsAppMessageOccurredAt(message);
         await createUserWaterLog(userId, {
           amountMl: waterLog.amountMl,
           occurredAt: occurredAt.toISOString(),
@@ -1068,7 +968,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const weightLog = detectWeightLogFromMessage(message);
       if (weightLog) {
-        const occurredAt = resolveOccurredAt(message);
+        const occurredAt = resolveWhatsAppMessageOccurredAt(message);
         await updateUserCurrentWeight(userId, {
           weightKg: weightLog.weightKg,
           measuredAt: occurredAt,
@@ -1100,7 +1000,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       if (canInterpretAudioTranscriptIntent(message, prepared)) {
         const interpreted = await executeWhatsappTextIntent(userId, {
           text: prepared.transcript,
-          receivedAt: resolveOccurredAt(message),
+          receivedAt: resolveWhatsAppMessageOccurredAt(message),
         });
 
         if (interpreted) {
@@ -1124,7 +1024,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         ...processed,
         imageUrl: prepared.imageUrl,
       };
-      const occurredAt = resolveOccurredAt(message);
+      const occurredAt = resolveWhatsAppMessageOccurredAt(message);
       const mediaForPersistence = [...prepared.media];
       let annotatedImage: GenerateImageResponse | null = null;
 
