@@ -4,6 +4,7 @@ import { ENV } from "./_core/env";
 import { getCatalogCache } from "./catalogRuntime";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
+import { findTacoFood } from "./tacoLookup";
 import { calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 
 export type CatalogFood = {
@@ -225,18 +226,31 @@ function sourceMentionsFood(sourceText: string, foodName: string) {
   const source = normalizeForMatching(sourceText);
   const candidates = new Set<string>();
   const cleanedFoodName = cleanFoodName(foodName);
-  const catalogFood = findCatalogFood(cleanedFoodName);
 
+  // Collect candidates from local catalog and TACO
+  const catalogFood = findCatalogFood(cleanedFoodName) ?? findTacoFood(cleanedFoodName);
   candidates.add(cleanedFoodName);
   if (catalogFood) {
     candidates.add(catalogFood.name);
     catalogFood.aliases.forEach(alias => candidates.add(alias));
   }
 
-  return Array.from(candidates).some(candidate => {
+  // Full-phrase match (original behaviour)
+  const phraseMatch = Array.from(candidates).some(candidate => {
     const normalizedCandidate = normalizeForMatching(candidate).trim();
     return normalizedCandidate.length >= 2 && source.includes(` ${normalizedCandidate} `);
   });
+  if (phraseMatch) return true;
+
+  // Keyword match: every significant word (3+ chars) of the foodName appears in source
+  // This handles cases like "1 sorvete de casquinha" where the leading quantity
+  // prevents the full phrase from matching.
+  const keywords = normalizeText(cleanedFoodName).split(/\s+/).filter(w => w.length >= 3);
+  if (keywords.length > 0 && keywords.every(word => source.includes(word))) {
+    return true;
+  }
+
+  return false;
 }
 
 function cleanFoodName(value: string) {
@@ -468,7 +482,10 @@ function formatQuantityForPortion(value: number) {
 
 function buildHeuristicItem(foodName: string): MealDraftItem {
   const parsed = parseFoodText(foodName);
-  const catalog = findCatalogFood(parsed.foodName);
+  // 1st pass: local curated catalog
+  const catalog = findCatalogFood(parsed.foodName)
+    // 2nd pass: TACO (~615 items) when local catalog misses
+    ?? findTacoFood(parsed.foodName);
   if (catalog) {
     return buildItemFromCatalog(catalog, {
       foodName: parsed.foodName,
@@ -641,9 +658,13 @@ async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOpti
   const results: MealDraftItem[] = [];
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
-    // 1st pass: fast exact/substring text match (synchronous, zero cost)
+    // 1st pass: fast exact/substring text match on local curated catalog (synchronous, zero cost)
     let catalog = findCatalogFood(normalizedItem.foodName);
-    // 2nd pass: semantic embedding match when text match misses (async, best-effort)
+    // 2nd pass: textual search on TACO (~615 items, synchronous, zero cost)
+    if (!catalog) {
+      catalog = findTacoFood(normalizedItem.foodName) ?? undefined;
+    }
+    // 3rd pass: semantic embedding match as last-resort fallback (async, best-effort)
     if (!catalog) {
       catalog = await findCatalogFoodSemantic(normalizedItem.foodName) ?? undefined;
     }
