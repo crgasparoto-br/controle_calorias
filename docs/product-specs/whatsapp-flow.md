@@ -12,13 +12,13 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O usuário não deve cadastrar o número oficial como se fosse seu telefone pessoal.
 - Respostas devem listar alimentos, porções, macros, calorias e horário em formato legível.
 - Recursos visuais auxiliares são opcionais. Falha nesse apoio não pode bloquear registro nem confirmação da refeição.
-- Pedidos de assistente alimentar devem responder com orientação educativa e não devem criar refeição automaticamente.
+- Pedidos naturais de orientação alimentar devem responder com sugestão educativa e não devem criar refeição automaticamente.
 
 ## Entradas suportadas
 
 | Tipo | Comportamento esperado |
 |---|---|
-| Texto | Processar descrição livre da refeição ou responder intenções de texto, incluindo assistente alimentar |
+| Texto | Processar descrição livre da refeição ou responder intenções de texto, incluindo orientação alimentar |
 | Imagem | Analisar alimento visível e gerar apoio visual opcional quando disponível |
 | Áudio | Transcrever, processar e preservar apenas o necessário |
 
@@ -28,6 +28,6 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Mensagem inbound encontra ou solicita vínculo com usuário interno.
 - Erros de configuração de token/número são explícitos para operação, mas não vazam segredo.
 - Simulação inbound continua disponível para testes operacionais.
-- Pedidos como `Assistente alimentar, o que posso comer no jantar?` respondem pelo WhatsApp sem cair no fallback de registro de refeição.
+- Pedidos como `O que posso comer no jantar?` respondem pelo WhatsApp sem cair no fallback de registro de refeição.
 - Texto comum de refeição continua disponível para inferência nutricional e registro conversacional.
 - Falha de visual auxiliar não bloqueia o fluxo conversacional principal.
