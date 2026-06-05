@@ -22,7 +22,6 @@ function normalizeAssistantText(value: string) {
 function looksLikeFoodAssistantIntent(normalized: string) {
   if (!normalized) return false;
 
-  if (/\bassistente\s+alimentar\b/.test(normalized)) return true;
   if (/\b(o que|oque)\s+(?:eu\s+)?(?:posso\s+)?comer\b/.test(normalized)) return true;
   if (/\b(?:posso|devo)\s+comer\b/.test(normalized)) return true;
   if (/\bme\s+ajud[ae]\s+(?:a\s+)?(?:escolher|montar|decidir)\b/.test(normalized)) return true;
@@ -34,7 +33,7 @@ function looksLikeFoodAssistantIntent(normalized: string) {
 
 function resolveMealContext(normalized: string): AssistantMealContext {
   if (/\b(cafe da manha|cafe|manha)\b/.test(normalized)) return "breakfast";
-  if (/\b(almoco|almo[cç]o)\b/.test(normalized)) return "lunch";
+  if (/\b(almoco|almoco)\b/.test(normalized)) return "lunch";
   if (/\bjantar\b/.test(normalized)) return "dinner";
   if (/\blanche\b/.test(normalized)) return "snack";
   if (/\b(pre treino|antes do treino)\b/.test(normalized)) return "pre_workout";
@@ -88,7 +87,7 @@ function buildAssistantReply(context: AssistantMealContext) {
   };
 
   return [
-    "Assistente alimentar:",
+    "Sugestão alimentar:",
     "",
     "Posso te ajudar com uma escolha prática. Algumas boas opções:",
     ...optionsByContext[context],
@@ -110,7 +109,7 @@ export function executeWhatsAppFoodAssistantIntent(text?: string | null): WhatsA
     action: "food_assistant",
     reply: buildAssistantReply(context),
     eventType: "whatsapp.intent.food_assistant",
-    detail: "Assistente alimentar respondeu uma orientação educativa sem criar refeição por fallback.",
+    detail: "Orientação alimentar respondida pelo WhatsApp sem criar refeição por fallback.",
     data: { context },
   };
 }
