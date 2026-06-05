@@ -11,6 +11,7 @@ import {
   normalizeWhatsAppPhoneNumber,
 } from "../../whatsappConfig";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
+import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import { executeWhatsappTextIntent } from "./intentActions";
 
 export class OfficialWhatsappNumberError extends Error {
@@ -82,6 +83,18 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       detail: interpreted.detail,
     });
     return interpreted;
+  }
+
+  const assistant = executeWhatsAppFoodAssistantIntent(input.text);
+  if (assistant) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "success",
+      eventType: assistant.eventType,
+      detail: assistant.detail,
+    });
+    return assistant;
   }
 
   return processMealDraft(userId, { source: "whatsapp", text: input.text });
