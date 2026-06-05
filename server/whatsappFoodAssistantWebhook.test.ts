@@ -119,8 +119,8 @@ describe("handleWhatsAppWebhookWithTextIntent food assistant", () => {
     }) as typeof fetch;
   });
 
-  it("responde pelo assistente alimentar e não delega para inferência nutricional", async () => {
-    const req = createTextWebhookRequest("Assistente alimentar, o que posso comer no jantar?");
+  it("responde orientação alimentar e não delega para inferência nutricional", async () => {
+    const req = createTextWebhookRequest("O que posso comer no jantar?");
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
@@ -135,7 +135,7 @@ describe("handleWhatsAppWebhookWithTextIntent food assistant", () => {
       status: "success",
       eventType: "whatsapp.intent.food_assistant",
     }));
-    expect(sentMessages.at(-1)).toContain("Assistente alimentar");
+    expect(sentMessages.at(-1)).toContain("Sugestão alimentar");
     expect(sentMessages.at(-1)).toContain("Para registrar uma refeição");
   });
 });
