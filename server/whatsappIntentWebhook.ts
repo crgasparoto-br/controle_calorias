@@ -118,18 +118,24 @@ function countPeriodDays(start: Date, end: Date) {
   return Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
 }
 
+function buildPeriodTotalLines(totals: NutritionTotals) {
+  return [
+    `Total consumido: ${formatNumber(totals.calories)} kcal`,
+    `* Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`,
+  ];
+}
+
 function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; balanceCalories: number }) {
   if (input.goalCalories <= 0) return [];
 
   const balanceLabel = input.balanceCalories >= 0 ? "Déficit" : "Superávit";
-  const balanceDetail = input.balanceCalories >= 0 ? "para a meta ajustada do período" : "da meta ajustada do período";
 
   return [
-    "*Meta do resumo:*",
-    `• Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
-    ...(input.exerciseCalories > 0 ? [`• Exercícios: ${formatNumber(input.exerciseCalories)} kcal gastas`] : []),
-    `• Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
-    `• ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal ${balanceDetail}`,
+    "Meta do resumo:",
+    `* Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
+    ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal gastas`] : []),
+    `* Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
+    `* ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal`,
   ];
 }
 
@@ -170,10 +176,10 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
   });
 
   return [
-    `Resumo de ${label}:`,
+    `*Resumo de ${label}:*`,
     "",
     `Refeições registradas: ${mealsInPeriod.length}`,
-    `Total consumido: ${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`,
+    ...buildPeriodTotalLines(totals),
     ...(goalSummaryLines.length ? ["", ...goalSummaryLines] : []),
   ].join("\n");
 }
