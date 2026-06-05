@@ -22,6 +22,10 @@ function mealDateKey(meal: { occurredAt: number }) {
   return getDateKeyInTimeZone(meal.occurredAt);
 }
 
+function dateKeyToLogicalDate(date: string) {
+  return new Date(`${date}T12:00:00Z`);
+}
+
 function groupMealsByDate(meals: Awaited<ReturnType<typeof listUserMeals>>) {
   const groups = new Map<string, Awaited<ReturnType<typeof listUserMeals>>>();
 
@@ -407,16 +411,18 @@ export async function getDashboardOverview(userId: number) {
   };
 }
 
-export async function getDashboardTodayOverview(userId: number, options: { includeQualityDetails?: boolean } = {}) {
-  const todayKey = getDateKeyInTimeZone(new Date());
+export async function getDashboardTodayOverview(userId: number, options: { date?: string; includeQualityDetails?: boolean } = {}) {
+  const selectedDate = options.date ?? getDateKeyInTimeZone(new Date());
+  const selectedWeekday = getWeekdayIndexInTimeZone(dateKeyToLogicalDate(selectedDate));
   const [goal, waterGoal, todaysMeals, todaysExercises, todaysWaterLogs, foods] = await Promise.all([
     getUserNutritionGoal(userId),
     getUserWaterGoal(userId),
-    listUserMealsByDate(userId, todayKey, { includeMedia: false }),
-    listUserExercisesByDate(userId, todayKey),
-    listUserWaterLogsByDate(userId, todayKey),
+    listUserMealsByDate(userId, selectedDate, { includeMedia: false }),
+    listUserExercisesByDate(userId, selectedDate),
+    listUserWaterLogsByDate(userId, selectedDate),
     options.includeQualityDetails ? searchFoods(userId, "", 500) : Promise.resolve(null),
   ]);
+  const plannedGoal = goal.days.find(goalDay => goalDay.weekday === selectedWeekday) ?? goal.today;
   const todayTotals = calculateDayTotals(todaysMeals);
   const todayBurnedCalories = todaysExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
   const todayWaterMl = todaysWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
@@ -425,13 +431,13 @@ export async function getDashboardTodayOverview(userId: number, options: { inclu
   return {
     goal,
     today: {
-      date: todayKey,
+      date: selectedDate,
       goal: {
-        calories: goal.today.calories,
-        protein: goal.today.proteinGrams,
-        carbs: goal.today.carbsGrams,
-        fat: goal.today.fatGrams,
-        label: goal.today.label,
+        calories: plannedGoal.calories,
+        protein: plannedGoal.proteinGrams,
+        carbs: plannedGoal.carbsGrams,
+        fat: plannedGoal.fatGrams,
+        label: plannedGoal.label,
       },
       consumed: {
         calories: roundNutritionValue(todayTotals.calories),
@@ -450,15 +456,15 @@ export async function getDashboardTodayOverview(userId: number, options: { inclu
       quality: todayQuality,
       net: {
         calories: roundNutritionValue(todayTotals.calories - todayBurnedCalories),
-        remainingToGoal: roundNutritionValue(goal.today.calories - (todayTotals.calories - todayBurnedCalories)),
+        remainingToGoal: roundNutritionValue(plannedGoal.calories - (todayTotals.calories - todayBurnedCalories)),
       },
       remaining: {
-        calories: roundNutritionValue(goal.today.calories - todayTotals.calories),
-        protein: roundNutritionValue(goal.today.proteinGrams - todayTotals.protein),
-        carbs: roundNutritionValue(goal.today.carbsGrams - todayTotals.carbs),
-        fat: roundNutritionValue(goal.today.fatGrams - todayTotals.fat),
+        calories: roundNutritionValue(plannedGoal.calories - todayTotals.calories),
+        protein: roundNutritionValue(plannedGoal.proteinGrams - todayTotals.protein),
+        carbs: roundNutritionValue(plannedGoal.carbsGrams - todayTotals.carbs),
+        fat: roundNutritionValue(plannedGoal.fatGrams - todayTotals.fat),
       },
-      adherence: roundNutritionValue(goal.today.calories ? Math.min((todayTotals.calories / goal.today.calories) * 100, 100) : 0),
+      adherence: roundNutritionValue(plannedGoal.calories ? Math.min((todayTotals.calories / plannedGoal.calories) * 100, 100) : 0),
     },
     meals: todaysMeals.slice(0, 8),
     exercises: todaysExercises.slice(0, 8),
