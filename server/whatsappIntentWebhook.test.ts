@@ -332,7 +332,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
     expect(sentMessages.at(-1)).toContain("Total consumido: 195 kcal");
     expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
-    expect(sentMessages.at(-1)).toContain("Meta do resumo:");
+    expect(sentMessages.at(-1)).toContain("Meta do *resumo:*");
     expect(sentMessages.at(-1)).toContain("* Meta estimada: 15.400 kcal");
     expect(sentMessages.at(-1)).toContain("* Exercícios: 300 kcal");
     expect(sentMessages.at(-1)).toContain("* Meta ajustada: 15.700 kcal");
@@ -355,6 +355,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
     expect(sentMessages.at(-1)).toContain("Total consumido: 195 kcal");
     expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
+    expect(sentMessages.at(-1)).toContain("Meta do *resumo:*");
     expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
   });
 

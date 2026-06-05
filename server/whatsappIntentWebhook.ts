@@ -131,7 +131,7 @@ function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoal
   const balanceLabel = input.balanceCalories >= 0 ? "Déficit" : "Superávit";
 
   return [
-    "Meta do resumo:",
+    "Meta do *resumo:*",
     `* Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
     ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal`] : []),
     `* Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
