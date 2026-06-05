@@ -3,15 +3,15 @@ import { describe, expect, it } from "vitest";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 
 describe("executeWhatsAppFoodAssistantIntent", () => {
-  it("responde pedidos explícitos do assistente alimentar sem depender de refeição", () => {
-    const result = executeWhatsAppFoodAssistantIntent("Assistente alimentar, o que posso comer no jantar?");
+  it("responde pedidos naturais de orientação alimentar sem depender de refeição", () => {
+    const result = executeWhatsAppFoodAssistantIntent("O que posso comer no jantar?");
 
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "food_assistant",
       eventType: "whatsapp.intent.food_assistant",
       data: { context: "dinner" },
-      reply: expect.stringContaining("Assistente alimentar"),
+      reply: expect.stringContaining("Sugestão alimentar"),
     }));
     expect(result?.reply).toContain("Para registrar uma refeição");
   });
