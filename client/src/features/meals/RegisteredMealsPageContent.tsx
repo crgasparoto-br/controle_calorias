@@ -184,6 +184,14 @@ function calculateExerciseIntensity(exercise: ExerciseRecord) {
   return exercise.caloriesBurned / exercise.durationMinutes;
 }
 
+function initialSelectedDay() {
+  const fallback = toDateInputValue();
+  if (typeof window === "undefined") return fallback;
+
+  const date = new URLSearchParams(window.location.search).get("date");
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : fallback;
+}
+
 function DateGroupedMealsSections({
   groups,
   scope,
@@ -386,12 +394,13 @@ function CompactOperationalMetric({ label, value }: { label: string; value: stri
 export function RegisteredMealsPage() {
   const utils = trpc.useUtils();
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
+  const [initialDay] = useState(initialSelectedDay);
   const [periodScope, setPeriodScope] = useState<PeriodScope>("day");
-  const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
+  const [selectedDay, setSelectedDay] = useState(initialDay);
   const [selectedMonth, setSelectedMonth] = useState(() => toMonthInputValue(new Date(), userTimeZone));
   const [rangeStart, setRangeStart] = useState(() => toDateInputValue(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), userTimeZone));
   const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
-  const [copyTargetDay, setCopyTargetDay] = useState(() => toDateInputValue());
+  const [copyTargetDay, setCopyTargetDay] = useState(initialDay);
   const [manualMeal, setManualMeal] = useState(createManualMealState);
   const [areMealGroupsCollapsed, setAreMealGroupsCollapsed] = useState(false);
 
