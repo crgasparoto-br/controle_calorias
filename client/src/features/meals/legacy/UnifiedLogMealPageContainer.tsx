@@ -418,15 +418,9 @@ export default function LogMealPage() {
       <div className="space-y-6">
         <datalist id="meal-label-suggestions">{configuredMealLabels.map(label => <option key={label} value={label} />)}</datalist>
 
-        <Card className="border-0 bg-muted/20 shadow-sm">
-          <CardContent className="p-5 text-sm leading-6 text-muted-foreground">
-            Esta tela foi organizada para registrar o que aconteceu no dia, revisar rascunhos e corrigir lançamentos rápidos. Para acompanhar padrão, frequência e evolução de água, exercícios e refeições, use Relatórios.
-          </CardContent>
-        </Card>
-
         <Tabs value={activeTab} onValueChange={value => setActiveTab(value as MealTab)} className="gap-4">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3 xl:grid-cols-5">
-            <TabsTrigger className="min-h-11 rounded-xl" value="registro"><WandSparkles className="h-4 w-4" />Registrar com IA</TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="registro"><WandSparkles className="h-4 w-4" />Registrar</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="manual"><PencilLine className="h-4 w-4" />Manual</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="agua"><Droplets className="h-4 w-4" />Água do dia</TabsTrigger>
             <TabsTrigger className="min-h-11 rounded-xl" value="exercicios"><Dumbbell className="h-4 w-4" />Exercícios</TabsTrigger>
