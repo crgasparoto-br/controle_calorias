@@ -195,6 +195,30 @@ function createNewMealSchedule(): MealScheduleState {
   return { mealLabel: "nova refeição", startTime: "12:00", endTime: "12:59", enabled: true };
 }
 
+function formatPhoneNumber(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return "";
+
+  if (digits.length === 13 && digits.startsWith("55")) {
+    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+
+  if (digits.length === 12 && digits.startsWith("55")) {
+    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return trimmed;
+}
+
 export default function OnboardingPage() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
@@ -213,7 +237,7 @@ export default function OnboardingPage() {
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const userName = user?.name?.trim() ?? "";
   const userEmail = user?.email?.trim() ?? "";
-  const contactPhoneNumber = whatsappStatusQuery.data?.connection?.phoneNumber?.trim() ?? "";
+  const contactPhoneNumber = formatPhoneNumber(whatsappStatusQuery.data?.connection?.phoneNumber ?? "");
 
   useEffect(() => {
     const profile = savedProfileQuery.data;
