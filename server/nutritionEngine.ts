@@ -3,6 +3,7 @@ import { getAiProvider, type AiProviderTextRequest } from "./_core/aiProvider";
 import { ENV } from "./_core/env";
 import { getCatalogCache } from "./catalogRuntime";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
+import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import { calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 
 export type CatalogFood = {
@@ -588,6 +589,10 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
         "Use o rótulo apenas para identificar o alimento real e a porção consumida; não crie itens extras a partir de ingredientes da embalagem.",
         "Não invente totais agregados; detalhe por item com porção, gramas estimados e macronutrientes por item.",
         "Não use nomes de alimentos para inferir o tipo de refeição: café como bebida não significa café da manhã.",
+        "Use elementos de referência visual na imagem (como o tamanho do prato, talheres, copos ou as mãos do usuário) para calibrar e estimar com maior precisão o peso em gramas de cada alimento.",
+        "Alimentos ricos em amido (arroz, batata, massa, pão) costumam ter maior volume e peso no prato; calibre sua estimativa de gramas levando em conta a densidade típica desses alimentos.",
+        "Ao estimar porções, prefira valores em gramas (estimatedGrams) a descrições vagas como '1 porção'; use referências visuais de escala para chegar a um número realista.",
+        "Se houver tabela nutricional visível no rótulo, extraia os valores textuais com precisão de OCR — leia cada número individualmente e use-os diretamente em estimatedCalories e estimatedMacros sem arredondamentos desnecessários.",
       ].join("\n"),
     },
   ];
@@ -609,7 +614,7 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
 
   const response = await getAiProvider().createTextResponse({
     model: ENV.openaiModel,
-    instructions: "Você é um nutricionista assistente. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a foto não permitir identificar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar.",
+    instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a foto não permitir identificar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize precisão em gramas sobre descrições vagas de porção.",
     input: aiInput,
     format: {
       type: "json_schema",
@@ -632,15 +637,23 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
   return validation.data;
 }
 
-function buildItemsFromInference(items: LlmItem[], options: BuildItemsOptions = {}) {
-  return items.map(item => {
+async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOptions = {}): Promise<MealDraftItem[]> {
+  const results: MealDraftItem[] = [];
+  for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
-    const catalog = findCatalogFood(normalizedItem.foodName);
-    if (catalog && !options.preferInferredNutrition) {
-      return buildItemFromCatalog(catalog, normalizedItem);
+    // 1st pass: fast exact/substring text match (synchronous, zero cost)
+    let catalog = findCatalogFood(normalizedItem.foodName);
+    // 2nd pass: semantic embedding match when text match misses (async, best-effort)
+    if (!catalog) {
+      catalog = await findCatalogFoodSemantic(normalizedItem.foodName) ?? undefined;
     }
-    return buildHybridItem(normalizedItem);
-  });
+    if (catalog && !options.preferInferredNutrition) {
+      results.push(buildItemFromCatalog(catalog, normalizedItem));
+    } else {
+      results.push(buildHybridItem(normalizedItem));
+    }
+  }
+  return results;
 }
 
 function shouldConstrainAiItemsToText(input: MealProcessingInput, sourceText: string) {
@@ -663,7 +676,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
   }
 
   const rawItems = extraction
-    ? applyExplicitSingleGramQuantity(buildItemsFromInference(
+    ? applyExplicitSingleGramQuantity(await buildItemsFromInference(
       shouldConstrainAiItemsToText(input, sourceText)
         ? extraction.items.filter(item => sourceMentionsFood(sourceText, normalizeLlmItem(item).foodName))
         : extraction.items,

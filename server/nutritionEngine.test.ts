@@ -59,7 +59,7 @@ describe("nutritionEngine.processMealInput", () => {
     });
 
     expect(createTextResponseMock).toHaveBeenCalledWith(expect.objectContaining({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       format: expect.objectContaining({
         type: "json_schema",
         name: "meal_extraction",
