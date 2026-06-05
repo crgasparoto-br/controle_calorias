@@ -586,6 +586,9 @@ describe("nutrition pages", () => {
     expect(html).toContain("Configurações");
     expect(html).toContain("Ajuste seu perfil sem se perder em blocos longos");
     expect(html).toContain("Nome");
+    expect(html).toContain("Telefone");
+    expect(html).toContain("E-mail");
+    expect(html).toContain("gaspa@example.com");
     expect(html).toContain("Data de nascimento");
     expect(html).toContain("Idade calculada");
     expect(html).toContain("Peso atual");
@@ -593,6 +596,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Objetivos e rotina");
     expect(html).toContain("Refeições habituais");
     expect(html).toContain("Salvar configurações");
+    expect(html).not.toContain("Campos essenciais ficam juntos para reduzir ida e volta pela página e facilitar pequenos ajustes futuros.");
     expect(html).not.toContain("Vínculo do WhatsApp");
     expect(html).not.toContain("Solicitações recebidas");
     expect(html).not.toContain("Tudo salvo no mesmo fluxo");
