@@ -208,9 +208,12 @@ export default function OnboardingPage() {
     name: user?.name?.trim() ?? "",
   }));
 
+  const whatsappStatusQuery = trpc.nutrition.whatsapp.status.useQuery();
   const savedProfileQuery = trpc.nutrition.onboarding.profile.useQuery();
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const userName = user?.name?.trim() ?? "";
+  const userEmail = user?.email?.trim() ?? "";
+  const contactPhoneNumber = whatsappStatusQuery.data?.connection?.phoneNumber?.trim() ?? "";
 
   useEffect(() => {
     const profile = savedProfileQuery.data;
@@ -393,12 +396,11 @@ export default function OnboardingPage() {
                   <UserRound className="h-5 w-5 text-primary" />
                   Identificação e base física
                 </CardTitle>
-                <CardDescription>
-                  Campos essenciais ficam juntos para reduzir ida e volta pela página e facilitar pequenos ajustes futuros.
-                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
+                <ReadOnlyField label="Telefone" value={contactPhoneNumber || "Não informado"} />
+                <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
                 <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
                 <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
                 <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
