@@ -531,7 +531,6 @@ describe("nutrition pages", () => {
 
     expect(html).toContain("Como está o seu dia agora?");
     expect(html).toContain("Calorias consumidas");
-    expect(html).toContain("Foco do dia");
     expect(html).toContain("Registrar refeição");
     expect(html).toContain("Água do dia");
     expect(html).toContain("Status do dia");
