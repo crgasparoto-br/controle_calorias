@@ -8,11 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { toDateInputValue } from "@/lib/dateTime";
+import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { buildDailyNutritionStatus, SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
-import { ArrowRight, BrainCircuit, ChevronLeft, ChevronRight, Droplets, Dumbbell, Flame, Salad } from "lucide-react";
+import { SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
+import { ArrowRight, BrainCircuit, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
@@ -49,6 +49,12 @@ type GroupedMealSummary = {
   mealLabel: string;
   totals: MealTotals;
   count: number;
+};
+
+type MacroSummary = {
+  label: string;
+  consumed: number;
+  goal: number;
 };
 
 function macroProgress(consumed: number, goal: number) {
@@ -128,6 +134,10 @@ function formatSelectedDateSubtitle(dateKey: string) {
   }).format(toUtcNoonDate(dateKey));
 }
 
+function recordsHref(dateKey: string) {
+  return `/meals?date=${encodeURIComponent(dateKey)}`;
+}
+
 export default function Home() {
   const utils = trpc.useUtils();
   const todayKey = toDateInputValue();
@@ -177,7 +187,7 @@ export default function Home() {
 
     saveAssistantMeal.mutate({
       mealLabel: "jantar",
-      occurredAt: new Date().toISOString(),
+      occurredAt: zonedDateTimeLocalToIso(`${selectedDate}T12:00`),
       notes: "Sugestão educativa do assistente alimentar.",
       items: assistantSuggestion.suggestedFoods.map(food => ({
         foodName: food.foodName,
@@ -195,7 +205,7 @@ export default function Home() {
     });
   };
 
-  const todaysMeals = overview.data?.meals ?? [];
+  const selectedDayMeals = overview.data?.meals ?? [];
   const consumedCalories = overview.data?.today.consumed.calories ?? 0;
   const consumedProtein = overview.data?.today.consumed.protein ?? 0;
   const consumedCarbs = overview.data?.today.consumed.carbs ?? 0;
@@ -208,11 +218,18 @@ export default function Home() {
   const goalMacroTotal = macroGramTotal(proteinGoal, carbsGoal, fatGoal);
   const remainingCalories = overview.data?.today.remaining.calories ?? 0;
   const exerciseCalories = overview.data?.today.burned.calories ?? 0;
-  const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
-  const groupedTodaysMeals = React.useMemo<GroupedMealSummary[]>(() => {
+  const netCalories = overview.data?.today.net.calories ?? 0;
+  const waterConsumedMl = overview.data?.today.water.consumedMl ?? 0;
+  const waterGoalMl = overview.data?.today.water.goalMl ?? 0;
+  const macroSummaries: MacroSummary[] = [
+    { label: "Proteína", consumed: consumedProtein, goal: proteinGoal },
+    { label: "Carboidratos", consumed: consumedCarbs, goal: carbsGoal },
+    { label: "Gorduras", consumed: consumedFat, goal: fatGoal },
+  ];
+  const groupedSelectedDayMeals = React.useMemo<GroupedMealSummary[]>(() => {
     const mealsByLabel = new Map<string, GroupedMealSummary>();
 
-    todaysMeals.forEach(meal => {
+    selectedDayMeals.forEach(meal => {
       const mealLabel = meal.mealLabel.trim() || "Refeição";
       const key = mealLabel.toLocaleLowerCase("pt-BR");
       const existing = mealsByLabel.get(key);
@@ -240,18 +257,17 @@ export default function Home() {
     });
 
     return Array.from(mealsByLabel.values());
-  }, [todaysMeals]);
+  }, [selectedDayMeals]);
 
   if (overview.isLoading) {
     return (
       <DashboardLayout>
         <div className="mx-auto flex max-w-7xl flex-col gap-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <Skeleton className="h-36 rounded-2xl" />
-            <Skeleton className="h-36 rounded-2xl" />
-            <Skeleton className="h-36 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
+          <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
+            <Skeleton className="h-96 rounded-2xl" />
+            <Skeleton className="h-96 rounded-2xl" />
           </div>
-          <Skeleton className="h-80 rounded-2xl" />
         </div>
       </DashboardLayout>
     );
@@ -273,7 +289,7 @@ export default function Home() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto flex max-w-7xl flex-col gap-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <DateNavigator
           selectedDate={selectedDate}
           todayKey={todayKey}
@@ -286,7 +302,7 @@ export default function Home() {
         <PageIntro
           eyebrow="Hoje"
           title="Como está o seu dia agora?"
-          description=""
+          description="Acompanhe consumo, metas e registros do dia selecionado em uma leitura rápida."
           actions={
             <>
               <Link href="/registrar">
@@ -295,7 +311,7 @@ export default function Home() {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/meals">
+              <Link href={recordsHref(selectedDate)}>
                 <Button variant="outline" className="rounded-full">
                   Ver registros do dia
                 </Button>
@@ -307,149 +323,34 @@ export default function Home() {
               </Link>
             </>
           }
-          stats={
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <DailyMetric
-                title="Calorias consumidas"
-                value={formatCalories(consumedCalories)}
-                helper={formatGoalProgressText(consumedCalories, calorieGoal)}
-                icon={Flame}
-              />
-              <DailyMetric
-                title="Calorias restantes"
-                value={formatCalories(positiveRemaining(remainingCalories))}
-                helper={remainingCalories < 0 ? "Acima da meta planejada para o dia" : "Disponíveis para os próximos registros"}
-                icon={Salad}
-              />
-              <DailyMetric
-                title="Exercícios"
-                value={formatCalories(exerciseCalories)}
-                helper="Queimadas no dia"
-                icon={Dumbbell}
-              />
-              <DailyMetric
-                title="Saldo líquido"
-                value={formatCalories(overview.data?.today.net.calories ?? 0)}
-                helper="Consumo menos exercícios registrados"
-                icon={Dumbbell}
-              />
-              <DailyMetric
-                title="Água do dia"
-                value={formatCountPtBr(overview.data?.today.water.consumedMl ?? 0, " ml")}
-                helper={`Meta ${formatCountPtBr(overview.data?.today.water.goalMl ?? 0, " ml")}`}
-                icon={Droplets}
-              />
-            </div>
-          }
         />
 
         <section className="space-y-4">
           <SectionHeading title="Foco do dia" />
           <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
             <div className="space-y-4">
-              <Card className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle>Status do dia</CardTitle>
-                  <CardDescription>Leitura rápida do momento atual e da meta planejada.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-2xl border bg-muted/30 p-4">
-                    <p className="text-sm leading-6 text-muted-foreground">{dailyStatus}</p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                    <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={formatGoalComparison(consumedCalories, calorieGoal, formatCalories)} />
-                    <StatBlock
-                      label="Proteína"
-                      value={formatGrams(consumedProtein)}
-                      sublabel={formatGoalComparison(consumedProtein, proteinGoal, formatGrams)}
-                      details={[
-                        formatMacroGramShare(consumedProtein, consumedMacroTotal, "Consumido"),
-                        formatMacroGramShare(proteinGoal, goalMacroTotal, "Meta"),
-                      ]}
-                    />
-                    <StatBlock
-                      label="Carboidratos"
-                      value={formatGrams(consumedCarbs)}
-                      sublabel={formatGoalComparison(consumedCarbs, carbsGoal, formatGrams)}
-                      details={[
-                        formatMacroGramShare(consumedCarbs, consumedMacroTotal, "Consumido"),
-                        formatMacroGramShare(carbsGoal, goalMacroTotal, "Meta"),
-                      ]}
-                    />
-                    <StatBlock
-                      label="Gorduras"
-                      value={formatGrams(consumedFat)}
-                      sublabel={formatGoalComparison(consumedFat, fatGoal, formatGrams)}
-                      details={[
-                        formatMacroGramShare(consumedFat, consumedMacroTotal, "Consumido"),
-                        formatMacroGramShare(fatGoal, goalMacroTotal, "Meta"),
-                      ]}
-                    />
-                    <StatBlock label="Refeições" value={formatCountPtBr(groupedTodaysMeals.length)} sublabel="Agrupadas por nome" />
-                  </div>
-                  <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-                    <CalorieBar consumed={consumedCalories} goal={calorieGoal} />
-                    <MacroBar label="Proteínas" consumed={consumedProtein} goal={proteinGoal} />
-                    <MacroBar label="Carboidratos" consumed={consumedCarbs} goal={carbsGoal} />
-                    <MacroBar label="Gorduras" consumed={consumedFat} goal={fatGoal} />
-                  </div>
-                </CardContent>
-              </Card>
+              <TodayStatusCard
+                consumedCalories={consumedCalories}
+                calorieGoal={calorieGoal}
+                remainingCalories={remainingCalories}
+                netCalories={netCalories}
+                exerciseCalories={exerciseCalories}
+                waterConsumedMl={waterConsumedMl}
+                waterGoalMl={waterGoalMl}
+                groupedMealsCount={groupedSelectedDayMeals.length}
+                macroSummaries={macroSummaries}
+                consumedMacroTotal={consumedMacroTotal}
+                goalMacroTotal={goalMacroTotal}
+              />
 
-              <Card className="border-0 shadow-sm">
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <CardTitle>Refeições do dia</CardTitle>
-                    <CardDescription>Registros confirmados no dia selecionado, somados por refeição.</CardDescription>
-                  </div>
-                  <Link href="/meals">
-                    <Button variant="ghost" className="gap-2 px-0 sm:px-3">
-                      Ver lista completa
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {groupedTodaysMeals.length ? (
-                    groupedTodaysMeals.map(meal => (
-                      <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="font-medium tracking-tight">{meal.mealLabel}</p>
-                            {meal.count > 1 ? (
-                              <p className="mt-1 text-xs text-muted-foreground">{formatCountPtBr(meal.count)} registros somados</p>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                          <MealNutritionMetric
-                            label="Calorias"
-                            value={formatCalories(meal.totals.calories)}
-                            percentage={formatDayShare(meal.totals.calories, consumedCalories)}
-                          />
-                          <MealNutritionMetric
-                            label="Proteínas"
-                            value={formatGrams(meal.totals.protein)}
-                            percentage={formatDayShare(meal.totals.protein, consumedProtein)}
-                          />
-                          <MealNutritionMetric
-                            label="Carboidratos"
-                            value={formatGrams(meal.totals.carbs)}
-                            percentage={formatDayShare(meal.totals.carbs, consumedCarbs)}
-                          />
-                          <MealNutritionMetric
-                            label="Gorduras"
-                            value={formatGrams(meal.totals.fat)}
-                            percentage={formatDayShare(meal.totals.fat, consumedFat)}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <EmptyCopy text="Nenhuma refeição foi registrada neste dia. Um primeiro registro simples já ajuda a visualizar o dia com mais clareza." />
-                  )}
-                </CardContent>
-              </Card>
+              <MealsOfDayCard
+                groupedMeals={groupedSelectedDayMeals}
+                recordsUrl={recordsHref(selectedDate)}
+                consumedCalories={consumedCalories}
+                consumedProtein={consumedProtein}
+                consumedCarbs={consumedCarbs}
+                consumedFat={consumedFat}
+              />
             </div>
 
             <FoodAssistantCard
@@ -515,28 +416,130 @@ function SectionHeading({ title, description }: { title: string; description?: s
   );
 }
 
-function DailyMetric({
-  icon: Icon,
-  title,
-  value,
-  helper,
+function TodayStatusCard({
+  consumedCalories,
+  calorieGoal,
+  remainingCalories,
+  netCalories,
+  exerciseCalories,
+  waterConsumedMl,
+  waterGoalMl,
+  groupedMealsCount,
+  macroSummaries,
+  consumedMacroTotal,
+  goalMacroTotal,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  value: string;
-  helper: string;
+  consumedCalories: number;
+  calorieGoal: number;
+  remainingCalories: number;
+  netCalories: number;
+  exerciseCalories: number;
+  waterConsumedMl: number;
+  waterGoalMl: number;
+  groupedMealsCount: number;
+  macroSummaries: MacroSummary[];
+  consumedMacroTotal: number;
+  goalMacroTotal: number;
 }) {
   return (
     <Card className="border-0 shadow-sm">
-      <CardContent className="flex min-h-36 items-start justify-between gap-4 p-5">
+      <CardHeader>
+        <CardTitle>Status do dia</CardTitle>
+        <CardDescription>Leitura rápida do momento atual e da meta planejada.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={formatGoalComparison(consumedCalories, calorieGoal, formatCalories)} />
+          <StatBlock
+            label="Calorias restantes"
+            value={formatCalories(positiveRemaining(remainingCalories))}
+            sublabel={remainingCalories < 0 ? "Acima da meta planejada para o dia" : "Disponíveis para os próximos registros"}
+          />
+          <StatBlock label="Saldo líquido" value={formatCalories(netCalories)} sublabel="Consumo menos exercícios registrados" />
+          <StatBlock label="Refeições" value={formatCountPtBr(groupedMealsCount)} sublabel="Agrupadas por nome" />
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-3">
+          {macroSummaries.map(macro => (
+            <StatBlock
+              key={macro.label}
+              label={macro.label}
+              value={formatGrams(macro.consumed)}
+              sublabel={formatGoalComparison(macro.consumed, macro.goal, formatGrams)}
+              details={[
+                formatMacroGramShare(macro.consumed, consumedMacroTotal, "Consumido"),
+                formatMacroGramShare(macro.goal, goalMacroTotal, "Meta"),
+              ]}
+            />
+          ))}
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+          <CalorieBar consumed={consumedCalories} goal={calorieGoal} />
+          {macroSummaries.map(macro => (
+            <MacroBar key={macro.label} label={macro.label} consumed={macro.consumed} goal={macro.goal} />
+          ))}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SupportMetric label="Exercícios" value={formatCalories(exerciseCalories)} helper="Queimadas no dia" />
+          <SupportMetric label="Água do dia" value={formatCountPtBr(waterConsumedMl, " ml")} helper={`Meta ${formatCountPtBr(waterGoalMl, " ml")}`} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MealsOfDayCard({
+  groupedMeals,
+  recordsUrl,
+  consumedCalories,
+  consumedProtein,
+  consumedCarbs,
+  consumedFat,
+}: {
+  groupedMeals: GroupedMealSummary[];
+  recordsUrl: string;
+  consumedCalories: number;
+  consumedProtein: number;
+  consumedCarbs: number;
+  consumedFat: number;
+}) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
-          <p className="mt-2 text-sm leading-5 text-muted-foreground">{helper}</p>
+          <CardTitle>Refeições do dia</CardTitle>
+          <CardDescription>Registros confirmados no dia selecionado, somados por refeição.</CardDescription>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <Icon className="h-5 w-5" />
-        </div>
+        <Link href={recordsUrl}>
+          <Button variant="ghost" className="gap-2 px-0 sm:px-3">
+            Ver lista completa
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {groupedMeals.length ? (
+          groupedMeals.map(meal => (
+            <div key={meal.id} className="rounded-2xl border bg-background p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium tracking-tight">{meal.mealLabel}</p>
+                  {meal.count > 1 ? <p className="mt-1 text-xs text-muted-foreground">{formatCountPtBr(meal.count)} registros somados</p> : null}
+                </div>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <MealNutritionMetric label="Calorias" value={formatCalories(meal.totals.calories)} percentage={formatDayShare(meal.totals.calories, consumedCalories)} />
+                <MealNutritionMetric label="Proteínas" value={formatGrams(meal.totals.protein)} percentage={formatDayShare(meal.totals.protein, consumedProtein)} />
+                <MealNutritionMetric label="Carboidratos" value={formatGrams(meal.totals.carbs)} percentage={formatDayShare(meal.totals.carbs, consumedCarbs)} />
+                <MealNutritionMetric label="Gorduras" value={formatGrams(meal.totals.fat)} percentage={formatDayShare(meal.totals.fat, consumedFat)} />
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyCopy text="Nenhuma refeição foi registrada neste dia. Um primeiro registro simples já ajuda a visualizar o dia com mais clareza." />
+        )}
       </CardContent>
     </Card>
   );
@@ -588,6 +591,7 @@ function FoodAssistantCard({
             value={message}
             onChange={event => onMessageChange(event.target.value)}
             placeholder="Ex.: sugira um jantar leve com as calorias restantes"
+            aria-label="Pedido para o assistente alimentar"
             className="min-h-28 resize-none"
             maxLength={600}
           />
@@ -672,6 +676,16 @@ function StatBlock({ label, value, sublabel, details }: { label: string; value: 
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function SupportMetric({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border bg-muted/30 p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
     </div>
   );
 }
