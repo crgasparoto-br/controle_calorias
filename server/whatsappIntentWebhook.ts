@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { getCatalogCache } from "./catalogRuntime";
+import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
 import { listMeals } from "./modules/meals/service";
@@ -15,7 +16,7 @@ import {
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
 
-type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
+type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>> | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
 type NutritionTotals = {
   calories: number;
   protein: number;
@@ -220,7 +221,9 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage) {
   const pendingContext = getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
-  const result = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+  let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+  result ??= executeWhatsAppFoodAssistantIntent(text);
+
   if (!result) {
     const unknownFoodReply = buildUnknownFoodReply(text);
     if (!unknownFoodReply) return false;
