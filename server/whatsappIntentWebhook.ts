@@ -117,6 +117,21 @@ function countPeriodDays(start: Date, end: Date) {
   return Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
 }
 
+function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; balanceCalories: number }) {
+  if (input.goalCalories <= 0) return [];
+
+  const balanceLabel = input.balanceCalories >= 0 ? "Déficit" : "Superávit";
+  const balanceDetail = input.balanceCalories >= 0 ? "para a meta ajustada do período" : "da meta ajustada do período";
+
+  return [
+    "*Meta do resumo:*",
+    `• Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
+    ...(input.exerciseCalories > 0 ? [`• Exercícios: ${formatNumber(input.exerciseCalories)} kcal gastas`] : []),
+    `• Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
+    `• ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal ${balanceDetail}`,
+  ];
+}
+
 async function buildExerciseAwarePeriodReportReply(userId: number, result: TextIntentResult) {
   if (result.action !== "period_report") return result.reply;
 
@@ -142,21 +157,23 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
     acc.fat += itemTotals.fat;
     return acc;
   }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const exerciseCalories = exercisesInPeriod.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0);
+  const exerciseCalories = Math.round(exercisesInPeriod.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0));
   const goalCalories = Math.round(Number(goal.today?.calories || 0) * countPeriodDays(start, end));
-  const adjustedGoalCalories = goalCalories + Math.round(exerciseCalories);
-  const balance = adjustedGoalCalories - Math.round(totals.calories);
-  const balanceLine = balance >= 0
-    ? `Você está em déficit de ${formatNumber(balance)} kcal em relação à meta ajustada.`
-    : `Você está em superávit de ${formatNumber(Math.abs(balance))} kcal em relação à meta ajustada.`;
+  const adjustedGoalCalories = goalCalories + exerciseCalories;
+  const balanceCalories = adjustedGoalCalories - Math.round(totals.calories);
+  const goalSummaryLines = buildPeriodGoalSummaryLines({
+    goalCalories,
+    adjustedGoalCalories,
+    exerciseCalories,
+    balanceCalories,
+  });
 
   return [
     `Resumo de ${label}:`,
     "",
     `Refeições registradas: ${mealsInPeriod.length}`,
     `Total consumido: ${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`,
-    `Exercícios: ${formatNumber(exerciseCalories)} kcal gastas`,
-    ...(goalCalories > 0 ? [`Meta estimada: ${formatNumber(goalCalories)} kcal`, `Meta ajustada: ${formatNumber(adjustedGoalCalories)} kcal`, balanceLine] : []),
+    ...(goalSummaryLines.length ? ["", ...goalSummaryLines] : []),
   ].join("\n");
 }
 
