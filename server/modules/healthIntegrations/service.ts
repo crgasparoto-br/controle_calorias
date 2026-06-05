@@ -16,7 +16,7 @@ import type {
 type HealthConnectionStatus = "connected" | "disconnected" | "error" | "pending";
 type HealthSetupStatus = "ready" | "missing_credentials" | "native_required" | "dev_only";
 type IntegrationKind = "native" | "oauth" | "mock";
-type StravaCaloriesSource = "strava" | "kilojoules" | "estimated_strength" | null;
+type StravaCaloriesSource = "strava" | "kilojoules" | "estimated_activity" | "estimated_strength" | null;
 
 type HealthConnection = {
   userId: number;
@@ -179,6 +179,102 @@ const DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = 20;
 const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 30;
 const DEFAULT_STRENGTH_ESTIMATION_WEIGHT_KG = 75;
 const DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES = 15;
+const STRAVA_ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  alpine_ski: "Esqui alpino",
+  backcountry_ski: "Esqui backcountry",
+  canoeing: "Canoagem",
+  crossfit: "Crossfit",
+  e_bike_ride: "Pedal com e-bike",
+  elliptical: "Eliptico",
+  golf: "Golfe",
+  gravel_ride: "Pedal gravel",
+  handcycle: "Handcycle",
+  high_intensity_interval_training: "HIIT",
+  hike: "Trilha",
+  ice_skate: "Patinacao no gelo",
+  inline_skate: "Patinacao",
+  kayaking: "Caiaque",
+  mountain_bike_ride: "Mountain bike",
+  nordic_ski: "Esqui nordico",
+  pickleball: "Pickleball",
+  pilates: "Pilates",
+  racquetball: "Racquetball",
+  ride: "Pedal",
+  rock_climbing: "Escalada",
+  roller_ski: "Esqui sobre rodas",
+  rowing: "Remo",
+  run: "Corrida",
+  sail: "Vela",
+  skateboard: "Skate",
+  snowboard: "Snowboard",
+  snowshoe: "Caminhada na neve",
+  soccer: "Futebol",
+  squash: "Squash",
+  stair_stepper: "Simulador de escada",
+  stand_up_paddling: "Stand up paddle",
+  surf: "Surf",
+  swim: "Natacao",
+  table_tennis: "Tenis de mesa",
+  tennis: "Tenis",
+  trail_run: "Corrida em trilha",
+  velomobile: "Velomobile",
+  virtual_ride: "Pedal virtual",
+  virtual_row: "Remo virtual",
+  virtual_run: "Corrida virtual",
+  walk: "Caminhada",
+  weight_training: "Musculacao",
+  wheelchair: "Cadeira de rodas",
+  workout: "Treino",
+  yoga: "Yoga",
+};
+const STRAVA_ACTIVITY_CALORIES_PER_MINUTE: Record<string, number> = {
+  alpine_ski: 7,
+  backcountry_ski: 8,
+  canoeing: 5,
+  crossfit: 9,
+  e_bike_ride: 5,
+  elliptical: 7,
+  golf: 4,
+  gravel_ride: 8,
+  handcycle: 6,
+  high_intensity_interval_training: 9,
+  hike: 6,
+  ice_skate: 7,
+  inline_skate: 8,
+  kayaking: 5,
+  mountain_bike_ride: 9,
+  nordic_ski: 9,
+  pickleball: 6,
+  pilates: 4,
+  racquetball: 8,
+  ride: 8,
+  rock_climbing: 8,
+  roller_ski: 8,
+  rowing: 7,
+  run: 10,
+  sail: 3,
+  skateboard: 5,
+  snowboard: 6,
+  snowshoe: 7,
+  soccer: 8,
+  squash: 10,
+  stair_stepper: 8,
+  stand_up_paddling: 5,
+  surf: 4,
+  swim: 8,
+  table_tennis: 4,
+  tennis: 7,
+  trail_run: 11,
+  velomobile: 6,
+  virtual_ride: 8,
+  virtual_row: 7,
+  virtual_run: 10,
+  walk: 4,
+  weight_training: 5,
+  wheelchair: 4,
+  workout: 5,
+  yoga: 3,
+};
 
 class StravaRateLimitError extends Error {
   retryAfterMs: number;
@@ -619,8 +715,24 @@ function buildStravaActivityDetailUrl(activityId: number) {
   return `${STRAVA_ACTIVITY_DETAIL_URL}/${activityId}`;
 }
 
-function getStravaActivityType(activity: StravaActivity) {
+function normalizeStravaActivityKey(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+}
+
+function getOriginalStravaActivityType(activity: StravaActivity) {
   return activity.sport_type || activity.type || activity.name || "Atividade Strava";
+}
+
+function getStravaActivityTypeKey(activity: StravaActivity) {
+  return normalizeStravaActivityKey(getOriginalStravaActivityType(activity));
+}
+
+function getStravaActivityType(activity: StravaActivity) {
+  const originalType = getOriginalStravaActivityType(activity);
+  return STRAVA_ACTIVITY_TYPE_LABELS[getStravaActivityTypeKey(activity)] ?? originalType;
 }
 
 function isStravaStrengthActivity(activity: StravaActivity) {
@@ -648,6 +760,23 @@ function estimateStravaStrengthCalories(activity: StravaActivity) {
       calories,
       met,
       weightKg: DEFAULT_STRENGTH_ESTIMATION_WEIGHT_KG,
+    }
+    : null;
+}
+
+function estimateStravaActivityCalories(activity: StravaActivity) {
+  const durationMinutes = Math.max(Math.round((activity.moving_time ?? activity.elapsed_time ?? 0) / 60), 0);
+  if (durationMinutes < 1) return null;
+
+  const caloriesPerMinute = STRAVA_ACTIVITY_CALORIES_PER_MINUTE[getStravaActivityTypeKey(activity)];
+  if (!caloriesPerMinute) return null;
+
+  const calories = Math.round(caloriesPerMinute * durationMinutes);
+  return calories > 0
+    ? {
+      calories,
+      met: null,
+      weightKg: null,
     }
     : null;
 }
@@ -720,6 +849,17 @@ function getStravaCaloriesInfo(activity: StravaActivity) {
     };
   }
 
+  const activityEstimate = estimateStravaActivityCalories(activity);
+  if (activityEstimate) {
+    return {
+      calories: activityEstimate.calories,
+      source: "estimated_activity" as const,
+      estimated: true,
+      estimatedWeightKg: activityEstimate.weightKg,
+      estimatedMet: activityEstimate.met,
+    };
+  }
+
   return {
     calories: 0,
     source: null,
@@ -750,7 +890,7 @@ function getStravaActivityMetadata(activity: StravaActivity): StravaActivityMeta
   return {
     externalId: String(activity.id),
     name: activity.name,
-    sportType: getStravaActivityType(activity),
+    sportType: getOriginalStravaActivityType(activity),
     distanceMeters: getOptionalNumber(activity.distance),
     movingTimeSeconds: getOptionalNumber(activity.moving_time),
     elapsedTimeSeconds: getOptionalNumber(activity.elapsed_time),
@@ -904,8 +1044,10 @@ async function fetchStravaActivities(userId: number) {
 
 function getStravaExerciseNote(activity: StravaActivity) {
   const metadata = getStravaActivityMetadata(activity);
+  const activityType = getStravaActivityType(activity);
   const fragments = [`${STRAVA_ACTIVITY_NOTE_PREFIX}. Referencia externa: strava:${activity.id}.`];
 
+  if (metadata.sportType !== activityType) fragments.push(`Tipo Strava: ${metadata.sportType}.`);
   if (metadata.distanceMeters) fragments.push(`Distancia: ${formatDistanceKm(metadata.distanceMeters)}.`);
   if (metadata.calories) {
     const label = metadata.estimatedCalories ? "Calorias estimadas" : "Calorias";

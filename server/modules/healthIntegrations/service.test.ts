@@ -175,14 +175,21 @@ describe("healthIntegrationService Strava", () => {
 
     expect(result.ok).toBe(true);
     expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
-      activityType: "Run",
+      activityType: "Corrida",
       durationMinutes: 35,
       caloriesBurned: 321,
       occurredAt: "2026-06-01T10:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Calorias: 321 kcal.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Tipo Strava: Run. Calorias: 321 kcal.",
+    });
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
+      activityType: "Caminhada",
+      durationMinutes: 15,
+      caloriesBurned: 60,
+      occurredAt: "2026-06-01T12:00:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:1000. Tipo Strava: Walk. Calorias estimadas: 60 kcal.",
     });
     expect(exerciseMocks.updateExercise).not.toHaveBeenCalled();
-    expect(result.message).toContain("1 exercício(s) registrado(s)");
+    expect(result.message).toContain("2 exercício(s) registrado(s)");
   });
 
   it("envia WhatsApp ao importar novo exercício do Strava", async () => {
@@ -332,11 +339,11 @@ describe("healthIntegrationService Strava", () => {
       expect.objectContaining({ headers: { Authorization: "Bearer access-token" } }),
     );
     expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
-      activityType: "Run",
+      activityType: "Corrida",
       durationMinutes: 30,
       caloriesBurned: 412,
       occurredAt: "2026-06-02T23:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:998. Distancia: 11,00 km. Calorias: 412 kcal. Elevacao: 16 m. FC media: 147 bpm. Ritmo medio: 6:07/km.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:998. Tipo Strava: Run. Distancia: 11,00 km. Calorias: 412 kcal. Elevacao: 16 m. FC media: 147 bpm. Ritmo medio: 6:07/km.",
     });
 
     const status = await healthIntegrationService.getStatus(42);
@@ -413,11 +420,11 @@ describe("healthIntegrationService Strava", () => {
     });
 
     expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
-      activityType: "WeightTraining",
+      activityType: "Musculacao",
       durationMinutes: 45,
       caloriesBurned: 295,
       occurredAt: "2026-06-02T22:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:997. Calorias estimadas: 295 kcal.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:997. Tipo Strava: WeightTraining. Calorias estimadas: 295 kcal.",
     });
 
     const status = await healthIntegrationService.getStatus(42);
@@ -531,7 +538,7 @@ describe("healthIntegrationService Strava", () => {
       "https://www.strava.com/api/v3/activities/3001",
       expect.objectContaining({ headers: { Authorization: "Bearer access-token" } }),
     );
-    expect(exerciseMocks.createExercise).toHaveBeenCalledTimes(2);
+    expect(exerciseMocks.createExercise).toHaveBeenCalledTimes(5);
   });
 
   it("atualiza exercício Strava já importado em vez de duplicar", async () => {
@@ -579,11 +586,11 @@ describe("healthIntegrationService Strava", () => {
     expect(exerciseMocks.createExercise).not.toHaveBeenCalled();
     expect(exerciseMocks.updateExercise).toHaveBeenCalledWith(42, {
       exerciseId: 456,
-      activityType: "Run",
+      activityType: "Corrida",
       durationMinutes: 40,
       caloriesBurned: 355,
       occurredAt: "2026-06-01T10:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Calorias: 355 kcal.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Tipo Strava: Run. Calorias: 355 kcal.",
     });
   });
 
@@ -625,11 +632,11 @@ describe("healthIntegrationService Strava", () => {
       importedExercises: { created: 1, updated: 0, skipped: 0 },
     });
     expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
-      activityType: "Ride",
+      activityType: "Pedal",
       durationMinutes: 30,
       caloriesBurned: 240,
       occurredAt: "2026-06-02T23:00:00Z",
-      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Calorias: 240 kcal.",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Tipo Strava: Ride. Calorias: 240 kcal.",
     });
   });
 
