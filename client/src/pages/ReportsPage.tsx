@@ -43,6 +43,27 @@ import {
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Link } from "wouter";
 
+type MealDateGroup = {
+  date: string;
+  items: StoredMeal[];
+};
+
+type ReportTotals = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
+type TrendPoint = ReportTotals & {
+  date: string;
+  label: string;
+  mealCount: number;
+  goalCalories: number;
+};
+
+const EMPTY_TOTALS: ReportTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+
 function formatMacro(value: number) {
   return formatNumberPtBr(value, {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
@@ -61,6 +82,57 @@ function formatDateHeading(date: string) {
     day: "2-digit",
     month: "short",
   });
+}
+
+function formatChartDateLabel(date: string) {
+  return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+function getCalorieBarColor(calories: number, goalCalories: number) {
+  return goalCalories > 0 && calories > goalCalories ? "#dc2626" : "#10b981";
+}
+
+function sumMealTotals(meals: StoredMeal[]): ReportTotals {
+  return meals.reduce(
+    (totals, meal) => ({
+      calories: totals.calories + (meal.totals?.calories ?? 0),
+      protein: totals.protein + (meal.totals?.protein ?? 0),
+      carbs: totals.carbs + (meal.totals?.carbs ?? 0),
+      fat: totals.fat + (meal.totals?.fat ?? 0),
+    }),
+    { ...EMPTY_TOTALS },
+  );
+}
+
+function buildWeeklyDayGroups(mealsByDate: MealDateGroup[]): DateGroupedRegisteredMealsViewModel[] {
+  return mealsByDate.slice().reverse().map(group => {
+    const meals = group.items;
+
+    return {
+      date: group.date,
+      meals,
+      mealCount: meals.length,
+      itemCount: meals.reduce((total, meal) => total + (meal.items?.length ?? 0), 0),
+      totals: sumMealTotals(meals),
+      groups: buildRegisteredMealGroups(meals),
+    };
+  });
+}
+
+function getPreviousMonthValue(monthValue: string) {
+  const [year, month] = monthValue.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  date.setUTCMonth(date.getUTCMonth() - 1);
+  return date.toISOString().slice(0, 7);
+}
+
+function findExtreme<T>(items: T[], getValue: (item: T) => number, direction: "min" | "max") {
+  return items.reduce<T | null>((current, item) => {
+    if (!current) return item;
+    const nextValue = getValue(item);
+    const currentValue = getValue(current);
+    return direction === "max" ? (nextValue > currentValue ? item : current) : (nextValue < currentValue ? item : current);
+  }, null);
 }
 
 function buildReportsHeading(scope: PeriodScope) {
@@ -88,16 +160,25 @@ function buildReportsHeading(scope: PeriodScope) {
   }
 }
 
-function toTrendData(groups: DateGroupedRegisteredMealsViewModel[], goalCalories: number) {
+function toTrendData(groups: DateGroupedRegisteredMealsViewModel[], goalCalories: number): TrendPoint[] {
   return groups.map(group => ({
     date: group.date,
-    label: new Date(`${group.date}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+    label: formatChartDateLabel(group.date),
     calories: Math.round(group.totals.calories),
     protein: Math.round(group.totals.protein),
     carbs: Math.round(group.totals.carbs),
     fat: Math.round(group.totals.fat),
     mealCount: group.mealCount,
     goalCalories,
+  }));
+}
+
+function toMacroTrend(days: Array<{ label: string; protein: number; carbs: number; fat: number }>) {
+  return days.map(day => ({
+    label: day.label,
+    protein: Math.round(day.protein),
+    carbs: Math.round(day.carbs),
+    fat: Math.round(day.fat),
   }));
 }
 
@@ -151,15 +232,7 @@ function LocalTrendSection({
 }: {
   title: string;
   description: string;
-  trendData: Array<{
-    date: string;
-    label: string;
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    goalCalories: number;
-  }>;
+  trendData: TrendPoint[];
 }) {
   if (!trendData.length) {
     return (
@@ -190,7 +263,7 @@ function LocalTrendSection({
               <Bar dataKey="goalCalories" name="Meta" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
               <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
                 {trendData.map(day => (
-                  <Cell key={day.date} fill={day.goalCalories && day.calories > day.goalCalories ? "#dc2626" : "#10b981"} />
+                  <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />
                 ))}
               </Bar>
             </BarChart>
@@ -417,12 +490,7 @@ export default function ReportsPage() {
     { startDate: activeRange.start, endDate: activeRange.end },
     { enabled: periodScope !== "week" },
   );
-  const previousMonth = React.useMemo(() => {
-    const [year, month] = selectedMonth.split("-").map(Number);
-    const date = new Date(Date.UTC(year, month - 1, 1));
-    date.setUTCMonth(date.getUTCMonth() - 1);
-    return date.toISOString().slice(0, 7);
-  }, [selectedMonth]);
+  const previousMonth = React.useMemo(() => getPreviousMonthValue(selectedMonth), [selectedMonth]);
   const previousMonthRange = React.useMemo(() => getMonthRange(previousMonth), [previousMonth]);
   const previousMonthBundle = trpc.nutrition.reports.periodBundle.useQuery(
     { startDate: previousMonthRange.start, endDate: previousMonthRange.end },
@@ -443,41 +511,21 @@ export default function ReportsPage() {
         carbs: reportBundle.data?.weekly.reduce((total, day) => total + day.carbs, 0) ?? 0,
         fat: reportBundle.data?.weekly.reduce((total, day) => total + day.fat, 0) ?? 0,
       }
-    : periodBundle.data?.totals ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    : periodBundle.data?.totals ?? EMPTY_TOTALS;
   const localDayGroupsAsc = React.useMemo(
     () => periodScope === "week"
-      ? (reportBundle.data?.mealsByDate ?? []).slice().reverse().map(group => ({
-          date: group.date,
-          meals: group.items as StoredMeal[],
-          mealCount: group.items.length,
-          itemCount: (group.items as StoredMeal[]).reduce((total, meal) => total + (meal.items?.length ?? 0), 0),
-          totals: group.items.reduce(
-            (totals, meal) => ({
-              calories: totals.calories + (meal.totals?.calories ?? 0),
-              protein: totals.protein + (meal.totals?.protein ?? 0),
-              carbs: totals.carbs + (meal.totals?.carbs ?? 0),
-              fat: totals.fat + (meal.totals?.fat ?? 0),
-            }),
-            { calories: 0, protein: 0, carbs: 0, fat: 0 },
-          ),
-          groups: buildRegisteredMealGroups(group.items as StoredMeal[]),
-        }))
+      ? buildWeeklyDayGroups((reportBundle.data?.mealsByDate ?? []) as MealDateGroup[])
       : buildDateGroupedMealGroups(periodMeals, { timeZone: userTimeZone, sortDirection: "asc" }),
     [periodMeals, periodScope, reportBundle.data?.mealsByDate, userTimeZone],
   );
   const localDayGroupsDesc = React.useMemo(() => [...localDayGroupsAsc].reverse(), [localDayGroupsAsc]);
   const localTrendData = React.useMemo(() => toTrendData(localDayGroupsAsc, goalCalories), [goalCalories, localDayGroupsAsc]);
   const localDayMealGroups = React.useMemo(() => buildRegisteredMealGroups(periodMeals), [periodMeals]);
-  const previousMonthTotals = previousMonthBundle.data?.totals ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const previousMonthTotals = previousMonthBundle.data?.totals ?? EMPTY_TOTALS;
 
   const localAverageCalories = averageValue(localTotals.calories, Math.max(localDayGroupsAsc.length, 1));
   const longestRangeDays = countDaysInRange(activeRange);
-  const highestDay = localTrendData.reduce<(typeof localTrendData)[number] | null>((current, day) => {
-    if (!current || day.calories > current.calories) {
-      return day;
-    }
-    return current;
-  }, null);
+  const highestDay = findExtreme(localTrendData, day => day.calories, "max");
   const daysAboveGoal = localTrendData.filter(day => goalCalories && day.calories > day.goalCalories).length;
   const reportsHeading = buildReportsHeading(periodScope);
   const periodScopeLabel = periodScope === "month" ? "Mensal" : "Período";
@@ -496,12 +544,7 @@ export default function ReportsPage() {
     mealCount: 0,
     regularityScore: 0,
   };
-  const macroTrend = caloricTrend.map(day => ({
-    label: day.label,
-    protein: Math.round(day.protein),
-    carbs: Math.round(day.carbs),
-    fat: Math.round(day.fat),
-  }));
+  const macroTrend = toMacroTrend(caloricTrend);
   const mealGroupsByDate = React.useMemo(
     () => detailedMealsByDate.map(group => ({
       date: group.date,
@@ -514,21 +557,11 @@ export default function ReportsPage() {
   const weeklyWaterGoalTotal = caloricTrend.reduce((total, day) => total + (day.waterGoalMl ?? 0), 0);
   const weeklyWaterGoalHitDays = caloricTrend.filter(day => (day.waterGoalMl ?? 0) > 0 && (day.waterConsumedMl ?? 0) >= (day.waterGoalMl ?? 0)).length;
   const weeklyAverageWater = averageValue(weeklyWaterTotal, caloricTrend.length);
-  const lowestWaterDay = caloricTrend.reduce<(typeof caloricTrend)[number] | null>((current, day) => {
-    if (!current || (day.waterConsumedMl ?? 0) < (current.waterConsumedMl ?? 0)) {
-      return day;
-    }
-    return current;
-  }, null);
+  const lowestWaterDay = findExtreme(caloricTrend, day => day.waterConsumedMl ?? 0, "min");
 
   const weeklyExerciseActiveDays = caloricTrend.filter(day => (day.exerciseCalories ?? 0) > 0).length;
   const weeklyAverageExercisePerActiveDay = weeklyExerciseActiveDays ? averageValue(progress?.summary.totalExerciseCalories ?? 0, weeklyExerciseActiveDays) : 0;
-  const highestExerciseDay = caloricTrend.reduce<(typeof caloricTrend)[number] | null>((current, day) => {
-    if (!current || (day.exerciseCalories ?? 0) > (current.exerciseCalories ?? 0)) {
-      return day;
-    }
-    return current;
-  }, null);
+  const highestExerciseDay = findExtreme(caloricTrend, day => day.exerciseCalories ?? 0, "max");
 
   const hydrationReading = !caloricTrend.length
     ? "Ainda não há dados suficientes para interpretar a hidratação da semana."
@@ -752,7 +785,7 @@ export default function ReportsPage() {
                           <Bar dataKey="goalCalories" name="Meta" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
                           <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
                             {caloricTrend.map(day => (
-                              <Cell key={day.date} fill={day.calories > day.goalCalories ? "#dc2626" : "#10b981"} />
+                              <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />
                             ))}
                           </Bar>
                         </BarChart>
