@@ -300,8 +300,7 @@ export default function Home() {
         />
 
         <PageIntro
-          eyebrow="Hoje"
-          title="Como está o seu dia agora?"
+          title="Resumo do dia selecionado"
           description="Acompanhe consumo, metas e registros do dia selecionado em uma leitura rápida."
           actions={
             <>
