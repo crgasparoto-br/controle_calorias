@@ -125,7 +125,7 @@ function buildPeriodTotalLines(totals: NutritionTotals) {
   ];
 }
 
-function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; balanceCalories: number }) {
+function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; consumedCalories: number; balanceCalories: number }) {
   if (input.goalCalories <= 0) return [];
 
   const balanceLabel = input.balanceCalories >= 0 ? "Déficit" : "Superávit";
@@ -133,8 +133,9 @@ function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoal
   return [
     "Meta do resumo:",
     `* Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
-    ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal gastas`] : []),
+    ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal`] : []),
     `* Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
+    `* Consumo: ${formatNumber(input.consumedCalories)} kcal`,
     `* ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal`,
   ];
 }
@@ -164,14 +165,16 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
     acc.fat += itemTotals.fat;
     return acc;
   }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const consumedCalories = Math.round(totals.calories);
   const exerciseCalories = Math.round(exercisesInPeriod.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0));
   const goalCalories = Math.round(Number(goal.today?.calories || 0) * countPeriodDays(start, end));
   const adjustedGoalCalories = goalCalories + exerciseCalories;
-  const balanceCalories = adjustedGoalCalories - Math.round(totals.calories);
+  const balanceCalories = adjustedGoalCalories - consumedCalories;
   const goalSummaryLines = buildPeriodGoalSummaryLines({
     goalCalories,
     adjustedGoalCalories,
     exerciseCalories,
+    consumedCalories,
     balanceCalories,
   });
 
