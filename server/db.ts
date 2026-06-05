@@ -2290,13 +2290,13 @@ export async function upsertNutritionGoal(userId: number, input: GoalInput) {
   const currentGoals = await getStoredNutritionGoals(userId);
   const historicalGoals = currentGoals.map(goal => {
     const existingEnd = goal.effectiveUntil ? new Date(goal.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
-    if (existingEnd <= now.getTime()) {
+    if (existingEnd <= effectiveFrom.getTime()) {
       return goal;
     }
 
     return {
       ...goal,
-      effectiveUntil: now,
+      effectiveUntil: effectiveFrom,
       updatedAt: now,
     };
   });
