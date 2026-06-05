@@ -28,7 +28,6 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
-  MessageCircleMore,
   MessageSquareMore,
   Shield,
   Stethoscope,
@@ -109,7 +108,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
-      { icon: MessageCircleMore, label: "Canais", path: "/channels" },
       { icon: HeartPulse, label: "Saúde externa", path: "/health-integrations" },
       { icon: Stethoscope, label: "Nutricionista", path: "/professional" },
     ];
