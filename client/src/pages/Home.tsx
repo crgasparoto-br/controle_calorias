@@ -4,7 +4,9 @@ import PageIntro from "@/components/PageIntro";
 import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +14,7 @@ import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
-import { ArrowRight, BrainCircuit, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, BrainCircuit, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
@@ -108,6 +110,18 @@ function addDaysToDateKey(dateKey: string, days: number) {
   const date = toUtcNoonDate(dateKey);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function dateKeyToCalendarDate(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function calendarDateToDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatSelectedDateLabel(dateKey: string, todayKey: string) {
@@ -293,6 +307,7 @@ export default function Home() {
           onPreviousDay={() => setSelectedDate(current => addDaysToDateKey(current, -1))}
           onNextDay={() => setSelectedDate(current => addDaysToDateKey(current, 1))}
           onToday={() => setSelectedDate(todayKey)}
+          onDateSelect={setSelectedDate}
         />
 
         <PageIntro
@@ -372,6 +387,7 @@ function DateNavigator({
   onPreviousDay,
   onNextDay,
   onToday,
+  onDateSelect,
 }: {
   selectedDate: string;
   todayKey: string;
@@ -379,7 +395,16 @@ function DateNavigator({
   onPreviousDay: () => void;
   onNextDay: () => void;
   onToday: () => void;
+  onDateSelect: (dateKey: string) => void;
 }) {
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
+
+  const handleCalendarSelect = (date?: Date) => {
+    if (!date) return;
+    onDateSelect(calendarDateToDateKey(date));
+    setCalendarOpen(false);
+  };
+
   return (
     <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
       <div>
@@ -391,9 +416,29 @@ function DateNavigator({
         <Button type="button" variant="ghost" className="h-10 w-10 rounded-full p-0" onClick={onPreviousDay} aria-label="Dia anterior">
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button type="button" variant={isViewingToday ? "secondary" : "ghost"} className="rounded-full px-4" onClick={onToday} disabled={isViewingToday}>
-          Hoje
-        </Button>
+        {isViewingToday ? (
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="secondary" className="rounded-full px-4" aria-label="Escolher dia no calendário">
+                <CalendarDays className="mr-2 h-4 w-4" />
+                Hoje
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="center" className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={dateKeyToCalendarDate(selectedDate)}
+                defaultMonth={dateKeyToCalendarDate(selectedDate)}
+                onSelect={handleCalendarSelect}
+                captionLayout="dropdown"
+              />
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <Button type="button" variant="ghost" className="rounded-full px-4" onClick={onToday}>
+            Hoje
+          </Button>
+        )}
         <Button type="button" variant="ghost" className="h-10 w-10 rounded-full p-0" onClick={onNextDay} aria-label="Próximo dia">
           <ChevronRight className="h-4 w-4" />
         </Button>
