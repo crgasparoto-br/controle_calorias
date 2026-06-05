@@ -122,7 +122,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
     expect(reply).toContain("• 🍌 Banana, 1 unidade (aprox. 80g) - 72 Kcal");
   });
 
-  it("resume meta em negrito com bullets", () => {
+  it("resume meta com consumo total e bullets compatíveis com WhatsApp", () => {
     const processed: MealProcessingResult = {
       detectedMealLabel: "Almoço",
       sourceText: "frango grelhado",
@@ -160,12 +160,15 @@ describe("buildWhatsAppMealReplyMessage", () => {
       goalProgress: {
         consumedCalories: 1165,
         goalCalories: 2000,
+        exerciseCalories: 200,
       },
     });
 
-    expect(reply).toContain("*Meta de hoje:*");
-    expect(reply).toContain("• Meta: 2.000 Kcal");
-    expect(reply).toContain("• Meta ajustada: 2.000 Kcal");
-    expect(reply).toContain("• Déficit: 835 Kcal");
+    expect(reply).toContain("Meta de hoje:");
+    expect(reply).toContain("* Meta estimada: 2.000 kcal");
+    expect(reply).toContain("* Exercícios: 200 kcal");
+    expect(reply).toContain("* Meta ajustada: 2.200 kcal");
+    expect(reply).toContain("* Consumo: 1.165 kcal");
+    expect(reply).toContain("* Déficit: 1.035 kcal");
   });
 });
