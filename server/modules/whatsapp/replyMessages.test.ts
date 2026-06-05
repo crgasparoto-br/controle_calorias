@@ -3,7 +3,7 @@ import { buildWhatsAppMealReplyMessage } from "./replyMessages";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
 describe("buildWhatsAppMealReplyMessage", () => {
-  it("inclui horário no cabeçalho e alimento com calorias na mesma linha", () => {
+  it("inclui horário no cabeçalho e alimento com ícone e calorias na mesma linha", () => {
     const processed: MealProcessingResult = {
       detectedMealLabel: "Almoço",
       sourceText: "frango grelhado",
@@ -41,7 +41,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
     });
 
     expect(reply).toContain("Almoço Registrado às 13:00hs.");
-    expect(reply).toContain("Frango grelhado, 150g - 247,5 Kcal");
+    expect(reply).toContain("• 🍗 Frango grelhado, 150g - 247,5 Kcal");
     expect(reply).toContain("Prot. 46,5 g | Carb. 0 g | Gord. 5,4 g");
   });
 
@@ -80,7 +80,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("Leite integral, 100 ml - 61 Kcal");
+    expect(reply).toContain("• 🥛 Leite integral, 100 ml - 61 Kcal");
     expect(reply).not.toContain("aprox. 100g");
   });
 
@@ -119,7 +119,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("Banana, 1 unidade (aprox. 80g) - 72 Kcal");
+    expect(reply).toContain("• 🍌 Banana, 1 unidade (aprox. 80g) - 72 Kcal");
   });
 
   it("resume meta em negrito com bullets", () => {

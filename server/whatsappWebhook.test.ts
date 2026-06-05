@@ -281,7 +281,7 @@ describe("whatsappWebhook", () => {
       "Almoço Registrado às 08:52hs.",
       "",
       "Itens:",
-      "arroz, 100g - 130 Kcal",
+      "• 🍚 arroz, 100g - 130 Kcal",
       "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
       "",
       "Total da refeição:",

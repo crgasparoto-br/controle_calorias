@@ -330,9 +330,12 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
     expect(sentMessages.at(-1)).toContain("Resumo de semana");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
-    expect(sentMessages.at(-1)).toContain("Exercícios: 300 kcal gastas");
-    expect(sentMessages.at(-1)).toContain("Meta ajustada: 15.700 kcal");
-    expect(sentMessages.at(-1)).toContain("déficit");
+    expect(sentMessages.at(-1)).toContain("*Meta do resumo:*");
+    expect(sentMessages.at(-1)).toContain("• Meta estimada: 15.400 kcal");
+    expect(sentMessages.at(-1)).toContain("• Exercícios: 300 kcal gastas");
+    expect(sentMessages.at(-1)).toContain("• Meta ajustada: 15.700 kcal");
+    expect(sentMessages.at(-1)).toContain("• Déficit: 15.505 kcal para a meta ajustada do período");
+    expect(sentMessages.at(-1)).not.toContain("Você está em déficit");
   });
 
   it("interpreta Resumo sem período como relatório de hoje", async () => {
