@@ -191,10 +191,11 @@ describe("whatsappWebhook detailed replies", () => {
     expect(finalReply).toContain("Total da refeição:");
     expect(finalReply).toContain("295 Kcal");
     expect(finalReply).toContain("Prot. 33,7 g | Carb. 28 g | Gord. 3,9 g");
-    expect(finalReply).toContain("*Meta de hoje:*");
-    expect(finalReply).toContain("• Meta: 2.200 Kcal");
-    expect(finalReply).toContain("• Meta ajustada: 2.200 Kcal");
-    expect(finalReply).toContain("• Déficit: 1.405 Kcal");
+    expect(finalReply).toContain("Meta de hoje:");
+    expect(finalReply).toContain("* Meta estimada: 2.200 kcal");
+    expect(finalReply).toContain("* Meta ajustada: 2.200 kcal");
+    expect(finalReply).toContain("* Consumo: 795 kcal");
+    expect(finalReply).toContain("* Déficit: 1.405 kcal");
     expect(finalReply).not.toContain("Alimentos e macros:");
     expect(finalReply).not.toContain("Total estimado:");
   });
