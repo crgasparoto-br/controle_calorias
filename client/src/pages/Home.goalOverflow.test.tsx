@@ -94,6 +94,8 @@ describe("Home goal overflow display", () => {
     expect(html).toContain("2.450 kcal");
     expect(html).toContain("111% da meta do dia.");
     expect(html).toContain("Meta 2.200 kcal");
+    expect(html).toContain("-250 kcal");
+    expect(html).toContain("text-destructive");
     expect(html).toContain("250 kcal acima");
     expect(html).toContain("20 g acima");
   });
