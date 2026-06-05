@@ -1,7 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
-import AccessAndChannelsSettings from "@/components/settings/AccessAndChannelsSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,8 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, Clock3, Plus, Save, Sparkles, Target, Trash2, UserRound } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { Activity, ArrowRight, Clock3, Plus, Save, Target, Trash2, UserRound } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -55,14 +54,16 @@ const DIFFICULTY_OPTIONS = [
   { value: "falta_de_planejamento", label: "Falta de planejamento" },
 ] as const;
 
-const MEAL_LABEL_SUGGESTIONS = ["café da manhã", "almoço", "lanche da tarde", "pré-treino", "pós-treino", "jantar", "ceia", "outro"] as const;
-
-type MealScheduleState = {
-  mealLabel: string;
-  startTime: string;
-  endTime: string;
-  enabled: boolean;
-};
+const MEAL_LABEL_SUGGESTIONS = [
+  "café da manhã",
+  "almoço",
+  "lanche da tarde",
+  "pré-treino",
+  "pós-treino",
+  "jantar",
+  "ceia",
+  "outro",
+] as const;
 
 const DEFAULT_MEAL_SCHEDULES: MealScheduleState[] = [
   { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
@@ -79,6 +80,13 @@ const OPTIONAL_ONBOARDING_FALLBACK = {
   heightCm: 170,
   currentWeightKg: 70,
 } as const;
+
+type MealScheduleState = {
+  mealLabel: string;
+  startTime: string;
+  endTime: string;
+  enabled: boolean;
+};
 
 type FormState = {
   name: string;
@@ -146,6 +154,7 @@ function formatHeightInputFromCentimeters(value: number | null | undefined) {
       maximumFractionDigits: 2,
     });
   }
+
   return formatNumberPtBr(value, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
@@ -162,6 +171,7 @@ function formatWeightInput(value: number | null | undefined) {
 
 function calculateAgeYears(birthDate: string, referenceDate = new Date()) {
   if (!birthDate) return null;
+
   const [year, month, day] = birthDate.split("-").map(Number);
   if (!year || !month || !day) return null;
 
@@ -176,11 +186,37 @@ function calculateAgeYears(birthDate: string, referenceDate = new Date()) {
 }
 
 function hasInvalidScheduleTime(schedules: MealScheduleState[]) {
-  return schedules.some(schedule => !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.endTime));
+  return schedules.some(
+    schedule => !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.endTime),
+  );
 }
 
 function createNewMealSchedule(): MealScheduleState {
   return { mealLabel: "nova refeição", startTime: "12:00", endTime: "12:59", enabled: true };
+}
+
+function formatPhoneNumber(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return "";
+
+  if (digits.length === 13 && digits.startsWith("55")) {
+    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+
+  if (digits.length === 12 && digits.startsWith("55")) {
+    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return trimmed;
 }
 
 export default function OnboardingPage() {
@@ -196,11 +232,14 @@ export default function OnboardingPage() {
     name: user?.name?.trim() ?? "",
   }));
 
+  const whatsappStatusQuery = trpc.nutrition.whatsapp.status.useQuery();
   const savedProfileQuery = trpc.nutrition.onboarding.profile.useQuery();
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const userName = user?.name?.trim() ?? "";
+  const userEmail = user?.email?.trim() ?? "";
+  const contactPhoneNumber = formatPhoneNumber(whatsappStatusQuery.data?.connection?.phoneNumber ?? "");
 
-  React.useEffect(() => {
+  useEffect(() => {
     const profile = savedProfileQuery.data;
     if (!profile || savedProfileApplied) return;
 
@@ -221,13 +260,13 @@ export default function OnboardingPage() {
     setSavedProfileApplied(true);
   }, [savedProfileApplied, savedProfileQuery.data, userName]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!nameEdited && userName && !form.name.trim()) {
       setForm(current => ({ ...current, name: userName }));
     }
   }, [form.name, nameEdited, userName]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!mealSchedulesQuery.data || schedulesApplied) return;
     setMealSchedules(mealSchedulesQuery.data as MealScheduleState[]);
     setSchedulesApplied(true);
@@ -381,12 +420,11 @@ export default function OnboardingPage() {
                   <UserRound className="h-5 w-5 text-primary" />
                   Identificação e base física
                 </CardTitle>
-                <CardDescription>
-                  Campos essenciais ficam juntos para reduzir ida e volta pela página e facilitar pequenos ajustes futuros.
-                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
+                <ReadOnlyField label="Telefone" value={contactPhoneNumber || "Não informado"} />
+                <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
                 <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
                 <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
                 <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
@@ -446,6 +484,7 @@ export default function OnboardingPage() {
                     </div>
                   </div>
                 </div>
+
                 <div className="grid gap-3">
                   {mealSchedules.map((schedule, index) => (
                     <div key={`${schedule.mealLabel}-${index}`} className="grid gap-3 rounded-2xl border bg-background p-4 lg:grid-cols-[minmax(0,1.2fr)_140px_140px_auto_auto] lg:items-center">
@@ -478,9 +517,11 @@ export default function OnboardingPage() {
                     </div>
                   ))}
                 </div>
+
                 <datalist id="meal-label-suggestions">
                   {MEAL_LABEL_SUGGESTIONS.map(label => <option key={label} value={label} />)}
                 </datalist>
+
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(current => [...current, createNewMealSchedule()])} disabled={mealSchedules.length >= 12}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -498,26 +539,6 @@ export default function OnboardingPage() {
             </Card>
           </TabsContent>
         </Tabs>
-
-        <AccessAndChannelsSettings />
-
-        <div className="flex flex-col gap-3 rounded-[24px] border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-medium tracking-tight">Tudo salvo no mesmo fluxo</p>
-              <p className="text-sm leading-6 text-muted-foreground">
-                Você pode atualizar perfil e refeições habituais separadamente, mas o botão principal mantém a tela pronta para uma revisão completa quando precisar.
-              </p>
-            </div>
-          </div>
-          <Button className="h-11 rounded-full px-5" disabled={completeOnboarding.isPending} type="submit">
-            {completeOnboarding.isPending ? "Salvando..." : "Salvar configurações"}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
       </form>
     </DashboardLayout>
   );

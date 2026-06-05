@@ -10,6 +10,7 @@ const reportsHabitAnalyticsMock = vi.fn();
 const whatsappStatusMock = vi.fn();
 const adminOverviewMock = vi.fn();
 const adminWhatsappTokenStatusMock = vi.fn();
+
 const mealSchedulesMock = [
   { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
   { mealLabel: "almoço", startTime: "11:00", endTime: "14:59", enabled: true },
@@ -17,6 +18,7 @@ const mealSchedulesMock = [
   { mealLabel: "jantar", startTime: "18:00", endTime: "22:59", enabled: true },
   { mealLabel: "outro", startTime: "23:00", endTime: "04:59", enabled: true },
 ];
+
 const useUtilsMock = vi.fn(() => ({
   auth: {
     me: {
@@ -49,12 +51,26 @@ const useUtilsMock = vi.fn(() => ({
   },
 }));
 
+vi.mock("@/_core/hooks/useAuth", () => ({
+  useAuth: () => ({
+    user: { id: 1, name: "Gaspa", email: "gaspa@example.com" },
+    isLoading: false,
+  }),
+}));
+
 vi.mock("@/components/DashboardLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock("wouter", () => ({
-  Link: ({ children }: { children: React.ReactNode }) => React.createElement("a", null, children),
+  Link: ({ children, href }: { children: React.ReactNode; href?: string }) => React.createElement("a", { href }, children),
   useLocation: () => ["/onboarding", vi.fn()],
 }));
 
@@ -385,8 +401,8 @@ const overviewData = {
 };
 
 beforeEach(() => {
-  dashboardOverviewMock.mockReturnValue({ data: overviewData });
-  goalGetMock.mockReturnValue({ data: overviewData.goal });
+  dashboardOverviewMock.mockReturnValue({ data: overviewData, isLoading: false, error: null });
+  goalGetMock.mockReturnValue({ data: overviewData.goal, isLoading: false, error: null });
   reportsBundleMock.mockReturnValue({
     data: {
       weekly: overviewData.weekly,
@@ -446,6 +462,9 @@ beforeEach(() => {
         regularityScore: 78,
       },
     },
+    isLoading: false,
+    isError: false,
+    error: null,
   });
   reportsHabitAnalyticsMock.mockReturnValue({
     data: {
@@ -560,21 +579,27 @@ describe("nutrition pages", () => {
     expect(html).toContain("15.600 kcal");
   });
 
-  it("renderiza as configurações com perfil e refeições habituais", async () => {
+  it("renderiza as configurações com perfil e refeições habituais sem blocos auxiliares", async () => {
     const { default: OnboardingPage } = await import("./OnboardingPage");
     const html = renderToString(React.createElement(OnboardingPage));
 
     expect(html).toContain("Configurações");
     expect(html).toContain("Ajuste seu perfil sem se perder em blocos longos");
     expect(html).toContain("Nome");
+    expect(html).toContain("Telefone");
+    expect(html).toContain("E-mail");
+    expect(html).toContain("gaspa@example.com");
     expect(html).toContain("Data de nascimento");
     expect(html).toContain("Idade calculada");
     expect(html).toContain("Peso atual");
     expect(html).toContain("Perfil");
     expect(html).toContain("Objetivos e rotina");
     expect(html).toContain("Refeições habituais");
-    expect(html).toContain("Tudo salvo no mesmo fluxo");
     expect(html).toContain("Salvar configurações");
+    expect(html).not.toContain("Campos essenciais ficam juntos para reduzir ida e volta pela página e facilitar pequenos ajustes futuros.");
+    expect(html).not.toContain("Vínculo do WhatsApp");
+    expect(html).not.toContain("Solicitações recebidas");
+    expect(html).not.toContain("Tudo salvo no mesmo fluxo");
   });
 
   it("renderiza a página de registro multimodal", async () => {

@@ -27,6 +27,14 @@ export default function AccessAndChannelsSettings() {
     setDisplayName("");
   }, [whatsappStatusQuery.data?.connection]);
 
+  async function invalidateProfessionalAccess() {
+    await Promise.all([
+      utils.nutrition.professionals.patientRequests.invalidate(),
+      utils.nutrition.professionals.myAccesses.invalidate(),
+      utils.nutrition.professionals.history.invalidate(),
+    ]);
+  }
+
   const saveConnection = trpc.nutrition.whatsapp.upsertConnection.useMutation({
     onSuccess: async result => {
       toast.success(`Contato ${result.phoneNumber} vinculado com sucesso ao seu usuário.`);
@@ -38,11 +46,7 @@ export default function AccessAndChannelsSettings() {
   const approveAccess = trpc.nutrition.professionals.approveAccess.useMutation({
     onSuccess: async () => {
       toast.success("Solicitação aprovada.");
-      await Promise.all([
-        utils.nutrition.professionals.patientRequests.invalidate(),
-        utils.nutrition.professionals.myAccesses.invalidate(),
-        utils.nutrition.professionals.history.invalidate(),
-      ]);
+      await invalidateProfessionalAccess();
     },
     onError: error => toast.error(error.message || "Não foi possível aprovar a solicitação."),
   });
@@ -50,11 +54,7 @@ export default function AccessAndChannelsSettings() {
   const revokeAccess = trpc.nutrition.professionals.revokeAccess.useMutation({
     onSuccess: async () => {
       toast.success("Compartilhamento revogado.");
-      await Promise.all([
-        utils.nutrition.professionals.patientRequests.invalidate(),
-        utils.nutrition.professionals.myAccesses.invalidate(),
-        utils.nutrition.professionals.history.invalidate(),
-      ]);
+      await invalidateProfessionalAccess();
     },
     onError: error => toast.error(error.message || "Não foi possível revogar a solicitação."),
   });
@@ -72,13 +72,13 @@ export default function AccessAndChannelsSettings() {
             Vínculo do WhatsApp
           </CardTitle>
           <CardDescription>
-            O telefone do usuário final agora fica em Configurações, junto das preferências e dos outros vínculos pessoais. A operação do canal oficial continua na tela Canais.
+            O telefone do usuário final fica em Configurações, junto das preferências e dos outros vínculos pessoais. A operação do canal oficial continua sendo controlada pelas configurações do ambiente.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <StatusCard label="Status" value={hasConnection ? "Vinculado" : "Pendente"} helper={hasConnection ? connection?.phoneNumber ?? "Contato salvo" : "Sem telefone associado ainda"} />
-            <StatusCard label="Canal oficial" value={whatsappStatusQuery.data?.configured ? "Pronto" : "Pendente"} helper={whatsappStatusQuery.data?.channel?.phoneNumber || "Veja a tela Canais para configurar"} />
+            <StatusCard label="Canal oficial" value={whatsappStatusQuery.data?.configured ? "Pronto" : "Pendente"} helper={whatsappStatusQuery.data?.channel?.phoneNumber || "Configuração operacional pendente"} />
           </div>
 
           <div className="space-y-2">
@@ -110,7 +110,7 @@ export default function AccessAndChannelsSettings() {
             disabled={saveConnection.isPending || !phoneNumber.trim()}
             onClick={() =>
               saveConnection.mutate({
-                phoneNumber,
+                phoneNumber: phoneNumber.trim(),
                 displayName: displayName.trim() || undefined,
               })
             }
