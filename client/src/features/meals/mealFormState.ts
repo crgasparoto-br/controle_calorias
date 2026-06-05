@@ -18,11 +18,14 @@ export function createEmptyItem(): MealItemState {
   };
 }
 
-export function createManualMealState(): ManualMealState {
+export function createManualMealState(
+  mealLabel = "almoço",
+  occurredAt = toDateTimeLocalValue(),
+): ManualMealState {
   return {
     mealId: undefined,
-    mealLabel: "almoço",
-    occurredAt: toDateTimeLocalValue(),
+    mealLabel,
+    occurredAt,
     notes: "",
     items: [createEmptyItem()],
   };

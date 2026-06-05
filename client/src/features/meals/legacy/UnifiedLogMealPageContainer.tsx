@@ -18,10 +18,10 @@ import {
   parseIntegerInputPtBr,
 } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { calculateMealTotals } from "../../../../../shared/mealTotals";
 import { ChevronDown, Droplets, Dumbbell, PencilLine, Scale, Star, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { MealAiTabContent, MealManualEditorCard, SummaryPill } from "../components";
+import { createEmptyItem, createManualMealState, fileToBase64, sumItems } from "../mealFormState";
 import { RegisteredMealsPage } from "../RegisteredMealsPageContent";
 import type { DraftState, MealItemState } from "../types";
 
@@ -42,14 +42,6 @@ const ONBOARDING_DEFAULTS = {
   eatingRoutine: "misto" as const,
   mainDifficulty: "falta_de_planejamento" as const,
 };
-
-function createEmptyItem(): MealItemState {
-  return { foodName: "", canonicalName: "", portionText: "1 porção", servings: 1, estimatedGrams: 0, calories: 0, protein: 0, carbs: 0, fat: 0, confidence: 1, source: "heuristic" };
-}
-
-function createManualMealState(mealLabel = "almoço", occurredAt = toDateTimeLocalValue()) {
-  return { mealId: undefined as number | undefined, mealLabel, occurredAt, notes: "", items: [createEmptyItem()] };
-}
 
 function buildDefaultExerciseForm() {
   return { activityType: "Corrida", durationMinutes: formatIntegerInputPtBr(45), caloriesBurned: formatIntegerInputPtBr(450), occurredAt: toDateTimeLocalValue(new Date()), notes: "" };
@@ -95,15 +87,6 @@ function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleSta
     .sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime));
   const fallback = enabledSchedules.slice().sort((a, b) => rangeCenterDistance(timeMinutes, a.startTime, a.endTime) - rangeCenterDistance(timeMinutes, b.startTime, b.endTime))[0];
   return (directMatches[0] ?? fallback)?.mealLabel ?? null;
-}
-
-async function fileToBase64(file: File) {
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 export default function LogMealPage() {
@@ -233,8 +216,8 @@ export default function LogMealPage() {
   const removeWaterLog = trpc.nutrition.water.remove.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Consumo de água removido com sucesso."); }, onError: error => toast.error(error.message || "Não foi possível remover o consumo.") });
   const updateWeight = trpc.nutrition.onboarding.complete.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Peso atualizado com sucesso."); }, onError: error => toast.error(error.message || "Não foi possível atualizar o peso.") });
 
-  const previewTotals = useMemo(() => calculateMealTotals(editableItems), [editableItems]);
-  const manualTotals = useMemo(() => calculateMealTotals(manualMeal.items), [manualMeal.items]);
+  const previewTotals = useMemo(() => sumItems(editableItems), [editableItems]);
+  const manualTotals = useMemo(() => sumItems(manualMeal.items), [manualMeal.items]);
   const waterGoalValue = parseIntegerInputPtBr(waterForm.dailyTargetMl);
   const waterAmountValue = parseIntegerInputPtBr(waterForm.amountMl);
   const isWaterGoalInvalid = waterGoalValue < 250 || waterGoalValue > 10000;
@@ -246,13 +229,15 @@ export default function LogMealPage() {
   const exerciseLogs = overviewQuery.data?.exercises ?? [];
 
   const handleProcess = async () => {
-    if (!description && !imageFile && !audioFile) {
+    const trimmedDescription = description.trim();
+
+    if (!trimmedDescription && !imageFile && !audioFile) {
       toast.error("Informe pelo menos texto, imagem ou áudio.");
       return;
     }
     processDraft.mutate({
       source: "web",
-      text: description || undefined,
+      text: trimmedDescription || undefined,
       image: imageFile ? { base64: await fileToBase64(imageFile), mimeType: imageFile.type, fileName: imageFile.name } : undefined,
       audio: audioFile ? { base64: await fileToBase64(audioFile), mimeType: audioFile.type, fileName: audioFile.name } : undefined,
     });
@@ -386,13 +371,13 @@ export default function LogMealPage() {
       </CardHeader>
       <CardContent className="space-y-4">
         <form className="space-y-3" onSubmit={handleExerciseSubmit}>
-          <Field label="Atividade"><Input value={exerciseForm.activityType} onChange={event => setExerciseForm(current => ({ ...current, activityType: event.target.value }))} placeholder="Ex.: Corrida leve" /></Field>
+          <Field label="Atividade" htmlFor="record-exercise-activity"><Input id="record-exercise-activity" value={exerciseForm.activityType} onChange={event => setExerciseForm(current => ({ ...current, activityType: event.target.value }))} placeholder="Ex.: Corrida leve" /></Field>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Duração (min)"><Input type="text" inputMode="numeric" value={exerciseForm.durationMinutes} onChange={event => setExerciseForm(current => ({ ...current, durationMinutes: formatIntegerInputPtBr(event.target.value) }))} /></Field>
-            <Field label="Gasto estimado (kcal)"><Input type="text" inputMode="numeric" value={exerciseForm.caloriesBurned} onChange={event => setExerciseForm(current => ({ ...current, caloriesBurned: formatIntegerInputPtBr(event.target.value) }))} /></Field>
+            <Field label="Duração (min)" htmlFor="record-exercise-duration"><Input id="record-exercise-duration" type="text" inputMode="numeric" value={exerciseForm.durationMinutes} onChange={event => setExerciseForm(current => ({ ...current, durationMinutes: formatIntegerInputPtBr(event.target.value) }))} /></Field>
+            <Field label="Gasto estimado (kcal)" htmlFor="record-exercise-calories"><Input id="record-exercise-calories" type="text" inputMode="numeric" value={exerciseForm.caloriesBurned} onChange={event => setExerciseForm(current => ({ ...current, caloriesBurned: formatIntegerInputPtBr(event.target.value) }))} /></Field>
           </div>
-          <Field label="Data e hora"><Input type="datetime-local" value={exerciseForm.occurredAt} onChange={event => setExerciseForm(current => ({ ...current, occurredAt: event.target.value }))} /></Field>
-          <Field label="Observações"><Textarea value={exerciseForm.notes} onChange={event => setExerciseForm(current => ({ ...current, notes: event.target.value }))} className="min-h-24 rounded-2xl" /></Field>
+          <Field label="Data e hora" htmlFor="record-exercise-occurred-at"><Input id="record-exercise-occurred-at" type="datetime-local" value={exerciseForm.occurredAt} onChange={event => setExerciseForm(current => ({ ...current, occurredAt: event.target.value }))} /></Field>
+          <Field label="Observações" htmlFor="record-exercise-notes"><Textarea id="record-exercise-notes" value={exerciseForm.notes} onChange={event => setExerciseForm(current => ({ ...current, notes: event.target.value }))} className="min-h-24 rounded-2xl" /></Field>
           <Button type="submit" className="w-full rounded-full" disabled={createExercise.isPending}>{createExercise.isPending ? "Salvando exercício..." : "Registrar exercício"}</Button>
         </form>
         <CollapsibleQuickLogs title="Registros recentes de exercícios" count={exerciseLogs.length} emptyText="Nenhum exercício foi registrado ainda." isExpanded={areExerciseLogsExpanded} onToggle={() => setAreExerciseLogsExpanded(current => !current)}>
@@ -414,8 +399,8 @@ export default function LogMealPage() {
           <SummaryPill label="Perfil" value={profileQuery.data?.name?.trim() || "Usuário"} />
         </div>
         <form className="space-y-3" onSubmit={handleWeightSubmit}>
-          <Field label="Peso atual (kg)"><Input type="text" inputMode="decimal" value={weightValue} onChange={event => setWeightValue(formatDecimalInputPtBr(event.target.value, 1))} className={isWeightInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} placeholder="Ex.: 72,5" /></Field>
-          <Field label="Data e hora da medição"><Input type="datetime-local" value={weightMeasuredAt} onChange={event => setWeightMeasuredAt(event.target.value)} /></Field>
+          <Field label="Peso atual (kg)" htmlFor="record-weight-value"><Input id="record-weight-value" type="text" inputMode="decimal" value={weightValue} onChange={event => setWeightValue(formatDecimalInputPtBr(event.target.value, 1))} className={isWeightInvalid ? "border-amber-500 ring-1 ring-amber-200" : undefined} placeholder="Ex.: 72,5" /></Field>
+          <Field label="Data e hora da medição" htmlFor="record-weight-measured-at"><Input id="record-weight-measured-at" type="datetime-local" value={weightMeasuredAt} onChange={event => setWeightMeasuredAt(event.target.value)} /></Field>
           <Button type="submit" className="w-full rounded-full" disabled={updateWeight.isPending || isWeightInvalid}>{updateWeight.isPending ? "Salvando peso..." : "Salvar peso"}</Button>
         </form>
         <div className="space-y-2">
@@ -512,8 +497,8 @@ export default function LogMealPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
+function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
+  return <div className="space-y-2"><Label htmlFor={htmlFor}>{label}</Label>{children}</div>;
 }
 
 function CollapsibleQuickLogs({
