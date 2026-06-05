@@ -18,10 +18,8 @@ const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
 const ProfessionalPage = lazy(() => import("@/pages/ProfessionalPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
+const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
-const RegisteredMealsPage = lazy(() =>
-  import("@/pages/LogMealPage").then(module => ({ default: module.RegisteredMealsPage }))
-);
 
 function PageLoadingFallback() {
   return (

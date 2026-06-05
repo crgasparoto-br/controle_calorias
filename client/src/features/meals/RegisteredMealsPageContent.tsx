@@ -171,17 +171,8 @@ function formatDateTimeLabel(value: string | number | Date, timeZone: string) {
   }).format(toRecordDate(value)).replace(",", "");
 }
 
-function formatTimeOnlyLabel(value: string | number | Date, timeZone: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(toRecordDate(value));
-}
-
-function calculateExerciseIntensity(exercise: ExerciseRecord) {
-  if (!exercise.durationMinutes) return 0;
-  return exercise.caloriesBurned / exercise.durationMinutes;
+function formatExerciseNotesLabel(notes?: string | null) {
+  return notes?.replace(/\s*Refer[eê]ncia externa:\s*strava:\d+\./gi, "").trim() ?? "";
 }
 
 function initialSelectedDay() {
@@ -352,7 +343,7 @@ function HabitRecordsSection({
 }
 
 function ExerciseOperationalRecord({ exercise, userTimeZone }: { exercise: ExerciseRecord; userTimeZone: string }) {
-  const intensity = calculateExerciseIntensity(exercise);
+  const notes = formatExerciseNotesLabel(exercise.notes);
 
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -367,26 +358,11 @@ function ExerciseOperationalRecord({ exercise, userTimeZone }: { exercise: Exerc
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <CompactOperationalMetric label="Horário" value={formatTimeOnlyLabel(exercise.occurredAt, userTimeZone)} />
-        <CompactOperationalMetric label="Intensidade" value={`${formatCountPtBr(Math.round(intensity), " kcal/min")}`} />
-        <CompactOperationalMetric label="ID do registro" value={`#${exercise.id}`} />
-      </div>
-
-      {exercise.notes ? (
+      {notes ? (
         <div className="mt-3 rounded-xl border bg-muted/20 px-3 py-2 text-sm leading-5 text-muted-foreground">
-          {exercise.notes}
+          {notes}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function CompactOperationalMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border bg-muted/10 px-3 py-2">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-medium tracking-tight">{value}</p>
     </div>
   );
 }

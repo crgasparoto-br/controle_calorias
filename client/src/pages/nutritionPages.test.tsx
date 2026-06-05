@@ -625,8 +625,8 @@ describe("nutrition pages", () => {
     expect(html).toContain("Registros de exercícios");
     expect(html).toContain("Corrida");
     expect(html).toContain("Rodagem leve");
-    expect(html).toContain("Intensidade");
-    expect(html).toContain("#99");
+    expect(html).toContain("Duração");
+    expect(html).toContain("45 min");
   });
 
   it("renderiza a página de relatórios com resumo semanal, leitura de hidratação e atividade física", async () => {
