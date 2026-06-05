@@ -100,10 +100,6 @@ function formatMacroGramShare(grams: number, totalGrams: number, label: string) 
   return `${label}: ${formatPercentPtBr(dayShare(grams, totalGrams))}% do total em gramas`;
 }
 
-function positiveRemaining(value: number) {
-  return Math.max(value, 0);
-}
-
 function toUtcNoonDate(dateKey: string) {
   return new Date(`${dateKey}T12:00:00Z`);
 }
@@ -440,19 +436,21 @@ function TodayStatusCard({
   consumedMacroTotal: number;
   goalMacroTotal: number;
 }) {
+  const isAboveCalorieGoal = remainingCalories < 0;
+
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader>
         <CardTitle>Status do dia</CardTitle>
-        <CardDescription>Leitura rápida do momento atual e da meta planejada.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={formatGoalComparison(consumedCalories, calorieGoal, formatCalories)} />
           <StatBlock
             label="Calorias restantes"
-            value={formatCalories(positiveRemaining(remainingCalories))}
-            sublabel={remainingCalories < 0 ? "Acima da meta planejada para o dia" : "Disponíveis para os próximos registros"}
+            value={formatCalories(remainingCalories)}
+            valueClassName={isAboveCalorieGoal ? "text-destructive" : undefined}
+            sublabel={isAboveCalorieGoal ? "Acima da meta planejada para o dia" : "Disponíveis para os próximos registros"}
           />
           <StatBlock label="Saldo líquido" value={formatCalories(netCalories)} sublabel="Consumo menos exercícios registrados" />
           <StatBlock label="Refeições" value={formatCountPtBr(groupedMealsCount)} sublabel="Agrupadas por nome" />
@@ -507,10 +505,7 @@ function MealsOfDayCard({
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <CardTitle>Refeições do dia</CardTitle>
-          <CardDescription>Registros confirmados no dia selecionado, somados por refeição.</CardDescription>
-        </div>
+        <CardTitle>Refeições do dia</CardTitle>
         <Link href={recordsUrl}>
           <Button variant="ghost" className="gap-2 px-0 sm:px-3">
             Ver lista completa
@@ -660,11 +655,23 @@ function FoodAssistantCard({
   );
 }
 
-function StatBlock({ label, value, sublabel, details }: { label: string; value: string; sublabel: string; details?: string[] }) {
+function StatBlock({
+  label,
+  value,
+  sublabel,
+  details,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  sublabel: string;
+  details?: string[];
+  valueClassName?: string;
+}) {
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
+      <p className={`mt-2 text-xl font-semibold tracking-tight ${valueClassName ?? ""}`}>{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{sublabel}</p>
       {details?.length ? (
         <div className="mt-3 space-y-1 border-t pt-3">
