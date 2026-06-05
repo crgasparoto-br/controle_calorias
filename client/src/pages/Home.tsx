@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { buildDailyNutritionStatus, SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
+import { SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
 import { ArrowRight, BrainCircuit, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
@@ -217,7 +217,6 @@ export default function Home() {
   const netCalories = overview.data?.today.net.calories ?? 0;
   const waterConsumedMl = overview.data?.today.water.consumedMl ?? 0;
   const waterGoalMl = overview.data?.today.water.goalMl ?? 0;
-  const dailyStatus = buildDailyNutritionStatus(consumedCalories, calorieGoal, overview.data?.today.remaining.protein ?? 0);
   const macroSummaries: MacroSummary[] = [
     { label: "Proteína", consumed: consumedProtein, goal: proteinGoal },
     { label: "Carboidratos", consumed: consumedCarbs, goal: carbsGoal },
@@ -297,7 +296,6 @@ export default function Home() {
         />
 
         <PageIntro
-          eyebrow="Hoje"
           title="Como está o seu dia agora?"
           description="Acompanhe consumo, metas e registros do dia selecionado em uma leitura rápida."
           actions={
@@ -325,7 +323,6 @@ export default function Home() {
         <section className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
           <div className="space-y-4">
             <TodayStatusCard
-              dailyStatus={dailyStatus}
               consumedCalories={consumedCalories}
               calorieGoal={calorieGoal}
               remainingCalories={remainingCalories}
@@ -396,7 +393,6 @@ function DateNavigator({
 }
 
 function TodayStatusCard({
-  dailyStatus,
   consumedCalories,
   calorieGoal,
   remainingCalories,
@@ -409,7 +405,6 @@ function TodayStatusCard({
   consumedMacroTotal,
   goalMacroTotal,
 }: {
-  dailyStatus: string;
   consumedCalories: number;
   calorieGoal: number;
   remainingCalories: number;
@@ -428,9 +423,6 @@ function TodayStatusCard({
         <div>
           <CardTitle>Status do dia</CardTitle>
           <CardDescription>Leitura rápida do momento atual e da meta planejada.</CardDescription>
-        </div>
-        <div className="rounded-2xl border bg-muted/30 p-4">
-          <p className="text-sm leading-6 text-muted-foreground">{dailyStatus}</p>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
