@@ -50,6 +50,53 @@ describe("parseMealCommandFromWhatsApp", () => {
     ]);
   });
 
+  it("interpreta adicao multipla com ponto e virgula entre itens", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips; 330ml de cerveja Budweiser",
+      { referenceDate },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("jantar");
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        foodName: "amendoim japonês",
+        brand: "Elma Chips",
+        quantity: 300,
+        unit: "g",
+      }),
+      expect.objectContaining({
+        foodName: "cerveja",
+        brand: "Budweiser",
+        quantity: 330,
+        unit: "ml",
+      }),
+    ]);
+  });
+
+  it("mantem brand null quando a marca esta ausente em um dos itens", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips e 330ml de cerveja",
+      { referenceDate },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        foodName: "amendoim japonês",
+        brand: "Elma Chips",
+        quantity: 300,
+        unit: "g",
+      }),
+      expect.objectContaining({
+        foodName: "cerveja",
+        brand: null,
+        quantity: 330,
+        unit: "ml",
+      }),
+    ]);
+  });
+
   it("interpreta troca direta de quantidade", () => {
     const result = parseMealCommandFromWhatsApp("Trocar 330ml por 600ml", { referenceDate });
 

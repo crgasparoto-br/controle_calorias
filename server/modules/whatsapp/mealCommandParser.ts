@@ -242,7 +242,7 @@ function buildItem(foodNameInput: string, quantity: number | null, unit: string 
 
 function splitItemParts(value: string) {
   return value
-    .split(/\s*,\s*|\s+\be\s+(?=\d)/i)
+    .split(/\s*[;,]\s*|\s+\be\s+(?=\d)/i)
     .map(part => part.trim())
     .filter(Boolean);
 }

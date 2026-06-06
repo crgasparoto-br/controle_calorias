@@ -4,6 +4,7 @@ import { getCatalogCache } from "../../catalogRuntime";
 import { listMeals, updateMeal } from "../meals/service";
 import { createWaterLog } from "../water/service";
 import type { MealItemInput } from "../meals/schemas";
+import { parseMealCommandFromWhatsApp, type ParsedMealCommandItem } from "./mealCommandParser";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
@@ -63,9 +64,14 @@ type CoffeeAdditionIntent = {
 };
 
 type FoodAdditionIntent = {
-  grams: number;
-  foodName: string;
   mealLabel: string;
+  date: Date;
+  items: Array<{
+    foodName: string;
+    quantity: number;
+    unit: string;
+    brand: string | null;
+  }>;
 };
 
 type FoodReplacementIntent = {
@@ -388,29 +394,46 @@ function parseCoffeeAdditionIntent(text: string): CoffeeAdditionIntent | null {
   return { cups, mealLabel };
 }
 
-function parseFoodAdditionIntent(text: string): FoodAdditionIntent | null {
-  const action = "(?:adicionar|adiciona|adicione|incluir|inclui|inclua|registrar|registra|registre|acrescentar|acrescenta|acrescente)";
-  const mealLabel = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia)";
-  const match = text.match(new RegExp(
-    `\\b${action}\\b\\s+(\\d+(?:[,.]\\d+)?)\\s*(?:g|gramas?)\\b\\s+(?:de\\s+|do\\s+|da\\s+)?(.+?)\\s+(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?(${mealLabel})(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\b`,
-    "i",
-  ));
+function formatFoodNameWithBrand(item: ParsedMealCommandItem) {
+  return [item.foodName, item.brand].filter(Boolean).join(" ").trim();
+}
 
-  if (!match) {
+function normalizeAdditionUnit(unit: string | null) {
+  return unit === "ml" || unit === "l" ? unit : "g";
+}
+
+function quantityToEstimatedGrams(quantity: number, unit: string) {
+  return unit === "l" ? quantity * 1000 : quantity;
+}
+
+function parseFoodAdditionIntent(text: string, receivedAt: Date): FoodAdditionIntent | null {
+  const parsed = parseMealCommandFromWhatsApp(text, { referenceDate: receivedAt });
+  if (parsed.intent !== "add_items_to_meal" || !parsed.mealType || !parsed.date || !parsed.items.length) {
     return null;
   }
 
-  const grams = Number(match[1].replace(",", "."));
-  const foodName = cleanTargetFoodText(match[2]);
-  const targetMealLabel = match[3]?.trim();
-  if (!Number.isFinite(grams) || grams < MIN_FOOD_GRAMS || !foodName || !targetMealLabel) {
+  const items = parsed.items.flatMap(item => {
+    const foodName = formatFoodNameWithBrand(item);
+    if (!foodName || !item.quantity || item.quantity < MIN_FOOD_GRAMS) {
+      return [];
+    }
+
+    return [{
+      foodName,
+      quantity: item.quantity,
+      unit: normalizeAdditionUnit(item.unit),
+      brand: item.brand,
+    }];
+  });
+
+  if (!items.length || items.length !== parsed.items.length) {
     return null;
   }
 
   return {
-    grams,
-    foodName,
-    mealLabel: targetMealLabel,
+    mealLabel: parsed.mealType,
+    date: parsed.date,
+    items,
   };
 }
 
@@ -594,13 +617,17 @@ function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealIte
   return buildHeuristicReplacementItem(item, nextFoodName, nextGrams);
 }
 
-function buildFoodAdditionItem(foodName: string, grams: number): MealItemInput {
+function buildFoodAdditionItem(foodName: string, quantity: number, unit = "g"): MealItemInput {
+  const estimatedGrams = quantityToEstimatedGrams(quantity, unit);
   const catalogFood = findCatalogFood(foodName);
-  if (catalogFood) {
-    return buildCatalogMealItem({} as MealItemInput, foodName, grams, catalogFood);
-  }
+  const item = catalogFood
+    ? buildCatalogMealItem({} as MealItemInput, foodName, estimatedGrams, catalogFood)
+    : buildHeuristicReplacementItem({} as MealItemInput, foodName, estimatedGrams);
 
-  return buildHeuristicReplacementItem({} as MealItemInput, foodName, grams);
+  return {
+    ...item,
+    portionText: `${formatNumber(quantity)} ${unit}`,
+  };
 }
 
 function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
@@ -663,6 +690,15 @@ function buildPeriodGoalSummaryLines(goalCalories: number, diff: number) {
     `• Meta estimada: ${formatNumber(goalCalories)} kcal`,
     `• ${balanceLabel}: ${formatNumber(Math.abs(diff))} kcal ${balanceDetail}`,
   ];
+}
+
+function formatAddedItemsList(items: MealItemInput[]) {
+  const labels = items.map(item => `${item.portionText} de ${item.foodName}`);
+  if (labels.length <= 1) {
+    return labels[0] ?? "";
+  }
+
+  return `${labels.slice(0, -1).join(", ")} e ${labels[labels.length - 1]}`;
 }
 
 async function handleWaterIntent(userId: number, text: string, receivedAt: Date, amountMl: number): Promise<WhatsappIntentResult> {
@@ -821,46 +857,70 @@ async function handleFoodReplacementIntent(userId: number, replacement: FoodRepl
   };
 }
 
-async function handleFoodAdditionIntent(userId: number, text: string, addition: FoodAdditionIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
-  const targetDate = resolveRelativeOccurredAt(text, receivedAt);
+async function handleFoodAdditionIntent(userId: number, addition: FoodAdditionIntent): Promise<WhatsappIntentResult> {
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, addition.mealLabel, targetDate);
+  const targetMeal = findMealByLabel(meals, addition.mealLabel, addition.date);
   if (!targetMeal) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(targetDate)}. Me diga em qual refeição devo adicionar ${addition.foodName}.`,
+      reply: `Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(addition.date)}. Me diga em qual refeição devo adicionar ${addition.items[0]?.foodName ?? "o alimento"}.`,
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido para adicionar alimento sem refeição compatível no dia indicado.",
     };
   }
 
-  const addedItem = buildFoodAdditionItem(addition.foodName, addition.grams);
-  const recalculationSource = addedItem.source === "catalog" ? "com base no catálogo" : "por estimativa";
+  const addedItems = addition.items.map(item => buildFoodAdditionItem(item.foodName, item.quantity, item.unit));
   const updatedMeal = await updateMeal(userId, {
     mealId: targetMeal.id,
     mealLabel: targetMeal.mealLabel,
     occurredAt: new Date(targetMeal.occurredAt).toISOString(),
     notes: targetMeal.notes,
-    items: [...(targetMeal.items ?? []), addedItem],
+    items: [...(targetMeal.items ?? []), ...addedItems],
   });
+
+  if (addedItems.length === 1) {
+    const addedItem = addedItems[0];
+    const recalculationSource = addedItem.source === "catalog" ? "com base no catálogo" : "por estimativa";
+    return {
+      handled: true,
+      action: "meal_item_added",
+      reply: `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
+      eventType: "whatsapp.intent.meal_item_added",
+      detail: `Alimento ${addedItem.foodName} adicionado à refeição ${targetMeal.mealLabel} via WhatsApp com data relativa interpretada.`,
+      data: {
+        mealId: updatedMeal.id,
+        mealLabel: targetMeal.mealLabel,
+        foodName: addedItem.foodName,
+        estimatedGrams: addedItem.estimatedGrams,
+        calories: addedItem.calories,
+        protein: addedItem.protein,
+        carbs: addedItem.carbs,
+        fat: addedItem.fat,
+        nutritionSource: addedItem.source,
+      },
+    };
+  }
 
   return {
     handled: true,
     action: "meal_item_added",
-    reply: `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
+    reply: `Adicionado à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}: ${formatAddedItemsList(addedItems)}.`,
     eventType: "whatsapp.intent.meal_item_added",
-    detail: `Alimento ${addition.foodName} adicionado à refeição ${targetMeal.mealLabel} via WhatsApp com data relativa interpretada.`,
+    detail: `${addedItems.length} alimentos adicionados à refeição ${targetMeal.mealLabel} via WhatsApp com data relativa interpretada.`,
     data: {
       mealId: updatedMeal.id,
       mealLabel: targetMeal.mealLabel,
-      foodName: addedItem.foodName,
-      estimatedGrams: addedItem.estimatedGrams,
-      calories: addedItem.calories,
-      protein: addedItem.protein,
-      carbs: addedItem.carbs,
-      fat: addedItem.fat,
-      nutritionSource: addedItem.source,
+      itemCount: addedItems.length,
+      items: addedItems.map(item => ({
+        foodName: item.foodName,
+        estimatedGrams: item.estimatedGrams,
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+        nutritionSource: item.source,
+      })),
     },
   };
 }
@@ -1016,9 +1076,9 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return handleMealItemReplacement(userId, gramsReplacement);
   }
 
-  const foodAddition = parseFoodAdditionIntent(text);
+  const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   if (foodAddition) {
-    return handleFoodAdditionIntent(userId, text, foodAddition, receivedAt);
+    return handleFoodAdditionIntent(userId, foodAddition);
   }
 
   const gramsIncrement = parseMealItemGramsIncrement(text);
