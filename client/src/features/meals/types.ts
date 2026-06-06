@@ -2,6 +2,8 @@ export type MealItemState = {
   foodName: string;
   canonicalName: string;
   portionText: string;
+  quantity?: number;
+  unit?: string;
   servings: number;
   estimatedGrams: number;
   calories: number;
