@@ -10,6 +10,16 @@ export const mediaInputSchema = z
   })
   .optional();
 
+function parseQuantityFromPortionText(portionText: string) {
+  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)/u);
+  if (!match) {
+    return null;
+  }
+
+  const value = Number(match[1].replace(",", "."));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
 function deriveUnitFromPortionText(portionText: string) {
   const normalized = portionText
     .trim()
@@ -38,7 +48,7 @@ const mealItemBaseSchema = z.object({
 
 export const mealItemSchema = mealItemBaseSchema.transform(item => ({
   ...item,
-  quantity: item.quantity ?? item.servings,
+  quantity: item.quantity ?? parseQuantityFromPortionText(item.portionText) ?? item.servings,
   unit: item.unit?.trim() || deriveUnitFromPortionText(item.portionText),
 }));
 
