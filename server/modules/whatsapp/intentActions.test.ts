@@ -392,6 +392,62 @@ describe("executeWhatsappTextIntent", () => {
     }));
   });
 
+  it("adiciona alimento em gramas à refeição indicada no dia relativo", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 15,
+        userId: 42,
+        mealLabel: "Jantar",
+        occurredAt: new Date("2026-06-04T22:00:00.000Z").getTime(),
+        notes: "Jantar de hoje",
+        items: [beansItem],
+      },
+      {
+        id: 16,
+        userId: 42,
+        mealLabel: "Jantar",
+        occurredAt: new Date("2026-06-03T22:00:00.000Z").getTime(),
+        notes: "Jantar de ontem",
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: input.mealId,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem",
+      receivedAt: new Date("2026-06-04T15:00:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 16,
+      mealLabel: "Jantar",
+      items: [
+        riceItem,
+        expect.objectContaining({
+          foodName: "amendoim japonês Elma Chips",
+          canonicalName: "amendoim japonês Elma Chips",
+          portionText: "300 g",
+          estimatedGrams: 300,
+          calories: 450,
+          protein: 18,
+          carbs: 45,
+          fat: 15,
+          source: "heuristic",
+        }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_added",
+      eventType: "whatsapp.intent.meal_item_added",
+      reply: expect.stringContaining("Adicionei 300 g de amendoim japonês Elma Chips à refeição Jantar"),
+    }));
+    expect(result?.reply).toContain("por estimativa");
+  });
+
   it("pede esclarecimento quando não encontra a refeição para adicionar café", async () => {
     listMealsMock.mockResolvedValue([]);
 

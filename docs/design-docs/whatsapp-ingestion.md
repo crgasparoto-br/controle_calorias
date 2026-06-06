@@ -35,6 +35,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Textos que pedem redução de gramas devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Textos que pedem incremento de gramas, como `somar 45 g ao arroz`, devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Quando o ajuste de gramas não citar alimento, o sistema pode usar o último item da refeição mais recente; quando citar alimento, deve buscar item compatível na última refeição.
+- Textos que adicionam alimento com quantidade em gramas a uma refeição indicada, como `Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem`, devem atualizar a refeição indicada no dia relativo em vez de criar nova refeição por fallback.
+- Quando o pedido de adição de alimento em gramas indicar uma refeição que não existe no dia interpretado, o sistema deve pedir esclarecimento antes de alterar qualquer registro.
 - Textos que adicionam café sem açúcar a uma refeição existente, como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã`, devem atualizar a refeição indicada e não criar uma nova refeição por fallback.
 - Quando a refeição indicada para adicionar café não existir ou faltar quantidade/refeição, o sistema deve pedir esclarecimento antes de alterar qualquer registro.
 - Pedidos de sugestão de lanche devem responder diretamente ao usuário com opções simples, sem criar refeição por fallback.
@@ -69,9 +71,11 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
 - Testar que texto ou áudio transcrito como `somar 45 g ao arroz` ajusta o item compatível da última refeição e não chama inferência nutricional.
 - Testar que texto como `diminuir 30 g` ajusta o último item da última refeição quando não há alimento explícito.
+- Testar que texto como `Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem` adiciona o alimento à refeição indicada no dia relativo e não chama inferência nutricional.
+- Testar que pedido para adicionar alimento em gramas a refeição inexistente pede esclarecimento e não altera registros.
 - Testar que texto como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã` adiciona café à refeição indicada e não chama inferência nutricional.
 - Testar que pedido para adicionar café sem refeição ou sem quantidade suficiente pede esclarecimento e não altera registros.
-- Testar que texto como `Me dê uma sugestão para o lanche da tarde` retorna uma sugestão e não chama inferência nutricional.
+- Testar que pedido de sugestão de lanche retorna uma sugestão e não chama inferência nutricional.
 - Testar que texto como `Me envie um resumo da semana` retorna relatório do período e não chama inferência nutricional.
 - Testar que pedido de relatório sem período pede esclarecimento antes de executar qualquer ação.
 - Testar que a resposta ao pedido de período, como `Hoje`, mantém o contexto do resumo e não delega para criação de refeição.
