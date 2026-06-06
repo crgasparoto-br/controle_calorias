@@ -30,6 +30,7 @@ import {
   UpdateMealInput,
 } from "./schemas";
 import { decorateMealWithImageUrl } from "./mealImageAssociations";
+import { dedupeMealItemsByProductIdentity } from "./mealItemDeduplication";
 
 export class MealDraftNotFoundError extends Error {
   constructor() {
@@ -152,7 +153,7 @@ async function resolveDraftAudio(params: {
 }
 
 function ensureMealItems(items: Array<MealDraftItem>): MealDraftItem[] {
-  return items.map(item => ({ ...item }));
+  return dedupeMealItemsByProductIdentity(items.map(item => ({ ...item })));
 }
 
 export async function listMeals(userId: number) {
