@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
+import { MEASUREMENT_UNIT_SUGGESTIONS } from "../../shared/measurementUnits";
 import { PencilLine, Plus, Search, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -251,7 +252,7 @@ export default function FoodsPage() {
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle>{form.foodId ? "Editar alimento" : "Criar alimento"}</CardTitle>
-                <CardDescription>Alimentos criados ficam disponíveis apenas para sua conta. A edição permanece no mesmo formulário para não mudar o comportamento existente.</CardDescription>
+                <CardDescription>Informe a quantidade da porção separada da unidade de medida. A unidade aceita abreviações e medidas caseiras, como g, ml, un, scoop ou long neck.</CardDescription>
               </CardHeader>
               <CardContent>
                 <form className="space-y-4" onSubmit={event => {
@@ -265,8 +266,8 @@ export default function FoodsPage() {
                   <Field label="Nome" value={form.name} onChange={name => setForm(current => ({ ...current, name }))} />
                   <Field label="Marca" value={form.brandName} onChange={brandName => setForm(current => ({ ...current, brandName, foodType: brandName ? "branded" : current.foodType }))} />
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Porção" value={form.servingSize} type="number" onChange={servingSize => setForm(current => ({ ...current, servingSize }))} />
-                    <Field label="Unidade" value={form.servingUnit} onChange={servingUnit => setForm(current => ({ ...current, servingUnit }))} />
+                    <Field label="Quantidade da porção" value={form.servingSize} type="number" helper="Apenas o número. Ex.: 100, 330, 1." onChange={servingSize => setForm(current => ({ ...current, servingSize }))} />
+                    <MeasurementUnitField value={form.servingUnit} onChange={servingUnit => setForm(current => ({ ...current, servingUnit }))} />
                   </div>
                   <div className="space-y-2">
                     <Label>Tipo</Label>
@@ -309,7 +310,7 @@ export default function FoodsPage() {
               </CardHeader>
               <CardContent className="grid gap-3">
                 <FlowStep title="1. Nome claro" text="Prefira o nome mais reconhecível do alimento antes de detalhar marca ou classificação." />
-                <FlowStep title="2. Porção confiável" text="Use uma porção de referência estável para facilitar comparação entre resultados e refeições." />
+                <FlowStep title="2. Quantidade + unidade" text="Separe a quantidade da porção da unidade de medida. Ex.: quantidade 1 e unidade long neck; quantidade 30 e unidade scoop." />
                 <FlowStep title="3. Classificação útil" text="Marque fruta, vegetal ou ultraprocessado quando isso ajudar leitura de qualidade alimentar depois." />
               </CardContent>
             </Card>
@@ -423,11 +424,25 @@ function Macro({ label, value, unit = "" }: { label: string; value: number; unit
   );
 }
 
-function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+function Field({ label, value, onChange, type = "text", helper }: { label: string; value: string; onChange: (value: string) => void; type?: string; helper?: string }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
       <Input type={type} step={type === "number" ? "0.1" : undefined} value={value} onChange={event => onChange(event.target.value)} />
+      {helper ? <p className="text-xs leading-5 text-muted-foreground">{helper}</p> : null}
+    </div>
+  );
+}
+
+function MeasurementUnitField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="space-y-2">
+      <Label>Unidade de medida</Label>
+      <Input list="measurement-unit-suggestions" value={value} onChange={event => onChange(event.target.value)} placeholder="g, ml, un, scoop..." />
+      <datalist id="measurement-unit-suggestions">
+        {MEASUREMENT_UNIT_SUGGESTIONS.map(unit => <option key={unit} value={unit} />)}
+      </datalist>
+      <p className="text-xs leading-5 text-muted-foreground">Aceita medidas livres, como gr, ml, un, scoop, long neck, lata ou xícara.</p>
     </div>
   );
 }
