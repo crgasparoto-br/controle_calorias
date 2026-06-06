@@ -57,7 +57,7 @@ export function MealManualEditorCard({
         <CardDescription>
           {manualMeal.mealId
             ? "A edição abre aqui sem perder o contexto do restante da tela."
-            : "Use nomes livres e ajuste alimentos de forma direta, sem etapas extras."}
+            : "Busque alimentos do catálogo, escolha porções cadastradas ou informe gramas manualmente quando precisar."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
