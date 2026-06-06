@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { sql, type SQL } from "drizzle-orm";
 import {
@@ -8,7 +9,7 @@ import {
   updateUserFood,
   upsertFavoriteFood,
 } from "../../db";
-import type { CatalogFoodSearchInput, FoodFormInput } from "./schemas";
+import type { CatalogFoodSearchInput, CustomFoodInput, FoodFormInput, UpdateCustomFoodInput } from "./schemas";
 
 type SqlExecutor = {
   execute: (query: SQL) => Promise<unknown>;
@@ -47,6 +48,10 @@ type CatalogFoodPortionRow = {
   quantity: number;
   grams: number;
   isDefault: number;
+};
+
+type CustomFoodOwnershipRow = {
+  id: number;
 };
 
 function extractRows<T>(result: unknown): T[] {
@@ -131,6 +136,76 @@ async function getCatalogDb() {
     throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Banco de dados indisponível para consulta do catálogo." });
   }
   return db as unknown as SqlExecutor;
+}
+
+function normalizeOptionalString(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function serializeNutrients(value: Record<string, unknown> | null | undefined) {
+  return value ? JSON.stringify(value) : null;
+}
+
+function uniqueNormalizedAliases(name: string, aliases: string[]) {
+  const seen = new Set<string>();
+  const values = [name, ...aliases]
+    .map(alias => ({ alias: alias.trim(), normalizedAlias: normalizeCatalogSearchTerm(alias) }))
+    .filter(({ alias, normalizedAlias }) => alias && normalizedAlias);
+
+  return values.filter(({ normalizedAlias }) => {
+    if (seen.has(normalizedAlias)) return false;
+    seen.add(normalizedAlias);
+    return true;
+  });
+}
+
+async function assertOwnedCustomFood(db: SqlExecutor, userId: number, foodId: number) {
+  const rows = extractRows<CustomFoodOwnershipRow>(await db.execute(sql`
+    SELECT id AS id
+    FROM foods
+    WHERE id = ${foodId}
+      AND owner_user_id = ${userId}
+    LIMIT 1
+  `));
+
+  if (!rows[0]) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Alimento personalizado não encontrado." });
+  }
+}
+
+async function insertCustomFoodAliases(db: SqlExecutor, foodId: number, name: string, aliases: string[]) {
+  for (const { alias, normalizedAlias } of uniqueNormalizedAliases(name, aliases)) {
+    await db.execute(sql`
+      INSERT INTO food_aliases (food_id, alias, normalized_alias, source_id)
+      VALUES (${foodId}, ${alias}, ${normalizedAlias}, NULL)
+    `);
+  }
+}
+
+async function replaceCustomFoodPortions(db: SqlExecutor, foodId: number, portions: CustomFoodInput["portions"]) {
+  await db.execute(sql`DELETE FROM food_portions WHERE food_id = ${foodId}`);
+
+  for (const portion of portions) {
+    await db.execute(sql`
+      INSERT INTO food_portions (food_id, label, normalized_label, unit, quantity, grams, is_default, source_id)
+      VALUES (
+        ${foodId},
+        ${portion.label},
+        ${normalizeCatalogSearchTerm(portion.label)},
+        ${portion.unit},
+        ${portion.quantity},
+        ${portion.grams},
+        ${portion.isDefault},
+        NULL
+      )
+    `);
+  }
+}
+
+async function replaceCustomFoodAliases(db: SqlExecutor, foodId: number, name: string, aliases: string[]) {
+  await db.execute(sql`DELETE FROM food_aliases WHERE food_id = ${foodId}`);
+  await insertCustomFoodAliases(db, foodId, name, aliases);
 }
 
 export function searchFoodCatalog(userId: number, input: { query?: string; limit?: number }) {
@@ -241,6 +316,125 @@ export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
   `));
 
   return mapCatalogFood(food, portions);
+}
+
+export async function createCustomFood(userId: number, input: CustomFoodInput) {
+  const db = await getCatalogDb();
+  const normalizedName = normalizeCatalogSearchTerm(input.name);
+  const sourceFoodCode = `custom:${userId}:${crypto.randomUUID()}`;
+  const nutrientsJson = serializeNutrients(input.nutrients);
+
+  await db.execute(sql`
+    INSERT INTO foods (
+      owner_user_id,
+      source_id,
+      source_food_code,
+      name,
+      normalized_name,
+      brand_name,
+      category,
+      description,
+      status,
+      calories_kcal_per_100g,
+      protein_grams_per_100g,
+      carbs_grams_per_100g,
+      fat_grams_per_100g,
+      fiber_grams_per_100g,
+      sugar_grams_per_100g,
+      sodium_mg_per_100g,
+      nutrients_json
+    )
+    VALUES (
+      ${userId},
+      NULL,
+      ${sourceFoodCode},
+      ${input.name},
+      ${normalizedName},
+      ${normalizeOptionalString(input.brandName)},
+      ${normalizeOptionalString(input.category)},
+      ${normalizeOptionalString(input.description)},
+      'active',
+      ${input.caloriesKcalPer100g},
+      ${input.proteinGramsPer100g},
+      ${input.carbsGramsPer100g},
+      ${input.fatGramsPer100g},
+      ${input.fiberGramsPer100g ?? null},
+      ${input.sugarGramsPer100g ?? null},
+      ${input.sodiumMgPer100g ?? null},
+      ${nutrientsJson}
+    )
+  `);
+
+  const createdRows = extractRows<{ id: number }>(await db.execute(sql`
+    SELECT id AS id
+    FROM foods
+    WHERE owner_user_id = ${userId}
+      AND source_food_code = ${sourceFoodCode}
+    LIMIT 1
+  `));
+  const foodId = createdRows[0]?.id;
+
+  if (!foodId) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar o alimento personalizado." });
+  }
+
+  await insertCustomFoodAliases(db, foodId, input.name, input.aliases);
+  await replaceCustomFoodPortions(db, foodId, input.portions);
+
+  return getGlobalFoodCatalogItem(userId, foodId);
+}
+
+export async function updateCustomFood(userId: number, input: UpdateCustomFoodInput) {
+  const db = await getCatalogDb();
+  await assertOwnedCustomFood(db, userId, input.foodId);
+
+  const normalizedName = normalizeCatalogSearchTerm(input.name);
+  const nutrientsJson = serializeNutrients(input.nutrients);
+
+  await db.execute(sql`
+    UPDATE foods
+    SET
+      name = ${input.name},
+      normalized_name = ${normalizedName},
+      brand_name = ${normalizeOptionalString(input.brandName)},
+      category = ${normalizeOptionalString(input.category)},
+      description = ${normalizeOptionalString(input.description)},
+      status = 'active',
+      calories_kcal_per_100g = ${input.caloriesKcalPer100g},
+      protein_grams_per_100g = ${input.proteinGramsPer100g},
+      carbs_grams_per_100g = ${input.carbsGramsPer100g},
+      fat_grams_per_100g = ${input.fatGramsPer100g},
+      fiber_grams_per_100g = ${input.fiberGramsPer100g ?? null},
+      sugar_grams_per_100g = ${input.sugarGramsPer100g ?? null},
+      sodium_mg_per_100g = ${input.sodiumMgPer100g ?? null},
+      nutrients_json = ${nutrientsJson},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${input.foodId}
+      AND owner_user_id = ${userId}
+  `);
+
+  await replaceCustomFoodAliases(db, input.foodId, input.name, input.aliases);
+  await replaceCustomFoodPortions(db, input.foodId, input.portions);
+
+  return getGlobalFoodCatalogItem(userId, input.foodId);
+}
+
+export async function deleteCustomFood(userId: number, foodId: number) {
+  const db = await getCatalogDb();
+  await assertOwnedCustomFood(db, userId, foodId);
+
+  await db.execute(sql`
+    UPDATE foods
+    SET status = 'deprecated', updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${foodId}
+      AND owner_user_id = ${userId}
+  `);
+
+  return {
+    success: true,
+    foodId,
+    status: "deprecated" as const,
+  };
 }
 
 export function listRecentlyUsedFoods(userId: number) {
