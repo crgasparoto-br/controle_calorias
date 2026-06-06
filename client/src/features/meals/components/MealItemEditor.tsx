@@ -74,12 +74,12 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <div className="space-y-2">
-          <Label>Unidade</Label>
-          <Input value={item.portionText} onChange={event => onChange("portionText", event.target.value)} />
+        <div className="space-y-2 xl:col-span-2">
+          <Label>Porção / unidade de medida</Label>
+          <Input value={item.portionText} onChange={event => onChange("portionText", event.target.value)} placeholder="Ex.: 100 g, 1 scoop, 1 long neck" />
         </div>
         <div className="space-y-2">
-          <Label>Quantidade</Label>
+          <Label>Quantidade em g/ml</Label>
           <Input type="number" value={item.estimatedGrams} onChange={event => onChange("estimatedGrams", Number(event.target.value))} />
         </div>
         <div className="space-y-2">
