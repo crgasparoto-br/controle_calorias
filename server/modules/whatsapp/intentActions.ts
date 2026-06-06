@@ -62,6 +62,12 @@ type CoffeeAdditionIntent = {
   mealLabel: string | null;
 };
 
+type FoodAdditionIntent = {
+  grams: number;
+  foodName: string;
+  mealLabel: string;
+};
+
 type FoodReplacementIntent = {
   fromFood: string;
   toFood: string;
@@ -382,6 +388,32 @@ function parseCoffeeAdditionIntent(text: string): CoffeeAdditionIntent | null {
   return { cups, mealLabel };
 }
 
+function parseFoodAdditionIntent(text: string): FoodAdditionIntent | null {
+  const action = "(?:adicionar|adiciona|adicione|incluir|inclui|inclua|registrar|registra|registre|acrescentar|acrescenta|acrescente)";
+  const mealLabel = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia)";
+  const match = text.match(new RegExp(
+    `\\b${action}\\b\\s+(\\d+(?:[,.]\\d+)?)\\s*(?:g|gramas?)\\b\\s+(?:de\\s+|do\\s+|da\\s+)?(.+?)\\s+(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?(${mealLabel})(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\b`,
+    "i",
+  ));
+
+  if (!match) {
+    return null;
+  }
+
+  const grams = Number(match[1].replace(",", "."));
+  const foodName = cleanTargetFoodText(match[2]);
+  const targetMealLabel = match[3]?.trim();
+  if (!Number.isFinite(grams) || grams < MIN_FOOD_GRAMS || !foodName || !targetMealLabel) {
+    return null;
+  }
+
+  return {
+    grams,
+    foodName,
+    mealLabel: targetMealLabel,
+  };
+}
+
 function parseSnackSuggestionIntent(text: string) {
   const normalized = normalizeIntentText(text);
   if (!/\b(sugestao|sugira|sugerir|dica|ideia|indica|indique)\b/.test(normalized)) {
@@ -486,10 +518,10 @@ function findTargetMealItem(items: MealItemInput[], targetFood: string | null) {
   return { item: items[index], index };
 }
 
-function findMealByLabel(meals: ExistingMeal[], mealLabel: string, receivedAt: Date) {
+function findMealByLabel(meals: ExistingMeal[], mealLabel: string, referenceDate: Date) {
   const normalizedLabel = normalizeIntentText(mealLabel);
-  const todayStart = startOfZonedDay(receivedAt).getTime();
-  const todayEnd = endOfZonedDay(receivedAt).getTime();
+  const dayStart = startOfZonedDay(referenceDate).getTime();
+  const dayEnd = endOfZonedDay(referenceDate).getTime();
   const matches = meals.filter(meal => {
     const candidate = normalizeIntentText(meal.mealLabel);
     return candidate === normalizedLabel || candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate);
@@ -497,7 +529,7 @@ function findMealByLabel(meals: ExistingMeal[], mealLabel: string, receivedAt: D
 
   return matches.find(meal => {
     const occurredAt = new Date(meal.occurredAt).getTime();
-    return occurredAt >= todayStart && occurredAt <= todayEnd;
+    return occurredAt >= dayStart && occurredAt <= dayEnd;
   }) ?? matches[0] ?? null;
 }
 
@@ -560,6 +592,15 @@ function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealIte
   }
 
   return buildHeuristicReplacementItem(item, nextFoodName, nextGrams);
+}
+
+function buildFoodAdditionItem(foodName: string, grams: number): MealItemInput {
+  const catalogFood = findCatalogFood(foodName);
+  if (catalogFood) {
+    return buildCatalogMealItem({} as MealItemInput, foodName, grams, catalogFood);
+  }
+
+  return buildHeuristicReplacementItem({} as MealItemInput, foodName, grams);
 }
 
 function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
@@ -780,7 +821,51 @@ async function handleFoodReplacementIntent(userId: number, replacement: FoodRepl
   };
 }
 
-async function handleCoffeeAdditionIntent(userId: number, addition: CoffeeAdditionIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
+async function handleFoodAdditionIntent(userId: number, text: string, addition: FoodAdditionIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
+  const targetDate = resolveRelativeOccurredAt(text, receivedAt);
+  const meals = await listMeals(userId);
+  const targetMeal = findMealByLabel(meals, addition.mealLabel, targetDate);
+  if (!targetMeal) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(targetDate)}. Me diga em qual refeição devo adicionar ${addition.foodName}.`,
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido para adicionar alimento sem refeição compatível no dia indicado.",
+    };
+  }
+
+  const addedItem = buildFoodAdditionItem(addition.foodName, addition.grams);
+  const recalculationSource = addedItem.source === "catalog" ? "com base no catálogo" : "por estimativa";
+  const updatedMeal = await updateMeal(userId, {
+    mealId: targetMeal.id,
+    mealLabel: targetMeal.mealLabel,
+    occurredAt: new Date(targetMeal.occurredAt).toISOString(),
+    notes: targetMeal.notes,
+    items: [...(targetMeal.items ?? []), addedItem],
+  });
+
+  return {
+    handled: true,
+    action: "meal_item_added",
+    reply: `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
+    eventType: "whatsapp.intent.meal_item_added",
+    detail: `Alimento ${addition.foodName} adicionado à refeição ${targetMeal.mealLabel} via WhatsApp com data relativa interpretada.`,
+    data: {
+      mealId: updatedMeal.id,
+      mealLabel: targetMeal.mealLabel,
+      foodName: addedItem.foodName,
+      estimatedGrams: addedItem.estimatedGrams,
+      calories: addedItem.calories,
+      protein: addedItem.protein,
+      carbs: addedItem.carbs,
+      fat: addedItem.fat,
+      nutritionSource: addedItem.source,
+    },
+  };
+}
+
+async function handleCoffeeAdditionIntent(userId: number, text: string, addition: CoffeeAdditionIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
   if (!addition.cups || !addition.mealLabel) {
     return {
       handled: true,
@@ -791,8 +876,9 @@ async function handleCoffeeAdditionIntent(userId: number, addition: CoffeeAdditi
     };
   }
 
+  const targetDate = resolveRelativeOccurredAt(text, receivedAt);
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, addition.mealLabel, receivedAt);
+  const targetMeal = findMealByLabel(meals, addition.mealLabel, targetDate);
   if (!targetMeal) {
     return {
       handled: true,
@@ -930,6 +1016,11 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return handleMealItemReplacement(userId, gramsReplacement);
   }
 
+  const foodAddition = parseFoodAdditionIntent(text);
+  if (foodAddition) {
+    return handleFoodAdditionIntent(userId, text, foodAddition, receivedAt);
+  }
+
   const gramsIncrement = parseMealItemGramsIncrement(text);
   if (gramsIncrement) {
     return handleMealItemIncrement(userId, gramsIncrement);
@@ -947,7 +1038,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
   if (coffeeAddition) {
-    return handleCoffeeAdditionIntent(userId, coffeeAddition, receivedAt);
+    return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt);
   }
 
   if (parseSnackSuggestionIntent(text)) {
