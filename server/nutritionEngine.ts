@@ -27,6 +27,9 @@ export type HabitSnapshot = {
 };
 
 export type MealDraftItem = {
+  foodId?: number;
+  portionId?: number;
+  portionQuantity?: number;
   foodName: string;
   canonicalName: string;
   portionText: string;
@@ -376,7 +379,7 @@ function findExplicitMealLabel(sourceText: string) {
   if (/\b(jantar|janta)\b/.test(normalized)) {
     return "Jantar";
   }
-  if (/\blanche da tarde\b/.test(normalized)) {
+  if (normalized === "lanche da tarde") {
     return "Lanche da tarde";
   }
   if (/\blanche\b/.test(normalized)) {
