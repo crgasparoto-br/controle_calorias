@@ -79,6 +79,13 @@ type FoodReplacementIntent = {
   toFood: string;
 };
 
+type QuantityCorrectionIntent = {
+  previousQuantity: number | null;
+  previousUnit: string | null;
+  nextQuantity: number;
+  nextUnit: string;
+};
+
 type ExistingMeal = {
   id: number;
   mealLabel: string;
@@ -434,6 +441,142 @@ function parseFoodAdditionIntent(text: string, receivedAt: Date): FoodAdditionIn
     mealLabel: parsed.mealType,
     date: parsed.date,
     items,
+  };
+}
+
+function parseQuantityCorrectionIntent(text: string, receivedAt: Date): QuantityCorrectionIntent | null {
+  const parsed = parseMealCommandFromWhatsApp(text, { referenceDate: receivedAt });
+  if (parsed.intent !== "replace_quantity" && parsed.intent !== "correct_quantity") {
+    return null;
+  }
+  if (!parsed.nextQuantity || !parsed.nextUnit || parsed.nextQuantity < MIN_FOOD_GRAMS) {
+    return null;
+  }
+
+  return {
+    previousQuantity: parsed.previousQuantity ?? null,
+    previousUnit: parsed.previousUnit ?? null,
+    nextQuantity: parsed.nextQuantity,
+    nextUnit: normalizeAdditionUnit(parsed.nextUnit),
+  };
+}
+
+function parseItemQuantity(item: MealItemInput) {
+  const match = item.portionText?.match(/(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    quantity: Number(match[1].replace(",", ".")),
+    unit: normalizeAdditionUnit(normalizeIntentText(match[2])),
+  };
+}
+
+function itemMatchesQuantity(item: MealItemInput, quantity: number, unit: string | null) {
+  const estimatedTarget = quantityToEstimatedGrams(quantity, normalizeAdditionUnit(unit));
+  if (Number(item.estimatedGrams || 0) === estimatedTarget) {
+    return true;
+  }
+
+  const parsedPortion = parseItemQuantity(item);
+  return parsedPortion?.quantity === quantity && (!unit || parsedPortion.unit === normalizeAdditionUnit(unit));
+}
+
+function findQuantityCorrectionTargets(items: MealItemInput[], correction: QuantityCorrectionIntent) {
+  if (correction.previousQuantity) {
+    return items
+      .map((item, index) => ({ item, index }))
+      .filter(candidate => itemMatchesQuantity(candidate.item, correction.previousQuantity!, correction.previousUnit));
+  }
+
+  const lastItemIndex = items.length - 1;
+  return lastItemIndex >= 0 ? [{ item: items[lastItemIndex], index: lastItemIndex }] : [];
+}
+
+function scaleMealItemQuantity(item: MealItemInput, nextQuantity: number, nextUnit: string): MealItemInput {
+  const nextEstimatedGrams = quantityToEstimatedGrams(nextQuantity, nextUnit);
+  return {
+    ...scaleMealItem(item, nextEstimatedGrams),
+    portionText: `${formatNumber(nextQuantity)} ${nextUnit}`,
+  };
+}
+
+function formatCorrectionOptions(targets: Array<{ item: MealItemInput }>) {
+  return targets
+    .map((target, index) => `${index + 1}. ${target.item.foodName}`)
+    .join(" ");
+}
+
+async function handleQuantityCorrectionIntent(userId: number, correction: QuantityCorrectionIntent): Promise<WhatsappIntentResult> {
+  const latestMeal = (await listMeals(userId))[0];
+  if (!latestMeal?.items?.length) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: "Não encontrei um item recente para corrigir. Qual item devo corrigir?",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de correção de quantidade sem item recente disponível.",
+    };
+  }
+
+  const targets = findQuantityCorrectionTargets(latestMeal.items, correction);
+  if (!targets.length) {
+    const previous = correction.previousQuantity && correction.previousUnit
+      ? `${formatNumber(correction.previousQuantity)}${correction.previousUnit}`
+      : "essa quantidade";
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Não encontrei um item recente com ${previous}. Qual item devo corrigir?`,
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de correção de quantidade sem item compatível na refeição recente.",
+    };
+  }
+
+  if (targets.length > 1) {
+    const previous = correction.previousQuantity && correction.previousUnit
+      ? `${formatNumber(correction.previousQuantity)}${correction.previousUnit}`
+      : "essa quantidade";
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Encontrei mais de um item com ${previous}. Qual deseja alterar? ${formatCorrectionOptions(targets)}`,
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de correção de quantidade com mais de um item compatível.",
+    };
+  }
+
+  const target = targets[0];
+  const nextItems = latestMeal.items.map((item, index) => index === target.index
+    ? scaleMealItemQuantity(item, correction.nextQuantity, correction.nextUnit)
+    : item);
+  const updatedMeal = await updateMeal(userId, {
+    mealId: latestMeal.id,
+    mealLabel: latestMeal.mealLabel,
+    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
+    notes: latestMeal.notes,
+    items: nextItems,
+  });
+
+  const previous = correction.previousQuantity && correction.previousUnit
+    ? `${formatNumber(correction.previousQuantity)}${correction.previousUnit}`
+    : target.item.portionText;
+  const next = `${formatNumber(correction.nextQuantity)}${correction.nextUnit}`;
+  return {
+    handled: true,
+    action: "meal_item_grams_adjusted",
+    reply: `Atualizei de ${previous} para ${next}.`,
+    eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    detail: `Quantidade de ${target.item.foodName} corrigida por contexto curto via WhatsApp.`,
+    data: {
+      mealId: updatedMeal.id,
+      foodName: target.item.foodName,
+      previousQuantity: correction.previousQuantity,
+      previousUnit: correction.previousUnit,
+      nextQuantity: correction.nextQuantity,
+      nextUnit: correction.nextUnit,
+    },
   };
 }
 
@@ -1069,6 +1212,11 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   }
   if (waterIntent?.kind === "water") {
     return handleWaterIntent(userId, text, receivedAt, waterIntent.amountMl);
+  }
+
+  const quantityCorrection = parseQuantityCorrectionIntent(text, receivedAt);
+  if (quantityCorrection) {
+    return handleQuantityCorrectionIntent(userId, quantityCorrection);
   }
 
   const gramsReplacement = parseMealItemGramsReplacement(text);
