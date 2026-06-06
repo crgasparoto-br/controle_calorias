@@ -1,11 +1,16 @@
 import { sql, type SQL } from "drizzle-orm";
 
 import { getDb } from "../../db";
-import { getGlobalFoodCatalogItem } from "../foods/service";
+import { convertFoodPortionToGrams, getGlobalFoodCatalogItem } from "../foods/service";
 import type { MealItemInput } from "./schemas";
 
 type SqlExecutor = {
   execute: (query: SQL) => Promise<unknown>;
+};
+
+type ResolvedMealItemGrams = {
+  grams: number;
+  portion?: Awaited<ReturnType<typeof convertFoodPortionToGrams>>;
 };
 
 export type MealItemWithNutritionSnapshot = MealItemInput & {
@@ -25,11 +30,26 @@ function roundNutrition(value: number | null | undefined) {
   return Math.round(Number(value) * 100) / 100;
 }
 
+async function resolveMealItemGrams(userId: number, item: MealItemInput): Promise<ResolvedMealItemGrams> {
+  if (item.foodId && item.portionId) {
+    const portion = await convertFoodPortionToGrams(userId, {
+      foodId: item.foodId,
+      portionId: item.portionId,
+      quantity: item.portionQuantity ?? item.servings,
+    });
+
+    return { grams: portion.grams, portion };
+  }
+
+  return { grams: item.estimatedGrams > 0 ? item.estimatedGrams : 0 };
+}
+
 function buildSnapshot(params: {
   food: Awaited<ReturnType<typeof getGlobalFoodCatalogItem>>;
   grams: number;
+  portion?: Awaited<ReturnType<typeof convertFoodPortionToGrams>>;
 }) {
-  const { food, grams } = params;
+  const { food, grams, portion } = params;
   const factor = grams / 100;
   const nutrients = food.nutrientsPer100g;
 
@@ -54,6 +74,16 @@ function buildSnapshot(params: {
       status: food.status,
       mergedIntoFoodId: food.mergedIntoFoodId,
       source: food.source,
+      portion: portion
+        ? {
+            id: portion.portionId,
+            label: portion.label,
+            unit: portion.unit,
+            quantity: portion.quantity,
+            baseQuantity: portion.baseQuantity,
+            baseGrams: portion.baseGrams,
+          }
+        : null,
       grams,
       nutrientsPer100g: nutrients,
       calculated,
@@ -70,18 +100,20 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
       continue;
     }
 
-    const grams = item.estimatedGrams > 0 ? item.estimatedGrams : 0;
+    const { grams, portion } = await resolveMealItemGrams(userId, item);
     if (grams <= 0) {
       enriched.push(item);
       continue;
     }
 
     const food = await getGlobalFoodCatalogItem(userId, item.foodId);
-    const { calculated, snapshot } = buildSnapshot({ food, grams });
+    const { calculated, snapshot } = buildSnapshot({ food, grams, portion });
 
     enriched.push({
       ...item,
       canonicalName: food.name,
+      portionText: portion ? `${portion.quantity} ${portion.label}` : item.portionText,
+      estimatedGrams: grams,
       calories: calculated.caloriesKcal,
       protein: calculated.proteinG,
       carbs: calculated.carbG,
