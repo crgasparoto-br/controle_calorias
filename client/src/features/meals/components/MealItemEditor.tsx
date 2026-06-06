@@ -11,8 +11,27 @@ type MealItemEditorProps = {
   onChange: <K extends keyof MealItemState>(key: K, value: MealItemState[K]) => void;
 };
 
-type CatalogFood = NonNullable<ReturnType<typeof trpc.nutrition.foods.catalogSearch.useQuery>["data"]>[number];
-type CatalogPortion = CatalogFood["portions"][number];
+type CatalogPortion = {
+  id: number;
+  label: string;
+  unit: string;
+  quantity: number;
+  grams: number;
+  isDefault: boolean;
+};
+
+type CatalogFood = {
+  id: number;
+  scope: "global" | "user";
+  name: string;
+  nutrientsPer100g: {
+    caloriesKcal: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatGrams: number;
+  };
+  portions: CatalogPortion[];
+};
 
 function roundNutrition(value: number) {
   return Math.round(value * 100) / 100;
@@ -37,7 +56,7 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
     { query: item.foodName, limit: 6 },
     { enabled: item.foodName.trim().length >= 2 },
   );
-  const selectedCatalogFood = catalogFoods.data?.find(food => food.id === item.foodId);
+  const selectedCatalogFood = catalogFoods.data?.find(food => food.id === item.foodId) as CatalogFood | undefined;
   const selectedPortion = selectedCatalogFood?.portions.find(portion => portion.id === item.portionId);
   const hasFoodSwap =
     item.foodName.trim().length > 0 &&
@@ -118,22 +137,25 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
             <p className="text-xs text-muted-foreground">Buscando alimentos...</p>
           ) : catalogFoods.data?.length ? (
             <div className="grid gap-2">
-              {catalogFoods.data.map(food => (
-                <Button
-                  key={food.id}
-                  type="button"
-                  variant={item.foodId === food.id ? "default" : "outline"}
-                  className="h-auto justify-start rounded-2xl px-3 py-2 text-left"
-                  onClick={() => applyCatalogFood(food)}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{food.name}</span>
-                    <span className="block text-xs opacity-80">
-                      {food.scope === "global" ? "Global" : "Personalizado"} · {food.nutrientsPer100g.caloriesKcal} kcal/100 g
+              {catalogFoods.data.map(food => {
+                const catalogFood = food as CatalogFood;
+                return (
+                  <Button
+                    key={catalogFood.id}
+                    type="button"
+                    variant={item.foodId === catalogFood.id ? "default" : "outline"}
+                    className="h-auto justify-start rounded-2xl px-3 py-2 text-left"
+                    onClick={() => applyCatalogFood(catalogFood)}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{catalogFood.name}</span>
+                      <span className="block text-xs opacity-80">
+                        {catalogFood.scope === "global" ? "Global" : "Personalizado"} · {catalogFood.nutrientsPer100g.caloriesKcal} kcal/100 g
+                      </span>
                     </span>
-                  </span>
-                </Button>
-              ))}
+                  </Button>
+                );
+              })}
             </div>
           ) : item.foodName.trim().length >= 2 ? (
             <p className="text-xs text-muted-foreground">Nenhum alimento do catálogo encontrado para esta busca.</p>
