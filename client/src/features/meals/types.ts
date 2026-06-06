@@ -33,6 +33,17 @@ export type DraftState = {
   };
 };
 
+export type FoodPhotoCatalogCandidateState = {
+  foodId: number;
+  name: string;
+  scope: "global" | "user";
+  confidenceScore: number;
+  caloriesKcalPer100g: number;
+  proteinGramsPer100g: number;
+  carbsGramsPer100g: number;
+  fatGramsPer100g: number;
+};
+
 export type FoodPhotoAnalysisState = {
   id: string;
   status: "pending" | "analyzed" | "confirmed" | "rejected";
@@ -47,6 +58,7 @@ export type FoodPhotoAnalysisState = {
       fat: number;
     };
     confidenceScore: number;
+    catalogCandidates: FoodPhotoCatalogCandidateState[];
   }>;
   editableItems: MealItemState[];
   supportingImageUrl?: string;
