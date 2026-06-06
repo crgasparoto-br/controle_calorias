@@ -13,7 +13,22 @@ vi.mock("../../db", () => ({
   upsertFavoriteFood: vi.fn(),
 }));
 
-const execute = vi.fn();
+const selectDistinct = vi.fn();
+const select = vi.fn();
+const queryResults: unknown[][] = [];
+let selectCallCount = 0;
+
+function buildQueryChain(result: unknown[], terminal: "limit" | "orderBy") {
+  const chain = {
+    from: vi.fn(() => chain),
+    leftJoin: vi.fn(() => chain),
+    where: vi.fn(() => chain),
+    orderBy: vi.fn(() => terminal === "orderBy" ? result : chain),
+    limit: vi.fn(() => result),
+  };
+
+  return chain;
+}
 
 const baseFoodRow = {
   id: 10,
@@ -43,12 +58,16 @@ const baseFoodRow = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(getDb).mockResolvedValue({ execute } as never);
+  queryResults.length = 0;
+  selectCallCount = 0;
+  selectDistinct.mockImplementation(() => buildQueryChain(queryResults.shift() ?? [], "limit"));
+  select.mockImplementation(() => buildQueryChain(queryResults.shift() ?? [], selectCallCount++ === 0 ? "limit" : "orderBy"));
+  vi.mocked(getDb).mockResolvedValue({ selectDistinct, select } as never);
 });
 
 describe("catalog food service", () => {
   it("retorna alimentos globais e personalizados mapeados para o contrato do catalogo", async () => {
-    execute.mockResolvedValueOnce([[baseFoodRow, { ...baseFoodRow, id: 11, ownerUserId: 7, isGlobal: 0, name: "Arroz da casa" }]]);
+    queryResults.push([baseFoodRow, { ...baseFoodRow, id: 11, ownerUserId: 7, isGlobal: 0, name: "Arroz da casa" }]);
 
     const result = await searchGlobalFoodCatalog(7, { query: "arroz branco", limit: 20, includeInactive: false });
 
@@ -63,12 +82,13 @@ describe("catalog food service", () => {
   });
 
   it("retorna porcoes cadastradas ao consultar um alimento permitido", async () => {
-    execute
-      .mockResolvedValueOnce([[baseFoodRow]])
-      .mockResolvedValueOnce([[
+    queryResults.push(
+      [baseFoodRow],
+      [
         { id: 1, label: "100 g", unit: "g", quantity: 100, grams: 100, isDefault: 1 },
         { id: 2, label: "escumadeira", unit: "un", quantity: 1, grams: 80, isDefault: 0 },
-      ]]);
+      ],
+    );
 
     const result = await getGlobalFoodCatalogItem(7, 10);
 
@@ -79,7 +99,7 @@ describe("catalog food service", () => {
   });
 
   it("bloqueia consulta de alimento inexistente ou fora do escopo do usuario", async () => {
-    execute.mockResolvedValueOnce([[]]);
+    queryResults.push([]);
 
     await expect(getGlobalFoodCatalogItem(7, 999)).rejects.toBeInstanceOf(TRPCError);
   });

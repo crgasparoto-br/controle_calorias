@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
-import { sql, type SQL } from "drizzle-orm";
+import { and, eq, isNull, like, or, sql } from "drizzle-orm";
+import { foodAliases, foodPortions, foods, foodSources } from "../../../drizzle/schema";
 import {
   createUserFood,
   getDb,
@@ -9,10 +10,6 @@ import {
   upsertFavoriteFood,
 } from "../../db";
 import type { CatalogFoodSearchInput, FoodFormInput } from "./schemas";
-
-type SqlExecutor = {
-  execute: (query: SQL) => Promise<unknown>;
-};
 
 type CatalogFoodRow = {
   id: number;
@@ -48,20 +45,6 @@ type CatalogFoodPortionRow = {
   grams: number;
   isDefault: number;
 };
-
-function extractRows<T>(result: unknown): T[] {
-  if (Array.isArray(result)) {
-    const [rows] = result;
-    return Array.isArray(rows) ? rows as T[] : result as T[];
-  }
-
-  if (result && typeof result === "object" && "rows" in result) {
-    const rows = (result as { rows: unknown }).rows;
-    return Array.isArray(rows) ? rows as T[] : [];
-  }
-
-  return [];
-}
 
 function normalizeCatalogSearchTerm(value: string) {
   return value
@@ -130,7 +113,7 @@ async function getCatalogDb() {
   if (!db) {
     throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Banco de dados indisponível para consulta do catálogo." });
   }
-  return db as unknown as SqlExecutor;
+  return db;
 }
 
 export function searchFoodCatalog(userId: number, input: { query?: string; limit?: number }) {
@@ -143,102 +126,107 @@ export async function searchGlobalFoodCatalog(userId: number, input: CatalogFood
   const likeQuery = `%${normalizedQuery}%`;
   const prefixQuery = `${normalizedQuery}%`;
   const limit = input.limit ?? 20;
+  const predicates = [
+    or(isNull(foods.ownerUserId), eq(foods.ownerUserId, userId)),
+    input.includeInactive ? undefined : eq(foods.status, "active"),
+    normalizedQuery
+      ? or(like(foods.normalizedName, likeQuery), like(foodAliases.normalizedAlias, likeQuery))
+      : undefined,
+  ].filter(Boolean);
 
-  const rows = extractRows<CatalogFoodRow>(await db.execute(sql`
-    SELECT DISTINCT
-      f.id AS id,
-      f.owner_user_id AS ownerUserId,
-      f.source_id AS sourceId,
-      fs.slug AS sourceSlug,
-      fs.name AS sourceName,
-      fs.version AS sourceVersion,
-      f.source_food_code AS sourceFoodCode,
-      f.name AS name,
-      f.normalized_name AS normalizedName,
-      f.brand_name AS brandName,
-      f.category AS category,
-      f.description AS description,
-      f.status AS status,
-      f.merged_into_food_id AS mergedIntoFoodId,
-      f.calories_kcal_per_100g AS caloriesKcalPer100g,
-      f.protein_grams_per_100g AS proteinGramsPer100g,
-      f.carbs_grams_per_100g AS carbsGramsPer100g,
-      f.fat_grams_per_100g AS fatGramsPer100g,
-      f.fiber_grams_per_100g AS fiberGramsPer100g,
-      f.sugar_grams_per_100g AS sugarGramsPer100g,
-      f.sodium_mg_per_100g AS sodiumMgPer100g,
-      f.nutrients_json AS nutrientsJson,
-      CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END AS isGlobal
-    FROM foods f
-    LEFT JOIN food_aliases fa ON fa.food_id = f.id
-    LEFT JOIN food_sources fs ON fs.id = f.source_id
-    WHERE (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
-      AND (${input.includeInactive} = TRUE OR f.status = 'active')
-      AND (${normalizedQuery} = '' OR f.normalized_name LIKE ${likeQuery} OR fa.normalized_alias LIKE ${likeQuery})
-    ORDER BY
-      CASE f.status WHEN 'active' THEN 0 WHEN 'deprecated' THEN 1 ELSE 2 END,
-      CASE WHEN f.normalized_name = ${normalizedQuery} THEN 0 ELSE 1 END,
-      CASE WHEN f.normalized_name LIKE ${prefixQuery} THEN 0 ELSE 1 END,
-      CASE WHEN f.source_id IS NOT NULL THEN 0 ELSE 1 END,
-      isGlobal DESC,
-      f.name ASC
-    LIMIT ${limit}
-  `));
+  const rows = await db
+    .selectDistinct({
+      id: foods.id,
+      ownerUserId: foods.ownerUserId,
+      sourceId: foods.sourceId,
+      sourceSlug: foodSources.slug,
+      sourceName: foodSources.name,
+      sourceVersion: foodSources.version,
+      sourceFoodCode: foods.sourceFoodCode,
+      name: foods.name,
+      normalizedName: foods.normalizedName,
+      brandName: foods.brandName,
+      category: foods.category,
+      description: foods.description,
+      status: foods.status,
+      mergedIntoFoodId: foods.mergedIntoFoodId,
+      caloriesKcalPer100g: foods.caloriesKcalPer100g,
+      proteinGramsPer100g: foods.proteinGramsPer100g,
+      carbsGramsPer100g: foods.carbsGramsPer100g,
+      fatGramsPer100g: foods.fatGramsPer100g,
+      fiberGramsPer100g: foods.fiberGramsPer100g,
+      sugarGramsPer100g: foods.sugarGramsPer100g,
+      sodiumMgPer100g: foods.sodiumMgPer100g,
+      nutrientsJson: foods.nutrientsJson,
+      isGlobal: sql<number>`CASE WHEN ${foods.ownerUserId} IS NULL THEN 1 ELSE 0 END`,
+    })
+    .from(foods)
+    .leftJoin(foodAliases, eq(foodAliases.foodId, foods.id))
+    .leftJoin(foodSources, eq(foodSources.id, foods.sourceId))
+    .where(and(...predicates))
+    .orderBy(
+      sql`CASE ${foods.status} WHEN 'active' THEN 0 WHEN 'deprecated' THEN 1 ELSE 2 END`,
+      sql`CASE WHEN ${foods.normalizedName} = ${normalizedQuery} THEN 0 ELSE 1 END`,
+      sql`CASE WHEN ${foods.normalizedName} LIKE ${prefixQuery} THEN 0 ELSE 1 END`,
+      sql`CASE WHEN ${foods.sourceId} IS NOT NULL THEN 0 ELSE 1 END`,
+      sql`CASE WHEN ${foods.ownerUserId} IS NULL THEN 1 ELSE 0 END DESC`,
+      foods.name,
+    )
+    .limit(limit);
 
   return rows.map(row => mapCatalogFood(row));
 }
 
 export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
   const db = await getCatalogDb();
-  const rows = extractRows<CatalogFoodRow>(await db.execute(sql`
-    SELECT
-      f.id AS id,
-      f.owner_user_id AS ownerUserId,
-      f.source_id AS sourceId,
-      fs.slug AS sourceSlug,
-      fs.name AS sourceName,
-      fs.version AS sourceVersion,
-      f.source_food_code AS sourceFoodCode,
-      f.name AS name,
-      f.normalized_name AS normalizedName,
-      f.brand_name AS brandName,
-      f.category AS category,
-      f.description AS description,
-      f.status AS status,
-      f.merged_into_food_id AS mergedIntoFoodId,
-      f.calories_kcal_per_100g AS caloriesKcalPer100g,
-      f.protein_grams_per_100g AS proteinGramsPer100g,
-      f.carbs_grams_per_100g AS carbsGramsPer100g,
-      f.fat_grams_per_100g AS fatGramsPer100g,
-      f.fiber_grams_per_100g AS fiberGramsPer100g,
-      f.sugar_grams_per_100g AS sugarGramsPer100g,
-      f.sodium_mg_per_100g AS sodiumMgPer100g,
-      f.nutrients_json AS nutrientsJson,
-      CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END AS isGlobal
-    FROM foods f
-    LEFT JOIN food_sources fs ON fs.id = f.source_id
-    WHERE f.id = ${foodId}
-      AND (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
-    LIMIT 1
-  `));
+  const rows = await db
+    .select({
+      id: foods.id,
+      ownerUserId: foods.ownerUserId,
+      sourceId: foods.sourceId,
+      sourceSlug: foodSources.slug,
+      sourceName: foodSources.name,
+      sourceVersion: foodSources.version,
+      sourceFoodCode: foods.sourceFoodCode,
+      name: foods.name,
+      normalizedName: foods.normalizedName,
+      brandName: foods.brandName,
+      category: foods.category,
+      description: foods.description,
+      status: foods.status,
+      mergedIntoFoodId: foods.mergedIntoFoodId,
+      caloriesKcalPer100g: foods.caloriesKcalPer100g,
+      proteinGramsPer100g: foods.proteinGramsPer100g,
+      carbsGramsPer100g: foods.carbsGramsPer100g,
+      fatGramsPer100g: foods.fatGramsPer100g,
+      fiberGramsPer100g: foods.fiberGramsPer100g,
+      sugarGramsPer100g: foods.sugarGramsPer100g,
+      sodiumMgPer100g: foods.sodiumMgPer100g,
+      nutrientsJson: foods.nutrientsJson,
+      isGlobal: sql<number>`CASE WHEN ${foods.ownerUserId} IS NULL THEN 1 ELSE 0 END`,
+    })
+    .from(foods)
+    .leftJoin(foodSources, eq(foodSources.id, foods.sourceId))
+    .where(and(eq(foods.id, foodId), or(isNull(foods.ownerUserId), eq(foods.ownerUserId, userId))))
+    .limit(1);
 
   const food = rows[0];
   if (!food) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Alimento não encontrado no catálogo." });
   }
 
-  const portions = extractRows<CatalogFoodPortionRow>(await db.execute(sql`
-    SELECT
-      id AS id,
-      label AS label,
-      unit AS unit,
-      quantity AS quantity,
-      grams AS grams,
-      is_default AS isDefault
-    FROM food_portions
-    WHERE food_id = ${foodId}
-    ORDER BY is_default DESC, grams ASC, label ASC
-  `));
+  const portions = await db
+    .select({
+      id: foodPortions.id,
+      label: foodPortions.label,
+      unit: foodPortions.unit,
+      quantity: foodPortions.quantity,
+      grams: foodPortions.grams,
+      isDefault: foodPortions.isDefault,
+    })
+    .from(foodPortions)
+    .where(eq(foodPortions.foodId, foodId))
+    .orderBy(sql`${foodPortions.isDefault} DESC`, foodPortions.grams, foodPortions.label);
 
   return mapCatalogFood(food, portions);
 }

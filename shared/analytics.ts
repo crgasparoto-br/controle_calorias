@@ -1,6 +1,7 @@
 export const ANALYTICS_EVENT_NAMES = [
   "onboarding_started",
   "onboarding_completed",
+  "food_catalog_searched",
   "food_searched",
   "food_created",
   "meal_created",
@@ -35,6 +36,11 @@ export type AnalyticsEventMap = {
   food_searched: {
     query_length: number;
     limit: number;
+  };
+  food_catalog_searched: {
+    query_length: number;
+    limit: number;
+    include_inactive: boolean;
   };
   food_created: {
     food_type: "generic" | "branded";
