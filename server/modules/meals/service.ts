@@ -147,7 +147,7 @@ async function resolveDraftAudio(params: {
       origin: params.source,
       status: "warning",
       eventType: "meal_draft.inline_audio_used",
-      detail: "O draft usou o áudio porque o upload para storage falhou durante o processamento.",
+      detail: "O draft usou o áudio inline porque o upload para storage falhou durante o processamento.",
     });
 
     return {
