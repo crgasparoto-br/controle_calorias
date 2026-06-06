@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { sql, type SQL } from "drizzle-orm";
 import {
@@ -321,7 +321,7 @@ export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
 export async function createCustomFood(userId: number, input: CustomFoodInput) {
   const db = await getCatalogDb();
   const normalizedName = normalizeCatalogSearchTerm(input.name);
-  const sourceFoodCode = `custom:${userId}:${crypto.randomUUID()}`;
+  const sourceFoodCode = `custom:${userId}:${randomUUID()}`;
   const nutrientsJson = serializeNutrients(input.nutrients);
 
   await db.execute(sql`
