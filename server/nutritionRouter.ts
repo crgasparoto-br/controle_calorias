@@ -35,12 +35,16 @@ import { getGamification, updateGamificationSettings } from "./modules/gamificat
 import { gamificationSettingsSchema } from "./modules/gamification/schemas";
 import {
   createFood,
+  getGlobalFoodCatalogItem,
   listRecentlyUsedFoods,
   searchFoodCatalog,
+  searchGlobalFoodCatalog,
   setFoodFavorite,
   updateFood,
 } from "./modules/foods/service";
 import {
+  catalogFoodGetSchema,
+  catalogFoodSearchSchema,
   favoriteFoodSchema,
   foodFormSchema,
   foodSearchSchema,
@@ -324,6 +328,16 @@ export const nutritionRouter = router({
       });
       return result;
     }),
+    catalogSearch: protectedProcedure.input(catalogFoodSearchSchema).query(async ({ ctx, input }) => {
+      const result = await searchGlobalFoodCatalog(ctx.user.id, input);
+      void analyticsService.track("food_catalog_searched", {
+        query_length: input.query.trim().length,
+        limit: input.limit,
+        include_inactive: input.includeInactive,
+      });
+      return result;
+    }),
+    catalogGet: protectedProcedure.input(catalogFoodGetSchema).query(async ({ ctx, input }) => getGlobalFoodCatalogItem(ctx.user.id, input.foodId)),
     recent: protectedProcedure.query(async ({ ctx }) => listRecentlyUsedFoods(ctx.user.id)),
     favorite: protectedProcedure.input(favoriteFoodSchema).mutation(async ({ ctx, input }) => setFoodFavorite(ctx.user.id, input)),
     create: protectedProcedure.input(foodFormSchema).mutation(async ({ ctx, input }) => {
