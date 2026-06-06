@@ -9,6 +9,16 @@ export const foodSearchSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+export const catalogFoodSearchSchema = z.object({
+  query: z.string().trim().default(""),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  includeInactive: z.boolean().default(false),
+});
+
+export const catalogFoodGetSchema = z.object({
+  foodId: z.number().int().positive(),
+});
+
 export const favoriteFoodSchema = z.object({
   foodId: z.number().int().positive(),
   favorite: z.boolean(),
@@ -36,3 +46,4 @@ export const updateFoodSchema = foodFormSchema.extend({
 });
 
 export type FoodFormInput = z.infer<typeof foodFormSchema>;
+export type CatalogFoodSearchInput = z.infer<typeof catalogFoodSearchSchema>;
