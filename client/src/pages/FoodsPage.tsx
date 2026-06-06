@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { MEASUREMENT_UNIT_SUGGESTIONS } from "../../shared/measurementUnits";
+import { MEASUREMENT_UNIT_SUGGESTIONS } from "../../../shared/measurementUnits";
 import { PencilLine, Plus, Search, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
