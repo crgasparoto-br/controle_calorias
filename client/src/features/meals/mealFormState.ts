@@ -7,6 +7,8 @@ export function createEmptyItem(): MealItemState {
     foodName: "",
     canonicalName: "",
     portionText: "1 porção",
+    quantity: 1,
+    unit: "porção",
     servings: 1,
     estimatedGrams: 0,
     calories: 0,
