@@ -3,6 +3,8 @@ import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 
 const macro = z.coerce.number().min(0);
 const measurementUnit = z.string().trim().min(1).max(40).transform(normalizeMeasurementUnit);
+const catalogNutrient = z.coerce.number().min(0);
+const optionalCatalogNutrient = catalogNutrient.optional().nullable();
 
 export const foodSearchSchema = z.object({
   query: z.string().trim().default(""),
@@ -16,6 +18,39 @@ export const catalogFoodSearchSchema = z.object({
 });
 
 export const catalogFoodGetSchema = z.object({
+  foodId: z.number().int().positive(),
+});
+
+export const customFoodPortionSchema = z.object({
+  label: z.string().trim().min(1).max(120),
+  unit: z.string().trim().min(1).max(40).default("serving"),
+  quantity: z.coerce.number().positive().default(1),
+  grams: z.coerce.number().positive(),
+  isDefault: z.boolean().default(false),
+});
+
+export const customFoodSchema = z.object({
+  name: z.string().trim().min(2).max(255),
+  brandName: z.string().trim().max(255).optional().nullable(),
+  category: z.string().trim().max(160).optional().nullable(),
+  description: z.string().trim().max(1000).optional().nullable(),
+  caloriesKcalPer100g: catalogNutrient.max(10_000),
+  proteinGramsPer100g: catalogNutrient.max(1_000),
+  carbsGramsPer100g: catalogNutrient.max(1_000),
+  fatGramsPer100g: catalogNutrient.max(1_000),
+  fiberGramsPer100g: optionalCatalogNutrient,
+  sugarGramsPer100g: optionalCatalogNutrient,
+  sodiumMgPer100g: catalogNutrient.max(100_000).optional().nullable(),
+  nutrients: z.record(z.string(), z.unknown()).optional().nullable(),
+  aliases: z.array(z.string().trim().min(1).max(255)).default([]),
+  portions: z.array(customFoodPortionSchema).default([]),
+});
+
+export const updateCustomFoodSchema = customFoodSchema.extend({
+  foodId: z.number().int().positive(),
+});
+
+export const deleteCustomFoodSchema = z.object({
   foodId: z.number().int().positive(),
 });
 
@@ -47,3 +82,5 @@ export const updateFoodSchema = foodFormSchema.extend({
 
 export type FoodFormInput = z.infer<typeof foodFormSchema>;
 export type CatalogFoodSearchInput = z.infer<typeof catalogFoodSearchSchema>;
+export type CustomFoodInput = z.infer<typeof customFoodSchema>;
+export type UpdateCustomFoodInput = z.infer<typeof updateCustomFoodSchema>;
