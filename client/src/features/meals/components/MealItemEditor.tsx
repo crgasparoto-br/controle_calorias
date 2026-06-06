@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
-import { MEASUREMENT_UNIT_SUGGESTIONS, normalizeMeasurementUnit } from "@/shared/measurementUnits";
+import { MEASUREMENT_UNIT_SUGGESTIONS, normalizeMeasurementUnit } from "@shared/measurementUnits";
 import type { MealItemState } from "../types";
 
 type MealItemEditorProps = {
