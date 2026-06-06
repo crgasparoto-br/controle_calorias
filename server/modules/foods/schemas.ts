@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 
 const macro = z.coerce.number().min(0);
+const measurementUnit = z.string().trim().min(1).max(40).transform(normalizeMeasurementUnit);
 
 export const foodSearchSchema = z.object({
   query: z.string().trim().default(""),
@@ -16,7 +18,7 @@ export const foodFormSchema = z.object({
   name: z.string().trim().min(2).max(255),
   brandName: z.string().trim().max(255).optional().nullable(),
   servingSize: z.coerce.number().positive(),
-  servingUnit: z.string().trim().min(1).max(40),
+  servingUnit: measurementUnit,
   calories: macro,
   protein: macro,
   carbs: macro,
