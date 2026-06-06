@@ -35,6 +35,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Textos que pedem redução de gramas devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Textos que pedem incremento de gramas, como `somar 45 g ao arroz`, devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Quando o ajuste de gramas não citar alimento, o sistema pode usar o último item da refeição mais recente; quando citar alimento, deve buscar item compatível na última refeição.
+- Textos que corrigem quantidade em contexto curto, como `Trocar 330ml por 600ml` ou `Não é 330ml é 600ml`, devem buscar item compatível na refeição mais recente e atualizar automaticamente quando houver apenas um candidato.
+- Quando a correção curta de quantidade encontrar mais de um item compatível ou nenhum item compatível, o sistema deve pedir esclarecimento curto antes de alterar qualquer registro.
 - Textos que adicionam alimento com quantidade em gramas a uma refeição indicada, como `Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem`, devem atualizar a refeição indicada no dia relativo em vez de criar nova refeição por fallback.
 - Quando o pedido de adição de alimento em gramas indicar uma refeição que não existe no dia interpretado, o sistema deve pedir esclarecimento antes de alterar qualquer registro.
 - Textos que adicionam café sem açúcar a uma refeição existente, como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã`, devem atualizar a refeição indicada e não criar uma nova refeição por fallback.
@@ -55,7 +57,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Quando uma refeição for registrada a partir de imagem, o WhatsApp deve enviar uma imagem auxiliar anotada com legendas dos alimentos, calorias e macronutrientes por item, baseada na foto original recebida.
 - A imagem auxiliar anotada gerada para uma refeição deve ser salva no storage e vinculada à mesma refeição em `mealMedia`, junto com a imagem original, para deixar claro quais alimentos foram identificados a partir daquela imagem.
 - Falha ao gerar, persistir ou enviar a imagem auxiliar anotada deve gerar no máximo aviso operacional e não deve bloquear o registro da refeição nem a resposta textual com os macros.
-- Áudios recebidos pelo WhatsApp devem ser baixados pelo backend e enviados inline para transcrição, sem depender de URL pública ou assinada do storage para o provider ler a mídia.
+- Áudios recebidos pelo WhatsApp devem ser baixados pelo backend e enviados inline para transcrição, sem depender de URL pública assinada do storage para o provider ler a mídia.
 - A URL persistida da mídia deve continuar sendo a URL do storage quando o storage estiver disponível, não a data URL inline usada apenas durante inferência ou transcrição.
 - Falha ao persistir mídia no storage deve gerar aviso operacional, mas não deve bloquear análise de imagem, transcrição de áudio ou registro de refeição quando a mídia já tiver sido baixada da Meta.
 - Quando o processamento da mídia falhar, a resposta automática deve ser genérica e não deve expor token, URL assinada, telefone completo, conteúdo cru ou detalhe interno do provider.
@@ -71,6 +73,10 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
 - Testar que texto ou áudio transcrito como `somar 45 g ao arroz` ajusta o item compatível da última refeição e não chama inferência nutricional.
 - Testar que texto como `diminuir 30 g` ajusta o último item da última refeição quando não há alimento explícito.
+- Testar que texto como `Trocar 330ml por 600ml` corrige automaticamente um único item recente compatível e preserva a unidade da resposta.
+- Testar que texto como `Não é 330ml é 600ml` corrige o último item compatível.
+- Testar que correção curta com dois itens de `330ml` pede confirmação com opções numeradas.
+- Testar que correção curta sem item recente de `330ml` pede esclarecimento antes de alterar registro.
 - Testar que texto como `Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem` adiciona o alimento à refeição indicada no dia relativo e não chama inferência nutricional.
 - Testar que pedido para adicionar alimento em gramas a refeição inexistente pede esclarecimento e não altera registros.
 - Testar que texto como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã` adiciona café à refeição indicada e não chama inferência nutricional.
@@ -84,11 +90,11 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que caption de imagem com texto parecido com comando continua no fluxo multimodal normal.
 - Testar que resposta final de refeição no WhatsApp lista os alimentos com calorias e macros por alimento, além dos totais estimados.
 - Testar que resposta final de imagem no WhatsApp usa o formato simplificado com `Itens`, `Total da refeição` e `Meta de hoje`.
-- Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição quando o storage está disponível.
+- Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição quando o storage estiver disponível.
 - Testar que imagem inbound pode gerar resposta visual anotada com a foto original, alimentos identificados, calorias e macros por item.
 - Testar que a imagem anotada gerada é vinculada à refeição em `mealMedia`, junto com a imagem original recebida pelo WhatsApp.
 - Testar que falha ao gerar, persistir ou enviar a imagem anotada não impede o registro da refeição nem a resposta textual.
-- Testar que áudio inbound é enviado inline para transcrição e que apenas a URL do storage é persistida no rascunho/refeição quando o storage está disponível.
+- Testar que áudio inbound é enviado inline para transcrição e que apenas a URL do storage é persistida no rascunho/refeição quando o storage estiver disponível.
 - Testar que falha de leitura, confirmação inicial ou storage não bloqueia o processamento quando a mensagem é válida.
 - Testar token ausente, telefone oficial usado como telefone de usuário e vínculo inexistente.
 - Testar que resposta outbound usa sempre `WHATSAPP_PHONE_NUMBER_ID`.
