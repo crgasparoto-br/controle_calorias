@@ -770,6 +770,8 @@ function buildFoodAdditionItem(foodName: string, quantity: number, unit = "g"): 
   return {
     ...item,
     portionText: `${formatNumber(quantity)} ${unit}`,
+    quantity,
+    unit,
   };
 }
 
@@ -782,6 +784,8 @@ function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
     foodName: "Café sem açúcar",
     canonicalName: "Café preto sem açúcar",
     portionText: `${formatNumber(cups)} ${cupLabel} (${formatNumber(volumeMl)} ml)`,
+    quantity: cups,
+    unit: cupLabel,
     servings: Math.max(cups, 0.1),
     estimatedGrams: volumeMl,
     calories,

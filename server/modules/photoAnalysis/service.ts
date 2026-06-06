@@ -52,6 +52,8 @@ function toMealItem(item: FoodPhotoSuggestedItem): MealDraftItem {
     foodName: item.foodName,
     canonicalName: item.foodName,
     portionText: `${item.estimatedQuantity} ${item.unit}`,
+    quantity: item.estimatedQuantity,
+    unit: item.unit,
     servings: 1,
     estimatedGrams: item.unit.toLowerCase() === "g" ? item.estimatedQuantity : 0,
     calories: item.estimatedCalories,

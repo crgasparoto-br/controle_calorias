@@ -30,6 +30,8 @@ export type MealDraftItem = {
   foodName: string;
   canonicalName: string;
   portionText: string;
+  quantity: number;
+  unit: string;
   servings: number;
   estimatedGrams: number;
   calories: number;
@@ -415,17 +417,41 @@ function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+function parseQuantityUnitFromPortionText(portionText: string) {
+  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)(?:\s+(.+))?$/u);
+  if (!match) {
+    return null;
+  }
+
+  const quantity = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+
+  return {
+    quantity,
+    unit: match[2]?.trim() || "porção",
+  };
+}
+
 function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
   const estimatedGrams = llmItem.estimatedGrams > 0
     ? llmItem.estimatedGrams
     : food.gramsPerServing * servings;
   const factor = estimatedGrams / food.gramsPerServing;
+  const portionText = llmItem.portionText || food.servingLabel;
+  const quantityUnit = parseQuantityUnitFromPortionText(portionText) ?? {
+    quantity: roundNutritionValue(estimatedGrams),
+    unit: "g",
+  };
 
   return {
     foodName: llmItem.foodName,
     canonicalName: food.name,
-    portionText: llmItem.portionText || food.servingLabel,
+    portionText,
+    quantity: quantityUnit.quantity,
+    unit: quantityUnit.unit,
     servings,
     estimatedGrams: roundNutritionValue(estimatedGrams),
     calories: roundNutritionValue(food.calories * factor),
@@ -438,10 +464,17 @@ function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftIte
 }
 
 function buildHybridItem(llmItem: LlmItem): MealDraftItem {
+  const quantityUnit = parseQuantityUnitFromPortionText(llmItem.portionText) ?? {
+    quantity: Math.max(llmItem.servings || 1, 0.25),
+    unit: "porção",
+  };
+
   return {
     foodName: llmItem.foodName,
     canonicalName: llmItem.foodName,
     portionText: llmItem.portionText,
+    quantity: quantityUnit.quantity,
+    unit: quantityUnit.unit,
     servings: Math.max(llmItem.servings || 1, 0.25),
     estimatedGrams: roundNutritionValue(Math.max(llmItem.estimatedGrams || 0, 0)),
     calories: roundNutritionValue(llmItem.estimatedCalories),
@@ -467,6 +500,8 @@ function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceText: str
   return [{
     ...item,
     portionText: `${formatQuantityForPortion(estimatedGrams)} g`,
+    quantity: estimatedGrams,
+    unit: "g",
     estimatedGrams,
     servings: Math.max(estimatedGrams / 100, 0.25),
     calories: roundNutritionValue(item.calories * factor),
@@ -509,6 +544,8 @@ function buildHeuristicItem(foodName: string): MealDraftItem {
     foodName: parsed.foodName,
     canonicalName: parsed.foodName,
     portionText: parsed.portionText ?? "1 porção",
+    quantity: parsed.estimatedGrams ?? 1,
+    unit: parsed.estimatedGrams ? "g" : "porção",
     servings: Math.max(factor, 0.25),
     estimatedGrams: roundNutritionValue(estimatedGrams),
     calories: roundNutritionValue(150 * factor),
