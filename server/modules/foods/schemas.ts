@@ -21,6 +21,10 @@ export const catalogFoodGetSchema = z.object({
   foodId: z.number().int().positive(),
 });
 
+export const catalogFoodRecentSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
 export const customFoodPortionSchema = z.object({
   label: z.string().trim().min(1).max(120),
   unit: z.string().trim().min(1).max(40).default("serving"),
@@ -59,6 +63,33 @@ export const favoriteFoodSchema = z.object({
   favorite: z.boolean(),
 });
 
+export const catalogFoodFavoriteSchema = z.object({
+  foodId: z.number().int().positive(),
+  favorite: z.boolean(),
+});
+
+export const adminCatalogFoodCurationSchema = z.object({
+  foodId: z.number().int().positive(),
+  status: z.enum(["active", "deprecated", "merged"]),
+  mergedIntoFoodId: z.number().int().positive().optional().nullable(),
+}).superRefine((input, ctx) => {
+  if (input.status === "merged" && !input.mergedIntoFoodId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Informe o alimento destino ao marcar um item como mesclado.",
+      path: ["mergedIntoFoodId"],
+    });
+  }
+
+  if (input.mergedIntoFoodId && input.mergedIntoFoodId === input.foodId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "O alimento destino deve ser diferente do alimento curado.",
+      path: ["mergedIntoFoodId"],
+    });
+  }
+});
+
 export const foodFormSchema = z.object({
   name: z.string().trim().min(2).max(255),
   brandName: z.string().trim().max(255).optional().nullable(),
@@ -82,5 +113,8 @@ export const updateFoodSchema = foodFormSchema.extend({
 
 export type FoodFormInput = z.infer<typeof foodFormSchema>;
 export type CatalogFoodSearchInput = z.infer<typeof catalogFoodSearchSchema>;
+export type CatalogFoodRecentInput = z.infer<typeof catalogFoodRecentSchema>;
+export type CatalogFoodFavoriteInput = z.infer<typeof catalogFoodFavoriteSchema>;
+export type AdminCatalogFoodCurationInput = z.infer<typeof adminCatalogFoodCurationSchema>;
 export type CustomFoodInput = z.infer<typeof customFoodSchema>;
 export type UpdateCustomFoodInput = z.infer<typeof updateCustomFoodSchema>;
