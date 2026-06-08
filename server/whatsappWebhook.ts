@@ -3,6 +3,7 @@ import { generateImage, type GenerateImageResponse } from "./_core/imageGenerati
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
+import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
 import {
@@ -193,8 +194,13 @@ function formatFoodDescription(item: MealProcessingResult["items"][number]) {
   return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
 }
 
-function buildWhatsAppReplyMessage(processed: MealProcessingResult, registeredAt = new Date(), goalProgress?: WhatsAppMealGoalProgress | null) {
-  return buildWhatsAppMealReplyMessage(processed, { registeredAt, goalProgress });
+function buildWhatsAppReplyMessage(
+  processed: MealProcessingResult,
+  registeredAt = new Date(),
+  goalProgress?: WhatsAppMealGoalProgress | null,
+  quickEditUrl?: string | null,
+) {
+  return buildWhatsAppMealReplyMessage(processed, { registeredAt, goalProgress, quickEditUrl });
 }
 
 function imageDataFromDataUrl(dataUrl?: string) {
@@ -1077,12 +1083,14 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         detail: `Mensagem ${prepared.summary} de ${sourcePhone} processada e refeição ${savedMeal.mealLabel} registrada automaticamente às ${formatReplyTime(occurredAt)}.`,
       });
 
+      const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: savedMeal.id });
       const replyResult = await sendWhatsAppTextMessage(
         sourcePhone,
         buildWhatsAppReplyMessage(
           processedForPersistence,
           occurredAt,
           await getWhatsAppMealGoalProgress(userId, occurredAt),
+          quickEditLink?.url,
         ),
       );
 
