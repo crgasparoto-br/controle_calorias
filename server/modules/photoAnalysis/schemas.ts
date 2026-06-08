@@ -5,6 +5,7 @@ export const foodPhotoAnalysisStatusSchema = z.enum(["pending", "analyzed", "con
 
 export const foodPhotoSuggestedItemSchema = z.object({
   foodName: z.string().trim().min(1).max(120),
+  quantity: z.number().min(0).max(5000),
   estimatedQuantity: z.number().min(0).max(5000),
   unit: z.string().trim().min(1).max(40),
   estimatedCalories: z.number().min(0).max(10000),

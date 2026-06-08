@@ -25,6 +25,25 @@ describe("parseMealCommandFromWhatsApp", () => {
     ]);
   });
 
+  it("normaliza unidade caseira sem manter quantidade no nome do alimento", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar 2 fatias pão ao café da manhã",
+      { referenceDate },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("café da manhã");
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        foodName: "pão",
+        brand: null,
+        quantity: 2,
+        unit: "fatia",
+        missingFields: [],
+      }),
+    ]);
+  });
+
   it("interpreta adicao multipla com refeicao antes dos itens", () => {
     const result = parseMealCommandFromWhatsApp(
       "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips, 330ml de cerveja Budweiser",

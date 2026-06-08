@@ -1,4 +1,5 @@
 import { roundNutritionValue } from "../../../shared/mealTotals";
+import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import { getUserNutritionGoal } from "../../db";
 import { getCatalogCache } from "../../catalogRuntime";
 import { listMeals, updateMeal } from "../meals/service";
@@ -407,11 +408,23 @@ function formatFoodNameWithBrand(item: ParsedMealCommandItem) {
 }
 
 function normalizeAdditionUnit(unit: string | null) {
-  return unit === "ml" || unit === "l" ? unit : "g";
+  return unit ? normalizeMeasurementUnit(unit) : "g";
 }
 
 function quantityToEstimatedGrams(quantity: number, unit: string) {
-  return unit === "l" ? quantity * 1000 : quantity;
+  switch (normalizeAdditionUnit(unit)) {
+    case "kg":
+      return quantity * 1000;
+    case "mg":
+      return quantity / 1000;
+    case "g":
+    case "ml":
+      return quantity;
+    case "l":
+      return quantity * 1000;
+    default:
+      return quantity;
+  }
 }
 
 function deriveQuantityFromPortionText(portionText: string) {
@@ -456,7 +469,7 @@ function parseFoodAdditionIntent(text: string, receivedAt: Date): FoodAdditionIn
 
   const items = parsed.items.flatMap(item => {
     const foodName = formatFoodNameWithBrand(item);
-    if (!foodName || !item.quantity || item.quantity < MIN_FOOD_GRAMS) {
+    if (!foodName || !item.quantity || item.quantity <= 0) {
       return [];
     }
 
@@ -484,19 +497,26 @@ function parseQuantityCorrectionIntent(text: string, receivedAt: Date): Quantity
   if (parsed.intent !== "replace_quantity" && parsed.intent !== "correct_quantity") {
     return null;
   }
-  if (!parsed.nextQuantity || !parsed.nextUnit || parsed.nextQuantity < MIN_FOOD_GRAMS) {
+  if (!parsed.nextQuantity || !parsed.nextUnit || parsed.nextQuantity <= 0) {
     return null;
   }
 
   return {
     previousQuantity: parsed.previousQuantity ?? null,
-    previousUnit: parsed.previousUnit ?? null,
+    previousUnit: parsed.previousUnit ? normalizeAdditionUnit(parsed.previousUnit) : null,
     nextQuantity: parsed.nextQuantity,
     nextUnit: normalizeAdditionUnit(parsed.nextUnit),
   };
 }
 
 function parseItemQuantity(item: MealItemInput) {
+  if (item.quantity && item.unit) {
+    return {
+      quantity: item.quantity,
+      unit: normalizeAdditionUnit(item.unit),
+    };
+  }
+
   const match = item.portionText?.match(/(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
   if (!match) {
     return null;
@@ -509,13 +529,14 @@ function parseItemQuantity(item: MealItemInput) {
 }
 
 function itemMatchesQuantity(item: MealItemInput, quantity: number, unit: string | null) {
-  const estimatedTarget = quantityToEstimatedGrams(quantity, normalizeAdditionUnit(unit));
-  if (Number(item.estimatedGrams || 0) === estimatedTarget) {
+  const normalizedUnit = normalizeAdditionUnit(unit);
+  const parsedPortion = parseItemQuantity(item);
+  if (parsedPortion?.quantity === quantity && (!unit || parsedPortion.unit === normalizedUnit)) {
     return true;
   }
 
-  const parsedPortion = parseItemQuantity(item);
-  return parsedPortion?.quantity === quantity && (!unit || parsedPortion.unit === normalizeAdditionUnit(unit));
+  const estimatedTarget = quantityToEstimatedGrams(quantity, normalizedUnit);
+  return Number(item.estimatedGrams || 0) === estimatedTarget;
 }
 
 function findQuantityCorrectionTargets(items: MealItemInput[], correction: QuantityCorrectionIntent) {
@@ -530,12 +551,13 @@ function findQuantityCorrectionTargets(items: MealItemInput[], correction: Quant
 }
 
 function scaleMealItemQuantity(item: MealItemInput, nextQuantity: number, nextUnit: string): MealItemInput {
-  const nextEstimatedGrams = quantityToEstimatedGrams(nextQuantity, nextUnit);
+  const normalizedUnit = normalizeAdditionUnit(nextUnit);
+  const nextEstimatedGrams = quantityToEstimatedGrams(nextQuantity, normalizedUnit);
   return {
     ...scaleMealItem(item, nextEstimatedGrams),
-    portionText: `${formatNumber(nextQuantity)} ${nextUnit}`,
     quantity: nextQuantity,
-    unit: nextUnit,
+    unit: normalizedUnit,
+    portionText: `${formatNumber(nextQuantity)} ${normalizedUnit}`,
   };
 }
 
@@ -763,7 +785,7 @@ function buildCatalogMealItem(item: MealItemInput, nextFoodName: string, nextGra
     estimatedGrams: nextGrams,
     portionText: item.portionText || `${formatNumber(nextGrams)} g`,
     quantity: item.quantity ?? nextGrams,
-    unit: item.unit || "g",
+    unit: item.unit ?? "g",
     servings: Math.max(nextGrams / catalogFood.gramsPerServing, 0.1),
     calories: roundNutritionValue(catalogFood.calories * factor),
     protein: roundNutritionValue(catalogFood.protein * factor),
@@ -783,7 +805,7 @@ function buildHeuristicReplacementItem(item: MealItemInput, nextFoodName: string
     estimatedGrams: nextGrams,
     portionText: item.portionText || `${formatNumber(nextGrams)} g`,
     quantity: item.quantity ?? nextGrams,
-    unit: item.unit || "g",
+    unit: item.unit ?? "g",
     servings: Math.max(Number(item.servings || 1), 0.1),
     calories: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.calories * factor),
     protein: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.protein * factor),
@@ -805,17 +827,18 @@ function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealIte
 }
 
 function buildFoodAdditionItem(foodName: string, quantity: number, unit = "g"): MealItemInput {
-  const estimatedGrams = quantityToEstimatedGrams(quantity, unit);
+  const normalizedUnit = normalizeAdditionUnit(unit);
+  const estimatedGrams = quantityToEstimatedGrams(quantity, normalizedUnit);
   const catalogFood = findCatalogFood(foodName);
   const item = catalogFood
-    ? buildCatalogMealItem({} as MealItemInput, foodName, estimatedGrams, catalogFood)
-    : buildHeuristicReplacementItem({} as MealItemInput, foodName, estimatedGrams);
+    ? buildCatalogMealItem({ quantity, unit: normalizedUnit } as MealItemInput, foodName, estimatedGrams, catalogFood)
+    : buildHeuristicReplacementItem({ quantity, unit: normalizedUnit } as MealItemInput, foodName, estimatedGrams);
 
   return {
     ...item,
-    portionText: `${formatNumber(quantity)} ${unit}`,
     quantity,
-    unit,
+    unit: normalizedUnit,
+    portionText: `${formatNumber(quantity)} ${normalizedUnit}`,
   };
 }
 
@@ -827,9 +850,9 @@ function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
   return {
     foodName: "Café sem açúcar",
     canonicalName: "Café preto sem açúcar",
-    portionText: `${formatNumber(cups)} ${cupLabel} (${formatNumber(volumeMl)} ml)`,
     quantity: cups,
-    unit: cupLabel,
+    unit: "xícara",
+    portionText: `${formatNumber(cups)} ${cupLabel} (${formatNumber(volumeMl)} ml)`,
     servings: Math.max(cups, 0.1),
     estimatedGrams: volumeMl,
     calories,
@@ -1085,6 +1108,8 @@ async function handleFoodAdditionIntent(userId: number, addition: FoodAdditionIn
         mealId: updatedMeal.id,
         mealLabel: targetMeal.mealLabel,
         foodName: addedItem.foodName,
+        quantity: addedItem.quantity,
+        unit: addedItem.unit,
         estimatedGrams: addedItem.estimatedGrams,
         calories: addedItem.calories,
         protein: addedItem.protein,
@@ -1107,6 +1132,8 @@ async function handleFoodAdditionIntent(userId: number, addition: FoodAdditionIn
       itemCount: addedItems.length,
       items: addedItems.map(item => ({
         foodName: item.foodName,
+        quantity: item.quantity,
+        unit: item.unit,
         estimatedGrams: item.estimatedGrams,
         calories: item.calories,
         protein: item.protein,
@@ -1162,6 +1189,8 @@ async function handleCoffeeAdditionIntent(userId: number, text: string, addition
       mealLabel: targetMeal.mealLabel,
       foodName: coffeeItem.foodName,
       cups: addition.cups,
+      quantity: coffeeItem.quantity,
+      unit: coffeeItem.unit,
       calories: coffeeItem.calories,
     },
   };
@@ -1274,6 +1303,11 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return handleMealItemReplacement(userId, gramsReplacement);
   }
 
+  const coffeeAddition = parseCoffeeAdditionIntent(text);
+  if (coffeeAddition) {
+    return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt);
+  }
+
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   if (foodAddition) {
     return handleFoodAdditionIntent(userId, foodAddition);
@@ -1292,11 +1326,6 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   const foodReplacement = parseFoodReplacementIntent(text);
   if (foodReplacement) {
     return handleFoodReplacementIntent(userId, foodReplacement);
-  }
-
-  const coffeeAddition = parseCoffeeAdditionIntent(text);
-  if (coffeeAddition) {
-    return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt);
   }
 
   if (parseSnackSuggestionIntent(text)) {

@@ -11,6 +11,9 @@ vi.mock("../../storage", () => ({
 }));
 
 vi.mock("../../db", () => ({
+  buildSavedMedia: vi.fn(input => input),
+  confirmPendingMeal: vi.fn(),
+  createPendingMealInference: vi.fn(),
   createUserManualMeal: vi.fn(),
   getHabitSnapshots: getHabitSnapshotsMock,
   logInferenceEvent: logInferenceEventMock,
@@ -44,6 +47,8 @@ describe("photoAnalysis service", () => {
         {
           foodName: "arroz",
           canonicalName: "Arroz branco cozido",
+          quantity: 100,
+          unit: "g",
           portionText: "100 g",
           servings: 1,
           estimatedGrams: 100,
@@ -117,6 +122,7 @@ describe("photoAnalysis service", () => {
     expect(result.suggestedItems).toEqual([
       {
         foodName: "Arroz branco cozido",
+        quantity: 100,
         estimatedQuantity: 100,
         unit: "g",
         estimatedCalories: 128,

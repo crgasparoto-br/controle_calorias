@@ -1,3 +1,5 @@
+import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
+
 export type MealCommandIntent =
   | "add_items_to_meal"
   | "replace_quantity"
@@ -36,6 +38,7 @@ export type MealCommandContext = {
 };
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
+const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
 
 const MEAL_TYPES = [
   "cafe da manha",
@@ -173,21 +176,11 @@ function findMealType(input: string, context: MealCommandContext) {
 }
 
 function normalizeUnit(unit: string) {
-  const normalized = normalizeText(unit);
-  if (normalized.startsWith("gram")) {
-    return "g";
-  }
-  if (normalized.startsWith("mililitro")) {
-    return "ml";
-  }
-  if (normalized.startsWith("litro")) {
-    return "l";
-  }
-  return normalized;
+  return normalizeMeasurementUnit(unit.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 }
 
 function parseQuantity(value: string) {
-  const match = value.match(/(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
+  const match = value.match(new RegExp(`(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
   if (!match) {
     return null;
   }
@@ -215,6 +208,7 @@ function removeBrand(foodName: string, brand: string | null) {
 function cleanFoodName(value: string) {
   return normalizeSpaces(
     stripTrailingDate(value)
+      .replace(/^(?:a|ao|à|no|na)\s+(?:refei[cç][aã]o\s+)?(?:caf[eé]\s+da\s+manh[aã]|almo[cç]o|jantar|lanche(?:\s+da\s+tarde)?|ceia)(?:\s+(?:de\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\s+/i, "")
       .replace(/^(?:de|do|da|dos|das)\s+/i, "")
       .replace(/[.,;:!?]+$/g, ""),
   );
@@ -265,7 +259,7 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
     if (!quantity) {
       return buildItem(part, null, null);
     }
-    const foodName = part.slice(quantity.index + quantity.raw.length);
+    const foodName = normalizeSpaces(`${part.slice(0, quantity.index)} ${part.slice(quantity.index + quantity.raw.length)}`);
     return buildItem(foodName, quantity.quantity, quantity.unit);
   });
   const missingFields = [
@@ -284,7 +278,8 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
 }
 
 function parseQuantityReplacement(input: string): ParsedMealCommand | null {
-  const swapMatch = input.match(/\b(?:trocar|troque|troca|mudar|alterar|corrigir)\b\s+(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\s+(?:por|para)\s+(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
+  const quantityPattern = `(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})`;
+  const swapMatch = input.match(new RegExp(`\\b(?:trocar|troque|troca|mudar|alterar|corrigir)\\b\\s+${quantityPattern}\\s+(?:por|para)\\s+${quantityPattern}\\b`, "i"));
   if (swapMatch) {
     return {
       ...emptyCommand("replace_quantity"),
@@ -297,7 +292,7 @@ function parseQuantityReplacement(input: string): ParsedMealCommand | null {
     };
   }
 
-  const notThenCorrectMatch = input.match(/\bn[aã]o\s+(?:é|e|era)\s+(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\s*(?:,?\s*)?(?:é|e|era)\s+(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
+  const notThenCorrectMatch = input.match(new RegExp(`\\bn[aã]o\\s+(?:é|e|era)\\s+${quantityPattern}\\s*(?:,?\\s*)?(?:é|e|era)\\s+${quantityPattern}\\b`, "i"));
   if (notThenCorrectMatch) {
     return {
       ...emptyCommand("correct_quantity"),
@@ -310,7 +305,7 @@ function parseQuantityReplacement(input: string): ParsedMealCommand | null {
     };
   }
 
-  const correctThenNotMatch = input.match(/\bera\s+(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\s*,?\s*n[aã]o\s+(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
+  const correctThenNotMatch = input.match(new RegExp(`\\bera\\s+${quantityPattern}\\s*,?\\s*n[aã]o\\s+${quantityPattern}\\b`, "i"));
   if (correctThenNotMatch) {
     return {
       ...emptyCommand("correct_quantity"),
@@ -327,7 +322,7 @@ function parseQuantityReplacement(input: string): ParsedMealCommand | null {
 }
 
 function parseShortQuantityCorrection(input: string, context: MealCommandContext): ParsedMealCommand | null {
-  const match = input.match(/\b(?:corrigir\s+para|corrija\s+para|ajustar\s+para|ajuste\s+para)\s+(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
+  const match = input.match(new RegExp(`\\b(?:corrigir\\s+para|corrija\\s+para|ajustar\\s+para|ajuste\\s+para)\\s+(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
   if (!match) {
     return null;
   }
