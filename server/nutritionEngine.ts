@@ -74,8 +74,8 @@ export type MealProcessingResult = {
 
 type LlmItem = {
   foodName: string;
-  quantity: number;
-  unit: string;
+  quantity?: number;
+  unit?: string;
   portionText: string;
   servings: number;
   estimatedGrams: number;
@@ -123,8 +123,8 @@ const mealExtractionSchema = z.object({
   reasoning: z.string().trim().min(1).max(2000),
   items: z.array(z.object({
     foodName: z.string().trim().min(1).max(160),
-    quantity: z.number().min(0.01).max(5000),
-    unit: z.string().trim().min(1).max(40),
+    quantity: z.number().min(0.01).max(5000).optional(),
+    unit: z.string().trim().min(1).max(40).optional(),
     portionText: z.string().trim().min(1).max(120),
     servings: z.number().min(0.1).max(20),
     estimatedGrams: z.number().min(0).max(5000),
@@ -281,6 +281,7 @@ function parseDecimalNumber(value: string) {
 }
 
 function normalizeUnit(value: string) {
+  if (!value) return "porção";
   return normalizeMeasurementUnit(value.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 }
 
@@ -356,8 +357,10 @@ function extractExplicitQuantities(sourceText: string): ExplicitQuantity[] {
 
 function normalizeLlmItem(item: LlmItem): LlmItem {
   const parsed = parseFoodText(item.foodName);
-  const quantity = parsed.quantity ?? item.quantity;
-  const unit = normalizeUnit(parsed.unit ?? item.unit);
+  const quantityFromItem = Number(item.quantity);
+  const quantity = parsed.quantity
+    ?? (Number.isFinite(quantityFromItem) && quantityFromItem > 0 ? quantityFromItem : 1);
+  const unit = normalizeUnit(parsed.unit ?? item.unit ?? "porção");
   const estimatedFromQuantity = estimateGramsFromQuantity(quantity, unit);
   const estimatedGrams = parsed.estimatedGrams ?? (item.estimatedGrams > 0 ? item.estimatedGrams : (estimatedFromQuantity ?? 0));
 
@@ -478,19 +481,46 @@ function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+function parseQuantityUnitFromPortionText(portionText: string) {
+  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)(?:\s+(.+))?$/u);
+  if (!match) {
+    return null;
+  }
+
+  const quantity = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+
+  return {
+    quantity,
+    unit: match[2]?.trim() || "porção",
+  };
+}
+
 function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
   const estimatedGrams = llmItem.estimatedGrams > 0
     ? llmItem.estimatedGrams
     : food.gramsPerServing * servings;
   const factor = estimatedGrams / food.gramsPerServing;
+  const portionText = llmItem.portionText || food.servingLabel;
+  const quantityUnit = parseQuantityUnitFromPortionText(portionText) ?? {
+    quantity: roundNutritionValue(estimatedGrams),
+    unit: "g",
+  };
+  const llmQuantity = Number(llmItem.quantity);
+  const quantity = Number.isFinite(llmQuantity) && llmQuantity > 0
+    ? roundNutritionValue(llmQuantity)
+    : quantityUnit.quantity;
+  const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
 
   return {
     foodName: llmItem.foodName,
     canonicalName: food.name,
-    quantity: roundNutritionValue(llmItem.quantity),
-    unit: llmItem.unit,
-    portionText: llmItem.portionText || food.servingLabel,
+    portionText,
+    quantity,
+    unit,
     servings,
     estimatedGrams: roundNutritionValue(estimatedGrams),
     calories: roundNutritionValue(food.calories * factor),
@@ -503,12 +533,22 @@ function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftIte
 }
 
 function buildHybridItem(llmItem: LlmItem): MealDraftItem {
+  const quantityUnit = parseQuantityUnitFromPortionText(llmItem.portionText) ?? {
+    quantity: Math.max(llmItem.servings || 1, 0.25),
+    unit: "porção",
+  };
+  const llmQuantity = Number(llmItem.quantity);
+  const quantity = Number.isFinite(llmQuantity) && llmQuantity > 0
+    ? roundNutritionValue(llmQuantity)
+    : quantityUnit.quantity;
+  const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
+
   return {
     foodName: llmItem.foodName,
     canonicalName: llmItem.foodName,
-    quantity: roundNutritionValue(llmItem.quantity),
-    unit: llmItem.unit,
     portionText: llmItem.portionText,
+    quantity,
+    unit,
     servings: Math.max(llmItem.servings || 1, 0.25),
     estimatedGrams: roundNutritionValue(Math.max(llmItem.estimatedGrams || 0, 0)),
     calories: roundNutritionValue(llmItem.estimatedCalories),

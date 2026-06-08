@@ -1,5 +1,13 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780777320000,
+      "tag": "0000_global_food_catalog",
+      "breakpoints": true
+    }
+  ]
 }

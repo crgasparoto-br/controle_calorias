@@ -208,6 +208,7 @@ function removeBrand(foodName: string, brand: string | null) {
 function cleanFoodName(value: string) {
   return normalizeSpaces(
     stripTrailingDate(value)
+      .replace(/^(?:a|ao|à|no|na)\s+(?:refei[cç][aã]o\s+)?(?:caf[eé]\s+da\s+manh[aã]|almo[cç]o|jantar|lanche(?:\s+da\s+tarde)?|ceia)(?:\s+(?:de\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\s+/i, "")
       .replace(/^(?:de|do|da|dos|das)\s+/i, "")
       .replace(/[.,;:!?]+$/g, ""),
   );

@@ -1,1 +1,1 @@
-export { calculateDayTotals, calculateMealTotals } from "../../../shared/mealTotals";
+export { calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../../../shared/mealTotals";
