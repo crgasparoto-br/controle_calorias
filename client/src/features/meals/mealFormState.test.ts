@@ -63,8 +63,8 @@ describe("meal form quantity recalculation", () => {
 
     expect(updated).toEqual(expect.objectContaining({
       quantity: 2,
-      unit: "fatias",
-      portionText: "2 fatias",
+      unit: "fatia",
+      portionText: "2 fatia",
       servings: 1,
       estimatedGrams: 100,
       calories: 200,
