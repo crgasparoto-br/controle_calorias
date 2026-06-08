@@ -1,4 +1,5 @@
 import { roundNutritionValue } from "../../../shared/mealTotals";
+import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import type { MealItemInput } from "./schemas";
 
 type MealItemWithOptionalBrand = MealItemInput & {
@@ -47,19 +48,23 @@ function getProductFoodName(item: MealItemWithOptionalBrand) {
 }
 
 function getPortionUnit(item: MealItemWithOptionalBrand) {
+  if (item.unit) {
+    return normalizeMeasurementUnit(item.unit);
+  }
+
   const match = item.portionText.match(/\b(g|gramas?|ml|mililitros?|l|litros?)\b/i);
   if (!match) {
     return "g";
   }
 
-  const normalized = normalizeIdentityPart(match[1]);
-  if (normalized.startsWith("mililitro")) return "ml";
-  if (normalized.startsWith("litro")) return "l";
-  if (normalized.startsWith("gram")) return "g";
-  return normalized;
+  return normalizeMeasurementUnit(match[1]);
 }
 
 function parsePortionQuantity(item: MealItemWithOptionalBrand) {
+  if (item.quantity && item.quantity > 0) {
+    return item.quantity;
+  }
+
   const match = item.portionText.match(/(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i);
   if (!match) {
     return null;
@@ -87,6 +92,8 @@ function mergeMealItems(base: MealItemWithOptionalBrand, next: MealItemWithOptio
 
   return {
     ...base,
+    quantity: mergedQuantity,
+    unit,
     portionText: `${mergedQuantity} ${unit}`,
     servings: Math.max(roundNutritionValue(Number(base.servings || 0) + Number(next.servings || 0)), 0.1),
     estimatedGrams: nextEstimatedGrams,
