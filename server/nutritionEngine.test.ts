@@ -23,6 +23,8 @@ describe("nutritionEngine.processMealInput", () => {
         items: [
           {
             foodName: "arroz",
+            quantity: 100,
+            unit: "g",
             portionText: "100 g",
             servings: 1,
             estimatedGrams: 100,
@@ -36,6 +38,8 @@ describe("nutritionEngine.processMealInput", () => {
           },
           {
             foodName: "molho pesto",
+            quantity: 2,
+            unit: "colher de sopa",
             portionText: "2 colheres de sopa",
             servings: 1,
             estimatedGrams: 30,
@@ -79,6 +83,8 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.items).toHaveLength(2);
     expect(result.items[0]).toEqual(expect.objectContaining({
       canonicalName: "Arroz branco cozido",
+      quantity: 100,
+      unit: "g",
       calories: 130,
       protein: 2.7,
       carbs: 28,
@@ -87,6 +93,8 @@ describe("nutritionEngine.processMealInput", () => {
     }));
     expect(result.items[1]).toEqual(expect.objectContaining({
       canonicalName: "molho pesto",
+      quantity: 2,
+      unit: "colher de sopa",
       calories: 120,
       protein: 2,
       carbs: 3,
@@ -104,6 +112,8 @@ describe("nutritionEngine.processMealInput", () => {
   it("mantém todos os alimentos retornados pela IA em listas longas", async () => {
     const items = Array.from({ length: 11 }, (_, index) => ({
       foodName: `alimento ${index + 1}`,
+      quantity: 1,
+      unit: "porção",
       portionText: "1 porção",
       servings: 1,
       estimatedGrams: 100,
@@ -163,12 +173,12 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Carne moída suína",
+      quantity: 140,
+      unit: "g",
       portionText: "140 g",
       estimatedGrams: 140,
     }));
-    // Com a TACO integrada, a carne moída pode ser resolvida via catálogo TACO
-    // (source: "catalog") ou via heurística (source: "hybrid") dependendo do match.
-    // O importante é que o item seja reconhecido com os dados corretos de porção.
+    expect(result.items[0].unit).not.toMatch(/\d/);
     expect(["catalog", "hybrid"]).toContain(result.items[0].source);
   });
 
@@ -182,6 +192,8 @@ describe("nutritionEngine.processMealInput", () => {
         items: [
           {
             foodName: "140g Carne moída suína 🥩",
+            quantity: 1,
+            unit: "porção",
             portionText: "1 porção",
             servings: 1,
             estimatedGrams: 0,
@@ -205,11 +217,12 @@ describe("nutritionEngine.processMealInput", () => {
 
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Carne moída suína",
+      quantity: 140,
+      unit: "g",
       portionText: "140 g",
       estimatedGrams: 140,
     }));
-    // Com a TACO integrada, a carne moída pode ser resolvida via catálogo TACO
-    // (source: "catalog") ou via heurística (source: "hybrid") dependendo do match.
+    expect(result.items[0].unit).not.toMatch(/\d/);
     expect(["catalog", "hybrid"]).toContain(result.items[0].source);
   });
 
@@ -223,6 +236,8 @@ describe("nutritionEngine.processMealInput", () => {
         items: [
           {
             foodName: "banana",
+            quantity: 1,
+            unit: "un",
             portionText: "1 unidade",
             servings: 1,
             estimatedGrams: 80,
@@ -236,6 +251,8 @@ describe("nutritionEngine.processMealInput", () => {
           },
           {
             foodName: "whey protein",
+            quantity: 1,
+            unit: "scoop",
             portionText: "1 scoop",
             servings: 1,
             estimatedGrams: 30,
@@ -277,6 +294,8 @@ describe("nutritionEngine.processMealInput", () => {
         items: [
           {
             foodName: "Arroz branco cozido",
+            quantity: 100,
+            unit: "g",
             portionText: "100 g",
             servings: 1,
             estimatedGrams: 100,
@@ -302,6 +321,8 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Arroz branco cozido",
       canonicalName: "Arroz branco cozido",
+      quantity: 100,
+      unit: "g",
     }));
   });
 
@@ -315,6 +336,8 @@ describe("nutritionEngine.processMealInput", () => {
         items: [
           {
             foodName: "banana",
+            quantity: 100,
+            unit: "g",
             portionText: "100 g",
             servings: 1,
             estimatedGrams: 100,
@@ -341,6 +364,8 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "banana",
       canonicalName: "banana",
+      quantity: 47,
+      unit: "g",
       portionText: "47 g",
       estimatedGrams: 47,
       calories: 188,
@@ -349,12 +374,68 @@ describe("nutritionEngine.processMealInput", () => {
       fat: 4.7,
       source: "hybrid",
     }));
+    expect(result.items[0].unit).not.toMatch(/\d/);
     expect(result.totals).toEqual({
       calories: 188,
       protein: 9.4,
       carbs: 28.2,
       fat: 4.7,
     });
+  });
+
+  it("mantem produtos similares separados quando a identidade do produto difere", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_distinct_beers",
+      outputText: JSON.stringify({
+        mealLabel: "Jantar",
+        confidence: 0.86,
+        reasoning: "Duas bebidas de marcas diferentes foram informadas.",
+        items: [
+          {
+            foodName: "Cerveja Budweiser",
+            quantity: 330,
+            unit: "ml",
+            portionText: "330 ml",
+            servings: 1,
+            estimatedGrams: 330,
+            estimatedCalories: 150,
+            estimatedMacros: {
+              protein: 1,
+              carbs: 12,
+              fat: 0,
+            },
+            confidence: 0.85,
+          },
+          {
+            foodName: "Cerveja Heineken",
+            quantity: 330,
+            unit: "ml",
+            portionText: "330 ml",
+            servings: 1,
+            estimatedGrams: 330,
+            estimatedCalories: 142,
+            estimatedMacros: {
+              protein: 1,
+              carbs: 11,
+              fat: 0,
+            },
+            confidence: 0.85,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "330ml cerveja Budweiser e 330ml cerveja Heineken",
+    });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items.map(item => item.foodName)).toEqual([
+      "Cerveja Budweiser",
+      "Cerveja Heineken",
+    ]);
   });
 
   it("não limita o fallback heurístico a 8 alimentos", async () => {
