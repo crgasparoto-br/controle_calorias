@@ -8,6 +8,7 @@ import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { nutritionRouter } from "./nutritionRouter";
+import { quickEditRouter } from "./modules/quickEdit/router";
 
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -84,6 +85,7 @@ export const appRouter = router({
     }),
   }),
   nutrition: nutritionRouter,
+  quickEdit: quickEditRouter,
 });
 
 export type AppRouter = typeof appRouter;

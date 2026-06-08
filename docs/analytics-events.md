@@ -13,6 +13,7 @@ Personal and health-sensitive raw values must not be sent. Do not send food name
 | `meal_created` | `source`, `meal_label_category`, `item_count`, `has_notes`, `scheduled_for_future` |
 | `meal_item_added` | `source`, `item_count`, `item_type` |
 | `meal_copied` | `target_offset_days` |
+| `meal_group_copied` | `item_count`, `target_offset_days` |
 | `favorite_meal_created` | `item_count` |
 | `daily_dashboard_viewed` | `surface` |
 | `weekly_report_viewed` | `report_type`, `week_offset` |

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, logInferenceEvent } from "./db";
+import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
 import {
   extractWhatsAppWebhookMessages,
@@ -491,11 +492,13 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
       detail: `Mensagem imagem de ${sourcePhone} processada e refeição ${savedMeal.mealLabel} registrada automaticamente às ${formatReplyTime(occurredAt)}.`,
     });
 
+    const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: savedMeal.id });
     const replyResult = await sendWhatsAppTextMessage(
       sourcePhone,
       buildWhatsAppMealReplyMessage(processedForPersistence, {
         registeredAt: occurredAt,
         goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+        quickEditUrl: quickEditLink?.url,
       }),
     );
 
