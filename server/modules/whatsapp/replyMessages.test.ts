@@ -171,4 +171,45 @@ describe("buildWhatsAppMealReplyMessage", () => {
     expect(reply).toContain("* Consumo: 1.165 kcal");
     expect(reply).toContain("* Déficit: 1.035 kcal");
   });
+
+  it("inclui link curto de edição rápida quando informado", () => {
+    const processed: MealProcessingResult = {
+      detectedMealLabel: "Jantar",
+      sourceText: "300g amendoim japonês",
+      imageUrl: undefined,
+      audioUrl: undefined,
+      transcript: undefined,
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "Teste de edição rápida.",
+      items: [
+        {
+          foodName: "Amendoim japonês",
+          canonicalName: "Amendoim japonês",
+          portionText: "300 g",
+          servings: 1,
+          estimatedGrams: 300,
+          calories: 450,
+          protein: 15,
+          carbs: 40,
+          fat: 25,
+          confidence: 0.9,
+          source: "heuristic",
+        },
+      ],
+      totals: {
+        calories: 450,
+        protein: 15,
+        carbs: 40,
+        fat: 25,
+      },
+    };
+
+    const reply = buildWhatsAppMealReplyMessage(processed, {
+      quickEditUrl: "https://app.example.com/quick-edit/token-opaco",
+    });
+
+    expect(reply).toContain("Quer ajustar algum alimento, quantidade ou unidade?");
+    expect(reply).toContain("Editar: https://app.example.com/quick-edit/token-opaco");
+  });
 });
