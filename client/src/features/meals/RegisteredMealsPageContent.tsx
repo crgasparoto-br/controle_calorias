@@ -25,13 +25,14 @@ import { MealItemEditor, MealLabelInput, RegisteredMealGroups, SummaryPill } fro
 import { createEmptyItem, createManualMealState, sumItems } from "./mealFormState";
 import {
   type DateGroupedRegisteredMealsViewModel,
+  type RegisteredMealGroupViewModel,
   buildDateGroupedMealGroups,
   buildRegisteredMealGroups,
   filterMealsByDateRange,
   normalizeMealType,
   sumStoredMealTotals,
 } from "./mealViewModels";
-import type { MealItemState, MealType, StoredMeal } from "./types";
+import type { ManualMealState, MealItemState, MealType, StoredMeal } from "./types";
 
 type MealScheduleState = {
   mealLabel: string;
@@ -54,6 +55,22 @@ type ExerciseRecord = {
   occurredAt: string | number | Date;
   notes?: string | null;
 };
+
+type ManualMealGroupEditSource = {
+  mealId: number;
+  itemIndex: number;
+};
+
+type ManualMealEditState = ManualMealState & {
+  groupEdit?: {
+    mealIds: number[];
+    sourceItems: ManualMealGroupEditSource[];
+  };
+};
+
+function createRegisteredEditState(): ManualMealEditState {
+  return createManualMealState();
+}
 
 function minutesFromTime(value: string) {
   const [hours, minutes] = value.split(":").map(Number);
@@ -183,6 +200,10 @@ function initialSelectedDay() {
   return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : fallback;
 }
 
+function groupMealIds(group: RegisteredMealGroupViewModel) {
+  return group.meals.map(meal => meal.id);
+}
+
 function DateGroupedMealsSections({
   groups,
   scope,
@@ -193,10 +214,10 @@ function DateGroupedMealsSections({
   isCopyPending,
   isFavoritePending,
   isRemovePending,
-  onEditMeal,
-  onCopyMeal,
-  onFavoriteMeal,
-  onRemoveMeal,
+  onEditMealGroup,
+  onCopyMealGroup,
+  onFavoriteMealGroup,
+  onRemoveMealGroup,
 }: {
   groups: DateGroupedRegisteredMealsViewModel[];
   scope: PeriodScope;
@@ -207,10 +228,10 @@ function DateGroupedMealsSections({
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
-  onEditMeal?: (meal: StoredMeal) => void;
-  onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
-  onFavoriteMeal?: (meal: StoredMeal) => void;
-  onRemoveMeal?: (meal: StoredMeal) => void;
+  onEditMealGroup?: (group: RegisteredMealGroupViewModel) => void;
+  onCopyMealGroup?: (group: RegisteredMealGroupViewModel) => void;
+  onFavoriteMealGroup?: (group: RegisteredMealGroupViewModel) => void;
+  onRemoveMealGroup?: (group: RegisteredMealGroupViewModel) => void;
 }) {
   if (!groups.length) {
     return (
@@ -250,10 +271,10 @@ function DateGroupedMealsSections({
               isCopyPending={isCopyPending}
               isFavoritePending={isFavoritePending}
               isRemovePending={isRemovePending}
-              onEditMeal={onEditMeal}
-              onCopyMeal={onCopyMeal}
-              onFavoriteMeal={onFavoriteMeal}
-              onRemoveMeal={onRemoveMeal}
+              onEditMealGroup={onEditMealGroup}
+              onCopyMealGroup={onCopyMealGroup}
+              onFavoriteMealGroup={onFavoriteMealGroup}
+              onRemoveMealGroup={onRemoveMealGroup}
             />
           </div>
         </details>
@@ -377,7 +398,7 @@ export function RegisteredMealsPage() {
   const [rangeStart, setRangeStart] = useState(() => toDateInputValue(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), userTimeZone));
   const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
   const [copyTargetDay, setCopyTargetDay] = useState(initialDay);
-  const [manualMeal, setManualMeal] = useState(createManualMealState);
+  const [manualMeal, setManualMeal] = useState<ManualMealEditState>(createRegisteredEditState);
   const [areMealGroupsCollapsed, setAreMealGroupsCollapsed] = useState(false);
 
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
@@ -412,22 +433,42 @@ export function RegisteredMealsPage() {
     ]);
   };
 
+  const resetManualMeal = () => setManualMeal(createRegisteredEditState());
+
   const updateMeal = trpc.nutrition.meals.update.useMutation({
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição atualizada com sucesso.");
-      setManualMeal(createManualMealState());
+      resetManualMeal();
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar a refeição."),
+  });
+
+  const updateMealGroup = trpc.nutrition.meals.updateGroup.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Grupo de refeição atualizado com sucesso.");
+      resetManualMeal();
+    },
+    onError: error => toast.error(error.message || "Não foi possível atualizar o grupo de refeição."),
   });
 
   const removeMeal = trpc.nutrition.meals.remove.useMutation({
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição removida com sucesso.");
-      setManualMeal(current => (current.mealId ? createManualMealState() : current));
+      setManualMeal(current => (current.mealId ? createRegisteredEditState() : current));
     },
     onError: error => toast.error(error.message || "Não foi possível remover a refeição."),
+  });
+
+  const removeMealGroup = trpc.nutrition.meals.removeGroup.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Grupo de refeição removido com sucesso.");
+      setManualMeal(current => (current.mealId ? createRegisteredEditState() : current));
+    },
+    onError: error => toast.error(error.message || "Não foi possível remover o grupo de refeição."),
   });
 
   const copyMeal = trpc.nutrition.meals.copy.useMutation({
@@ -438,12 +479,28 @@ export function RegisteredMealsPage() {
     onError: error => toast.error(error.message || "Não foi possível copiar a refeição."),
   });
 
+  const copyMealGroup = trpc.nutrition.meals.copyGroup.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Grupo copiado para a data de destino.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível copiar o grupo de refeição."),
+  });
+
   const saveFavoriteMeal = trpc.nutrition.meals.saveFavorite.useMutation({
     onSuccess: async () => {
       await invalidateNutritionViews();
       toast.success("Refeição salva como favorita.");
     },
     onError: error => toast.error(error.message || "Não foi possível favoritar a refeição."),
+  });
+
+  const saveFavoriteMealGroup = trpc.nutrition.meals.saveFavoriteGroup.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Grupo salvo como refeição favorita.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível favoritar o grupo de refeição."),
   });
 
   const reuseFavoriteMeal = trpc.nutrition.meals.reuseFavorite.useMutation({
@@ -482,6 +539,7 @@ export function RegisteredMealsPage() {
   const manualTotals = useMemo(() => sumItems(manualMeal.items), [manualMeal.items]);
   const pageHeading = buildRecordsHeading(periodScope);
   const activeRangeLabel = formatRangeLabel(activeRange);
+  const isGroupEditing = Boolean(manualMeal.groupEdit);
 
   const handleReferenceDayChange = (value: string) => {
     setSelectedDay(value);
@@ -499,6 +557,27 @@ export function RegisteredMealsPage() {
     toast.success("Formulário de edição aberto acima da lista.");
   };
 
+  const loadMealGroupForEditing = (group: RegisteredMealGroupViewModel) => {
+    const firstMeal = group.meals[0];
+    if (!firstMeal) {
+      toast.error("Grupo de refeição sem registros para editar.");
+      return;
+    }
+
+    setManualMeal({
+      mealId: firstMeal.id,
+      mealLabel: group.mealLabel,
+      occurredAt: toDateTimeLocalValue(new Date(firstMeal.occurredAt), userTimeZone),
+      notes: "",
+      items: group.items.map(item => ({ ...item.item })),
+      groupEdit: {
+        mealIds: groupMealIds(group),
+        sourceItems: group.items.map(item => ({ mealId: item.meal.id, itemIndex: item.itemIndex })),
+      },
+    });
+    toast.success("Editor de grupo aberto acima da lista.");
+  };
+
   const updateManualItem = <K extends keyof MealItemState>(index: number, key: K, value: MealItemState[K]) => {
     setManualMeal(current => ({
       ...current,
@@ -506,22 +585,73 @@ export function RegisteredMealsPage() {
     }));
   };
 
+  const addManualItem = () => {
+    setManualMeal(current => ({
+      ...current,
+      items: [...current.items, createEmptyItem()],
+      groupEdit: current.groupEdit
+        ? {
+            ...current.groupEdit,
+            sourceItems: [...current.groupEdit.sourceItems, { mealId: current.groupEdit.mealIds[0], itemIndex: -1 }],
+          }
+        : undefined,
+    }));
+  };
+
+  const removeManualItem = (index: number) => {
+    setManualMeal(current => ({
+      ...current,
+      items: current.items.filter((_, currentIndex) => currentIndex !== index),
+      groupEdit: current.groupEdit
+        ? {
+            ...current.groupEdit,
+            sourceItems: current.groupEdit.sourceItems.filter((_, currentIndex) => currentIndex !== index),
+          }
+        : undefined,
+    }));
+  };
+
+  const normalizeManualItems = () => manualMeal.items.map(item => ({
+    ...item,
+    foodName: item.foodName.trim(),
+    canonicalName: item.canonicalName.trim() || item.foodName.trim(),
+    portionText: item.portionText.trim() || "1 porção",
+    confidence: Number(item.confidence || 1),
+  }));
+
   const handleSubmitManualMeal = () => {
     if (!manualMeal.mealId) {
       toast.error("Selecione uma refeição para editar.");
       return;
     }
 
-    const normalizedItems = manualMeal.items.map(item => ({
-      ...item,
-      foodName: item.foodName.trim(),
-      canonicalName: item.canonicalName.trim() || item.foodName.trim(),
-      portionText: item.portionText.trim() || "1 porção",
-      confidence: Number(item.confidence || 1),
-    }));
+    const normalizedItems = normalizeManualItems();
 
     if (!normalizedItems.length || normalizedItems.some(item => !item.foodName)) {
       toast.error("Preencha ao menos um alimento na refeição.");
+      return;
+    }
+
+    if (manualMeal.groupEdit) {
+      const itemsByMealId = new Map<number, MealItemState[]>();
+      for (const mealId of manualMeal.groupEdit.mealIds) {
+        itemsByMealId.set(mealId, []);
+      }
+
+      normalizedItems.forEach((item, index) => {
+        const source = manualMeal.groupEdit?.sourceItems[index];
+        const mealId = source?.mealId ?? manualMeal.groupEdit?.mealIds[0];
+        if (!mealId) return;
+        itemsByMealId.set(mealId, [...(itemsByMealId.get(mealId) ?? []), item]);
+      });
+
+      updateMealGroup.mutate({
+        mealLabel: manualMeal.mealLabel,
+        meals: manualMeal.groupEdit.mealIds.map(mealId => ({
+          mealId,
+          items: itemsByMealId.get(mealId) ?? [],
+        })),
+      });
       return;
     }
 
@@ -534,14 +664,40 @@ export function RegisteredMealsPage() {
     });
   };
 
+  const handleCopyMealGroup = (group: RegisteredMealGroupViewModel) => {
+    copyMealGroup.mutate({
+      mealIds: groupMealIds(group),
+      occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone),
+      mealLabel: group.mealLabel,
+    });
+  };
+
+  const handleFavoriteMealGroup = (group: RegisteredMealGroupViewModel) => {
+    saveFavoriteMealGroup.mutate({ mealIds: groupMealIds(group), name: group.mealLabel });
+  };
+
+  const handleRemoveMealGroup = (group: RegisteredMealGroupViewModel) => {
+    const mealIds = groupMealIds(group);
+    if (mealIds.length > 1 && typeof window !== "undefined") {
+      const confirmed = window.confirm(`Excluir ${mealIds.length} registros do grupo ${group.mealLabel}?`);
+      if (!confirmed) return;
+    }
+
+    removeMealGroup.mutate({ mealIds });
+  };
+
   const editingBlock = manualMeal.mealId ? (
     <Card defaultOpen className="border-0 shadow-sm ring-1 ring-primary/20">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl">
           <PencilLine className="h-5 w-5 text-primary" />
-          Editar refeição selecionada
+          {isGroupEditing ? "Editar grupo de refeição" : "Editar refeição selecionada"}
         </CardTitle>
-        <CardDescription>O editor abre acima da lista para manter o contexto e reduzir deslocamento visual.</CardDescription>
+        <CardDescription>
+          {isGroupEditing
+            ? "O rótulo será aplicado ao grupo inteiro; os horários originais de cada registro serão preservados."
+            : "O editor abre acima da lista para manter o contexto e reduzir deslocamento visual."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
@@ -550,21 +706,25 @@ export function RegisteredMealsPage() {
             onChange={mealLabel => setManualMeal(current => ({ ...current, mealLabel }))}
             suggestedLabel={suggestedManualMealLabel}
           />
-          <div className="space-y-2">
-            <Label htmlFor="registered-edit-occurred-at">Data e horário</Label>
-            <Input id="registered-edit-occurred-at" type="datetime-local" value={manualMeal.occurredAt} onChange={event => setManualMeal(current => ({ ...current, occurredAt: event.target.value }))} />
-          </div>
+          {!isGroupEditing ? (
+            <div className="space-y-2">
+              <Label htmlFor="registered-edit-occurred-at">Data e horário</Label>
+              <Input id="registered-edit-occurred-at" type="datetime-local" value={manualMeal.occurredAt} onChange={event => setManualMeal(current => ({ ...current, occurredAt: event.target.value }))} />
+            </div>
+          ) : null}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="registered-edit-notes">Observações</Label>
-          <Textarea id="registered-edit-notes" value={manualMeal.notes} onChange={event => setManualMeal(current => ({ ...current, notes: event.target.value }))} className="min-h-24 rounded-2xl" />
-        </div>
+        {!isGroupEditing ? (
+          <div className="space-y-2">
+            <Label htmlFor="registered-edit-notes">Observações</Label>
+            <Textarea id="registered-edit-notes" value={manualMeal.notes} onChange={event => setManualMeal(current => ({ ...current, notes: event.target.value }))} className="min-h-24 rounded-2xl" />
+          </div>
+        ) : null}
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium tracking-tight">Itens da refeição</p>
-            <Button type="button" variant="outline" className="rounded-full" onClick={() => setManualMeal(current => ({ ...current, items: [...current.items, createEmptyItem()] }))}>
+            <Button type="button" variant="outline" className="rounded-full" onClick={addManualItem}>
               <Plus className="mr-2 h-4 w-4" />
               Adicionar item
             </Button>
@@ -575,7 +735,7 @@ export function RegisteredMealsPage() {
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-medium">Item {index + 1}</p>
                 {manualMeal.items.length > 1 ? (
-                  <Button type="button" size="icon" variant="ghost" onClick={() => setManualMeal(current => ({ ...current, items: current.items.filter((_, currentIndex) => currentIndex !== index) }))}>
+                  <Button type="button" size="icon" variant="ghost" onClick={() => removeManualItem(index)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 ) : null}
@@ -596,11 +756,11 @@ export function RegisteredMealsPage() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button className="rounded-full" onClick={handleSubmitManualMeal} disabled={updateMeal.isPending}>
+          <Button className="rounded-full" onClick={handleSubmitManualMeal} disabled={updateMeal.isPending || updateMealGroup.isPending}>
             <Save className="mr-2 h-4 w-4" />
-            {updateMeal.isPending ? "Atualizando..." : "Salvar alterações"}
+            {updateMeal.isPending || updateMealGroup.isPending ? "Atualizando..." : "Salvar alterações"}
           </Button>
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => setManualMeal(createManualMealState())}>
+          <Button type="button" variant="outline" className="rounded-full" onClick={resetManualMeal}>
             Cancelar edição
           </Button>
         </div>
@@ -709,13 +869,13 @@ export function RegisteredMealsPage() {
                 selectedMealId={manualMeal.mealId}
                 emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : "Nenhuma refeição foi registrada para esta data."}
                 forceCollapsed={areMealGroupsCollapsed}
-                isCopyPending={copyMeal.isPending}
-                isFavoritePending={saveFavoriteMeal.isPending}
-                isRemovePending={removeMeal.isPending}
-                onEditMeal={loadMealForEditing}
-                onCopyMeal={(meal, mealLabel) => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone), mealLabel })}
-                onFavoriteMeal={meal => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })}
-                onRemoveMeal={meal => removeMeal.mutate({ mealId: meal.id })}
+                isCopyPending={copyMeal.isPending || copyMealGroup.isPending}
+                isFavoritePending={saveFavoriteMeal.isPending || saveFavoriteMealGroup.isPending}
+                isRemovePending={removeMeal.isPending || removeMealGroup.isPending}
+                onEditMealGroup={loadMealGroupForEditing}
+                onCopyMealGroup={handleCopyMealGroup}
+                onFavoriteMealGroup={handleFavoriteMealGroup}
+                onRemoveMealGroup={handleRemoveMealGroup}
               />
             ) : (
               <DateGroupedMealsSections
@@ -725,13 +885,13 @@ export function RegisteredMealsPage() {
                 selectedMealId={manualMeal.mealId}
                 emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : `Nenhum registro encontrado para ${activeRangeLabel.toLowerCase()}.`}
                 forceMealGroupsCollapsed={areMealGroupsCollapsed}
-                isCopyPending={copyMeal.isPending}
-                isFavoritePending={saveFavoriteMeal.isPending}
-                isRemovePending={removeMeal.isPending}
-                onEditMeal={loadMealForEditing}
-                onCopyMeal={(meal, mealLabel) => copyMeal.mutate({ mealId: meal.id, occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone), mealLabel })}
-                onFavoriteMeal={meal => saveFavoriteMeal.mutate({ mealId: meal.id, name: meal.mealLabel })}
-                onRemoveMeal={meal => removeMeal.mutate({ mealId: meal.id })}
+                isCopyPending={copyMeal.isPending || copyMealGroup.isPending}
+                isFavoritePending={saveFavoriteMeal.isPending || saveFavoriteMealGroup.isPending}
+                isRemovePending={removeMeal.isPending || removeMealGroup.isPending}
+                onEditMealGroup={loadMealGroupForEditing}
+                onCopyMealGroup={handleCopyMealGroup}
+                onFavoriteMealGroup={handleFavoriteMealGroup}
+                onRemoveMealGroup={handleRemoveMealGroup}
               />
             )}
           </CardContent>
