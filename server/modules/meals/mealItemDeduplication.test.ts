@@ -7,9 +7,11 @@ function beverage(foodName: string, portionText = "330 ml"): MealItemInput {
   return {
     foodName,
     canonicalName: foodName,
+    quantity: Number(portionText.match(/\d+/)?.[0] ?? 330),
+    unit: "ml",
     portionText,
     servings: 1,
-    estimatedGrams: 330,
+    estimatedGrams: Number(portionText.match(/\d+/)?.[0] ?? 330),
     calories: 150,
     protein: 1,
     carbs: 12,
@@ -28,8 +30,8 @@ describe("dedupeMealItemsByProductIdentity", () => {
 
     expect(result).toHaveLength(2);
     expect(result).toEqual([
-      expect.objectContaining({ foodName: "cerveja Budweiser", portionText: "330 ml" }),
-      expect.objectContaining({ foodName: "cerveja Heineken", portionText: "330 ml" }),
+      expect.objectContaining({ foodName: "cerveja Budweiser", quantity: 330, unit: "ml", portionText: "330 ml" }),
+      expect.objectContaining({ foodName: "cerveja Heineken", quantity: 330, unit: "ml", portionText: "330 ml" }),
     ]);
   });
 
@@ -52,6 +54,8 @@ describe("dedupeMealItemsByProductIdentity", () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual(expect.objectContaining({
       foodName: "cerveja Budweiser",
+      quantity: 660,
+      unit: "ml",
       portionText: "660 ml",
       estimatedGrams: 660,
       calories: 300,
@@ -59,5 +63,6 @@ describe("dedupeMealItemsByProductIdentity", () => {
       carbs: 24,
       fat: 0,
     }));
+    expect(result[0].unit).not.toMatch(/\d/);
   });
 });
