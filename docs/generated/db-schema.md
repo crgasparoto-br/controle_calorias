@@ -11,6 +11,10 @@ Fonte: `drizzle/schema.ts`.
 | `users` | `users` | 10 | Requer atenção |
 | `userProfiles` | `userProfiles` | 18 | Requer atenção |
 | `foodBrands` | `foodBrands` | 7 | Baixa |
+| `foodSources` | `food_sources` | 9 | Baixa |
+| `foods` | `foods` | 21 | Baixa |
+| `foodAliases` | `food_aliases` | 6 | Baixa |
+| `foodPortions` | `food_portions` | 12 | Baixa |
 | `foodCatalog` | `foodCatalog` | 24 | Requer atenção |
 | `foodFavorites` | `foodFavorites` | 4 | Requer atenção |
 | `userGamificationSettings` | `userGamificationSettings` | 5 | Requer atenção |
@@ -67,6 +71,9 @@ Fonte: `drizzle/schema.ts`.
 | `users` | `name`, `email` |
 | `userProfiles` | `displayName`, `ageYears`, `birthDate`, `heightCm`, `currentWeightKg`, `nutritionObjective`, `activityLevel`, `eatingRoutine`, `mainDifficulty`, `timezone` |
 | `foodBrands` | `name`, `normalizedName` |
+| `food_sources` | `name`, `source_url`, `notes` |
+| `foods` | `name`, `normalized_name`, `brand_name`, `nutrients_json` |
+| `food_portions` | `label`, `normalized_label` |
 | `foodCatalog` | `name`, `brandName`, `servingLabel` |
 | `userBadges` | `metadataJson` |
 | `portions` | `label` |

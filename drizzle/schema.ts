@@ -1,4 +1,4 @@
-import { double, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { type AnyMySqlColumn, double, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -71,6 +71,84 @@ export const foodBrands = mysqlTable("foodBrands", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
   normalizedNameIdx: index("foodBrands_normalizedName_idx").on(table.normalizedName),
+}));
+
+export const foodSources = mysqlTable("food_sources", {
+  id: int("id").autoincrement().primaryKey(),
+  slug: varchar("slug", { length: 80 }).notNull(),
+  name: varchar("name", { length: 160 }).notNull(),
+  version: varchar("version", { length: 80 }).notNull(),
+  countryCode: varchar("country_code", { length: 2 }),
+  sourceUrl: varchar("source_url", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  slugIdx: index("food_sources_slug_idx").on(table.slug),
+  slugVersionUnique: uniqueIndex("food_sources_slug_version_unique").on(table.slug, table.version),
+}));
+
+export const foods = mysqlTable("foods", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerUserId: int("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+  sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
+  sourceFoodCode: varchar("source_food_code", { length: 120 }),
+  name: varchar("name", { length: 255 }).notNull(),
+  normalizedName: varchar("normalized_name", { length: 255 }).notNull(),
+  brandName: varchar("brand_name", { length: 255 }),
+  category: varchar("category", { length: 160 }),
+  description: text("description"),
+  status: mysqlEnum("status", ["active", "deprecated", "merged"]).default("active").notNull(),
+  mergedIntoFoodId: int("merged_into_food_id").references((): AnyMySqlColumn => foods.id, { onDelete: "set null" }),
+  caloriesKcalPer100g: double("calories_kcal_per_100g").notNull(),
+  proteinGramsPer100g: double("protein_grams_per_100g").notNull(),
+  carbsGramsPer100g: double("carbs_grams_per_100g").notNull(),
+  fatGramsPer100g: double("fat_grams_per_100g").notNull(),
+  fiberGramsPer100g: double("fiber_grams_per_100g"),
+  sugarGramsPer100g: double("sugar_grams_per_100g"),
+  sodiumMgPer100g: double("sodium_mg_per_100g"),
+  nutrientsJson: text("nutrients_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  ownerUserIdIdx: index("foods_owner_user_id_idx").on(table.ownerUserId),
+  normalizedNameIdx: index("foods_normalized_name_idx").on(table.normalizedName),
+  scopeSearchIdx: index("foods_scope_search_idx").on(table.ownerUserId, table.normalizedName),
+  statusIdx: index("foods_status_idx").on(table.status),
+  mergedIntoFoodIdIdx: index("foods_merged_into_food_id_idx").on(table.mergedIntoFoodId),
+  sourceCodeUnique: uniqueIndex("foods_source_code_unique").on(table.sourceId, table.sourceFoodCode),
+}));
+
+export const foodAliases = mysqlTable("food_aliases", {
+  id: int("id").autoincrement().primaryKey(),
+  foodId: int("food_id").notNull().references(() => foods.id, { onDelete: "cascade" }),
+  alias: varchar("alias", { length: 255 }).notNull(),
+  normalizedAlias: varchar("normalized_alias", { length: 255 }).notNull(),
+  sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, table => ({
+  normalizedAliasIdx: index("food_aliases_normalized_alias_idx").on(table.normalizedAlias),
+  sourceIdIdx: index("food_aliases_source_id_idx").on(table.sourceId),
+  foodAliasUnique: uniqueIndex("food_aliases_food_alias_unique").on(table.foodId, table.normalizedAlias),
+}));
+
+export const foodPortions = mysqlTable("food_portions", {
+  id: int("id").autoincrement().primaryKey(),
+  foodId: int("food_id").notNull().references(() => foods.id, { onDelete: "cascade" }),
+  label: varchar("label", { length: 120 }).notNull(),
+  normalizedLabel: varchar("normalized_label", { length: 120 }).notNull(),
+  unit: varchar("unit", { length: 40 }).default("serving").notNull(),
+  quantity: double("quantity").default(1).notNull(),
+  grams: double("grams").notNull(),
+  isDefault: int("is_default").default(0).notNull(),
+  sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
+  sourcePortionCode: varchar("source_portion_code", { length: 120 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  foodIdIdx: index("food_portions_food_id_idx").on(table.foodId),
+  sourceIdIdx: index("food_portions_source_id_idx").on(table.sourceId),
+  foodLabelUnitUnique: uniqueIndex("food_portions_food_label_unit_unique").on(table.foodId, table.normalizedLabel, table.unit),
 }));
 
 export const foodCatalog = mysqlTable("foodCatalog", {
@@ -428,6 +506,14 @@ export type NutritionGoal = typeof nutritionGoals.$inferSelect;
 export type InsertNutritionGoal = typeof nutritionGoals.$inferInsert;
 export type FoodBrand = typeof foodBrands.$inferSelect;
 export type InsertFoodBrand = typeof foodBrands.$inferInsert;
+export type FoodSource = typeof foodSources.$inferSelect;
+export type InsertFoodSource = typeof foodSources.$inferInsert;
+export type GlobalFood = typeof foods.$inferSelect;
+export type InsertGlobalFood = typeof foods.$inferInsert;
+export type FoodAlias = typeof foodAliases.$inferSelect;
+export type InsertFoodAlias = typeof foodAliases.$inferInsert;
+export type FoodPortion = typeof foodPortions.$inferSelect;
+export type InsertFoodPortion = typeof foodPortions.$inferInsert;
 export type Food = typeof foodCatalog.$inferSelect;
 export type InsertFood = typeof foodCatalog.$inferInsert;
 export type FoodFavorite = typeof foodFavorites.$inferSelect;
