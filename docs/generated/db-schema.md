@@ -27,6 +27,7 @@ Fonte: `drizzle/schema.ts`.
 | `mealMedia` | `mealMedia` | 8 | Requer atenção |
 | `mealFavorites` | `mealFavorites` | 7 | Requer atenção |
 | `mealInferences` | `mealInferences` | 14 | Requer atenção |
+| `quickEditTokens` | `quickEditTokens` | 9 | Requer atenção |
 | `habitMemories` | `habitMemories` | 10 | Requer atenção |
 | `dailySummaries` | `dailySummaries` | 9 | Baixa |
 | `exercises` | `exercises` | 9 | Requer atenção |
@@ -54,6 +55,7 @@ Fonte: `drizzle/schema.ts`.
 - `mealMedia` via export `mealMedia`.
 - `mealFavorites` via export `mealFavorites`.
 - `mealInferences` via export `mealInferences`.
+- `quickEditTokens` via export `quickEditTokens`.
 - `habitMemories` via export `habitMemories`.
 - `exercises` via export `exercises`.
 - `weightEntries` via export `weightEntries`.
@@ -84,6 +86,7 @@ Fonte: `drizzle/schema.ts`.
 | `mealMedia` | `mediaType`, `storageKey`, `storageUrl`, `originalFileName` |
 | `mealFavorites` | `name`, `mealLabel`, `notes`, `itemsJson` |
 | `mealInferences` | `sourceText`, `transcript`, `mediaJson`, `reasoning`, `itemsJson`, `totalsJson` |
+| `quickEditTokens` | `tokenHash`, `expiresAt`, `usedAt`, `lastAccessedAt` |
 | `habitMemories` | `foodName`, `typicalMealLabel`, `notes` |
 | `exercises` | `activityType`, `notes`, `occurredAt` |
 | `weightEntries` | `weightKg`, `measuredAt`, `notes` |
@@ -96,6 +99,7 @@ Fonte: `drizzle/schema.ts`.
 ## Relações críticas
 
 - A maioria dos dados de domínio referencia `users.id`.
-- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.
+- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences` e `quickEditTokens`.
+- `quickEditTokens` referencia `users.id` e `meals.id`, persiste apenas hash do token e controla expiração/acesso do link temporário.
 - `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.
 
