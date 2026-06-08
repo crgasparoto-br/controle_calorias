@@ -248,7 +248,6 @@ function sourceMentionsFood(sourceText: string, foodName: string) {
   const candidates = new Set<string>();
   const cleanedFoodName = cleanFoodName(foodName);
 
-  // Collect candidates from local catalog and TACO
   const catalogFood = findCatalogFood(cleanedFoodName) ?? findTacoFood(cleanedFoodName);
   candidates.add(cleanedFoodName);
   if (catalogFood) {
@@ -256,16 +255,12 @@ function sourceMentionsFood(sourceText: string, foodName: string) {
     catalogFood.aliases.forEach(alias => candidates.add(alias));
   }
 
-  // Full-phrase match (original behaviour)
   const phraseMatch = Array.from(candidates).some(candidate => {
     const normalizedCandidate = normalizeForMatching(candidate).trim();
     return normalizedCandidate.length >= 2 && source.includes(` ${normalizedCandidate} `);
   });
   if (phraseMatch) return true;
 
-  // Keyword match: every significant word (3+ chars) of the foodName appears in source
-  // This handles cases like "1 sorvete de casquinha" where the leading quantity
-  // prevents the full phrase from matching.
   const keywords = normalizeText(cleanedFoodName).split(/\s+/).filter(w => w.length >= 3);
   if (keywords.length > 0 && keywords.every(word => source.includes(word))) {
     return true;
@@ -364,14 +359,14 @@ function normalizeLlmItem(item: LlmItem): LlmItem {
   const quantity = parsed.quantity ?? item.quantity;
   const unit = normalizeUnit(parsed.unit ?? item.unit);
   const estimatedFromQuantity = estimateGramsFromQuantity(quantity, unit);
-  const estimatedGrams = parsed.estimatedGrams ?? (item.estimatedGrams > 0 ? item.estimatedGrams : estimatedFromQuantity ?? 0);
+  const estimatedGrams = parsed.estimatedGrams ?? (item.estimatedGrams > 0 ? item.estimatedGrams : (estimatedFromQuantity ?? 0));
 
   return {
     ...item,
     foodName: parsed.foodName || cleanFoodName(item.foodName),
     quantity,
     unit,
-    portionText: parsed.portionText ?? item.portionText || buildPortionText(quantity, unit),
+    portionText: parsed.portionText ?? item.portionText ?? buildPortionText(quantity, unit),
     servings: parsed.estimatedGrams ? Math.max(parsed.estimatedGrams / 100, 0.25) : item.servings,
     estimatedGrams,
   };
@@ -553,9 +548,7 @@ function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceText: str
 
 function buildHeuristicItem(foodName: string): MealDraftItem {
   const parsed = parseFoodText(foodName);
-  // 1st pass: local curated catalog
   const catalog = findCatalogFood(parsed.foodName)
-    // 2nd pass: TACO (~615 items) when local catalog misses
     ?? findTacoFood(parsed.foodName);
   const quantity = parsed.quantity ?? 1;
   const unit = parsed.unit ?? "porção";
@@ -738,13 +731,10 @@ async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOpti
   const results: MealDraftItem[] = [];
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
-    // 1st pass: fast exact/substring text match on local curated catalog (synchronous, zero cost)
     let catalog = findCatalogFood(normalizedItem.foodName);
-    // 2nd pass: textual search on TACO (~615 items, synchronous, zero cost)
     if (!catalog) {
       catalog = findTacoFood(normalizedItem.foodName) ?? undefined;
     }
-    // 3rd pass: semantic embedding match as last-resort fallback (async, best-effort)
     if (!catalog) {
       catalog = await findCatalogFoodSemantic(normalizedItem.foodName) ?? undefined;
     }
