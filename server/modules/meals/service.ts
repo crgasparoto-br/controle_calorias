@@ -44,6 +44,13 @@ export class MealDraftNotFoundError extends Error {
   }
 }
 
+type MealItemQuantityUnit = {
+  quantity: number;
+  unit: string;
+};
+
+type MaybeMealItemQuantityUnit = Partial<MealItemQuantityUnit>;
+
 function extractBase64Payload(value: string) {
   const match = value.match(/^data:(.+);base64,(.*)$/);
   return Buffer.from(match ? match[2] : value, "base64");
@@ -157,8 +164,46 @@ async function resolveDraftAudio(params: {
   }
 }
 
-function ensureMealItems(items: Array<MealDraftItem>): MealDraftItem[] {
-  return dedupeMealItemsByProductIdentity(items.map(item => ({ ...item })));
+function parseQuantityFromPortionText(portionText: string) {
+  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)/u);
+  if (!match) {
+    return null;
+  }
+
+  const value = Number(match[1].replace(",", "."));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function deriveUnitFromPortionText(portionText: string) {
+  const normalized = portionText
+    .trim()
+    .replace(/^\d+(?:[,.]\d+)?\s*/u, "")
+    .trim();
+
+  return normalized || "porção";
+}
+
+function normalizeMealItemQuantityUnit<T extends MealDraftItem>(item: T): T & MealItemQuantityUnit {
+  const quantityUnit = item as T & MaybeMealItemQuantityUnit;
+
+  return {
+    ...item,
+    quantity: quantityUnit.quantity ?? parseQuantityFromPortionText(item.portionText) ?? item.servings,
+    unit: quantityUnit.unit?.trim() || deriveUnitFromPortionText(item.portionText),
+  };
+}
+
+function ensureMealItems(items: Array<MealDraftItem>): Array<MealDraftItem & MealItemQuantityUnit> {
+  return dedupeMealItemsByProductIdentity(
+    items.map(item => normalizeMealItemQuantityUnit(item)),
+  ) as Array<MealDraftItem & MealItemQuantityUnit>;
+}
+
+function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(processed: T): T {
+  return {
+    ...processed,
+    items: ensureMealItems(processed.items),
+  };
 }
 
 async function prepareMealItemsForSave(userId: number, items: Array<MealDraftItem>) {
@@ -241,13 +286,13 @@ export async function processMealDraft(userId: number, input: ProcessMealDraftIn
     }
   }
 
-  const processed = await processMealInput({
+  const processed = ensureProcessedMealItems(await processMealInput({
     text: input.text,
     transcript,
     imageUrl: resolvedImage.imageUrl,
     audioUrl: resolvedAudio.audioUrl,
     habits: await getHabitSnapshots(userId),
-  });
+  }));
 
   const draft = createPendingMealInference(
     userId,

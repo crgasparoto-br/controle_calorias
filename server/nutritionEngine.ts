@@ -6,6 +6,7 @@ import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import { findTacoFood } from "./tacoLookup";
 import { calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
+import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 
 export type CatalogFood = {
   slug: string;
@@ -32,6 +33,8 @@ export type MealDraftItem = {
   portionQuantity?: number;
   foodName: string;
   canonicalName: string;
+  quantity: number;
+  unit: string;
   portionText: string;
   servings: number;
   estimatedGrams: number;
@@ -74,6 +77,8 @@ export type MealProcessingResult = {
 
 type LlmItem = {
   foodName: string;
+  quantity?: number;
+  unit?: string;
   portionText: string;
   servings: number;
   estimatedGrams: number;
@@ -88,7 +93,15 @@ type LlmItem = {
 
 type ParsedFoodText = {
   foodName: string;
+  quantity?: number;
+  unit?: string;
   portionText?: string;
+  estimatedGrams?: number;
+};
+
+type ExplicitQuantity = {
+  quantity: number;
+  unit: string;
   estimatedGrams?: number;
 };
 
@@ -113,6 +126,8 @@ const mealExtractionSchema = z.object({
   reasoning: z.string().trim().min(1).max(2000),
   items: z.array(z.object({
     foodName: z.string().trim().min(1).max(160),
+    quantity: z.number().min(0.01).max(5000).optional(),
+    unit: z.string().trim().min(1).max(40).optional(),
     portionText: z.string().trim().min(1).max(120),
     servings: z.number().min(0.1).max(20),
     estimatedGrams: z.number().min(0).max(5000),
@@ -141,6 +156,8 @@ const mealExtractionJsonSchema = {
         additionalProperties: false,
         properties: {
           foodName: { type: "string" },
+          quantity: { type: "number", minimum: 0.01, maximum: 5000 },
+          unit: { type: "string" },
           portionText: { type: "string" },
           servings: { type: "number", minimum: 0.1, maximum: 20 },
           estimatedGrams: { type: "number", minimum: 0, maximum: 5000 },
@@ -159,6 +176,8 @@ const mealExtractionJsonSchema = {
         },
         required: [
           "foodName",
+          "quantity",
+          "unit",
           "portionText",
           "servings",
           "estimatedGrams",
@@ -204,6 +223,8 @@ const DEFAULT_MEAL_LABEL_BY_TIME = [
   { mealLabel: "Ceia", startTime: "23:00", endTime: "04:59" },
 ] as const;
 
+const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
+
 export class MealInferenceError extends Error {
   constructor(message = "Não foi possível gerar um rascunho revisável para esta refeição agora.") {
     super(message);
@@ -230,7 +251,6 @@ function sourceMentionsFood(sourceText: string, foodName: string) {
   const candidates = new Set<string>();
   const cleanedFoodName = cleanFoodName(foodName);
 
-  // Collect candidates from local catalog and TACO
   const catalogFood = findCatalogFood(cleanedFoodName) ?? findTacoFood(cleanedFoodName);
   candidates.add(cleanedFoodName);
   if (catalogFood) {
@@ -238,16 +258,12 @@ function sourceMentionsFood(sourceText: string, foodName: string) {
     catalogFood.aliases.forEach(alias => candidates.add(alias));
   }
 
-  // Full-phrase match (original behaviour)
   const phraseMatch = Array.from(candidates).some(candidate => {
     const normalizedCandidate = normalizeForMatching(candidate).trim();
     return normalizedCandidate.length >= 2 && source.includes(` ${normalizedCandidate} `);
   });
   if (phraseMatch) return true;
 
-  // Keyword match: every significant word (3+ chars) of the foodName appears in source
-  // This handles cases like "1 sorvete de casquinha" where the leading quantity
-  // prevents the full phrase from matching.
   const keywords = normalizeText(cleanedFoodName).split(/\s+/).filter(w => w.length >= 3);
   if (keywords.length > 0 && keywords.every(word => source.includes(word))) {
     return true;
@@ -267,46 +283,96 @@ function parseDecimalNumber(value: string) {
   return Number(value.replace(",", "."));
 }
 
+function normalizeUnit(value: string) {
+  if (!value) return "porção";
+  return normalizeMeasurementUnit(value.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+}
+
+function formatQuantityForPortion(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
+}
+
+function buildPortionText(quantity: number, unit: string) {
+  return `${formatQuantityForPortion(quantity)} ${unit}`;
+}
+
+function estimateGramsFromQuantity(quantity: number, unit: string) {
+  switch (normalizeUnit(unit)) {
+    case "kg":
+      return quantity * 1000;
+    case "mg":
+      return quantity / 1000;
+    case "g":
+    case "ml":
+      return quantity;
+    case "l":
+      return quantity * 1000;
+    default:
+      return undefined;
+  }
+}
+
 function parseFoodText(value: string): ParsedFoodText {
   const cleaned = cleanFoodName(value);
-  const leadingGramsMatch = cleaned.match(/^(\d+(?:[,.]\d+)?)\s*(?:g|gr|grama|gramas)\b\s+(.+)$/i);
-  const trailingGramsMatch = cleaned.match(/^(.+?)\s+(\d+(?:[,.]\d+)?)\s*(?:g|gr|grama|gramas)\b$/i);
-  const match = leadingGramsMatch || trailingGramsMatch;
+  const quantityPattern = `(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})`;
+  const leadingMatch = cleaned.match(new RegExp(`^${quantityPattern}\\s+(?:de\\s+)?(.+)$`, "i"));
+  const trailingMatch = cleaned.match(new RegExp(`^(.+?)\\s+${quantityPattern}$`, "i"));
+  const match = leadingMatch || trailingMatch;
 
   if (!match) {
     return { foodName: cleaned };
   }
 
-  const grams = parseDecimalNumber(leadingGramsMatch ? match[1] : match[2]);
-  const foodName = cleanFoodName(leadingGramsMatch ? match[2] : match[1]);
+  const quantity = parseDecimalNumber(leadingMatch ? match[1] : match[2]);
+  const unit = normalizeUnit(leadingMatch ? match[2] : match[3]);
+  const foodName = cleanFoodName(leadingMatch ? match[3] : match[1]);
 
-  if (!foodName || Number.isNaN(grams) || grams <= 0) {
+  if (!foodName || Number.isNaN(quantity) || quantity <= 0) {
     return { foodName: cleaned };
   }
 
+  const estimatedGrams = estimateGramsFromQuantity(quantity, unit);
+
   return {
     foodName,
-    portionText: `${roundNutritionValue(grams)} g`,
-    estimatedGrams: roundNutritionValue(grams),
+    quantity: roundNutritionValue(quantity),
+    unit,
+    portionText: buildPortionText(roundNutritionValue(quantity), unit),
+    estimatedGrams: estimatedGrams === undefined ? undefined : roundNutritionValue(estimatedGrams),
   };
 }
 
-function extractExplicitGramAmounts(sourceText: string) {
-  const matches = Array.from(sourceText.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:g|gr|grama|gramas)\b/gi));
+function extractExplicitQuantities(sourceText: string): ExplicitQuantity[] {
+  const matches = Array.from(sourceText.matchAll(new RegExp(`(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "gi")));
   return matches
-    .map(match => parseDecimalNumber(match[1]))
-    .filter(value => Number.isFinite(value) && value > 0)
-    .map(roundNutritionValue);
+    .map(match => {
+      const quantity = parseDecimalNumber(match[1]);
+      const unit = normalizeUnit(match[2]);
+      const estimatedGrams = estimateGramsFromQuantity(quantity, unit);
+      return {
+        quantity: roundNutritionValue(quantity),
+        unit,
+        estimatedGrams: estimatedGrams === undefined ? undefined : roundNutritionValue(estimatedGrams),
+      };
+    })
+    .filter(item => Number.isFinite(item.quantity) && item.quantity > 0);
 }
 
 function normalizeLlmItem(item: LlmItem): LlmItem {
   const parsed = parseFoodText(item.foodName);
-  const estimatedGrams = parsed.estimatedGrams ?? item.estimatedGrams;
+  const quantityFromItem = Number(item.quantity);
+  const quantity = parsed.quantity
+    ?? (Number.isFinite(quantityFromItem) && quantityFromItem > 0 ? quantityFromItem : 1);
+  const unit = normalizeUnit(parsed.unit ?? item.unit ?? "porção");
+  const estimatedFromQuantity = estimateGramsFromQuantity(quantity, unit);
+  const estimatedGrams = parsed.estimatedGrams ?? (item.estimatedGrams > 0 ? item.estimatedGrams : (estimatedFromQuantity ?? 0));
 
   return {
     ...item,
     foodName: parsed.foodName || cleanFoodName(item.foodName),
-    portionText: parsed.portionText ?? item.portionText,
+    quantity,
+    unit,
+    portionText: parsed.portionText ?? item.portionText ?? buildPortionText(quantity, unit),
     servings: parsed.estimatedGrams ? Math.max(parsed.estimatedGrams / 100, 0.25) : item.servings,
     estimatedGrams,
   };
@@ -418,17 +484,46 @@ function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+function parseQuantityUnitFromPortionText(portionText: string) {
+  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)(?:\s+(.+))?$/u);
+  if (!match) {
+    return null;
+  }
+
+  const quantity = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+
+  return {
+    quantity,
+    unit: match[2]?.trim() || "porção",
+  };
+}
+
 function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
   const estimatedGrams = llmItem.estimatedGrams > 0
     ? llmItem.estimatedGrams
     : food.gramsPerServing * servings;
   const factor = estimatedGrams / food.gramsPerServing;
+  const portionText = llmItem.portionText || food.servingLabel;
+  const quantityUnit = parseQuantityUnitFromPortionText(portionText) ?? {
+    quantity: roundNutritionValue(estimatedGrams),
+    unit: "g",
+  };
+  const llmQuantity = Number(llmItem.quantity);
+  const quantity = Number.isFinite(llmQuantity) && llmQuantity > 0
+    ? roundNutritionValue(llmQuantity)
+    : quantityUnit.quantity;
+  const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
 
   return {
     foodName: llmItem.foodName,
     canonicalName: food.name,
-    portionText: llmItem.portionText || food.servingLabel,
+    portionText,
+    quantity,
+    unit,
     servings,
     estimatedGrams: roundNutritionValue(estimatedGrams),
     calories: roundNutritionValue(food.calories * factor),
@@ -441,10 +536,22 @@ function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftIte
 }
 
 function buildHybridItem(llmItem: LlmItem): MealDraftItem {
+  const quantityUnit = parseQuantityUnitFromPortionText(llmItem.portionText) ?? {
+    quantity: Math.max(llmItem.servings || 1, 0.25),
+    unit: "porção",
+  };
+  const llmQuantity = Number(llmItem.quantity);
+  const quantity = Number.isFinite(llmQuantity) && llmQuantity > 0
+    ? roundNutritionValue(llmQuantity)
+    : quantityUnit.quantity;
+  const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
+
   return {
     foodName: llmItem.foodName,
     canonicalName: llmItem.foodName,
     portionText: llmItem.portionText,
+    quantity,
+    unit,
     servings: Math.max(llmItem.servings || 1, 0.25),
     estimatedGrams: roundNutritionValue(Math.max(llmItem.estimatedGrams || 0, 0)),
     calories: roundNutritionValue(llmItem.estimatedCalories),
@@ -457,21 +564,24 @@ function buildHybridItem(llmItem: LlmItem): MealDraftItem {
 }
 
 function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceText: string) {
-  const explicitGrams = extractExplicitGramAmounts(sourceText);
-  if (items.length !== 1 || explicitGrams.length !== 1) {
+  const explicitQuantities = extractExplicitQuantities(sourceText);
+  if (items.length !== 1 || explicitQuantities.length !== 1) {
     return items;
   }
 
   const [item] = items;
-  const [estimatedGrams] = explicitGrams;
-  const currentGrams = item.estimatedGrams > 0 ? item.estimatedGrams : estimatedGrams;
-  const factor = currentGrams > 0 ? estimatedGrams / currentGrams : 1;
+  const [explicit] = explicitQuantities;
+  const nextEstimatedGrams = explicit.estimatedGrams ?? item.estimatedGrams;
+  const currentGrams = item.estimatedGrams > 0 ? item.estimatedGrams : nextEstimatedGrams;
+  const factor = nextEstimatedGrams && currentGrams > 0 ? nextEstimatedGrams / currentGrams : 1;
 
   return [{
     ...item,
-    portionText: `${formatQuantityForPortion(estimatedGrams)} g`,
-    estimatedGrams,
-    servings: Math.max(estimatedGrams / 100, 0.25),
+    quantity: explicit.quantity,
+    unit: explicit.unit,
+    portionText: buildPortionText(explicit.quantity, explicit.unit),
+    estimatedGrams: nextEstimatedGrams,
+    servings: nextEstimatedGrams ? Math.max(nextEstimatedGrams / 100, 0.25) : item.servings,
     calories: roundNutritionValue(item.calories * factor),
     protein: roundNutritionValue(item.protein * factor),
     carbs: roundNutritionValue(item.carbs * factor),
@@ -479,19 +589,19 @@ function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceText: str
   }];
 }
 
-function formatQuantityForPortion(value: number) {
-  return Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
-}
-
 function buildHeuristicItem(foodName: string): MealDraftItem {
   const parsed = parseFoodText(foodName);
-  // 1st pass: local curated catalog
   const catalog = findCatalogFood(parsed.foodName)
-    // 2nd pass: TACO (~615 items) when local catalog misses
     ?? findTacoFood(parsed.foodName);
+  const quantity = parsed.quantity ?? 1;
+  const unit = parsed.unit ?? "porção";
+  const estimatedGrams = parsed.estimatedGrams ?? 100;
+
   if (catalog) {
     return buildItemFromCatalog(catalog, {
       foodName: parsed.foodName,
+      quantity,
+      unit,
       portionText: parsed.portionText ?? catalog.servingLabel,
       servings: parsed.estimatedGrams ? parsed.estimatedGrams / catalog.gramsPerServing : 1,
       estimatedGrams: parsed.estimatedGrams ?? catalog.gramsPerServing,
@@ -505,12 +615,13 @@ function buildHeuristicItem(foodName: string): MealDraftItem {
     });
   }
 
-  const estimatedGrams = parsed.estimatedGrams ?? 100;
   const factor = estimatedGrams / 100;
 
   return {
     foodName: parsed.foodName,
     canonicalName: parsed.foodName,
+    quantity,
+    unit,
     portionText: parsed.portionText ?? "1 porção",
     servings: Math.max(factor, 0.25),
     estimatedGrams: roundNutritionValue(estimatedGrams),
@@ -575,7 +686,7 @@ function cleanMealItems(items: MealDraftItem[]) {
       continue;
     }
 
-    const key = normalizeText(item.canonicalName || item.foodName);
+    const key = normalizeText(`${item.canonicalName || item.foodName} ${item.foodName}`);
     const current = deduplicated.get(key);
     if (!current || item.confidence > current.confidence) {
       deduplicated.set(key, item);
@@ -601,13 +712,15 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
         "Se a imagem não mostrar alimento ou bebida consumível com segurança suficiente, retorne items como lista vazia, confidence baixo e explique a incerteza no reasoning.",
         "Use o histórico apenas para calibrar porções de alimentos já mencionados ou claramente visíveis; nunca inclua alimentos apenas porque aparecem nos hábitos do usuário.",
         "Em fotos de embalagem, pote, rótulo, etiqueta ou balança, identifique no máximo os alimentos consumíveis claramente visíveis ou rotulados; não transforme a cena em uma refeição completa.",
-        "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': foodName deve ser apenas o alimento, portionText deve conter '140 g' e estimatedGrams deve ser 140.",
+        "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': quantity deve ser 140, unit deve ser 'g', foodName deve ser apenas 'Carne moída suína' e portionText deve ser derivado como '140 g'.",
+        "Para exemplos como '300g amendoim japonês', '330ml cerveja', '2 fatias pão' e '1 long neck', nunca coloque a quantidade ou unidade em foodName; preserve marcas no nome do produto quando forem parte da identidade.",
+        "Normalize unidades comuns: grama/gramas/gr como g, mililitro/mililitros como ml, litro/litros como l, fatias como fatia e longneck como long neck.",
         "Não inclua prato, talheres, mesa, embalagem, rótulo, marca isolada, decoração ou itens inferidos apenas por hábito.",
         "Quando houver foto de rótulo ou tabela nutricional, use os valores da tabela para calorias, proteína, carboidratos e gorduras; não substitua por valores genéricos de catálogo.",
         "Quando usar tabela nutricional visível, cite isso no campo reasoning.",
-        "Se o usuário informar quantidade junto da foto, registre exatamente essa quantidade em portionText e estimatedGrams e ajuste os macronutrientes proporcionalmente à tabela nutricional.",
+        "Se o usuário informar quantidade junto da foto, registre exatamente essa quantidade em quantity, unit, portionText e estimatedGrams quando a unidade permitir conversão; ajuste os macronutrientes proporcionalmente à tabela nutricional.",
         "Use o rótulo apenas para identificar o alimento real e a porção consumida; não crie itens extras a partir de ingredientes da embalagem.",
-        "Não invente totais agregados; detalhe por item com porção, gramas estimados e macronutrientes por item.",
+        "Não invente totais agregados; detalhe por item com quantidade, unidade, porção, gramas estimados e macronutrientes por item.",
         "Não use nomes de alimentos para inferir o tipo de refeição: café como bebida não significa café da manhã.",
         "Use elementos de referência visual na imagem (como o tamanho do prato, talheres, copos ou as mãos do usuário) para calibrar e estimar com maior precisão o peso em gramas de cada alimento.",
         "Alimentos ricos em amido (arroz, batata, massa, pão) costumam ter maior volume e peso no prato; calibre sua estimativa de gramas levando em conta a densidade típica desses alimentos.",
@@ -634,7 +747,7 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
 
   const response = await getAiProvider().createTextResponse({
     model: ENV.openaiModel,
-    instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a foto não permitir identificar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize precisão em gramas sobre descrições vagas de porção.",
+    instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a foto não permitir identificar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado.",
     input: aiInput,
     format: {
       type: "json_schema",
@@ -661,13 +774,10 @@ async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOpti
   const results: MealDraftItem[] = [];
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
-    // 1st pass: fast exact/substring text match on local curated catalog (synchronous, zero cost)
     let catalog = findCatalogFood(normalizedItem.foodName);
-    // 2nd pass: textual search on TACO (~615 items, synchronous, zero cost)
     if (!catalog) {
       catalog = findTacoFood(normalizedItem.foodName) ?? undefined;
     }
-    // 3rd pass: semantic embedding match as last-resort fallback (async, best-effort)
     if (!catalog) {
       catalog = await findCatalogFoodSemantic(normalizedItem.foodName) ?? undefined;
     }
@@ -707,7 +817,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
       {
         preferInferredNutrition: Boolean(
           input.imageUrl
-          && (extractExplicitGramAmounts(sourceText).length || reasoningMentionsNutritionLabel(extraction.reasoning))
+          && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(extraction.reasoning))
         ),
       },
     ), sourceText)

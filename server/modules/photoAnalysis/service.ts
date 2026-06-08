@@ -13,6 +13,7 @@ import {
 } from "../../nutritionEngine";
 import { storagePut } from "../../storage";
 import { calculateMealTotals } from "../../../shared/mealTotals";
+import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import { decorateMealWithImageUrl, registerMealImageUrl } from "../meals/mealImageAssociations";
 import { confirmMeal } from "../meals/service";
 import { searchGlobalFoodCatalog } from "../foods/service";
@@ -128,8 +129,9 @@ async function toSuggestedItem(userId: number, item: MealDraftItem): Promise<Foo
 
   return {
     foodName: bestCandidate?.name ?? (item.canonicalName || item.foodName),
+    quantity: item.quantity ?? (item.estimatedGrams > 0 ? item.estimatedGrams : 1),
     estimatedQuantity: item.estimatedGrams > 0 ? item.estimatedGrams : 1,
-    unit: item.estimatedGrams > 0 ? "g" : item.portionText,
+    unit: normalizeMeasurementUnit(item.unit ?? (item.estimatedGrams > 0 ? "g" : item.portionText)),
     estimatedCalories: catalogMacros?.calories ?? item.calories,
     estimatedMacros: {
       protein: catalogMacros?.protein ?? item.protein,
@@ -143,13 +145,18 @@ async function toSuggestedItem(userId: number, item: MealDraftItem): Promise<Foo
 
 function toMealItem(item: FoodPhotoSuggestedItem): MealDraftItem {
   const bestCandidate = item.catalogCandidates[0];
+  const quantity = item.quantity || item.estimatedQuantity || 1;
+  const unit = normalizeMeasurementUnit(item.unit);
+
   return {
     foodId: bestCandidate?.foodId,
     foodName: item.foodName,
     canonicalName: bestCandidate?.name ?? item.foodName,
-    portionText: `${item.estimatedQuantity} ${item.unit}`,
+    quantity,
+    unit,
+    portionText: `${quantity} ${unit}`,
     servings: 1,
-    estimatedGrams: item.unit.toLowerCase() === "g" ? item.estimatedQuantity : 0,
+    estimatedGrams: unit.toLowerCase() === "g" || unit.toLowerCase() === "ml" ? quantity : 0,
     calories: item.estimatedCalories,
     protein: item.estimatedMacros.protein,
     carbs: item.estimatedMacros.carbs,
@@ -202,7 +209,7 @@ function buildSupportingImagePrompt(items: FoodPhotoSuggestedItem[]) {
 
   const itemSummary = items
     .slice(0, 6)
-    .map((item) => `${item.foodName} (${item.estimatedQuantity} ${item.unit})`)
+    .map((item) => `${item.foodName} (${item.quantity} ${item.unit})`)
     .join(", ");
 
   return [

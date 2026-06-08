@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
+import { MEASUREMENT_UNIT_SUGGESTIONS, normalizeMeasurementUnit } from "@shared/measurementUnits";
+import { recalculateMealItemQuantityUnit } from "../mealFormState";
 import type { MealItemState } from "../types";
 
 type MealItemEditorProps = {
@@ -51,7 +53,40 @@ function portionLabel(quantity: number, portion: CatalogPortion) {
   return `${quantity} ${portion.label}`;
 }
 
+function parseQuantityFromPortionText(portionText: string) {
+  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)/u);
+  if (!match) {
+    return null;
+  }
+
+  const value = Number(match[1].replace(",", "."));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function deriveUnitFromPortionText(portionText: string) {
+  const normalized = portionText
+    .trim()
+    .replace(/^\d+(?:[,.]\d+)?\s*/u, "")
+    .trim();
+
+  return normalized || "porção";
+}
+
+function formatQuantity(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
+}
+
+function normalizeUnitInput(value: string) {
+  return normalizeMeasurementUnit(value.replace(/^\d+(?:[,.]\d+)?\s*/u, ""));
+}
+
 export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
+  const unitListId = React.useId();
+  const quantity = item.quantity ?? parseQuantityFromPortionText(item.portionText) ?? item.servings;
+  const unit = item.unit?.trim() || deriveUnitFromPortionText(item.portionText);
+  const equivalenceText = item.estimatedGrams > 0
+    ? `equivale a ${formatQuantity(item.estimatedGrams)} g`
+    : null;
   const catalogFoods = trpc.nutrition.foods.catalogSearch.useQuery(
     { query: item.foodName, limit: 6 },
     { enabled: item.foodName.trim().length >= 2 },
@@ -66,6 +101,9 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
   const applyCatalogNutrition = (food: CatalogFood, grams: number) => {
     const macros = calculateMacros(food, grams);
     onChange("estimatedGrams", grams);
+    onChange("quantity", grams);
+    onChange("unit", "g");
+    onChange("portionText", `${formatQuantity(grams)} g`);
     onChange("calories", macros.calories);
     onChange("protein", macros.protein);
     onChange("carbs", macros.carbs);
@@ -81,11 +119,26 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
     onChange("portionQuantity", defaultPortion ? 1 : undefined);
     onChange("foodName", food.name);
     onChange("canonicalName", food.name);
-    onChange("portionText", defaultPortion ? portionLabel(1, defaultPortion) : `${grams} g`);
+    onChange("quantity", defaultPortion ? 1 : grams);
+    onChange("unit", defaultPortion ? normalizeUnitInput(defaultPortion.unit || defaultPortion.label) : "g");
+    onChange("portionText", defaultPortion ? portionLabel(1, defaultPortion) : `${formatQuantity(grams)} g`);
     onChange("servings", 1);
-    onChange("confidence", 1);
-    onChange("source", "catalog");
+
     applyCatalogNutrition(food, grams);
+  };
+
+  const updateQuantityAndUnit = (nextQuantity: number, nextUnit: string) => {
+    const updatedItem = recalculateMealItemQuantityUnit(item, nextQuantity, nextUnit);
+
+    onChange("quantity", updatedItem.quantity);
+    onChange("unit", updatedItem.unit);
+    onChange("portionText", updatedItem.portionText);
+    onChange("servings", updatedItem.servings);
+    onChange("estimatedGrams", updatedItem.estimatedGrams);
+    onChange("calories", updatedItem.calories);
+    onChange("protein", updatedItem.protein);
+    onChange("carbs", updatedItem.carbs);
+    onChange("fat", updatedItem.fat);
   };
 
   const applyPortion = (portion: CatalogPortion, quantity = 1) => {
@@ -94,18 +147,22 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
 
     onChange("portionId", portion.id);
     onChange("portionQuantity", quantity);
+    onChange("quantity", quantity);
+    onChange("unit", normalizeUnitInput(portion.unit || portion.label) || "porção");
     onChange("portionText", portionLabel(quantity, portion));
     onChange("servings", quantity);
     applyCatalogNutrition(selectedCatalogFood, grams);
   };
 
-  const handleManualGramsChange = (grams: number) => {
-    onChange("estimatedGrams", grams);
+  const handleManualQuantityChange = (nextQuantity: number) => {
+    updateQuantityAndUnit(nextQuantity, unit);
     onChange("portionId", undefined);
     onChange("portionQuantity", undefined);
-    onChange("portionText", grams > 0 ? `${grams} g` : item.portionText);
-    if (selectedCatalogFood && grams > 0) {
-      applyCatalogNutrition(selectedCatalogFood, grams);
+    if (selectedCatalogFood) {
+      const normalizedUnit = normalizeMeasurementUnit(unit);
+      if (["g", "ml"].includes(normalizedUnit) && nextQuantity > 0) {
+        applyCatalogNutrition(selectedCatalogFood, nextQuantity);
+      }
     }
   };
 
@@ -228,13 +285,31 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <div className="space-y-2 xl:col-span-2">
-          <Label>Porção / unidade de medida</Label>
-          <Input value={item.portionText} onChange={event => onChange("portionText", event.target.value)} placeholder="Ex.: 100 g, 1 scoop, 1 long neck" />
-        </div>
         <div className="space-y-2">
-          <Label>Quantidade em g/ml</Label>
-          <Input type="number" value={item.estimatedGrams} onChange={event => handleManualGramsChange(Number(event.target.value))} />
+          <Label>Quantidade</Label>
+          <Input
+            type="number"
+            min="0.1"
+            step="0.1"
+            value={quantity}
+            onChange={event => handleManualQuantityChange(Number(event.target.value))}
+          />
+          {equivalenceText ? <p className="text-xs text-muted-foreground">{equivalenceText}</p> : null}
+        </div>
+        <div className="space-y-2 xl:col-span-2">
+          <Label>Unidade de medida</Label>
+          <Input
+            list={unitListId}
+            value={unit}
+            onChange={event => updateQuantityAndUnit(quantity, event.target.value)}
+            onBlur={event => updateQuantityAndUnit(quantity, event.target.value)}
+            placeholder="Ex.: g, ml, fatia, lata"
+          />
+          <datalist id={unitListId}>
+            {MEASUREMENT_UNIT_SUGGESTIONS.map(suggestion => (
+              <option key={suggestion} value={suggestion} />
+            ))}
+          </datalist>
         </div>
         <div className="space-y-2">
           <Label>Calorias</Label>

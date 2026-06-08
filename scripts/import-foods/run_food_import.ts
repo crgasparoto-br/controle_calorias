@@ -14,6 +14,24 @@ function requireDatabaseUrl() {
   return databaseUrl;
 }
 
+function createConnectionOptions(databaseUrl: string): string | mysql.ConnectionOptions {
+  if (process.env.TIDB_ENABLE_SSL !== "true") {
+    return databaseUrl;
+  }
+
+  const url = new URL(databaseUrl);
+  return {
+    host: url.hostname,
+    port: Number(url.port || 4000),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.replace(/^\//, ""),
+    ssl: {
+      minVersion: "TLSv1.2",
+    },
+  };
+}
+
 function numberOrNull(value: number | undefined) {
   return Number.isFinite(value) ? value : null;
 }
@@ -178,7 +196,7 @@ export async function importFoods(payload: ImportPayload): Promise<ImportReport>
     errors: [],
   };
 
-  const connection = await mysql.createConnection(requireDatabaseUrl());
+  const connection = await mysql.createConnection(createConnectionOptions(requireDatabaseUrl()));
   try {
     await connection.beginTransaction();
     const sourceId = await ensureSource(connection, payload);

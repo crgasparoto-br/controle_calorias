@@ -10,7 +10,26 @@ export const mediaInputSchema = z
   })
   .optional();
 
-export const mealItemSchema = z.object({
+function parseQuantityFromPortionText(portionText: string) {
+  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)/u);
+  if (!match) {
+    return null;
+  }
+
+  const value = Number(match[1].replace(",", "."));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function deriveUnitFromPortionText(portionText: string) {
+  const normalized = portionText
+    .trim()
+    .replace(/^\d+(?:[,.]\d+)?\s*/u, "")
+    .trim();
+
+  return normalized || "porção";
+}
+
+const mealItemBaseSchema = z.object({
   foodId: z.number().int().positive().optional(),
   portionId: z.number().int().positive().optional(),
   portionQuantity: z.number().positive().max(100).optional(),
@@ -18,6 +37,8 @@ export const mealItemSchema = z.object({
   canonicalName: z.string().min(1),
   brand: z.string().trim().min(1).max(80).nullable().optional(),
   portionText: z.string().min(1),
+  quantity: z.number().min(0.1).max(5000).optional(),
+  unit: z.string().trim().min(1).max(40).optional(),
   servings: z.number().min(0.1).max(20),
   estimatedGrams: z.number().min(0).max(5000),
   calories: z.number().min(0).max(10000),
@@ -27,6 +48,12 @@ export const mealItemSchema = z.object({
   confidence: z.number().min(0).max(1),
   source: z.enum(["catalog", "hybrid", "heuristic"]),
 });
+
+export const mealItemSchema = mealItemBaseSchema.transform(item => ({
+  ...item,
+  quantity: item.quantity ?? parseQuantityFromPortionText(item.portionText) ?? item.servings,
+  unit: item.unit?.trim() || deriveUnitFromPortionText(item.portionText),
+}));
 
 export const manualMealSchema = z.object({
   mealLabel: mealLabelSchema,
