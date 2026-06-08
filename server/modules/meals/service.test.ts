@@ -58,6 +58,8 @@ function buildProcessedResult(overrides: Record<string, unknown> = {}) {
       {
         foodName: "arroz",
         canonicalName: "Arroz branco cozido",
+        quantity: 100,
+        unit: "g",
         portionText: "100 g",
         servings: 1,
         estimatedGrams: 100,
@@ -170,6 +172,7 @@ describe("meals service characterization", () => {
       quantity: 100,
       unit: "g",
     }));
+    expect(result.processed.items[0].unit).not.toMatch(/\d/);
   });
 
   it("processa texto, imagem e audio juntos usando imagem e audio inline na inferencia", async () => {
