@@ -10,6 +10,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Serviço de WhatsApp em `server/modules/whatsapp/service.ts`.
 - Interpretação de comandos de texto em `server/modules/whatsapp/intentActions.ts`.
 - Formatação de respostas nutricionais em `server/modules/whatsapp/replyMessages.ts`.
+- Edição rápida pública em `server/modules/quickEdit/*`, com token opaco, hash persistido e rota web `/quick-edit/:token`.
 - Wrapper de idempotência de imagens em `server/whatsappImageIdempotencyWebhook.ts`, responsável por absorver reentregas do mesmo `message.id` de imagem antes do processamento pesado.
 - Wrapper do webhook real em `server/whatsappIntentWebhook.ts`, executado antes do fallback de inferência nutricional.
 - Wrapper de imagens anotadas em `server/whatsappAnnotatedImageWebhook.ts`, responsável por devolver e persistir a imagem auxiliar gerada após a análise visual.
@@ -22,6 +23,10 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - O número oficial é configuração de ambiente, nunca dado do usuário final.
 - O campo `from` identifica o contato do usuário final.
 - Tokens e IDs de operação não podem aparecer em logs crus.
+- Links de edição rápida enviados no WhatsApp devem conter somente token opaco e não devem expor IDs internos de usuário/refeição.
+- Tokens de edição rápida devem ser armazenados como hash, vinculados a usuário e refeição, expirar inicialmente em 24 horas e falhar com resposta genérica quando inválidos ou expirados.
+- A tela pública de edição rápida só pode ler ou alterar a refeição associada ao token validado.
+- Falha ao gerar link de edição rápida deve gerar aviso operacional e não deve bloquear o registro da refeição nem a resposta nutricional principal.
 - Simulações devem usar dados controlados e não depender de chamadas externas reais.
 - Mensagens suportadas de texto, imagem e áudio devem ser marcadas como lidas no WhatsApp antes do processamento pesado.
 - Mensagens suportadas de texto, imagem e áudio devem receber uma resposta inicial informando que o conteúdo foi recebido e está sendo processado, exceto quando um texto puro for interpretado como ação e receber resposta final própria antes da inferência.
@@ -50,6 +55,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Quando o interpretador de texto tratar a mensagem ou transcrição, o webhook real deve registrar evento de inferência com `origin: "whatsapp"`, responder com a mensagem interpretada e impedir que o mesmo conteúdo crie refeição por fallback.
 - Respostas finais de refeição no WhatsApp devem usar linguagem simples, sem títulos técnicos como `Alimentos e macros`, e devem listar alimentos, porções, calorias, proteína, carboidratos e gorduras por item.
 - Respostas finais de refeição devem mostrar o total da refeição e, quando houver meta disponível, um resumo curto de meta diária com calorias consumidas, meta e quanto falta ou excedeu.
+- Respostas finais de refeição podem incluir um bloco curto `Editar: <url>` quando a refeição tiver link de edição rápida disponível.
 - Falha ao carregar a meta diária não deve bloquear o registro da refeição nem a resposta nutricional principal.
 - Falha ao marcar a mensagem como lida ou enviar a resposta inicial deve gerar aviso operacional, mas não deve bloquear o processamento principal.
 - Falha ao enviar resposta de intenção interpretada deve gerar aviso operacional, mas não deve reprocessar a mensagem como refeição.
@@ -67,6 +73,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar texto, imagem e áudio mockados.
 - Testar que texto, imagem e áudio inbound são marcados como lidos e recebem resposta inicial de processamento quando seguem para o fluxo nutricional normal.
 - Testar que uma reentrega do mesmo `message.id` de imagem não reenvia acknowledgement nem delega novamente ao fluxo nutricional.
+- Testar que resposta final de refeição pode incluir link de edição rápida opaco quando o token é gerado com sucesso.
+- Testar que falha na geração do link de edição rápida não impede registro nem resposta principal.
+- Testar leitura e salvamento da tela `/quick-edit/:token` com token válido, inválido e expirado.
 - Testar que texto como `250ml de água` registra consumo de água sem chamar inferência nutricional nem criar refeição.
 - Testar que texto como `500 ml de água ontem` registra consumo de água no dia anterior em `America/Sao_Paulo`.
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
