@@ -149,7 +149,16 @@ describe("meals service characterization", () => {
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       42,
       "web",
-      expect.objectContaining({ sourceText: "arroz e frango" }),
+      expect.objectContaining({
+        sourceText: "arroz e frango",
+        items: [
+          expect.objectContaining({
+            portionText: "100 g",
+            quantity: 100,
+            unit: "g",
+          }),
+        ],
+      }),
       [],
     );
     expect(result).toEqual({
@@ -157,6 +166,10 @@ describe("meals service characterization", () => {
       processed: expect.objectContaining({ sourceText: "arroz e frango" }),
       media: [],
     });
+    expect(result.processed.items[0]).toEqual(expect.objectContaining({
+      quantity: 100,
+      unit: "g",
+    }));
   });
 
   it("processa texto, imagem e audio juntos usando imagem e audio inline na inferencia", async () => {
@@ -344,6 +357,8 @@ describe("meals service characterization", () => {
           foodName: "arroz",
           canonicalName: "Arroz branco cozido",
           portionText: "100 g",
+          quantity: 100,
+          unit: "g",
           servings: 1,
           estimatedGrams: 100,
           calories: 130,
@@ -368,6 +383,8 @@ describe("meals service characterization", () => {
           foodName: "arroz",
           canonicalName: "Arroz branco cozido",
           portionText: "100 g",
+          quantity: 100,
+          unit: "g",
           servings: 1,
           estimatedGrams: 100,
           calories: 130,
