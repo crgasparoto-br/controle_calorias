@@ -18,7 +18,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `dashboard` | 2 | 2 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
-| `foods` | 10 | 4 | 6 | protected | Catálogo, favoritos, busca e alimentos personalizados |
+| `foods` | 10 | 4 | 6 | protected | Catálogo, favoritos e busca de alimentos |
 | `meals` | 11 | 3 | 8 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |

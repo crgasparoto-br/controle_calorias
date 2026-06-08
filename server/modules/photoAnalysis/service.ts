@@ -79,7 +79,7 @@ function toPhotoCatalogCandidate(itemName: string, candidate: CatalogSearchItem)
   return {
     foodId: candidate.id,
     name: candidate.name,
-    scope: candidate.scope,
+    scope: candidate.scope === "global" ? "global" : "user",
     confidenceScore: scoreCatalogCandidate(itemName, candidate),
     caloriesKcalPer100g: candidate.nutrientsPer100g.caloriesKcal,
     proteinGramsPer100g: candidate.nutrientsPer100g.proteinGrams,
@@ -90,11 +90,17 @@ function toPhotoCatalogCandidate(itemName: string, candidate: CatalogSearchItem)
 
 async function findCatalogCandidatesForPhotoItem(userId: number, item: MealDraftItem) {
   const query = item.canonicalName || item.foodName;
-  const results = await searchGlobalFoodCatalog(userId, {
-    query,
-    limit: 3,
-    includeInactive: false,
-  });
+  let results: CatalogSearchItem[] = [];
+  try {
+    results = await searchGlobalFoodCatalog(userId, {
+      query,
+      limit: 3,
+      includeInactive: false,
+    });
+  } catch {
+    // Keep photo analysis usable even when the catalog backend is unavailable.
+    return [];
+  }
 
   return results
     .map(candidate => toPhotoCatalogCandidate(query, candidate))
@@ -121,7 +127,7 @@ async function toSuggestedItem(userId: number, item: MealDraftItem): Promise<Foo
     : null;
 
   return {
-    foodName: bestCandidate?.name ?? item.canonicalName || item.foodName,
+    foodName: bestCandidate?.name ?? (item.canonicalName || item.foodName),
     estimatedQuantity: item.estimatedGrams > 0 ? item.estimatedGrams : 1,
     unit: item.estimatedGrams > 0 ? "g" : item.portionText,
     estimatedCalories: catalogMacros?.calories ?? item.calories,
