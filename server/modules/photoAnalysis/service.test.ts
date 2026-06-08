@@ -11,6 +11,9 @@ vi.mock("../../storage", () => ({
 }));
 
 vi.mock("../../db", () => ({
+  buildSavedMedia: vi.fn(input => input),
+  confirmPendingMeal: vi.fn(),
+  createPendingMealInference: vi.fn(),
   createUserManualMeal: vi.fn(),
   getHabitSnapshots: getHabitSnapshotsMock,
   logInferenceEvent: logInferenceEventMock,
