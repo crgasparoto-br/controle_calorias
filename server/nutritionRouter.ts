@@ -36,17 +36,23 @@ import { gamificationSettingsSchema } from "./modules/gamification/schemas";
 import {
   createCustomFood,
   createFood,
+  curateGlobalFood,
   deleteCustomFood,
   getGlobalFoodCatalogItem,
+  listGlobalRecentlyUsedFoods,
   listRecentlyUsedFoods,
   searchFoodCatalog,
   searchGlobalFoodCatalog,
   setFoodFavorite,
+  setGlobalFoodFavorite,
   updateCustomFood,
   updateFood,
 } from "./modules/foods/service";
 import {
+  adminCatalogFoodCurationSchema,
+  catalogFoodFavoriteSchema,
   catalogFoodGetSchema,
+  catalogFoodRecentSchema,
   catalogFoodSearchSchema,
   customFoodSchema,
   deleteCustomFoodSchema,
@@ -344,6 +350,14 @@ export const nutritionRouter = router({
       return result;
     }),
     catalogGet: protectedProcedure.input(catalogFoodGetSchema).query(async ({ ctx, input }) => getGlobalFoodCatalogItem(ctx.user.id, input.foodId)),
+    catalogRecent: protectedProcedure
+      .input(catalogFoodRecentSchema)
+      .query(async ({ ctx, input }) => listGlobalRecentlyUsedFoods(ctx.user.id, input)),
+    catalogFavorite: protectedProcedure.input(catalogFoodFavoriteSchema).mutation(async ({ ctx, input }) => {
+      const result = await setGlobalFoodFavorite(ctx.user.id, input);
+      void analyticsService.track("food_catalog_favorite_updated", { favorite: input.favorite });
+      return result;
+    }),
     customCreate: protectedProcedure.input(customFoodSchema).mutation(async ({ ctx, input }) => {
       const result = await createCustomFood(ctx.user.id, input);
       void analyticsService.track("food_custom_created", {
@@ -539,6 +553,9 @@ export const nutritionRouter = router({
     updateWhatsappToken: adminProcedure
       .input(updateWhatsappTokenSchema)
       .mutation(async ({ ctx, input }) => updateWhatsappToken(ctx.user.id, input)),
+    curateGlobalFood: adminProcedure
+      .input(adminCatalogFoodCurationSchema)
+      .mutation(async ({ ctx, input }) => curateGlobalFood(ctx.user.id, input)),
   }),
 
   whatsapp: router({
