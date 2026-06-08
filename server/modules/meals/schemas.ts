@@ -11,6 +11,7 @@ export const mediaInputSchema = z
   .optional();
 
 export const mealItemSchema = z.object({
+  foodId: z.number().int().positive().optional(),
   foodName: z.string().min(1),
   canonicalName: z.string().min(1),
   brand: z.string().trim().min(1).max(80).nullable().optional(),
