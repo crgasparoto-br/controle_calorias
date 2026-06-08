@@ -20,10 +20,14 @@ type RegisteredMealGroupsProps = {
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
   onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onEditMealItem?: (meal: StoredMeal, itemIndex: number) => void;
   onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
+  onCopyMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onFavoriteMeal?: (meal: StoredMeal) => void;
+  onFavoriteMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onRemoveMeal?: (meal: StoredMeal) => void;
+  onRemoveMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 };
 
@@ -148,56 +152,80 @@ function MealFoodRow({
 }
 
 function MealGroupActions({
-  meal,
-  mealLabel,
+  group,
   selectedMealId,
   isCopyPending,
   isFavoritePending,
   isRemovePending,
   onEditMeal,
+  onEditMealGroup,
   onCopyMeal,
+  onCopyMealGroup,
   onFavoriteMeal,
+  onFavoriteMealGroup,
   onRemoveMeal,
+  onRemoveMealGroup,
 }: {
-  meal: StoredMeal;
-  mealLabel: MealType;
+  group: RegisteredMealGroupViewModel;
   selectedMealId?: number;
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
   isRemovePending?: boolean;
   onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
+  onCopyMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onFavoriteMeal?: (meal: StoredMeal) => void;
+  onFavoriteMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onRemoveMeal?: (meal: StoredMeal) => void;
+  onRemoveMealGroup?: (group: RegisteredMealGroupViewModel) => void;
 }) {
-  const isSelected = selectedMealId === meal.id;
+  const fallbackMeal = group.meals[0];
+  const isSelected = group.meals.some(meal => meal.id === selectedMealId);
 
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      {onEditMeal ? (
-        <Button type="button" variant={isSelected ? "default" : "outline"} className="rounded-full" onClick={() => onEditMeal(meal)}>
+      {onEditMealGroup || (onEditMeal && fallbackMeal) ? (
+        <Button
+          type="button"
+          variant={isSelected ? "default" : "outline"}
+          className="rounded-full"
+          onClick={() => onEditMealGroup ? onEditMealGroup(group) : fallbackMeal && onEditMeal?.(fallbackMeal)}
+        >
           <PencilLine className="mr-2 h-4 w-4" />
           {isSelected ? "Editando" : "Editar"}
         </Button>
       ) : null}
-      {onCopyMeal ? (
-        <Button type="button" variant="outline" className="rounded-full" onClick={() => onCopyMeal(meal, mealLabel)} disabled={isCopyPending}>
+      {onCopyMealGroup || (onCopyMeal && fallbackMeal) ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-full"
+          onClick={() => onCopyMealGroup ? onCopyMealGroup(group) : fallbackMeal && onCopyMeal?.(fallbackMeal, group.mealLabel)}
+          disabled={isCopyPending}
+        >
           <Copy className="mr-2 h-4 w-4" />
           Copiar
         </Button>
       ) : null}
-      {onFavoriteMeal ? (
-        <Button type="button" variant="outline" className="rounded-full" onClick={() => onFavoriteMeal(meal)} disabled={isFavoritePending}>
+      {onFavoriteMealGroup || (onFavoriteMeal && fallbackMeal) ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-full"
+          onClick={() => onFavoriteMealGroup ? onFavoriteMealGroup(group) : fallbackMeal && onFavoriteMeal?.(fallbackMeal)}
+          disabled={isFavoritePending}
+        >
           <Star className="mr-2 h-4 w-4" />
           Favorita
         </Button>
       ) : null}
-      {onRemoveMeal ? (
+      {onRemoveMealGroup || (onRemoveMeal && fallbackMeal) ? (
         <Button
           type="button"
           variant="outline"
           className="rounded-full border-destructive/30 text-destructive hover:border-destructive hover:bg-destructive/5 hover:text-destructive"
-          onClick={() => onRemoveMeal(meal)}
+          onClick={() => onRemoveMealGroup ? onRemoveMealGroup(group) : fallbackMeal && onRemoveMeal?.(fallbackMeal)}
           disabled={isRemovePending}
         >
           <Trash2 className="mr-2 h-4 w-4" />
@@ -218,11 +246,15 @@ function RegisteredMealGroupSection({
   isRemovePending,
   isItemDeleting,
   onEditMeal,
+  onEditMealGroup,
   onEditMealItem,
   onDeleteMealItem,
   onCopyMeal,
+  onCopyMealGroup,
   onFavoriteMeal,
+  onFavoriteMealGroup,
   onRemoveMeal,
+  onRemoveMealGroup,
   renderEditingForm,
 }: {
   group: RegisteredMealGroupViewModel;
@@ -234,23 +266,21 @@ function RegisteredMealGroupSection({
   isRemovePending?: boolean;
   isItemDeleting?: boolean;
   onEditMeal?: (meal: StoredMeal) => void;
+  onEditMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onEditMealItem?: (meal: StoredMeal, itemIndex: number) => void;
   onDeleteMealItem?: (meal: StoredMeal, itemIndex: number) => void;
   onCopyMeal?: (meal: StoredMeal, mealLabel: MealType) => void;
+  onCopyMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onFavoriteMeal?: (meal: StoredMeal) => void;
+  onFavoriteMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   onRemoveMeal?: (meal: StoredMeal) => void;
+  onRemoveMealGroup?: (group: RegisteredMealGroupViewModel) => void;
   renderEditingForm?: (meal: StoredMeal) => React.ReactNode;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const hasActions = Boolean(onEditMeal || onCopyMeal || onFavoriteMeal || onRemoveMeal);
+  const hasActions = Boolean(onEditMeal || onEditMealGroup || onCopyMeal || onCopyMealGroup || onFavoriteMeal || onFavoriteMealGroup || onRemoveMeal || onRemoveMealGroup);
   const imageRecords = group.records.filter(record => record.imageUrl);
-  const activeMeal = group.records.find(record => record.meal.id === selectedMealId)?.meal
-    ?? group.records.reduce<StoredMeal | null>((latestMeal, record) => {
-      if (!latestMeal || record.registeredAt > latestMeal.occurredAt) {
-        return record.meal;
-      }
-      return latestMeal;
-    }, null);
+  const activeMeal = group.records.find(record => record.meal.id === selectedMealId)?.meal ?? null;
   const notes = group.records
     .filter(record => record.mealNotes)
     .map(record => ({ mealId: record.meal.id, mealNotes: record.mealNotes as string }));
@@ -282,18 +312,21 @@ function RegisteredMealGroupSection({
             <ChevronDown className={`mr-2 h-4 w-4 transition-transform ${isCollapsed ? "-rotate-90" : "rotate-0"}`} />
             {isCollapsed ? "Expandir" : "Recolher"}
           </Button>
-          {hasActions && activeMeal ? (
+          {hasActions && group.meals.length ? (
             <MealGroupActions
-              meal={activeMeal}
-              mealLabel={group.mealLabel}
+              group={group}
               selectedMealId={selectedMealId}
               isCopyPending={isCopyPending}
               isFavoritePending={isFavoritePending}
               isRemovePending={isRemovePending}
               onEditMeal={onEditMeal}
+              onEditMealGroup={onEditMealGroup}
               onCopyMeal={onCopyMeal}
+              onCopyMealGroup={onCopyMealGroup}
               onFavoriteMeal={onFavoriteMeal}
+              onFavoriteMealGroup={onFavoriteMealGroup}
               onRemoveMeal={onRemoveMeal}
+              onRemoveMealGroup={onRemoveMealGroup}
             />
           ) : null}
         </div>
@@ -331,7 +364,7 @@ function RegisteredMealGroupSection({
             </div>
           ) : null}
 
-          {activeMeal && selectedMealId === activeMeal.id && renderEditingForm ? (
+          {activeMeal && renderEditingForm ? (
             <div className="mt-3 rounded-3xl border border-primary/30 bg-primary/5 p-3">
               {renderEditingForm(activeMeal)}
             </div>
@@ -352,10 +385,14 @@ export function RegisteredMealGroups({
   isFavoritePending,
   isRemovePending,
   onEditMeal,
+  onEditMealGroup,
   onEditMealItem,
   onCopyMeal,
+  onCopyMealGroup,
   onFavoriteMeal,
+  onFavoriteMealGroup,
   onRemoveMeal,
+  onRemoveMealGroup,
   renderEditingForm,
 }: RegisteredMealGroupsProps) {
   const utils = trpc.useUtils();
@@ -483,11 +520,15 @@ export function RegisteredMealGroups({
             isRemovePending={isRemovePending}
             isItemDeleting={updateMealItem.isPending || removeMealFromItemDialog.isPending}
             onEditMeal={onEditMeal}
+            onEditMealGroup={onEditMealGroup}
             onEditMealItem={handleEditMealItem}
             onDeleteMealItem={handleDeleteMealItemFromRow}
             onCopyMeal={onCopyMeal}
+            onCopyMealGroup={onCopyMealGroup}
             onFavoriteMeal={onFavoriteMeal}
+            onFavoriteMealGroup={onFavoriteMealGroup}
             onRemoveMeal={onRemoveMeal}
+            onRemoveMealGroup={onRemoveMealGroup}
             renderEditingForm={renderEditingForm}
           />
         ))}
