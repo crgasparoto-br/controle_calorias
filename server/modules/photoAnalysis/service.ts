@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import {
   buildSavedMedia,
-  confirmPendingMeal,
   createPendingMealInference,
   getHabitSnapshots,
   logInferenceEvent,
@@ -15,10 +14,13 @@ import {
 import { storagePut } from "../../storage";
 import { calculateMealTotals } from "../../../shared/mealTotals";
 import { decorateMealWithImageUrl, registerMealImageUrl } from "../meals/mealImageAssociations";
+import { confirmMeal } from "../meals/service";
+import { searchGlobalFoodCatalog } from "../foods/service";
 import type {
   AnalyzeFoodPhotoInput,
   ConfirmFoodPhotoAnalysisInput,
   FoodPhotoAnalysisStatus,
+  FoodPhotoCatalogCandidate,
   FoodPhotoSuggestedItem,
 } from "./schemas";
 
@@ -34,6 +36,8 @@ export type FoodPhotoAnalysis = {
   updatedAt: number;
 };
 
+type CatalogSearchItem = Awaited<ReturnType<typeof searchGlobalFoodCatalog>>[number];
+
 const photoAnalysisStore = new Map<string, FoodPhotoAnalysis>();
 
 function sanitizeAnalysis(analysis: FoodPhotoAnalysis) {
@@ -47,10 +51,96 @@ function sanitizeAnalysis(analysis: FoodPhotoAnalysis) {
   };
 }
 
-function toMealItem(item: FoodPhotoSuggestedItem): MealDraftItem {
+function normalizeMatchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/[\s_-]+/g, " ")
+    .trim();
+}
+
+function roundNutrition(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function scoreCatalogCandidate(itemName: string, candidate: CatalogSearchItem) {
+  const item = normalizeMatchText(itemName);
+  const name = normalizeMatchText(candidate.name);
+  if (!item || !name) return 0.4;
+  if (item === name) return 0.98;
+  if (name.startsWith(item) || item.startsWith(name)) return 0.88;
+  if (name.includes(item) || item.includes(name)) return 0.76;
+  return 0.62;
+}
+
+function toPhotoCatalogCandidate(itemName: string, candidate: CatalogSearchItem): FoodPhotoCatalogCandidate {
   return {
+    foodId: candidate.id,
+    name: candidate.name,
+    scope: candidate.scope,
+    confidenceScore: scoreCatalogCandidate(itemName, candidate),
+    caloriesKcalPer100g: candidate.nutrientsPer100g.caloriesKcal,
+    proteinGramsPer100g: candidate.nutrientsPer100g.proteinGrams,
+    carbsGramsPer100g: candidate.nutrientsPer100g.carbsGrams,
+    fatGramsPer100g: candidate.nutrientsPer100g.fatGrams,
+  };
+}
+
+async function findCatalogCandidatesForPhotoItem(userId: number, item: MealDraftItem) {
+  const query = item.canonicalName || item.foodName;
+  const results = await searchGlobalFoodCatalog(userId, {
+    query,
+    limit: 3,
+    includeInactive: false,
+  });
+
+  return results
+    .map(candidate => toPhotoCatalogCandidate(query, candidate))
+    .sort((left, right) => right.confidenceScore - left.confidenceScore);
+}
+
+function recalculateFromCatalogCandidate(item: MealDraftItem, candidate: FoodPhotoCatalogCandidate) {
+  const grams = item.estimatedGrams > 0 ? item.estimatedGrams : 100;
+  const factor = grams / 100;
+
+  return {
+    calories: roundNutrition(candidate.caloriesKcalPer100g * factor),
+    protein: roundNutrition(candidate.proteinGramsPer100g * factor),
+    carbs: roundNutrition(candidate.carbsGramsPer100g * factor),
+    fat: roundNutrition(candidate.fatGramsPer100g * factor),
+  };
+}
+
+async function toSuggestedItem(userId: number, item: MealDraftItem): Promise<FoodPhotoSuggestedItem> {
+  const catalogCandidates = await findCatalogCandidatesForPhotoItem(userId, item);
+  const bestCandidate = catalogCandidates[0];
+  const catalogMacros = bestCandidate && bestCandidate.confidenceScore >= 0.6
+    ? recalculateFromCatalogCandidate(item, bestCandidate)
+    : null;
+
+  return {
+    foodName: bestCandidate?.name ?? item.canonicalName || item.foodName,
+    estimatedQuantity: item.estimatedGrams > 0 ? item.estimatedGrams : 1,
+    unit: item.estimatedGrams > 0 ? "g" : item.portionText,
+    estimatedCalories: catalogMacros?.calories ?? item.calories,
+    estimatedMacros: {
+      protein: catalogMacros?.protein ?? item.protein,
+      carbs: catalogMacros?.carbs ?? item.carbs,
+      fat: catalogMacros?.fat ?? item.fat,
+    },
+    confidenceScore: bestCandidate ? Math.min(item.confidence, bestCandidate.confidenceScore) : item.confidence,
+    catalogCandidates,
+  };
+}
+
+function toMealItem(item: FoodPhotoSuggestedItem): MealDraftItem {
+  const bestCandidate = item.catalogCandidates[0];
+  return {
+    foodId: bestCandidate?.foodId,
     foodName: item.foodName,
-    canonicalName: item.foodName,
+    canonicalName: bestCandidate?.name ?? item.foodName,
     portionText: `${item.estimatedQuantity} ${item.unit}`,
     servings: 1,
     estimatedGrams: item.unit.toLowerCase() === "g" ? item.estimatedQuantity : 0,
@@ -59,22 +149,7 @@ function toMealItem(item: FoodPhotoSuggestedItem): MealDraftItem {
     carbs: item.estimatedMacros.carbs,
     fat: item.estimatedMacros.fat,
     confidence: item.confidenceScore,
-    source: "heuristic",
-  };
-}
-
-function toSuggestedItem(item: MealDraftItem): FoodPhotoSuggestedItem {
-  return {
-    foodName: item.canonicalName || item.foodName,
-    estimatedQuantity: item.estimatedGrams > 0 ? item.estimatedGrams : 1,
-    unit: item.estimatedGrams > 0 ? "g" : item.portionText,
-    estimatedCalories: item.calories,
-    estimatedMacros: {
-      protein: item.protein,
-      carbs: item.carbs,
-      fat: item.fat,
-    },
-    confidenceScore: item.confidence,
+    source: bestCandidate ? "catalog" : "heuristic",
   };
 }
 
@@ -175,7 +250,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
       imageUrl,
       habits: await getHabitSnapshots(userId),
     });
-    suggestedItems = processed.items.map(toSuggestedItem);
+    suggestedItems = await Promise.all(processed.items.map(item => toSuggestedItem(userId, item)));
   } catch (error) {
     if (!(error instanceof MealInferenceError)) {
       throw error;
@@ -237,7 +312,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
     origin: "web",
     status: "success",
     eventType: "food_photo.analyzed",
-    detail: `Foto analisada com ${analyzed.suggestedItems.length} sugestões estruturadas pelo núcleo compartilhado.`,
+    detail: `Foto analisada com ${analyzed.suggestedItems.length} sugestões e candidatos do catálogo global quando disponíveis.`,
   });
 
   return sanitizeAnalysis(analyzed);
@@ -282,7 +357,7 @@ export async function confirmFoodPhotoAnalysis(
     "web",
     {
       sourceText: input.notes ?? "Registro criado a partir de foto.",
-      reasoning: "Refeição confirmada a partir da análise de foto.",
+      reasoning: "Refeição confirmada a partir da análise de foto com candidatos do catálogo quando disponíveis.",
       confidence: processedItems.length
         ? processedItems.reduce((sum, item) => sum + item.confidence, 0) / processedItems.length
         : 1,
@@ -294,9 +369,8 @@ export async function confirmFoodPhotoAnalysis(
     createPhotoAnalysisMedia(analysis),
   );
 
-  const meal = await confirmPendingMeal({
+  const meal = await confirmMeal(userId, {
     draftId: draft.draftId,
-    userId,
     mealLabel: input.mealLabel,
     occurredAt: input.occurredAt,
     notes: input.notes,

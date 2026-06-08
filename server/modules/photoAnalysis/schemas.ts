@@ -3,6 +3,17 @@ import { mealLabelSchema, mediaInputSchema, mealItemSchema } from "../meals/sche
 
 export const foodPhotoAnalysisStatusSchema = z.enum(["pending", "analyzed", "confirmed", "rejected"]);
 
+export const foodPhotoCatalogCandidateSchema = z.object({
+  foodId: z.number().int().positive(),
+  name: z.string().trim().min(1).max(255),
+  scope: z.enum(["global", "user"]),
+  confidenceScore: z.number().min(0).max(1),
+  caloriesKcalPer100g: z.number().min(0).max(10000),
+  proteinGramsPer100g: z.number().min(0).max(1000),
+  carbsGramsPer100g: z.number().min(0).max(1000),
+  fatGramsPer100g: z.number().min(0).max(1000),
+});
+
 export const foodPhotoSuggestedItemSchema = z.object({
   foodName: z.string().trim().min(1).max(120),
   estimatedQuantity: z.number().min(0).max(5000),
@@ -14,6 +25,7 @@ export const foodPhotoSuggestedItemSchema = z.object({
     fat: z.number().min(0).max(1000),
   }),
   confidenceScore: z.number().min(0).max(1),
+  catalogCandidates: z.array(foodPhotoCatalogCandidateSchema).default([]),
 });
 
 export const analyzeFoodPhotoSchema = z.object({
@@ -33,6 +45,7 @@ export const rejectFoodPhotoAnalysisSchema = z.object({
 });
 
 export type FoodPhotoAnalysisStatus = z.infer<typeof foodPhotoAnalysisStatusSchema>;
+export type FoodPhotoCatalogCandidate = z.infer<typeof foodPhotoCatalogCandidateSchema>;
 export type FoodPhotoSuggestedItem = z.infer<typeof foodPhotoSuggestedItemSchema>;
 export type AnalyzeFoodPhotoInput = z.infer<typeof analyzeFoodPhotoSchema>;
 export type ConfirmFoodPhotoAnalysisInput = z.infer<typeof confirmFoodPhotoAnalysisSchema>;
