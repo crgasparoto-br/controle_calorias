@@ -50,6 +50,10 @@ type CatalogFoodPortionRow = {
   isDefault: number;
 };
 
+type CatalogFoodPortionConversionRow = CatalogFoodPortionRow & {
+  foodId: number;
+};
+
 type CustomFoodOwnershipRow = {
   id: number;
 };
@@ -158,6 +162,11 @@ function uniqueNormalizedAliases(name: string, aliases: string[]) {
     seen.add(normalizedAlias);
     return true;
   });
+}
+
+export function calculatePortionGrams(params: { portionGrams: number; portionQuantity: number; requestedQuantity: number }) {
+  const baseQuantity = params.portionQuantity > 0 ? params.portionQuantity : 1;
+  return Math.round((params.portionGrams * params.requestedQuantity / baseQuantity) * 100) / 100;
 }
 
 async function assertOwnedCustomFood(db: SqlExecutor, userId: number, foodId: number) {
@@ -316,6 +325,46 @@ export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
   `));
 
   return mapCatalogFood(food, portions);
+}
+
+export async function convertFoodPortionToGrams(userId: number, input: { foodId: number; portionId: number; quantity: number }) {
+  const db = await getCatalogDb();
+  const rows = extractRows<CatalogFoodPortionConversionRow>(await db.execute(sql`
+    SELECT
+      fp.id AS id,
+      fp.food_id AS foodId,
+      fp.label AS label,
+      fp.unit AS unit,
+      fp.quantity AS quantity,
+      fp.grams AS grams,
+      fp.is_default AS isDefault
+    FROM food_portions fp
+    INNER JOIN foods f ON f.id = fp.food_id
+    WHERE fp.id = ${input.portionId}
+      AND fp.food_id = ${input.foodId}
+      AND (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
+    LIMIT 1
+  `));
+
+  const portion = rows[0];
+  if (!portion) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Porção não encontrada para este alimento." });
+  }
+
+  return {
+    portionId: portion.id,
+    foodId: portion.foodId,
+    label: portion.label,
+    unit: portion.unit,
+    quantity: input.quantity,
+    baseQuantity: portion.quantity,
+    baseGrams: portion.grams,
+    grams: calculatePortionGrams({
+      portionGrams: portion.grams,
+      portionQuantity: portion.quantity,
+      requestedQuantity: input.quantity,
+    }),
+  };
 }
 
 export async function createCustomFood(userId: number, input: CustomFoodInput) {
