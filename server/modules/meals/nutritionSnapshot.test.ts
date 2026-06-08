@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { getGlobalFoodCatalogItem } from "../foods/service";
+import { getGlobalFoodCatalogItem, recordGlobalFoodUsage } from "../foods/service";
 import { enrichMealItemsWithNutritionSnapshots } from "./nutritionSnapshot";
 
 vi.mock("../foods/service", () => ({
   getGlobalFoodCatalogItem: vi.fn(),
+  recordGlobalFoodUsage: vi.fn(),
 }));
 
 const baseItem = {
@@ -73,6 +74,7 @@ describe("meal item nutrition snapshots", () => {
       fiberG: 1.28,
       sodiumMg: 0.8,
     });
+    expect(recordGlobalFoodUsage).toHaveBeenCalledWith(7, 10);
   });
 
   it("mantem o snapshot antigo mesmo que o catalogo retorne valores novos depois", async () => {

@@ -1,7 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 
 import { getDb } from "../../db";
-import { convertFoodPortionToGrams, getGlobalFoodCatalogItem } from "../foods/service";
+import { convertFoodPortionToGrams, getGlobalFoodCatalogItem, recordGlobalFoodUsage } from "../foods/service";
 import type { MealItemInput } from "./schemas";
 
 type SqlExecutor = {
@@ -108,6 +108,7 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
 
     const food = await getGlobalFoodCatalogItem(userId, item.foodId);
     const { calculated, snapshot } = buildSnapshot({ food, grams, portion });
+    await recordGlobalFoodUsage(userId, food.id);
 
     enriched.push({
       ...item,
