@@ -18,12 +18,12 @@ Fonte: `server/nutritionRouter.ts`.
 | `dashboard` | 2 | 2 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
-| `foods` | 10 | 4 | 6 | protected | Catálogo, favoritos e busca de alimentos |
+| `foods` | 12 | 5 | 7 | protected | Catálogo, favoritos e busca de alimentos |
 | `meals` | 11 | 3 | 8 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
-| `admin` | 3 | 2 | 1 | admin | Visão operacional administrativa |
+| `admin` | 4 | 2 | 2 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
 
 ## Procedures por grupo
@@ -118,6 +118,8 @@ Fonte: `server/nutritionRouter.ts`.
 | `search` | query | protected |
 | `catalogSearch` | query | protected |
 | `catalogGet` | query | protected |
+| `catalogRecent` | query | protected |
+| `catalogFavorite` | mutation | protected |
 | `customCreate` | mutation | protected |
 | `customUpdate` | mutation | protected |
 | `customDelete` | mutation | protected |
@@ -179,6 +181,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `overview` | query | admin |
 | `whatsappTokenStatus` | query | admin |
 | `updateWhatsappToken` | mutation | admin |
+| `curateGlobalFood` | mutation | admin |
 
 ### whatsapp
 
