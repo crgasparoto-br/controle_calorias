@@ -202,3 +202,4 @@ Fonte: `server/nutritionRouter.ts`.
 - Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.
 - Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.
 - Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde.
+

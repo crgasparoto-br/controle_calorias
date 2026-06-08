@@ -11,6 +11,7 @@ export const ANALYTICS_EVENT_NAMES = [
   "meal_created",
   "meal_item_added",
   "meal_copied",
+  "meal_group_copied",
   "favorite_meal_created",
   "daily_dashboard_viewed",
   "weekly_report_viewed",
@@ -79,6 +80,10 @@ export type AnalyticsEventMap = {
     item_type: "food" | "recipe" | "unknown";
   };
   meal_copied: {
+    target_offset_days: number;
+  };
+  meal_group_copied: {
+    item_count: number;
     target_offset_days: number;
   };
   favorite_meal_created: {

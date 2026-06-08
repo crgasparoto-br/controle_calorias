@@ -163,13 +163,25 @@ vi.mock("@/lib/trpc", () => ({
         update: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
+        updateGroup: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         remove: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        removeGroup: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
         copy: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
+        copyGroup: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         saveFavorite: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        saveFavoriteGroup: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
         reuseFavorite: {
