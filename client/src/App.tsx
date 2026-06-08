@@ -17,6 +17,7 @@ const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
 const ProfessionalPage = lazy(() => import("@/pages/ProfessionalPage"));
+const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
@@ -49,6 +50,7 @@ function Router() {
       <Switch>
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
+        <Route path="/quick-edit/:token" component={QuickEditMealPage} />
         <Route path="/" component={Home} />
         <Route path="/today" component={Home} />
         <Route path="/onboarding" component={OnboardingPage} />
