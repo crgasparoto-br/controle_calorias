@@ -14,6 +14,7 @@ import {
 } from "../../nutritionEngine";
 import { storagePut } from "../../storage";
 import { calculateMealTotals } from "../../../shared/mealTotals";
+import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import { decorateMealWithImageUrl, registerMealImageUrl } from "../meals/mealImageAssociations";
 import type {
   AnalyzeFoodPhotoInput,
@@ -48,12 +49,17 @@ function sanitizeAnalysis(analysis: FoodPhotoAnalysis) {
 }
 
 function toMealItem(item: FoodPhotoSuggestedItem): MealDraftItem {
+  const quantity = item.quantity || item.estimatedQuantity || 1;
+  const unit = normalizeMeasurementUnit(item.unit);
+
   return {
     foodName: item.foodName,
     canonicalName: item.foodName,
-    portionText: `${item.estimatedQuantity} ${item.unit}`,
+    quantity,
+    unit,
+    portionText: `${quantity} ${unit}`,
     servings: 1,
-    estimatedGrams: item.unit.toLowerCase() === "g" ? item.estimatedQuantity : 0,
+    estimatedGrams: unit.toLowerCase() === "g" || unit.toLowerCase() === "ml" ? quantity : 0,
     calories: item.estimatedCalories,
     protein: item.estimatedMacros.protein,
     carbs: item.estimatedMacros.carbs,
@@ -64,10 +70,14 @@ function toMealItem(item: FoodPhotoSuggestedItem): MealDraftItem {
 }
 
 function toSuggestedItem(item: MealDraftItem): FoodPhotoSuggestedItem {
+  const quantity = item.quantity ?? (item.estimatedGrams > 0 ? item.estimatedGrams : 1);
+  const unit = normalizeMeasurementUnit(item.unit ?? (item.estimatedGrams > 0 ? "g" : item.portionText));
+
   return {
     foodName: item.canonicalName || item.foodName,
-    estimatedQuantity: item.estimatedGrams > 0 ? item.estimatedGrams : 1,
-    unit: item.estimatedGrams > 0 ? "g" : item.portionText,
+    quantity,
+    estimatedQuantity: quantity,
+    unit,
     estimatedCalories: item.calories,
     estimatedMacros: {
       protein: item.protein,
@@ -121,7 +131,7 @@ function buildSupportingImagePrompt(items: FoodPhotoSuggestedItem[]) {
 
   const itemSummary = items
     .slice(0, 6)
-    .map((item) => `${item.foodName} (${item.estimatedQuantity} ${item.unit})`)
+    .map((item) => `${item.foodName} (${item.quantity} ${item.unit})`)
     .join(", ");
 
   return [
