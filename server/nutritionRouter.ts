@@ -34,20 +34,26 @@ import { goalSchema } from "./modules/goals/schemas";
 import { getGamification, updateGamificationSettings } from "./modules/gamification/service";
 import { gamificationSettingsSchema } from "./modules/gamification/schemas";
 import {
+  createCustomFood,
   createFood,
+  deleteCustomFood,
   getGlobalFoodCatalogItem,
   listRecentlyUsedFoods,
   searchFoodCatalog,
   searchGlobalFoodCatalog,
   setFoodFavorite,
+  updateCustomFood,
   updateFood,
 } from "./modules/foods/service";
 import {
   catalogFoodGetSchema,
   catalogFoodSearchSchema,
+  customFoodSchema,
+  deleteCustomFoodSchema,
   favoriteFoodSchema,
   foodFormSchema,
   foodSearchSchema,
+  updateCustomFoodSchema,
   updateFoodSchema,
 } from "./modules/foods/schemas";
 import { dashboardTodaySchema, reportsHabitAnalyticsSchema, reportsPeriodSchema } from "./modules/insights/schemas";
@@ -338,6 +344,28 @@ export const nutritionRouter = router({
       return result;
     }),
     catalogGet: protectedProcedure.input(catalogFoodGetSchema).query(async ({ ctx, input }) => getGlobalFoodCatalogItem(ctx.user.id, input.foodId)),
+    customCreate: protectedProcedure.input(customFoodSchema).mutation(async ({ ctx, input }) => {
+      const result = await createCustomFood(ctx.user.id, input);
+      void analyticsService.track("food_custom_created", {
+        has_brand: Boolean(input.brandName),
+        alias_count: input.aliases.length,
+        portion_count: input.portions.length,
+      });
+      return result;
+    }),
+    customUpdate: protectedProcedure.input(updateCustomFoodSchema).mutation(async ({ ctx, input }) => {
+      const result = await updateCustomFood(ctx.user.id, input);
+      void analyticsService.track("food_custom_updated", {
+        alias_count: input.aliases.length,
+        portion_count: input.portions.length,
+      });
+      return result;
+    }),
+    customDelete: protectedProcedure.input(deleteCustomFoodSchema).mutation(async ({ ctx, input }) => {
+      const result = await deleteCustomFood(ctx.user.id, input.foodId);
+      void analyticsService.track("food_custom_deleted", { mode: "soft_delete" });
+      return result;
+    }),
     recent: protectedProcedure.query(async ({ ctx }) => listRecentlyUsedFoods(ctx.user.id)),
     favorite: protectedProcedure.input(favoriteFoodSchema).mutation(async ({ ctx, input }) => setFoodFavorite(ctx.user.id, input)),
     create: protectedProcedure.input(foodFormSchema).mutation(async ({ ctx, input }) => {
