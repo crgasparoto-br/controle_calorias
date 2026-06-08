@@ -13,6 +13,8 @@ function buildMeal(overrides: Partial<StoredMeal>): StoredMeal {
       {
         foodName: "Banana",
         canonicalName: "Banana",
+        quantity: 1,
+        unit: "un",
         portionText: "1 unidade",
         servings: 1,
         estimatedGrams: 90,
@@ -66,6 +68,8 @@ describe("meal view models", () => {
           {
             foodName: "Arroz",
             canonicalName: "Arroz",
+            quantity: 120,
+            unit: "g",
             portionText: "120 g",
             servings: 1,
             estimatedGrams: 120,
@@ -79,6 +83,8 @@ describe("meal view models", () => {
           {
             foodName: "Feijão",
             canonicalName: "Feijão",
+            quantity: 90,
+            unit: "g",
             portionText: "90 g",
             servings: 1,
             estimatedGrams: 90,
@@ -100,6 +106,8 @@ describe("meal view models", () => {
           {
             foodName: "Iogurte",
             canonicalName: "Iogurte",
+            quantity: 1,
+            unit: "pote",
             portionText: "1 pote",
             servings: 1,
             estimatedGrams: 170,
@@ -121,6 +129,37 @@ describe("meal view models", () => {
     expect(groups[0].records[0].items).toHaveLength(2);
     expect(groups[0].records[1].meal.id).toBe(11);
     expect(groups[0].records[1].items).toHaveLength(1);
+  });
+
+  it("keeps legacy items with only portionText visible in grouped records", () => {
+    const groups = buildRegisteredMealGroups([
+      buildMeal({
+        id: 12,
+        mealLabel: "lanche",
+        items: [
+          {
+            foodName: "Cerveja Budweiser",
+            canonicalName: "Cerveja Budweiser",
+            portionText: "330 ml",
+            servings: 1,
+            estimatedGrams: 330,
+            calories: 150,
+            protein: 1,
+            carbs: 12,
+            fat: 0,
+            confidence: 0.9,
+            source: "heuristic",
+          },
+        ],
+        totals: { calories: 150, protein: 1, carbs: 12, fat: 0 },
+      }),
+    ]);
+
+    expect(groups[0].records[0].items[0].item).toEqual(expect.objectContaining({
+      foodName: "Cerveja Budweiser",
+      portionText: "330 ml",
+      estimatedGrams: 330,
+    }));
   });
 
   it("uses meal image on grouped records and items", () => {
