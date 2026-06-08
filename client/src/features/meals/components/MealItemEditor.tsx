@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { MEASUREMENT_UNIT_SUGGESTIONS, normalizeMeasurementUnit } from "@shared/measurementUnits";
+import { recalculateMealItemQuantityUnit } from "../mealFormState";
 import type { MealItemState } from "../types";
 
 type MealItemEditorProps = {
@@ -56,16 +57,17 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
     item.foodName.trim().toLocaleLowerCase("pt-BR") !== item.canonicalName.trim().toLocaleLowerCase("pt-BR");
 
   const updateQuantityAndUnit = (nextQuantity: number, nextUnit: string) => {
-    const safeQuantity = Number.isFinite(nextQuantity) && nextQuantity > 0 ? nextQuantity : 1;
-    const safeUnit = normalizeUnitInput(nextUnit) || "porção";
+    const updatedItem = recalculateMealItemQuantityUnit(item, nextQuantity, nextUnit);
 
-    onChange("quantity", safeQuantity);
-    onChange("unit", safeUnit);
-    onChange("portionText", `${formatQuantity(safeQuantity)} ${safeUnit}`);
-
-    if (["g", "ml"].includes(safeUnit)) {
-      onChange("estimatedGrams", safeQuantity);
-    }
+    onChange("quantity", updatedItem.quantity);
+    onChange("unit", updatedItem.unit);
+    onChange("portionText", updatedItem.portionText);
+    onChange("servings", updatedItem.servings);
+    onChange("estimatedGrams", updatedItem.estimatedGrams);
+    onChange("calories", updatedItem.calories);
+    onChange("protein", updatedItem.protein);
+    onChange("carbs", updatedItem.carbs);
+    onChange("fat", updatedItem.fat);
   };
 
   const applyFood = (food: NonNullable<typeof foods.data>[number]) => {
