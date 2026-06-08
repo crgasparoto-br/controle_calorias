@@ -9,7 +9,15 @@ import {
   updateUserFood,
   upsertFavoriteFood,
 } from "../../db";
-import type { CatalogFoodSearchInput, CustomFoodInput, FoodFormInput, UpdateCustomFoodInput } from "./schemas";
+import type {
+  AdminCatalogFoodCurationInput,
+  CatalogFoodFavoriteInput,
+  CatalogFoodRecentInput,
+  CatalogFoodSearchInput,
+  CustomFoodInput,
+  FoodFormInput,
+  UpdateCustomFoodInput,
+} from "./schemas";
 
 type SqlExecutor = {
   execute: (query: SQL) => Promise<unknown>;
@@ -39,6 +47,9 @@ type CatalogFoodRow = {
   sodiumMgPer100g: number | null;
   nutrientsJson: string | null;
   isGlobal: number;
+  isFavorite?: number | boolean | null;
+  usageCount?: number | null;
+  lastUsedAt?: Date | string | null;
 };
 
 type CatalogFoodPortionRow = {
@@ -55,6 +66,10 @@ type CatalogFoodPortionConversionRow = CatalogFoodPortionRow & {
 };
 
 type CustomFoodOwnershipRow = {
+  id: number;
+};
+
+type GlobalFoodLookupRow = {
   id: number;
 };
 
@@ -92,6 +107,11 @@ function parseNutrientsJson(value: string | null) {
   }
 }
 
+function normalizeTimestamp(value: Date | string | null | undefined) {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString() : value;
+}
+
 function mapCatalogFood(row: CatalogFoodRow, portions: CatalogFoodPortionRow[] = []) {
   return {
     id: row.id,
@@ -113,6 +133,11 @@ function mapCatalogFood(row: CatalogFoodRow, portions: CatalogFoodPortionRow[] =
     description: row.description,
     status: row.status,
     mergedIntoFoodId: row.mergedIntoFoodId,
+    userSignals: {
+      favorite: Boolean(row.isFavorite),
+      usageCount: Number(row.usageCount ?? 0),
+      lastUsedAt: normalizeTimestamp(row.lastUsedAt),
+    },
     nutrientsPer100g: {
       caloriesKcal: row.caloriesKcalPer100g,
       proteinGrams: row.proteinGramsPer100g,
@@ -180,6 +205,20 @@ async function assertOwnedCustomFood(db: SqlExecutor, userId: number, foodId: nu
 
   if (!rows[0]) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Alimento personalizado não encontrado." });
+  }
+}
+
+async function assertGlobalFood(db: SqlExecutor, foodId: number) {
+  const rows = extractRows<GlobalFoodLookupRow>(await db.execute(sql`
+    SELECT id AS id
+    FROM foods
+    WHERE id = ${foodId}
+      AND owner_user_id IS NULL
+    LIMIT 1
+  `));
+
+  if (!rows[0]) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Alimento global não encontrado." });
   }
 }
 
@@ -252,15 +291,24 @@ export async function searchGlobalFoodCatalog(userId: number, input: CatalogFood
       f.sugar_grams_per_100g AS sugarGramsPer100g,
       f.sodium_mg_per_100g AS sodiumMgPer100g,
       f.nutrients_json AS nutrientsJson,
-      CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END AS isGlobal
+      CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END AS isGlobal,
+      CASE WHEN uff.id IS NULL THEN 0 ELSE 1 END AS isFavorite,
+      COALESCE(ufus.usage_count, 0) AS usageCount,
+      ufus.last_used_at AS lastUsedAt
     FROM foods f
     LEFT JOIN food_aliases fa ON fa.food_id = f.id
     LEFT JOIN food_sources fs ON fs.id = f.source_id
+    LEFT JOIN user_food_favorites uff ON uff.food_id = f.id AND uff.user_id = ${userId}
+    LEFT JOIN user_food_usage_stats ufus ON ufus.food_id = f.id AND ufus.user_id = ${userId}
     WHERE (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
       AND (${input.includeInactive} = TRUE OR f.status = 'active')
       AND (${normalizedQuery} = '' OR f.normalized_name LIKE ${likeQuery} OR fa.normalized_alias LIKE ${likeQuery})
     ORDER BY
       CASE f.status WHEN 'active' THEN 0 WHEN 'deprecated' THEN 1 ELSE 2 END,
+      isFavorite DESC,
+      CASE WHEN ufus.last_used_at IS NULL THEN 1 ELSE 0 END,
+      ufus.last_used_at DESC,
+      ufus.usage_count DESC,
       CASE WHEN f.normalized_name = ${normalizedQuery} THEN 0 ELSE 1 END,
       CASE WHEN f.normalized_name LIKE ${prefixQuery} THEN 0 ELSE 1 END,
       CASE WHEN f.source_id IS NOT NULL THEN 0 ELSE 1 END,
@@ -298,9 +346,14 @@ export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
       f.sugar_grams_per_100g AS sugarGramsPer100g,
       f.sodium_mg_per_100g AS sodiumMgPer100g,
       f.nutrients_json AS nutrientsJson,
-      CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END AS isGlobal
+      CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END AS isGlobal,
+      CASE WHEN uff.id IS NULL THEN 0 ELSE 1 END AS isFavorite,
+      COALESCE(ufus.usage_count, 0) AS usageCount,
+      ufus.last_used_at AS lastUsedAt
     FROM foods f
     LEFT JOIN food_sources fs ON fs.id = f.source_id
+    LEFT JOIN user_food_favorites uff ON uff.food_id = f.id AND uff.user_id = ${userId}
+    LEFT JOIN user_food_usage_stats ufus ON ufus.food_id = f.id AND ufus.user_id = ${userId}
     WHERE f.id = ${foodId}
       AND (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
     LIMIT 1
@@ -325,6 +378,110 @@ export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
   `));
 
   return mapCatalogFood(food, portions);
+}
+
+export async function listGlobalRecentlyUsedFoods(userId: number, input: CatalogFoodRecentInput = { limit: 20 }) {
+  const db = await getCatalogDb();
+  const limit = input.limit ?? 20;
+
+  const rows = extractRows<CatalogFoodRow>(await db.execute(sql`
+    SELECT
+      f.id AS id,
+      f.owner_user_id AS ownerUserId,
+      f.source_id AS sourceId,
+      fs.slug AS sourceSlug,
+      fs.name AS sourceName,
+      fs.version AS sourceVersion,
+      f.source_food_code AS sourceFoodCode,
+      f.name AS name,
+      f.normalized_name AS normalizedName,
+      f.brand_name AS brandName,
+      f.category AS category,
+      f.description AS description,
+      f.status AS status,
+      f.merged_into_food_id AS mergedIntoFoodId,
+      f.calories_kcal_per_100g AS caloriesKcalPer100g,
+      f.protein_grams_per_100g AS proteinGramsPer100g,
+      f.carbs_grams_per_100g AS carbsGramsPer100g,
+      f.fat_grams_per_100g AS fatGramsPer100g,
+      f.fiber_grams_per_100g AS fiberGramsPer100g,
+      f.sugar_grams_per_100g AS sugarGramsPer100g,
+      f.sodium_mg_per_100g AS sodiumMgPer100g,
+      f.nutrients_json AS nutrientsJson,
+      CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END AS isGlobal,
+      CASE WHEN uff.id IS NULL THEN 0 ELSE 1 END AS isFavorite,
+      ufus.usage_count AS usageCount,
+      ufus.last_used_at AS lastUsedAt
+    FROM user_food_usage_stats ufus
+    INNER JOIN foods f ON f.id = ufus.food_id
+    LEFT JOIN food_sources fs ON fs.id = f.source_id
+    LEFT JOIN user_food_favorites uff ON uff.food_id = f.id AND uff.user_id = ${userId}
+    WHERE ufus.user_id = ${userId}
+      AND f.status = 'active'
+      AND (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
+    ORDER BY ufus.last_used_at DESC, ufus.usage_count DESC, f.name ASC
+    LIMIT ${limit}
+  `));
+
+  return rows.map(row => mapCatalogFood(row));
+}
+
+export async function setGlobalFoodFavorite(userId: number, input: CatalogFoodFavoriteInput) {
+  const db = await getCatalogDb();
+  await getGlobalFoodCatalogItem(userId, input.foodId);
+
+  if (input.favorite) {
+    await db.execute(sql`
+      INSERT INTO user_food_favorites (user_id, food_id)
+      VALUES (${userId}, ${input.foodId})
+      ON DUPLICATE KEY UPDATE created_at = created_at
+    `);
+  } else {
+    await db.execute(sql`
+      DELETE FROM user_food_favorites
+      WHERE user_id = ${userId}
+        AND food_id = ${input.foodId}
+    `);
+  }
+
+  return getGlobalFoodCatalogItem(userId, input.foodId);
+}
+
+export async function recordGlobalFoodUsage(userId: number, foodId: number) {
+  const db = await getCatalogDb();
+  await getGlobalFoodCatalogItem(userId, foodId);
+
+  await db.execute(sql`
+    INSERT INTO user_food_usage_stats (user_id, food_id, usage_count, last_used_at)
+    VALUES (${userId}, ${foodId}, 1, CURRENT_TIMESTAMP)
+    ON DUPLICATE KEY UPDATE
+      usage_count = usage_count + 1,
+      last_used_at = CURRENT_TIMESTAMP,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+}
+
+export async function curateGlobalFood(userId: number, input: AdminCatalogFoodCurationInput) {
+  const db = await getCatalogDb();
+  await assertGlobalFood(db, input.foodId);
+
+  if (input.status === "merged") {
+    await assertGlobalFood(db, input.mergedIntoFoodId as number);
+  }
+
+  const mergedIntoFoodId = input.status === "merged" ? input.mergedIntoFoodId : null;
+
+  await db.execute(sql`
+    UPDATE foods
+    SET
+      status = ${input.status},
+      merged_into_food_id = ${mergedIntoFoodId ?? null},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${input.foodId}
+      AND owner_user_id IS NULL
+  `);
+
+  return getGlobalFoodCatalogItem(userId, input.foodId);
 }
 
 export async function convertFoodPortionToGrams(userId: number, input: { foodId: number; portionId: number; quantity: number }) {
