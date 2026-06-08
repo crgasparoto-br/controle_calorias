@@ -31,6 +31,11 @@ import {
 } from "./schemas";
 import { decorateMealWithImageUrl } from "./mealImageAssociations";
 import { dedupeMealItemsByProductIdentity } from "./mealItemDeduplication";
+import {
+  enrichMealItemsWithNutritionSnapshots,
+  persistMealItemNutritionSnapshots,
+  type MealItemWithNutritionSnapshot,
+} from "./nutritionSnapshot";
 
 export class MealDraftNotFoundError extends Error {
   constructor() {
@@ -201,6 +206,10 @@ function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(processe
   };
 }
 
+async function prepareMealItemsForSave(userId: number, items: Array<MealDraftItem>) {
+  return enrichMealItemsWithNutritionSnapshots(userId, ensureMealItems(items) as MealItemWithNutritionSnapshot[]);
+}
+
 export async function listMeals(userId: number) {
   return (await listUserMeals(userId)).map(decorateMealWithImageUrl);
 }
@@ -210,18 +219,24 @@ export async function getDayTotals(userId: number, date: string) {
 }
 
 export async function createManualMeal(userId: number, input: ManualMealInput) {
-  return decorateMealWithImageUrl(await createUserManualMeal({ userId, ...input, items: ensureMealItems(input.items) }));
+  const items = await prepareMealItemsForSave(userId, input.items);
+  const meal = decorateMealWithImageUrl(await createUserManualMeal({ userId, ...input, items }));
+  await persistMealItemNutritionSnapshots(meal.id, items);
+  return meal;
 }
 
 export async function updateMeal(userId: number, input: UpdateMealInput) {
-  return decorateMealWithImageUrl(await updateUserMeal({
+  const items = await prepareMealItemsForSave(userId, input.items);
+  const meal = decorateMealWithImageUrl(await updateUserMeal({
     userId,
     mealId: input.mealId,
     mealLabel: input.mealLabel,
     occurredAt: input.occurredAt,
     notes: input.notes,
-    items: ensureMealItems(input.items),
+    items,
   }));
+  await persistMealItemNutritionSnapshots(meal.id, items);
+  return meal;
 }
 
 export async function removeMeal(userId: number, mealId: number) {
@@ -299,12 +314,15 @@ export async function confirmMeal(userId: number, input: ConfirmMealInput) {
     throw new MealDraftNotFoundError();
   }
 
-  return decorateMealWithImageUrl(await confirmPendingMeal({
+  const items = await prepareMealItemsForSave(userId, input.items);
+  const meal = decorateMealWithImageUrl(await confirmPendingMeal({
     draftId: input.draftId,
     userId,
     mealLabel: input.mealLabel,
     occurredAt: input.occurredAt,
     notes: input.notes,
-    items: ensureMealItems(input.items),
+    items,
   }));
+  await persistMealItemNutritionSnapshots(meal.id, items);
+  return meal;
 }

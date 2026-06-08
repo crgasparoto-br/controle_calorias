@@ -2,7 +2,11 @@ export const ANALYTICS_EVENT_NAMES = [
   "onboarding_started",
   "onboarding_completed",
   "food_searched",
+  "food_catalog_searched",
   "food_created",
+  "food_custom_created",
+  "food_custom_updated",
+  "food_custom_deleted",
   "meal_created",
   "meal_item_added",
   "meal_copied",
@@ -36,10 +40,27 @@ export type AnalyticsEventMap = {
     query_length: number;
     limit: number;
   };
+  food_catalog_searched: {
+    query_length: number;
+    limit: number;
+    include_inactive: boolean;
+  };
   food_created: {
     food_type: "generic" | "branded";
     has_barcode: boolean;
     has_brand: boolean;
+  };
+  food_custom_created: {
+    has_brand: boolean;
+    alias_count: number;
+    portion_count: number;
+  };
+  food_custom_updated: {
+    alias_count: number;
+    portion_count: number;
+  };
+  food_custom_deleted: {
+    mode: "soft_delete";
   };
   meal_created: {
     source: "web" | "whatsapp" | "ai_draft" | "favorite" | "copy" | "unknown";

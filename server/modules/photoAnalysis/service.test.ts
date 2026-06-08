@@ -15,6 +15,7 @@ vi.mock("../../db", () => ({
   confirmPendingMeal: vi.fn(),
   createPendingMealInference: vi.fn(),
   createUserManualMeal: vi.fn(),
+  getDb: vi.fn(),
   getHabitSnapshots: getHabitSnapshotsMock,
   logInferenceEvent: logInferenceEventMock,
 }));
@@ -132,6 +133,7 @@ describe("photoAnalysis service", () => {
           fat: 0.2,
         },
         confidenceScore: 0.91,
+        catalogCandidates: [],
       },
     ]);
     expect(result.supportingImageUrl).toBe(

@@ -8,6 +8,13 @@
       "when": 1780777320000,
       "tag": "0000_global_food_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780778640000,
+      "tag": "0001_meal_item_nutrition_snapshot",
+      "breakpoints": true
     }
   ]
 }
