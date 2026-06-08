@@ -28,6 +28,7 @@ const recentlyHandledTextIntentMessageIds = new Map<string, number>();
 const pendingTextIntentContexts = new Map<number, { kind: "period_report"; expiresAt: number }>();
 const TEXT_INTENT_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
+const SIMPLE_FOOD_QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|m\\s*l|mililitros?|l|litros?|un|unidades?|fatias?|pedacos?|xicaras?|copos?|colheres?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|porcoes?|porcao";
 const UNKNOWN_FOOD_REPLY = [
   "Não encontrei esse alimento no catálogo ainda.",
   "Me envie com mais detalhes, como marca, porção ou uma foto do rótulo, para eu conseguir registrar corretamente.",
@@ -52,8 +53,20 @@ function normalizeText(value: string) {
     .trim();
 }
 
+function normalizeTextPreservingQuantities(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value);
+}
+
+function hasExplicitFoodQuantity(text: string) {
+  const normalized = normalizeTextPreservingQuantities(text);
+  return new RegExp(`\\b\\d+(?:[,.]\\d+)?\\s*(?:${SIMPLE_FOOD_QUANTITY_UNIT_PATTERN})\\b`, "i").test(normalized);
 }
 
 function extractSimpleFoodCandidate(text: string) {
@@ -85,6 +98,8 @@ function catalogContainsFood(candidate: string) {
 }
 
 function buildUnknownFoodReply(text: string) {
+  if (hasExplicitFoodQuantity(text)) return null;
+
   const candidate = extractSimpleFoodCandidate(text);
   if (!candidate || catalogContainsFood(candidate)) return null;
   return UNKNOWN_FOOD_REPLY;

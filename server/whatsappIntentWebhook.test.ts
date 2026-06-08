@@ -380,6 +380,21 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
   });
 
+  it("mantém bebida com volume explícito no fluxo normal de inferência", async () => {
+    const req = createTextWebhookRequest("200ml guaraná antártica", { id: "guarana-volume" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(createWaterLogMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(handleWhatsAppWebhookMock).toHaveBeenCalledOnce();
+    expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.intent.food_not_found",
+    }));
+    expect(sentMessages).toEqual([]);
+  });
+
   it("mantém texto comum de refeição no fluxo normal de inferência", async () => {
     const req = createTextWebhookRequest("almocei arroz, feijão e frango", { id: "regular-meal" });
     const res = createResponse();
