@@ -798,6 +798,10 @@ function reasoningMentionsNutritionLabel(reasoning?: string) {
   return reasoning ? /\b(tabela nutricional|informacao nutricional|informacoes nutricionais|r[oó]tulo|rotulo|label)\b/i.test(reasoning.normalize("NFD").replace(/[\u0300-\u036f]/g, "")) : false;
 }
 
+function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extractWithAi>>, sourceText: string) {
+  return Boolean(sourceText && extraction && extraction.items.length === 0);
+}
+
 export async function processMealInput(input: MealProcessingInput): Promise<MealProcessingResult> {
   const sourceText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n").trim();
   const detectedMealLabel = resolveMealLabel(input, sourceText);
@@ -809,8 +813,9 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     extraction = null;
   }
 
-  const rawItems = extraction
-    ? applyExplicitSingleGramQuantity(await buildItemsFromInference(
+  const rawItems = !extraction || shouldFallbackToSourceText(extraction, sourceText)
+    ? fallbackFromText(sourceText)
+    : applyExplicitSingleGramQuantity(await buildItemsFromInference(
       shouldConstrainAiItemsToText(input, sourceText)
         ? extraction.items.filter(item => sourceMentionsFood(sourceText, normalizeLlmItem(item).foodName))
         : extraction.items,
@@ -820,8 +825,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
           && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(extraction.reasoning))
         ),
       },
-    ), sourceText)
-    : fallbackFromText(sourceText);
+    ), sourceText);
   const items = cleanMealItems(rawItems);
 
   if (!items.length) {
@@ -829,8 +833,10 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
   }
 
   const totals = sumTotals(items);
-  const confidence = extraction ? clampConfidence(extraction.confidence) : items.length ? 0.45 : 0.2;
-  const reasoning = extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
+  const confidence = extraction && !shouldFallbackToSourceText(extraction, sourceText) ? clampConfidence(extraction.confidence) : items.length ? 0.45 : 0.2;
+  const reasoning = shouldFallbackToSourceText(extraction, sourceText)
+    ? "A análise visual não identificou itens com segurança; foi aplicada uma heurística a partir do texto informado pelo usuário. Recomenda-se confirmar a inferência antes de salvar."
+    : extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
 
   return {
     detectedMealLabel,
