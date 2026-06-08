@@ -84,5 +84,37 @@ describe("meal form quantity recalculation", () => {
       estimatedGrams: 300,
       calories: 600,
     }));
+    expect(updated.unit).not.toMatch(/\d/);
+  });
+
+  it("normaliza mililitros e recalcula macros proporcionais para bebidas", () => {
+    const updated = recalculateMealItemQuantityUnit(
+      buildItem({
+        foodName: "Cerveja Budweiser",
+        canonicalName: "Cerveja Budweiser",
+        portionText: "330 ml",
+        quantity: 330,
+        unit: "ml",
+        estimatedGrams: 330,
+        calories: 150,
+        protein: 1,
+        carbs: 12,
+        fat: 0,
+      }),
+      600,
+      "mililitros",
+    );
+
+    expect(updated).toEqual(expect.objectContaining({
+      quantity: 600,
+      unit: "ml",
+      portionText: "600 ml",
+      estimatedGrams: 600,
+      calories: 272.7,
+      protein: 1.8,
+      carbs: 21.8,
+      fat: 0,
+    }));
+    expect(updated.unit).not.toMatch(/\d/);
   });
 });

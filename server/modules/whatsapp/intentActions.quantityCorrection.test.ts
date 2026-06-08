@@ -24,6 +24,8 @@ function drinkItem(foodName: string, portionText = "330 ml") {
   return {
     foodName,
     canonicalName: foodName,
+    quantity: 330,
+    unit: "ml",
     portionText,
     servings: 1,
     estimatedGrams: 330,
@@ -70,8 +72,14 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
       mealId: 21,
       items: [expect.objectContaining({
         foodName: "Cerveja Budweiser",
+        quantity: 600,
+        unit: "ml",
         portionText: "600 ml",
         estimatedGrams: 600,
+        calories: 272.7,
+        protein: 1.8,
+        carbs: 21.8,
+        fat: 0,
       })],
     }));
     expect(result).toEqual(expect.objectContaining({
@@ -106,6 +114,8 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
       mealId: 22,
       items: [expect.objectContaining({
         foodName: "Cerveja Budweiser",
+        quantity: 600,
+        unit: "ml",
         portionText: "600 ml",
         estimatedGrams: 600,
       })],
@@ -113,7 +123,7 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
     expect(result?.reply).toBe("Atualizei de 330ml para 600ml.");
   });
 
-  it("pede confirmacao quando dois itens possuem 330ml", async () => {
+  it("pede confirmacao quando dois produtos diferentes possuem 330ml", async () => {
     listMealsMock.mockResolvedValue([
       {
         id: 23,
@@ -122,7 +132,7 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
         occurredAt: new Date("2026-06-03T22:00:00.000Z").getTime(),
         items: [
           drinkItem("Cerveja Budweiser"),
-          drinkItem("Coca-Cola"),
+          drinkItem("Cerveja Heineken"),
         ],
       },
     ]);
@@ -136,7 +146,7 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "clarification_needed",
-      reply: "Encontrei mais de um item com 330ml. Qual deseja alterar? 1. Cerveja Budweiser 2. Coca-Cola",
+      reply: "Encontrei mais de um item com 330ml. Qual deseja alterar? 1. Cerveja Budweiser 2. Cerveja Heineken",
     }));
   });
 
@@ -149,6 +159,7 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
         occurredAt: new Date("2026-06-03T22:00:00.000Z").getTime(),
         items: [{
           ...drinkItem("Cerveja Budweiser", "250 ml"),
+          quantity: 250,
           estimatedGrams: 250,
         }],
       },
