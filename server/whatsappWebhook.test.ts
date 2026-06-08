@@ -277,7 +277,7 @@ describe("whatsappWebhook", () => {
     const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
-    expect(lastSentWhatsAppBody).toBe([
+    expect(lastSentWhatsAppBody).toContain([
       "Almoço Registrado às 08:52hs.",
       "",
       "Itens:",
@@ -294,6 +294,8 @@ describe("whatsappWebhook", () => {
       "* Consumo: 130 kcal",
       "* Déficit: 2.070 kcal",
     ].join("\n"));
+    expect(lastSentWhatsAppBody).toContain("Quer ajustar algum alimento, quantidade ou unidade?");
+    expect(lastSentWhatsAppBody).toMatch(/Editar: \/quick-edit\/[A-Za-z0-9_-]+$/);
   });
 
   it("processa mídia de imagem e áudio sem falhar o webhook quando o número está vinculado", async () => {
