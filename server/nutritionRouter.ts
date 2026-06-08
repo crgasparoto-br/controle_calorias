@@ -86,6 +86,12 @@ import {
   updateMealSchedulesSchema,
 } from "./modules/mealSchedules/schemas";
 import {
+  copyMealGroup,
+  removeMealGroup,
+  saveMealGroupFavorite,
+  updateMealGroup,
+} from "./modules/meals/groupOperations";
+import {
   confirmMeal,
   copyMeal,
   createManualMeal,
@@ -101,13 +107,17 @@ import {
 } from "./modules/meals/service";
 import {
   confirmMealSchema,
+  copyMealGroupSchema,
   copyMealSchema,
   dayTotalsSchema,
   manualMealSchema,
   processMealDraftSchema,
+  removeMealGroupSchema,
   removeMealSchema,
   reuseFavoriteMealSchema,
+  saveFavoriteMealGroupSchema,
   saveFavoriteMealSchema,
+  updateMealGroupSchema,
   updateMealSchema,
 } from "./modules/meals/schemas";
 import {
@@ -416,11 +426,31 @@ export const nutritionRouter = router({
     update: protectedProcedure
       .input(updateMealSchema)
       .mutation(async ({ ctx, input }) => updateMeal(ctx.user.id, input)),
+    updateGroup: protectedProcedure
+      .input(updateMealGroupSchema)
+      .mutation(async ({ ctx, input }) => updateMealGroup(ctx.user.id, input)),
     copy: protectedProcedure
       .input(copyMealSchema)
       .mutation(async ({ ctx, input }) => {
         const result = await copyMeal(ctx.user.id, input);
         void analyticsService.track("meal_copied", {
+          target_offset_days: daysBetweenDates(Date.now(), input.occurredAt),
+        });
+        void analyticsService.track("meal_created", {
+          source: "copy",
+          meal_label_category: mealLabelCategory(result.mealLabel),
+          item_count: result.items.length,
+          has_notes: Boolean(result.notes),
+          scheduled_for_future: new Date(result.occurredAt).getTime() > Date.now(),
+        });
+        return result;
+      }),
+    copyGroup: protectedProcedure
+      .input(copyMealGroupSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await copyMealGroup(ctx.user.id, input);
+        void analyticsService.track("meal_group_copied", {
+          item_count: result.items.length,
           target_offset_days: daysBetweenDates(Date.now(), input.occurredAt),
         });
         void analyticsService.track("meal_created", {
@@ -440,6 +470,13 @@ export const nutritionRouter = router({
         void analyticsService.track("favorite_meal_created", { item_count: result.items.length });
         return result;
       }),
+    saveFavoriteGroup: protectedProcedure
+      .input(saveFavoriteMealGroupSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await saveMealGroupFavorite(ctx.user.id, input);
+        void analyticsService.track("favorite_meal_created", { item_count: result.items.length });
+        return result;
+      }),
     reuseFavorite: protectedProcedure
       .input(reuseFavoriteMealSchema)
       .mutation(async ({ ctx, input }) => {
@@ -456,6 +493,9 @@ export const nutritionRouter = router({
     remove: protectedProcedure
       .input(removeMealSchema)
       .mutation(async ({ ctx, input }) => removeMeal(ctx.user.id, input.mealId)),
+    removeGroup: protectedProcedure
+      .input(removeMealGroupSchema)
+      .mutation(async ({ ctx, input }) => removeMealGroup(ctx.user.id, input)),
     processDraft: protectedProcedure
       .input(processMealDraftSchema)
       .mutation(async ({ ctx, input }) => processMealDraft(ctx.user.id, input)),

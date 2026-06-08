@@ -2,6 +2,12 @@ import { z } from "zod";
 
 export const mealLabelSchema = z.string().trim().min(1).max(80);
 
+const mealIdsSchema = z
+  .array(z.number().int().positive())
+  .min(1)
+  .max(50)
+  .transform(mealIds => Array.from(new Set(mealIds)));
+
 export const mediaInputSchema = z
   .object({
     base64: z.string().min(1),
@@ -81,8 +87,20 @@ export const updateMealSchema = manualMealSchema.extend({
   mealId: z.number().int().positive(),
 });
 
+export const updateMealGroupSchema = z.object({
+  mealLabel: mealLabelSchema,
+  meals: z.array(z.object({
+    mealId: z.number().int().positive(),
+    items: z.array(mealItemSchema),
+  })).min(1).max(50),
+});
+
 export const removeMealSchema = z.object({
   mealId: z.number().int().positive(),
+});
+
+export const removeMealGroupSchema = z.object({
+  mealIds: mealIdsSchema,
 });
 
 export const dayTotalsSchema = z.object({
@@ -95,8 +113,19 @@ export const copyMealSchema = z.object({
   mealLabel: mealLabelSchema.optional(),
 });
 
+export const copyMealGroupSchema = z.object({
+  mealIds: mealIdsSchema,
+  occurredAt: z.string().min(1),
+  mealLabel: mealLabelSchema.optional(),
+});
+
 export const saveFavoriteMealSchema = z.object({
   mealId: z.number().int().positive(),
+  name: z.string().trim().min(1).max(80).optional(),
+});
+
+export const saveFavoriteMealGroupSchema = z.object({
+  mealIds: mealIdsSchema,
   name: z.string().trim().min(1).max(80).optional(),
 });
 
@@ -111,6 +140,10 @@ export type ManualMealInput = z.infer<typeof manualMealSchema>;
 export type ProcessMealDraftInput = z.infer<typeof processMealDraftSchema>;
 export type ConfirmMealInput = z.infer<typeof confirmMealSchema>;
 export type UpdateMealInput = z.infer<typeof updateMealSchema>;
+export type UpdateMealGroupInput = z.infer<typeof updateMealGroupSchema>;
 export type CopyMealInput = z.infer<typeof copyMealSchema>;
+export type CopyMealGroupInput = z.infer<typeof copyMealGroupSchema>;
+export type RemoveMealGroupInput = z.infer<typeof removeMealGroupSchema>;
 export type ReuseFavoriteMealInput = z.infer<typeof reuseFavoriteMealSchema>;
 export type SaveFavoriteMealInput = z.infer<typeof saveFavoriteMealSchema>;
+export type SaveFavoriteMealGroupInput = z.infer<typeof saveFavoriteMealGroupSchema>;
