@@ -17,7 +17,10 @@
     "docs:check": "tsx scripts/generate-db-schema-doc.ts --check && tsx scripts/generate-trpc-routes-doc.ts --check && tsx scripts/check-docs-freshness.ts",
     "agent:check": "pnpm check && pnpm test && pnpm architecture:check && pnpm docs:check",
     "db:check-integrity": "node scripts/check-referential-integrity.mjs",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "foods:seed:common-br": "tsx scripts/import-foods/seed_common_brazil_foods.ts",
+    "foods:import:taco": "tsx scripts/import-foods/import_taco.ts",
+    "foods:import:tbca": "tsx scripts/import-foods/import_tbca.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
