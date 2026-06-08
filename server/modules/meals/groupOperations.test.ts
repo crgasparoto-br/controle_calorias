@@ -1,5 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { StoredMeal } from "../../../client/src/features/meals/types";
+
+type TestMealItem = {
+  foodName: string;
+  canonicalName: string;
+  portionText: string;
+  servings: number;
+  estimatedGrams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  confidence: number;
+  source: "catalog" | "hybrid" | "heuristic";
+};
+
+type TestStoredMeal = {
+  id: number;
+  mealLabel: string;
+  occurredAt: number;
+  notes?: string;
+  source: "web" | "whatsapp";
+  items: TestMealItem[];
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+};
 
 const createManualMealMock = vi.fn();
 const getDbMock = vi.fn();
@@ -34,7 +62,7 @@ vi.mock("./service", () => ({
 
 const { copyMealGroup, removeMealGroup, updateMealGroup } = await import("./groupOperations");
 
-function buildMeal(overrides: Partial<StoredMeal>): StoredMeal {
+function buildMeal(overrides: Partial<TestStoredMeal>): TestStoredMeal {
   return {
     id: overrides.id ?? 1,
     mealLabel: overrides.mealLabel ?? "almoço",
