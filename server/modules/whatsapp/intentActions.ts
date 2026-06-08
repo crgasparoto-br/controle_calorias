@@ -4,6 +4,7 @@ import { getCatalogCache } from "../../catalogRuntime";
 import { listMeals, updateMeal } from "../meals/service";
 import { createWaterLog } from "../water/service";
 import type { MealItemInput } from "../meals/schemas";
+import type { MealDraftItem } from "../../nutritionEngine";
 import { parseMealCommandFromWhatsApp, type ParsedMealCommandItem } from "./mealCommandParser";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
@@ -91,7 +92,7 @@ type ExistingMeal = {
   mealLabel: string;
   occurredAt: number | string | Date;
   notes?: string;
-  items?: MealItemInput[];
+  items?: MealDraftItem[];
 };
 
 function normalizeIntentText(value: string) {
@@ -413,6 +414,40 @@ function quantityToEstimatedGrams(quantity: number, unit: string) {
   return unit === "l" ? quantity * 1000 : quantity;
 }
 
+function deriveQuantityFromPortionText(portionText: string) {
+  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)/u);
+  if (!match) {
+    return null;
+  }
+
+  const value = Number(match[1].replace(",", "."));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function deriveUnitFromPortionText(portionText: string) {
+  const normalized = portionText
+    .trim()
+    .replace(/^\d+(?:[,.]\d+)?\s*/u, "")
+    .trim();
+
+  return normalized || "porção";
+}
+
+function toMealItemInput(item: MealDraftItem): MealItemInput {
+  const quantityUnit = item as MealDraftItem & Partial<Pick<MealItemInput, "quantity" | "unit" | "brand">>;
+
+  return {
+    ...item,
+    ...(quantityUnit.brand ? { brand: quantityUnit.brand } : {}),
+    quantity: quantityUnit.quantity ?? deriveQuantityFromPortionText(item.portionText) ?? item.servings,
+    unit: quantityUnit.unit?.trim() || deriveUnitFromPortionText(item.portionText),
+  };
+}
+
+function toMealItemInputs(items: MealDraftItem[] | undefined): MealItemInput[] {
+  return (items ?? []).map(toMealItemInput);
+}
+
 function parseFoodAdditionIntent(text: string, receivedAt: Date): FoodAdditionIntent | null {
   const parsed = parseMealCommandFromWhatsApp(text, { referenceDate: receivedAt });
   if (parsed.intent !== "add_items_to_meal" || !parsed.mealType || !parsed.date || !parsed.items.length) {
@@ -499,6 +534,8 @@ function scaleMealItemQuantity(item: MealItemInput, nextQuantity: number, nextUn
   return {
     ...scaleMealItem(item, nextEstimatedGrams),
     portionText: `${formatNumber(nextQuantity)} ${nextUnit}`,
+    quantity: nextQuantity,
+    unit: nextUnit,
   };
 }
 
@@ -520,7 +557,8 @@ async function handleQuantityCorrectionIntent(userId: number, correction: Quanti
     };
   }
 
-  const targets = findQuantityCorrectionTargets(latestMeal.items, correction);
+  const latestItems = toMealItemInputs(latestMeal.items);
+  const targets = findQuantityCorrectionTargets(latestItems, correction);
   if (!targets.length) {
     const previous = correction.previousQuantity && correction.previousUnit
       ? `${formatNumber(correction.previousQuantity)}${correction.previousUnit}`
@@ -549,14 +587,14 @@ async function handleQuantityCorrectionIntent(userId: number, correction: Quanti
 
   const target = targets[0];
   const nextItems = latestMeal.items.map((item, index) => index === target.index
-    ? scaleMealItemQuantity(item, correction.nextQuantity, correction.nextUnit)
+    ? scaleMealItemQuantity(toMealItemInput(item), correction.nextQuantity, correction.nextUnit)
     : item);
   const updatedMeal = await updateMeal(userId, {
     mealId: latestMeal.id,
     mealLabel: latestMeal.mealLabel,
     occurredAt: new Date(latestMeal.occurredAt).toISOString(),
     notes: latestMeal.notes,
-    items: nextItems,
+    items: nextItems as MealItemInput[],
   });
 
   const previous = correction.previousQuantity && correction.previousUnit
@@ -706,6 +744,8 @@ function scaleMealItem(item: MealItemInput, nextGrams: number): MealItemInput {
     ...item,
     estimatedGrams: nextGrams,
     portionText: `${formatNumber(nextGrams)} g`,
+    quantity: nextGrams,
+    unit: "g",
     servings: Math.max(Number(item.servings || 1) * ratio, 0.1),
     calories: Number((Number(item.calories || 0) * ratio).toFixed(1)),
     protein: Number((Number(item.protein || 0) * ratio).toFixed(1)),
@@ -722,6 +762,8 @@ function buildCatalogMealItem(item: MealItemInput, nextFoodName: string, nextGra
     canonicalName: catalogFood.name,
     estimatedGrams: nextGrams,
     portionText: item.portionText || `${formatNumber(nextGrams)} g`,
+    quantity: item.quantity ?? nextGrams,
+    unit: item.unit || "g",
     servings: Math.max(nextGrams / catalogFood.gramsPerServing, 0.1),
     calories: roundNutritionValue(catalogFood.calories * factor),
     protein: roundNutritionValue(catalogFood.protein * factor),
@@ -740,6 +782,8 @@ function buildHeuristicReplacementItem(item: MealItemInput, nextFoodName: string
     canonicalName: nextFoodName,
     estimatedGrams: nextGrams,
     portionText: item.portionText || `${formatNumber(nextGrams)} g`,
+    quantity: item.quantity ?? nextGrams,
+    unit: item.unit || "g",
     servings: Math.max(Number(item.servings || 1), 0.1),
     calories: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.calories * factor),
     protein: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.protein * factor),
@@ -770,6 +814,8 @@ function buildFoodAdditionItem(foodName: string, quantity: number, unit = "g"): 
   return {
     ...item,
     portionText: `${formatNumber(quantity)} ${unit}`,
+    quantity,
+    unit,
   };
 }
 
@@ -782,6 +828,8 @@ function buildUnsweetenedCoffeeItem(cups: number): MealItemInput {
     foodName: "Café sem açúcar",
     canonicalName: "Café preto sem açúcar",
     portionText: `${formatNumber(cups)} ${cupLabel} (${formatNumber(volumeMl)} ml)`,
+    quantity: cups,
+    unit: cupLabel,
     servings: Math.max(cups, 0.1),
     estimatedGrams: volumeMl,
     calories,
@@ -882,7 +930,8 @@ async function updateLatestMealItemGrams(input: {
     } satisfies WhatsappIntentResult;
   }
 
-  const target = findTargetMealItem(latestMeal.items, input.targetFood);
+  const latestItems = toMealItemInputs(latestMeal.items);
+  const target = findTargetMealItem(latestItems, input.targetFood);
   if (!target) {
     return {
       handled: true,
@@ -895,13 +944,13 @@ async function updateLatestMealItemGrams(input: {
 
   const previousGrams = Number(target.item.estimatedGrams || 0);
   const nextGrams = Math.max(input.resolveNextGrams(previousGrams), MIN_FOOD_GRAMS);
-  const nextItems = latestMeal.items.map((item, index) => index === target.index ? scaleMealItem(item, nextGrams) : item);
+  const nextItems = latestMeal.items.map((item, index) => index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item);
   const updatedMeal = await updateMeal(input.userId, {
     mealId: latestMeal.id,
     mealLabel: latestMeal.mealLabel,
     occurredAt: new Date(latestMeal.occurredAt).toISOString(),
     notes: latestMeal.notes,
-    items: nextItems,
+    items: nextItems as MealItemInput[],
   });
 
   return {
@@ -958,7 +1007,8 @@ async function handleFoodReplacementIntent(userId: number, replacement: FoodRepl
     };
   }
 
-  const target = findTargetMealItem(latestMeal.items, replacement.fromFood);
+  const latestItems = toMealItemInputs(latestMeal.items);
+  const target = findTargetMealItem(latestItems, replacement.fromFood);
   if (!target) {
     return {
       handled: true,
@@ -969,7 +1019,7 @@ async function handleFoodReplacementIntent(userId: number, replacement: FoodRepl
     };
   }
 
-  const nextItems = latestMeal.items.map((item, index) => index === target.index ? replaceMealItemFood(item, replacement.toFood) : item);
+  const nextItems = latestMeal.items.map((item, index) => index === target.index ? replaceMealItemFood(toMealItemInput(item), replacement.toFood) : item);
   const replacedItem = nextItems[target.index];
   const recalculationSource = replacedItem.source === "catalog" ? "com base no catálogo" : "por estimativa";
   const updatedMeal = await updateMeal(userId, {
@@ -977,7 +1027,7 @@ async function handleFoodReplacementIntent(userId: number, replacement: FoodRepl
     mealLabel: latestMeal.mealLabel,
     occurredAt: new Date(latestMeal.occurredAt).toISOString(),
     notes: latestMeal.notes,
-    items: nextItems,
+    items: nextItems as MealItemInput[],
   });
 
   return {
@@ -1019,7 +1069,7 @@ async function handleFoodAdditionIntent(userId: number, addition: FoodAdditionIn
     mealLabel: targetMeal.mealLabel,
     occurredAt: new Date(targetMeal.occurredAt).toISOString(),
     notes: targetMeal.notes,
-    items: [...(targetMeal.items ?? []), ...addedItems],
+    items: [...(targetMeal.items ?? []), ...addedItems] as MealItemInput[],
   });
 
   if (addedItems.length === 1) {
@@ -1098,7 +1148,7 @@ async function handleCoffeeAdditionIntent(userId: number, text: string, addition
     mealLabel: targetMeal.mealLabel,
     occurredAt: new Date(targetMeal.occurredAt).toISOString(),
     notes: targetMeal.notes,
-    items: [...(targetMeal.items ?? []), coffeeItem],
+    items: [...(targetMeal.items ?? []), coffeeItem] as MealItemInput[],
   });
 
   return {
@@ -1150,7 +1200,7 @@ async function handlePeriodReportIntent(userId: number, period: PeriodRange): Pr
   const mealsInPeriod = meals.filter(meal => isMealInsidePeriod(meal, period));
   const totals = mealsInPeriod.reduce(
     (acc, meal) => {
-      const itemTotals = sumMealItems(meal.items ?? []);
+      const itemTotals = sumMealItems(toMealItemInputs(meal.items));
       acc.calories += itemTotals.calories;
       acc.protein += itemTotals.protein;
       acc.carbs += itemTotals.carbs;
