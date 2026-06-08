@@ -1,4 +1,7 @@
 export type MealItemState = {
+  foodId?: number;
+  portionId?: number;
+  portionQuantity?: number;
   foodName: string;
   canonicalName: string;
   portionText: string;
