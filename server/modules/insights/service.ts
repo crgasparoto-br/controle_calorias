@@ -121,6 +121,10 @@ function averageValue(total: number, count: number) {
   return total / count;
 }
 
+function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: number) {
+  return roundNutritionValue(baseCalories + Math.max(exerciseCalories, 0));
+}
+
 function normalizeCatalogText(value: string) {
   return value
     .normalize("NFD")
@@ -287,6 +291,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
     const burnedCalories = dailyExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
     const waterConsumedMl = dailyWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
     const quality = calculateQualityIndicators(dailyMeals, waterConsumedMl, foodLookup);
+    const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, burnedCalories);
 
     return {
       date,
@@ -301,6 +306,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
       waterGoalMl: waterGoal.dailyTargetMl,
       quality,
       goalCalories: planned.calories,
+      adjustedGoalCalories,
       goalProtein: planned.proteinGrams,
       goalCarbs: planned.carbsGrams,
       goalFat: planned.fatGrams,
@@ -310,7 +316,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
 
 function classifyWeeklyDay(day: Awaited<ReturnType<typeof buildWeeklyReportSummary>>[number]) {
   if (day.calories <= 0) return "no_data" as const;
-  const ratio = day.goalCalories ? day.calories / day.goalCalories : 0;
+  const ratio = day.adjustedGoalCalories ? day.calories / day.adjustedGoalCalories : 0;
   if (ratio > 1.05) return "above" as const;
   if (ratio < 0.9) return "below" as const;
   return "within" as const;
@@ -349,7 +355,6 @@ export async function getDashboardOverview(userId: number) {
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
   const weeklyBurnedCalories = weekly.reduce((acc, day) => acc + day.exerciseCalories, 0);
-  const weeklyWaterMl = weekly.reduce((acc, day) => acc + day.waterConsumedMl, 0);
   const weeklyQuality = buildWeeklyQuality(weekly);
 
   return {
@@ -372,9 +377,9 @@ export async function getDashboardOverview(userId: number) {
         calories: roundNutritionValue(weeklyBurnedCalories),
       },
       water: {
-        consumedMl: roundNutritionValue(weeklyWaterMl),
+        consumedMl: roundNutritionValue(water.goal.dailyTargetMl),
         goalMl: water.goal.dailyTargetMl * 7,
-        remainingMl: Math.max((water.goal.dailyTargetMl * 7) - roundNutritionValue(weeklyWaterMl), 0),
+        remainingMl: Math.max((water.goal.dailyTargetMl * 7) - roundNutritionValue(water.goal.dailyTargetMl), 0),
       },
       quality: {
         proteinGrams: roundNutritionValue(weeklyQuality.proteinGrams),
@@ -434,6 +439,7 @@ export async function getDashboardTodayOverview(userId: number, options: { date?
       date: selectedDate,
       goal: {
         calories: plannedGoal.calories,
+        adjustedCalories: calculateAdjustedGoalCalories(plannedGoal.calories, todayBurnedCalories),
         protein: plannedGoal.proteinGrams,
         carbs: plannedGoal.carbsGrams,
         fat: plannedGoal.fatGrams,
@@ -486,7 +492,7 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
   ]);
 
   const totalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.calories, 0));
-  const totalGoalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.goalCalories, 0));
+  const totalGoalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.adjustedGoalCalories, 0));
   const totalExerciseCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.exerciseCalories, 0));
   const totalNetCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.netCalories, 0));
   const averageCalories = roundNutritionValue(totalCalories / Math.max(days.length, 1));
@@ -500,7 +506,7 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
     { within: 0, above: 0, below: 0, no_data: 0 },
   );
 
-  const balanceCalories = roundNutritionValue(totalGoalCalories - totalNetCalories);
+  const balanceCalories = roundNutritionValue(totalGoalCalories - totalCalories);
   const message = buildWeeklyNutritionStatus({
     totalCalories,
     daysAboveGoal: daysByStatus.above,
@@ -511,7 +517,7 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
     days: days.map(day => ({
       ...day,
       status: classifyWeeklyDay(day),
-      calorieDelta: roundNutritionValue(day.calories - day.goalCalories),
+      calorieDelta: roundNutritionValue(day.calories - day.adjustedGoalCalories),
       netDelta: roundNutritionValue(day.netCalories - day.goalCalories),
     })),
     summary: {
@@ -566,15 +572,44 @@ export async function getPeriodReportBundle(
   userId: number,
   range: { startDate: string; endDate: string },
 ) {
-  const [goal, habitAnalytics] = await Promise.all([
+  const [goal, habitAnalytics, exercises] = await Promise.all([
     getUserNutritionGoal(userId),
     getHabitAnalyticsReport(userId, range),
+    listUserExercises(userId),
   ]);
   const dates = listDateKeysInRange(range.startDate, range.endDate);
   const mealsByDay = await Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false })));
   const meals = mealsByDay.flat();
   const totals = calculateDayTotals(meals);
   const mealsByDate = groupMealsByDate(meals);
+  const daily = dates.map((date, index) => {
+    const planned = goal.days.find(goalDay => goalDay.weekday === getWeekdayIndexInTimeZone(dateKeyToLogicalDate(date))) ?? goal.today;
+    const dailyMeals = mealsByDay[index] ?? [];
+    const dailyTotals = calculateDayTotals(dailyMeals);
+    const exerciseCalories = exercises
+      .filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === date)
+      .reduce((total, exercise) => total + Number(exercise.caloriesBurned ?? 0), 0);
+    const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, exerciseCalories);
+
+    return {
+      date,
+      label: formatPeriodDateLabel(date),
+      calories: roundNutritionValue(dailyTotals.calories),
+      protein: roundNutritionValue(dailyTotals.protein),
+      carbs: roundNutritionValue(dailyTotals.carbs),
+      fat: roundNutritionValue(dailyTotals.fat),
+      exerciseCalories: roundNutritionValue(exerciseCalories),
+      goalCalories: planned.calories,
+      adjustedGoalCalories,
+      goalProtein: planned.proteinGrams,
+      goalCarbs: planned.carbsGrams,
+      goalFat: planned.fatGrams,
+      calorieDelta: roundNutritionValue(dailyTotals.calories - adjustedGoalCalories),
+      adherencePercent: adjustedGoalCalories > 0
+        ? roundNutritionValue((dailyTotals.calories / adjustedGoalCalories) * 100)
+        : 0,
+    };
+  });
 
   return {
     range: {
@@ -595,6 +630,7 @@ export async function getPeriodReportBundle(
       carbs: roundNutritionValue(totals.carbs),
       fat: roundNutritionValue(totals.fat),
     },
+    daily,
     mealsByDate,
     habitAnalytics,
   };
