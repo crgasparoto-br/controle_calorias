@@ -3,6 +3,7 @@ import {
   approvePatientAccess,
   requestPatientAccess,
   suggestGoalAdjustment,
+  suggestMealPlan,
   upsertProfessionalProfile,
 } from "./service";
 
@@ -62,6 +63,62 @@ describe("professional goal suggestions", () => {
       status: "sent",
       rationale: "Reduzir calorias mantendo proteína alta.",
       goal: goalInput(1750),
+    });
+    expect(suggestion.sentAt).toEqual(expect.any(Number));
+    expect(suggestion.respondedAt).toBeNull();
+  });
+});
+
+describe("professional meal suggestions", () => {
+  it("blocks meal suggestions when patient access is not approved", () => {
+    const professionalUserId = 24310;
+    const patientUserId = 24311;
+    upsertProfessionalProfile(professionalUserId, {
+      displayName: "Dra. Camila",
+      active: true,
+    });
+
+    expect(() => suggestMealPlan(professionalUserId, {
+      patientId: patientUserId,
+      mealLabel: "Jantar",
+      title: "Jantar leve",
+      description: "Omelete com legumes e salada.",
+      rationale: "Melhorar saciedade à noite.",
+      status: "sent",
+    })).toThrow("Acesso profissional não autorizado pelo paciente.");
+  });
+
+  it("creates a sent meal suggestion for an approved patient", async () => {
+    const professionalUserId = 24320;
+    const patientUserId = 24321;
+    upsertProfessionalProfile(professionalUserId, {
+      displayName: "Dra. Camila",
+      active: true,
+    });
+
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    approvePatientAccess(patientUserId, access.id);
+
+    const suggestion = suggestMealPlan(professionalUserId, {
+      patientId: patientUserId,
+      mealLabel: "Almoço",
+      title: "Almoço rico em proteína",
+      description: "Arroz, feijão, frango grelhado e salada.",
+      rationale: "Ajustar proteína e saciedade no almoço.",
+      notes: "Usar azeite com moderação.",
+      status: "sent",
+    });
+
+    expect(suggestion).toMatchObject({
+      professionalUserId,
+      patientUserId,
+      mealLabel: "Almoço",
+      title: "Almoço rico em proteína",
+      status: "sent",
+      notes: "Usar azeite com moderação.",
     });
     expect(suggestion.sentAt).toEqual(expect.any(Number));
     expect(suggestion.respondedAt).toBeNull();
