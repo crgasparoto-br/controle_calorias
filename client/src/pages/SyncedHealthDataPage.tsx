@@ -2,11 +2,14 @@ import DashboardLayout from "@/components/DashboardLayout";
 import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { ChevronDown, Database } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Database } from "lucide-react";
 import { useState } from "react";
 
 const DATA_TYPES = [
@@ -35,27 +38,69 @@ type SyncedHealthRecord = {
 };
 
 function startOfDate(value: string) {
-  return value ? `${value}T00:00:00.000Z` : undefined;
+  return `${value}T00:00:00.000Z`;
 }
 
 function endOfDate(value: string) {
-  return value ? `${value}T23:59:59.999Z` : undefined;
+  return `${value}T23:59:59.999Z`;
+}
+
+function toUtcNoonDate(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00Z`);
+}
+
+function addDaysToDateKey(dateKey: string, days: number) {
+  const date = toUtcNoonDate(dateKey);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function dateKeyToCalendarDate(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function calendarDateToDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatSelectedDateLabel(dateKey: string, todayKey: string) {
+  if (dateKey === todayKey) return "Hoje";
+  if (dateKey === addDaysToDateKey(todayKey, -1)) return "Ontem";
+  if (dateKey === addDaysToDateKey(todayKey, 1)) return "Amanhã";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "UTC",
+    weekday: "long",
+  }).format(toUtcNoonDate(dateKey));
+}
+
+function formatSelectedDateSubtitle(dateKey: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(toUtcNoonDate(dateKey));
 }
 
 export default function SyncedHealthDataPage() {
+  const todayKey = toDateInputValue();
+  const [selectedDate, setSelectedDate] = useState(todayKey);
   const [dataType, setDataType] = useState("all");
   const [source, setSource] = useState("all");
   const [query, setQuery] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
   const [offset, setOffset] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const syncedRecords = trpc.nutrition.healthIntegrations.syncedRecords.useQuery({
     provider: source === "all" ? undefined : source as HealthProvider,
     dataType: dataType === "all" ? undefined : dataType as HealthDataType,
-    from: startOfDate(fromDate),
-    to: endOfDate(toDate),
+    from: startOfDate(selectedDate),
+    to: endOfDate(selectedDate),
     q: query.trim() || undefined,
     limit: PAGE_SIZE,
     offset,
@@ -67,6 +112,11 @@ export default function SyncedHealthDataPage() {
   const resetPagedView = () => {
     setOffset(0);
     setExpandedId(null);
+  };
+
+  const updateSelectedDate = (nextDate: string) => {
+    setSelectedDate(nextDate);
+    resetPagedView();
   };
 
   const updateDataType = (nextDataType: string) => {
@@ -84,22 +134,22 @@ export default function SyncedHealthDataPage() {
     resetPagedView();
   };
 
-  const updateFromDate = (nextDate: string) => {
-    setFromDate(nextDate);
-    resetPagedView();
-  };
-
-  const updateToDate = (nextDate: string) => {
-    setToDate(nextDate);
-    resetPagedView();
-  };
-
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Dados sincronizados</h1>
         </div>
+
+        <DateNavigator
+          selectedDate={selectedDate}
+          todayKey={todayKey}
+          isViewingToday={selectedDate === todayKey}
+          onPreviousDay={() => updateSelectedDate(addDaysToDateKey(selectedDate, -1))}
+          onNextDay={() => updateSelectedDate(addDaysToDateKey(selectedDate, 1))}
+          onToday={() => updateSelectedDate(todayKey)}
+          onDateSelect={updateSelectedDate}
+        />
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
@@ -130,19 +180,6 @@ export default function SyncedHealthDataPage() {
                 value={source}
                 options={[{ value: "all", label: "Todas" }, ...sources.map(item => ({ value: item, label: item }))]}
                 onChange={updateSource}
-              />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(11rem,14rem),minmax(11rem,14rem)]">
-              <DateFilter
-                label="Data inicial"
-                value={fromDate}
-                onChange={updateFromDate}
-              />
-              <DateFilter
-                label="Data final"
-                value={toDate}
-                onChange={updateToDate}
               />
             </div>
 
@@ -240,6 +277,73 @@ export default function SyncedHealthDataPage() {
   );
 }
 
+function DateNavigator({
+  selectedDate,
+  todayKey,
+  isViewingToday,
+  onPreviousDay,
+  onNextDay,
+  onToday,
+  onDateSelect,
+}: {
+  selectedDate: string;
+  todayKey: string;
+  isViewingToday: boolean;
+  onPreviousDay: () => void;
+  onNextDay: () => void;
+  onToday: () => void;
+  onDateSelect: (dateKey: string) => void;
+}) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const handleCalendarSelect = (date?: Date) => {
+    if (!date) return;
+    onDateSelect(calendarDateToDateKey(date));
+    setCalendarOpen(false);
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
+      <div>
+        <p className="text-sm font-medium text-muted-foreground">Dia selecionado</p>
+        <h2 className="text-2xl font-semibold tracking-tight capitalize">{formatSelectedDateLabel(selectedDate, todayKey)}</h2>
+        <p className="text-sm text-muted-foreground">{formatSelectedDateSubtitle(selectedDate)}</p>
+      </div>
+      <div className="flex items-center gap-2 rounded-full border bg-background p-1 shadow-sm">
+        <Button type="button" variant="ghost" className="h-10 w-10 rounded-full p-0" onClick={onPreviousDay} aria-label="Dia anterior">
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        {isViewingToday ? (
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="secondary" className="rounded-full px-4" aria-label="Escolher dia no calendário">
+                <CalendarDays className="mr-2 h-4 w-4" />
+                Hoje
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="center" className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={dateKeyToCalendarDate(selectedDate)}
+                defaultMonth={dateKeyToCalendarDate(selectedDate)}
+                onSelect={handleCalendarSelect}
+                captionLayout="dropdown"
+              />
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <Button type="button" variant="ghost" className="rounded-full px-4" onClick={onToday}>
+            Hoje
+          </Button>
+        )}
+        <Button type="button" variant="ghost" className="h-10 w-10 rounded-full p-0" onClick={onNextDay} aria-label="Próximo dia">
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function RecordDetails({ record }: { record: SyncedHealthRecord }) {
   const metadataEntries = Object.entries(record.metadata ?? {}).filter(([, value]) => value !== null && value !== undefined && value !== "");
 
@@ -292,23 +396,6 @@ function SegmentedFilter({
         </Button>
       ))}
     </div>
-  );
-}
-
-function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  const inputId = label === "Data inicial" ? "synced-from-date" : "synced-to-date";
-
-  return (
-    <label htmlFor={inputId} className="grid gap-1 rounded-2xl border bg-background px-3 py-2 text-sm">
-      <span className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
-      <Input
-        id={inputId}
-        type="date"
-        value={value}
-        onChange={event => onChange(event.target.value)}
-        className="h-9 border-0 px-0 shadow-none focus-visible:ring-0"
-      />
-    </label>
   );
 }
 
