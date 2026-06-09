@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
-import { users } from "../../../drizzle/schema";
+import { eq, or } from "drizzle-orm";
+import { users, whatsappConnections } from "../../../drizzle/schema";
 import { getDb, getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
+import { getNutritionGoal } from "../goals/service";
 import type {
   ProfessionalCommentInput,
   ProfessionalGoalSuggestionInput,
@@ -15,6 +16,7 @@ type ProfessionalProfile = {
   userId: number;
   displayName: string;
   registrationNumber?: string;
+  active: boolean;
   createdAt: number;
   updatedAt: number;
 };
@@ -85,6 +87,34 @@ function publicAccess(access: ProfessionalPatientAccess) {
   };
 }
 
+function normalizeContact(value: string) {
+  return value.trim();
+}
+
+function normalizePhoneDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function isEmailContact(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function assertActiveProfessionalProfile(userId: number) {
+  const profile = profiles.get(userId);
+  if (!profile?.active) {
+    throw new Error("Ative seu perfil profissional em Configurações antes de acessar o módulo Nutricionista.");
+  }
+  return profile;
+}
+
+export function getProfessionalStatus(userId: number) {
+  const profile = profiles.get(userId) ?? null;
+  return {
+    hasActiveProfile: Boolean(profile?.active),
+    profile,
+  };
+}
+
 async function getUserSummary(userId: number): Promise<UserSummary | null> {
   const db = await getDb();
   if (!db) return null;
@@ -129,6 +159,38 @@ async function getUserSummaryByEmail(email: string): Promise<UserSummary | null>
   };
 }
 
+async function getUserSummaryByPhone(phone: string): Promise<UserSummary | null> {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("A busca por paciente via celular depende do banco configurado neste ambiente.");
+  }
+
+  const digits = normalizePhoneDigits(phone);
+  const phoneCandidates = Array.from(new Set([phone.trim(), digits, digits ? `+${digits}` : ""].filter(Boolean)));
+  const rows = await db
+    .select({ user: users })
+    .from(whatsappConnections)
+    .innerJoin(users, eq(users.id, whatsappConnections.userId))
+    .where(or(...phoneCandidates.map(candidate => eq(whatsappConnections.phoneNumber, candidate))))
+    .limit(1);
+  const user = rows[0]?.user;
+  if (!user) return null;
+
+  return {
+    userId: user.id,
+    name: user.name ?? null,
+    email: user.email ?? null,
+  };
+}
+
+async function getUserSummaryByContact(contact: string): Promise<UserSummary | null> {
+  const normalizedContact = normalizeContact(contact);
+  if (isEmailContact(normalizedContact)) {
+    return getUserSummaryByEmail(normalizedContact);
+  }
+  return getUserSummaryByPhone(normalizedContact);
+}
+
 function getApprovedAccess(professionalUserId: number, patientUserId: number) {
   return Array.from(accesses.values()).find(access =>
     access.professionalUserId === professionalUserId &&
@@ -138,6 +200,7 @@ function getApprovedAccess(professionalUserId: number, patientUserId: number) {
 }
 
 function assertApprovedAccess(professionalUserId: number, patientUserId: number) {
+  assertActiveProfessionalProfile(professionalUserId);
   const access = getApprovedAccess(professionalUserId, patientUserId);
   if (!access) {
     throw new Error("Acesso profissional não autorizado pelo paciente.");
@@ -151,6 +214,7 @@ export function upsertProfessionalProfile(userId: number, input: ProfessionalPro
     userId,
     displayName: input.displayName,
     registrationNumber: input.registrationNumber,
+    active: input.active,
     createdAt: profiles.get(userId)?.createdAt ?? now,
     updatedAt: now,
   };
@@ -169,12 +233,12 @@ export function getProfessionalProfile(userId: number) {
 }
 
 export async function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
-  const profile = profiles.get(professionalUserId);
-  if (!profile) throw new Error("Crie seu perfil profissional antes de solicitar acesso.");
+  assertActiveProfessionalProfile(professionalUserId);
 
-  const patient = await getUserSummaryByEmail(input.patientEmail);
-  if (!patient?.email) {
-    throw new Error("Nenhum paciente foi encontrado com esse e-mail.");
+  const patientContact = input.patientContact ?? input.patientEmail ?? "";
+  const patient = await getUserSummaryByContact(patientContact);
+  if (!patient) {
+    throw new Error("Nenhum paciente foi encontrado com esse e-mail ou celular.");
   }
   if (professionalUserId === patient.userId) throw new Error("Profissional e paciente precisam ser usuários diferentes.");
 
@@ -214,6 +278,7 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
 }
 
 export async function listProfessionalAccesses(professionalUserId: number) {
+  assertActiveProfessionalProfile(professionalUserId);
   const professionalAccesses = Array.from(accesses.values()).filter(access => access.professionalUserId === professionalUserId);
   const patients = await Promise.all(professionalAccesses.map(access => getUserSummary(access.patientUserId)));
   const patientMap = new Map(
@@ -268,12 +333,13 @@ export function revokePatientAccess(patientUserId: number, accessId: string) {
 
 export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number) {
   assertApprovedAccess(professionalUserId, patientUserId);
-  const [dashboard, weeklyProgress, weeklyReport, meals, patient] = await Promise.all([
+  const [dashboard, weeklyProgress, weeklyReport, meals, patient, nutritionGoal] = await Promise.all([
     getDashboardSnapshot(patientUserId),
     getWeeklyProgress(patientUserId),
     getWeeklySummary(patientUserId),
     listUserMeals(patientUserId),
     getUserSummary(patientUserId),
+    getNutritionGoal(patientUserId),
   ]);
 
   return {
@@ -291,6 +357,7 @@ export async function getProfessionalPatientDashboard(professionalUserId: number
       fat: dashboard.week.consumed.fat,
     },
     weight: weeklyProgress.weight,
+    nutritionGoal,
     weeklyReport,
     meals: meals.slice(0, 20),
     comments: comments.filter(comment => comment.professionalUserId === professionalUserId && comment.patientUserId === patientUserId),
@@ -338,5 +405,6 @@ export function suggestGoalAdjustment(professionalUserId: number, input: Profess
 }
 
 export function listProfessionalHistory(userId: number) {
+  assertActiveProfessionalProfile(userId);
   return history.filter(event => event.professionalUserId === userId || event.patientUserId === userId);
 }
