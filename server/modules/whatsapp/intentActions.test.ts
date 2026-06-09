@@ -522,7 +522,11 @@ describe("executeWhatsappTextIntent", () => {
       reply: expect.stringContaining("Resumo de semana"),
     }));
     expect(result?.reply).toContain("Refeições registradas: 2");
-    expect(result?.reply).toContain("Total consumido: 469 kcal");
+    expect(result?.reply).toContain("Jantar: 198 kcal");
+    expect(result?.reply).toContain("* Prot. 37 g | Carb. 0 g | Gord. 4 g");
+    expect(result?.reply).toContain("Almoço: 271 kcal");
+    expect(result?.reply).toContain("* Prot. 8,9 g | Carb. 55,6 g | Gord. 1 g");
+    expect(result?.reply).not.toContain("Total consumido:");
     expect(result?.reply).toContain("*Meta do resumo:*");
     expect(result?.reply).toContain("• Meta estimada: 15.400 kcal");
     expect(result?.reply).toContain("• Déficit: 14.931 kcal para a meta estimada do período");

@@ -133,11 +133,26 @@ function countPeriodDays(start: Date, end: Date) {
   return Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
 }
 
-function buildPeriodTotalLines(totals: NutritionTotals) {
-  return [
-    `Total consumido: ${formatNumber(totals.calories)} kcal`,
-    `* Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`,
-  ];
+function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null; items?: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }> }>) {
+  const groups = new Map<string, NutritionTotals>();
+  for (const meal of [...meals].reverse()) {
+    const label = meal.mealLabel?.trim() || "Refeição";
+    const itemTotals = sumMealItems(meal.items ?? []);
+    const existing = groups.get(label) ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    groups.set(label, {
+      calories: existing.calories + itemTotals.calories,
+      protein: existing.protein + itemTotals.protein,
+      carbs: existing.carbs + itemTotals.carbs,
+      fat: existing.fat + itemTotals.fat,
+    });
+  }
+  const lines: string[] = [];
+  for (const [label, totals] of groups) {
+    if (lines.length > 0) lines.push("");
+    lines.push(`${label}: ${formatNumber(totals.calories)} kcal`);
+    lines.push(`* Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`);
+  }
+  return lines;
 }
 
 function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; consumedCalories: number; balanceCalories: number }) {
@@ -197,7 +212,8 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
     `*Resumo de ${label}:*`,
     "",
     `Refeições registradas: ${mealsInPeriod.length}`,
-    ...buildPeriodTotalLines(totals),
+    "",
+    ...buildMealBreakdownLines(mealsInPeriod),
     ...(goalSummaryLines.length ? ["", ...goalSummaryLines] : []),
   ].join("\n");
 }
