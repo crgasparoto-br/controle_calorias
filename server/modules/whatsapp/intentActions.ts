@@ -317,46 +317,94 @@ function parseMealItemGramsReplacement(text: string) {
   };
 }
 
-function parseMealItemGramsAdjustment(text: string) {
+type GramsAdjustmentItem = {
+  gramsDelta: number;
+  targetFood: string | null;
+};
+
+function parseMealItemGramsAdjustmentMulti(text: string): GramsAdjustmentItem[] | null {
   const normalized = normalizeIntentText(text);
-  const match = normalized.match(/\b(?:diminuir|diminui|diminuia|reduzir|reduz|reduza|tirar|remover)\b[^\d]*(\d+(?:[,.]\d+)?)\s*(?:g|gramas?)\b/);
-  if (!match) {
+
+  // Must have a decrease verb somewhere in the message
+  if (!/\b(?:diminuir|diminui|diminuia|reduzir|reduz|reduza|tirar|remover)\b/.test(normalized)) {
     return null;
   }
 
-  const gramsDelta = Number(match[1].replace(",", "."));
-  if (!Number.isFinite(gramsDelta) || gramsDelta <= 0) {
-    return null;
+  // Each pair: <number> <unit> [do/da/de <food>]
+  // The food name stops before the next numeric pair, 'e <number>', or a comma/semicolon followed by a number.
+  const pairPattern = /(\d+(?:[,.]\d+)?)\s*(?:g|gramas?|ml|mililitros?)\b(?:\s+(?:do|da|de)\s+((?:(?!\d|\be\b\s*\d|[,;]\s*\d)\S+\s*)+))?/gi;
+  const results: GramsAdjustmentItem[] = [];
+  let pairMatch: RegExpExecArray | null;
+
+  while ((pairMatch = pairPattern.exec(normalized)) !== null) {
+    const gramsDelta = Number(pairMatch[1].replace(",", "."));
+    if (!Number.isFinite(gramsDelta) || gramsDelta <= 0) {
+      continue;
+    }
+
+    let targetFoodRaw = pairMatch[2]?.trim() ?? null;
+
+    results.push({
+      gramsDelta,
+      targetFood: cleanTargetFoodText(targetFoodRaw ?? undefined),
+    });
   }
 
-  const afterAmount = normalized.slice((match.index ?? 0) + match[0].length);
-  const targetMatch = afterAmount.match(/(?:\bdo\b|\bda\b|\bde\b)\s+(.+)/);
-
-  return {
-    gramsDelta,
-    targetFood: cleanTargetFoodText(targetMatch?.[1]),
-  };
+  return results.length > 0 ? results : null;
 }
 
-function parseMealItemGramsIncrement(text: string) {
+/** @deprecated use parseMealItemGramsAdjustmentMulti */
+function parseMealItemGramsAdjustment(text: string) {
+  const items = parseMealItemGramsAdjustmentMulti(text);
+  return items?.[0] ?? null;
+}
+
+type GramsIncrementItem = {
+  gramsDelta: number;
+  targetFood: string | null;
+};
+
+function parseMealItemGramsIncrementMulti(text: string): GramsIncrementItem[] | null {
   const normalized = normalizeIntentText(text);
-  const match = normalized.match(/\b(?:somar|soma|some|adicionar|adiciona|adicione|acrescentar|acrescenta|acrescente|colocar\s+mais|coloca\s+mais|coloque\s+mais|aumentar|aumenta|aumente)\b[^\d]*(\d+(?:[,.]\d+)?)\s*(?:g|gramas?)\b/);
-  if (!match) {
+
+  // Must have an increment verb somewhere in the message
+  if (!/\b(?:somar|soma|some|adicionar|adiciona|adicione|acrescentar|acrescenta|acrescente|colocar\s+mais|coloca\s+mais|coloque\s+mais|aumentar|aumenta|aumente)\b/.test(normalized)) {
     return null;
   }
 
-  const gramsDelta = Number(match[1].replace(",", "."));
-  if (!Number.isFinite(gramsDelta) || gramsDelta <= 0) {
+  // Must look like a grams-adjustment (not food-addition intent which has mealType)
+  // Reject if it looks like a full food-addition command (has meal-type words)
+  const mealTypePattern = /\b(?:cafe da manha|cafe da manha|almoco|jantar|lanche da tarde|lanche|ceia)\b/;
+  if (mealTypePattern.test(normalized)) {
     return null;
   }
 
-  const afterAmount = normalized.slice((match.index ?? 0) + match[0].length);
-  const targetMatch = afterAmount.match(/(?:\bao\b|\bno\b|\bna\b|\bdo\b|\bda\b|\bde\b)\s+(.+)/);
+  // Each pair: <number> <unit> [ao/no/na/do/da/de <food>]
+  // The food name stops before the next numeric pair, 'e <number>', or a comma/semicolon followed by a number.
+  const pairPattern = /(\d+(?:[,.]\d+)?)\s*(?:g|gramas?|ml|mililitros?)\b(?:\s+(?:ao|no|na|do|da|de)\s+((?:(?!\d|\be\b\s*\d|[,;]\s*\d)\S+\s*)+))?/gi;
+  const results: GramsIncrementItem[] = [];
+  let pairMatch: RegExpExecArray | null;
 
-  return {
-    gramsDelta,
-    targetFood: cleanTargetFoodText(targetMatch?.[1]),
-  };
+  while ((pairMatch = pairPattern.exec(normalized)) !== null) {
+    const gramsDelta = Number(pairMatch[1].replace(",", "."));
+    if (!Number.isFinite(gramsDelta) || gramsDelta <= 0) {
+      continue;
+    }
+
+    const targetFoodRaw = pairMatch[2]?.trim() ?? null;
+    results.push({
+      gramsDelta,
+      targetFood: cleanTargetFoodText(targetFoodRaw ?? undefined),
+    });
+  }
+
+  return results.length > 0 ? results : null;
+}
+
+/** @deprecated use parseMealItemGramsIncrementMulti */
+function parseMealItemGramsIncrement(text: string) {
+  const items = parseMealItemGramsIncrementMulti(text);
+  return items?.[0] ?? null;
 }
 
 function parseFoodReplacementIntent(text: string): FoodReplacementIntent | null {
@@ -1009,6 +1057,153 @@ async function handleMealItemIncrement(userId: number, increment: NonNullable<Re
   });
 }
 
+async function handleMealItemMultiAdjustment(userId: number, adjustments: GramsAdjustmentItem[]): Promise<WhatsappIntentResult> {
+  const latestMeal = (await listMeals(userId))[0];
+  if (!latestMeal?.items?.length) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: "Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada.",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de ajuste de gramas sem refeição recente disponível.",
+    };
+  }
+
+  const latestItems = toMealItemInputs(latestMeal.items);
+  const appliedAdjustments: Array<{ foodName: string; previousGrams: number; nextGrams: number }> = [];
+  const notFoundFoods: string[] = [];
+  let updatedItems = [...latestMeal.items];
+
+  for (const adjustment of adjustments) {
+    const currentItems = toMealItemInputs(updatedItems);
+    const target = findTargetMealItem(currentItems, adjustment.targetFood);
+    if (!target) {
+      if (adjustment.targetFood) {
+        notFoundFoods.push(adjustment.targetFood);
+      }
+      continue;
+    }
+
+    const previousGrams = Number(target.item.estimatedGrams || 0);
+    const nextGrams = Math.max(previousGrams - adjustment.gramsDelta, MIN_FOOD_GRAMS);
+    appliedAdjustments.push({ foodName: target.item.foodName, previousGrams, nextGrams });
+    updatedItems = updatedItems.map((item, index) =>
+      index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item,
+    );
+  }
+
+  if (!appliedAdjustments.length) {
+    const foods = adjustments.map(a => a.targetFood).filter(Boolean).join(", ");
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Não encontrei ${foods || "esses alimentos"} na última refeição. Me diga quais itens devo ajustar.`,
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de ajuste de gramas sem alimentos compatíveis na última refeição.",
+    };
+  }
+
+  const updatedMeal = await updateMeal(userId, {
+    mealId: latestMeal.id,
+    mealLabel: latestMeal.mealLabel,
+    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
+    notes: latestMeal.notes,
+    items: updatedItems as MealItemInput[],
+  });
+
+  const adjustmentLines = appliedAdjustments
+    .map(a => `• ${a.foodName}: de ${formatNumber(a.previousGrams)} g para ${formatNumber(a.nextGrams)} g`)
+    .join("\n");
+  const notFoundSuffix = notFoundFoods.length
+    ? `\nNão encontrei na última refeição: ${notFoundFoods.join(", ")}.`
+    : "";
+
+  return {
+    handled: true,
+    action: "meal_item_grams_adjusted",
+    reply: `Ajustes realizados na última refeição:\n${adjustmentLines} e recalculei os macros.${notFoundSuffix}`,
+    eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    detail: `${appliedAdjustments.length} item(ns) ajustado(s) via WhatsApp.`,
+    data: {
+      mealId: updatedMeal.id,
+      adjustments: appliedAdjustments,
+    },
+  };
+}
+
+async function handleMealItemMultiIncrement(userId: number, increments: GramsIncrementItem[]): Promise<WhatsappIntentResult> {
+  const latestMeal = (await listMeals(userId))[0];
+  if (!latestMeal?.items?.length) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: "Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada.",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de incremento de gramas sem refeição recente disponível.",
+    };
+  }
+
+  const appliedIncrements: Array<{ foodName: string; previousGrams: number; nextGrams: number }> = [];
+  const notFoundFoods: string[] = [];
+  let updatedItems = [...latestMeal.items];
+
+  for (const increment of increments) {
+    const currentItems = toMealItemInputs(updatedItems);
+    const target = findTargetMealItem(currentItems, increment.targetFood);
+    if (!target) {
+      if (increment.targetFood) {
+        notFoundFoods.push(increment.targetFood);
+      }
+      continue;
+    }
+
+    const previousGrams = Number(target.item.estimatedGrams || 0);
+    const nextGrams = Math.max(previousGrams + increment.gramsDelta, MIN_FOOD_GRAMS);
+    appliedIncrements.push({ foodName: target.item.foodName, previousGrams, nextGrams });
+    updatedItems = updatedItems.map((item, index) =>
+      index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item,
+    );
+  }
+
+  if (!appliedIncrements.length) {
+    const foods = increments.map(i => i.targetFood).filter(Boolean).join(", ");
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Não encontrei ${foods || "esses alimentos"} na última refeição. Me diga quais itens devo ajustar.`,
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de incremento de gramas sem alimentos compatíveis na última refeição.",
+    };
+  }
+
+  const updatedMeal = await updateMeal(userId, {
+    mealId: latestMeal.id,
+    mealLabel: latestMeal.mealLabel,
+    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
+    notes: latestMeal.notes,
+    items: updatedItems as MealItemInput[],
+  });
+
+  const incrementLines = appliedIncrements
+    .map(a => `• ${a.foodName}: de ${formatNumber(a.previousGrams)} g para ${formatNumber(a.nextGrams)} g`)
+    .join("\n");
+  const notFoundSuffix = notFoundFoods.length
+    ? `\nNão encontrei na última refeição: ${notFoundFoods.join(", ")}.`
+    : "";
+
+  return {
+    handled: true,
+    action: "meal_item_grams_adjusted",
+    reply: `Ajustes realizados na última refeição:\n${incrementLines} e recalculei os macros.${notFoundSuffix}`,
+    eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    detail: `${appliedIncrements.length} item(ns) incrementado(s) via WhatsApp.`,
+    data: {
+      mealId: updatedMeal.id,
+      increments: appliedIncrements,
+    },
+  };
+}
+
 async function handleMealItemReplacement(userId: number, replacement: NonNullable<ReturnType<typeof parseMealItemGramsReplacement>>): Promise<WhatsappIntentResult> {
   return updateLatestMealItemGrams({
     userId,
@@ -1313,14 +1508,14 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return handleFoodAdditionIntent(userId, foodAddition);
   }
 
-  const gramsIncrement = parseMealItemGramsIncrement(text);
-  if (gramsIncrement) {
-    return handleMealItemIncrement(userId, gramsIncrement);
+  const gramsIncrements = parseMealItemGramsIncrementMulti(text);
+  if (gramsIncrements) {
+    return handleMealItemMultiIncrement(userId, gramsIncrements);
   }
 
-  const gramsAdjustment = parseMealItemGramsAdjustment(text);
-  if (gramsAdjustment) {
-    return handleMealItemAdjustment(userId, gramsAdjustment);
+  const gramsAdjustments = parseMealItemGramsAdjustmentMulti(text);
+  if (gramsAdjustments) {
+    return handleMealItemMultiAdjustment(userId, gramsAdjustments);
   }
 
   const foodReplacement = parseFoodReplacementIntent(text);

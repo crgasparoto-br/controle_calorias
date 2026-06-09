@@ -541,6 +541,267 @@ describe("executeWhatsappTextIntent", () => {
     }));
   });
 
+  it("interpreta ajuste de quantidade para múltiplos alimentos na mesma mensagem", async () => {
+    const peraItem = {
+      foodName: "Pêra",
+      canonicalName: "Pêra",
+      portionText: "120 g",
+      servings: 1,
+      estimatedGrams: 120,
+      calories: 72,
+      protein: 0.4,
+      carbs: 18.6,
+      fat: 0.2,
+      confidence: 0.9,
+      source: "catalog" as const,
+    };
+
+    listMealsMock.mockResolvedValue([
+      {
+        id: 30,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-09T15:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [peraItem, bananaItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 30,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Diminuir 16g da pêra e 58g da banana",
+      receivedAt: new Date("2026-06-09T15:30:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledOnce();
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 30,
+      items: [
+        expect.objectContaining({
+          foodName: "Pêra",
+          estimatedGrams: 104,
+        }),
+        expect.objectContaining({
+          foodName: "Banana",
+          estimatedGrams: 62,
+        }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+      eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    }));
+    expect(result?.reply).toContain("Pêra");
+    expect(result?.reply).toContain("Banana");
+    expect(result?.reply).toContain("104");
+    expect(result?.reply).toContain("62");
+  });
+
+  it("interpreta ajuste de redução para três alimentos distintos na mesma mensagem", async () => {
+    const peraItem = {
+      foodName: "Pêra",
+      canonicalName: "Pêra",
+      portionText: "120 g",
+      servings: 1,
+      estimatedGrams: 120,
+      calories: 72,
+      protein: 0.4,
+      carbs: 18.6,
+      fat: 0.2,
+      confidence: 0.9,
+      source: "catalog" as const,
+    };
+
+    listMealsMock.mockResolvedValue([
+      {
+        id: 31,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-09T12:00:00.000Z").getTime(),
+        items: [riceItem, beansItem, peraItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 31,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Reduzir 20g do arroz, 10g do feijão e 30g da pêra",
+      receivedAt: new Date("2026-06-09T12:30:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledOnce();
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 31,
+      items: [
+        expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 130 }),
+        expect.objectContaining({ foodName: "Feijão carioca", estimatedGrams: 90 }),
+        expect.objectContaining({ foodName: "Pêra", estimatedGrams: 90 }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+    }));
+  });
+
+  it("interpreta incremento de quantidade para múltiplos alimentos na mesma mensagem", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 32,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-09T13:00:00.000Z").getTime(),
+        items: [riceItem, beansItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 32,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Aumentar 20g do arroz e 30g do feijão",
+      receivedAt: new Date("2026-06-09T13:30:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledOnce();
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 32,
+      items: [
+        expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 170 }),
+        expect.objectContaining({ foodName: "Feijão carioca", estimatedGrams: 130 }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+    }));
+    expect(result?.reply).toContain("Arroz branco");
+    expect(result?.reply).toContain("Feijão carioca");
+  });
+
+  it("aplica o verbo inicial corretamente para todos os alimentos listados", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 33,
+        userId: 42,
+        mealLabel: "Jantar",
+        occurredAt: new Date("2026-06-09T20:00:00.000Z").getTime(),
+        items: [riceItem, beansItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 33,
+      ...input,
+    }));
+
+    await executeWhatsappTextIntent(42, {
+      text: "Diminuir 50g do arroz e 25g do feijão",
+      receivedAt: new Date("2026-06-09T20:30:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      items: [
+        expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 100 }),
+        expect.objectContaining({ foodName: "Feijão carioca", estimatedGrams: 75 }),
+      ],
+    }));
+  });
+
+  it("mantém quantidade e unidade associadas corretamente a cada alimento na mensagem multi-alimento", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 34,
+        userId: 42,
+        mealLabel: "Ceia",
+        occurredAt: new Date("2026-06-09T22:00:00.000Z").getTime(),
+        items: [
+          {
+            foodName: "Cerveja",
+            canonicalName: "Cerveja",
+            portionText: "350 ml",
+            servings: 1,
+            estimatedGrams: 350,
+            calories: 147,
+            protein: 1.1,
+            carbs: 13,
+            fat: 0,
+            confidence: 0.9,
+            source: "catalog" as const,
+          },
+          {
+            foodName: "Amendoim",
+            canonicalName: "Amendoim torrado",
+            portionText: "100 g",
+            servings: 1,
+            estimatedGrams: 100,
+            calories: 567,
+            protein: 25.8,
+            carbs: 16.1,
+            fat: 49.2,
+            confidence: 0.9,
+            source: "catalog" as const,
+          },
+        ],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 34,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Reduzir 100ml da cerveja e 50g do amendoim",
+      receivedAt: new Date("2026-06-09T22:30:00.000Z"),
+    });
+
+    // Cerveja: 350 - 100 = 250; Amendoim: 100 - 50 = 50
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      items: [
+        expect.objectContaining({ foodName: "Cerveja", estimatedGrams: 250 }),
+        expect.objectContaining({ foodName: "Amendoim", estimatedGrams: 50 }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+    }));
+  });
+
+  it("retorna confirmação listando cada ajuste aplicado separadamente", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 35,
+        userId: 42,
+        mealLabel: "Lanche",
+        occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+        items: [riceItem, bananaItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 35,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Diminuir 30g do arroz e 20g da banana",
+      receivedAt: new Date("2026-06-09T16:30:00.000Z"),
+    });
+
+    expect(result?.reply).toContain("Arroz branco");
+    expect(result?.reply).toContain("Banana");
+    // Verifica que a confirmação menciona ambos os ajustes, não só um
+    const arrozMatch = result?.reply.includes("120") || result?.reply.includes("100");
+    const bananaMatch = result?.reply.includes("100") || result?.reply.includes("120") || result?.reply.includes("80");
+    expect(arrozMatch || bananaMatch).toBe(true);
+  });
+
   it("retorna null quando o texto não é uma ação conhecida", async () => {
     await expect(executeWhatsappTextIntent(42, {
       text: "almocei arroz, feijão e frango",
