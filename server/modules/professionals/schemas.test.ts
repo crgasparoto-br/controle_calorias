@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { professionalGoalSuggestionSchema, professionalProfileSchema, requestPatientAccessSchema } from "./schemas";
+import {
+  professionalGoalSuggestionSchema,
+  professionalMealSuggestionSchema,
+  professionalProfileSchema,
+  requestPatientAccessSchema,
+} from "./schemas";
 
 describe("professional schemas", () => {
   it("defaults professional profile to active when omitted", () => {
@@ -54,6 +59,18 @@ describe("professional schemas", () => {
         },
         exceptions: [],
       },
+    });
+
+    expect(result.status).toBe("sent");
+  });
+
+  it("defaults professional meal suggestions to sent status", () => {
+    const result = professionalMealSuggestionSchema.parse({
+      patientId: 2,
+      mealLabel: "Almoço",
+      title: "Almoço rico em proteína",
+      description: "Arroz, feijão, frango grelhado e salada.",
+      rationale: "Ajustar saciedade e proteína no almoço.",
     });
 
     expect(result.status).toBe("sent");
