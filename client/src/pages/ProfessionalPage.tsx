@@ -31,6 +31,13 @@ export default function ProfessionalPage() {
     fatGrams: "",
     rationale: "",
   });
+  const [mealSuggestion, setMealSuggestion] = useState({
+    mealLabel: "Almoço",
+    title: "",
+    description: "",
+    rationale: "",
+    notes: "",
+  });
   const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery(
     { patientId: selectedPatientId ?? 0 },
     { enabled: hasActiveProfile && Boolean(selectedPatientId) },
@@ -82,6 +89,15 @@ export default function ProfessionalPage() {
     onError: error => toast.error(error.message || "Não foi possível sugerir a meta."),
   });
 
+  const suggestMeal = trpc.nutrition.professionals.suggestMealPlan.useMutation({
+    onSuccess: async () => {
+      toast.success("Sugestão de refeição enviada para acompanhamento.");
+      setMealSuggestion(previous => ({ ...previous, title: "", description: "", rationale: "", notes: "" }));
+      await invalidate();
+    },
+    onError: error => toast.error(error.message || "Não foi possível sugerir a refeição."),
+  });
+
   if (!profile.isLoading && !hasActiveProfile) {
     return (
       <DashboardLayout>
@@ -110,6 +126,7 @@ export default function ProfessionalPage() {
   const historyCount = history.data?.length ?? 0;
   const defaultNutritionGoal = dashboard.data?.nutritionGoal?.defaultGoal;
   const goalSuggestions = dashboard.data?.goalSuggestions ?? [];
+  const mealSuggestions = dashboard.data?.mealSuggestions ?? [];
   const suggestedCalories = Number(goalSuggestion.calories);
   const suggestedProtein = Number(goalSuggestion.proteinGrams);
   const suggestedCarbs = Number(goalSuggestion.carbsGrams);
@@ -121,6 +138,13 @@ export default function ProfessionalPage() {
     suggestedProtein > 0 &&
     suggestedCarbs > 0 &&
     suggestedFat > 0,
+  );
+  const canSuggestMeal = Boolean(
+    selectedPatientId &&
+    mealSuggestion.mealLabel.trim() &&
+    mealSuggestion.title.trim() &&
+    mealSuggestion.description.trim() &&
+    mealSuggestion.rationale.trim(),
   );
   const todayMeals = useMemo(() => {
     const todayKey = new Date().toLocaleDateString("pt-BR");
@@ -240,11 +264,12 @@ export default function ProfessionalPage() {
                 </div>
 
                 <Tabs defaultValue="resumo" className="gap-4">
-                  <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-5">
+                  <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-6">
                     <TabsTrigger className="min-h-11 rounded-xl" value="resumo">Resumo</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="hoje">Hoje</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="relatorios">Relatórios</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="metas">Metas</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="sugestoes">Sugestões</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="comentarios">Comentários</TabsTrigger>
                   </TabsList>
 
@@ -362,6 +387,74 @@ export default function ProfessionalPage() {
                     </div>
                   </TabsContent>
 
+                  <TabsContent value="sugestoes" className="space-y-4">
+                    <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                      Sugestões de refeição ficam registradas para acompanhamento e não criam refeições automaticamente no diário do paciente.
+                    </div>
+                    <div className="rounded-2xl border bg-background p-4">
+                      <div className="mb-4">
+                        <p className="font-medium">Sugerir refeição ou plano alimentar</p>
+                        <p className="text-sm text-muted-foreground">Descreva a proposta em linguagem prática para o paciente revisar depois.</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-[0.7fr_1.3fr]">
+                        <label className="space-y-2">
+                          <Label>Refeição</Label>
+                          <Input value={mealSuggestion.mealLabel} onChange={event => setMealSuggestion(previous => ({ ...previous, mealLabel: event.target.value }))} placeholder="Almoço" />
+                        </label>
+                        <label className="space-y-2">
+                          <Label>Título</Label>
+                          <Input value={mealSuggestion.title} onChange={event => setMealSuggestion(previous => ({ ...previous, title: event.target.value }))} placeholder="Almoço rico em proteína" />
+                        </label>
+                      </div>
+                      <label className="mt-3 block space-y-2">
+                        <Label>Descrição da sugestão</Label>
+                        <Textarea
+                          value={mealSuggestion.description}
+                          onChange={event => setMealSuggestion(previous => ({ ...previous, description: event.target.value }))}
+                          placeholder="Ex.: arroz, feijão, frango grelhado, salada e uma fruta."
+                        />
+                      </label>
+                      <label className="mt-3 block space-y-2">
+                        <Label>Justificativa</Label>
+                        <Textarea
+                          value={mealSuggestion.rationale}
+                          onChange={event => setMealSuggestion(previous => ({ ...previous, rationale: event.target.value }))}
+                          placeholder="Ex.: melhorar saciedade no almoço mantendo a meta de proteína."
+                        />
+                      </label>
+                      <label className="mt-3 block space-y-2">
+                        <Label>Observações opcionais</Label>
+                        <Textarea
+                          value={mealSuggestion.notes}
+                          onChange={event => setMealSuggestion(previous => ({ ...previous, notes: event.target.value }))}
+                          placeholder="Ex.: trocar frango por ovos nos dias sem preparo."
+                        />
+                      </label>
+                      <Button
+                        className="mt-4 rounded-full"
+                        disabled={!canSuggestMeal || suggestMeal.isPending}
+                        onClick={() => selectedPatientId && suggestMeal.mutate({
+                          patientId: selectedPatientId,
+                          mealLabel: mealSuggestion.mealLabel.trim(),
+                          title: mealSuggestion.title.trim(),
+                          description: mealSuggestion.description.trim(),
+                          rationale: mealSuggestion.rationale.trim(),
+                          notes: mealSuggestion.notes.trim() || undefined,
+                          status: "sent",
+                        })}
+                      >
+                        <MessageSquarePlus className="mr-2 h-4 w-4" /> Enviar sugestão
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="font-medium">Sugestões de refeição registradas</p>
+                      {mealSuggestions.length ? mealSuggestions.map(suggestion => (
+                        <MealSuggestionRow key={suggestion.id} suggestion={suggestion} />
+                      )) : <Empty text="Nenhuma sugestão de refeição registrada para este paciente." />}
+                    </div>
+                  </TabsContent>
+
                   <TabsContent value="comentarios" className="space-y-3">
                     <p className="font-medium">Comentários profissionais</p>
                     <Textarea value={comment} onChange={event => setComment(event.target.value)} placeholder="Adicionar comentário de acompanhamento" />
@@ -452,7 +545,7 @@ function GoalSuggestionRow({ suggestion }: {
   return (
     <div className="rounded-xl border bg-muted/20 p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-medium">{goalSuggestionStatusLabel(suggestion.status)}</span>
+        <span className="font-medium">{suggestionStatusLabel(suggestion.status)}</span>
         <span className="text-xs text-muted-foreground">{new Date(suggestion.createdAt).toLocaleString("pt-BR")}</span>
       </div>
       <div className="mt-2 grid gap-2 text-muted-foreground md:grid-cols-4">
@@ -466,7 +559,32 @@ function GoalSuggestionRow({ suggestion }: {
   );
 }
 
-function goalSuggestionStatusLabel(status: string) {
+function MealSuggestionRow({ suggestion }: {
+  suggestion: {
+    id: string;
+    status: string;
+    mealLabel: string;
+    title: string;
+    description: string;
+    rationale: string;
+    notes?: string;
+    createdAt: number;
+  };
+}) {
+  return (
+    <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">{suggestion.mealLabel} · {suggestion.title}</span>
+        <span className="text-xs text-muted-foreground">{suggestionStatusLabel(suggestion.status)} · {new Date(suggestion.createdAt).toLocaleString("pt-BR")}</span>
+      </div>
+      <p className="mt-2 text-muted-foreground">{suggestion.description}</p>
+      <p className="mt-2 text-muted-foreground">Justificativa: {suggestion.rationale}</p>
+      {suggestion.notes ? <p className="mt-2 text-xs text-muted-foreground">Obs.: {suggestion.notes}</p> : null}
+    </div>
+  );
+}
+
+function suggestionStatusLabel(status: string) {
   const labels: Record<string, string> = {
     draft: "Rascunho",
     sent: "Enviada",
