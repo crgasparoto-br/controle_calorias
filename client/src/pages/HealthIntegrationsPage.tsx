@@ -122,7 +122,6 @@ function IntegrationCard({
   provider: {
     provider: string;
     label: string;
-    available: boolean;
     platform: string;
     supportedDataTypes: readonly string[];
     authorizationUrl?: string | null;
