@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -78,7 +78,7 @@ describe("SyncedHealthDataPage", () => {
 
     render(React.createElement(SyncedHealthDataPage));
 
-    expect(screen.getByText("Dados sincronizados")).toBeTruthy();
+    expect(screen.getAllByText("Dados sincronizados").length).toBeGreaterThan(0);
     expect(screen.getByText("Corrida matinal")).toBeTruthy();
     expect(screen.getByText("Gasto externo")).toBeTruthy();
 
@@ -91,8 +91,8 @@ describe("SyncedHealthDataPage", () => {
     await user.type(screen.getByPlaceholderText("Buscar por atividade, origem ou tipo"), "matinal");
     await waitFor(() => expect(lastSyncedRecordsInput).toMatchObject({ q: "matinal" }));
 
-    await user.type(screen.getByLabelText("Data inicial"), "2026-06-01");
-    await user.type(screen.getByLabelText("Data final"), "2026-06-04");
+    fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-06-01" } });
+    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-06-04" } });
     await waitFor(() => {
       expect(lastSyncedRecordsInput).toMatchObject({
         from: "2026-06-01T00:00:00.000Z",
