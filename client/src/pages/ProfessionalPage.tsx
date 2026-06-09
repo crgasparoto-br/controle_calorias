@@ -13,6 +13,14 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
+type PatientAiAnswer = {
+  answer: string;
+  citedContext: string[];
+  caution?: string;
+  educationalNotice: string;
+  generatedAt: number;
+};
+
 export default function ProfessionalPage() {
   const utils = trpc.useUtils();
   const [, setLocation] = useLocation();
@@ -24,6 +32,8 @@ export default function ProfessionalPage() {
   const [reason, setReason] = useState("Acompanhamento nutricional com consentimento do paciente.");
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [comment, setComment] = useState("");
+  const [patientQuestion, setPatientQuestion] = useState("");
+  const [patientAnswer, setPatientAnswer] = useState<PatientAiAnswer | null>(null);
   const [goalSuggestion, setGoalSuggestion] = useState({
     calories: "",
     proteinGrams: "",
@@ -98,6 +108,14 @@ export default function ProfessionalPage() {
     onError: error => toast.error(error.message || "Não foi possível sugerir a refeição."),
   });
 
+  const askPatientQuestion = trpc.nutrition.professionals.askPatientQuestion.useMutation({
+    onSuccess: answer => {
+      setPatientAnswer(answer);
+      toast.success("Resposta gerada com contexto autorizado.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível responder a pergunta."),
+  });
+
   if (!profile.isLoading && !hasActiveProfile) {
     return (
       <DashboardLayout>
@@ -146,10 +164,15 @@ export default function ProfessionalPage() {
     mealSuggestion.description.trim() &&
     mealSuggestion.rationale.trim(),
   );
+  const canAskQuestion = Boolean(selectedPatientId && patientQuestion.trim().length >= 3);
   const todayMeals = useMemo(() => {
     const todayKey = new Date().toLocaleDateString("pt-BR");
     return dashboard.data?.meals.filter(meal => new Date(meal.occurredAt).toLocaleDateString("pt-BR") === todayKey) ?? [];
   }, [dashboard.data?.meals]);
+
+  useEffect(() => {
+    setPatientAnswer(null);
+  }, [selectedPatientId]);
 
   useEffect(() => {
     if (!defaultNutritionGoal) {
@@ -264,12 +287,13 @@ export default function ProfessionalPage() {
                 </div>
 
                 <Tabs defaultValue="resumo" className="gap-4">
-                  <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-6">
+                  <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-7">
                     <TabsTrigger className="min-h-11 rounded-xl" value="resumo">Resumo</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="hoje">Hoje</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="relatorios">Relatórios</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="metas">Metas</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="sugestoes">Sugestões</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="ia">IA</TabsTrigger>
                     <TabsTrigger className="min-h-11 rounded-xl" value="comentarios">Comentários</TabsTrigger>
                   </TabsList>
 
@@ -455,6 +479,30 @@ export default function ProfessionalPage() {
                     </div>
                   </TabsContent>
 
+                  <TabsContent value="ia" className="space-y-4">
+                    <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                      Perguntas com IA usam apenas o contexto autorizado deste paciente e retornam apoio educativo para análise profissional.
+                    </div>
+                    <div className="rounded-2xl border bg-background p-4">
+                      <label className="space-y-2">
+                        <Label>Pergunta sobre o paciente</Label>
+                        <Textarea
+                          value={patientQuestion}
+                          onChange={event => setPatientQuestion(event.target.value)}
+                          placeholder="Ex.: O que chama atenção na aderência desta semana?"
+                        />
+                      </label>
+                      <Button
+                        className="mt-4 rounded-full"
+                        disabled={!canAskQuestion || askPatientQuestion.isPending}
+                        onClick={() => selectedPatientId && askPatientQuestion.mutate({ patientId: selectedPatientId, question: patientQuestion.trim() })}
+                      >
+                        <MessageSquarePlus className="mr-2 h-4 w-4" /> Perguntar
+                      </Button>
+                    </div>
+                    {patientAnswer ? <PatientAiAnswerCard answer={patientAnswer} /> : <Empty text="Faça uma pergunta para gerar uma resposta com base no contexto autorizado." />}
+                  </TabsContent>
+
                   <TabsContent value="comentarios" className="space-y-3">
                     <p className="font-medium">Comentários profissionais</p>
                     <Textarea value={comment} onChange={event => setComment(event.target.value)} placeholder="Adicionar comentário de acompanhamento" />
@@ -522,6 +570,25 @@ function MealRow({ meal }: { meal: { id: number; mealLabel: string; occurredAt: 
         <span>{formatCalories(meal.totals.calories)}</span>
       </div>
       <p className="text-xs text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
+    </div>
+  );
+}
+
+function PatientAiAnswerCard({ answer }: { answer: PatientAiAnswer }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 text-sm leading-6">
+      <p className="font-medium">Resposta</p>
+      <p className="mt-2 text-muted-foreground">{answer.answer}</p>
+      {answer.citedContext.length ? (
+        <div className="mt-3">
+          <p className="text-xs font-medium uppercase text-muted-foreground">Contexto usado</p>
+          <div className="mt-2 grid gap-2 md:grid-cols-3">
+            {answer.citedContext.map(item => <span key={item} className="rounded-xl border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">{item}</span>)}
+          </div>
+        </div>
+      ) : null}
+      {answer.caution ? <p className="mt-3 text-xs text-muted-foreground">{answer.caution}</p> : null}
+      <p className="mt-3 text-xs text-muted-foreground">{answer.educationalNotice}</p>
     </div>
   );
 }
