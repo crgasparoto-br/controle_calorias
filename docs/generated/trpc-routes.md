@@ -11,7 +11,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `privacy` | 2 | 1 | 1 | protected | Exportação de dados e solicitação de exclusão |
 | `assistant` | 1 | 0 | 1 | protected | Sugestões alimentares assistidas |
 | `foodPhotoAnalysis` | 4 | 1 | 3 | protected | Análise, consulta, rejeição e confirmação de fotos |
-| `healthIntegrations` | 4 | 1 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
+| `healthIntegrations` | 5 | 2 | 3 | protected | Conexão, desconexão, sincronização e consulta de integrações de saúde |
 | `professionals` | 11 | 5 | 6 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 2 | 1 | 1 | protected | Conclusão de onboarding nutricional |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
@@ -55,6 +55,7 @@ Fonte: `server/nutritionRouter.ts`.
 | Procedure | Operação | Escopo |
 |---|---|---|
 | `status` | query | protected |
+| `syncedRecords` | query | protected |
 | `connect` | mutation | protected |
 | `disconnect` | mutation | protected |
 | `sync` | mutation | protected |
