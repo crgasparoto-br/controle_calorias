@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
+import ProfessionalProfileSettings from "@/components/ProfessionalProfileSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, Clock3, Plus, Save, Target, Trash2, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Clock3, Plus, Save, Stethoscope, Target, Trash2, UserRound } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -235,6 +236,7 @@ export default function OnboardingPage() {
   const whatsappStatusQuery = trpc.nutrition.whatsapp.status.useQuery();
   const savedProfileQuery = trpc.nutrition.onboarding.profile.useQuery();
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
+  const professionalProfileQuery = trpc.nutrition.professionals.profile.useQuery(undefined, { retry: false });
   const userName = user?.name?.trim() ?? "";
   const userEmail = user?.email?.trim() ?? "";
   const contactPhoneNumber = formatPhoneNumber(whatsappStatusQuery.data?.connection?.phoneNumber ?? "");
@@ -367,11 +369,13 @@ export default function OnboardingPage() {
   }
 
   const activeSchedules = mealSchedules.filter(schedule => schedule.enabled).length;
+  const professionalProfileActive = Boolean(professionalProfileQuery.data?.active);
   const completionStats = (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-4">
       <IntroStat label="Perfil" value={form.name.trim() ? "preenchido" : "pendente"} helper={calculatedAgeYears === null ? "idade opcional" : `${calculatedAgeYears} anos`} />
       <IntroStat label="Objetivo" value={OBJECTIVE_OPTIONS.find(option => option.value === form.objective)?.label ?? "definido"} helper={ACTIVITY_OPTIONS.find(option => option.value === form.activityLevel)?.label ?? "rotina"} />
       <IntroStat label="Refeições" value={`${activeSchedules} ativas`} helper={`${mealSchedules.length} faixas configuradas`} />
+      <IntroStat label="Profissional" value={professionalProfileActive ? "ativo" : "inativo"} helper="módulo nutricionista" />
     </div>
   );
 
@@ -398,7 +402,7 @@ export default function OnboardingPage() {
         ) : null}
 
         <Tabs defaultValue="perfil" className="gap-4">
-          <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-3">
+          <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-4">
             <TabsTrigger className="min-h-11 rounded-xl" value="perfil">
               <UserRound className="h-4 w-4" />
               Perfil
@@ -410,6 +414,10 @@ export default function OnboardingPage() {
             <TabsTrigger className="min-h-11 rounded-xl" value="refeicoes">
               <Clock3 className="h-4 w-4" />
               Refeições habituais
+            </TabsTrigger>
+            <TabsTrigger className="min-h-11 rounded-xl" value="profissional">
+              <Stethoscope className="h-4 w-4" />
+              Profissional
             </TabsTrigger>
           </TabsList>
 
@@ -537,6 +545,10 @@ export default function OnboardingPage() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="profissional">
+            <ProfessionalProfileSettings />
           </TabsContent>
         </Tabs>
       </form>

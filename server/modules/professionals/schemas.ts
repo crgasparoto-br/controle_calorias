@@ -1,14 +1,21 @@
 import { z } from "zod";
 import { goalSchema } from "../goals/schemas";
 
+const patientContactSchema = z.string().trim().min(3, "Informe o e-mail ou celular do paciente.").max(320);
+
 export const professionalProfileSchema = z.object({
   displayName: z.string().trim().min(2).max(120),
   registrationNumber: z.string().trim().min(2).max(80).optional(),
+  active: z.boolean().default(true),
 });
 
 export const requestPatientAccessSchema = z.object({
-  patientEmail: z.string().trim().email("Informe um e-mail válido do paciente."),
+  patientContact: patientContactSchema.optional(),
+  patientEmail: z.string().trim().email("Informe um e-mail válido do paciente.").optional(),
   reason: z.string().trim().min(3).max(500),
+}).refine(input => Boolean(input.patientContact || input.patientEmail), {
+  message: "Informe o e-mail ou celular do paciente.",
+  path: ["patientContact"],
 });
 
 export const accessIdSchema = z.object({
