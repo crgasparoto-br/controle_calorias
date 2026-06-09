@@ -18,6 +18,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Relatórios deve permitir análise por dia, semana, mês e período configurável com o mesmo padrão visual de seleção.
 - Relatórios devem priorizar aderência às metas e evolução, não listagem detalhada de alimentos.
 - A leitura principal de relatórios deve comparar consumido vs meta ajustada, macros planejados vs realizados, peso, qualidade alimentar, água e exercícios.
+- Meta ajustada de calorias é a meta base do dia somada às calorias de exercícios registradas no mesmo dia, quando houver gasto aplicável.
 - O detalhamento alimento por alimento deve permanecer em Refeições registradas; Relatórios pode apontar para essa tela quando o usuário precisar auditar um dia específico.
 
 ## Relatórios orientados a metas
@@ -26,11 +27,12 @@ A tela de Relatórios deve responder primeiro se o usuário está evoluindo em r
 
 A experiência deve conter:
 
-- resumo do período com consumo total, meta do período, desvio e exercícios;
+- resumo do período com consumo total, meta ajustada do período, desvio e exercícios;
 - aderência calórica com percentual médio, desvio médio e dias abaixo, dentro e acima da faixa ideal;
-- gráfico de consumido vs meta ajustada;
+- gráfico de consumido vs meta ajustada, mantendo a meta base como referência complementar quando útil;
 - comparação de macronutrientes em gramas e em distribuição percentual planejada vs realizada;
 - macro mais distante da meta;
+- detalhamento diário com consumo, meta ajustada, diferença em kcal e percentual de aderência;
 - visão agregada de qualidade alimentar com proteína, fibras, frutas, legumes/verduras, ultraprocessados e regularidade quando houver classificação disponível;
 - evolução de peso como sinal de apoio, com mensagem cautelosa quando faltarem registros;
 - água e exercícios como contexto da meta, incluindo consumo vs meta de água, dias com meta batida, dias ativos e gasto estimado.
@@ -44,5 +46,7 @@ Quando faltarem dados de peso, qualidade alimentar, água ou exercícios, a tela
 - Eventos analíticos não contêm dados sensíveis de saúde ou refeição crua.
 - Hoje deixa claro qual dia está ativo e permite voltar para hoje.
 - Registros e Relatórios deixam claro qual período está ativo e qual intervalo está sendo analisado.
-- Relatórios exibem comparação entre meta e realizado sempre que houver meta disponível.
+- Relatórios exibem comparação entre meta ajustada e realizado sempre que houver meta disponível.
+- Relatórios recalculam a meta ajustada e a aderência quando o usuário altera o período selecionado.
+- Relatórios exibem, por dia, consumo, meta ajustada, diferença em kcal e percentual de aderência.
 - Relatórios não duplicam a experiência operacional de Refeições registradas.
