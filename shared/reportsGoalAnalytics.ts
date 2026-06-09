@@ -9,6 +9,12 @@ export type CalorieGoalDay = {
   goalCalories: number;
 };
 
+export type MacroGoalDay = MacroTotals & {
+  goalProtein: number;
+  goalCarbs: number;
+  goalFat: number;
+};
+
 export type CalorieAdherenceSummary = {
   totalCalories: number;
   totalGoalCalories: number;
@@ -31,6 +37,12 @@ export type MacroAdherenceItem = {
   plannedPercent: number;
   percentPointDelta: number;
   gramDelta: number;
+};
+
+export type MacroDaySummary = {
+  daysWithMacroRecords: number;
+  proteinDaysWithinGoal: number;
+  fatDaysAboveGoal: number;
 };
 
 const MACRO_LABELS: Record<keyof MacroTotals, string> = {
@@ -65,6 +77,12 @@ function macroPercentages(macros: MacroTotals) {
     carbs: roundMetric((calories.carbs / totalCalories) * 100),
     fat: roundMetric((calories.fat / totalCalories) * 100),
   } satisfies MacroTotals;
+}
+
+function isWithinMacroRange(consumed: number, planned: number) {
+  if (consumed <= 0 || planned <= 0) return false;
+  const ratio = consumed / planned;
+  return ratio >= 0.9 && ratio <= 1.1;
 }
 
 export function calculateCalorieAdherence(days: CalorieGoalDay[], expectedDayCount = days.length): CalorieAdherenceSummary {
@@ -125,4 +143,30 @@ export function calculateMacroAdherence(consumed: MacroTotals, planned: MacroTot
     distributionAdherencePercent: roundMetric(distributionAdherencePercent),
     mostDistantMacro,
   };
+}
+
+export function calculateMacroDaySummary(days: MacroGoalDay[]): MacroDaySummary {
+  return days.reduce(
+    (summary, day) => {
+      const hasMacroRecord = day.protein > 0 || day.carbs > 0 || day.fat > 0;
+      if (!hasMacroRecord) return summary;
+
+      summary.daysWithMacroRecords += 1;
+
+      if (isWithinMacroRange(day.protein, day.goalProtein)) {
+        summary.proteinDaysWithinGoal += 1;
+      }
+
+      if (day.goalFat > 0 && day.fat / day.goalFat > 1.05) {
+        summary.fatDaysAboveGoal += 1;
+      }
+
+      return summary;
+    },
+    {
+      daysWithMacroRecords: 0,
+      proteinDaysWithinGoal: 0,
+      fatDaysAboveGoal: 0,
+    },
+  );
 }
