@@ -53,6 +53,18 @@ export const professionalMealSuggestionSchema = z.object({
   status: professionalMealSuggestionStatusSchema.default("sent"),
 });
 
+export const professionalPatientQuestionSchema = z.object({
+  patientId: z.number().int().positive(),
+  question: z.string().trim().min(3).max(800),
+});
+
+export const professionalPatientAnswerSchema = z.object({
+  answer: z.string().trim().min(1).max(3000),
+  citedContext: z.array(z.string().trim().min(1).max(200)).max(8).default([]),
+  caution: z.string().trim().max(500).optional(),
+  educationalNotice: z.string().trim().min(1).max(500),
+});
+
 export type ProfessionalProfileInput = z.infer<typeof professionalProfileSchema>;
 export type RequestPatientAccessInput = z.infer<typeof requestPatientAccessSchema>;
 export type AccessIdInput = z.infer<typeof accessIdSchema>;
@@ -62,3 +74,5 @@ export type ProfessionalGoalSuggestionInput = z.infer<typeof professionalGoalSug
 export type ProfessionalGoalSuggestionStatus = z.infer<typeof professionalGoalSuggestionStatusSchema>;
 export type ProfessionalMealSuggestionInput = z.infer<typeof professionalMealSuggestionSchema>;
 export type ProfessionalMealSuggestionStatus = z.infer<typeof professionalMealSuggestionStatusSchema>;
+export type ProfessionalPatientQuestionInput = z.infer<typeof professionalPatientQuestionSchema>;
+export type ProfessionalPatientAnswer = z.infer<typeof professionalPatientAnswerSchema>;
