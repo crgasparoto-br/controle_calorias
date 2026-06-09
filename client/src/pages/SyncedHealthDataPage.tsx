@@ -149,7 +149,7 @@ export default function SyncedHealthDataPage() {
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(11rem,14rem),minmax(11rem,14rem),1fr]">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(11rem,14rem),minmax(11rem,14rem)]">
               <DateFilter
                 label="Data inicial"
                 value={fromDate}
@@ -160,9 +160,6 @@ export default function SyncedHealthDataPage() {
                 value={toDate}
                 onChange={updateToDate}
               />
-              <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm leading-6 text-muted-foreground">
-                O período é enviado ao backend junto dos demais filtros e sempre reinicia a paginação.
-              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
