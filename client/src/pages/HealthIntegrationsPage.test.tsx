@@ -109,12 +109,17 @@ describe("HealthIntegrationsPage", () => {
     const { default: HealthIntegrationsPage } = await import("./HealthIntegrationsPage");
     const html = renderToString(React.createElement(HealthIntegrationsPage));
 
+    expect(html).toContain("Integrações");
     expect(html).toContain("Strava");
     expect(html).toContain("Claudinei");
     expect(html).toContain("Conectado com pendências");
     expect(html).toContain("Permissões da integração");
     expect(html).toContain("Atividade física");
     expect(html).toContain("Gasto energético pendente");
+    expect(html).not.toContain("Integrações visíveis");
+    expect(html).not.toContain("Conecte providers finalizados");
+    expect(html).not.toContain("Permissões, conexão, sincronização e erros ficam no próprio card");
+    expect(html).not.toContain("O Strava usa OAuth externo");
     expect(html).not.toContain("Garmin Connect");
     expect(html).not.toContain("Mock de desenvolvimento");
   });
