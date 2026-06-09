@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { ClipboardList, Mail, MessageSquarePlus, ShieldAlert, UserCheck, UserPlus, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -92,6 +93,10 @@ export default function ProfessionalPage() {
   const awaitingApprovalCount = accesses.data?.filter(access => access.status === "pending").length ?? 0;
   const historyCount = history.data?.length ?? 0;
   const defaultNutritionGoal = dashboard.data?.nutritionGoal?.defaultGoal;
+  const todayMeals = useMemo(() => {
+    const todayKey = new Date().toLocaleDateString("pt-BR");
+    return dashboard.data?.meals.filter(meal => new Date(meal.occurredAt).toLocaleDateString("pt-BR") === todayKey) ?? [];
+  }, [dashboard.data?.meals]);
 
   return (
     <DashboardLayout>
@@ -172,8 +177,8 @@ export default function ProfessionalPage() {
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /> Acompanhamento do paciente</CardTitle>
-            <CardDescription>Dados agregados equivalentes às telas Hoje e Relatórios, incluindo metas nutricionais autorizadas.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /> Visão do paciente</CardTitle>
+            <CardDescription>Dados do paciente autorizado organizados por contexto profissional.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {dashboard.data ? (
@@ -183,34 +188,68 @@ export default function ProfessionalPage() {
                   <p>{dashboard.data.patient?.name || dashboard.data.patient?.email || `Paciente #${dashboard.data.patientId}`}</p>
                   <p>{dashboard.data.patient?.email || `ID interno #${dashboard.data.patientId}`}</p>
                 </div>
-                <div className="grid gap-3 md:grid-cols-4">
-                  <Metric label="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} />
-                  <Metric label="Calorias consumidas" value={formatCalories(dashboard.data.calories.consumed)} />
-                  <Metric label="Proteínas" value={formatGrams(dashboard.data.macros.protein)} />
-                  <Metric label="Variação de peso" value={`${dashboard.data.weight.deltaKg ?? 0} kg`} />
-                </div>
-                {defaultNutritionGoal ? (
-                  <div className="grid gap-3 md:grid-cols-4">
-                    <Metric label="Meta calórica" value={formatCalories(defaultNutritionGoal.calories)} />
-                    <Metric label="Meta proteína" value={formatGrams(defaultNutritionGoal.proteinGrams)} />
-                    <Metric label="Meta carboidratos" value={formatGrams(defaultNutritionGoal.carbsGrams)} />
-                    <Metric label="Meta gorduras" value={formatGrams(defaultNutritionGoal.fatGrams)} />
-                  </div>
-                ) : null}
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <div className="space-y-2">
-                    <p className="font-medium">Refeições registradas</p>
-                    {dashboard.data.meals.slice(0, 6).map(meal => (
-                      <div key={meal.id} className="rounded-xl border bg-background p-3 text-sm">
-                        <div className="flex justify-between gap-3">
-                          <span className="font-medium">{meal.mealLabel}</span>
-                          <span>{formatCalories(meal.totals.calories)}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
+
+                <Tabs defaultValue="resumo" className="gap-4">
+                  <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-5">
+                    <TabsTrigger className="min-h-11 rounded-xl" value="resumo">Resumo</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="hoje">Hoje</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="relatorios">Relatórios</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="metas">Metas</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="comentarios">Comentários</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="resumo" className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <Metric label="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} />
+                      <Metric label="Calorias consumidas" value={formatCalories(dashboard.data.calories.consumed)} />
+                      <Metric label="Proteínas" value={formatGrams(dashboard.data.macros.protein)} />
+                      <Metric label="Variação de peso" value={`${dashboard.data.weight.deltaKg ?? 0} kg`} />
+                    </div>
+                    <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                      Esta visão é do paciente selecionado, não da conta pessoal do nutricionista. Os dados só aparecem enquanto houver vínculo aprovado.
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="hoje" className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Metric label="Refeições hoje" value={String(todayMeals.length)} />
+                      <Metric label="Calorias semanais" value={formatCalories(dashboard.data.calories.consumed)} />
+                      <Metric label="Proteína semanal" value={formatGrams(dashboard.data.macros.protein)} />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-medium">Registros do dia</p>
+                      {todayMeals.length ? todayMeals.map(meal => <MealRow key={meal.id} meal={meal} />) : <Empty text="Nenhuma refeição registrada hoje para este paciente." />}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="relatorios" className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <Metric label="Planejado na semana" value={formatCalories(dashboard.data.calories.planned)} />
+                      <Metric label="Consumido na semana" value={formatCalories(dashboard.data.calories.consumed)} />
+                      <Metric label="Gasto estimado" value={formatCalories(dashboard.data.calories.burned)} />
+                      <Metric label="Peso" value={`${dashboard.data.weight.currentKg ?? 0} kg`} />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-medium">Registros recentes</p>
+                      {dashboard.data.meals.slice(0, 8).map(meal => <MealRow key={meal.id} meal={meal} />)}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="metas" className="space-y-3">
+                    {defaultNutritionGoal ? (
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <Metric label="Meta calórica" value={formatCalories(defaultNutritionGoal.calories)} />
+                        <Metric label="Meta proteína" value={formatGrams(defaultNutritionGoal.proteinGrams)} />
+                        <Metric label="Meta carboidratos" value={formatGrams(defaultNutritionGoal.carbsGrams)} />
+                        <Metric label="Meta gorduras" value={formatGrams(defaultNutritionGoal.fatGrams)} />
                       </div>
-                    ))}
-                  </div>
-                  <div className="space-y-3">
+                    ) : <Empty text="Nenhuma meta nutricional encontrada para este paciente." />}
+                    <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                      Sugestões de ajuste de metas ficam registradas para acompanhamento, sem alterar automaticamente a meta ativa do paciente.
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="comentarios" className="space-y-3">
                     <p className="font-medium">Comentários profissionais</p>
                     <Textarea value={comment} onChange={event => setComment(event.target.value)} placeholder="Adicionar comentário de acompanhamento" />
                     <Button
@@ -220,11 +259,11 @@ export default function ProfessionalPage() {
                     >
                       <MessageSquarePlus className="mr-2 h-4 w-4" /> Comentar
                     </Button>
-                    {dashboard.data.comments.map(item => (
+                    {dashboard.data.comments.length ? dashboard.data.comments.map(item => (
                       <div key={item.id} className="rounded-xl border bg-muted/20 p-3 text-sm">{item.comment}</div>
-                    ))}
-                  </div>
-                </div>
+                    )) : <Empty text="Nenhum comentário profissional registrado para este paciente." />}
+                  </TabsContent>
+                </Tabs>
               </>
             ) : (
               <Empty text="Selecione um paciente autorizado para visualizar o acompanhamento." />
@@ -265,6 +304,18 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border bg-background p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+function MealRow({ meal }: { meal: { id: number; mealLabel: string; occurredAt: string | number | Date; totals: { calories: number } } }) {
+  return (
+    <div className="rounded-xl border bg-background p-3 text-sm">
+      <div className="flex justify-between gap-3">
+        <span className="font-medium">{meal.mealLabel}</span>
+        <span>{formatCalories(meal.totals.calories)}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
     </div>
   );
 }
