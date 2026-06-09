@@ -7,8 +7,9 @@ import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { nutritionRouter } from "./nutritionRouter";
+import { getProfessionalProfile } from "./modules/professionals/service";
 import { quickEditRouter } from "./modules/quickEdit/router";
+import { nutritionRouter } from "./nutritionRouter";
 
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -21,6 +22,13 @@ const loginSchema = registerSchema.pick({ email: true, password: true });
 function sanitizeUser<T extends Record<string, unknown>>(user: T): Omit<T, "passwordHash"> {
   const { passwordHash: _passwordHash, ...safeUser } = user as T & { passwordHash?: unknown };
   return safeUser as Omit<T, "passwordHash">;
+}
+
+function sessionUser<T extends Record<string, unknown> & { id: number }>(user: T) {
+  return {
+    ...sanitizeUser(user),
+    professionalProfileActive: Boolean(getProfessionalProfile(user.id)?.active),
+  };
 }
 
 async function setSessionCookie(
@@ -50,12 +58,12 @@ export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user ? sanitizeUser(opts.ctx.user) : null),
+    me: publicProcedure.query(opts => opts.ctx.user ? sessionUser(opts.ctx.user) : null),
     register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
       try {
         const user = await registerLocalUser(input);
         await setSessionCookie(ctx, user);
-        return sanitizeUser(user);
+        return sessionUser(user);
       } catch (error) {
         if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") {
           throw new TRPCError({ code: "CONFLICT", message: "Não foi possível criar a conta com estes dados." });
@@ -67,7 +75,7 @@ export const appRouter = router({
       try {
         const user = await authenticateLocalUser(input);
         await setSessionCookie(ctx, user);
-        return sanitizeUser(user);
+        return sessionUser(user);
       } catch (error) {
         if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
