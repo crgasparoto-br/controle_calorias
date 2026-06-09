@@ -200,11 +200,11 @@ function getApprovedAccess(professionalUserId: number, patientUserId: number) {
 }
 
 function assertApprovedAccess(professionalUserId: number, patientUserId: number) {
-  assertActiveProfessionalProfile(professionalUserId);
   const access = getApprovedAccess(professionalUserId, patientUserId);
   if (!access) {
     throw new Error("Acesso profissional não autorizado pelo paciente.");
   }
+  assertActiveProfessionalProfile(professionalUserId);
   return access;
 }
 
