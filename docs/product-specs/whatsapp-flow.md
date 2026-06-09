@@ -12,6 +12,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O usuário não deve cadastrar o número oficial como se fosse seu telefone pessoal.
 - Respostas devem listar alimentos, porções, macros, calorias e horário em formato legível.
 - Após registrar uma refeição pelo WhatsApp, a resposta pode incluir um link temporário de edição rápida para corrigir alimentos, quantidades ou unidades da refeição recém-criada.
+- Correções textuais no formato `não é X, é Y` devem ser interpretadas como correção de alimento antes de qualquer intenção de hidratação, mesmo quando `X` for água.
 - O link de edição rápida deve usar token opaco, expirar em janela curta e não expor IDs internos de usuário ou refeição.
 - Se a geração do link de edição rápida falhar, o registro da refeição e a resposta nutricional principal devem continuar funcionando.
 - Recursos visuais auxiliares são opcionais. Falha nesse apoio não pode bloquear registro nem confirmação da refeição.
@@ -32,6 +33,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Erros de configuração de token/número são explícitos para operação, mas não vazam segredo.
 - Simulação inbound continua disponível para testes operacionais.
 - Pedidos como `O que posso comer no jantar?` respondem pelo WhatsApp sem cair no fallback de registro de refeição.
+- Correções como `Não é água é pão de cenoura` não devem cair no fluxo de água sem quantidade; devem gerar correção ou novo rascunho com o alimento informado.
 - Texto comum de refeição continua disponível para inferência nutricional e registro conversacional.
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
 - Token inválido ou expirado deve exibir mensagem amigável na tela web de edição rápida.

@@ -21,6 +21,28 @@ export class OfficialWhatsappNumberError extends Error {
   }
 }
 
+function cleanCorrectedFoodText(value?: string) {
+  return value
+    ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/gi, "")
+    .replace(/[.,;:!?]+$/g, "")
+    .replace(/^\b(?:o|a|os|as|do|da|de|dos|das)\b\s+/i, "")
+    .trim() || null;
+}
+
+function extractFoodCorrectionTarget(text?: string | null) {
+  const correctionMatch = text?.match(/\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i);
+  if (!correctionMatch) {
+    return null;
+  }
+
+  const targetFood = cleanCorrectedFoodText(correctionMatch[2]);
+  if (!targetFood || /\d/.test(targetFood)) {
+    return null;
+  }
+
+  return targetFood;
+}
+
 export async function getWhatsappStatus(userId: number) {
   const tokenStatus = await getAdminWhatsAppTokenStatus();
   const channelConfig = getWhatsAppChannelConfig();
@@ -69,6 +91,18 @@ export async function updateWhatsappConnection(userId: number, input: WhatsappCo
 }
 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
+  const correctedFood = extractFoodCorrectionTarget(input.text);
+  if (correctedFood) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.food_correction_text_detected",
+      detail: "Correção textual de alimento detectada antes de interpretar intenção de água.",
+    });
+    return processMealDraft(userId, { source: "whatsapp", text: correctedFood });
+  }
+
   const interpreted = await executeWhatsappTextIntent(userId, {
     text: input.text,
     receivedAt: new Date(),
