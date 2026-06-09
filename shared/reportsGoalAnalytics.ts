@@ -15,6 +15,23 @@ export type MacroGoalDay = MacroTotals & {
   goalFat: number;
 };
 
+export type WeightTrendPoint = {
+  date: string;
+  label?: string;
+  weightKg: number;
+};
+
+export type WeightTrendSummary = {
+  hasData: boolean;
+  entryCount: number;
+  firstWeightKg: number | null;
+  lastWeightKg: number | null;
+  deltaKg: number | null;
+  deltaPercent: number | null;
+  trendDirection: "insufficient_data" | "up" | "down" | "stable";
+  trendMessage: string;
+};
+
 export type CalorieAdherenceSummary = {
   totalCalories: number;
   totalGoalCalories: number;
@@ -169,4 +186,55 @@ export function calculateMacroDaySummary(days: MacroGoalDay[]): MacroDaySummary 
       fatDaysAboveGoal: 0,
     },
   );
+}
+
+export function calculateWeightTrendSummary(points: WeightTrendPoint[]): WeightTrendSummary {
+  const orderedPoints = points
+    .filter(point => Number.isFinite(point.weightKg) && point.weightKg > 0)
+    .slice()
+    .sort((first, second) => first.date.localeCompare(second.date));
+
+  if (!orderedPoints.length) {
+    return {
+      hasData: false,
+      entryCount: 0,
+      firstWeightKg: null,
+      lastWeightKg: null,
+      deltaKg: null,
+      deltaPercent: null,
+      trendDirection: "insufficient_data",
+      trendMessage: "Ainda não há registros de peso no período selecionado.",
+    };
+  }
+
+  const firstWeightKg = orderedPoints[0].weightKg;
+  const lastWeightKg = orderedPoints[orderedPoints.length - 1].weightKg;
+  const deltaKg = roundMetric(lastWeightKg - firstWeightKg);
+  const deltaPercent = firstWeightKg > 0 ? roundMetric((deltaKg / firstWeightKg) * 100) : null;
+  const trendDirection = orderedPoints.length < 2
+    ? "insufficient_data"
+    : Math.abs(deltaKg) < 0.2
+      ? "stable"
+      : deltaKg > 0
+        ? "up"
+        : "down";
+
+  const trendMessage = orderedPoints.length < 2
+    ? "Há apenas um registro de peso no período. A tendência ainda é insuficiente para análise."
+    : trendDirection === "stable"
+      ? "O peso ficou estável no período. Relacione com a aderência calórica antes de tirar conclusões."
+      : trendDirection === "up"
+        ? "O peso subiu no período. Use a aderência calórica como contexto, sem interpretar de forma isolada."
+        : "O peso caiu no período. Use a aderência calórica como contexto, sem interpretar de forma isolada.";
+
+  return {
+    hasData: true,
+    entryCount: orderedPoints.length,
+    firstWeightKg: roundMetric(firstWeightKg),
+    lastWeightKg: roundMetric(lastWeightKg),
+    deltaKg,
+    deltaPercent,
+    trendDirection,
+    trendMessage,
+  };
 }
