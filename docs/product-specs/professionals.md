@@ -15,6 +15,7 @@ Permitir que profissionais acompanhem pacientes mediante solicitação, aprovaç
 - A solicitação pode usar e-mail ou celular do paciente como identificador de entrada no fluxo web.
 - As solicitações recebidas pelo paciente devem aparecer em Configurações, junto dos vínculos pessoais do usuário.
 - Profissional só pode ver dashboard, histórico, metas nutricionais e dados autorizados do paciente.
+- A visão do paciente no módulo Nutricionista deve separar contexto profissional em áreas como Resumo, Hoje, Relatórios, Metas e Comentários.
 - Comentários e sugestões de meta devem ser rastreáveis por profissional e paciente.
 - Revogação deve bloquear novos acessos imediatamente.
 - O controle de consentimento é operacional e não deve aparecer como bloco visual destacado na tela principal do Nutricionista.
@@ -30,6 +31,7 @@ Permitir que profissionais acompanhem pacientes mediante solicitação, aprovaç
 - Solicitação por e-mail ou celular encontra o paciente correto ou retorna erro amigável.
 - Aprovações e revogações recebidas pelo paciente ficam acessíveis em Configurações.
 - Dados do paciente autorizado incluem visão equivalente a Hoje e Relatórios, além das metas nutricionais atuais.
+- A interface deixa claro quando os dados exibidos pertencem ao paciente selecionado, e não à conta pessoal do nutricionista.
 
 ## Fora de escopo atual
 
