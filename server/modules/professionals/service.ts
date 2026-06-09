@@ -7,6 +7,8 @@ import type {
   ProfessionalCommentInput,
   ProfessionalGoalSuggestionInput,
   ProfessionalGoalSuggestionStatus,
+  ProfessionalMealSuggestionInput,
+  ProfessionalMealSuggestionStatus,
   ProfessionalProfileInput,
   RequestPatientAccessInput,
 } from "./schemas";
@@ -53,12 +55,27 @@ type GoalSuggestion = {
   respondedAt: number | null;
 };
 
+type MealSuggestion = {
+  id: string;
+  professionalUserId: number;
+  patientUserId: number;
+  mealLabel: string;
+  title: string;
+  description: string;
+  rationale: string;
+  notes?: string;
+  status: ProfessionalMealSuggestionStatus;
+  createdAt: number;
+  sentAt: number | null;
+  respondedAt: number | null;
+};
+
 type HistoryEvent = {
   id: string;
   actorUserId: number;
   patientUserId: number;
   professionalUserId: number;
-  eventType: "profile_upserted" | "access_requested" | "access_approved" | "access_revoked" | "comment_created" | "goal_suggested";
+  eventType: "profile_upserted" | "access_requested" | "access_approved" | "access_revoked" | "comment_created" | "goal_suggested" | "meal_suggested";
   createdAt: number;
 };
 
@@ -72,6 +89,7 @@ const profiles = new Map<number, ProfessionalProfile>();
 const accesses = new Map<string, ProfessionalPatientAccess>();
 const comments: ProfessionalComment[] = [];
 const goalSuggestions: GoalSuggestion[] = [];
+const mealSuggestions: MealSuggestion[] = [];
 const history: HistoryEvent[] = [];
 
 function pushHistory(event: Omit<HistoryEvent, "id" | "createdAt">) {
@@ -101,6 +119,10 @@ function normalizePhoneDigits(value: string) {
 
 function isEmailContact(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function responseTimestamp(status: ProfessionalGoalSuggestionStatus | ProfessionalMealSuggestionStatus, now: number) {
+  return ["accepted", "refused", "cancelled"].includes(status) ? now : null;
 }
 
 function assertActiveProfessionalProfile(userId: number) {
@@ -366,6 +388,7 @@ export async function getProfessionalPatientDashboard(professionalUserId: number
     meals: meals.slice(0, 20),
     comments: comments.filter(comment => comment.professionalUserId === professionalUserId && comment.patientUserId === patientUserId),
     goalSuggestions: goalSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
+    mealSuggestions: mealSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
   };
 }
 
@@ -400,7 +423,7 @@ export function suggestGoalAdjustment(professionalUserId: number, input: Profess
     goal: input.goal,
     createdAt: now,
     sentAt: input.status === "sent" ? now : null,
-    respondedAt: ["accepted", "refused", "cancelled"].includes(input.status) ? now : null,
+    respondedAt: responseTimestamp(input.status, now),
   };
   goalSuggestions.push(suggestion);
   pushHistory({
@@ -408,6 +431,33 @@ export function suggestGoalAdjustment(professionalUserId: number, input: Profess
     professionalUserId,
     patientUserId: input.patientId,
     eventType: "goal_suggested",
+  });
+  return suggestion;
+}
+
+export function suggestMealPlan(professionalUserId: number, input: ProfessionalMealSuggestionInput) {
+  assertApprovedAccess(professionalUserId, input.patientId);
+  const now = Date.now();
+  const suggestion: MealSuggestion = {
+    id: crypto.randomUUID(),
+    professionalUserId,
+    patientUserId: input.patientId,
+    mealLabel: input.mealLabel,
+    title: input.title,
+    description: input.description,
+    rationale: input.rationale,
+    notes: input.notes,
+    status: input.status,
+    createdAt: now,
+    sentAt: input.status === "sent" ? now : null,
+    respondedAt: responseTimestamp(input.status, now),
+  };
+  mealSuggestions.push(suggestion);
+  pushHistory({
+    actorUserId: professionalUserId,
+    professionalUserId,
+    patientUserId: input.patientId,
+    eventType: "meal_suggested",
   });
   return suggestion;
 }
