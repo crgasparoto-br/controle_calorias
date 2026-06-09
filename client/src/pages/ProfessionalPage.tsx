@@ -91,6 +91,7 @@ export default function ProfessionalPage() {
   const approvedAccesses = accesses.data?.filter(access => access.status === "approved") ?? [];
   const awaitingApprovalCount = accesses.data?.filter(access => access.status === "pending").length ?? 0;
   const historyCount = history.data?.length ?? 0;
+  const defaultNutritionGoal = dashboard.data?.nutritionGoal?.defaultGoal;
 
   return (
     <DashboardLayout>
@@ -188,12 +189,12 @@ export default function ProfessionalPage() {
                   <Metric label="Proteínas" value={formatGrams(dashboard.data.macros.protein)} />
                   <Metric label="Variação de peso" value={`${dashboard.data.weight.deltaKg ?? 0} kg`} />
                 </div>
-                {dashboard.data.nutritionGoal ? (
+                {defaultNutritionGoal ? (
                   <div className="grid gap-3 md:grid-cols-4">
-                    <Metric label="Meta calórica" value={formatCalories(dashboard.data.nutritionGoal.calories)} />
-                    <Metric label="Meta proteína" value={formatGrams(dashboard.data.nutritionGoal.proteinGrams)} />
-                    <Metric label="Meta carboidratos" value={formatGrams(dashboard.data.nutritionGoal.carbsGrams)} />
-                    <Metric label="Meta gorduras" value={formatGrams(dashboard.data.nutritionGoal.fatGrams)} />
+                    <Metric label="Meta calórica" value={formatCalories(defaultNutritionGoal.calories)} />
+                    <Metric label="Meta proteína" value={formatGrams(defaultNutritionGoal.proteinGrams)} />
+                    <Metric label="Meta carboidratos" value={formatGrams(defaultNutritionGoal.carbsGrams)} />
+                    <Metric label="Meta gorduras" value={formatGrams(defaultNutritionGoal.fatGrams)} />
                   </div>
                 ) : null}
                 <div className="grid gap-4 xl:grid-cols-2">
