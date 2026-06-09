@@ -227,7 +227,7 @@ export default function ProfessionalPage() {
                       <Metric label="Planejado na semana" value={formatCalories(dashboard.data.calories.planned)} />
                       <Metric label="Consumido na semana" value={formatCalories(dashboard.data.calories.consumed)} />
                       <Metric label="Gasto estimado" value={formatCalories(dashboard.data.calories.burned)} />
-                      <Metric label="Peso" value={`${dashboard.data.weight.currentKg ?? 0} kg`} />
+                      <Metric label="Peso" value={dashboard.data.weight.hasData ? `${dashboard.data.weight.lastWeightKg} kg` : "Sem dados"} />
                     </div>
                     <div className="space-y-2">
                       <p className="font-medium">Registros recentes</p>
