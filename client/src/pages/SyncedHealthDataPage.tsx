@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { ChevronDown, Database } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 const DATA_TYPES = [
   { value: "all", label: "Todos" },
@@ -18,6 +18,11 @@ const DATA_TYPES = [
   { value: "energy_burned", label: "Gasto" },
   { value: "sleep", label: "Sono" },
 ] as const;
+
+const PAGE_SIZE = 20;
+
+type HealthProvider = "apple_health" | "health_connect" | "google_fit" | "strava" | "garmin_connect" | "mock";
+type HealthDataType = "steps" | "weight" | "activity" | "energy_burned" | "sleep";
 
 type SyncedHealthRecord = {
   id: string;
@@ -31,35 +36,45 @@ type SyncedHealthRecord = {
 };
 
 export default function SyncedHealthDataPage() {
-  const status = trpc.nutrition.healthIntegrations.status.useQuery();
   const [dataType, setDataType] = useState("all");
   const [source, setSource] = useState("all");
   const [query, setQuery] = useState("");
+  const [offset, setOffset] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const records = (status.data?.recentRecords ?? []) as SyncedHealthRecord[];
-  const sources = useMemo(() => Array.from(new Set(records.map(record => record.source))).sort(), [records]);
-  const filteredRecords = useMemo(() => {
-    const normalizedQuery = normalize(query);
-    return records.filter(record => {
-      const matchesType = dataType === "all" || record.dataType === dataType;
-      const matchesSource = source === "all" || record.source === source;
-      const searchable = normalize([
-        record.source,
-        record.dataType,
-        record.activityType,
-        typeof record.metadata?.name === "string" ? record.metadata.name : null,
-        typeof record.metadata?.sportType === "string" ? record.metadata.sportType : null,
-      ].filter(Boolean).join(" "));
-      return matchesType && matchesSource && (!normalizedQuery || searchable.includes(normalizedQuery));
-    });
-  }, [dataType, query, records, source]);
+  const syncedRecords = trpc.nutrition.healthIntegrations.syncedRecords.useQuery({
+    provider: source === "all" ? undefined : source as HealthProvider,
+    dataType: dataType === "all" ? undefined : dataType as HealthDataType,
+    q: query.trim() || undefined,
+    limit: PAGE_SIZE,
+    offset,
+  });
 
-  const stravaActivityRecords = filteredRecords.filter(record => record.source === "strava" && record.dataType === "activity");
+  const records = (syncedRecords.data?.items ?? []) as SyncedHealthRecord[];
+  const sources = syncedRecords.data?.sources ?? [];
+  const stravaActivityRecords = records.filter(record => record.source === "strava" && record.dataType === "activity");
   const stravaDistanceKm = stravaActivityRecords.reduce((sum, record) => {
     const distance = record.metadata?.distanceMeters;
     return sum + (typeof distance === "number" ? distance / 1000 : 0);
   }, 0);
+
+  const updateDataType = (nextDataType: string) => {
+    setDataType(nextDataType);
+    setOffset(0);
+    setExpandedId(null);
+  };
+
+  const updateSource = (nextSource: string) => {
+    setSource(nextSource);
+    setOffset(0);
+    setExpandedId(null);
+  };
+
+  const updateQuery = (nextQuery: string) => {
+    setQuery(nextQuery);
+    setOffset(0);
+    setExpandedId(null);
+  };
 
   return (
     <DashboardLayout>
@@ -70,8 +85,8 @@ export default function SyncedHealthDataPage() {
           description="Consulte registros importados das integrações com filtros por origem, tipo e busca textual. Abra um registro para conferir os detalhes enviados pelo provider."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <IntroStat label="Registros filtrados" value={String(filteredRecords.length)} helper="na consulta atual" />
-              <IntroStat label="Atividades Strava" value={String(stravaActivityRecords.length)} helper="com detalhes de treino" />
+              <IntroStat label="Registros encontrados" value={String(syncedRecords.data?.total ?? 0)} helper="na consulta atual" />
+              <IntroStat label="Nesta página" value={String(records.length)} helper="registros carregados" />
               <IntroStat label="Distância Strava" value={stravaDistanceKm > 0 ? `${formatNumber(stravaDistanceKm, 2)} km` : "0 km"} helper="nos registros visíveis" />
               <IntroStat label="Origens" value={String(sources.length)} helper="providers com dados" />
             </div>
@@ -92,7 +107,7 @@ export default function SyncedHealthDataPage() {
             <div className="grid gap-3 xl:grid-cols-[1fr,auto,auto]">
               <Input
                 value={query}
-                onChange={event => setQuery(event.target.value)}
+                onChange={event => updateQuery(event.target.value)}
                 placeholder="Buscar por atividade, origem ou tipo"
                 className="h-11"
               />
@@ -100,62 +115,95 @@ export default function SyncedHealthDataPage() {
                 label="Tipo"
                 value={dataType}
                 options={DATA_TYPES}
-                onChange={setDataType}
+                onChange={updateDataType}
               />
               <SegmentedFilter
                 label="Origem"
                 value={source}
                 options={[{ value: "all", label: "Todas" }, ...sources.map(item => ({ value: item, label: item }))]}
-                onChange={setSource}
+                onChange={updateSource}
               />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric label="Passos" value={formatCountPtBr(status.data?.totals.steps ?? 0)} />
-              <Metric label="Atividade" value={formatCountPtBr(status.data?.totals.activityMinutes ?? 0, " min")} />
-              <Metric label="Gasto externo" value={formatCalories(status.data?.totals.energyBurnedCalories ?? 0)} />
-              <Metric label="Sono" value={formatCountPtBr(status.data?.totals.sleepMinutes ?? 0, " min")} />
+              <Metric label="Passos" value={formatCountPtBr(syncedRecords.data?.totals.steps ?? 0)} />
+              <Metric label="Atividade" value={formatCountPtBr(syncedRecords.data?.totals.activityMinutes ?? 0, " min")} />
+              <Metric label="Gasto externo" value={formatCalories(syncedRecords.data?.totals.energyBurnedCalories ?? 0)} />
+              <Metric label="Sono" value={formatCountPtBr(syncedRecords.data?.totals.sleepMinutes ?? 0, " min")} />
             </div>
 
-            {status.isLoading ? (
+            {syncedRecords.isLoading ? (
               <UXState
                 variant="loading"
                 title="Carregando dados sincronizados"
                 description="Estou reunindo os registros recentes para preencher a consulta."
               />
-            ) : status.error ? (
+            ) : syncedRecords.error ? (
               <UXState
                 variant="error"
                 title="Não foi possível carregar os dados"
-                description={status.error.message || "Tente novamente em instantes para revisar os registros sincronizados."}
+                description={syncedRecords.error.message || "Tente novamente em instantes para revisar os registros sincronizados."}
               />
-            ) : filteredRecords.length ? (
-              <div className="grid gap-3">
-                {filteredRecords.map(record => {
-                  const expanded = expandedId === record.id;
-                  return (
-                    <article key={record.id} className="rounded-2xl border bg-background p-4 shadow-sm">
-                      <button
-                        type="button"
-                        className="flex w-full flex-wrap items-center justify-between gap-3 text-left"
-                        onClick={() => setExpandedId(expanded ? null : record.id)}
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold tracking-tight">{getRecordTitle(record)}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {new Date(record.measuredAt).toLocaleString("pt-BR")} · origem: {record.source}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="rounded-full px-3 py-1">{record.value} {record.unit}</Badge>
-                          <Badge variant="secondary" className="rounded-full px-3 py-1">{formatDataType(record.dataType)}</Badge>
-                          <ChevronDown className={`h-4 w-4 text-muted-foreground transition ${expanded ? "rotate-180" : ""}`} />
-                        </div>
-                      </button>
-                      {expanded ? <RecordDetails record={record} /> : null}
-                    </article>
-                  );
-                })}
+            ) : records.length ? (
+              <div className="space-y-4">
+                <div className="grid gap-3">
+                  {records.map(record => {
+                    const expanded = expandedId === record.id;
+                    return (
+                      <article key={record.id} className="rounded-2xl border bg-background p-4 shadow-sm">
+                        <button
+                          type="button"
+                          className="flex w-full flex-wrap items-center justify-between gap-3 text-left"
+                          onClick={() => setExpandedId(expanded ? null : record.id)}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold tracking-tight">{getRecordTitle(record)}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {new Date(record.measuredAt).toLocaleString("pt-BR")} · origem: {record.source}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className="rounded-full px-3 py-1">{record.value} {record.unit}</Badge>
+                            <Badge variant="secondary" className="rounded-full px-3 py-1">{formatDataType(record.dataType)}</Badge>
+                            <ChevronDown className={`h-4 w-4 text-muted-foreground transition ${expanded ? "rotate-180" : ""}`} />
+                          </div>
+                        </button>
+                        {expanded ? <RecordDetails record={record} /> : null}
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    Exibindo {offset + 1}-{offset + records.length} de {syncedRecords.data?.total ?? records.length}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full"
+                      disabled={offset === 0 || syncedRecords.isFetching}
+                      onClick={() => {
+                        setOffset(Math.max(offset - PAGE_SIZE, 0));
+                        setExpandedId(null);
+                      }}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full"
+                      disabled={!syncedRecords.data?.nextOffset || syncedRecords.isFetching}
+                      onClick={() => {
+                        setOffset(syncedRecords.data?.nextOffset ?? offset);
+                        setExpandedId(null);
+                      }}
+                    >
+                      Próxima
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : (
               <UXState
@@ -257,10 +305,6 @@ function Detail({ label, value }: { label: string; value: string }) {
 function getRecordTitle(record: SyncedHealthRecord) {
   const name = record.metadata?.name;
   return typeof name === "string" && name.trim() ? name : formatDataType(record.dataType);
-}
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
 function formatDataType(dataType: string) {
