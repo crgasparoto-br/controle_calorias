@@ -120,13 +120,13 @@ export default function SyncedHealthDataPage() {
                 className="h-11"
               />
               <SegmentedFilter
-                label="Tipo"
+                label="TIPO:"
                 value={dataType}
                 options={DATA_TYPES}
                 onChange={updateDataType}
               />
               <SegmentedFilter
-                label="Origem"
+                label="ORIGEM:"
                 value={source}
                 options={[{ value: "all", label: "Todas" }, ...sources.map(item => ({ value: item, label: item }))]}
                 onChange={updateSource}
@@ -278,7 +278,7 @@ function SegmentedFilter({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-background p-1">
-      <span className="px-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
+      <span className="px-2 text-xs font-bold uppercase tracking-[0.16em] text-foreground">{label}</span>
       {options.map(option => (
         <Button
           key={option.value}
