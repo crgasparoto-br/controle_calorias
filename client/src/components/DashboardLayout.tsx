@@ -1,3 +1,4 @@
+import React from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -23,6 +24,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   Apple,
   BarChart3,
+  Database,
   Goal,
   HeartPulse,
   LayoutDashboard,
@@ -108,7 +110,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
-      { icon: HeartPulse, label: "Saúde externa", path: "/health-integrations" },
+      { icon: HeartPulse, label: "Integrações", path: "/health-integrations" },
+      { icon: Database, label: "Dados sincronizados", path: "/synced-health-data" },
       { icon: Stethoscope, label: "Nutricionista", path: "/professional" },
     ];
 

@@ -1,0 +1,102 @@
+import { describe, expect, it } from "vitest";
+import { listSyncedHealthRecords } from "./syncedRecords";
+
+const records = [
+  {
+    id: "run-1:activity",
+    source: "strava" as const,
+    dataType: "activity" as const,
+    measuredAt: "2026-06-03T10:00:00Z",
+    value: 35,
+    unit: "minutes",
+    activityType: "Corrida",
+    metadata: {
+      name: "Corrida matinal",
+      sportType: "Run",
+      distanceMeters: 7200,
+    },
+  },
+  {
+    id: "run-1:energy",
+    source: "strava" as const,
+    dataType: "energy_burned" as const,
+    measuredAt: "2026-06-03T10:00:00Z",
+    value: 420,
+    unit: "kcal",
+    activityType: "Corrida",
+    metadata: {
+      name: "Corrida matinal",
+      sportType: "Run",
+    },
+  },
+  {
+    id: "walk-1:activity",
+    source: "mock" as const,
+    dataType: "activity" as const,
+    measuredAt: "2026-06-01T12:00:00Z",
+    value: 20,
+    unit: "minutes",
+    activityType: "Caminhada",
+    metadata: {
+      name: "Caminhada curta",
+    },
+  },
+  {
+    id: "steps-1",
+    source: "mock" as const,
+    dataType: "steps" as const,
+    measuredAt: "2026-05-30T12:00:00Z",
+    value: 6500,
+    unit: "count",
+    metadata: null,
+  },
+];
+
+describe("listSyncedHealthRecords", () => {
+  it("filtra por provider, tipo, texto e período", () => {
+    const result = listSyncedHealthRecords(records, {
+      provider: "strava",
+      dataType: "activity",
+      q: "matinal",
+      from: "2026-06-01T00:00:00Z",
+      to: "2026-06-04T00:00:00Z",
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      id: "run-1:activity",
+      source: "strava",
+      dataType: "activity",
+    });
+    expect(result.total).toBe(1);
+    expect(result.totals).toMatchObject({
+      activityMinutes: 35,
+      energyBurnedCalories: 0,
+      steps: 0,
+    });
+  });
+
+  it("pagina resultados e retorna o próximo offset", () => {
+    const firstPage = listSyncedHealthRecords(records, { limit: 2, offset: 0 });
+    const secondPage = listSyncedHealthRecords(records, { limit: 2, offset: 2 });
+
+    expect(firstPage.items.map(record => record.id)).toEqual(["run-1:activity", "run-1:energy"]);
+    expect(firstPage.nextOffset).toBe(2);
+    expect(secondPage.items.map(record => record.id)).toEqual(["walk-1:activity", "steps-1"]);
+    expect(secondPage.nextOffset).toBeNull();
+  });
+
+  it("retorna lista vazia quando nenhum filtro encontra registro", () => {
+    const result = listSyncedHealthRecords(records, {
+      dataType: "sleep",
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.items).toEqual([]);
+    expect(result.total).toBe(0);
+    expect(result.nextOffset).toBeNull();
+  });
+});

@@ -17,8 +17,19 @@ export const disconnectHealthIntegrationSchema = z.object({
   provider: healthProviderSchema,
 });
 
+export const listSyncedHealthRecordsSchema = z.object({
+  provider: healthProviderSchema.optional(),
+  dataType: healthDataTypeSchema.optional(),
+  from: z.string().trim().min(1).optional(),
+  to: z.string().trim().min(1).optional(),
+  q: z.string().trim().max(120).optional(),
+  limit: z.number().int().min(1).max(100).default(20),
+  offset: z.number().int().min(0).default(0),
+});
+
 export type HealthProvider = z.infer<typeof healthProviderSchema>;
 export type HealthDataType = z.infer<typeof healthDataTypeSchema>;
 export type ConnectHealthIntegrationInput = z.infer<typeof connectHealthIntegrationSchema>;
 export type SyncHealthIntegrationInput = z.infer<typeof syncHealthIntegrationSchema>;
 export type DisconnectHealthIntegrationInput = z.infer<typeof disconnectHealthIntegrationSchema>;
+export type ListSyncedHealthRecordsInput = z.infer<typeof listSyncedHealthRecordsSchema>;

@@ -404,6 +404,27 @@ export const exercises = mysqlTable("exercises", {
   userOccurredAtIdx: index("exercises_user_occurredAt_idx").on(table.userId, table.occurredAt),
 }));
 
+export const healthSyncedRecords = mysqlTable("healthSyncedRecords", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: mysqlEnum("provider", ["apple_health", "health_connect", "google_fit", "strava", "garmin_connect", "mock"]).notNull(),
+  externalRecordId: varchar("externalRecordId", { length: 160 }).notNull(),
+  dataType: mysqlEnum("dataType", ["steps", "weight", "activity", "energy_burned", "sleep"]).notNull(),
+  measuredAt: timestamp("measuredAt").notNull(),
+  value: double("value").notNull(),
+  unit: varchar("unit", { length: 40 }).notNull(),
+  activityType: varchar("activityType", { length: 120 }),
+  energyKind: varchar("energyKind", { length: 40 }),
+  metadataJson: text("metadataJson"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  userMeasuredAtIdx: index("healthSyncedRecords_user_measuredAt_idx").on(table.userId, table.measuredAt),
+  userProviderIdx: index("healthSyncedRecords_user_provider_idx").on(table.userId, table.provider),
+  userDataTypeIdx: index("healthSyncedRecords_user_dataType_idx").on(table.userId, table.dataType),
+  userProviderRecordUnique: uniqueIndex("healthSyncedRecords_user_provider_record_idx").on(table.userId, table.provider, table.externalRecordId, table.dataType),
+}));
+
 export const weightEntries = mysqlTable("weightEntries", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -559,6 +580,8 @@ export type Exercise = typeof exercises.$inferSelect;
 export type InsertExercise = typeof exercises.$inferInsert;
 export type ActivityEntry = Exercise;
 export type InsertActivityEntry = InsertExercise;
+export type HealthSyncedRecord = typeof healthSyncedRecords.$inferSelect;
+export type InsertHealthSyncedRecord = typeof healthSyncedRecords.$inferInsert;
 export type WeightEntry = typeof weightEntries.$inferSelect;
 export type InsertWeightEntry = typeof weightEntries.$inferInsert;
 export type WaterGoal = typeof waterGoals.$inferSelect;

@@ -143,11 +143,18 @@ import {
   whatsappConnectionSchema,
 } from "./modules/whatsapp/schemas";
 import { healthIntegrationService } from "./modules/healthIntegrations/service";
+import { listSyncedHealthRecords } from "./modules/healthIntegrations/syncedRecords";
 import {
   connectHealthIntegrationSchema,
   disconnectHealthIntegrationSchema,
+  listSyncedHealthRecordsSchema,
   syncHealthIntegrationSchema,
 } from "./modules/healthIntegrations/schemas";
+import {
+  deleteHealthSyncedRecords,
+  listHealthSyncedRecords,
+  upsertHealthSyncedRecords,
+} from "./repositories/healthSyncedRecordsRepository";
 import {
   accessIdSchema,
   patientIdSchema,
@@ -233,15 +240,40 @@ export const nutritionRouter = router({
 
   healthIntegrations: router({
     status: protectedProcedure.query(async ({ ctx }) => healthIntegrationService.getStatus(ctx.user.id)),
+    syncedRecords: protectedProcedure
+      .input(listSyncedHealthRecordsSchema)
+      .query(async ({ ctx, input }) => {
+        const persistedRecords = await listHealthSyncedRecords(ctx.user.id);
+        if (persistedRecords?.length) {
+          return listSyncedHealthRecords(persistedRecords, input);
+        }
+
+        const status = await healthIntegrationService.getStatus(ctx.user.id);
+        return listSyncedHealthRecords(status.recentRecords, input);
+      }),
     connect: protectedProcedure
       .input(connectHealthIntegrationSchema)
       .mutation(async ({ ctx, input }) => healthIntegrationService.connect(ctx.user.id, input)),
     disconnect: protectedProcedure
       .input(disconnectHealthIntegrationSchema)
-      .mutation(async ({ ctx, input }) => healthIntegrationService.disconnect(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) => {
+        const result = await healthIntegrationService.disconnect(ctx.user.id, input);
+        await deleteHealthSyncedRecords(ctx.user.id, input.provider);
+        return result;
+      }),
     sync: protectedProcedure
       .input(syncHealthIntegrationSchema)
-      .mutation(async ({ ctx, input }) => healthIntegrationService.sync(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) => {
+        const result = await healthIntegrationService.sync(ctx.user.id, input);
+        await upsertHealthSyncedRecords(result.records.map(record => ({
+          ...record,
+          userId: ctx.user.id,
+          provider: input.provider,
+          source: input.provider,
+          createdAt: Date.now(),
+        })));
+        return result;
+      }),
   }),
 
   professionals: router({

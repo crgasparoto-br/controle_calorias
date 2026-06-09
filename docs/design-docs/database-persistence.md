@@ -20,6 +20,7 @@
 | `mealMedia` | Referências de mídia |
 | `mealInferences` | Rascunhos e inferências de IA |
 | `habitMemories` | Memória de hábitos alimentares |
+| `healthSyncedRecords` | Histórico persistido de dados importados de integrações de saúde |
 | `whatsappConnections` | Vínculo telefone do usuário ↔ usuário interno |
 | `inferenceLogs` | Logs seguros de inferência |
 | `appSecrets` | Segredos operacionais criptografados |
@@ -34,6 +35,7 @@
 - Alimentos personalizados usam `foods.owner_user_id = <user_id>` e devem ser filtrados pelo usuário dono.
 - Refeições futuras devem salvar consumo real em itens de refeição com snapshot nutricional, sem duplicar dados globais do catálogo.
 - Alterações futuras em `foods` não devem recalcular refeições antigas silenciosamente.
+- Dados sincronizados de integrações de saúde devem ser apagados quando o usuário desconectar o provider correspondente.
 
 ## Catálogo global de alimentos
 
@@ -51,6 +53,14 @@ A estratégia inicial contra duplicidade usa `foods_source_code_unique` para imp
 A migration `0001_meal_item_nutrition_snapshot.sql` adiciona em `mealItems` os campos `foodId`, `grams`, macros calculados, `fiberG`, `sodiumMg` e `foodSnapshotJson`.
 
 Quando um item é registrado com `foodId`, o backend calcula os nutrientes a partir dos valores por 100 g do catálogo e da gramagem consumida. O snapshot grava nome, fonte, versão, status e nutrientes usados no cálculo para preservar o histórico mesmo se o alimento global for corrigido, depreciado ou mesclado depois.
+
+## Dados sincronizados de integrações
+
+A migration `0002_health_synced_records.sql` cria `healthSyncedRecords` para persistir registros importados de providers externos, como Strava.
+
+A tabela armazena `provider`, `externalRecordId`, `dataType`, `measuredAt`, `value`, `unit`, detalhes opcionais de atividade/energia e `metadataJson`. O índice único por usuário, provider, identificador externo e tipo de dado permite sincronizações idempotentes, atualizando registros já conhecidos sem duplicar histórico.
+
+O router de integrações grava os registros retornados por `sync`, consulta primeiro o histórico persistido para a tela de dados sincronizados e remove os registros do provider quando o usuário desconecta a integração. Dados transitórios em memória seguem como fallback quando o banco não está disponível ou ainda não há histórico persistido.
 
 ## Validação
 
