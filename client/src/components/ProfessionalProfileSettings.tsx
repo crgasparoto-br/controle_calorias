@@ -1,3 +1,4 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,21 +23,23 @@ const initialForm: ProfessionalFormState = {
 
 export default function ProfessionalProfileSettings() {
   const utils = trpc.useUtils();
+  const { user } = useAuth();
   const profile = trpc.nutrition.professionals.profile.useQuery(undefined, { retry: false });
   const patientRequests = trpc.nutrition.professionals.patientRequests.useQuery(undefined, { retry: false });
   const [appliedSavedProfile, setAppliedSavedProfile] = useState(false);
   const [form, setForm] = useState<ProfessionalFormState>(initialForm);
+  const suggestedProfessionalName = user?.name?.trim() ?? "";
 
   useEffect(() => {
     if (appliedSavedProfile || profile.isLoading) return;
 
     setForm({
-      displayName: profile.data?.displayName ?? "",
+      displayName: profile.data?.displayName ?? suggestedProfessionalName,
       registrationNumber: profile.data?.registrationNumber ?? "",
       active: Boolean(profile.data?.active),
     });
     setAppliedSavedProfile(true);
-  }, [appliedSavedProfile, profile.data, profile.isLoading]);
+  }, [appliedSavedProfile, profile.data, profile.isLoading, suggestedProfessionalName]);
 
   const invalidateProfessionalSettings = async () => {
     await Promise.all([
@@ -89,7 +92,7 @@ export default function ProfessionalProfileSettings() {
     }
 
     upsertProfile.mutate({
-      displayName: form.displayName.trim() || "Perfil profissional",
+      displayName: form.displayName.trim() || suggestedProfessionalName || "Perfil profissional",
       registrationNumber: form.registrationNumber.trim() || undefined,
       active: form.active,
     });
@@ -119,7 +122,7 @@ export default function ProfessionalProfileSettings() {
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
               <Label>Nome profissional</Label>
-              <Input value={form.displayName} onChange={event => updateField("displayName", event.target.value)} placeholder="Nome usado com pacientes" />
+              <Input value={form.displayName} onChange={event => updateField("displayName", event.target.value)} placeholder={suggestedProfessionalName || "Nome usado com pacientes"} />
             </div>
             <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
               <Label>Registro profissional</Label>
