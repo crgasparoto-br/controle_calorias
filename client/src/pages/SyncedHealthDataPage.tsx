@@ -1,3 +1,4 @@
+import React from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";

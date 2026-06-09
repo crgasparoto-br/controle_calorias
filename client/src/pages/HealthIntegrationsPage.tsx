@@ -1,3 +1,4 @@
+import React from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";
@@ -186,7 +187,7 @@ function IntegrationCard({
             const granted = (connection?.scopes ?? []).includes(scope);
             return (
               <Badge key={scope} variant={granted ? "secondary" : "outline"} className="rounded-full px-3 py-1">
-                {DATA_TYPE_LABELS[scope] ?? scope}{connected && !granted ? " pendente" : ""}
+                {`${DATA_TYPE_LABELS[scope] ?? scope}${connected && !granted ? " pendente" : ""}`}
               </Badge>
             );
           })}

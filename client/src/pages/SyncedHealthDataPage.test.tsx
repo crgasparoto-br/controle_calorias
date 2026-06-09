@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const syncedRecordsUseQueryMock = vi.fn();
 let lastSyncedRecordsInput: Record<string, unknown> | null = null;
@@ -68,6 +68,8 @@ const syncedData = {
 };
 
 describe("SyncedHealthDataPage", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     lastSyncedRecordsInput = null;
     syncedRecordsState = { data: syncedData, isLoading: false, error: null, isFetching: false };
