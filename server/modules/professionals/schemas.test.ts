@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   professionalGoalSuggestionSchema,
   professionalMealSuggestionSchema,
+  professionalPatientQuestionSchema,
   professionalProfileSchema,
   requestPatientAccessSchema,
 } from "./schemas";
@@ -74,5 +75,17 @@ describe("professional schemas", () => {
     });
 
     expect(result.status).toBe("sent");
+  });
+
+  it("accepts professional AI questions for authorized patient context", () => {
+    const result = professionalPatientQuestionSchema.parse({
+      patientId: 2,
+      question: "O que merece atenção nos registros da semana?",
+    });
+
+    expect(result).toEqual({
+      patientId: 2,
+      question: "O que merece atenção nos registros da semana?",
+    });
   });
 });
