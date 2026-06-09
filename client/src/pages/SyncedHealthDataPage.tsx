@@ -35,16 +35,28 @@ type SyncedHealthRecord = {
   metadata?: Record<string, unknown> | null;
 };
 
+function startOfDate(value: string) {
+  return value ? `${value}T00:00:00.000Z` : undefined;
+}
+
+function endOfDate(value: string) {
+  return value ? `${value}T23:59:59.999Z` : undefined;
+}
+
 export default function SyncedHealthDataPage() {
   const [dataType, setDataType] = useState("all");
   const [source, setSource] = useState("all");
   const [query, setQuery] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [offset, setOffset] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const syncedRecords = trpc.nutrition.healthIntegrations.syncedRecords.useQuery({
     provider: source === "all" ? undefined : source as HealthProvider,
     dataType: dataType === "all" ? undefined : dataType as HealthDataType,
+    from: startOfDate(fromDate),
+    to: endOfDate(toDate),
     q: query.trim() || undefined,
     limit: PAGE_SIZE,
     offset,
@@ -58,22 +70,34 @@ export default function SyncedHealthDataPage() {
     return sum + (typeof distance === "number" ? distance / 1000 : 0);
   }, 0);
 
-  const updateDataType = (nextDataType: string) => {
-    setDataType(nextDataType);
+  const resetPagedView = () => {
     setOffset(0);
     setExpandedId(null);
+  };
+
+  const updateDataType = (nextDataType: string) => {
+    setDataType(nextDataType);
+    resetPagedView();
   };
 
   const updateSource = (nextSource: string) => {
     setSource(nextSource);
-    setOffset(0);
-    setExpandedId(null);
+    resetPagedView();
   };
 
   const updateQuery = (nextQuery: string) => {
     setQuery(nextQuery);
-    setOffset(0);
-    setExpandedId(null);
+    resetPagedView();
+  };
+
+  const updateFromDate = (nextDate: string) => {
+    setFromDate(nextDate);
+    resetPagedView();
+  };
+
+  const updateToDate = (nextDate: string) => {
+    setToDate(nextDate);
+    resetPagedView();
   };
 
   return (
@@ -82,7 +106,7 @@ export default function SyncedHealthDataPage() {
         <PageIntro
           eyebrow="Dados sincronizados"
           title="Dados sincronizados"
-          description="Consulte registros importados das integrações com filtros por origem, tipo e busca textual. Abra um registro para conferir os detalhes enviados pelo provider."
+          description="Consulte registros importados das integrações com filtros por origem, tipo, período e busca textual. Abra um registro para conferir os detalhes enviados pelo provider."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat label="Registros encontrados" value={String(syncedRecords.data?.total ?? 0)} helper="na consulta atual" />
@@ -104,7 +128,7 @@ export default function SyncedHealthDataPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="grid gap-3 xl:grid-cols-[1fr,auto,auto]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr),auto,auto]">
               <Input
                 value={query}
                 onChange={event => updateQuery(event.target.value)}
@@ -123,6 +147,22 @@ export default function SyncedHealthDataPage() {
                 options={[{ value: "all", label: "Todas" }, ...sources.map(item => ({ value: item, label: item }))]}
                 onChange={updateSource}
               />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(11rem,14rem),minmax(11rem,14rem),1fr]">
+              <DateFilter
+                label="Data inicial"
+                value={fromDate}
+                onChange={updateFromDate}
+              />
+              <DateFilter
+                label="Data final"
+                value={toDate}
+                onChange={updateToDate}
+              />
+              <div className="rounded-2xl border bg-muted/20 px-4 py-3 text-sm leading-6 text-muted-foreground">
+                O período é enviado ao backend junto dos demais filtros e sempre reinicia a paginação.
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -271,6 +311,23 @@ function SegmentedFilter({
         </Button>
       ))}
     </div>
+  );
+}
+
+function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const inputId = label === "Data inicial" ? "synced-from-date" : "synced-to-date";
+
+  return (
+    <label htmlFor={inputId} className="grid gap-1 rounded-2xl border bg-background px-3 py-2 text-sm">
+      <span className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
+      <Input
+        id={inputId}
+        type="date"
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        className="h-9 border-0 px-0 shadow-none focus-visible:ring-0"
+      />
+    </label>
   );
 }
 
