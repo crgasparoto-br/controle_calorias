@@ -120,16 +120,21 @@ describe("HealthIntegrationsPage", () => {
   });
 
   it("mostra estado de sincronização e erro do Strava", async () => {
+    const baseStatus = connectedStatus();
+    const stravaProvider = baseStatus.providers[0];
+
     syncPending = true;
     healthStatusState = {
       data: {
-        ...connectedStatus(),
+        ...baseStatus,
         providers: [
           {
-            ...(connectedStatus().providers[0]),
+            ...stravaProvider,
             connection: {
-              ...(connectedStatus().providers[0].connection as NonNullable<unknown>),
               status: "error",
+              scopes: ["activity"],
+              consentGrantedAt: Date.parse("2026-06-01T10:00:00Z"),
+              lastSyncedAt: Date.parse("2026-06-02T10:00:00Z"),
               lastError: "Token expirado no Strava",
             },
           },
