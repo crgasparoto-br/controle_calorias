@@ -546,7 +546,7 @@ export async function answerProfessionalPatientQuestion(professionalUserId: numb
           role: "user",
           content: JSON.stringify({
             pergunta: sanitizedQuestion,
-            contexto,
+            contexto: context,
             avisoObrigatorio: PROFESSIONAL_AI_NOTICE,
           }),
         },
