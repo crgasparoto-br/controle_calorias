@@ -30,6 +30,7 @@ Fonte: `drizzle/schema.ts`.
 | `habitMemories` | `habitMemories` | 10 | Requer atenção |
 | `dailySummaries` | `dailySummaries` | 9 | Baixa |
 | `exercises` | `exercises` | 9 | Requer atenção |
+| `healthSyncedRecords` | `healthSyncedRecords` | 13 | Requer atenção |
 | `weightEntries` | `weightEntries` | 7 | Requer atenção |
 | `waterGoals` | `waterGoals` | 5 | Requer atenção |
 | `waterLogs` | `waterLogs` | 6 | Requer atenção |
@@ -57,6 +58,7 @@ Fonte: `drizzle/schema.ts`.
 - `mealInferences` via export `mealInferences`.
 - `habitMemories` via export `habitMemories`.
 - `exercises` via export `exercises`.
+- `healthSyncedRecords` via export `healthSyncedRecords`.
 - `weightEntries` via export `weightEntries`.
 - `waterGoals` via export `waterGoals`.
 - `waterLogs` via export `waterLogs`.
@@ -87,6 +89,7 @@ Fonte: `drizzle/schema.ts`.
 | `mealInferences` | `sourceText`, `transcript`, `mediaJson`, `reasoning`, `itemsJson`, `totalsJson` |
 | `habitMemories` | `foodName`, `typicalMealLabel`, `notes` |
 | `exercises` | `activityType`, `notes`, `occurredAt` |
+| `healthSyncedRecords` | `provider`, `externalRecordId`, `dataType`, `measuredAt`, `activityType`, `metadataJson` |
 | `weightEntries` | `weightKg`, `measuredAt`, `notes` |
 | `waterLogs` | `occurredAt` |
 | `userPreferences` | `preferenceKey`, `preferenceValue` |
@@ -99,4 +102,5 @@ Fonte: `drizzle/schema.ts`.
 - A maioria dos dados de domínio referencia `users.id`.
 - `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.
 - `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.
+- `healthSyncedRecords` preserva histórico de integrações por usuário e provider.
 
