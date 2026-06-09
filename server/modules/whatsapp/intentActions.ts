@@ -968,11 +968,13 @@ function buildPeriodGoalSummaryLines(goalCalories: number, diff: number) {
 
   const balanceLabel = diff > 0 ? "Superávit" : "Déficit";
   const balanceDetail = diff > 0 ? "da meta estimada do período" : "para a meta estimada do período";
+  const pct = Math.round((Math.abs(diff) / goalCalories) * 100);
+  const pctStr = diff > 0 ? `(+${pct}%)` : `(-${pct}%)`;
 
   return [
     "*Meta do resumo:*",
     `• Meta estimada: ${formatNumber(goalCalories)} kcal`,
-    `• ${balanceLabel}: ${formatNumber(Math.abs(diff))} kcal ${balanceDetail}`,
+    `• ${balanceLabel}: ${formatNumber(Math.abs(diff))} kcal ${pctStr} ${balanceDetail}`,
   ];
 }
 

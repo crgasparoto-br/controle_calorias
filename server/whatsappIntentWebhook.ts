@@ -159,6 +159,10 @@ function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoal
   if (input.goalCalories <= 0) return [];
 
   const balanceLabel = input.balanceCalories >= 0 ? "Déficit" : "Superávit";
+  const pct = input.adjustedGoalCalories > 0
+    ? Math.round((Math.abs(input.balanceCalories) / input.adjustedGoalCalories) * 100)
+    : 0;
+  const pctStr = input.balanceCalories >= 0 ? `(-${pct}%)` : `(+${pct}%)`;
 
   return [
     "Meta do *resumo:*",
@@ -166,7 +170,7 @@ function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoal
     ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal`] : []),
     `* Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
     `* Consumo: ${formatNumber(input.consumedCalories)} kcal`,
-    `* ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal`,
+    `* ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal ${pctStr}`,
   ];
 }
 

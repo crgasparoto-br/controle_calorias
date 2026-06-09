@@ -338,7 +338,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("* Exercícios: 300 kcal");
     expect(sentMessages.at(-1)).toContain("* Meta ajustada: 15.700 kcal");
     expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
-    expect(sentMessages.at(-1)).toContain("* Déficit: 15.505 kcal");
+    expect(sentMessages.at(-1)).toContain("* Déficit: 15.505 kcal (-99%)");
     expect(sentMessages.at(-1)).not.toContain("Você está em déficit");
     expect(sentMessages.at(-1)).not.toContain("para a meta ajustada do período");
   });
