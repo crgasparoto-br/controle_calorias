@@ -105,6 +105,7 @@ describe("whatsappWebhook", () => {
     process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
     process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
+    process.env.QUICK_EDIT_BASE_URL = "https://app.example.com";
     lastSentWhatsAppBody = null;
     lastSentWhatsAppUrl = null;
     sentWhatsAppPayloads = [];
@@ -295,7 +296,7 @@ describe("whatsappWebhook", () => {
       "* Déficit: 2.070 kcal",
     ].join("\n"));
     expect(lastSentWhatsAppBody).toContain("Quer ajustar algum alimento, quantidade ou unidade?");
-    expect(lastSentWhatsAppBody).toMatch(/Editar: \/quick-edit\/[A-Za-z0-9_-]+$/);
+    expect(lastSentWhatsAppBody).toMatch(/Editar: https:\/\/app\.example\.com\/quick-edit\/[A-Za-z0-9_-]+$/);
   });
 
   it("processa mídia de imagem e áudio sem falhar o webhook quando o número está vinculado", async () => {

@@ -497,6 +497,21 @@ export const inferenceLogs = mysqlTable("inferenceLogs", {
   eventTypeIdx: index("inferenceLogs_eventType_idx").on(table.eventType),
 }));
 
+export const quickEditTokens = mysqlTable("quickEditTokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  mealId: int("mealId").notNull().references(() => meals.id, { onDelete: "cascade" }),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  lastAccessedAt: timestamp("lastAccessedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  userMealIdx: index("quickEditTokens_user_meal_idx").on(table.userId, table.mealId),
+  expiresAtIdx: index("quickEditTokens_expiresAt_idx").on(table.expiresAt),
+}));
+
 export type UserWithPasswordHash = typeof users.$inferSelect;
 export type User = Omit<UserWithPasswordHash, "passwordHash">;
 export type InsertUser = typeof users.$inferInsert;
@@ -560,3 +575,5 @@ export type AppSecret = typeof appSecrets.$inferSelect;
 export type InsertAppSecret = typeof appSecrets.$inferInsert;
 export type InferenceLog = typeof inferenceLogs.$inferSelect;
 export type InsertInferenceLog = typeof inferenceLogs.$inferInsert;
+export type QuickEditToken = typeof quickEditTokens.$inferSelect;
+export type InsertQuickEditToken = typeof quickEditTokens.$inferInsert;

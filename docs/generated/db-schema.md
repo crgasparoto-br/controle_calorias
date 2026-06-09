@@ -38,6 +38,7 @@ Fonte: `drizzle/schema.ts`.
 | `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
 | `appSecrets` | `appSecrets` | 6 | Baixa |
 | `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
+| `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
 
 ## Tabelas sensíveis conhecidas
 

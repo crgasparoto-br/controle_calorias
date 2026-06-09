@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
-import { sql } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 import { getDb, logInferenceEvent } from "../../db";
+import { quickEditTokens } from "../../../drizzle/schema";
 import { listMeals, updateMeal } from "../meals/service";
 import type { UpdateMealInput } from "../meals/schemas";
 
@@ -60,6 +61,12 @@ function getQuickEditBaseUrl() {
 
 function buildQuickEditUrl(token: string) {
   const baseUrl = getQuickEditBaseUrl();
+  if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+    throw new Error(
+      "Nenhuma URL pública absoluta configurada para gerar links de edição rápida. " +
+      "Defina QUICK_EDIT_BASE_URL, PUBLIC_APP_URL, APP_BASE_URL ou APP_URL com uma URL iniciando por https://.",
+    );
+  }
   return `${baseUrl}/quick-edit/${encodeURIComponent(token)}`;
 }
 
@@ -77,36 +84,27 @@ function assertTokenAttemptAllowed(tokenHash: string) {
   }
 }
 
-function normalizeDbRows<T>(result: unknown): T[] {
-  if (Array.isArray(result) && Array.isArray(result[0])) {
-    return result[0] as T[];
-  }
-  if (Array.isArray(result)) {
-    return result as T[];
-  }
-  return [];
-}
-
 async function insertTokenInDb(row: QuickEditTokenRow) {
   const db = await getDb();
   if (!db) return;
 
-  await db.execute(sql`
-    INSERT INTO quickEditTokens (userId, mealId, tokenHash, expiresAt)
-    VALUES (${row.userId}, ${row.mealId}, ${row.tokenHash}, ${row.expiresAt})
-  `);
+  await db.insert(quickEditTokens).values({
+    userId: row.userId,
+    mealId: row.mealId,
+    tokenHash: row.tokenHash,
+    expiresAt: row.expiresAt,
+  });
 }
 
 async function findTokenInDb(tokenHash: string) {
   const db = await getDb();
   if (!db) return null;
 
-  const rows = normalizeDbRows<QuickEditTokenRow>(await db.execute(sql`
-    SELECT id, userId, mealId, tokenHash, expiresAt, usedAt, createdAt, lastAccessedAt
-    FROM quickEditTokens
-    WHERE tokenHash = ${tokenHash}
-    LIMIT 1
-  `));
+  const rows = await db
+    .select()
+    .from(quickEditTokens)
+    .where(eq(quickEditTokens.tokenHash, tokenHash))
+    .limit(1);
 
   return rows[0] ?? null;
 }
@@ -115,11 +113,19 @@ async function touchTokenInDb(tokenHash: string) {
   const db = await getDb();
   if (!db) return;
 
-  await db.execute(sql`
-    UPDATE quickEditTokens
-    SET lastAccessedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
-    WHERE tokenHash = ${tokenHash}
-  `);
+  await db
+    .update(quickEditTokens)
+    .set({ lastAccessedAt: new Date() })
+    .where(eq(quickEditTokens.tokenHash, tokenHash));
+}
+
+async function deleteExpiredTokensInDb() {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .delete(quickEditTokens)
+    .where(lt(quickEditTokens.expiresAt, new Date()));
 }
 
 async function findQuickEditToken(token: string) {
@@ -129,6 +135,12 @@ async function findQuickEditToken(token: string) {
   const dbRow = await findTokenInDb(tokenHash);
   const row = dbRow ?? tokenStore.get(tokenHash) ?? null;
   if (!row || new Date(row.expiresAt).getTime() <= Date.now()) {
+    logInferenceEvent({
+      origin: "web",
+      status: "warning",
+      eventType: "quick_edit.token_invalid",
+      detail: "Tentativa de acesso com link de edição rápida inválido ou expirado.",
+    });
     throw new QuickEditTokenError();
   }
 
@@ -139,6 +151,15 @@ async function findQuickEditToken(token: string) {
   }
 
   return row;
+}
+
+type ListedMeal = Awaited<ReturnType<typeof listMeals>>[number];
+
+type QuickEditPublicMeal = Omit<ListedMeal, "userId" | "sourceText" | "transcript" | "media">;
+
+function toPublicMealView(meal: ListedMeal): QuickEditPublicMeal {
+  const { userId: _u, sourceText: _s, transcript: _t, media: _m, ...rest } = meal;
+  return rest;
 }
 
 export async function createQuickEditLinkForMeal(input: {
@@ -193,8 +214,16 @@ export async function getQuickEditMeal(token: string) {
     throw new QuickEditTokenError();
   }
 
+  logInferenceEvent({
+    userId: row.userId,
+    origin: "web",
+    status: "success",
+    eventType: "quick_edit.link_opened",
+    detail: "Página de edição rápida acessada por link temporário.",
+  });
+
   return {
-    meal,
+    meal: toPublicMealView(meal),
     expiresAt: new Date(row.expiresAt).toISOString(),
   };
 }
@@ -215,6 +244,16 @@ export async function updateQuickEditMeal(token: string, input: Omit<UpdateMealI
   });
 
   return meal;
+}
+
+export async function purgeExpiredQuickEditTokens() {
+  const now = Date.now();
+  for (const [hash, row] of tokenStore.entries()) {
+    if (new Date(row.expiresAt).getTime() <= now) {
+      tokenStore.delete(hash);
+    }
+  }
+  await deleteExpiredTokensInDb();
 }
 
 export function __resetQuickEditTokensForTests() {
