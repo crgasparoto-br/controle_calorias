@@ -6,7 +6,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { toDateInputValue } from "@/lib/dateTime";
+import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Database } from "lucide-react";
@@ -38,11 +38,13 @@ type SyncedHealthRecord = {
 };
 
 function startOfDate(value: string) {
-  return `${value}T00:00:00.000Z`;
+  return zonedDateTimeLocalToIso(`${value}T00:00`);
 }
 
 function endOfDate(value: string) {
-  return `${value}T23:59:59.999Z`;
+  const end = new Date(zonedDateTimeLocalToIso(`${value}T23:59`));
+  end.setSeconds(59, 999);
+  return end.toISOString();
 }
 
 function toUtcNoonDate(dateKey: string) {
