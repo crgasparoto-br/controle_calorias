@@ -330,14 +330,15 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
     expect(sentMessages.at(-1)).toContain("*Resumo de semana:*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
-    expect(sentMessages.at(-1)).toContain("Total consumido: 195 kcal");
+    expect(sentMessages.at(-1)).toContain("Almoço: 195 kcal");
     expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
+    expect(sentMessages.at(-1)).not.toContain("Total consumido:");
     expect(sentMessages.at(-1)).toContain("Meta do *resumo:*");
     expect(sentMessages.at(-1)).toContain("* Meta estimada: 15.400 kcal");
     expect(sentMessages.at(-1)).toContain("* Exercícios: 300 kcal");
     expect(sentMessages.at(-1)).toContain("* Meta ajustada: 15.700 kcal");
     expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
-    expect(sentMessages.at(-1)).toContain("* Déficit: 15.505 kcal");
+    expect(sentMessages.at(-1)).toContain("* Déficit: 15.505 kcal (-99%)");
     expect(sentMessages.at(-1)).not.toContain("Você está em déficit");
     expect(sentMessages.at(-1)).not.toContain("para a meta ajustada do período");
   });
@@ -353,8 +354,9 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
     expect(sentMessages.at(-1)).toContain("*Resumo de hoje:*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
-    expect(sentMessages.at(-1)).toContain("Total consumido: 195 kcal");
+    expect(sentMessages.at(-1)).toContain("Almoço: 195 kcal");
     expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
+    expect(sentMessages.at(-1)).not.toContain("Total consumido:");
     expect(sentMessages.at(-1)).toContain("Meta do *resumo:*");
     expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
   });
