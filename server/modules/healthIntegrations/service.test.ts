@@ -163,7 +163,15 @@ describe("healthIntegrationService Strava", () => {
           moving_time: 900,
           calories: 0,
         },
-      ])));
+      ]))
+      .mockResolvedValueOnce(jsonResponse({
+        id: 1000,
+        name: "Atividade sem gasto",
+        sport_type: "Walk",
+        start_date: "2026-06-01T12:00:00Z",
+        moving_time: 900,
+        calories: 0,
+      })));
 
     const { healthIntegrationService } = await import("./service");
 
@@ -383,6 +391,68 @@ describe("healthIntegrationService Strava", () => {
     });
   });
 
+  it("busca detalhe para corrida com kilojoules no resumo e prioriza calories do detalhe", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read_all",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 996,
+          name: "Corrida com kJ no resumo",
+          sport_type: "Run",
+          start_date: "2026-06-02T22:00:00Z",
+          moving_time: 2400,
+          kilojoules: 573,
+        },
+      ]))
+      .mockResolvedValueOnce(jsonResponse({
+        id: 996,
+        name: "Corrida com kJ no resumo",
+        sport_type: "Run",
+        start_date: "2026-06-02T22:00:00Z",
+        moving_time: 2400,
+        elapsed_time: 2520,
+        calories: 390,
+        kilojoules: 573,
+      })));
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read_all",
+    });
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "https://www.strava.com/api/v3/activities/996",
+      expect.objectContaining({ headers: { Authorization: "Bearer access-token" } }),
+    );
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
+      activityType: "Corrida",
+      durationMinutes: 40,
+      caloriesBurned: 390,
+      occurredAt: "2026-06-02T22:00:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:996. Tipo Strava: Run. Calorias: 390 kcal.",
+    });
+
+    const status = await healthIntegrationService.getStatus(42);
+    const activityRecord = status.recentRecords.find(record => record.id === "996:activity");
+    expect(activityRecord?.metadata).toMatchObject({
+      calories: 390,
+      caloriesSource: "strava",
+      estimatedCalories: false,
+      kilojoules: 573,
+    });
+  });
+
   it("estima calorias para treino com peso quando o Strava não retorna gasto energético", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(jsonResponse({
@@ -441,6 +511,170 @@ describe("healthIntegrationService Strava", () => {
       dataType: "energy_burned",
       value: 295,
       unit: "kcal",
+    });
+  });
+
+  it("prioriza calories do detalhe para musculação em vez de estimativa local", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read_all",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 995,
+          name: "Treino de força com calorias no detalhe",
+          sport_type: "WeightTraining",
+          start_date: "2026-06-02T20:30:00Z",
+          moving_time: 2700,
+          kilojoules: 700,
+        },
+      ]))
+      .mockResolvedValueOnce(jsonResponse({
+        id: 995,
+        name: "Treino de força com calorias no detalhe",
+        sport_type: "WeightTraining",
+        start_date: "2026-06-02T20:30:00Z",
+        moving_time: 2700,
+        elapsed_time: 2850,
+        calories: 430,
+        kilojoules: 700,
+      })));
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read_all",
+    });
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "https://www.strava.com/api/v3/activities/995",
+      expect.objectContaining({ headers: { Authorization: "Bearer access-token" } }),
+    );
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
+      activityType: "Musculacao",
+      durationMinutes: 45,
+      caloriesBurned: 430,
+      occurredAt: "2026-06-02T20:30:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:995. Tipo Strava: WeightTraining. Calorias: 430 kcal.",
+    });
+
+    const status = await healthIntegrationService.getStatus(42);
+    const activityRecord = status.recentRecords.find(record => record.id === "995:activity");
+    expect(activityRecord?.metadata).toMatchObject({
+      calories: 430,
+      caloriesSource: "strava",
+      estimatedCalories: false,
+      kilojoules: 700,
+    });
+  });
+
+  it("não usa kilojoules como fonte principal para corrida sem calories", async () => {
+    process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = "0";
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read_all",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 994,
+          name: "Corrida com kJ e sem calories",
+          sport_type: "Run",
+          start_date: "2026-06-01T10:00:00Z",
+          moving_time: 1800,
+          kilojoules: 573,
+        },
+      ]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read_all",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
+      activityType: "Corrida",
+      durationMinutes: 30,
+      caloriesBurned: 300,
+      occurredAt: "2026-06-01T10:00:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:994. Tipo Strava: Run. Calorias estimadas: 300 kcal.",
+    });
+
+    const status = await healthIntegrationService.getStatus(42);
+    const activityRecord = status.recentRecords.find(record => record.id === "994:activity");
+    expect(activityRecord?.metadata).toMatchObject({
+      calories: 300,
+      caloriesSource: "estimated_activity",
+      estimatedCalories: true,
+      kilojoules: 573,
+    });
+  });
+
+  it("mantém kilojoules como fallback para atividades de pedal sem calories", async () => {
+    process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = "0";
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read_all",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 993,
+          name: "Pedal com kJ",
+          sport_type: "Ride",
+          start_date: "2026-06-01T12:00:00Z",
+          moving_time: 1800,
+          kilojoules: 600,
+        },
+      ]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read_all",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(exerciseMocks.createExercise).toHaveBeenCalledWith(42, {
+      activityType: "Pedal",
+      durationMinutes: 30,
+      caloriesBurned: 143,
+      occurredAt: "2026-06-01T12:00:00Z",
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:993. Tipo Strava: Ride. Calorias: 143 kcal.",
+    });
+
+    const status = await healthIntegrationService.getStatus(42);
+    const activityRecord = status.recentRecords.find(record => record.id === "993:activity");
+    expect(activityRecord?.metadata).toMatchObject({
+      calories: 143,
+      caloriesSource: "kilojoules",
+      estimatedCalories: false,
+      kilojoules: 600,
     });
   });
 

@@ -735,6 +735,16 @@ function getStravaActivityType(activity: StravaActivity) {
   return STRAVA_ACTIVITY_TYPE_LABELS[getStravaActivityTypeKey(activity)] ?? originalType;
 }
 
+function isStravaRideActivity(activity: StravaActivity) {
+  const typeKey = getStravaActivityTypeKey(activity);
+  if (/(^|_)(ride|bike|cycling|bicycle|ebike|handcycle|velomobile)(_|$)/.test(typeKey)) {
+    return true;
+  }
+
+  const value = `${activity.sport_type ?? ""} ${activity.type ?? ""} ${activity.name ?? ""}`;
+  return /ride|bike|cycling|ciclismo|pedal|bicicleta|handcycle|e-?bike|mtb/i.test(value);
+}
+
 function isStravaStrengthActivity(activity: StravaActivity) {
   const value = `${activity.sport_type ?? ""} ${activity.type ?? ""} ${activity.name ?? ""}`;
   return /weight|strength|workout|crossfit|hiit|highintensity|training|musculacao|muscula[cç][aã]o|for[cç]a|peso/i.test(value);
@@ -828,7 +838,11 @@ function getStravaCaloriesInfo(activity: StravaActivity) {
     };
   }
 
-  if (typeof activity.kilojoules === "number" && activity.kilojoules > 0) {
+  if (
+    typeof activity.kilojoules === "number"
+    && activity.kilojoules > 0
+    && isStravaRideActivity(activity)
+  ) {
     return {
       calories: Math.round(activity.kilojoules * 0.239006),
       source: "kilojoules" as const,
@@ -946,7 +960,9 @@ function formatPace(speedMetersPerSecond: number) {
 }
 
 function shouldFetchStravaActivityDetail(activity: StravaActivity) {
-  return activity.calories == null && activity.kilojoules == null && (activity.moving_time ?? 0) > 0;
+  const calories = typeof activity.calories === "number" ? activity.calories : null;
+  const missingCalories = calories == null || calories <= 0;
+  return missingCalories && (activity.moving_time ?? 0) > 0;
 }
 
 function getStravaMaxActivityDetailRequestsPerSync() {
