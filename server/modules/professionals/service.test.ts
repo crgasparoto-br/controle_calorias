@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  answerProfessionalPatientQuestion,
   approvePatientAccess,
   requestPatientAccess,
   suggestGoalAdjustment,
@@ -122,5 +123,21 @@ describe("professional meal suggestions", () => {
     });
     expect(suggestion.sentAt).toEqual(expect.any(Number));
     expect(suggestion.respondedAt).toBeNull();
+  });
+});
+
+describe("professional patient AI questions", () => {
+  it("blocks patient questions when patient access is not approved", async () => {
+    const professionalUserId = 24410;
+    const patientUserId = 24411;
+    upsertProfessionalProfile(professionalUserId, {
+      displayName: "Dra. Beatriz",
+      active: true,
+    });
+
+    await expect(answerProfessionalPatientQuestion(professionalUserId, {
+      patientId: patientUserId,
+      question: "O que chama atenção nos registros da semana?",
+    })).rejects.toThrow("Acesso profissional não autorizado pelo paciente.");
   });
 });
