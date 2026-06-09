@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SummaryPill } from "@/features/meals/components";
-import type { StoredMeal } from "@/features/meals/types";
 import {
   countDaysInRange,
   formatRangeLabel,
@@ -49,6 +48,27 @@ type ReportTotals = MacroTotals & {
 type TrendPoint = CalorieGoalDay & {
   date: string;
   label: string;
+  baseGoalCalories: number;
+  exerciseCalories: number;
+  calorieDelta: number;
+  adherencePercent: number;
+};
+
+type PeriodReportDay = {
+  date: string;
+  label: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  exerciseCalories: number;
+  goalCalories: number;
+  adjustedGoalCalories: number;
+  goalProtein: number;
+  goalCarbs: number;
+  goalFat: number;
+  calorieDelta: number;
+  adherencePercent: number;
 };
 
 const EMPTY_TOTALS: ReportTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
@@ -69,10 +89,6 @@ function formatPercent(value: number) {
   return `${formatNumberPtBr(value, { maximumFractionDigits: 1 })}%`;
 }
 
-function formatChartDateLabel(date: string) {
-  return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-}
-
 function progressPercent(value: number, goal: number) {
   if (!goal) return 0;
   return Math.min(Math.max((value / goal) * 100, 0), 100);
@@ -86,34 +102,27 @@ function getCalorieBarColor(calories: number, goalCalories: number) {
   return "#16a34a";
 }
 
-function sumMealTotals(meals: StoredMeal[]): ReportTotals {
-  return meals.reduce(
-    (totals, meal) => ({
-      calories: totals.calories + (meal.totals?.calories ?? 0),
-      protein: totals.protein + (meal.totals?.protein ?? 0),
-      carbs: totals.carbs + (meal.totals?.carbs ?? 0),
-      fat: totals.fat + (meal.totals?.fat ?? 0),
-    }),
-    { ...EMPTY_TOTALS },
-  );
-}
-
-function buildPeriodTrend(
-  mealsByDate: Array<{ date: string; items: StoredMeal[] }>,
-  goalCalories: number,
-): TrendPoint[] {
-  return mealsByDate
-    .slice()
-    .reverse()
-    .map(group => {
-      const totals = sumMealTotals(group.items);
-      return {
-        date: group.date,
-        label: formatChartDateLabel(group.date),
-        calories: Math.round(totals.calories),
-        goalCalories,
-      };
-    });
+function toTrendPoint(day: {
+  date: string;
+  label: string;
+  calories: number;
+  goalCalories: number;
+  adjustedGoalCalories?: number;
+  exerciseCalories?: number;
+  calorieDelta?: number;
+  adherencePercent?: number;
+}): TrendPoint {
+  const adjustedGoalCalories = day.adjustedGoalCalories ?? day.goalCalories;
+  return {
+    date: day.date,
+    label: day.label,
+    calories: Math.round(day.calories),
+    goalCalories: adjustedGoalCalories,
+    baseGoalCalories: day.goalCalories,
+    exerciseCalories: day.exerciseCalories ?? 0,
+    calorieDelta: day.calorieDelta ?? Math.round(day.calories - adjustedGoalCalories),
+    adherencePercent: day.adherencePercent ?? (adjustedGoalCalories > 0 ? (day.calories / adjustedGoalCalories) * 100 : 0),
+  };
 }
 
 function buildReportsHeading(scope: PeriodScope) {
@@ -213,7 +222,7 @@ function CalorieAdherenceCard({
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatusTile label="Média consumida" value={formatCalories(summary.averageCalories)} />
-          <StatusTile label="Média da meta" value={formatCalories(summary.averageGoalCalories)} />
+          <StatusTile label="Média da meta ajustada" value={formatCalories(summary.averageGoalCalories)} />
           <StatusTile label="Desvio médio" value={formatCalories(summary.averageDeltaCalories)} />
           <StatusTile label="Dias na faixa" value={`${summary.daysWithinRange}/${dayCount}`} />
         </div>
@@ -252,7 +261,8 @@ function CalorieTrendChart({ trendData }: { trendData: TrendPoint[] }) {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Bar dataKey="goalCalories" name="Meta ajustada" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
+            <Bar dataKey="baseGoalCalories" name="Meta base" fill="#e2e8f0" radius={[8, 8, 0, 0]} />
+            <Bar dataKey="goalCalories" name="Meta ajustada" fill="#94a3b8" radius={[8, 8, 0, 0]} />
             <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
               {trendData.map(day => (
                 <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />
@@ -260,6 +270,36 @@ function CalorieTrendChart({ trendData }: { trendData: TrendPoint[] }) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DailyCalorieBreakdown({ trendData }: { trendData: TrendPoint[] }) {
+  if (!trendData.length) return null;
+
+  return (
+    <Card className="border-0 shadow-sm">
+      <SectionHeader
+        icon={<Target className="h-5 w-5 text-primary" />}
+        title="Detalhe diário da meta ajustada"
+        description="Cada dia mostra consumo, meta ajustada, diferença e percentual de aderência recalculados para o período selecionado."
+      />
+      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {trendData.map(day => (
+          <div key={day.date} className="rounded-2xl border bg-background p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="font-medium tracking-tight">{day.label}</p>
+              <Badge variant="secondary" className="rounded-full">{formatPercent(day.adherencePercent)}</Badge>
+            </div>
+            <div className="grid gap-2 text-sm text-muted-foreground">
+              <span>Consumido: <strong className="text-foreground">{formatCalories(day.calories)}</strong></span>
+              <span>Meta ajustada: <strong className="text-foreground">{formatCalories(day.goalCalories)}</strong></span>
+              <span>Diferença: <strong className="text-foreground">{formatCalories(day.calorieDelta)}</strong></span>
+              {day.exerciseCalories > 0 ? <span>Exercícios adicionaram {formatCalories(day.exerciseCalories)} à meta.</span> : null}
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
@@ -458,15 +498,23 @@ export default function ReportsGoalsPage() {
     { enabled: periodScope !== "week" },
   );
 
-  const dayCount = periodScope === "week" ? 7 : countDaysInRange(activeRange);
+  const periodDaily = (periodBundle.data?.daily ?? []) as PeriodReportDay[];
+  const dayCount = periodScope === "week" ? 7 : periodDaily.length || countDaysInRange(activeRange);
   const weeklyDays = reportBundle.data?.weekly ?? [];
-  const periodMealsByDate = (periodBundle.data?.mealsByDate ?? []) as Array<{ date: string; items: StoredMeal[] }>;
   const periodTotals = periodBundle.data?.totals ?? EMPTY_TOTALS;
   const periodGoal = periodBundle.data?.goal ?? EMPTY_TOTALS;
 
   const trendData = periodScope === "week"
-    ? weeklyDays.map(day => ({ date: day.date, label: day.label, calories: day.calories, goalCalories: day.goalCalories }))
-    : buildPeriodTrend(periodMealsByDate, periodGoal.calories);
+    ? weeklyDays.map(day => toTrendPoint({
+        date: day.date,
+        label: day.label,
+        calories: day.calories,
+        goalCalories: day.goalCalories,
+        adjustedGoalCalories: day.adjustedGoalCalories,
+        exerciseCalories: day.exerciseCalories,
+        calorieDelta: day.calories - (day.adjustedGoalCalories ?? day.goalCalories),
+      }))
+    : periodDaily.map(toTrendPoint);
 
   const consumedMacros: MacroTotals = periodScope === "week"
     ? {
@@ -487,18 +535,16 @@ export default function ReportsGoalsPage() {
         fat: weeklyDays.reduce((total, day) => total + day.goalFat, 0),
       }
     : {
-        protein: periodGoal.protein * dayCount,
-        carbs: periodGoal.carbs * dayCount,
-        fat: periodGoal.fat * dayCount,
+        protein: periodDaily.reduce((total, day) => total + day.goalProtein, 0) || periodGoal.protein * dayCount,
+        carbs: periodDaily.reduce((total, day) => total + day.goalCarbs, 0) || periodGoal.carbs * dayCount,
+        fat: periodDaily.reduce((total, day) => total + day.goalFat, 0) || periodGoal.fat * dayCount,
       };
 
   const totalCalories = periodScope === "week"
     ? weeklyDays.reduce((total, day) => total + day.calories, 0)
     : periodTotals.calories;
-  const totalGoalCalories = periodScope === "week"
-    ? weeklyDays.reduce((total, day) => total + day.goalCalories, 0)
-    : periodGoal.calories * dayCount;
-  const adjustedGoalLabel = periodScope === "week" ? "metas ajustadas por dia" : "meta atual multiplicada pelo período";
+  const totalGoalCalories = trendData.reduce((total, day) => total + day.goalCalories, 0);
+  const adjustedGoalLabel = "metas ajustadas por dia";
   const reportsHeading = buildReportsHeading(periodScope);
 
   const waterConsumedMl = periodScope === "week"
@@ -524,7 +570,7 @@ export default function ReportsGoalsPage() {
   const introStats = (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <SummaryPill label="Consumido" value={formatCalories(totalCalories)} />
-      <SummaryPill label="Meta" value={formatCalories(totalGoalCalories)} />
+      <SummaryPill label="Meta ajustada" value={formatCalories(totalGoalCalories)} />
       <SummaryPill label="Aderência" value={formatPercent(calculateCalorieAdherence(trendData, dayCount).adherencePercent)} />
       <SummaryPill label="Dias analisados" value={String(dayCount)} />
       <SummaryPill label="Macros" value={`${formatMacro(consumedMacros.protein)} g prot.`} />
@@ -574,13 +620,14 @@ export default function ReportsGoalsPage() {
           <>
             <div className="grid gap-4 lg:grid-cols-4">
               <MetricCard title="Consumo total" value={formatCalories(totalCalories)} description="Soma das refeições registradas no período ativo." />
-              <MetricCard title="Meta do período" value={formatCalories(totalGoalCalories)} description={`Referência baseada em ${adjustedGoalLabel}.`} />
-              <MetricCard title="Desvio total" value={formatCalories(totalCalories - totalGoalCalories)} description="Diferença entre consumido e meta no intervalo." />
+              <MetricCard title="Meta ajustada do período" value={formatCalories(totalGoalCalories)} description={`Referência baseada em ${adjustedGoalLabel}.`} />
+              <MetricCard title="Desvio total" value={formatCalories(totalCalories - totalGoalCalories)} description="Diferença entre consumido e meta ajustada no intervalo." />
               <MetricCard title="Exercícios" value={formatCalories(exerciseCalories)} description="Gasto estimado usado como contexto da meta ajustada." />
             </div>
 
             <CalorieAdherenceCard trendData={trendData} dayCount={dayCount} />
             <CalorieTrendChart trendData={trendData} />
+            <DailyCalorieBreakdown trendData={trendData} />
             <MacroAdherenceCard consumed={consumedMacros} planned={plannedMacros} />
 
             <div className="grid gap-6 xl:grid-cols-[1fr,0.85fr]">
