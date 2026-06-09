@@ -806,6 +806,192 @@ describe("executeWhatsappTextIntent", () => {
     expect(arrozMatch || bananaMatch).toBe(true);
   });
 
+  it("reconhece café em cápsula L'Or pela forma curta '1 café lor'", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 20,
+        userId: 42,
+        mealLabel: "Café da manhã",
+        occurredAt: new Date("2026-06-09T08:00:00.000Z").getTime(),
+        notes: null,
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 20,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "1 café lor",
+      receivedAt: new Date("2026-06-09T09:00:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 20,
+      items: [
+        riceItem,
+        expect.objectContaining({
+          foodName: "Café em cápsula L'Or",
+          quantity: 1,
+          unit: "unidade",
+        }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_added",
+      eventType: "whatsapp.intent.meal_item_added",
+    }));
+  });
+
+  it("reconhece café em cápsula L'Or com apóstrofo '1 café l'or'", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 21,
+        userId: 42,
+        mealLabel: "Café da manhã",
+        occurredAt: new Date("2026-06-09T08:00:00.000Z").getTime(),
+        notes: null,
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 21,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "1 café l'or",
+      receivedAt: new Date("2026-06-09T09:00:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 21,
+      items: [
+        riceItem,
+        expect.objectContaining({
+          foodName: "Café em cápsula L'Or",
+          quantity: 1,
+          unit: "unidade",
+        }),
+      ],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_added",
+    }));
+  });
+
+  it("aplica múltiplas substituições em uma mensagem separadas por vírgula", async () => {
+    const fishItem = {
+      foodName: "Peixe",
+      canonicalName: "Peixe tilápia grelhado",
+      portionText: "200 g",
+      servings: 1,
+      estimatedGrams: 200,
+      calories: 240,
+      protein: 44,
+      carbs: 0,
+      fat: 6,
+      confidence: 0.9,
+      source: "catalog" as const,
+    };
+    const maniocItem = {
+      foodName: "Mandioquinha",
+      canonicalName: "Mandioquinha cozida",
+      portionText: "150 g",
+      servings: 1,
+      estimatedGrams: 150,
+      calories: 135,
+      protein: 1.7,
+      carbs: 31.5,
+      fat: 0.3,
+      confidence: 0.9,
+      source: "catalog" as const,
+    };
+
+    listMealsMock.mockResolvedValue([
+      {
+        id: 22,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-09T12:00:00.000Z").getTime(),
+        notes: null,
+        items: [fishItem, maniocItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 22,
+      ...input,
+    }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Não é peixe é frango, não é mandioquinha é batata doce",
+      receivedAt: new Date("2026-06-09T13:00:00.000Z"),
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 22,
+      items: [
+        expect.objectContaining({ estimatedGrams: 200 }),
+        expect.objectContaining({ estimatedGrams: 150 }),
+      ],
+    }));
+
+    const calledItems = (updateMealMock.mock.calls[0][1] as { items: Array<{ foodName: string }> }).items;
+    expect(calledItems[0].foodName).not.toBe("Peixe");
+    expect(calledItems[1].foodName).not.toBe("Mandioquinha");
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_replaced",
+      eventType: "whatsapp.intent.meal_item_replaced",
+      reply: expect.stringContaining("recalculei os macros"),
+    }));
+    expect(result?.reply).toContain("frango");
+    expect(result?.reply).toContain("batata doce");
+  });
+
+  it("não absorve o segundo par de substituição como nome do alimento destino", async () => {
+    const fishItem = {
+      foodName: "Peixe",
+      canonicalName: "Peixe",
+      portionText: "200 g",
+      servings: 1,
+      estimatedGrams: 200,
+      calories: 240,
+      protein: 44,
+      carbs: 0,
+      fat: 6,
+      confidence: 0.9,
+      source: "catalog" as const,
+    };
+    listMealsMock.mockResolvedValue([
+      {
+        id: 23,
+        userId: 42,
+        mealLabel: "Almoço",
+        occurredAt: new Date("2026-06-09T12:00:00.000Z").getTime(),
+        notes: null,
+        items: [fishItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 23,
+      ...input,
+    }));
+
+    await executeWhatsappTextIntent(42, {
+      text: "Não é peixe é frango, não é mandioquinha é batata doce",
+      receivedAt: new Date("2026-06-09T13:00:00.000Z"),
+    });
+
+    const calledItems = (updateMealMock.mock.calls[0][1] as { items: Array<{ foodName: string }> }).items;
+    expect(calledItems[0].foodName).not.toContain("mandioquinha");
+    expect(calledItems[0].foodName).not.toContain("batata doce");
+  });
+
   it("retorna null quando o texto não é uma ação conhecida", async () => {
     await expect(executeWhatsappTextIntent(42, {
       text: "almocei arroz, feijão e frango",
