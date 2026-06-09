@@ -1,9 +1,8 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import PageIntro from "@/components/PageIntro";
 import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Activity, AlertCircle, CheckCircle2, ExternalLink, RefreshCw, ShieldCheck, Unlink } from "lucide-react";
@@ -58,24 +57,13 @@ export default function HealthIntegrationsPage() {
 
   const providers = status.data?.providers ?? [];
   const visibleProviders = providers.filter(provider => provider.provider === "strava" && (provider.available || provider.connection));
-  const connectedProviders = visibleProviders.filter(provider => provider.connection?.status === "connected").length;
-  const recentStravaActivities = (status.data?.recentRecords ?? []).filter(record => record.source === "strava" && record.dataType === "activity").length;
 
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-6">
-        <PageIntro
-          eyebrow="Integrações"
-          title="Integrações"
-          description="Conecte providers finalizados e acompanhe status, permissões e ações em um único lugar. Nesta etapa, somente o Strava aparece para o usuário final quando está configurado ou já conectado."
-          stats={
-            <div className="grid gap-4 md:grid-cols-3">
-              <IntroStat label="Integrações visíveis" value={String(visibleProviders.length)} helper="finalizadas para uso web" />
-              <IntroStat label="Conectadas" value={String(connectedProviders)} helper="com vínculo ativo" />
-              <IntroStat label="Atividades recentes" value={String(recentStravaActivities)} helper="sincronizadas do Strava" />
-            </div>
-          }
-        />
+        <div className="space-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Integrações</h1>
+        </div>
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
@@ -83,9 +71,6 @@ export default function HealthIntegrationsPage() {
               <Activity className="h-5 w-5 text-primary" />
               Providers disponíveis
             </CardTitle>
-            <CardDescription>
-              Permissões, conexão, sincronização e erros ficam no próprio card da integração para evitar decisões fora de contexto.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {status.isLoading ? (
@@ -182,9 +167,6 @@ function IntegrationCard({
               <Badge variant="outline" className="rounded-full px-3 py-1">{provider.athleteName}</Badge>
             ) : null}
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">
-            O Strava usa OAuth externo para autorizar atividades e gasto energético. Depois de conectado, a sincronização importa registros e cria exercícios quando houver duração e calorias válidas.
-          </p>
         </div>
         <StatusIcon connected={connected} hasError={hasError} />
       </div>
@@ -268,16 +250,6 @@ function StatusIcon({ connected, hasError }: { connected: boolean; hasError: boo
   return (
     <div className={`rounded-full border p-3 ${connected ? "bg-primary/10 text-primary" : "bg-muted/30 text-muted-foreground"}`}>
       <CheckCircle2 className="h-5 w-5" />
-    </div>
-  );
-}
-
-function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
-  return (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
     </div>
   );
 }
