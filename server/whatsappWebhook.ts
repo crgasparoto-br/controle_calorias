@@ -614,7 +614,16 @@ async function sendInterpretedTextIntentReply(input: {
     detail: input.interpreted.detail,
   });
 
-  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.interpreted.reply);
+  const mealId = typeof input.interpreted.data?.mealId === "number" ? input.interpreted.data.mealId : null;
+  let replyText = input.interpreted.reply;
+  if (mealId) {
+    const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId });
+    if (quickEditLink?.url) {
+      replyText += `\n\nQuer ajustar algum alimento, quantidade ou unidade?\nEditar: ${quickEditLink.url}`;
+    }
+  }
+
+  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, replyText);
   if (!replyResult.ok) {
     logInferenceEvent({
       userId: input.userId,
