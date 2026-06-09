@@ -40,6 +40,7 @@ export default function ProfessionalProfileSettings() {
 
   const invalidateProfessionalSettings = async () => {
     await Promise.all([
+      utils.auth.me.invalidate(),
       utils.nutrition.professionals.profile.invalidate(),
       utils.nutrition.professionals.myAccesses.invalidate(),
       utils.nutrition.professionals.patientRequests.invalidate(),
