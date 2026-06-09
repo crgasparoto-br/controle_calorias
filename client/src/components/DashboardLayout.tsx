@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { trpc } from "@/lib/trpc";
 import {
   Apple,
   BarChart3,
@@ -98,15 +97,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
-  const professionalProfile = trpc.nutrition.professionals.profile.useQuery(undefined, {
-    enabled: Boolean(user),
-    retry: false,
-  });
 
   const isTodayRoute = location === "/" || location === "/today";
   const isRegisterRoute = location === "/record" || location === "/log-meal" || location === "/registrar";
   const isSettingsRoute = location === "/settings" || location === "/onboarding";
-  const hasActiveProfessionalProfile = Boolean(professionalProfile.data?.active);
+  const hasActiveProfessionalProfile = Boolean(user?.professionalProfileActive);
 
   const menuItems = useMemo(() => {
     const baseItems = [
