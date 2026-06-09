@@ -24,6 +24,24 @@ describe("reportsGoalAnalytics", () => {
     expect(summary.daysWithoutRecords).toBe(1);
   });
 
+  it("usa metas ajustadas como alvo da aderência calórica", () => {
+    const summary = calculateCalorieAdherence(
+      [
+        { calories: 2100, goalCalories: 2200 },
+        { calories: 1800, goalCalories: 2000 },
+      ],
+      2,
+    );
+
+    expect(summary.totalCalories).toBe(3900);
+    expect(summary.totalGoalCalories).toBe(4200);
+    expect(summary.averageDeltaCalories).toBe(-150);
+    expect(summary.adherencePercent).toBe(93);
+    expect(summary.daysWithinRange).toBe(2);
+    expect(summary.daysAboveRange).toBe(0);
+    expect(summary.daysBelowRange).toBe(0);
+  });
+
   it("compara macros planejados e realizados por gramas e distribuição calórica", () => {
     const analysis = calculateMacroAdherence(
       { protein: 120, carbs: 180, fat: 90 },
