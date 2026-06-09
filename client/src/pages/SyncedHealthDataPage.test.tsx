@@ -20,6 +20,7 @@ vi.mock("@/components/DashboardLayout", () => ({
 
 vi.mock("@/lib/dateTime", () => ({
   toDateInputValue: () => "2026-06-09",
+  zonedDateTimeLocalToIso: (value: string) => `${value}:00.000Z`,
 }));
 
 vi.mock("@/lib/trpc", () => ({
