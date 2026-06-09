@@ -1,5 +1,4 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import PageIntro from "@/components/PageIntro";
 import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,11 +63,6 @@ export default function SyncedHealthDataPage() {
 
   const records = (syncedRecords.data?.items ?? []) as SyncedHealthRecord[];
   const sources = syncedRecords.data?.sources ?? [];
-  const stravaActivityRecords = records.filter(record => record.source === "strava" && record.dataType === "activity");
-  const stravaDistanceKm = stravaActivityRecords.reduce((sum, record) => {
-    const distance = record.metadata?.distanceMeters;
-    return sum + (typeof distance === "number" ? distance / 1000 : 0);
-  }, 0);
 
   const resetPagedView = () => {
     setOffset(0);
@@ -103,19 +97,9 @@ export default function SyncedHealthDataPage() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-7xl space-y-6">
-        <PageIntro
-          eyebrow="Dados sincronizados"
-          title="Dados sincronizados"
-          description="Consulte registros importados das integrações com filtros por origem, tipo, período e busca textual. Abra um registro para conferir os detalhes enviados pelo provider."
-          stats={
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <IntroStat label="Registros encontrados" value={String(syncedRecords.data?.total ?? 0)} helper="na consulta atual" />
-              <IntroStat label="Nesta página" value={String(records.length)} helper="registros carregados" />
-              <IntroStat label="Distância Strava" value={stravaDistanceKm > 0 ? `${formatNumber(stravaDistanceKm, 2)} km` : "0 km"} helper="nos registros visíveis" />
-              <IntroStat label="Origens" value={String(sources.length)} helper="providers com dados" />
-            </div>
-          }
-        />
+        <div className="space-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Dados sincronizados</h1>
+        </div>
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
@@ -325,16 +309,6 @@ function DateFilter({ label, value, onChange }: { label: string; value: string; 
         className="h-9 border-0 px-0 shadow-none focus-visible:ring-0"
       />
     </label>
-  );
-}
-
-function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
-  return (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
-    </div>
   );
 }
 
