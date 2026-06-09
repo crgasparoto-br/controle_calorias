@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
+import { trpc } from "@/lib/trpc";
 import {
   Apple,
   BarChart3,
@@ -97,10 +98,15 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
+  const professionalProfile = trpc.nutrition.professionals.profile.useQuery(undefined, {
+    enabled: Boolean(user),
+    retry: false,
+  });
 
   const isTodayRoute = location === "/" || location === "/today";
   const isRegisterRoute = location === "/record" || location === "/log-meal" || location === "/registrar";
   const isSettingsRoute = location === "/settings" || location === "/onboarding";
+  const hasActiveProfessionalProfile = Boolean(professionalProfile.data?.active);
 
   const menuItems = useMemo(() => {
     const baseItems = [
@@ -112,8 +118,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
       { icon: HeartPulse, label: "Integrações", path: "/health-integrations" },
       { icon: Database, label: "Dados sincronizados", path: "/synced-health-data" },
-      { icon: Stethoscope, label: "Nutricionista", path: "/professional" },
     ];
+
+    if (hasActiveProfessionalProfile) {
+      baseItems.push({ icon: Stethoscope, label: "Nutricionista", path: "/professional" });
+    }
 
     if (user?.role === "admin") {
       baseItems.push({ icon: Shield, label: "Administração", path: "/admin" });
@@ -122,7 +131,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     baseItems.push({ icon: UserRound, label: "Configurações", path: "/settings" });
 
     return baseItems;
-  }, [user?.role]);
+  }, [hasActiveProfessionalProfile, user?.role]);
 
   const activeItem = menuItems.find(item => {
     if (item.path === "/today") {
@@ -188,7 +197,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 </Avatar>
                 <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
                   <p className="truncate text-sm font-medium text-sidebar-foreground">{user?.name || "Usuário"}</p>
-                  <p className="truncate text-xs text-sidebar-foreground/70">{user?.role === "admin" ? "Administrador" : "Conta pessoal"}</p>
+                  <p className="truncate text-xs text-sidebar-foreground/70">{hasActiveProfessionalProfile ? "Conta pessoal + nutricionista" : user?.role === "admin" ? "Administrador" : "Conta pessoal"}</p>
                 </div>
               </button>
             </DropdownMenuTrigger>
