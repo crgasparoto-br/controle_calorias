@@ -143,9 +143,11 @@ import {
   whatsappConnectionSchema,
 } from "./modules/whatsapp/schemas";
 import { healthIntegrationService } from "./modules/healthIntegrations/service";
+import { listSyncedHealthRecords } from "./modules/healthIntegrations/syncedRecords";
 import {
   connectHealthIntegrationSchema,
   disconnectHealthIntegrationSchema,
+  listSyncedHealthRecordsSchema,
   syncHealthIntegrationSchema,
 } from "./modules/healthIntegrations/schemas";
 import {
@@ -233,6 +235,12 @@ export const nutritionRouter = router({
 
   healthIntegrations: router({
     status: protectedProcedure.query(async ({ ctx }) => healthIntegrationService.getStatus(ctx.user.id)),
+    syncedRecords: protectedProcedure
+      .input(listSyncedHealthRecordsSchema)
+      .query(async ({ ctx, input }) => {
+        const status = await healthIntegrationService.getStatus(ctx.user.id);
+        return listSyncedHealthRecords(status.recentRecords, input);
+      }),
     connect: protectedProcedure
       .input(connectHealthIntegrationSchema)
       .mutation(async ({ ctx, input }) => healthIntegrationService.connect(ctx.user.id, input)),
