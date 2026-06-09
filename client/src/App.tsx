@@ -21,6 +21,7 @@ const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const SyncedHealthDataPage = lazy(() => import("@/pages/SyncedHealthDataPage"));
 
 function PageLoadingFallback() {
   return (
@@ -64,6 +65,7 @@ function Router() {
         <Route path="/reports" component={ReportsPage} />
         <Route path="/channels" component={ChannelsPage} />
         <Route path="/health-integrations" component={HealthIntegrationsPage} />
+        <Route path="/synced-health-data" component={SyncedHealthDataPage} />
         <Route path="/professional" component={ProfessionalPage} />
         <Route path="/admin" component={AdminPage} />
         <Route path="/404" component={NotFound} />
