@@ -1121,7 +1121,7 @@ async function handleMealItemMultiAdjustment(userId: number, adjustments: GramsA
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: `Ajustes realizados na última refeição:\n${adjustmentLines}${notFoundSuffix}`,
+    reply: `Ajustes realizados na última refeição:\n${adjustmentLines} e recalculei os macros.${notFoundSuffix}`,
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${appliedAdjustments.length} item(ns) ajustado(s) via WhatsApp.`,
     data: {
@@ -1194,7 +1194,7 @@ async function handleMealItemMultiIncrement(userId: number, increments: GramsInc
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: `Ajustes realizados na última refeição:\n${incrementLines}${notFoundSuffix}`,
+    reply: `Ajustes realizados na última refeição:\n${incrementLines} e recalculei os macros.${notFoundSuffix}`,
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${appliedIncrements.length} item(ns) incrementado(s) via WhatsApp.`,
     data: {
