@@ -28,6 +28,7 @@
 
 import { createRequire } from "module";
 import type { CatalogFood } from "./nutritionEngine";
+import { fuzzyMatchesWords } from "./fuzzyTextMatch";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,6 +127,15 @@ export function findTacoFood(foodName: string): CatalogFood | null {
       return queryWords.every(word => allTerms.includes(word));
     });
     if (keyword) return tacoToCatalogFood(keyword);
+  }
+
+  // Tier 4: fuzzy word match — tolerates single-character typos per palavra
+  if (queryWords.length > 0) {
+    const fuzzy = catalog.find(item => {
+      const allTerms = getSearchTerms(item).join(" ");
+      return fuzzyMatchesWords(query, allTerms);
+    });
+    if (fuzzy) return tacoToCatalogFood(fuzzy);
   }
 
   return null;

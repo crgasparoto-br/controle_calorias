@@ -7,6 +7,7 @@ import { createWaterLog } from "../water/service";
 import type { MealItemInput } from "../meals/schemas";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { parseMealCommandFromWhatsApp, type ParsedMealCommandItem } from "./mealCommandParser";
+import { fuzzyMatchesWords } from "../../fuzzyTextMatch";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
@@ -134,6 +135,7 @@ function findCatalogFood(foodName: string) {
   const catalogSource = getCatalogCache();
   return catalogSource.find(food => getCatalogFoodNames(food).some(alias => alias === normalized))
     ?? catalogSource.find(food => getCatalogFoodNames(food).some(alias => normalized.includes(alias) || alias.includes(normalized)))
+    ?? catalogSource.find(food => getCatalogFoodNames(food).some(alias => fuzzyMatchesWords(normalized, alias)))
     ?? null;
 }
 

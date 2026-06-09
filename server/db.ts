@@ -42,6 +42,7 @@ import { createDrizzleNutritionGoalsRepository } from "./repositories/nutritionG
 import { createDrizzleWaterRepository } from "./repositories/waterRepository";
 import type { OnboardingInput } from "./modules/onboarding/schemas";
 import { safeLogDetail } from "./privacy";
+import { fuzzyMatchesWords } from "./fuzzyTextMatch";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 const WHATSAPP_ACCESS_TOKEN_SECRET_KEY = "whatsapp_access_token";
@@ -1586,7 +1587,11 @@ export async function searchFoods(userId: number, query = "", limit = 20) {
         });
 
       return foods
-        .filter(food => !normalizedQuery || normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`).includes(normalizedQuery))
+        .filter(food => {
+          if (!normalizedQuery) return true;
+          const haystack = normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`);
+          return haystack.includes(normalizedQuery) || fuzzyMatchesWords(normalizedQuery, haystack);
+        })
         .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
         .slice(0, limit);
     } catch (error) {
