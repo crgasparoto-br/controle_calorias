@@ -357,6 +357,51 @@ describe("nutritionEngine.processMealInput", () => {
     });
   });
 
+  it("inclui no prompt regras para priorizar rótulo de embalagem e evitar fallback indevido para água", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_label_identity",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.87,
+        reasoning: "Rótulo legível identificado na embalagem.",
+        items: [
+          {
+            foodName: "pão de cenoura",
+            portionText: "80 g",
+            servings: 1,
+            estimatedGrams: 80,
+            estimatedCalories: 250,
+            estimatedMacros: {
+              protein: 5,
+              carbs: 40,
+              fat: 7,
+            },
+            confidence: 0.84,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,ZmFrZS1wYWNhZ2luZw==",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "pão de cenoura",
+    }));
+
+    const request = createTextResponseMock.mock.calls[0][0];
+    const textInput = request.input[0].content.find((item: { type: string }) => item.type === "input_text");
+
+    expect(textInput?.text).toContain("Quando houver texto legível em embalagem, rótulo, etiqueta de preço ou etiqueta de balança com nome de alimento, use esse texto como identidade principal do item em foodName.");
+    expect(textInput?.text).toContain("se o rótulo legível indicar 'PÃO DE CENOURA'");
+    expect(textInput?.text).toContain("Nunca transforme lista de ingredientes em itens separados da refeição");
+    expect(textInput?.text).toContain("Se houver peso líquido, peso drenado, peso na etiqueta da balança ou porção declarada visível");
+    expect(textInput?.text).toContain("não use água como fallback apenas por transparência, brilho, reflexo ou plástico translúcido");
+  });
+
   it("não limita o fallback heurístico a 8 alimentos", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
