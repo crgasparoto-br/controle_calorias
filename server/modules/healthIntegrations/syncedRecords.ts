@@ -8,7 +8,7 @@ export type SyncedHealthRecord = {
   value: number;
   unit: string;
   activityType?: string;
-  metadata?: Record<string, unknown> | null;
+  metadata?: unknown;
 };
 
 type SyncedRecordTotals = {
