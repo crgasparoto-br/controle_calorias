@@ -377,9 +377,9 @@ export async function getDashboardOverview(userId: number) {
         calories: roundNutritionValue(weeklyBurnedCalories),
       },
       water: {
-        consumedMl: roundNutritionValue(water.goal.dailyTargetMl),
+        consumedMl: roundNutritionValue(weeklyQuality.waterMl),
         goalMl: water.goal.dailyTargetMl * 7,
-        remainingMl: Math.max((water.goal.dailyTargetMl * 7) - roundNutritionValue(water.goal.dailyTargetMl), 0),
+        remainingMl: Math.max((water.goal.dailyTargetMl * 7) - roundNutritionValue(weeklyQuality.waterMl), 0),
       },
       quality: {
         proteinGrams: roundNutritionValue(weeklyQuality.proteinGrams),
