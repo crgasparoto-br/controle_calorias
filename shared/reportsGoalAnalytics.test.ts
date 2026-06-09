@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateCalorieAdherence, calculateMacroAdherence } from "./reportsGoalAnalytics";
+import {
+  calculateCalorieAdherence,
+  calculateMacroAdherence,
+  calculateMacroDaySummary,
+} from "./reportsGoalAnalytics";
 
 describe("reportsGoalAnalytics", () => {
   it("calcula aderência calórica e classifica dias por faixa", () => {
@@ -56,5 +60,17 @@ describe("reportsGoalAnalytics", () => {
     );
     expect(analysis.distributionAdherencePercent).toBeGreaterThan(70);
     expect(analysis.distributionAdherencePercent).toBeLessThan(100);
+  });
+
+  it("resume dias com proteína na faixa e gordura acima da meta", () => {
+    const summary = calculateMacroDaySummary([
+      { protein: 145, carbs: 210, fat: 68, goalProtein: 150, goalCarbs: 220, goalFat: 65 },
+      { protein: 100, carbs: 260, fat: 82, goalProtein: 150, goalCarbs: 220, goalFat: 65 },
+      { protein: 0, carbs: 0, fat: 0, goalProtein: 150, goalCarbs: 220, goalFat: 65 },
+    ]);
+
+    expect(summary.daysWithMacroRecords).toBe(2);
+    expect(summary.proteinDaysWithinGoal).toBe(1);
+    expect(summary.fatDaysAboveGoal).toBe(1);
   });
 });
