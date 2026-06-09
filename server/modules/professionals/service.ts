@@ -6,6 +6,7 @@ import { getNutritionGoal } from "../goals/service";
 import type {
   ProfessionalCommentInput,
   ProfessionalGoalSuggestionInput,
+  ProfessionalGoalSuggestionStatus,
   ProfessionalProfileInput,
   RequestPatientAccessInput,
 } from "./schemas";
@@ -45,8 +46,11 @@ type GoalSuggestion = {
   professionalUserId: number;
   patientUserId: number;
   rationale: string;
+  status: ProfessionalGoalSuggestionStatus;
   goal: ProfessionalGoalSuggestionInput["goal"];
   createdAt: number;
+  sentAt: number | null;
+  respondedAt: number | null;
 };
 
 type HistoryEvent = {
@@ -386,13 +390,17 @@ export function addProfessionalComment(professionalUserId: number, input: Profes
 
 export function suggestGoalAdjustment(professionalUserId: number, input: ProfessionalGoalSuggestionInput) {
   assertApprovedAccess(professionalUserId, input.patientId);
+  const now = Date.now();
   const suggestion: GoalSuggestion = {
     id: crypto.randomUUID(),
     professionalUserId,
     patientUserId: input.patientId,
     rationale: input.rationale,
+    status: input.status,
     goal: input.goal,
-    createdAt: Date.now(),
+    createdAt: now,
+    sentAt: input.status === "sent" ? now : null,
+    respondedAt: ["accepted", "refused", "cancelled"].includes(input.status) ? now : null,
   };
   goalSuggestions.push(suggestion);
   pushHistory({

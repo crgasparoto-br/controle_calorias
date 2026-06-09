@@ -17,6 +17,8 @@ Permitir que profissionais acompanhem pacientes mediante solicitação, aprovaç
 - Profissional só pode ver dashboard, histórico, metas nutricionais e dados autorizados do paciente.
 - A visão do paciente no módulo Nutricionista deve separar contexto profissional em áreas como Resumo, Hoje, Relatórios, Metas e Comentários.
 - Comentários e sugestões de meta devem ser rastreáveis por profissional e paciente.
+- Sugestões de meta podem iniciar em rascunho ou enviada e devem preservar status para fluxo futuro de aceite, recusa ou cancelamento.
+- A criação de sugestão de meta pelo nutricionista não altera automaticamente a meta ativa do paciente.
 - Revogação deve bloquear novos acessos imediatamente.
 - O controle de consentimento é operacional e não deve aparecer como bloco visual destacado na tela principal do Nutricionista.
 
@@ -31,6 +33,9 @@ Permitir que profissionais acompanhem pacientes mediante solicitação, aprovaç
 - Solicitação por e-mail ou celular encontra o paciente correto ou retorna erro amigável.
 - Aprovações e revogações recebidas pelo paciente ficam acessíveis em Configurações.
 - Dados do paciente autorizado incluem visão equivalente a Hoje e Relatórios, além das metas nutricionais atuais.
+- O nutricionista consegue registrar uma sugestão de ajuste de meta para paciente autorizado.
+- Sugestões de meta registram status e ficam disponíveis no dashboard profissional do paciente.
+- A meta ativa do paciente não é alterada pela criação de uma sugestão profissional.
 - A interface deixa claro quando os dados exibidos pertencem ao paciente selecionado, e não à conta pessoal do nutricionista.
 
 ## Fora de escopo atual
@@ -39,3 +44,5 @@ Permitir que profissionais acompanhem pacientes mediante solicitação, aprovaç
 - Cobrança ou assinatura profissional.
 - Perguntas com IA sobre pacientes.
 - Geração completa de dieta automatizada.
+- Aplicação automática de sugestão de meta na meta ativa do paciente.
+- Tela de aceite ou recusa da sugestão pelo paciente.
