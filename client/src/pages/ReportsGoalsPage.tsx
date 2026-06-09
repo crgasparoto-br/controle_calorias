@@ -37,7 +37,9 @@ import { Link } from "wouter";
 import {
   calculateCalorieAdherence,
   calculateMacroAdherence,
+  calculateMacroDaySummary,
   type CalorieGoalDay,
+  type MacroGoalDay,
   type MacroTotals,
 } from "@shared/reportsGoalAnalytics";
 
@@ -305,9 +307,23 @@ function DailyCalorieBreakdown({ trendData }: { trendData: TrendPoint[] }) {
   );
 }
 
-function MacroAdherenceCard({ consumed, planned }: { consumed: MacroTotals; planned: MacroTotals }) {
+function MacroAdherenceCard({
+  consumed,
+  planned,
+  dailyMacros,
+}: {
+  consumed: MacroTotals;
+  planned: MacroTotals;
+  dailyMacros: MacroGoalDay[];
+}) {
   const analysis = calculateMacroAdherence(consumed, planned);
+  const dailySummary = calculateMacroDaySummary(dailyMacros);
   const hasMacroGoal = planned.protein > 0 || planned.carbs > 0 || planned.fat > 0;
+  const chartData = analysis.items.map(item => ({
+    macro: item.label,
+    planejado: item.plannedPercent,
+    realizado: item.consumedPercent,
+  }));
 
   return (
     <Card className="border-0 shadow-sm">
@@ -317,13 +333,45 @@ function MacroAdherenceCard({ consumed, planned }: { consumed: MacroTotals; plan
         description="Compara gramas e distribuição percentual para mostrar se a composição acompanha a meta, não só as calorias."
         badge={hasMacroGoal ? `${formatPercent(analysis.distributionAdherencePercent)} aderência` : "Sem meta"}
       />
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
         {!hasMacroGoal ? (
           <div className="rounded-2xl border border-dashed bg-muted/10 p-5 text-sm leading-6 text-muted-foreground">
             Configure metas de proteínas, carboidratos e gorduras para liberar a comparação completa de macros.
           </div>
         ) : (
           <>
+            <div className="grid gap-3 md:grid-cols-3">
+              <StatusTile
+                label="Proteína na faixa"
+                value={`${dailySummary.proteinDaysWithinGoal}/${dailySummary.daysWithMacroRecords}`}
+                hint="Dias com consumo entre 90% e 110% da meta de proteína."
+              />
+              <StatusTile
+                label="Gordura acima"
+                value={dailySummary.fatDaysAboveGoal}
+                hint="Dias em que gordura passou de 105% da meta."
+              />
+              <StatusTile
+                label="Macro mais distante"
+                value={analysis.mostDistantMacro?.label ?? "-"}
+                hint="Maior desvio em pontos percentuais no período."
+              />
+            </div>
+
+            <div className="h-[280px] rounded-2xl border bg-background p-4 shadow-sm">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} barSize={32}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="macro" />
+                  <YAxis tickFormatter={value => `${value}%`} />
+                  <Tooltip formatter={value => formatPercent(Number(value))} />
+                  <Legend />
+                  <Bar dataKey="planejado" name="Planejado" fill="#94a3b8" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="realizado" name="Realizado" fill="#16a34a" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-3">
               {analysis.items.map(item => (
                 <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -340,9 +388,6 @@ function MacroAdherenceCard({ consumed, planned }: { consumed: MacroTotals; plan
                   </p>
                 </div>
               ))}
-            </div>
-            <div className="rounded-2xl border bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">
-              Macro mais distante da meta: <strong className="text-foreground">{analysis.mostDistantMacro?.label ?? "-"}</strong>.
             </div>
           </>
         )}
@@ -540,6 +585,24 @@ export default function ReportsGoalsPage() {
         fat: periodDaily.reduce((total, day) => total + day.goalFat, 0) || periodGoal.fat * dayCount,
       };
 
+  const dailyMacros: MacroGoalDay[] = periodScope === "week"
+    ? weeklyDays.map(day => ({
+        protein: day.protein,
+        carbs: day.carbs,
+        fat: day.fat,
+        goalProtein: day.goalProtein,
+        goalCarbs: day.goalCarbs,
+        goalFat: day.goalFat,
+      }))
+    : periodDaily.map(day => ({
+        protein: day.protein,
+        carbs: day.carbs,
+        fat: day.fat,
+        goalProtein: day.goalProtein,
+        goalCarbs: day.goalCarbs,
+        goalFat: day.goalFat,
+      }));
+
   const totalCalories = periodScope === "week"
     ? weeklyDays.reduce((total, day) => total + day.calories, 0)
     : periodTotals.calories;
@@ -628,7 +691,7 @@ export default function ReportsGoalsPage() {
             <CalorieAdherenceCard trendData={trendData} dayCount={dayCount} />
             <CalorieTrendChart trendData={trendData} />
             <DailyCalorieBreakdown trendData={trendData} />
-            <MacroAdherenceCard consumed={consumedMacros} planned={plannedMacros} />
+            <MacroAdherenceCard consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} />
 
             <div className="grid gap-6 xl:grid-cols-[1fr,0.85fr]">
               <QualityCard
