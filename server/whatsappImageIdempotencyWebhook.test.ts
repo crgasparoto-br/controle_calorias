@@ -5,17 +5,12 @@ const createUserWaterLogMock = vi.fn();
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const listUserExercisesMock = vi.fn();
 const logInferenceEventMock = vi.fn();
-const processMealInputMock = vi.fn();
 
 vi.mock("./db", () => ({
   createUserWaterLog: createUserWaterLogMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   listUserExercises: listUserExercisesMock,
   logInferenceEvent: logInferenceEventMock,
-}));
-
-vi.mock("./nutritionEngine", () => ({
-  processMealInput: processMealInputMock,
 }));
 
 vi.mock("./whatsappConfig", () => ({
@@ -95,16 +90,9 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     getUserIdByWhatsappPhoneMock.mockReset();
     listUserExercisesMock.mockReset();
     logInferenceEventMock.mockReset();
-    processMealInputMock.mockReset();
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     listUserExercisesMock.mockResolvedValue([]);
     createUserWaterLogMock.mockResolvedValue({ id: 91 });
-    processMealInputMock.mockResolvedValue({
-      detectedMealLabel: "Almoço",
-      sourceText: "arroz",
-      items: [{ foodName: "Arroz", canonicalName: "Arroz", portionText: "100 g", estimatedGrams: 100, servings: 1, calories: 130, protein: 2.7, carbs: 28, fat: 0.3, confidence: 0.9, source: "catalog" }],
-      totals: { calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
-    });
     downstreamWebhookMock.mockImplementation(async (_req, res: MockResponse) => (
       res.status(200).json({ ok: true, processed: 1 })
     ));
@@ -143,8 +131,19 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
 
     expect(res.statusCode).toBe(200);
     expect(createUserWaterLogMock).toHaveBeenCalledWith(42, expect.objectContaining({ amountMl: 300 }));
-    expect(processMealInputMock).not.toHaveBeenCalled();
     expect(downstreamWebhookMock).not.toHaveBeenCalled();
     expect(sentBodies.at(-1)).toContain("Registrei 300 ml de água");
+  });
+
+  it("não trata imagem sem legenda de água como hidratação e delega para o fluxo normal", async () => {
+    const req = createImageWebhookRequest();
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(createUserWaterLogMock).not.toHaveBeenCalled();
+    expect(sentBodies.some(body => body.includes("Identifiquei água na imagem"))).toBe(false);
+    expect(downstreamWebhookMock).toHaveBeenCalledOnce();
   });
 });

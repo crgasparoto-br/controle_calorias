@@ -10,7 +10,6 @@ import {
   type IndexedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
-import { processMealInput, type MealProcessingResult } from "./nutritionEngine";
 import { requireWhatsAppMediaConfig } from "./whatsappConfig";
 import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
 
@@ -66,53 +65,6 @@ function getImageCaption(message: WhatsAppWebhookMessage) {
   return message.image?.caption?.trim() || message.text?.body?.trim() || "";
 }
 
-function isWaterLikeMealResult(processed: MealProcessingResult) {
-  const itemTexts = processed.items.map(item => [item.foodName, item.canonicalName, item.portionText].join(" "));
-  const searchable = [processed.detectedMealLabel, processed.sourceText, ...itemTexts].filter(Boolean).join(" ");
-  const waterMentioned = mentionsWater(searchable);
-  if (!waterMentioned) {
-    return false;
-  }
-
-  const hasNonWaterItem = processed.items.some(item => {
-    const text = [item.foodName, item.canonicalName].filter(Boolean).join(" ");
-    return !mentionsWater(text) && Number(item.calories || 0) > 5;
-  });
-
-  return !hasNonWaterItem && Number(processed.totals?.calories || 0) <= 10;
-}
-
-async function downloadImageForAnalysis(message: WhatsAppWebhookMessage) {
-  const mediaId = message.image?.id;
-  if (!mediaId) {
-    return null;
-  }
-
-  const { accessToken } = await requireWhatsAppMediaConfig();
-  const metaResponse = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!metaResponse.ok) {
-    throw new Error(`Falha ao obter URL da imagem do WhatsApp: ${metaResponse.status} ${metaResponse.statusText}`);
-  }
-
-  const meta = await metaResponse.json() as { url?: string; mime_type?: string };
-  if (!meta.url) {
-    throw new Error("A API do WhatsApp não retornou a URL da imagem.");
-  }
-
-  const imageResponse = await fetch(meta.url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!imageResponse.ok) {
-    throw new Error(`Falha ao baixar imagem do WhatsApp: ${imageResponse.status} ${imageResponse.statusText}`);
-  }
-
-  const mimeType = imageResponse.headers.get("content-type") || meta.mime_type || message.image?.mime_type || "image/jpeg";
-  const buffer = Buffer.from(await imageResponse.arrayBuffer());
-  return `data:${mimeType};base64,${buffer.toString("base64")}`;
-}
-
 async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage) {
   const message = item.message;
   if (!message.image?.id || message.audio?.id || !message.from) {
@@ -144,33 +96,9 @@ async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage) {
     return true;
   }
 
-  try {
-    const imageUrl = await downloadImageForAnalysis(message);
-    if (!imageUrl) {
-      return false;
-    }
-
-    const processed = await processMealInput({
-      text: "Analise se esta imagem mostra apenas água/bebida sem calorias. Não invente alimentos.",
-      imageUrl,
-    });
-
-    if (!isWaterLikeMealResult(processed)) {
-      return false;
-    }
-
-    await sendWaterImageClarification({ userId, sourcePhone: message.from });
-    return true;
-  } catch (error) {
-    logInferenceEvent({
-      userId,
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.image_water_detection_warning",
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao analisar imagem de hidratação.",
-    });
-    return false;
-  }
+  // Sem menção explícita de água na legenda, a imagem deve seguir para o fluxo
+  // nutricional normal para evitar falso positivo de hidratação.
+  return false;
 }
 
 async function registerWaterImage(input: { userId: number; sourcePhone: string; amountMl: number; occurredAt: Date; detail: string }) {
