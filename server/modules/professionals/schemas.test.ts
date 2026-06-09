@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { professionalProfileSchema, requestPatientAccessSchema } from "./schemas";
+import { professionalGoalSuggestionSchema, professionalProfileSchema, requestPatientAccessSchema } from "./schemas";
 
 describe("professional schemas", () => {
   it("defaults professional profile to active when omitted", () => {
@@ -39,5 +39,23 @@ describe("professional schemas", () => {
     });
 
     expect(result.patientEmail).toBe("paciente@example.com");
+  });
+
+  it("defaults professional goal suggestions to sent status", () => {
+    const result = professionalGoalSuggestionSchema.parse({
+      patientId: 2,
+      rationale: "Ajuste para nova fase do acompanhamento.",
+      goal: {
+        defaultGoal: {
+          calories: 1800,
+          proteinGrams: 120,
+          carbsGrams: 190,
+          fatGrams: 55,
+        },
+        exceptions: [],
+      },
+    });
+
+    expect(result.status).toBe("sent");
   });
 });
