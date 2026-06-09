@@ -15,12 +15,15 @@ Permitir que profissionais acompanhem pacientes mediante solicitação, aprovaç
 - A solicitação pode usar e-mail ou celular do paciente como identificador de entrada no fluxo web.
 - As solicitações recebidas pelo paciente devem aparecer em Configurações, junto dos vínculos pessoais do usuário.
 - Profissional só pode ver dashboard, histórico, metas nutricionais e dados autorizados do paciente.
-- A visão do paciente no módulo Nutricionista deve separar contexto profissional em áreas como Resumo, Hoje, Relatórios, Metas, Sugestões e Comentários.
-- Comentários, sugestões de meta e sugestões de refeição devem ser rastreáveis por profissional e paciente.
+- A visão do paciente no módulo Nutricionista deve separar contexto profissional em áreas como Resumo, Hoje, Relatórios, Metas, Sugestões, Comentários e IA.
+- Comentários, sugestões de meta, sugestões de refeição e perguntas com IA devem ser rastreáveis por profissional e paciente.
 - Sugestões de meta podem iniciar em rascunho ou enviada e devem preservar status para fluxo futuro de aceite, recusa ou cancelamento.
 - Sugestões de refeição ou plano alimentar podem iniciar em rascunho ou enviada e devem preservar status para fluxo futuro de aceite, recusa ou cancelamento.
+- Perguntas com IA sobre pacientes só podem usar dados do paciente autorizado e devem retornar uma resposta de apoio educacional com contexto citado.
+- Respostas com IA para profissionais não substituem avaliação clínica, diagnóstico, prescrição ou conduta profissional.
 - A criação de sugestão de meta pelo nutricionista não altera automaticamente a meta ativa do paciente.
 - A criação de sugestão de refeição pelo nutricionista não cria automaticamente refeição no diário do paciente.
+- Perguntas com IA não alteram metas, refeições, comentários ou dados do paciente automaticamente.
 - Revogação deve bloquear novos acessos imediatamente.
 - O controle de consentimento é operacional e não deve aparecer como bloco visual destacado na tela principal do Nutricionista.
 
@@ -41,13 +44,16 @@ Permitir que profissionais acompanhem pacientes mediante solicitação, aprovaç
 - O nutricionista consegue registrar uma sugestão de refeição ou plano alimentar para paciente autorizado.
 - Sugestões de refeição registram status e ficam disponíveis no dashboard profissional do paciente.
 - O diário de refeições do paciente não é alterado pela criação de uma sugestão profissional.
+- O nutricionista consegue fazer perguntas com IA sobre um paciente autorizado.
+- A resposta com IA apresenta contexto citado e aviso educacional.
+- Perguntas com IA sobre paciente sem acesso aprovado são bloqueadas.
 - A interface deixa claro quando os dados exibidos pertencem ao paciente selecionado, e não à conta pessoal do nutricionista.
 
 ## Fora de escopo atual
 
 - Transformar nutricionista em tipo separado de conta.
 - Cobrança ou assinatura profissional.
-- Perguntas com IA sobre pacientes.
+- Diagnóstico, prescrição clínica ou decisão automatizada por IA.
 - Geração completa de dieta automatizada.
 - Aplicação automática de sugestão de meta na meta ativa do paciente.
 - Criação automática de refeições no diário do paciente a partir de sugestão profissional.
