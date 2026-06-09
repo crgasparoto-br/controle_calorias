@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,10 @@ let syncedRecordsState: {
 
 vi.mock("@/components/DashboardLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
+}));
+
+vi.mock("@/lib/dateTime", () => ({
+  toDateInputValue: () => "2026-06-09",
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -72,15 +76,20 @@ describe("SyncedHealthDataPage", () => {
     });
   });
 
-  it("renderiza dados, aplica filtros de origem, tipo, período e busca", async () => {
+  it("renderiza dados, aplica filtros de origem, tipo, dia selecionado e busca", async () => {
     const { default: SyncedHealthDataPage } = await import("./SyncedHealthDataPage");
     const user = userEvent.setup();
 
     render(React.createElement(SyncedHealthDataPage));
 
     expect(screen.getAllByText("Dados sincronizados").length).toBeGreaterThan(0);
+    expect(screen.getByText("Dia selecionado")).toBeTruthy();
     expect(screen.getByText("Corrida matinal")).toBeTruthy();
     expect(screen.getByText("Gasto externo")).toBeTruthy();
+    expect(lastSyncedRecordsInput).toMatchObject({
+      from: "2026-06-09T00:00:00.000Z",
+      to: "2026-06-09T23:59:59.999Z",
+    });
 
     await user.click(screen.getByRole("button", { name: "Atividade" }));
     await waitFor(() => expect(lastSyncedRecordsInput).toMatchObject({ dataType: "activity", offset: 0 }));
@@ -91,12 +100,11 @@ describe("SyncedHealthDataPage", () => {
     await user.type(screen.getByPlaceholderText("Buscar por atividade, origem ou tipo"), "matinal");
     await waitFor(() => expect(lastSyncedRecordsInput).toMatchObject({ q: "matinal" }));
 
-    fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-06-01" } });
-    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-06-04" } });
+    await user.click(screen.getByLabelText("Dia anterior"));
     await waitFor(() => {
       expect(lastSyncedRecordsInput).toMatchObject({
-        from: "2026-06-01T00:00:00.000Z",
-        to: "2026-06-04T23:59:59.999Z",
+        from: "2026-06-08T00:00:00.000Z",
+        to: "2026-06-08T23:59:59.999Z",
       });
     });
   });
