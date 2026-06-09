@@ -1,6 +1,6 @@
 import type { HealthDataType, HealthProvider, ListSyncedHealthRecordsInput } from "./schemas";
 
-type SyncedHealthRecord = {
+export type SyncedHealthRecord = {
   id: string;
   source: HealthProvider;
   dataType: HealthDataType;
