@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { ClipboardList, Mail, MessageSquarePlus, ShieldAlert, UserCheck, UserPlus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -24,6 +24,13 @@ export default function ProfessionalPage() {
   const [reason, setReason] = useState("Acompanhamento nutricional com consentimento do paciente.");
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [comment, setComment] = useState("");
+  const [goalSuggestion, setGoalSuggestion] = useState({
+    calories: "",
+    proteinGrams: "",
+    carbsGrams: "",
+    fatGrams: "",
+    rationale: "",
+  });
   const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery(
     { patientId: selectedPatientId ?? 0 },
     { enabled: hasActiveProfile && Boolean(selectedPatientId) },
@@ -66,6 +73,15 @@ export default function ProfessionalPage() {
     onError: error => toast.error(error.message || "Não foi possível comentar."),
   });
 
+  const suggestGoal = trpc.nutrition.professionals.suggestGoalAdjustment.useMutation({
+    onSuccess: async () => {
+      toast.success("Sugestão de meta enviada para acompanhamento.");
+      setGoalSuggestion(previous => ({ ...previous, rationale: "" }));
+      await invalidate();
+    },
+    onError: error => toast.error(error.message || "Não foi possível sugerir a meta."),
+  });
+
   if (!profile.isLoading && !hasActiveProfile) {
     return (
       <DashboardLayout>
@@ -93,10 +109,44 @@ export default function ProfessionalPage() {
   const awaitingApprovalCount = accesses.data?.filter(access => access.status === "pending").length ?? 0;
   const historyCount = history.data?.length ?? 0;
   const defaultNutritionGoal = dashboard.data?.nutritionGoal?.defaultGoal;
+  const goalSuggestions = dashboard.data?.goalSuggestions ?? [];
+  const suggestedCalories = Number(goalSuggestion.calories);
+  const suggestedProtein = Number(goalSuggestion.proteinGrams);
+  const suggestedCarbs = Number(goalSuggestion.carbsGrams);
+  const suggestedFat = Number(goalSuggestion.fatGrams);
+  const canSuggestGoal = Boolean(
+    selectedPatientId &&
+    goalSuggestion.rationale.trim() &&
+    suggestedCalories > 0 &&
+    suggestedProtein > 0 &&
+    suggestedCarbs > 0 &&
+    suggestedFat > 0,
+  );
   const todayMeals = useMemo(() => {
     const todayKey = new Date().toLocaleDateString("pt-BR");
     return dashboard.data?.meals.filter(meal => new Date(meal.occurredAt).toLocaleDateString("pt-BR") === todayKey) ?? [];
   }, [dashboard.data?.meals]);
+
+  useEffect(() => {
+    if (!defaultNutritionGoal) {
+      setGoalSuggestion(previous => ({ ...previous, calories: "", proteinGrams: "", carbsGrams: "", fatGrams: "" }));
+      return;
+    }
+
+    setGoalSuggestion(previous => ({
+      ...previous,
+      calories: String(defaultNutritionGoal.calories),
+      proteinGrams: String(defaultNutritionGoal.proteinGrams),
+      carbsGrams: String(defaultNutritionGoal.carbsGrams),
+      fatGrams: String(defaultNutritionGoal.fatGrams),
+    }));
+  }, [
+    defaultNutritionGoal?.calories,
+    defaultNutritionGoal?.proteinGrams,
+    defaultNutritionGoal?.carbsGrams,
+    defaultNutritionGoal?.fatGrams,
+    selectedPatientId,
+  ]);
 
   return (
     <DashboardLayout>
@@ -235,17 +285,80 @@ export default function ProfessionalPage() {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="metas" className="space-y-3">
+                  <TabsContent value="metas" className="space-y-4">
                     {defaultNutritionGoal ? (
-                      <div className="grid gap-3 md:grid-cols-4">
-                        <Metric label="Meta calórica" value={formatCalories(defaultNutritionGoal.calories)} />
-                        <Metric label="Meta proteína" value={formatGrams(defaultNutritionGoal.proteinGrams)} />
-                        <Metric label="Meta carboidratos" value={formatGrams(defaultNutritionGoal.carbsGrams)} />
-                        <Metric label="Meta gorduras" value={formatGrams(defaultNutritionGoal.fatGrams)} />
-                      </div>
+                      <>
+                        <div className="grid gap-3 md:grid-cols-5">
+                          <Metric label="Meta calórica" value={formatCalories(defaultNutritionGoal.calories)} />
+                          <Metric label="Meta proteína" value={formatGrams(defaultNutritionGoal.proteinGrams)} />
+                          <Metric label="Meta carboidratos" value={formatGrams(defaultNutritionGoal.carbsGrams)} />
+                          <Metric label="Meta gorduras" value={formatGrams(defaultNutritionGoal.fatGrams)} />
+                          <Metric label="Exceções" value={String(dashboard.data.nutritionGoal.exceptions.length)} />
+                        </div>
+                        <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                          A sugestão fica registrada para o paciente avaliar depois. A meta ativa não é alterada automaticamente por esta área profissional.
+                        </div>
+                      </>
                     ) : <Empty text="Nenhuma meta nutricional encontrada para este paciente." />}
-                    <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-                      Sugestões de ajuste de metas ficam registradas para acompanhamento, sem alterar automaticamente a meta ativa do paciente.
+
+                    <div className="rounded-2xl border bg-background p-4">
+                      <div className="mb-4">
+                        <p className="font-medium">Sugerir ajuste de meta</p>
+                        <p className="text-sm text-muted-foreground">Os campos começam com a meta atual para facilitar pequenos ajustes.</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <label className="space-y-2">
+                          <Label>Calorias</Label>
+                          <Input type="number" min={800} value={goalSuggestion.calories} onChange={event => setGoalSuggestion(previous => ({ ...previous, calories: event.target.value }))} />
+                        </label>
+                        <label className="space-y-2">
+                          <Label>Proteína (g)</Label>
+                          <Input type="number" min={20} value={goalSuggestion.proteinGrams} onChange={event => setGoalSuggestion(previous => ({ ...previous, proteinGrams: event.target.value }))} />
+                        </label>
+                        <label className="space-y-2">
+                          <Label>Carboidratos (g)</Label>
+                          <Input type="number" min={20} value={goalSuggestion.carbsGrams} onChange={event => setGoalSuggestion(previous => ({ ...previous, carbsGrams: event.target.value }))} />
+                        </label>
+                        <label className="space-y-2">
+                          <Label>Gorduras (g)</Label>
+                          <Input type="number" min={10} value={goalSuggestion.fatGrams} onChange={event => setGoalSuggestion(previous => ({ ...previous, fatGrams: event.target.value }))} />
+                        </label>
+                      </div>
+                      <label className="mt-3 block space-y-2">
+                        <Label>Justificativa</Label>
+                        <Textarea
+                          value={goalSuggestion.rationale}
+                          onChange={event => setGoalSuggestion(previous => ({ ...previous, rationale: event.target.value }))}
+                          placeholder="Ex.: reduzir calorias mantendo proteína alta para preservar saciedade."
+                        />
+                      </label>
+                      <Button
+                        className="mt-4 rounded-full"
+                        disabled={!canSuggestGoal || suggestGoal.isPending}
+                        onClick={() => selectedPatientId && suggestGoal.mutate({
+                          patientId: selectedPatientId,
+                          rationale: goalSuggestion.rationale.trim(),
+                          status: "sent",
+                          goal: {
+                            defaultGoal: {
+                              calories: suggestedCalories,
+                              proteinGrams: suggestedProtein,
+                              carbsGrams: suggestedCarbs,
+                              fatGrams: suggestedFat,
+                            },
+                            exceptions: dashboard.data.nutritionGoal.exceptions,
+                          },
+                        })}
+                      >
+                        <MessageSquarePlus className="mr-2 h-4 w-4" /> Enviar sugestão
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="font-medium">Sugestões registradas</p>
+                      {goalSuggestions.length ? goalSuggestions.map(suggestion => (
+                        <GoalSuggestionRow key={suggestion.id} suggestion={suggestion} />
+                      )) : <Empty text="Nenhuma sugestão de meta registrada para este paciente." />}
                     </div>
                   </TabsContent>
 
@@ -318,6 +431,50 @@ function MealRow({ meal }: { meal: { id: number; mealLabel: string; occurredAt: 
       <p className="text-xs text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
     </div>
   );
+}
+
+function GoalSuggestionRow({ suggestion }: {
+  suggestion: {
+    id: string;
+    status: string;
+    rationale: string;
+    createdAt: number;
+    goal: {
+      defaultGoal: {
+        calories: number;
+        proteinGrams: number;
+        carbsGrams: number;
+        fatGrams: number;
+      };
+    };
+  };
+}) {
+  return (
+    <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">{goalSuggestionStatusLabel(suggestion.status)}</span>
+        <span className="text-xs text-muted-foreground">{new Date(suggestion.createdAt).toLocaleString("pt-BR")}</span>
+      </div>
+      <div className="mt-2 grid gap-2 text-muted-foreground md:grid-cols-4">
+        <span>{formatCalories(suggestion.goal.defaultGoal.calories)}</span>
+        <span>{formatGrams(suggestion.goal.defaultGoal.proteinGrams)} proteína</span>
+        <span>{formatGrams(suggestion.goal.defaultGoal.carbsGrams)} carboidratos</span>
+        <span>{formatGrams(suggestion.goal.defaultGoal.fatGrams)} gorduras</span>
+      </div>
+      <p className="mt-2 text-muted-foreground">{suggestion.rationale}</p>
+    </div>
+  );
+}
+
+function goalSuggestionStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    draft: "Rascunho",
+    sent: "Enviada",
+    accepted: "Aceita",
+    refused: "Recusada",
+    cancelled: "Cancelada",
+  };
+  return labels[status] ?? status;
 }
 
 function Empty({ text }: { text: string }) {
