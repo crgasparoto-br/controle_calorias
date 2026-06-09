@@ -31,9 +31,12 @@ export const professionalCommentSchema = z.object({
   comment: z.string().trim().min(1).max(1000),
 });
 
+export const professionalGoalSuggestionStatusSchema = z.enum(["draft", "sent", "accepted", "refused", "cancelled"]);
+
 export const professionalGoalSuggestionSchema = z.object({
   patientId: z.number().int().positive(),
   rationale: z.string().trim().min(3).max(1000),
+  status: professionalGoalSuggestionStatusSchema.default("sent"),
   goal: goalSchema,
 });
 
@@ -43,3 +46,4 @@ export type AccessIdInput = z.infer<typeof accessIdSchema>;
 export type PatientIdInput = z.infer<typeof patientIdSchema>;
 export type ProfessionalCommentInput = z.infer<typeof professionalCommentSchema>;
 export type ProfessionalGoalSuggestionInput = z.infer<typeof professionalGoalSuggestionSchema>;
+export type ProfessionalGoalSuggestionStatus = z.infer<typeof professionalGoalSuggestionStatusSchema>;
