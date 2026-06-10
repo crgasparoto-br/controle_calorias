@@ -20,6 +20,8 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - A leitura principal de relatórios deve comparar consumido vs meta ajustada, macros planejados vs realizados, peso, qualidade alimentar, água e exercícios.
 - Meta ajustada de calorias é a meta base do dia somada às calorias de exercícios registradas no mesmo dia, quando houver gasto aplicável.
 - A distribuição percentual de macronutrientes deve ser calculada por calorias: proteína e carboidrato usam 4 kcal/g, gordura usa 9 kcal/g.
+- A qualidade alimentar em Relatórios deve ser agregada por período e não deve listar alimentos individualmente.
+- Alimentos sem classificação disponível devem entrar como `não classificados` para não inflar artificialmente percentuais de ultraprocessados ou in natura/minimamente processados.
 - O detalhamento alimento por alimento deve permanecer em Refeições registradas; Relatórios pode apontar para essa tela quando o usuário precisar auditar um dia específico.
 
 ## Relatórios orientados a metas
@@ -37,6 +39,12 @@ A experiência deve conter:
 - contadores de dias com proteína dentro da faixa e gordura acima da meta;
 - detalhamento diário com consumo, meta ajustada, diferença em kcal e percentual de aderência;
 - visão agregada de qualidade alimentar com proteína, fibras, frutas, legumes/verduras, ultraprocessados e regularidade quando houver classificação disponível;
+- dias com frutas registradas no período;
+- dias com legumes/verduras registrados no período;
+- percentual estimado de calorias vindas de ultraprocessados;
+- percentual estimado de calorias vindas de alimentos in natura/minimamente processados, quando houver classificação disponível;
+- percentual de calorias não classificadas para deixar clara a limitação dos dados;
+- índice simples de qualidade alimentar calculado apenas sobre calorias classificadas, sem linguagem moralizante;
 - evolução de peso como sinal de apoio, com mensagem cautelosa quando faltarem registros;
 - água e exercícios como contexto da meta, incluindo consumo vs meta de água, dias com meta batida, dias ativos e gasto estimado.
 
@@ -58,4 +66,6 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 - Relatórios exibem comparação visual entre percentual planejado e percentual realizado de macros.
 - Relatórios exibem comparação em gramas por macro para evitar distorção de leitura.
 - Relatórios recalculam médias e percentuais de macros quando o período selecionado muda.
+- Relatórios exibem qualidade alimentar agregada por período, sem detalhar alimentos individualmente.
+- Relatórios separam calorias classificadas e não classificadas nos indicadores de qualidade alimentar.
 - Relatórios não duplicam a experiência operacional de Refeições registradas.
