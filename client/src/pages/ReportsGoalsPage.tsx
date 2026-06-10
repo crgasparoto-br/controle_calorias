@@ -802,7 +802,6 @@ export default function ReportsGoalsPage() {
     ? weeklyDays.reduce((total, day) => total + day.calories, 0)
     : periodTotals.calories;
   const totalGoalCalories = trendData.reduce((total, day) => total + day.goalCalories, 0);
-  const adjustedGoalLabel = "metas ajustadas por dia";
   const reportsHeading = buildReportsHeading(periodScope);
 
   const waterConsumedMl = periodScope === "week"
@@ -828,6 +827,15 @@ export default function ReportsGoalsPage() {
   const weightTrendPoints = periodScope === "week"
     ? buildWeightPointsFromSummary(reportBundle.data?.progress.weight)
     : periodWeightBundle?.points ?? buildWeightPointsFromSummary(periodWeightBundle?.summary);
+  const weightSummary = calculateWeightTrendSummary(weightTrendPoints);
+  const waterAdherencePercent = progressPercent(waterConsumedMl, waterGoalMl);
+  const qualitySummaryValue = foodQuality?.qualityIndex == null ? "-" : formatPercent(foodQuality.qualityIndex);
+  const qualitySummaryDescription = foodQuality?.hasData
+    ? `${foodQuality.daysWithRecords}/${dayCount} dias com registros e ${formatPercent(foodQuality.unclassifiedCaloriesPercent)} não classificados.`
+    : "Sem dados classificados suficientes no período selecionado.";
+  const weightSummaryValue = weightSummary.hasData && weightSummary.deltaKg != null
+    ? `${formatSignedMacro(weightSummary.deltaKg)} kg`
+    : "-";
 
   const isLoading = periodScope === "week" ? reportBundle.isLoading : periodBundle.isLoading;
   const isError = periodScope === "week" ? reportBundle.isError : periodBundle.isError;
@@ -883,30 +891,76 @@ export default function ReportsGoalsPage() {
 
         {!isLoading && !isError ? (
           <>
-            <div className="grid gap-4 lg:grid-cols-4">
-              <MetricCard title="Consumo total" value={formatCalories(totalCalories)} description="Soma das refeições registradas no período ativo." />
-              <MetricCard title="Meta ajustada do período" value={formatCalories(totalGoalCalories)} description={`Referência baseada em ${adjustedGoalLabel}.`} />
-              <MetricCard title="Desvio total" value={formatCalories(totalCalories - totalGoalCalories)} description="Diferença entre consumido e meta ajustada no intervalo." />
-              <MetricCard title="Exercícios" value={formatCalories(exerciseCalories)} description="Gasto estimado usado como contexto da meta ajustada." />
-            </div>
+            <section className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight">Resumo do período</h2>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Os principais sinais ficam juntos para mostrar rapidamente se o período está alinhado às metas.
+                  </p>
+                </div>
+                <Badge variant="outline" className="rounded-full px-3 py-1 text-xs uppercase">Orientado a metas</Badge>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricCard
+                  title="Aderência calórica"
+                  value={formatPercent(calorieAdherence.adherencePercent)}
+                  description={`${calorieAdherence.daysWithinRange}/${dayCount} dias dentro da faixa ideal.`}
+                />
+                <MetricCard
+                  title="Média consumida"
+                  value={formatCalories(calorieAdherence.averageCalories)}
+                  description="Consumo diário médio no período selecionado."
+                />
+                <MetricCard
+                  title="Média da meta ajustada"
+                  value={formatCalories(calorieAdherence.averageGoalCalories)}
+                  description="Meta média após considerar exercícios registrados."
+                />
+                <MetricCard
+                  title="Desvio médio"
+                  value={formatCalories(calorieAdherence.averageDeltaCalories)}
+                  description="Diferença diária média entre consumo e meta ajustada."
+                />
+                <MetricCard
+                  title="Variação de peso"
+                  value={weightSummaryValue}
+                  description={weightSummary.hasData ? `${formatSignedMacro(weightSummary.deltaPercent)}% no período.` : "Sem registros suficientes no período."}
+                />
+                <MetricCard
+                  title="Qualidade alimentar"
+                  value={qualitySummaryValue}
+                  description={qualitySummaryDescription}
+                />
+                <MetricCard
+                  title="Água"
+                  value={formatPercent(waterAdherencePercent)}
+                  description={`${waterHitDays}/${dayCount} dias com meta batida; ${formatCountPtBr(Math.round(waterConsumedMl), " ml")} no total.`}
+                />
+                <MetricCard
+                  title="Exercícios"
+                  value={`${exerciseActiveDays}/${dayCount} dias`}
+                  description={`${formatCalories(exerciseCalories)} estimadas e consideradas na meta ajustada.`}
+                />
+              </div>
+            </section>
 
             <CalorieAdherenceCard trendData={trendData} dayCount={dayCount} />
             <CalorieTrendChart trendData={trendData} />
-            <DailyCalorieBreakdown trendData={trendData} />
             <MacroAdherenceCard consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} />
 
-            <div className="grid gap-6 xl:grid-cols-[1fr,0.85fr]">
-              <QualityCard
-                proteinGrams={weeklyQuality?.proteinGrams ?? consumedMacros.protein}
-                fiberGrams={weeklyQuality?.fiberGrams}
-                fruitServings={weeklyQuality?.fruitServings}
-                vegetableServings={weeklyQuality?.vegetableServings}
-                ultraProcessedServings={weeklyQuality?.ultraProcessedServings}
-                regularityScore={weeklyQuality?.regularityScore}
-                foodQuality={foodQuality}
-              />
-              <WeightCard points={weightTrendPoints} adherencePercent={calorieAdherence.adherencePercent} />
-            </div>
+            <QualityCard
+              proteinGrams={weeklyQuality?.proteinGrams ?? consumedMacros.protein}
+              fiberGrams={weeklyQuality?.fiberGrams}
+              fruitServings={weeklyQuality?.fruitServings}
+              vegetableServings={weeklyQuality?.vegetableServings}
+              ultraProcessedServings={weeklyQuality?.ultraProcessedServings}
+              regularityScore={weeklyQuality?.regularityScore}
+              foodQuality={foodQuality}
+            />
+
+            <WeightCard points={weightTrendPoints} adherencePercent={calorieAdherence.adherencePercent} />
 
             <SupportHabitsCard
               waterConsumedMl={waterConsumedMl}
@@ -917,6 +971,8 @@ export default function ReportsGoalsPage() {
               dayCount={dayCount}
               trendData={trendData}
             />
+
+            <DailyCalorieBreakdown trendData={trendData} />
 
             <Card className="border-0 shadow-sm">
               <SectionHeader
