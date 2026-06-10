@@ -316,12 +316,44 @@ function CalorieTrendChart({ trendData }: { trendData: TrendPoint[] }) {
   );
 }
 
-function DailyCalorieBreakdown({ trendData }: { trendData: TrendPoint[] }) {
+function DailyCalorieBreakdown({ trendData, scope }: { trendData: TrendPoint[]; scope: PeriodScope }) {
   if (!trendData.length) return null;
+
+  const totalCalories = trendData.reduce((total, day) => total + day.calories, 0);
+  const totalGoalCalories = trendData.reduce((total, day) => total + day.goalCalories, 0);
+  const totalDeltaCalories = trendData.reduce((total, day) => total + day.calorieDelta, 0);
+  const totalExerciseCalories = trendData.reduce((total, day) => total + day.exerciseCalories, 0);
+  const totalAdherencePercent = totalGoalCalories > 0 ? (totalCalories / totalGoalCalories) * 100 : 0;
+  const totalLabel = scope === "week" ? "Total da semana" : "Total do período";
+
   return (
     <Card className="border-0 shadow-sm">
       <SectionHeader icon={<Target className="h-5 w-5 text-primary" />} title="Detalhe diário da meta ajustada" description="Cada dia mostra consumo, meta ajustada, diferença e percentual de aderência recalculados para o período selecionado." />
       <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border bg-muted/20 p-4 shadow-sm md:col-span-2 xl:col-span-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="font-medium tracking-tight">{totalLabel}</p>
+            <Badge variant="secondary" className="rounded-full">{formatPercent(totalAdherencePercent)}</Badge>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Consumido</p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight">{formatCalories(totalCalories)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Meta ajustada</p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight">{formatCalories(totalGoalCalories)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Diferença</p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight">{formatCalories(totalDeltaCalories)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Exercícios</p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight">{formatCalories(totalExerciseCalories)}</p>
+            </div>
+          </div>
+        </div>
         {trendData.map(day => (
           <div key={day.date} className="rounded-2xl border bg-background p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -619,7 +651,7 @@ export default function ReportsGoalsPage() {
             <QualityCard proteinGrams={weeklyQuality?.proteinGrams ?? consumedMacros.protein} fiberGrams={weeklyQuality?.fiberGrams} fruitServings={weeklyQuality?.fruitServings} vegetableServings={weeklyQuality?.vegetableServings} ultraProcessedServings={weeklyQuality?.ultraProcessedServings} regularityScore={weeklyQuality?.regularityScore} foodQuality={foodQuality} />
             <WeightCard points={weightTrendPoints} adherencePercent={calorieAdherence.adherencePercent} />
             <SupportHabitsCard waterConsumedMl={waterConsumedMl} waterGoalMl={waterGoalMl} waterHitDays={waterHitDays} exerciseActiveDays={exerciseActiveDays} exerciseCalories={exerciseCalories} dayCount={dayCount} trendData={trendData} />
-            <DailyCalorieBreakdown trendData={trendData} />
+            <DailyCalorieBreakdown trendData={trendData} scope={periodScope} />
 
             <Card className="border-0 shadow-sm">
               <SectionHeader icon={<TrendingUp className="h-5 w-5 text-primary" />} title="Leitura e próximos passos" description="O relatório prioriza sinais agregados. Para auditar refeições específicas, use a tela de refeições registradas." />
