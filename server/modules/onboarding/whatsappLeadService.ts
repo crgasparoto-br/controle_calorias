@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { registerLocalUser } from "../../_core/localAuth";
 import { getDb, logInferenceEvent, normalizeWhatsAppPhoneNumber, upsertUserWhatsappConnection } from "../../db";
 import { completeOnboarding } from "./service";
@@ -61,7 +61,7 @@ function publicLeadView(lead: WhatsappOnboardingLead) {
   };
 }
 
-async function executeRaw<T = unknown>(query: ReturnType<typeof sql>) {
+async function executeRaw<T = unknown>(query: SQL) {
   const db = await getDb();
   if (!db) return null;
   return db.execute(query) as Promise<T>;
