@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
-import ProfessionalProfileSettings, { PatientAccessRequestsCard } from "@/components/ProfessionalProfileSettings";
+import ProfessionalProfileSettings from "@/components/ProfessionalProfileSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -440,7 +440,6 @@ export default function OnboardingPage() {
                   <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
                 </CardContent>
               </Card>
-              <PatientAccessRequestsCard />
             </div>
           </TabsContent>
 
