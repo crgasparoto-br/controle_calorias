@@ -1,4 +1,4 @@
-import { getWhatsAppChannelConfig, requireWhatsAppSendConfig } from "../../whatsappConfig";
+import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "../../whatsappConfig";
 
 export type WhatsAppWebhookMessage = {
   id?: string;
@@ -84,6 +84,206 @@ export function normalizeWhatsAppIntentText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+export async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de imagem.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "image",
+        image: {
+          link: imageUrl,
+          caption,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da imagem anotada.`,
+      };
+    }
+
+    return { ok: true, detail: "Imagem anotada enviada com sucesso." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar imagem anotada do WhatsApp.",
+    };
+  }
+}
+
+export async function markWhatsAppMessageAsRead(messageId?: string) {
+  if (!messageId) {
+    return { ok: true, detail: "Mensagem sem ID para marcar como lida." };
+  }
+
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para marcar mensagem como lida.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: messageId,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} ao marcar mensagem como lida.`,
+      };
+    }
+
+    return { ok: true, detail: "Mensagem marcada como lida." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao marcar mensagem do WhatsApp como lida.",
+    };
+  }
+}
+
+export async function getWhatsAppMediaDownloadUrl(mediaId: string) {
+  const { accessToken } = await requireWhatsAppMediaConfig();
+
+  const response = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Falha ao obter URL da mídia do WhatsApp: ${response.status} ${response.statusText}`);
+  }
+
+  const payload = await response.json() as { url?: string; mime_type?: string };
+  if (!payload.url) {
+    throw new Error("A API do WhatsApp não retornou a URL da mídia.");
+  }
+
+  return { url: payload.url, mimeType: payload.mime_type };
+}
+
+export async function downloadWhatsAppMedia(mediaId: string, fallbackMimeType?: string) {
+  const { accessToken } = await requireWhatsAppMediaConfig();
+
+  const meta = await getWhatsAppMediaDownloadUrl(mediaId);
+  const response = await fetch(meta.url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar mídia do WhatsApp: ${response.status} ${response.statusText}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return {
+    buffer,
+    mimeType: response.headers.get("content-type") || meta.mimeType || fallbackMimeType || "application/octet-stream",
+  };
+}
+
+export function extensionFromMimeType(mimeType: string) {
+  if (mimeType.includes("jpeg")) return "jpg";
+  if (mimeType.includes("png")) return "png";
+  if (mimeType.includes("webp")) return "webp";
+  if (mimeType.includes("ogg")) return "ogg";
+  if (mimeType.includes("mpeg")) return "mp3";
+  if (mimeType.includes("mp4")) return "mp4";
+  if (mimeType.includes("wav")) return "wav";
+  return "bin";
+}
+
+export function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+export async function sendWhatsAppInteractiveUrlButtonMessage(
+  to: string,
+  bodyText: string,
+  buttonDisplayText: string,
+  buttonUrl: string,
+) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de mensagem interativa.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "cta_url",
+          body: { text: bodyText },
+          action: {
+            name: "cta_url",
+            parameters: {
+              display_text: buttonDisplayText,
+              url: buttonUrl,
+            },
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da mensagem interativa.`,
+      };
+    }
+
+    return { ok: true, detail: "Mensagem interativa enviada com sucesso." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar mensagem interativa do WhatsApp.",
+    };
+  }
 }
 
 export async function sendWhatsAppTextMessage(to: string, body: string) {

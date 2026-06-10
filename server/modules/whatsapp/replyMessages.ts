@@ -10,7 +10,6 @@ export type WhatsAppMealGoalProgress = {
 export type WhatsAppMealReplyOptions = {
   registeredAt?: Date;
   goalProgress?: WhatsAppMealGoalProgress | null;
-  quickEditUrl?: string | null;
 };
 
 function formatNumber(value: number) {
@@ -140,22 +139,9 @@ function buildGoalProgressLines(progress: WhatsAppMealGoalProgress | null | unde
   ];
 }
 
-function buildQuickEditLines(quickEditUrl?: string | null) {
-  const url = quickEditUrl?.trim();
-  if (!url) {
-    return [];
-  }
-
-  return [
-    "Quer ajustar algum alimento, quantidade ou unidade?",
-    `Editar: ${url}`,
-  ];
-}
-
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
   const title = buildMealTitle(processed.detectedMealLabel, options.registeredAt);
   const goalLines = buildGoalProgressLines(options.goalProgress, options.registeredAt);
-  const quickEditLines = buildQuickEditLines(options.quickEditUrl);
 
   if (!processed.items.length) {
     return [
@@ -167,7 +153,6 @@ export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, o
       `${formatMacro(processed.totals.calories)} Kcal`,
       `Prot. ${formatMacro(processed.totals.protein)} g | Carb. ${formatMacro(processed.totals.carbs)} g | Gord. ${formatMacro(processed.totals.fat)} g`,
       ...(goalLines.length ? ["", ...goalLines] : []),
-      ...(quickEditLines.length ? ["", ...quickEditLines] : []),
     ].join("\n");
   }
 
@@ -190,6 +175,5 @@ export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, o
     `${formatMacro(processed.totals.calories)} Kcal`,
     `Prot. ${formatMacro(processed.totals.protein)} g | Carb. ${formatMacro(processed.totals.carbs)} g | Gord. ${formatMacro(processed.totals.fat)} g`,
     ...(goalLines.length ? ["", ...goalLines] : []),
-    ...(quickEditLines.length ? ["", ...quickEditLines] : []),
   ].join("\n");
 }
