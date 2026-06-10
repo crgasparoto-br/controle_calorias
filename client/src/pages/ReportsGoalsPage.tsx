@@ -138,6 +138,11 @@ function progressPercent(value: number, goal: number) {
   return Math.min(Math.max((value / goal) * 100, 0), 100);
 }
 
+function averageTrendValue(days: TrendPoint[], getValue: (day: TrendPoint) => number) {
+  if (!days.length) return null;
+  return days.reduce((total, day) => total + getValue(day), 0) / days.length;
+}
+
 function getCalorieBarColor(calories: number, goalCalories: number) {
   if (!goalCalories || !calories) return "#cbd5e1";
   const ratio = calories / goalCalories;
@@ -623,6 +628,7 @@ function SupportHabitsCard({
   exerciseActiveDays,
   exerciseCalories,
   dayCount,
+  trendData,
 }: {
   waterConsumedMl: number;
   waterGoalMl: number;
@@ -630,32 +636,72 @@ function SupportHabitsCard({
   exerciseActiveDays: number;
   exerciseCalories: number;
   dayCount: number;
+  trendData: TrendPoint[];
 }) {
+  const waterAdherencePercent = progressPercent(waterConsumedMl, waterGoalMl);
+  const averageDailyWaterMl = dayCount > 0 ? waterConsumedMl / dayCount : 0;
+  const daysWithExercise = trendData.filter(day => day.exerciseCalories > 0);
+  const daysWithoutExercise = trendData.filter(day => day.exerciseCalories <= 0);
+  const adjustedGoalWithExercise = averageTrendValue(daysWithExercise, day => day.goalCalories);
+  const adjustedGoalWithoutExercise = averageTrendValue(daysWithoutExercise, day => day.goalCalories);
+  const adherenceWithExercise = averageTrendValue(daysWithExercise, day => day.adherencePercent);
+  const adherenceWithoutExercise = averageTrendValue(daysWithoutExercise, day => day.adherencePercent);
+
   return (
     <Card className="border-0 shadow-sm">
       <SectionHeader
         icon={<TrendingUp className="h-5 w-5 text-primary" />}
         title="Água e exercícios como apoio"
-        description="Hábitos de suporte aparecem junto da meta para mostrar contexto, não como métricas soltas."
+        description="Hábitos de suporte aparecem junto da meta ajustada para explicar o contexto do período, sem virar detalhe de treino."
       />
       <CardContent className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
             <p className="flex items-center gap-2 text-sm font-medium"><Droplets className="h-4 w-4 text-primary" /> Água vs meta</p>
-            <span className="text-sm text-muted-foreground">{formatPercent(progressPercent(waterConsumedMl, waterGoalMl))}</span>
+            <span className="text-sm text-muted-foreground">{formatPercent(waterAdherencePercent)}</span>
           </div>
-          <Progress className="h-2" value={progressPercent(waterConsumedMl, waterGoalMl)} />
+          <Progress className="h-2" value={waterAdherencePercent} />
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <StatusTile label="Consumido" value={formatCountPtBr(Math.round(waterConsumedMl), " ml")} />
+            <StatusTile label="Média diária" value={formatCountPtBr(Math.round(averageDailyWaterMl), " ml")} />
+            <StatusTile label="Aderência à água" value={formatPercent(waterAdherencePercent)} />
             <StatusTile label="Meta batida" value={`${waterHitDays}/${dayCount} dias`} />
           </div>
+          {waterConsumedMl <= 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">
+              Ainda não há registros de água no período selecionado.
+            </div>
+          ) : null}
         </div>
         <div className="rounded-2xl border bg-background p-4 shadow-sm">
-          <p className="mb-4 flex items-center gap-2 text-sm font-medium"><Dumbbell className="h-4 w-4 text-primary" /> Frequência de exercícios</p>
+          <p className="mb-4 flex items-center gap-2 text-sm font-medium"><Dumbbell className="h-4 w-4 text-primary" /> Exercícios e meta ajustada</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <StatusTile label="Dias ativos" value={`${exerciseActiveDays}/${dayCount}`} />
             <StatusTile label="Gasto estimado" value={formatCalories(exerciseCalories)} />
+            <StatusTile
+              label="Meta em dias ativos"
+              value={adjustedGoalWithExercise == null ? "-" : formatCalories(adjustedGoalWithExercise)}
+              hint="Média da meta ajustada nos dias com exercício."
+            />
+            <StatusTile
+              label="Meta sem exercício"
+              value={adjustedGoalWithoutExercise == null ? "-" : formatCalories(adjustedGoalWithoutExercise)}
+              hint="Média da meta ajustada nos dias sem exercício."
+            />
+            <StatusTile
+              label="Aderência em dias ativos"
+              value={adherenceWithExercise == null ? "-" : formatPercent(adherenceWithExercise)}
+            />
+            <StatusTile
+              label="Aderência sem exercício"
+              value={adherenceWithoutExercise == null ? "-" : formatPercent(adherenceWithoutExercise)}
+            />
           </div>
+          {exerciseActiveDays <= 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">
+              Ainda não há exercícios registrados neste período. Quando houver, eles entram na leitura da meta ajustada.
+            </div>
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -869,6 +915,7 @@ export default function ReportsGoalsPage() {
               exerciseActiveDays={exerciseActiveDays}
               exerciseCalories={exerciseCalories}
               dayCount={dayCount}
+              trendData={trendData}
             />
 
             <Card className="border-0 shadow-sm">
