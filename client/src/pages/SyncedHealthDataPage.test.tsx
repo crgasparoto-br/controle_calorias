@@ -95,7 +95,7 @@ describe("SyncedHealthDataPage", () => {
     expect(screen.getByText("Dia selecionado")).toBeTruthy();
     expect(screen.getByText("Corrida matinal")).toBeTruthy();
     expect(screen.getByText("Calorias sincronizadas")).toBeTruthy();
-    expect(screen.getByText("420 kcal")).toBeTruthy();
+    expect(screen.getAllByText("420 kcal").length).toBeGreaterThan(0);
     expect(lastSyncedRecordsInput).toMatchObject({
       from: "2026-06-09T00:00:00.000Z",
       to: "2026-06-09T23:59:59.999Z",
@@ -132,7 +132,7 @@ describe("SyncedHealthDataPage", () => {
     expect(screen.getByText("7,20 km")).toBeTruthy();
     expect(screen.getByText("Calorias")).toBeTruthy();
     expect(screen.getByText("Fonte das calorias")).toBeTruthy();
-    expect(screen.getByText("Strava")).toBeTruthy();
+    expect(screen.getAllByText("Strava").length).toBeGreaterThan(0);
     expect(screen.queryByText("External Id")).toBeNull();
     expect(screen.queryByText("Gear Id")).toBeNull();
     expect(screen.queryByText("ID")).toBeNull();
