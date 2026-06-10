@@ -123,7 +123,7 @@ export default function FoodsPage() {
         <PageIntro
           eyebrow="Alimentos"
           title="Base alimentar do usuário"
-          description="A tela agora separa busca, atalhos e cadastro para reduzir a competição entre consulta e edição. O fluxo continua o mesmo: encontrar um alimento, favoritá-lo ou ajustá-lo, e manter o cadastro consistente para os próximos registros."
+          description=""
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat label="Resultados" value={String(visibleFoods.length)} helper="itens visíveis na busca" />
@@ -153,7 +153,6 @@ export default function FoodsPage() {
                 <Card className="border-0 shadow-sm">
                   <CardHeader>
                     <CardTitle>Buscar e revisar alimentos</CardTitle>
-                    <CardDescription>Favoritos e usados recentemente continuam aparecendo primeiro, mas a leitura agora fica mais focada no resultado da busca.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="relative">
