@@ -11,6 +11,7 @@ const records = [
     unit: "minutes",
     activityType: "Corrida",
     metadata: {
+      externalId: "run-1",
       name: "Corrida matinal",
       sportType: "Run",
       distanceMeters: 7200,
@@ -25,8 +26,10 @@ const records = [
     unit: "kcal",
     activityType: "Corrida",
     metadata: {
+      externalId: "run-1",
       name: "Corrida matinal",
       sportType: "Run",
+      caloriesSource: "strava",
     },
   },
   {
@@ -69,22 +72,54 @@ describe("listSyncedHealthRecords", () => {
       id: "run-1:activity",
       source: "strava",
       dataType: "activity",
+      metadata: expect.objectContaining({
+        calories: 420,
+        caloriesSource: "strava",
+      }),
     });
     expect(result.total).toBe(1);
     expect(result.totals).toMatchObject({
       activityMinutes: 35,
-      energyBurnedCalories: 0,
+      energyBurnedCalories: 420,
       steps: 0,
     });
+  });
+
+  it("consolida atividade e gasto em um único item", () => {
+    const result = listSyncedHealthRecords(records, { limit: 20, offset: 0 });
+
+    expect(result.items.map(record => record.id)).toEqual(["run-1:activity", "walk-1:activity", "steps-1"]);
+    expect(result.total).toBe(3);
+    expect(result.totals).toMatchObject({
+      activityMinutes: 55,
+      energyBurnedCalories: 420,
+      steps: 6500,
+    });
+  });
+
+  it("mantém filtro de calorias apontando para atividades consolidadas", () => {
+    const result = listSyncedHealthRecords(records, {
+      dataType: "energy_burned",
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      id: "run-1:activity",
+      dataType: "activity",
+      metadata: expect.objectContaining({ calories: 420 }),
+    });
+    expect(result.totals.energyBurnedCalories).toBe(420);
   });
 
   it("pagina resultados e retorna o próximo offset", () => {
     const firstPage = listSyncedHealthRecords(records, { limit: 2, offset: 0 });
     const secondPage = listSyncedHealthRecords(records, { limit: 2, offset: 2 });
 
-    expect(firstPage.items.map(record => record.id)).toEqual(["run-1:activity", "run-1:energy"]);
+    expect(firstPage.items.map(record => record.id)).toEqual(["run-1:activity", "walk-1:activity"]);
     expect(firstPage.nextOffset).toBe(2);
-    expect(secondPage.items.map(record => record.id)).toEqual(["walk-1:activity", "steps-1"]);
+    expect(secondPage.items.map(record => record.id)).toEqual(["steps-1"]);
     expect(secondPage.nextOffset).toBeNull();
   });
 
