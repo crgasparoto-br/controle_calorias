@@ -311,28 +311,8 @@ export default function Home() {
         />
 
         <PageIntro
-          title="Resumo do dia selecionado"
+          title="Resumo"
           description="Acompanhe consumo, metas e registros do dia selecionado em uma leitura rápida."
-          actions={
-            <>
-              <Link href="/registrar">
-                <Button className="rounded-full">
-                  Registrar refeição
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-              <Link href={recordsHref(selectedDate)}>
-                <Button variant="outline" className="rounded-full">
-                  Ver registros do dia
-                </Button>
-              </Link>
-              <Link href="/reports">
-                <Button variant="outline" className="rounded-full">
-                  Ver relatório da semana
-                </Button>
-              </Link>
-            </>
-          }
         />
 
         <section className="space-y-4">

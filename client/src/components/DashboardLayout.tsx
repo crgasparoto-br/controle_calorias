@@ -100,6 +100,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   const isTodayRoute = location === "/" || location === "/today";
   const isRegisterRoute = location === "/record" || location === "/log-meal" || location === "/registrar";
+  const isRecordsRoute = location === "/meals";
   const isSettingsRoute = location === "/settings" || location === "/onboarding";
   const hasActiveProfessionalProfile = Boolean(user?.professionalProfileActive);
 
@@ -212,7 +213,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3">
               <SidebarTrigger className="h-9 w-9 rounded-xl border bg-background shadow-sm" />
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Plataforma</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Controle de Calorias</p>
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
                   {activeItem?.label || "Hoje"}
                 </h2>
@@ -226,6 +227,14 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 onClick={() => setLocation("/registrar")}
               >
                 Ir para registrar
+              </Button>
+              <Button
+                type="button"
+                variant={isRecordsRoute ? "default" : "outline"}
+                className="h-10 rounded-full px-4"
+                onClick={() => setLocation("/meals")}
+              >
+                Registros dos alimentos
               </Button>
               {!isMobile ? (
                 <Button
