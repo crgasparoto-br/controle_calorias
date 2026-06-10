@@ -211,6 +211,7 @@ function DateGroupedMealsSections({
   userTimeZone,
   selectedMealId,
   emptyMessage,
+  forceDayDetailsCollapsed,
   forceMealGroupsCollapsed,
   isCopyPending,
   isFavoritePending,
@@ -225,6 +226,7 @@ function DateGroupedMealsSections({
   userTimeZone: string;
   selectedMealId?: number;
   emptyMessage: string;
+  forceDayDetailsCollapsed?: boolean;
   forceMealGroupsCollapsed?: boolean;
   isCopyPending?: boolean;
   isFavoritePending?: boolean;
@@ -242,7 +244,7 @@ function DateGroupedMealsSections({
     );
   }
 
-  const defaultOpen = scope === "week";
+  const defaultOpen = !forceDayDetailsCollapsed && scope === "week";
 
   return (
     <div className="space-y-4">
@@ -289,12 +291,14 @@ function HabitRecordsSection({
   exerciseLogs,
   userTimeZone,
   scope,
+  forceDayDetailsCollapsed,
   isLoading,
 }: {
   waterLogs: WaterLogRecord[];
   exerciseLogs: ExerciseRecord[];
   userTimeZone: string;
   scope: PeriodScope;
+  forceDayDetailsCollapsed?: boolean;
   isLoading?: boolean;
 }) {
   const waterTotalMl = waterLogs.reduce((total, log) => total + (log.amountMl ?? 0), 0);
@@ -317,7 +321,7 @@ function HabitRecordsSection({
     [exerciseLogs, userTimeZone],
   );
   const shouldGroupByDay = scope !== "day";
-  const defaultGroupOpen = scope === "week";
+  const defaultGroupOpen = !forceDayDetailsCollapsed && scope === "week";
 
   return (
     <Card collapsible={false} className="border-0 shadow-sm">
@@ -473,6 +477,7 @@ export function RegisteredMealsPage() {
   const [copyTargetDay, setCopyTargetDay] = useState(initialDay);
   const [manualMeal, setManualMeal] = useState<ManualMealEditState>(createRegisteredEditState);
   const [areMealGroupsCollapsed, setAreMealGroupsCollapsed] = useState(false);
+  const [areDayDetailsCollapsed, setAreDayDetailsCollapsed] = useState(false);
 
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
@@ -921,16 +926,30 @@ export function RegisteredMealsPage() {
                 <ListChecks className="h-5 w-5 text-primary" />
                 {pageHeading.listTitle}
               </CardTitle>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-fit rounded-full"
-                onClick={() => setAreMealGroupsCollapsed(current => !current)}
-                aria-expanded={!areMealGroupsCollapsed}
-              >
-                <ChevronDown className={`mr-2 h-4 w-4 transition-transform ${areMealGroupsCollapsed ? "-rotate-90" : "rotate-0"}`} />
-                {areMealGroupsCollapsed ? "Expandir todas" : "Recolher todas"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {periodScope !== "day" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-fit rounded-full"
+                    onClick={() => setAreDayDetailsCollapsed(current => !current)}
+                    aria-expanded={!areDayDetailsCollapsed}
+                  >
+                    <ChevronDown className={`mr-2 h-4 w-4 transition-transform ${areDayDetailsCollapsed ? "-rotate-90" : "rotate-0"}`} />
+                    {areDayDetailsCollapsed ? "Expandir detalhes dos dias" : "Comprimir detalhes dos dias"}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-fit rounded-full"
+                  onClick={() => setAreMealGroupsCollapsed(current => !current)}
+                  aria-expanded={!areMealGroupsCollapsed}
+                >
+                  <ChevronDown className={`mr-2 h-4 w-4 transition-transform ${areMealGroupsCollapsed ? "-rotate-90" : "rotate-0"}`} />
+                  {areMealGroupsCollapsed ? "Expandir grupos" : "Recolher grupos"}
+                </Button>
+              </div>
             </div>
             <CardDescription>{buildDateSectionDescription(periodScope)}</CardDescription>
           </CardHeader>
@@ -957,6 +976,7 @@ export function RegisteredMealsPage() {
                 userTimeZone={userTimeZone}
                 selectedMealId={manualMeal.mealId}
                 emptyMessage={mealsQuery.isLoading ? "Carregando refeições..." : `Nenhum registro encontrado para ${activeRangeLabel.toLowerCase()}.`}
+                forceDayDetailsCollapsed={areDayDetailsCollapsed}
                 forceMealGroupsCollapsed={areMealGroupsCollapsed}
                 isCopyPending={copyMeal.isPending || copyMealGroup.isPending}
                 isFavoritePending={saveFavoriteMeal.isPending || saveFavoriteMealGroup.isPending}
@@ -975,6 +995,7 @@ export function RegisteredMealsPage() {
           exerciseLogs={filteredExercises}
           userTimeZone={userTimeZone}
           scope={periodScope}
+          forceDayDetailsCollapsed={areDayDetailsCollapsed}
           isLoading={waterLogsQuery.isLoading || exercisesQuery.isLoading}
         />
       </div>
