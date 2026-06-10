@@ -18,6 +18,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Relatórios deve permitir análise por dia, semana, mês e período configurável com o mesmo padrão visual de seleção.
 - Relatórios devem priorizar aderência às metas e evolução, não listagem detalhada de alimentos.
 - A leitura principal de relatórios deve comparar consumido vs meta ajustada, macros planejados vs realizados, peso, qualidade alimentar, água e exercícios.
+- A organização visual de Relatórios deve começar por um resumo do período com cards de decisão antes dos blocos analíticos detalhados.
 - Meta ajustada de calorias é a meta base do dia somada às calorias de exercícios registradas no mesmo dia, quando houver gasto aplicável.
 - A distribuição percentual de macronutrientes deve ser calculada por calorias: proteína e carboidrato usam 4 kcal/g, gordura usa 9 kcal/g.
 - A qualidade alimentar em Relatórios deve ser agregada por período e não deve listar alimentos individualmente.
@@ -30,14 +31,13 @@ A tela de Relatórios deve responder primeiro se o usuário está evoluindo em r
 
 A experiência deve conter:
 
-- resumo do período com consumo total, meta ajustada do período, desvio e exercícios;
+- resumo do período com cards principais de aderência calórica, média consumida, média da meta ajustada, desvio médio, variação de peso, qualidade alimentar, água e exercícios;
 - aderência calórica com percentual médio, desvio médio e dias abaixo, dentro e acima da faixa ideal;
 - gráfico de consumido vs meta ajustada, mantendo a meta base como referência complementar quando útil;
 - comparação de macronutrientes em gramas e em distribuição percentual planejada vs realizada;
 - comparação visual entre percentual planejado e percentual realizado por macro;
 - macro mais distante da meta;
 - contadores de dias com proteína dentro da faixa e gordura acima da meta;
-- detalhamento diário com consumo, meta ajustada, diferença em kcal e percentual de aderência;
 - visão agregada de qualidade alimentar com proteína, fibras, frutas, legumes/verduras, ultraprocessados e regularidade quando houver classificação disponível;
 - dias com frutas registradas no período;
 - dias com legumes/verduras registrados no período;
@@ -48,7 +48,8 @@ A experiência deve conter:
 - evolução de peso como sinal de apoio, com mensagem cautelosa quando faltarem registros;
 - água como contexto da meta, incluindo consumo vs meta de água, média diária, percentual médio de aderência e dias com meta batida;
 - exercícios como contexto da meta, incluindo frequência de dias ativos, gasto estimado e comparação da meta ajustada média entre dias com e sem exercício;
-- comparação de aderência calórica entre dias com exercício e dias sem exercício, para explicar o efeito do gasto estimado na leitura da meta ajustada.
+- comparação de aderência calórica entre dias com exercício e dias sem exercício, para explicar o efeito do gasto estimado na leitura da meta ajustada;
+- detalhamento diário com consumo, meta ajustada, diferença em kcal e percentual de aderência como bloco secundário, depois dos principais sinais de decisão.
 
 Quando faltarem dados de peso, qualidade alimentar, água ou exercícios, a tela deve exibir estado vazio claro sem bloquear a leitura das demais métricas.
 
@@ -63,6 +64,7 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 - Registros e Relatórios deixam claro qual período está ativo e qual intervalo está sendo analisado.
 - Relatórios exibem comparação entre meta ajustada e realizado sempre que houver meta disponível.
 - Relatórios recalculam a meta ajustada e a aderência quando o usuário altera o período selecionado.
+- Relatórios deixam claro no primeiro bloco se o usuário está aderindo, desviando ou sem dados suficientes para os principais sinais.
 - Relatórios exibem, por dia, consumo, meta ajustada, diferença em kcal e percentual de aderência.
 - Relatórios permitem entender se o usuário bateu calorias, mas errou a composição de macronutrientes.
 - Relatórios exibem comparação visual entre percentual planejado e percentual realizado de macros.
