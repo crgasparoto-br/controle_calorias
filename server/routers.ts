@@ -7,6 +7,14 @@ import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import {
+  completeWhatsappOnboarding,
+  getWhatsappOnboardingLeadByToken,
+} from "./modules/onboarding/whatsappLeadService";
+import {
+  whatsappOnboardingCompleteSchema,
+  whatsappOnboardingTokenSchema,
+} from "./modules/onboarding/whatsappLeadSchemas";
 import { getProfessionalProfile } from "./modules/professionals/service";
 import { quickEditRouter } from "./modules/quickEdit/router";
 import { nutritionRouter } from "./nutritionRouter";
@@ -90,6 +98,33 @@ export const appRouter = router({
       return {
         success: true,
       } as const;
+    }),
+    whatsappOnboarding: router({
+      validate: publicProcedure.input(whatsappOnboardingTokenSchema).query(async ({ input }) => {
+        const lead = await getWhatsappOnboardingLeadByToken(input.token);
+        if (!lead) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp.",
+          });
+        }
+        return lead;
+      }),
+      complete: publicProcedure.input(whatsappOnboardingCompleteSchema).mutation(async ({ input, ctx }) => {
+        try {
+          const user = await completeWhatsappOnboarding(input);
+          await setSessionCookie(ctx, user);
+          return sessionUser(user);
+        } catch (error) {
+          if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") {
+            throw new TRPCError({ code: "CONFLICT", message: "Já existe uma conta com este e-mail. Entre na sua conta para vincular o WhatsApp." });
+          }
+          if (error instanceof Error && error.message === "INVALID_OR_EXPIRED_ONBOARDING_TOKEN") {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp." });
+          }
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível concluir o cadastro iniciado pelo WhatsApp." });
+        }
+      }),
     }),
   }),
   nutrition: nutritionRouter,
