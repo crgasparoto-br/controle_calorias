@@ -22,6 +22,7 @@ import { CalendarPlus, ChevronDown, Droplets, Dumbbell, ListChecks, PencilLine, 
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MealItemEditor, MealLabelInput, RegisteredMealGroups, SummaryPill } from "./components";
+import { buildExerciseDayGroups, buildWaterLogDayGroups } from "./habitRecordViewModels";
 import { createEmptyItem, createManualMealState, sumItems } from "./mealFormState";
 import {
   type DateGroupedRegisteredMealsViewModel,
@@ -287,11 +288,13 @@ function HabitRecordsSection({
   waterLogs,
   exerciseLogs,
   userTimeZone,
+  scope,
   isLoading,
 }: {
   waterLogs: WaterLogRecord[];
   exerciseLogs: ExerciseRecord[];
   userTimeZone: string;
+  scope: PeriodScope;
   isLoading?: boolean;
 }) {
   const waterTotalMl = waterLogs.reduce((total, log) => total + (log.amountMl ?? 0), 0);
@@ -305,6 +308,16 @@ function HabitRecordsSection({
     () => exerciseLogs.slice().sort((first, second) => toRecordDate(second.occurredAt).getTime() - toRecordDate(first.occurredAt).getTime()),
     [exerciseLogs],
   );
+  const waterDayGroups = useMemo(
+    () => buildWaterLogDayGroups(waterLogs, { timeZone: userTimeZone, sortDirection: "desc" }),
+    [userTimeZone, waterLogs],
+  );
+  const exerciseDayGroups = useMemo(
+    () => buildExerciseDayGroups(exerciseLogs, { timeZone: userTimeZone, sortDirection: "desc" }),
+    [exerciseLogs, userTimeZone],
+  );
+  const shouldGroupByDay = scope !== "day";
+  const defaultGroupOpen = scope === "week";
 
   return (
     <Card collapsible={false} className="border-0 shadow-sm">
@@ -335,9 +348,22 @@ function HabitRecordsSection({
             <div className="space-y-2">
               {isLoading ? <EmptyOperationalRecord text="Carregando água..." /> : null}
               {!isLoading && !waterLogs.length ? <EmptyOperationalRecord text="Nenhum consumo de água no intervalo." /> : null}
-              {sortedWaterLogs.map(log => (
-                <OperationalRecord key={log.id} label={`${formatDateTimeLabel(log.occurredAt, userTimeZone)} - ${formatCountPtBr(log.amountMl, "ml")}`} />
-              ))}
+              {!isLoading && shouldGroupByDay ? waterDayGroups.map(group => (
+                <DailyOperationalGroup
+                  key={group.date}
+                  date={group.date}
+                  defaultOpen={defaultGroupOpen}
+                  summary={`${group.records.length} ${group.records.length === 1 ? "lançamento" : "lançamentos"} · Total do dia: ${formatCountPtBr(group.totalMl, " ml")}`}
+                  badges={<SummaryPill label="Total do dia" value={formatCountPtBr(group.totalMl, " ml")} />}
+                >
+                  {group.records.map(log => (
+                    <OperationalRecord key={log.id} label={`${formatDateTimeLabel(log.occurredAt, userTimeZone)} - ${formatCountPtBr(log.amountMl, " ml")}`} />
+                  ))}
+                </DailyOperationalGroup>
+              )) : null}
+              {!isLoading && !shouldGroupByDay ? sortedWaterLogs.map(log => (
+                <OperationalRecord key={log.id} label={`${formatDateTimeLabel(log.occurredAt, userTimeZone)} - ${formatCountPtBr(log.amountMl, " ml")}`} />
+              )) : null}
             </div>
           </div>
 
@@ -352,14 +378,61 @@ function HabitRecordsSection({
             <div className="space-y-2">
               {isLoading ? <EmptyOperationalRecord text="Carregando exercícios..." /> : null}
               {!isLoading && !exerciseLogs.length ? <EmptyOperationalRecord text="Nenhum exercício no intervalo." /> : null}
-              {sortedExerciseLogs.map(exercise => (
+              {!isLoading && shouldGroupByDay ? exerciseDayGroups.map(group => (
+                <DailyOperationalGroup
+                  key={group.date}
+                  date={group.date}
+                  defaultOpen={defaultGroupOpen}
+                  summary={`${group.activityCount} ${group.activityCount === 1 ? "atividade" : "atividades"} · ${formatCalories(group.totalCalories)} · ${formatCountPtBr(group.totalMinutes, " min")}`}
+                  badges={(
+                    <>
+                      <SummaryPill label="Gasto" value={formatCalories(group.totalCalories)} />
+                      <SummaryPill label="Duração" value={formatCountPtBr(group.totalMinutes, " min")} />
+                    </>
+                  )}
+                >
+                  {group.records.map(exercise => (
+                    <ExerciseOperationalRecord key={exercise.id} exercise={exercise} userTimeZone={userTimeZone} />
+                  ))}
+                </DailyOperationalGroup>
+              )) : null}
+              {!isLoading && !shouldGroupByDay ? sortedExerciseLogs.map(exercise => (
                 <ExerciseOperationalRecord key={exercise.id} exercise={exercise} userTimeZone={userTimeZone} />
-              ))}
+              )) : null}
             </div>
           </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DailyOperationalGroup({
+  date,
+  defaultOpen,
+  summary,
+  badges,
+  children,
+}: {
+  date: string;
+  defaultOpen: boolean;
+  summary: string;
+  badges: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group rounded-2xl border bg-background p-3 shadow-sm" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-semibold tracking-tight">{formatDateLabel(date, { weekday: "long", day: "2-digit", month: "short" })}</p>
+          <p className="text-sm text-muted-foreground">{summary}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">{badges}</div>
+      </summary>
+      <div className="mt-3 space-y-2">
+        {children}
+      </div>
+    </details>
   );
 }
 
@@ -901,6 +974,7 @@ export function RegisteredMealsPage() {
           waterLogs={filteredWaterLogs}
           exerciseLogs={filteredExercises}
           userTimeZone={userTimeZone}
+          scope={periodScope}
           isLoading={waterLogsQuery.isLoading || exercisesQuery.isLoading}
         />
       </div>
