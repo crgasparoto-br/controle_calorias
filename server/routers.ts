@@ -6,7 +6,17 @@ import type { TrpcContext } from "./_core/context";
 import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { webWhatsappGreetingSchema } from "./modules/onboarding/schemas";
+import { sendWebOnboardingWhatsappGreeting } from "./modules/onboarding/webGreetingService";
+import {
+  completeWhatsappOnboarding,
+  getWhatsappOnboardingLeadByToken,
+} from "./modules/onboarding/whatsappLeadService";
+import {
+  whatsappOnboardingCompleteSchema,
+  whatsappOnboardingTokenSchema,
+} from "./modules/onboarding/whatsappLeadSchemas";
 import { getProfessionalProfile } from "./modules/professionals/service";
 import { quickEditRouter } from "./modules/quickEdit/router";
 import { nutritionRouter } from "./nutritionRouter";
@@ -90,6 +100,47 @@ export const appRouter = router({
       return {
         success: true,
       } as const;
+    }),
+    sendWhatsappGreeting: protectedProcedure.input(webWhatsappGreetingSchema).mutation(async ({ input, ctx }) => {
+      try {
+        return await sendWebOnboardingWhatsappGreeting(ctx.user.id, {
+          acceptedOperationalWhatsapp: input.acceptedOperationalWhatsapp,
+          userName: ctx.user.name,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "WHATSAPP_GREETING_CONSENT_REQUIRED") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Autorize o contato operacional pelo WhatsApp para receber a saudação." });
+        }
+
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível enviar a saudação pelo WhatsApp." });
+      }
+    }),
+    whatsappOnboarding: router({
+      validate: publicProcedure.input(whatsappOnboardingTokenSchema).query(async ({ input }) => {
+        const lead = await getWhatsappOnboardingLeadByToken(input.token);
+        if (!lead) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp.",
+          });
+        }
+        return lead;
+      }),
+      complete: publicProcedure.input(whatsappOnboardingCompleteSchema).mutation(async ({ input, ctx }) => {
+        try {
+          const user = await completeWhatsappOnboarding(input);
+          await setSessionCookie(ctx, user);
+          return sessionUser(user);
+        } catch (error) {
+          if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") {
+            throw new TRPCError({ code: "CONFLICT", message: "Já existe uma conta com este e-mail. Entre na sua conta para vincular o WhatsApp." });
+          }
+          if (error instanceof Error && error.message === "INVALID_OR_EXPIRED_ONBOARDING_TOKEN") {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Link inválido, expirado ou já utilizado. Solicite um novo link pelo WhatsApp." });
+          }
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível concluir o cadastro iniciado pelo WhatsApp." });
+        }
+      }),
     }),
   }),
   nutrition: nutritionRouter,

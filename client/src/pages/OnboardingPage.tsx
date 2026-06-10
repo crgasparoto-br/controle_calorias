@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Activity, ArrowRight, Clock3, Plus, Save, Stethoscope, Target, Trash2, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Clock3, MessageCircle, Plus, Save, Stethoscope, Target, Trash2, UserRound } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -227,6 +227,8 @@ export default function OnboardingPage() {
   const [nameEdited, setNameEdited] = useState(false);
   const [savedProfileApplied, setSavedProfileApplied] = useState(false);
   const [schedulesApplied, setSchedulesApplied] = useState(false);
+  const [sendWhatsappGreeting, setSendWhatsappGreeting] = useState(false);
+  const [acceptedOperationalWhatsappGreeting, setAcceptedOperationalWhatsappGreeting] = useState(false);
   const [mealSchedules, setMealSchedules] = useState<MealScheduleState[]>(DEFAULT_MEAL_SCHEDULES);
   const [form, setForm] = useState<FormState>(() => ({
     ...initialForm,
@@ -239,7 +241,9 @@ export default function OnboardingPage() {
   const professionalProfileQuery = trpc.nutrition.professionals.profile.useQuery(undefined, { retry: false });
   const userName = user?.name?.trim() ?? "";
   const userEmail = user?.email?.trim() ?? "";
-  const contactPhoneNumber = formatPhoneNumber(whatsappStatusQuery.data?.connection?.phoneNumber ?? "");
+  const whatsappPhoneNumber = whatsappStatusQuery.data?.connection?.phoneNumber ?? "";
+  const contactPhoneNumber = formatPhoneNumber(whatsappPhoneNumber);
+  const hasWhatsappConnection = Boolean(whatsappPhoneNumber);
 
   useEffect(() => {
     const profile = savedProfileQuery.data;
@@ -274,6 +278,13 @@ export default function OnboardingPage() {
     setSchedulesApplied(true);
   }, [mealSchedulesQuery.data, schedulesApplied]);
 
+  useEffect(() => {
+    if (!hasWhatsappConnection) {
+      setSendWhatsappGreeting(false);
+      setAcceptedOperationalWhatsappGreeting(false);
+    }
+  }, [hasWhatsappConnection]);
+
   const calculatedAgeYears = useMemo(() => calculateAgeYears(form.birthDate), [form.birthDate]);
 
   const parsed = useMemo(() => ({
@@ -297,8 +308,9 @@ export default function OnboardingPage() {
     if (form.heightCm.trim() && parsed.heightCm === undefined) return "Informe uma altura válida ou deixe o campo em branco.";
     if (parsed.heightCm !== undefined && (parsed.heightCm < 100 || parsed.heightCm > 250)) return "Informe uma altura válida entre 1,00 m e 2,50 m, ou deixe o campo em branco.";
     if (parsed.currentWeightKg !== undefined && (parsed.currentWeightKg < 25 || parsed.currentWeightKg > 350)) return "Informe um peso atual válido ou deixe o campo em branco.";
+    if (sendWhatsappGreeting && !acceptedOperationalWhatsappGreeting) return "Autorize o contato operacional pelo WhatsApp para receber a saudação.";
     return null;
-  }, [calculatedAgeYears, form.heightCm, parsed]);
+  }, [acceptedOperationalWhatsappGreeting, calculatedAgeYears, form.heightCm, parsed, sendWhatsappGreeting]);
 
   const payload = useMemo(() => ({
     name: parsed.name || userName || OPTIONAL_ONBOARDING_FALLBACK.name,
@@ -314,6 +326,10 @@ export default function OnboardingPage() {
     mainDifficulty: parsed.mainDifficulty,
   }), [parsed, userName]);
 
+  const sendWhatsappGreetingMutation = trpc.auth.sendWhatsappGreeting?.useMutation?.() ?? {
+    isPending: false,
+    mutateAsync: async () => ({ status: "skipped" as const, reason: "no_phone" as const, detail: "Saudação indisponível neste ambiente." }),
+  };
   const completeOnboarding = trpc.nutrition.onboarding.complete.useMutation({
     onSuccess: async () => {
       await Promise.all([
@@ -323,6 +339,22 @@ export default function OnboardingPage() {
         utils.nutrition.dashboard.today.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
       ]);
+
+      if (sendWhatsappGreeting && acceptedOperationalWhatsappGreeting && hasWhatsappConnection) {
+        try {
+          const greeting = await sendWhatsappGreetingMutation.mutateAsync({ acceptedOperationalWhatsapp: true });
+          if (greeting.status === "sent") {
+            toast.success("Saudação enviada pelo WhatsApp.");
+          } else if (greeting.reason === "duplicate") {
+            toast.success("Saudação pelo WhatsApp já havia sido enviada.");
+          } else {
+            toast.error(greeting.detail || "Perfil salvo, mas a saudação não foi enviada pelo WhatsApp.");
+          }
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Perfil salvo, mas a saudação não foi enviada pelo WhatsApp.");
+        }
+      }
+
       toast.success("Perfil salvo com sucesso.");
       setLocation("/");
     },
@@ -370,6 +402,7 @@ export default function OnboardingPage() {
 
   const activeSchedules = mealSchedules.filter(schedule => schedule.enabled).length;
   const professionalProfileActive = Boolean(professionalProfileQuery.data?.active);
+  const isSavingProfile = completeOnboarding.isPending || sendWhatsappGreetingMutation.isPending;
   const completionStats = (
     <div className="grid gap-3 sm:grid-cols-4">
       <IntroStat label="Perfil" value={form.name.trim() ? "preenchido" : "pendente"} helper={calculatedAgeYears === null ? "idade opcional" : `${calculatedAgeYears} anos`} />
@@ -388,8 +421,8 @@ export default function OnboardingPage() {
           description="Organizamos a tela em etapas curtas para reduzir rolagem, facilitar revisões rápidas e deixar as refeições habituais mais simples de manter no dia a dia."
           stats={completionStats}
           actions={
-            <Button className="h-11 rounded-full px-5" disabled={completeOnboarding.isPending} type="submit">
-              {completeOnboarding.isPending ? "Salvando..." : "Salvar configurações"}
+            <Button className="h-11 rounded-full px-5" disabled={isSavingProfile} type="submit">
+              {isSavingProfile ? "Salvando..." : "Salvar configurações"}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           }
@@ -421,26 +454,53 @@ export default function OnboardingPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="perfil">
-            <div className="space-y-4">
-              <Card defaultOpen className="border-0 shadow-sm">
+          <TabsContent value="perfil" className="space-y-4">
+            <Card defaultOpen className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <UserRound className="h-5 w-5 text-primary" />
+                  Identificação e base física
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
+                <ReadOnlyField label="Telefone" value={contactPhoneNumber || "Não informado"} />
+                <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
+                <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
+                <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
+                <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
+                <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
+              </CardContent>
+            </Card>
+
+            {hasWhatsappConnection ? (
+              <Card className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
-                    <UserRound className="h-5 w-5 text-primary" />
-                    Identificação e base física
+                    <MessageCircle className="h-5 w-5 text-primary" />
+                    Saudação pelo WhatsApp
                   </CardTitle>
+                  <CardDescription>
+                    Envie uma mensagem única de boas-vindas para reforçar que este é o canal rápido para registrar refeições, água e exercícios.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-                  <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
-                  <ReadOnlyField label="Telefone" value={contactPhoneNumber || "Não informado"} />
-                  <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
-                  <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
-                  <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
-                  <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
-                  <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
+                <CardContent className="space-y-3">
+                  <ConsentToggle
+                    checked={sendWhatsappGreeting}
+                    onChange={setSendWhatsappGreeting}
+                    label="Enviar saudação de boas-vindas pelo WhatsApp após salvar."
+                    description={`Será enviada para ${contactPhoneNumber}.`}
+                  />
+                  <ConsentToggle
+                    checked={acceptedOperationalWhatsappGreeting}
+                    disabled={!sendWhatsappGreeting}
+                    onChange={setAcceptedOperationalWhatsappGreeting}
+                    label="Autorizo o contato operacional pelo WhatsApp para receber esta saudação."
+                    description="Este aceite é separado de marketing e não habilita disparos recorrentes."
+                  />
                 </CardContent>
               </Card>
-            </div>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="objetivos">
@@ -586,13 +646,31 @@ function FieldLabel({ label, optional = false }: { label: string; optional?: boo
   );
 }
 
+function ConsentToggle({ checked, onChange, label, description, disabled = false }: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+  description: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={`flex gap-3 rounded-xl border bg-background p-4 text-sm ${disabled ? "opacity-60" : ""}`}>
+      <Checkbox checked={checked} disabled={disabled} onCheckedChange={value => onChange(Boolean(value))} />
+      <span className="min-w-0">
+        <span className="block font-medium leading-5">{label}</span>
+        <span className="mt-1 block leading-5 text-muted-foreground">{description}</span>
+      </span>
+    </label>
+  );
+}
+
 function TextField({ label, value, onChange, inputMode, suffix, type = "text", optional = false, placeholder, compact = false }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   suffix?: string;
-  type?: React.HTMLInputTypeAttribute;
+  type?: React.InputHTMLAttributes<HTMLInputElement>["type"];
   optional?: boolean;
   placeholder?: string;
   compact?: boolean;

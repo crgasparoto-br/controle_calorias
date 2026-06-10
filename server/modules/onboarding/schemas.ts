@@ -49,4 +49,11 @@ export const onboardingSchema = onboardingBaseSchema
     ageYears: calculateAgeYearsFromBirthDate(input.birthDate) ?? 0,
   }));
 
+export const webWhatsappGreetingSchema = z.object({
+  acceptedOperationalWhatsapp: z.boolean().refine(value => value === true, {
+    message: "Autorize o contato operacional pelo WhatsApp para receber a saudação.",
+  }),
+});
+
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
+export type WebWhatsappGreetingInput = z.infer<typeof webWhatsappGreetingSchema>;

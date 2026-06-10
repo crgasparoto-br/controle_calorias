@@ -6,6 +6,7 @@ import {
   formatDateKeyInSaoPaulo,
   normalizeWhatsAppIntentText,
   resolveWhatsAppMessageOccurredAt,
+  sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppTextMessage,
   type IndexedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
@@ -57,12 +58,59 @@ function buildWaterImageClarificationReply() {
   return "Identifiquei água na imagem. Para registrar corretamente, me diga a quantidade aproximada, por exemplo: 300 ml de água.";
 }
 
+function buildOnboardingWelcomeReply() {
+  return [
+    "Boas-vindas ao Controle de Calorias.",
+    "Para começar pelo WhatsApp, finalize seu cadastro no site pelo link seguro abaixo.",
+    "Depois disso, este canal passa a registrar suas refeições automaticamente.",
+  ].join("\n\n");
+}
+
 function isSameDateKeyInSaoPaulo(value: number | string | Date, dateKey: string) {
   return formatDateKeyInSaoPaulo(new Date(value)) === dateKey;
 }
 
 function getImageCaption(message: WhatsAppWebhookMessage) {
   return message.image?.caption?.trim() || message.text?.body?.trim() || "";
+}
+
+async function handleOnboardingLeadMessage(item: IndexedWhatsAppWebhookMessage) {
+  const message = item.message;
+  if (!message.from) {
+    return false;
+  }
+
+  const userId = await getUserIdByWhatsappPhone(message.from);
+  if (userId) {
+    return false;
+  }
+
+  const { createWhatsappOnboardingLead } = await import("./modules/onboarding/whatsappLeadService");
+  const onboarding = await createWhatsappOnboardingLead({ phoneNumber: message.from });
+  const replyResult = await sendWhatsAppInteractiveUrlButtonMessage(
+    message.from,
+    buildOnboardingWelcomeReply(),
+    "Finalizar cadastro",
+    onboarding.url,
+  );
+
+  if (!replyResult.ok) {
+    const textResult = await sendWhatsAppTextMessage(
+      message.from,
+      `${buildOnboardingWelcomeReply()}\n\n${onboarding.url}`,
+    );
+    if (!textResult.ok) {
+      logInferenceEvent({
+        userId: null,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.onboarding_reply_failed",
+        detail: `Falha ao enviar link de onboarding para telefone mascarado ${onboarding.lead.phoneNumberMasked}: ${textResult.detail}`,
+      });
+    }
+  }
+
+  return true;
 }
 
 async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage) {
@@ -264,6 +312,11 @@ export async function handleWhatsAppWebhookWithImageIdempotency(req: Request, re
 
   for (const item of messages) {
     if (handledKeys.has(item.key)) {
+      continue;
+    }
+
+    if (await handleOnboardingLeadMessage(item)) {
+      handledKeys.add(item.key);
       continue;
     }
 
