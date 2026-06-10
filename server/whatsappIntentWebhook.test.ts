@@ -357,7 +357,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("Almoço: 195 kcal");
     expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
     expect(sentMessages.at(-1)).not.toContain("Total consumido:");
-    expect(sentMessages.at(-1)).toContain("Meta do *resumo:*");
+    expect(sentMessages.at(-1)).toContain("*Análise sobre a Meta:*");
     expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
   });
 
