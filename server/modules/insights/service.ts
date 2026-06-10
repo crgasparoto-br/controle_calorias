@@ -133,8 +133,10 @@ function formatPeriodDateLabel(date: string) {
 }
 
 type WeightEntryForTrend = {
+  id?: number;
   date: string;
   weightKg: number;
+  notes?: string | null;
 };
 
 function buildWeightTrendForDates(entries: WeightEntryForTrend[] | undefined, dates: string[]) {
@@ -142,9 +144,11 @@ function buildWeightTrendForDates(entries: WeightEntryForTrend[] | undefined, da
   const points = (entries ?? [])
     .filter(entry => dateSet.has(entry.date) && Number.isFinite(entry.weightKg))
     .map(entry => ({
+      id: entry.id,
       date: entry.date,
       label: formatPeriodDateLabel(entry.date),
       weightKg: roundNutritionValue(entry.weightKg),
+      notes: entry.notes ?? null,
     }))
     .sort((first, second) => first.date.localeCompare(second.date));
   const firstWeight = points[0];
