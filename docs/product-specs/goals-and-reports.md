@@ -46,7 +46,9 @@ A experiência deve conter:
 - percentual de calorias não classificadas para deixar clara a limitação dos dados;
 - índice simples de qualidade alimentar calculado apenas sobre calorias classificadas, sem linguagem moralizante;
 - evolução de peso como sinal de apoio, com mensagem cautelosa quando faltarem registros;
-- água e exercícios como contexto da meta, incluindo consumo vs meta de água, dias com meta batida, dias ativos e gasto estimado.
+- água como contexto da meta, incluindo consumo vs meta de água, média diária, percentual médio de aderência e dias com meta batida;
+- exercícios como contexto da meta, incluindo frequência de dias ativos, gasto estimado e comparação da meta ajustada média entre dias com e sem exercício;
+- comparação de aderência calórica entre dias com exercício e dias sem exercício, para explicar o efeito do gasto estimado na leitura da meta ajustada.
 
 Quando faltarem dados de peso, qualidade alimentar, água ou exercícios, a tela deve exibir estado vazio claro sem bloquear a leitura das demais métricas.
 
@@ -68,4 +70,5 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 - Relatórios recalculam médias e percentuais de macros quando o período selecionado muda.
 - Relatórios exibem qualidade alimentar agregada por período, sem detalhar alimentos individualmente.
 - Relatórios separam calorias classificadas e não classificadas nos indicadores de qualidade alimentar.
+- Relatórios exibem água e exercícios como indicadores de apoio às metas, sem transformar Reports em dashboard detalhado de treinos ou hidratação.
 - Relatórios não duplicam a experiência operacional de Refeições registradas.
