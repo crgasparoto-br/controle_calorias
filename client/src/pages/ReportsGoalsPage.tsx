@@ -78,15 +78,20 @@ type PeriodReportDay = {
   adherencePercent: number;
 };
 
+type WeightEntryPoint = WeightTrendPoint & {
+  notes?: string | null;
+};
+
 type ExistingWeightSummary = {
   hasData: boolean;
+  entries?: WeightEntryPoint[];
   firstWeightKg?: number | null;
   lastWeightKg?: number | null;
   deltaKg?: number | null;
 };
 
 type WeightTrendBundle = {
-  points?: WeightTrendPoint[];
+  points?: WeightEntryPoint[];
   summary?: ExistingWeightSummary;
 };
 
@@ -161,7 +166,28 @@ function toTrendPoint(day: {
   };
 }
 
-function buildWeightPointsFromSummary(weight?: ExistingWeightSummary): WeightTrendPoint[] {
+function formatWeightDateLabel(date: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "short",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
+
+function buildWeightPointsFromEntries(entries?: WeightEntryPoint[], allowedDates?: Set<string>): WeightTrendPoint[] {
+  return (entries ?? [])
+    .filter(entry => (!allowedDates || allowedDates.has(entry.date)) && Number.isFinite(entry.weightKg))
+    .map(entry => ({
+      date: entry.date,
+      label: entry.label ?? formatWeightDateLabel(entry.date),
+      weightKg: entry.weightKg,
+    }))
+    .sort((first, second) => first.date.localeCompare(second.date));
+}
+
+function buildWeightPointsFromSummary(weight?: ExistingWeightSummary, allowedDates?: Set<string>): WeightTrendPoint[] {
+  const entryPoints = buildWeightPointsFromEntries(weight?.entries, allowedDates);
+  if (entryPoints.length) return entryPoints;
   if (!weight?.hasData || weight.firstWeightKg == null) return [];
   if (weight.lastWeightKg == null || weight.lastWeightKg === weight.firstWeightKg) {
     return [{ date: "initial", label: "Registro", weightKg: weight.firstWeightKg }];
@@ -449,7 +475,7 @@ function QualityCard({ proteinGrams, fiberGrams, fruitServings, vegetableServing
 
 function WeightCard({ points, adherencePercent }: { points: WeightTrendPoint[]; adherencePercent: number }) {
   const summary = calculateWeightTrendSummary(points);
-  const chartData = points.map(point => ({ label: point.label ?? point.date, weightKg: point.weightKg }));
+  const chartData = points.map(point => ({ date: point.date, label: point.label ?? point.date, weightKg: point.weightKg }));
   const badge = summary.trendDirection === "insufficient_data" ? "Tendência insuficiente" : summary.trendDirection === "stable" ? "Estável" : summary.trendDirection === "up" ? "Subiu" : "Caiu";
 
   return (
@@ -466,7 +492,7 @@ function WeightCard({ points, adherencePercent }: { points: WeightTrendPoint[]; 
             </div>
             {chartData.length > 1 ? (
               <div className="h-[260px] rounded-2xl border bg-background p-4 shadow-sm">
-                <ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" /><YAxis domain={["dataMin - 1", "dataMax + 1"]} /><Tooltip formatter={value => `${formatMacro(Number(value))} kg`} /><Legend /><Line type="monotone" dataKey="weightKg" name="Peso" stroke="#16a34a" strokeWidth={3} dot /></LineChart></ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" /><YAxis domain={["dataMin - 1", "dataMax + 1"]} /><Tooltip formatter={value => `${formatMacro(Number(value))} kg`} labelFormatter={(label, payload) => payload?.[0]?.payload?.date ?? label} /><Legend /><Line type="linear" dataKey="weightKg" name="Peso" stroke="#16a34a" strokeWidth={3} dot /></LineChart></ResponsiveContainer>
               </div>
             ) : null}
             <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">{summary.trendMessage} A aderência calórica média do período foi de {formatPercent(adherencePercent)}.</div>
@@ -591,8 +617,12 @@ export default function ReportsGoalsPage() {
   const weeklyQuality = reportBundle.data?.quality;
   const periodQuality = (periodBundle.data as unknown as { quality?: ReportsQualityBundle } | undefined)?.quality;
   const foodQuality = periodScope === "week" ? weeklyQuality?.foodQuality : periodQuality?.foodQuality;
+  const selectedWeightDates = new Set(trendData.map(day => day.date));
   const periodWeightBundle = (periodBundle.data as unknown as { weightTrend?: WeightTrendBundle } | undefined)?.weightTrend;
-  const weightTrendPoints = periodScope === "week" ? buildWeightPointsFromSummary(reportBundle.data?.progress.weight) : periodWeightBundle?.points ?? buildWeightPointsFromSummary(periodWeightBundle?.summary);
+  const periodWeightPoints = buildWeightPointsFromEntries(periodWeightBundle?.points, selectedWeightDates);
+  const weightTrendPoints = periodScope === "week"
+    ? buildWeightPointsFromSummary(reportBundle.data?.progress.weight, selectedWeightDates)
+    : periodWeightPoints.length ? periodWeightPoints : buildWeightPointsFromSummary(periodWeightBundle?.summary, selectedWeightDates);
   const weightSummary = calculateWeightTrendSummary(weightTrendPoints);
   const waterAdherencePercent = progressPercent(waterConsumedMl, waterGoalMl);
   const qualitySummaryValue = foodQuality?.qualityIndex == null ? "-" : formatPercent(foodQuality.qualityIndex);
