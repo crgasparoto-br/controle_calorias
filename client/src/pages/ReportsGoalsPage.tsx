@@ -330,30 +330,6 @@ function DailyCalorieBreakdown({ trendData, scope }: { trendData: TrendPoint[]; 
     <Card className="border-0 shadow-sm">
       <SectionHeader icon={<Target className="h-5 w-5 text-primary" />} title="Detalhe diário da meta ajustada" description="Cada dia mostra consumo, meta ajustada, diferença e percentual de aderência recalculados para o período selecionado." />
       <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border bg-muted/20 p-4 shadow-sm md:col-span-2 xl:col-span-4">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="font-medium tracking-tight">{totalLabel}</p>
-            <Badge variant="secondary" className="rounded-full">{formatPercent(totalAdherencePercent)}</Badge>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Consumido</p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight">{formatCalories(totalCalories)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Meta ajustada</p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight">{formatCalories(totalGoalCalories)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Diferença</p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight">{formatCalories(totalDeltaCalories)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Exercícios</p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight">{formatCalories(totalExerciseCalories)}</p>
-            </div>
-          </div>
-        </div>
         {trendData.map(day => (
           <div key={day.date} className="rounded-2xl border bg-background p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -368,6 +344,18 @@ function DailyCalorieBreakdown({ trendData, scope }: { trendData: TrendPoint[]; 
             </div>
           </div>
         ))}
+        <div className="rounded-2xl border bg-background p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="font-medium tracking-tight">{totalLabel}</p>
+            <Badge variant="secondary" className="rounded-full">{formatPercent(totalAdherencePercent)}</Badge>
+          </div>
+          <div className="grid gap-2 text-sm text-muted-foreground">
+            <span>Consumido: <strong className="text-foreground">{formatCalories(totalCalories)}</strong></span>
+            <span>Meta ajustada: <strong className="text-foreground">{formatCalories(totalGoalCalories)}</strong></span>
+            <span>Diferença: <strong className="text-foreground">{formatCalories(totalDeltaCalories)}</strong></span>
+            {totalExerciseCalories > 0 ? <span>Exercícios adicionaram {formatCalories(totalExerciseCalories)} à meta.</span> : null}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
