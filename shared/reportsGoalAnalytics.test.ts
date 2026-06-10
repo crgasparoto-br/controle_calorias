@@ -3,6 +3,7 @@ import {
   calculateCalorieAdherence,
   calculateMacroAdherence,
   calculateMacroDaySummary,
+  calculateWeightTrendSummary,
 } from "./reportsGoalAnalytics";
 
 describe("reportsGoalAnalytics", () => {
@@ -72,5 +73,44 @@ describe("reportsGoalAnalytics", () => {
     expect(summary.daysWithMacroRecords).toBe(2);
     expect(summary.proteinDaysWithinGoal).toBe(1);
     expect(summary.fatDaysAboveGoal).toBe(1);
+  });
+
+  it("calcula evolução de peso com variação absoluta, percentual e tendência", () => {
+    const summary = calculateWeightTrendSummary([
+      { date: "2026-06-03", weightKg: 82.4 },
+      { date: "2026-06-01", weightKg: 83.1 },
+      { date: "2026-06-07", weightKg: 81.9 },
+    ]);
+
+    expect(summary.hasData).toBe(true);
+    expect(summary.entryCount).toBe(3);
+    expect(summary.firstWeightKg).toBe(83.1);
+    expect(summary.lastWeightKg).toBe(81.9);
+    expect(summary.deltaKg).toBe(-1.2);
+    expect(summary.deltaPercent).toBe(-1.4);
+    expect(summary.trendDirection).toBe("down");
+  });
+
+  it("mantém leitura cautelosa quando há apenas um registro de peso", () => {
+    const summary = calculateWeightTrendSummary([
+      { date: "2026-06-03", weightKg: 82.4 },
+    ]);
+
+    expect(summary.hasData).toBe(true);
+    expect(summary.entryCount).toBe(1);
+    expect(summary.deltaKg).toBe(0);
+    expect(summary.deltaPercent).toBe(0);
+    expect(summary.trendDirection).toBe("insufficient_data");
+    expect(summary.trendMessage).toContain("tendência ainda é insuficiente");
+  });
+
+  it("retorna estado vazio para período sem peso", () => {
+    const summary = calculateWeightTrendSummary([]);
+
+    expect(summary.hasData).toBe(false);
+    expect(summary.entryCount).toBe(0);
+    expect(summary.firstWeightKg).toBeNull();
+    expect(summary.lastWeightKg).toBeNull();
+    expect(summary.trendDirection).toBe("insufficient_data");
   });
 });
