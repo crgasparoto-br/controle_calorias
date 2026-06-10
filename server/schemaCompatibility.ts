@@ -94,6 +94,38 @@ async function addMissingColumns(
   return added;
 }
 
+async function ensureWhatsappOnboardingLeadsTable(connection: Connection) {
+  if (await tableExists(connection, "whatsapp_onboarding_leads")) {
+    return [];
+  }
+
+  await connection.execute(`
+    CREATE TABLE \`whatsapp_onboarding_leads\` (
+      \`id\` int AUTO_INCREMENT NOT NULL,
+      \`phone_number\` varchar(32) NOT NULL,
+      \`display_name\` varchar(255) NULL,
+      \`origin\` varchar(40) NOT NULL DEFAULT 'whatsapp',
+      \`status\` enum('lead_whatsapp','pending_onboarding','active','expired','canceled') NOT NULL DEFAULT 'pending_onboarding',
+      \`token_hash\` varchar(64) NOT NULL,
+      \`token_expires_at\` timestamp NOT NULL,
+      \`token_used_at\` timestamp NULL,
+      \`converted_user_id\` int NULL,
+      \`converted_at\` timestamp NULL,
+      \`last_message_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (\`id\`),
+      UNIQUE KEY \`whatsapp_onboarding_leads_phone_unique\` (\`phone_number\`),
+      UNIQUE KEY \`whatsapp_onboarding_leads_token_hash_unique\` (\`token_hash\`),
+      KEY \`whatsapp_onboarding_leads_status_idx\` (\`status\`),
+      KEY \`whatsapp_onboarding_leads_expires_idx\` (\`token_expires_at\`),
+      KEY \`whatsapp_onboarding_leads_converted_user_idx\` (\`converted_user_id\`)
+    )
+  `);
+
+  return ["whatsapp_onboarding_leads"];
+}
+
 async function normalizeNutritionGoalsWeekday(connection: Connection) {
   if (!(await tableExists(connection, "nutritionGoals"))) {
     return;
@@ -137,6 +169,7 @@ export async function ensureRuntimeSchemaCompatibility() {
       ...(await addMissingColumns(connection, "foodCatalog", FOOD_CATALOG_COLUMNS)),
       ...(await addMissingColumns(connection, "mealItems", MEAL_ITEM_COLUMNS)),
       ...(await addMissingColumns(connection, "userProfiles", USER_PROFILE_COLUMNS)),
+      ...(await ensureWhatsappOnboardingLeadsTable(connection)),
     ];
 
     await normalizeNutritionGoalsWeekday(connection);
