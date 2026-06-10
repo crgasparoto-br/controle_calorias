@@ -423,7 +423,6 @@ export default function OnboardingPage() {
 
           <TabsContent value="perfil">
             <div className="space-y-4">
-              <PatientAccessRequestsCard />
               <Card defaultOpen className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
@@ -441,6 +440,7 @@ export default function OnboardingPage() {
                   <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
                 </CardContent>
               </Card>
+              <PatientAccessRequestsCard />
             </div>
           </TabsContent>
 
