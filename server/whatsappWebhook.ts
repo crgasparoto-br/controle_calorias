@@ -461,6 +461,7 @@ async function sendInterpretedTextIntentReply(input: {
     ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, replyText, "Editar refeição", quickEditUrl)
     : await sendWhatsAppTextMessage(input.sourcePhone, replyText);
 
+
   if (!replyResult.ok) {
     logInferenceEvent({
       userId: input.userId,
@@ -470,6 +471,7 @@ async function sendInterpretedTextIntentReply(input: {
       detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}`,
     });
   }
+
 }
 
 function canInterpretAudioTranscriptIntent(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
