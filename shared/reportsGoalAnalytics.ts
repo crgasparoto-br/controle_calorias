@@ -62,10 +62,56 @@ export type MacroDaySummary = {
   fatDaysAboveGoal: number;
 };
 
+export type FoodProcessingCategory = "naturalOrMinimallyProcessed" | "ultraProcessed" | "unclassified";
+
+export type FoodQualityItem = {
+  calories: number;
+  isFruit?: boolean;
+  isVegetable?: boolean;
+  isUltraProcessed?: boolean;
+  isClassified?: boolean;
+};
+
+export type FoodQualityDay = {
+  date: string;
+  items: FoodQualityItem[];
+};
+
+export type FoodQualityDistributionItem = {
+  key: FoodProcessingCategory;
+  label: string;
+  calories: number;
+  percent: number;
+};
+
+export type FoodQualitySummary = {
+  hasData: boolean;
+  dayCount: number;
+  daysWithRecords: number;
+  fruitDays: number;
+  vegetableDays: number;
+  totalCalories: number;
+  classifiedCalories: number;
+  unclassifiedCalories: number;
+  ultraProcessedCalories: number;
+  naturalOrMinimallyProcessedCalories: number;
+  ultraProcessedCaloriesPercent: number;
+  naturalOrMinimallyProcessedCaloriesPercent: number;
+  unclassifiedCaloriesPercent: number;
+  qualityIndex: number | null;
+  distribution: FoodQualityDistributionItem[];
+};
+
 const MACRO_LABELS: Record<keyof MacroTotals, string> = {
   protein: "Proteínas",
   carbs: "Carboidratos",
   fat: "Gorduras",
+};
+
+const FOOD_PROCESSING_LABELS: Record<FoodProcessingCategory, string> = {
+  naturalOrMinimallyProcessed: "In natura/minimamente processados",
+  ultraProcessed: "Ultraprocessados",
+  unclassified: "Não classificados",
 };
 
 function roundMetric(value: number) {
@@ -94,6 +140,11 @@ function macroPercentages(macros: MacroTotals) {
     carbs: roundMetric((calories.carbs / totalCalories) * 100),
     fat: roundMetric((calories.fat / totalCalories) * 100),
   } satisfies MacroTotals;
+}
+
+function percentOfTotal(value: number, total: number) {
+  if (total <= 0) return 0;
+  return roundMetric((value / total) * 100);
 }
 
 function isWithinMacroRange(consumed: number, planned: number) {
@@ -186,6 +237,100 @@ export function calculateMacroDaySummary(days: MacroGoalDay[]): MacroDaySummary 
       fatDaysAboveGoal: 0,
     },
   );
+}
+
+export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayCount = days.length): FoodQualitySummary {
+  const summary = days.reduce(
+    (acc, day) => {
+      const dayCalories = day.items.reduce((total, item) => total + Math.max(item.calories, 0), 0);
+      const hasFruit = day.items.some(item => item.isFruit);
+      const hasVegetable = day.items.some(item => item.isVegetable);
+
+      if (dayCalories > 0) acc.daysWithRecords += 1;
+      if (hasFruit) acc.fruitDays += 1;
+      if (hasVegetable) acc.vegetableDays += 1;
+
+      for (const item of day.items) {
+        const calories = Math.max(item.calories, 0);
+        if (calories <= 0) continue;
+
+        acc.totalCalories += calories;
+
+        if (!item.isClassified) {
+          acc.unclassifiedCalories += calories;
+          continue;
+        }
+
+        acc.classifiedCalories += calories;
+
+        if (item.isUltraProcessed) {
+          acc.ultraProcessedCalories += calories;
+        } else {
+          acc.naturalOrMinimallyProcessedCalories += calories;
+        }
+      }
+
+      return acc;
+    },
+    {
+      daysWithRecords: 0,
+      fruitDays: 0,
+      vegetableDays: 0,
+      totalCalories: 0,
+      classifiedCalories: 0,
+      unclassifiedCalories: 0,
+      ultraProcessedCalories: 0,
+      naturalOrMinimallyProcessedCalories: 0,
+    },
+  );
+
+  const totalCalories = roundMetric(summary.totalCalories);
+  const ultraProcessedCalories = roundMetric(summary.ultraProcessedCalories);
+  const naturalOrMinimallyProcessedCalories = roundMetric(summary.naturalOrMinimallyProcessedCalories);
+  const unclassifiedCalories = roundMetric(summary.unclassifiedCalories);
+  const naturalPercent = percentOfTotal(naturalOrMinimallyProcessedCalories, totalCalories);
+  const ultraPercent = percentOfTotal(ultraProcessedCalories, totalCalories);
+  const unclassifiedPercent = percentOfTotal(unclassifiedCalories, totalCalories);
+  const qualityIndex = summary.classifiedCalories > 0
+    ? Math.max(0, Math.min(100, roundMetric(100 - percentOfTotal(summary.ultraProcessedCalories, summary.classifiedCalories))))
+    : null;
+
+  return {
+    hasData: totalCalories > 0,
+    dayCount: expectedDayCount,
+    daysWithRecords: summary.daysWithRecords,
+    fruitDays: summary.fruitDays,
+    vegetableDays: summary.vegetableDays,
+    totalCalories,
+    classifiedCalories: roundMetric(summary.classifiedCalories),
+    unclassifiedCalories,
+    ultraProcessedCalories,
+    naturalOrMinimallyProcessedCalories,
+    ultraProcessedCaloriesPercent: ultraPercent,
+    naturalOrMinimallyProcessedCaloriesPercent: naturalPercent,
+    unclassifiedCaloriesPercent: unclassifiedPercent,
+    qualityIndex,
+    distribution: [
+      {
+        key: "naturalOrMinimallyProcessed",
+        label: FOOD_PROCESSING_LABELS.naturalOrMinimallyProcessed,
+        calories: naturalOrMinimallyProcessedCalories,
+        percent: naturalPercent,
+      },
+      {
+        key: "ultraProcessed",
+        label: FOOD_PROCESSING_LABELS.ultraProcessed,
+        calories: ultraProcessedCalories,
+        percent: ultraPercent,
+      },
+      {
+        key: "unclassified",
+        label: FOOD_PROCESSING_LABELS.unclassified,
+        calories: unclassifiedCalories,
+        percent: unclassifiedPercent,
+      },
+    ],
+  };
 }
 
 export function calculateWeightTrendSummary(points: WeightTrendPoint[]): WeightTrendSummary {
