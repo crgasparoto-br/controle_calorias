@@ -32,15 +32,29 @@ import {
   Target,
   TrendingUp,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Link } from "wouter";
 import {
   calculateCalorieAdherence,
   calculateMacroAdherence,
   calculateMacroDaySummary,
+  calculateWeightTrendSummary,
   type CalorieGoalDay,
   type MacroGoalDay,
   type MacroTotals,
+  type WeightTrendPoint,
 } from "@shared/reportsGoalAnalytics";
 
 type ReportTotals = MacroTotals & {
@@ -73,6 +87,18 @@ type PeriodReportDay = {
   adherencePercent: number;
 };
 
+type ExistingWeightSummary = {
+  hasData: boolean;
+  firstWeightKg?: number | null;
+  lastWeightKg?: number | null;
+  deltaKg?: number | null;
+};
+
+type WeightTrendBundle = {
+  points?: WeightTrendPoint[];
+  summary?: ExistingWeightSummary;
+};
+
 const EMPTY_TOTALS: ReportTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const MACRO_COLORS: Record<keyof MacroTotals, string> = {
   protein: "#16a34a",
@@ -87,8 +113,13 @@ function formatMacro(value: number) {
   });
 }
 
-function formatPercent(value: number) {
-  return `${formatNumberPtBr(value, { maximumFractionDigits: 1 })}%`;
+function formatSignedMacro(value: number | null | undefined) {
+  const normalized = Number(value ?? 0);
+  return `${normalized > 0 ? "+" : ""}${formatMacro(normalized)}`;
+}
+
+function formatPercent(value: number | null | undefined) {
+  return `${formatNumberPtBr(value ?? 0, { maximumFractionDigits: 1 })}%`;
 }
 
 function progressPercent(value: number, goal: number) {
@@ -125,6 +156,18 @@ function toTrendPoint(day: {
     calorieDelta: day.calorieDelta ?? Math.round(day.calories - adjustedGoalCalories),
     adherencePercent: day.adherencePercent ?? (adjustedGoalCalories > 0 ? (day.calories / adjustedGoalCalories) * 100 : 0),
   };
+}
+
+function buildWeightPointsFromSummary(weight?: ExistingWeightSummary): WeightTrendPoint[] {
+  if (!weight?.hasData || weight.firstWeightKg == null) return [];
+  if (weight.lastWeightKg == null || weight.lastWeightKg === weight.firstWeightKg) {
+    return [{ date: "initial", label: "Registro", weightKg: weight.firstWeightKg }];
+  }
+
+  return [
+    { date: "initial", label: "Inicial", weightKg: weight.firstWeightKg },
+    { date: "last", label: "Último", weightKg: weight.lastWeightKg },
+  ];
 }
 
 function buildReportsHeading(scope: PeriodScope) {
@@ -444,24 +487,67 @@ function QualityCard({
   );
 }
 
-function WeightCard({ weight }: { weight?: { hasData: boolean; firstWeightKg?: number | null; lastWeightKg?: number | null; deltaKg?: number | null } }) {
+function WeightCard({
+  points,
+  adherencePercent,
+}: {
+  points: WeightTrendPoint[];
+  adherencePercent: number;
+}) {
+  const summary = calculateWeightTrendSummary(points);
+  const chartData = points.map((point, index) => ({
+    label: point.label ?? point.date,
+    weightKg: point.weightKg,
+    order: index + 1,
+  }));
+  const badge = summary.trendDirection === "insufficient_data"
+    ? "Tendência insuficiente"
+    : summary.trendDirection === "stable"
+      ? "Estável"
+      : summary.trendDirection === "up"
+        ? "Subiu"
+        : "Caiu";
+
   return (
     <Card className="border-0 shadow-sm">
       <SectionHeader
         icon={<Scale className="h-5 w-5 text-primary" />}
-        title="Evolução do peso"
-        description="A leitura de peso entra como apoio à aderência calórica. Com poucos registros, evite concluir tendência."
+        title="Evolução do peso e aderência"
+        description="Relaciona registros de peso do período com a aderência calórica média, sem tirar conclusões clínicas isoladas."
+        badge={badge}
       />
-      <CardContent>
-        {weight?.hasData ? (
-          <div className="grid gap-3 md:grid-cols-3">
-            <StatusTile label="Peso inicial" value={`${formatMacro(weight.firstWeightKg ?? 0)} kg`} />
-            <StatusTile label="Último peso" value={`${formatMacro(weight.lastWeightKg ?? 0)} kg`} />
-            <StatusTile label="Variação" value={`${formatMacro(weight.deltaKg ?? 0)} kg`} />
-          </div>
+      <CardContent className="space-y-5">
+        {summary.hasData ? (
+          <>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <StatusTile label="Peso inicial" value={`${formatMacro(summary.firstWeightKg ?? 0)} kg`} />
+              <StatusTile label="Último peso" value={`${formatMacro(summary.lastWeightKg ?? 0)} kg`} />
+              <StatusTile label="Variação" value={`${formatSignedMacro(summary.deltaKg)} kg`} hint={`${formatSignedMacro(summary.deltaPercent)}% no período`} />
+              <StatusTile label="Aderência calórica" value={formatPercent(adherencePercent)} hint="Média do mesmo intervalo analisado." />
+            </div>
+
+            {chartData.length > 1 ? (
+              <div className="h-[260px] rounded-2xl border bg-background p-4 shadow-sm">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" />
+                    <YAxis domain={["dataMin - 1", "dataMax + 1"]} />
+                    <Tooltip formatter={value => `${formatMacro(Number(value))} kg`} />
+                    <Legend />
+                    <Line type="monotone" dataKey="weightKg" name="Peso" stroke="#16a34a" strokeWidth={3} dot />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+              {summary.trendMessage} A aderência calórica média do período foi de {formatPercent(adherencePercent)}.
+            </div>
+          </>
         ) : (
           <div className="rounded-2xl border border-dashed bg-muted/10 p-5 text-sm leading-6 text-muted-foreground">
-            Ainda não há registros de peso suficientes para relacionar evolução corporal e aderência calórica.
+            Ainda não há registros de peso no período selecionado para relacionar evolução corporal e aderência calórica.
           </div>
         )}
       </CardContent>
@@ -561,6 +647,8 @@ export default function ReportsGoalsPage() {
       }))
     : periodDaily.map(toTrendPoint);
 
+  const calorieAdherence = calculateCalorieAdherence(trendData, dayCount);
+
   const consumedMacros: MacroTotals = periodScope === "week"
     ? {
         protein: weeklyDays.reduce((total, day) => total + day.protein, 0),
@@ -627,6 +715,11 @@ export default function ReportsGoalsPage() {
     : periodBundle.data?.habitAnalytics.exercise.totalCalories ?? 0;
 
   const weeklyQuality = reportBundle.data?.quality;
+  const periodWeightBundle = (periodBundle.data as unknown as { weightTrend?: WeightTrendBundle } | undefined)?.weightTrend;
+  const weightTrendPoints = periodScope === "week"
+    ? buildWeightPointsFromSummary(reportBundle.data?.progress.weight)
+    : periodWeightBundle?.points ?? buildWeightPointsFromSummary(periodWeightBundle?.summary);
+
   const isLoading = periodScope === "week" ? reportBundle.isLoading : periodBundle.isLoading;
   const isError = periodScope === "week" ? reportBundle.isError : periodBundle.isError;
 
@@ -634,7 +727,7 @@ export default function ReportsGoalsPage() {
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <SummaryPill label="Consumido" value={formatCalories(totalCalories)} />
       <SummaryPill label="Meta ajustada" value={formatCalories(totalGoalCalories)} />
-      <SummaryPill label="Aderência" value={formatPercent(calculateCalorieAdherence(trendData, dayCount).adherencePercent)} />
+      <SummaryPill label="Aderência" value={formatPercent(calorieAdherence.adherencePercent)} />
       <SummaryPill label="Dias analisados" value={String(dayCount)} />
       <SummaryPill label="Macros" value={`${formatMacro(consumedMacros.protein)} g prot.`} />
     </div>
@@ -702,7 +795,7 @@ export default function ReportsGoalsPage() {
                 ultraProcessedServings={weeklyQuality?.ultraProcessedServings}
                 regularityScore={weeklyQuality?.regularityScore}
               />
-              <WeightCard weight={reportBundle.data?.progress.weight} />
+              <WeightCard points={weightTrendPoints} adherencePercent={calorieAdherence.adherencePercent} />
             </div>
 
             <SupportHabitsCard
