@@ -326,7 +326,10 @@ export default function OnboardingPage() {
     mainDifficulty: parsed.mainDifficulty,
   }), [parsed, userName]);
 
-  const sendWhatsappGreetingMutation = trpc.auth.sendWhatsappGreeting.useMutation();
+  const sendWhatsappGreetingMutation = trpc.auth.sendWhatsappGreeting?.useMutation?.() ?? {
+    isPending: false,
+    mutateAsync: async () => ({ status: "skipped" as const, reason: "no_phone" as const, detail: "Saudação indisponível neste ambiente." }),
+  };
   const completeOnboarding = trpc.nutrition.onboarding.complete.useMutation({
     onSuccess: async () => {
       await Promise.all([
