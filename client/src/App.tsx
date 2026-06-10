@@ -22,6 +22,7 @@ const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsGoalsPage"));
 const SyncedHealthDataPage = lazy(() => import("@/pages/SyncedHealthDataPage"));
+const WhatsappOnboardingPage = lazy(() => import("@/pages/WhatsappOnboardingPage"));
 
 function PageLoadingFallback() {
   return (
@@ -52,6 +53,7 @@ function Router() {
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/quick-edit/:token" component={QuickEditMealPage} />
+        <Route path="/onboarding/whatsapp/:token" component={WhatsappOnboardingPage} />
         <Route path="/" component={Home} />
         <Route path="/today" component={Home} />
         <Route path="/onboarding" component={OnboardingPage} />
