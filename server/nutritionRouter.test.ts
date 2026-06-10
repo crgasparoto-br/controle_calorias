@@ -719,7 +719,7 @@ describe("nutrition router", () => {
     expect(day.totals).toEqual(meal.totals);
   });
 
-  it("agrega progresso semanal com dias sem registro e comparação com meta", async () => {
+  it("agrega progresso semanal com dias sem registro e comparação com meta ajustada", async () => {
     const caller = appRouter.createCaller(createNutritionContext(884));
 
     await caller.nutrition.goals.update({
@@ -780,9 +780,9 @@ describe("nutrition router", () => {
     expect(progress.days).toHaveLength(7);
     expect(progress.summary.totalCalories).toBe(4250);
     expect(progress.summary.averageCalories).toBe(607.1);
-    expect(progress.summary.totalGoalCalories).toBe(14000);
-    expect(progress.summary.daysWithinGoal).toBe(1);
-    expect(progress.summary.daysAboveGoal).toBe(1);
+    expect(progress.summary.totalGoalCalories).toBe(14300);
+    expect(progress.summary.daysWithinGoal).toBe(2);
+    expect(progress.summary.daysAboveGoal).toBe(0);
     expect(progress.summary.daysBelowGoal).toBe(0);
     expect(progress.summary.daysWithoutRecords).toBe(5);
     expect(progress.summary.averageProtein).toBe(40);

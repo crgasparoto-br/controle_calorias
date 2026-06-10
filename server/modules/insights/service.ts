@@ -16,6 +16,7 @@ import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
 import { calculateDayTotals, roundNutritionValue } from "../../../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../../../shared/safeMessages";
 import { getDateKeyInTimeZone, getWeekdayIndexInTimeZone, toLogicalDateInTimeZone } from "../../../shared/timeZone";
+import { calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
 import { weeklyInsightService } from "./weeklyInsightService";
 
 function mealDateKey(meal: { occurredAt: number }) {
@@ -45,17 +46,19 @@ function groupMealsByDate(meals: Awaited<ReturnType<typeof listUserMeals>>) {
 }
 
 function buildWeeklyQuality(weekly: Awaited<ReturnType<typeof buildWeeklyReportSummary>>) {
-  return weekly.reduce(
-    (acc, day) => ({
-      proteinGrams: acc.proteinGrams + (day.quality?.proteinGrams ?? 0),
-      fiberGrams: acc.fiberGrams + (day.quality?.fiberGrams ?? 0),
-      waterMl: acc.waterMl + (day.quality?.waterMl ?? 0),
-      fruitServings: acc.fruitServings + (day.quality?.fruitServings ?? 0),
-      vegetableServings: acc.vegetableServings + (day.quality?.vegetableServings ?? 0),
-      ultraProcessedServings: acc.ultraProcessedServings + (day.quality?.ultraProcessedServings ?? 0),
-      mealCount: acc.mealCount + (day.quality?.mealCount ?? 0),
-      regularityScore: acc.regularityScore + ((day.quality?.regularityScore ?? 0) / 7),
-    }),
+  const totals = weekly.reduce(
+    (acc, day) => {
+      acc.proteinGrams += day.quality?.proteinGrams ?? 0;
+      acc.fiberGrams += day.quality?.fiberGrams ?? 0;
+      acc.waterMl += day.quality?.waterMl ?? 0;
+      acc.fruitServings += day.quality?.fruitServings ?? 0;
+      acc.vegetableServings += day.quality?.vegetableServings ?? 0;
+      acc.ultraProcessedServings += day.quality?.ultraProcessedServings ?? 0;
+      acc.mealCount += day.quality?.mealCount ?? 0;
+      acc.regularityScore += (day.quality?.regularityScore ?? 0) / 7;
+      acc.foodQualityDays.push({ date: day.date, items: day.quality?.foodQualityItems ?? [] });
+      return acc;
+    },
     {
       proteinGrams: 0,
       fiberGrams: 0,
@@ -65,8 +68,21 @@ function buildWeeklyQuality(weekly: Awaited<ReturnType<typeof buildWeeklyReportS
       ultraProcessedServings: 0,
       mealCount: 0,
       regularityScore: 0,
+      foodQualityDays: [] as FoodQualityDay[],
     },
   );
+
+  return {
+    proteinGrams: totals.proteinGrams,
+    fiberGrams: totals.fiberGrams,
+    waterMl: totals.waterMl,
+    fruitServings: totals.fruitServings,
+    vegetableServings: totals.vegetableServings,
+    ultraProcessedServings: totals.ultraProcessedServings,
+    mealCount: totals.mealCount,
+    regularityScore: totals.regularityScore,
+    foodQuality: calculateFoodQualitySummary(totals.foodQualityDays, weekly.length),
+  };
 }
 
 function buildWeeklyInsights(progress: Awaited<ReturnType<typeof getWeeklyProgressReport>>, meals: Awaited<ReturnType<typeof listUserMeals>>) {
@@ -116,9 +132,46 @@ function formatPeriodDateLabel(date: string) {
   }).format(new Date(`${date}T12:00:00Z`));
 }
 
+type WeightEntryForTrend = {
+  id?: number;
+  date: string;
+  weightKg: number;
+  notes?: string | null;
+};
+
+function buildWeightTrendForDates(entries: WeightEntryForTrend[] | undefined, dates: string[]) {
+  const dateSet = new Set(dates);
+  const points = (entries ?? [])
+    .filter(entry => dateSet.has(entry.date) && Number.isFinite(entry.weightKg))
+    .map(entry => ({
+      id: entry.id,
+      date: entry.date,
+      label: formatPeriodDateLabel(entry.date),
+      weightKg: roundNutritionValue(entry.weightKg),
+      notes: entry.notes ?? null,
+    }))
+    .sort((first, second) => first.date.localeCompare(second.date));
+  const firstWeight = points[0];
+  const lastWeight = points[points.length - 1];
+
+  return {
+    points,
+    summary: {
+      hasData: points.length > 0,
+      firstWeightKg: firstWeight?.weightKg ?? null,
+      lastWeightKg: lastWeight?.weightKg ?? null,
+      deltaKg: firstWeight && lastWeight ? roundNutritionValue(lastWeight.weightKg - firstWeight.weightKg) : null,
+    },
+  };
+}
+
 function averageValue(total: number, count: number) {
   if (!count) return 0;
   return total / count;
+}
+
+function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: number) {
+  return roundNutritionValue(baseCalories + Math.max(exerciseCalories, 0));
 }
 
 function normalizeCatalogText(value: string) {
@@ -219,22 +272,39 @@ function calculateQualityIndicators(
       ultraProcessedServings: 0,
       mealCount: 0,
       regularityScore: 0,
+      foodQualityItems: [] as FoodQualityDay["items"],
     };
   }
 
   const quality = meals.reduce(
     (acc, meal) => {
       for (const item of meal.items) {
+        const itemCalories = Number(item.calories || 0);
         acc.proteinGrams += Number(item.protein || 0);
-        if (!foodLookup) continue;
+
+        if (!foodLookup) {
+          acc.foodQualityItems.push({ calories: itemCalories, isClassified: false });
+          continue;
+        }
+
         const food = resolveFoodLookupEntry(foodLookup, item.canonicalName, item.foodName, item.portionText);
-        if (!food) continue;
+        if (!food) {
+          acc.foodQualityItems.push({ calories: itemCalories, isClassified: false });
+          continue;
+        }
 
         const servingFactor = food.servingSize > 0 && item.estimatedGrams > 0 ? item.estimatedGrams / food.servingSize : item.servings || 1;
         acc.fiberGrams += Number(food.fiber || 0) * servingFactor;
         if (food.isFruit) acc.fruitServings += servingFactor;
         if (food.isVegetable) acc.vegetableServings += servingFactor;
         if (food.isUltraProcessed) acc.ultraProcessedServings += servingFactor;
+        acc.foodQualityItems.push({
+          calories: itemCalories,
+          isClassified: true,
+          isFruit: food.isFruit,
+          isVegetable: food.isVegetable,
+          isUltraProcessed: food.isUltraProcessed,
+        });
       }
       return acc;
     },
@@ -247,6 +317,7 @@ function calculateQualityIndicators(
       ultraProcessedServings: 0,
       mealCount: 0,
       regularityScore: 0,
+      foodQualityItems: [] as FoodQualityDay["items"],
     },
   );
 
@@ -262,6 +333,7 @@ function calculateQualityIndicators(
     ultraProcessedServings: roundNutritionValue(quality.ultraProcessedServings),
     mealCount: quality.mealCount,
     regularityScore: quality.regularityScore,
+    foodQualityItems: quality.foodQualityItems,
   };
 }
 
@@ -287,6 +359,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
     const burnedCalories = dailyExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
     const waterConsumedMl = dailyWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
     const quality = calculateQualityIndicators(dailyMeals, waterConsumedMl, foodLookup);
+    const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, burnedCalories);
 
     return {
       date,
@@ -301,6 +374,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
       waterGoalMl: waterGoal.dailyTargetMl,
       quality,
       goalCalories: planned.calories,
+      adjustedGoalCalories,
       goalProtein: planned.proteinGrams,
       goalCarbs: planned.carbsGrams,
       goalFat: planned.fatGrams,
@@ -310,7 +384,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
 
 function classifyWeeklyDay(day: Awaited<ReturnType<typeof buildWeeklyReportSummary>>[number]) {
   if (day.calories <= 0) return "no_data" as const;
-  const ratio = day.goalCalories ? day.calories / day.goalCalories : 0;
+  const ratio = day.adjustedGoalCalories ? day.calories / day.adjustedGoalCalories : 0;
   if (ratio > 1.05) return "above" as const;
   if (ratio < 0.9) return "below" as const;
   return "within" as const;
@@ -326,6 +400,7 @@ function emptyQualityIndicators(waterMl = 0) {
     ultraProcessedServings: 0,
     mealCount: 0,
     regularityScore: 0,
+    foodQualityItems: [] as FoodQualityDay["items"],
   };
 }
 
@@ -349,7 +424,6 @@ export async function getDashboardOverview(userId: number) {
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
   const weeklyBurnedCalories = weekly.reduce((acc, day) => acc + day.exerciseCalories, 0);
-  const weeklyWaterMl = weekly.reduce((acc, day) => acc + day.waterConsumedMl, 0);
   const weeklyQuality = buildWeeklyQuality(weekly);
 
   return {
@@ -372,9 +446,9 @@ export async function getDashboardOverview(userId: number) {
         calories: roundNutritionValue(weeklyBurnedCalories),
       },
       water: {
-        consumedMl: roundNutritionValue(weeklyWaterMl),
+        consumedMl: roundNutritionValue(weeklyQuality.waterMl),
         goalMl: water.goal.dailyTargetMl * 7,
-        remainingMl: Math.max((water.goal.dailyTargetMl * 7) - roundNutritionValue(weeklyWaterMl), 0),
+        remainingMl: Math.max((water.goal.dailyTargetMl * 7) - roundNutritionValue(weeklyQuality.waterMl), 0),
       },
       quality: {
         proteinGrams: roundNutritionValue(weeklyQuality.proteinGrams),
@@ -385,6 +459,7 @@ export async function getDashboardOverview(userId: number) {
         ultraProcessedServings: roundNutritionValue(weeklyQuality.ultraProcessedServings),
         mealCount: weeklyQuality.mealCount,
         regularityScore: roundNutritionValue(weeklyQuality.regularityScore),
+        foodQuality: weeklyQuality.foodQuality,
       },
       net: {
         calories: roundNutritionValue(weeklyConsumed.calories - weeklyBurnedCalories),
@@ -434,6 +509,7 @@ export async function getDashboardTodayOverview(userId: number, options: { date?
       date: selectedDate,
       goal: {
         calories: plannedGoal.calories,
+        adjustedCalories: calculateAdjustedGoalCalories(plannedGoal.calories, todayBurnedCalories),
         protein: plannedGoal.proteinGrams,
         carbs: plannedGoal.carbsGrams,
         fat: plannedGoal.fatGrams,
@@ -486,7 +562,7 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
   ]);
 
   const totalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.calories, 0));
-  const totalGoalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.goalCalories, 0));
+  const totalGoalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.adjustedGoalCalories, 0));
   const totalExerciseCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.exerciseCalories, 0));
   const totalNetCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.netCalories, 0));
   const averageCalories = roundNutritionValue(totalCalories / Math.max(days.length, 1));
@@ -500,18 +576,19 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
     { within: 0, above: 0, below: 0, no_data: 0 },
   );
 
-  const balanceCalories = roundNutritionValue(totalGoalCalories - totalNetCalories);
+  const balanceCalories = roundNutritionValue(totalGoalCalories - totalCalories);
   const message = buildWeeklyNutritionStatus({
     totalCalories,
     daysAboveGoal: daysByStatus.above,
     daysWithinGoal: daysByStatus.within,
   });
+  const weightTrend = buildWeightTrendForDates(fallbackProgress.weight.entries, days.map(day => day.date));
 
   return {
     days: days.map(day => ({
       ...day,
       status: classifyWeeklyDay(day),
-      calorieDelta: roundNutritionValue(day.calories - day.goalCalories),
+      calorieDelta: roundNutritionValue(day.calories - day.adjustedGoalCalories),
       netDelta: roundNutritionValue(day.netCalories - day.goalCalories),
     })),
     summary: {
@@ -529,7 +606,11 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
       balanceCalories,
       message,
     },
-    weight: fallbackProgress.weight,
+    weight: {
+      ...fallbackProgress.weight,
+      entries: weightTrend.points,
+      ...weightTrend.summary,
+    },
   };
 }
 
@@ -566,15 +647,51 @@ export async function getPeriodReportBundle(
   userId: number,
   range: { startDate: string; endDate: string },
 ) {
-  const [goal, habitAnalytics] = await Promise.all([
+  const [goal, habitAnalytics, exercises, foods, progress] = await Promise.all([
     getUserNutritionGoal(userId),
     getHabitAnalyticsReport(userId, range),
+    listUserExercises(userId),
+    searchFoods(userId, "", 500),
+    getWeeklyProgress(userId),
   ]);
   const dates = listDateKeysInRange(range.startDate, range.endDate);
   const mealsByDay = await Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false })));
   const meals = mealsByDay.flat();
   const totals = calculateDayTotals(meals);
   const mealsByDate = groupMealsByDate(meals);
+  const foodLookup = createFoodLookup(foods);
+  const foodQualityDays: FoodQualityDay[] = [];
+  const daily = dates.map((date, index) => {
+    const planned = goal.days.find(goalDay => goalDay.weekday === getWeekdayIndexInTimeZone(dateKeyToLogicalDate(date))) ?? goal.today;
+    const dailyMeals = mealsByDay[index] ?? [];
+    const dailyTotals = calculateDayTotals(dailyMeals);
+    const dailyQuality = calculateQualityIndicators(dailyMeals, 0, foodLookup);
+    const exerciseCalories = exercises
+      .filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === date)
+      .reduce((total, exercise) => total + Number(exercise.caloriesBurned ?? 0), 0);
+    const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, exerciseCalories);
+    foodQualityDays.push({ date, items: dailyQuality.foodQualityItems });
+
+    return {
+      date,
+      label: formatPeriodDateLabel(date),
+      calories: roundNutritionValue(dailyTotals.calories),
+      protein: roundNutritionValue(dailyTotals.protein),
+      carbs: roundNutritionValue(dailyTotals.carbs),
+      fat: roundNutritionValue(dailyTotals.fat),
+      exerciseCalories: roundNutritionValue(exerciseCalories),
+      goalCalories: planned.calories,
+      adjustedGoalCalories,
+      goalProtein: planned.proteinGrams,
+      goalCarbs: planned.carbsGrams,
+      goalFat: planned.fatGrams,
+      calorieDelta: roundNutritionValue(dailyTotals.calories - adjustedGoalCalories),
+      adherencePercent: adjustedGoalCalories > 0
+        ? roundNutritionValue((dailyTotals.calories / adjustedGoalCalories) * 100)
+        : 0,
+    };
+  });
+  const weightTrend = buildWeightTrendForDates(progress.weight.entries, dates);
 
   return {
     range: {
@@ -595,8 +712,13 @@ export async function getPeriodReportBundle(
       carbs: roundNutritionValue(totals.carbs),
       fat: roundNutritionValue(totals.fat),
     },
+    daily,
     mealsByDate,
     habitAnalytics,
+    quality: {
+      foodQuality: calculateFoodQualitySummary(foodQualityDays, dates.length),
+    },
+    weightTrend,
   };
 }
 

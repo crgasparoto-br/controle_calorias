@@ -20,7 +20,7 @@ const ProfessionalPage = lazy(() => import("@/pages/ProfessionalPage"));
 const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
-const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const ReportsPage = lazy(() => import("@/pages/ReportsGoalsPage"));
 const SyncedHealthDataPage = lazy(() => import("@/pages/SyncedHealthDataPage"));
 
 function PageLoadingFallback() {
