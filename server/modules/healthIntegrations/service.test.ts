@@ -275,9 +275,11 @@ describe("healthIntegrationService Strava", () => {
       },
     });
     expect(body.interactive.body.text).toBe([
-      "*Treino importado do Strava com sucesso: (06min)*",
-      "*Treinamento com peso noturno e 49 calorias*",
-      "*queimadas no dia 02/06* 🔥",
+      "*Treino importado do Strava* 🏋️",
+      "",
+      "Treinamento com peso noturno — 06 min",
+      "Calorias queimadas: 49 kcal 🔥",
+      "Data: 02/06",
     ].join("\n"));
   });
 

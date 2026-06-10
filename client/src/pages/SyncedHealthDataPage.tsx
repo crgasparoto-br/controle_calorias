@@ -1,4 +1,3 @@
-import React from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import UXState from "@/components/UXState";
 import { Badge } from "@/components/ui/badge";
@@ -8,24 +7,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
-import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
+import { formatCalories, formatCountPtBr, formatIntegerPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Database } from "lucide-react";
-import { useState } from "react";
+import React, { useState } from "react";
 
 const DATA_TYPES = [
   { value: "all", label: "Todos" },
   { value: "steps", label: "Passos" },
   { value: "weight", label: "Peso" },
   { value: "activity", label: "Atividade" },
-  { value: "energy_burned", label: "Gasto" },
+  { value: "energy_burned", label: "Calorias" },
   { value: "sleep", label: "Sono" },
 ] as const;
 
 const PAGE_SIZE = 20;
+const TECHNICAL_METADATA_KEYS = new Set(["externalId", "gearId", "id"]);
 
 type HealthProvider = "apple_health" | "health_connect" | "google_fit" | "strava" | "garmin_connect" | "mock";
 type HealthDataType = "steps" | "weight" | "activity" | "energy_burned" | "sleep";
+
+type RecordMetadata = Record<string, unknown>;
 
 type SyncedHealthRecord = {
   id: string;
@@ -35,7 +37,7 @@ type SyncedHealthRecord = {
   value: number;
   unit: string;
   activityType?: string;
-  metadata?: Record<string, unknown> | null;
+  metadata?: RecordMetadata | null;
 };
 
 function startOfDate(value: string) {
@@ -181,7 +183,7 @@ export default function SyncedHealthDataPage() {
               <SegmentedFilter
                 label="ORIGEM:"
                 value={source}
-                options={[{ value: "all", label: "Todas" }, ...sources.map(item => ({ value: item, label: item }))]}
+                options={[{ value: "all", label: "Todas" }, ...sources.map(item => ({ value: item, label: formatSource(item) }))]}
                 onChange={updateSource}
               />
             </div>
@@ -189,7 +191,7 @@ export default function SyncedHealthDataPage() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Metric label="Passos" value={formatCountPtBr(syncedRecords.data?.totals.steps ?? 0)} />
               <Metric label="Atividade" value={formatCountPtBr(syncedRecords.data?.totals.activityMinutes ?? 0, " min")} />
-              <Metric label="Gasto externo" value={formatCalories(syncedRecords.data?.totals.energyBurnedCalories ?? 0)} />
+              <Metric label="Calorias sincronizadas" value={formatCalories(syncedRecords.data?.totals.energyBurnedCalories ?? 0)} />
               <Metric label="Sono" value={formatCountPtBr(syncedRecords.data?.totals.sleepMinutes ?? 0, " min")} />
             </div>
 
@@ -220,11 +222,16 @@ export default function SyncedHealthDataPage() {
                           <div className="min-w-0">
                             <p className="truncate font-semibold tracking-tight">{getRecordTitle(record)}</p>
                             <p className="mt-1 text-sm text-muted-foreground">
-                              {new Date(record.measuredAt).toLocaleString("pt-BR")} · origem: {record.source}
+                              {formatMeasuredAt(record.measuredAt)} · Origem: {formatSource(record.source)}
                             </p>
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline" className="rounded-full px-3 py-1">{record.value} {record.unit}</Badge>
+                            <Badge variant="outline" className="rounded-full px-3 py-1">{formatRecordValue(record)}</Badge>
+                            {record.dataType === "activity" ? (
+                              <Badge variant={getRecordCalories(record) ? "secondary" : "outline"} className="rounded-full px-3 py-1">
+                                {formatCaloriesBadge(record)}
+                              </Badge>
+                            ) : null}
                             <Badge variant="secondary" className="rounded-full px-3 py-1">{formatDataType(record.dataType)}</Badge>
                             <ChevronDown className={`h-4 w-4 text-muted-foreground transition ${expanded ? "rotate-180" : ""}`} />
                           </div>
@@ -348,26 +355,16 @@ function DateNavigator({
 }
 
 function RecordDetails({ record }: { record: SyncedHealthRecord }) {
-  const metadataEntries = Object.entries(record.metadata ?? {}).filter(([, value]) => value !== null && value !== undefined && value !== "");
+  const details = buildUserFacingDetails(record);
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <Detail label="ID" value={record.id} />
-        <Detail label="Tipo" value={formatDataType(record.dataType)} />
-        <Detail label="Origem" value={record.source} />
-        <Detail label="Unidade" value={record.unit} />
+    <div className="mt-4 rounded-2xl border bg-muted/20 p-4">
+      <p className="text-sm font-semibold tracking-tight">Detalhes da atividade</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {details.map(detail => (
+          <Detail key={detail.label} label={detail.label} value={detail.value} />
+        ))}
       </div>
-      {metadataEntries.length ? (
-        <div className="rounded-2xl border bg-muted/20 p-4">
-          <p className="text-sm font-semibold tracking-tight">Detalhes do provider</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {metadataEntries.slice(0, 18).map(([key, value]) => (
-              <Detail key={key} label={formatMetadataLabel(key)} value={formatMetadataValue(value)} />
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -420,14 +417,169 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+function getMetadata(record: SyncedHealthRecord): RecordMetadata {
+  return record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata) ? record.metadata : {};
+}
+
 function getRecordTitle(record: SyncedHealthRecord) {
-  const name = record.metadata?.name;
-  return typeof name === "string" && name.trim() ? name : formatDataType(record.dataType);
+  const metadata = getMetadata(record);
+  const name = metadata.name;
+  return typeof name === "string" && name.trim() ? name : record.activityType || formatDataType(record.dataType);
 }
 
 function formatDataType(dataType: string) {
   const match = DATA_TYPES.find(item => item.value === dataType);
   return match?.label ?? dataType;
+}
+
+function formatSource(source: string) {
+  const labels: Record<string, string> = {
+    apple_health: "Apple Health",
+    garmin_connect: "Garmin Connect",
+    google_fit: "Google Fit",
+    health_connect: "Health Connect",
+    mock: "Mock",
+    strava: "Strava",
+  };
+  return labels[source] ?? source;
+}
+
+function formatMeasuredAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Data não informada";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function getNumberMetadata(record: SyncedHealthRecord, key: string) {
+  const value = getMetadata(record)[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function getBooleanMetadata(record: SyncedHealthRecord, key: string) {
+  const value = getMetadata(record)[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function getStringMetadata(record: SyncedHealthRecord, key: string) {
+  const value = getMetadata(record)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function getRecordCalories(record: SyncedHealthRecord) {
+  const calories = getNumberMetadata(record, "calories");
+  if (calories && calories > 0) return calories;
+  return record.dataType === "energy_burned" && record.value > 0 ? record.value : null;
+}
+
+function formatCaloriesBadge(record: SyncedHealthRecord) {
+  const calories = getRecordCalories(record);
+  if (!calories) return "Calorias não informadas";
+  return formatCalories(calories);
+}
+
+function formatRecordValue(record: SyncedHealthRecord) {
+  if (record.unit === "minutes") return `${formatIntegerPtBr(Math.round(record.value))} min`;
+  if (record.unit === "kcal") return formatCalories(record.value);
+  if (record.unit === "kg") return `${formatNumberPtBr(record.value, { maximumFractionDigits: 1 })} kg`;
+  if (record.unit === "count") return formatIntegerPtBr(record.value);
+  return `${formatNumberPtBr(record.value)} ${record.unit}`;
+}
+
+function formatDuration(seconds: number | null, fallbackMinutes?: number) {
+  const totalSeconds = seconds && seconds > 0 ? Math.round(seconds) : Math.round((fallbackMinutes ?? 0) * 60);
+  if (totalSeconds <= 0) return null;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+  if (hours > 0) return `${hours} h ${String(minutes).padStart(2, "0")} min`;
+  if (minutes > 0) return `${minutes} min`;
+  return `${remainingSeconds} s`;
+}
+
+function formatDistanceMeters(value: number | null) {
+  if (!value || value <= 0) return null;
+  if (value >= 1000) return `${formatNumberPtBr(value / 1000, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`;
+  return `${formatIntegerPtBr(Math.round(value))} m`;
+}
+
+function formatSpeedKmH(value: number | null) {
+  if (!value || value <= 0) return null;
+  return `${formatNumberPtBr(value * 3.6, { maximumFractionDigits: 1 })} km/h`;
+}
+
+function formatPace(value: number | null) {
+  if (!value || value <= 0) return null;
+  const secondsPerKm = Math.round(1000 / value);
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = String(secondsPerKm % 60).padStart(2, "0");
+  return `${minutes}:${seconds}/km`;
+}
+
+function formatCaloriesSource(record: SyncedHealthRecord) {
+  const source = getStringMetadata(record, "caloriesSource");
+  const estimated = getBooleanMetadata(record, "estimatedCalories");
+  if (source === "strava") return "Strava";
+  if (source === "kilojoules") return "Strava, convertido de kJ";
+  if (source === "synced_energy") return "Registro sincronizado";
+  if (estimated) return "Estimativa local";
+  return null;
+}
+
+function addDetail(details: Array<{ label: string; value: string }>, label: string, value: string | null | undefined) {
+  if (value) details.push({ label, value });
+}
+
+function buildUserFacingDetails(record: SyncedHealthRecord) {
+  const details: Array<{ label: string; value: string }> = [];
+  const calories = getRecordCalories(record);
+  const caloriesSource = formatCaloriesSource(record);
+  const averageSpeed = getNumberMetadata(record, "averageSpeedMetersPerSecond");
+
+  addDetail(details, "Tipo", record.activityType || formatDataType(record.dataType));
+  addDetail(details, "Origem", formatSource(record.source));
+  addDetail(details, "Data e hora", formatMeasuredAt(record.measuredAt));
+  addDetail(details, "Duração", formatDuration(getNumberMetadata(record, "movingTimeSeconds"), record.unit === "minutes" ? record.value : undefined));
+  addDetail(details, "Distância", formatDistanceMeters(getNumberMetadata(record, "distanceMeters")));
+  addDetail(details, "Ritmo médio", formatPace(averageSpeed));
+  addDetail(details, "Velocidade média", formatSpeedKmH(averageSpeed));
+  addDetail(details, "Calorias", calories ? formatCalories(calories) : "Não informado pela integração");
+  addDetail(details, "Fonte das calorias", caloriesSource);
+  addDetail(details, "Ganho de elevação", formatDistanceMeters(getNumberMetadata(record, "totalElevationGainMeters")));
+  addDetail(details, "FC média", getNumberMetadata(record, "averageHeartRate") ? `${formatIntegerPtBr(Math.round(getNumberMetadata(record, "averageHeartRate") ?? 0))} bpm` : null);
+
+  for (const [key, value] of Object.entries(getMetadata(record))) {
+    if (details.length >= 12) break;
+    if (TECHNICAL_METADATA_KEYS.has(key) || isKnownFormattedMetadataKey(key)) continue;
+    addDetail(details, formatMetadataLabel(key), formatMetadataValue(value));
+  }
+
+  return details;
+}
+
+function isKnownFormattedMetadataKey(key: string) {
+  return [
+    "averageHeartRate",
+    "averageSpeedMetersPerSecond",
+    "calories",
+    "caloriesSource",
+    "distanceMeters",
+    "elapsedTimeSeconds",
+    "estimatedCalories",
+    "estimatedCaloriesMet",
+    "estimatedCaloriesWeightKg",
+    "kilojoules",
+    "maxHeartRate",
+    "maxSpeedMetersPerSecond",
+    "movingTimeSeconds",
+    "name",
+    "sportType",
+    "startDateLocal",
+    "timezone",
+    "totalElevationGainMeters",
+  ].includes(key);
 }
 
 function formatMetadataLabel(value: string) {
@@ -438,15 +590,9 @@ function formatMetadataLabel(value: string) {
 }
 
 function formatMetadataValue(value: unknown) {
-  if (typeof value === "number") return formatNumber(value, Number.isInteger(value) ? 0 : 2);
+  if (typeof value === "number") return formatNumberPtBr(value, { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 });
   if (typeof value === "boolean") return value ? "Sim" : "Não";
   if (typeof value === "string") return value;
+  if (value === null || value === undefined) return null;
   return JSON.stringify(value);
-}
-
-function formatNumber(value: number, fractionDigits = 1) {
-  return value.toLocaleString("pt-BR", {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  });
 }

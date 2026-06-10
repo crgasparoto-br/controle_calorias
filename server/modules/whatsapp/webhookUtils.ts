@@ -176,7 +176,7 @@ export async function markWhatsAppMessageAsRead(messageId?: string) {
   }
 }
 
-async function getMediaDownloadUrl(mediaId: string) {
+export async function getWhatsAppMediaDownloadUrl(mediaId: string) {
   const { accessToken } = await requireWhatsAppMediaConfig();
 
   const response = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
@@ -198,7 +198,7 @@ async function getMediaDownloadUrl(mediaId: string) {
 export async function downloadWhatsAppMedia(mediaId: string, fallbackMimeType?: string) {
   const { accessToken } = await requireWhatsAppMediaConfig();
 
-  const meta = await getMediaDownloadUrl(mediaId);
+  const meta = await getWhatsAppMediaDownloadUrl(mediaId);
   const response = await fetch(meta.url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -229,7 +229,12 @@ export function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
-export async function sendWhatsAppCtaUrlMessage(to: string, body: string, buttonText: string, url: string) {
+export async function sendWhatsAppInteractiveUrlButtonMessage(
+  to: string,
+  bodyText: string,
+  buttonDisplayText: string,
+  buttonUrl: string,
+) {
   let config;
   try {
     config = await requireWhatsAppSendConfig();
@@ -253,12 +258,12 @@ export async function sendWhatsAppCtaUrlMessage(to: string, body: string, button
         type: "interactive",
         interactive: {
           type: "cta_url",
-          body: { text: body },
+          body: { text: bodyText },
           action: {
             name: "cta_url",
             parameters: {
-              display_text: buttonText,
-              url,
+              display_text: buttonDisplayText,
+              url: buttonUrl,
             },
           },
         },
@@ -268,15 +273,15 @@ export async function sendWhatsAppCtaUrlMessage(to: string, body: string, button
     if (!response.ok) {
       return {
         ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio do botão CTA.`,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da mensagem interativa.`,
       };
     }
 
-    return { ok: true, detail: "Botão CTA enviado com sucesso." };
+    return { ok: true, detail: "Mensagem interativa enviada com sucesso." };
   } catch (error) {
     return {
       ok: false,
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar botão CTA do WhatsApp.",
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar mensagem interativa do WhatsApp.",
     };
   }
 }

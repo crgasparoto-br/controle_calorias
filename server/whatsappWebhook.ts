@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
-import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
+import type { GenerateImageResponse } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
 import {
   buildMediaDataUrl,
@@ -16,8 +17,8 @@ import {
   markWhatsAppMessageAsRead,
   normalizeWhatsAppIntentText,
   resolveWhatsAppMessageOccurredAt,
-  sendWhatsAppCtaUrlMessage,
   sendWhatsAppImageMessage,
+  sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppTextMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
@@ -192,81 +193,6 @@ function isConfirmationMessage(message: WhatsAppWebhookMessage) {
 function isCancellationMessage(message: WhatsAppWebhookMessage) {
   const normalized = normalizeWhatsAppIntentText(getTextBody(message));
   return ["nao", "não", "cancelar", "cancela", "parar", "desfazer"].includes(normalized);
-}
-
-function formatFoodDescription(item: MealProcessingResult["items"][number]) {
-  const portionHasGrams = /\d\s*g\b/i.test(item.portionText);
-  const gramsLabel = !portionHasGrams && item.estimatedGrams > 0 ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)` : "";
-  return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
-}
-
-function buildWhatsAppReplyMessage(
-  processed: MealProcessingResult,
-  registeredAt = new Date(),
-  goalProgress?: WhatsAppMealGoalProgress | null,
-) {
-  return buildWhatsAppMealReplyMessage(processed, { registeredAt, goalProgress });
-}
-
-function imageDataFromDataUrl(dataUrl?: string) {
-  const match = dataUrl?.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) return null;
-  return { mimeType: match[1], b64Json: match[2] };
-}
-
-function buildAnnotatedMealImagePrompt(processed: MealProcessingResult) {
-  const labels = processed.items
-    .slice(0, 12)
-    .map((item, index) => `${index + 1}. ${item.foodName}: ${formatMacro(item.calories)} kcal, P ${formatMacro(item.protein)}g, C ${formatMacro(item.carbs)}g, G ${formatMacro(item.fat)}g`)
-    .join("\n");
-
-  return [
-    "Edite a foto original da refeição adicionando legendas visuais sobre os alimentos identificados, no estilo de análise nutricional da imagem de referência.",
-    "Use etiquetas verdes translúcidas com texto grande e linhas discretas apontando para cada alimento quando fizer sentido.",
-    "Cada legenda deve mostrar nome do alimento, calorias e macronutrientes no formato P/C/G em gramas.",
-    "Mantenha a foto realista, preserve o prato original e não adicione alimentos novos.",
-    "Use texto em português do Brasil, grande e legível em celular.",
-    `Itens detectados:\n${labels || "Alimentos identificados na refeição."}`,
-  ].join("\n");
-}
-
-function buildMealCardsImagePrompt(processed: MealProcessingResult) {
-  const labels = processed.items
-    .slice(0, 12)
-    .map((item, index) => `${index + 1}. ${item.foodName}: ${formatFoodDescription(item)}, ${formatMacro(item.calories)} kcal, proteína ${formatMacro(item.protein)}g, carboidratos ${formatMacro(item.carbs)}g, gorduras ${formatMacro(item.fat)}g`)
-    .join("\n");
-
-  return [
-    "Crie uma imagem quadrada com cards nutricionais limpos e legíveis para celular.",
-    "Use fundo claro, cards organizados, ícones simples de comida e texto em português do Brasil.",
-    "Cada card deve mostrar alimento, porção, calorias e macronutrientes P/C/G.",
-    "Não inclua foto real nem alimentos novos; use apenas os dados abaixo.",
-    `Refeição: ${processed.detectedMealLabel || "Refeição"}`,
-    `Total: ${formatMacro(processed.totals.calories)} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g`,
-    `Itens:\n${labels || "Alimentos identificados na refeição."}`,
-  ].join("\n");
-}
-
-async function generateAnnotatedMealImage(processed: MealProcessingResult, prepared: PreparedMessageInput): Promise<GenerateImageResponse> {
-  const sourceImage = imageDataFromDataUrl(prepared.imageAnalysisUrl);
-  if (!processed.items.length) {
-    return { skippedReason: "no_prompt" };
-  }
-
-  if (sourceImage) {
-    const editedImage = await generateImage({
-      prompt: buildAnnotatedMealImagePrompt(processed),
-      originalImages: [sourceImage],
-    });
-
-    if (editedImage.url) {
-      return editedImage;
-    }
-  }
-
-  return generateImage({
-    prompt: buildMealCardsImagePrompt(processed),
-  });
 }
 
 async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhookMessage, userId: number) {
@@ -524,9 +450,18 @@ async function sendInterpretedTextIntentReply(input: {
   });
 
   const mealId = typeof input.interpreted.data?.mealId === "number" ? input.interpreted.data.mealId : null;
-  const quickEditLink = mealId ? await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId }) : null;
+  const replyText = input.interpreted.reply;
+  let quickEditUrl: string | null = null;
+  if (mealId) {
+    const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId });
+    quickEditUrl = quickEditLink?.url ?? null;
+  }
 
-  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.interpreted.reply);
+  const replyResult = quickEditUrl
+    ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, replyText, "Editar refeição", quickEditUrl)
+    : await sendWhatsAppTextMessage(input.sourcePhone, replyText);
+
+
   if (!replyResult.ok) {
     logInferenceEvent({
       userId: input.userId,
@@ -537,23 +472,6 @@ async function sendInterpretedTextIntentReply(input: {
     });
   }
 
-  if (quickEditLink?.url) {
-    const ctaResult = await sendWhatsAppCtaUrlMessage(
-      input.sourcePhone,
-      "Quer ajustar algum alimento, quantidade ou unidade?",
-      "Editar refeição",
-      quickEditLink.url,
-    );
-    if (!ctaResult.ok) {
-      logInferenceEvent({
-        userId: input.userId,
-        origin: "whatsapp",
-        status: "warning",
-        eventType: "whatsapp.cta_reply_failed",
-        detail: `Falha ao enviar botão de edição para ${input.sourcePhone}: ${ctaResult.detail}`,
-      });
-    }
-  }
 }
 
 function canInterpretAudioTranscriptIntent(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
@@ -913,7 +831,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       if (message.image?.id) {
         try {
-          annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared);
+          annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared.imageAnalysisUrl);
           if (annotatedImage?.url) {
             mediaForPersistence.push(buildSavedMedia({
               mediaType: "image",
@@ -961,14 +879,13 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       });
 
       const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: savedMeal.id });
-      const replyResult = await sendWhatsAppTextMessage(
-        sourcePhone,
-        buildWhatsAppReplyMessage(
-          processedForPersistence,
-          occurredAt,
-          await getWhatsAppMealGoalProgress(userId, occurredAt),
-        ),
-      );
+      const mealReplyText = buildWhatsAppMealReplyMessage(processedForPersistence, {
+        registeredAt: occurredAt,
+        goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+      });
+      const replyResult = quickEditLink?.url
+        ? await sendWhatsAppInteractiveUrlButtonMessage(sourcePhone, mealReplyText, "Editar refeição", quickEditLink.url)
+        : await sendWhatsAppTextMessage(sourcePhone, mealReplyText);
 
       if (!replyResult.ok) {
         logInferenceEvent({
@@ -978,24 +895,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           eventType: "whatsapp.reply_failed",
           detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
         });
-      }
-
-      if (quickEditLink?.url) {
-        const ctaResult = await sendWhatsAppCtaUrlMessage(
-          sourcePhone,
-          "Quer ajustar algum alimento, quantidade ou unidade?",
-          "Editar refeição",
-          quickEditLink.url,
-        );
-        if (!ctaResult.ok) {
-          logInferenceEvent({
-            userId,
-            origin: "whatsapp",
-            status: "warning",
-            eventType: "whatsapp.cta_reply_failed",
-            detail: `Falha ao enviar botão de edição para ${sourcePhone}: ${ctaResult.detail}`,
-          });
-        }
       }
 
       if (annotatedImage?.url) {

@@ -172,7 +172,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
     expect(reply).toContain("* Déficit: 1.035 kcal");
   });
 
-  it("não inclui link de edição rápida na mensagem de texto (enviado como botão CTA separado)", () => {
+  it("não inclui link de edição no corpo do texto (link é enviado como botão separado)", () => {
     const processed: MealProcessingResult = {
       detectedMealLabel: "Jantar",
       sourceText: "300g amendoim japonês",
@@ -207,8 +207,8 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
+    expect(reply).toContain("Amendoim japonês");
     expect(reply).not.toContain("Editar:");
     expect(reply).not.toContain("quick-edit");
-    expect(reply).toContain("Jantar");
   });
 });

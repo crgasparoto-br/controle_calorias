@@ -152,7 +152,7 @@ describe("whatsappWebhook", () => {
         const payload = init?.body ? JSON.parse(String(init.body)) : {};
         lastSentWhatsAppUrl = url;
         sentWhatsAppPayloads.push(payload);
-        lastSentWhatsAppBody = payload?.text?.body ?? null;
+        lastSentWhatsAppBody = payload?.text?.body ?? payload?.interactive?.body?.text ?? null;
         return {
           ok: true,
           json: async () => ({}),
@@ -278,8 +278,7 @@ describe("whatsappWebhook", () => {
     const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
-    const textPayload = sentWhatsAppPayloads.find(p => p.type === "text" && p.text?.body?.includes("Registrado"));
-    expect(textPayload?.text?.body).toContain([
+    expect(lastSentWhatsAppBody).toContain([
       "Almoço Registrado às 08:52hs.",
       "",
       "Itens:",
@@ -296,9 +295,10 @@ describe("whatsappWebhook", () => {
       "* Consumo: 130 kcal",
       "* Déficit: 2.070 kcal",
     ].join("\n"));
-    const ctaPayload = sentWhatsAppPayloads.find(p => p.type === "interactive" && p.interactive?.type === "cta_url");
-    expect(ctaPayload?.interactive?.body?.text).toBe("Quer ajustar algum alimento, quantidade ou unidade?");
-    expect(ctaPayload?.interactive?.action?.parameters?.url).toMatch(/^https:\/\/app\.example\.com\/quick-edit\/[A-Za-z0-9_-]+$/);
+    const lastPayload = sentWhatsAppPayloads[sentWhatsAppPayloads.length - 1];
+    expect(lastPayload?.interactive?.type).toBe("cta_url");
+    expect(lastPayload?.interactive?.action?.parameters?.display_text).toBe("Editar refeição");
+    expect(lastPayload?.interactive?.action?.parameters?.url).toMatch(/^https:\/\/app\.example\.com\/quick-edit\/[A-Za-z0-9_-]+$/);
   });
 
   it("processa mídia de imagem e áudio sem falhar o webhook quando o número está vinculado", async () => {

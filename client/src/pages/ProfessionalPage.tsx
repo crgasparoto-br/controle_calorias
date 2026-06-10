@@ -4,27 +4,53 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { ClipboardList, Mail, MessageSquarePlus, ShieldCheck, UserCheck, UserPlus, X } from "lucide-react";
-import { useState } from "react";
+import { ClipboardList, Mail, MessageSquarePlus, ShieldAlert, UserCheck, UserPlus, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
+
+type PatientAiAnswer = {
+  answer: string;
+  citedContext: string[];
+  caution?: string;
+  educationalNotice: string;
+  generatedAt: number;
+};
 
 export default function ProfessionalPage() {
   const utils = trpc.useUtils();
-  const profile = trpc.nutrition.professionals.profile.useQuery();
-  const accesses = trpc.nutrition.professionals.myAccesses.useQuery();
-  const history = trpc.nutrition.professionals.history.useQuery();
-  const [displayName, setDisplayName] = useState("");
-  const [registrationNumber, setRegistrationNumber] = useState("");
-  const [patientEmail, setPatientEmail] = useState("");
+  const [, setLocation] = useLocation();
+  const profile = trpc.nutrition.professionals.profile.useQuery(undefined, { retry: false });
+  const hasActiveProfile = Boolean(profile.data?.active);
+  const accesses = trpc.nutrition.professionals.myAccesses.useQuery(undefined, { enabled: hasActiveProfile });
+  const history = trpc.nutrition.professionals.history.useQuery(undefined, { enabled: hasActiveProfile });
+  const [patientContact, setPatientContact] = useState("");
   const [reason, setReason] = useState("Acompanhamento nutricional com consentimento do paciente.");
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [comment, setComment] = useState("");
+  const [patientQuestion, setPatientQuestion] = useState("");
+  const [patientAnswer, setPatientAnswer] = useState<PatientAiAnswer | null>(null);
+  const [goalSuggestion, setGoalSuggestion] = useState({
+    calories: "",
+    proteinGrams: "",
+    carbsGrams: "",
+    fatGrams: "",
+    rationale: "",
+  });
+  const [mealSuggestion, setMealSuggestion] = useState({
+    mealLabel: "Almoço",
+    title: "",
+    description: "",
+    rationale: "",
+    notes: "",
+  });
   const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery(
     { patientId: selectedPatientId ?? 0 },
-    { enabled: Boolean(selectedPatientId) },
+    { enabled: hasActiveProfile && Boolean(selectedPatientId) },
   );
 
   const invalidate = async () => {
@@ -37,18 +63,10 @@ export default function ProfessionalPage() {
     if (selectedPatientId) await utils.nutrition.professionals.patientDashboard.invalidate({ patientId: selectedPatientId });
   };
 
-  const upsertProfile = trpc.nutrition.professionals.upsertProfile.useMutation({
-    onSuccess: async () => {
-      toast.success("Perfil profissional salvo.");
-      await invalidate();
-    },
-    onError: error => toast.error(error.message || "Não foi possível salvar o perfil."),
-  });
-
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async () => {
       toast.success("Solicitação enviada. O paciente precisa aprovar antes do acesso.");
-      setPatientEmail("");
+      setPatientContact("");
       await invalidate();
     },
     onError: error => toast.error(error.message || "Não foi possível solicitar acesso."),
@@ -72,20 +90,121 @@ export default function ProfessionalPage() {
     onError: error => toast.error(error.message || "Não foi possível comentar."),
   });
 
+  const suggestGoal = trpc.nutrition.professionals.suggestGoalAdjustment.useMutation({
+    onSuccess: async () => {
+      toast.success("Sugestão de meta enviada para acompanhamento.");
+      setGoalSuggestion(previous => ({ ...previous, rationale: "" }));
+      await invalidate();
+    },
+    onError: error => toast.error(error.message || "Não foi possível sugerir a meta."),
+  });
+
+  const suggestMeal = trpc.nutrition.professionals.suggestMealPlan.useMutation({
+    onSuccess: async () => {
+      toast.success("Sugestão de refeição enviada para acompanhamento.");
+      setMealSuggestion(previous => ({ ...previous, title: "", description: "", rationale: "", notes: "" }));
+      await invalidate();
+    },
+    onError: error => toast.error(error.message || "Não foi possível sugerir a refeição."),
+  });
+
+  const askPatientQuestion = trpc.nutrition.professionals.askPatientQuestion.useMutation({
+    onSuccess: answer => {
+      setPatientAnswer(answer);
+      toast.success("Resposta gerada com contexto autorizado.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível responder a pergunta."),
+  });
+
+  if (!profile.isLoading && !hasActiveProfile) {
+    return (
+      <DashboardLayout>
+        <div className="mx-auto max-w-3xl">
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-primary" />
+                Perfil profissional necessário
+              </CardTitle>
+              <CardDescription>
+                A área Nutricionista é uma camada adicional da sua conta pessoal. Ative o perfil profissional em Configurações para liberar pacientes, solicitações e acompanhamento.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="rounded-full" onClick={() => setLocation("/settings")}>Ir para Configurações</Button>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   const approvedAccesses = accesses.data?.filter(access => access.status === "approved") ?? [];
   const awaitingApprovalCount = accesses.data?.filter(access => access.status === "pending").length ?? 0;
   const historyCount = history.data?.length ?? 0;
+  const defaultNutritionGoal = dashboard.data?.nutritionGoal?.defaultGoal;
+  const goalSuggestions = dashboard.data?.goalSuggestions ?? [];
+  const mealSuggestions = dashboard.data?.mealSuggestions ?? [];
+  const suggestedCalories = Number(goalSuggestion.calories);
+  const suggestedProtein = Number(goalSuggestion.proteinGrams);
+  const suggestedCarbs = Number(goalSuggestion.carbsGrams);
+  const suggestedFat = Number(goalSuggestion.fatGrams);
+  const canSuggestGoal = Boolean(
+    selectedPatientId &&
+    goalSuggestion.rationale.trim() &&
+    suggestedCalories > 0 &&
+    suggestedProtein > 0 &&
+    suggestedCarbs > 0 &&
+    suggestedFat > 0,
+  );
+  const canSuggestMeal = Boolean(
+    selectedPatientId &&
+    mealSuggestion.mealLabel.trim() &&
+    mealSuggestion.title.trim() &&
+    mealSuggestion.description.trim() &&
+    mealSuggestion.rationale.trim(),
+  );
+  const canAskQuestion = Boolean(selectedPatientId && patientQuestion.trim().length >= 3);
+  const todayMeals = useMemo(() => {
+    const todayKey = new Date().toLocaleDateString("pt-BR");
+    return dashboard.data?.meals.filter(meal => new Date(meal.occurredAt).toLocaleDateString("pt-BR") === todayKey) ?? [];
+  }, [dashboard.data?.meals]);
+
+  useEffect(() => {
+    setPatientAnswer(null);
+  }, [selectedPatientId]);
+
+  useEffect(() => {
+    if (!defaultNutritionGoal) {
+      setGoalSuggestion(previous => ({ ...previous, calories: "", proteinGrams: "", carbsGrams: "", fatGrams: "" }));
+      return;
+    }
+
+    setGoalSuggestion(previous => ({
+      ...previous,
+      calories: String(defaultNutritionGoal.calories),
+      proteinGrams: String(defaultNutritionGoal.proteinGrams),
+      carbsGrams: String(defaultNutritionGoal.carbsGrams),
+      fatGrams: String(defaultNutritionGoal.fatGrams),
+    }));
+  }, [
+    defaultNutritionGoal?.calories,
+    defaultNutritionGoal?.proteinGrams,
+    defaultNutritionGoal?.carbsGrams,
+    defaultNutritionGoal?.fatGrams,
+    selectedPatientId,
+  ]);
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <PageIntro
-          eyebrow="Profissional"
+          eyebrow="Nutricionista"
           title="Acompanhamento profissional"
-          description="A tela ficou focada em perfil, solicitações enviadas, pacientes autorizados e acompanhamento ativo. As aprovações recebidas como paciente agora ficam centralizadas em Configurações."
+          description="A área profissional fica separada do uso pessoal: você continua registrando suas refeições normalmente e acessa pacientes apenas quando há vínculo autorizado."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <IntroStat label="Perfil" value={profile.data ? "Ativo" : "Pendente"} helper="dados do profissional" />
+              <IntroStat label="Perfil" value="Ativo" helper={profile.data?.displayName ?? "nutricionista"} />
               <IntroStat label="Pacientes autorizados" value={String(approvedAccesses.length)} helper="com acesso aprovado" />
               <IntroStat label="Aguardando aprovação" value={String(awaitingApprovalCount)} helper="solicitações enviadas" />
               <IntroStat label="Eventos no histórico" value={String(historyCount)} helper="ações registradas" />
@@ -93,118 +212,70 @@ export default function ProfessionalPage() {
           }
         />
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> Perfil profissional</CardTitle>
-              <CardDescription>Crie seu perfil antes de solicitar acesso a pacientes.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-2">
-                  <Label>Nome profissional</Label>
-                  <Input value={displayName || profile.data?.displayName || ""} onChange={event => setDisplayName(event.target.value)} />
-                </label>
-                <label className="space-y-2">
-                  <Label>Registro</Label>
-                  <Input value={registrationNumber || profile.data?.registrationNumber || ""} onChange={event => setRegistrationNumber(event.target.value)} />
-                </label>
-              </div>
-              <Button
-                className="rounded-full"
-                onClick={() => upsertProfile.mutate({
-                  displayName: displayName || profile.data?.displayName || "",
-                  registrationNumber: registrationNumber || profile.data?.registrationNumber || undefined,
-                })}
-                disabled={upsertProfile.isPending}
-              >
-                Salvar perfil
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Solicitar acesso</CardTitle>
-              <CardDescription>Informe o e-mail do paciente. O acesso só abre após aprovação.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <label className="space-y-2">
-                <Label>E-mail do paciente</Label>
-                <Input
-                  type="email"
-                  value={patientEmail}
-                  onChange={event => setPatientEmail(event.target.value.trimStart())}
-                  placeholder="paciente@exemplo.com"
-                />
-              </label>
-              <label className="space-y-2">
-                <Label>Motivo</Label>
-                <Textarea value={reason} onChange={event => setReason(event.target.value)} className="min-h-24" />
-              </label>
-              <Button
-                className="rounded-full"
-                disabled={requestAccess.isPending || !patientEmail.trim()}
-                onClick={() => requestAccess.mutate({ patientEmail: patientEmail.trim(), reason })}
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Solicitar consentimento
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[1fr,0.9fr]">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><UserCheck className="h-5 w-5 text-primary" /> Pacientes autorizados</CardTitle>
-              <CardDescription>Somente vínculos aprovados liberam o dashboard.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {approvedAccesses.length ? approvedAccesses.map(access => (
-                <div key={access.id} className="rounded-2xl border bg-background p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{access.patient?.name || access.patient?.email || `Paciente #${access.patientUserId}`}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {access.patient?.email || `ID interno #${access.patientUserId}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Aprovado em {access.approvedAt ? new Date(access.approvedAt).toLocaleString("pt-BR") : "-"}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" className="rounded-full" onClick={() => setSelectedPatientId(access.patientUserId)}>Abrir dashboard</Button>
-                      <Button variant="outline" className="rounded-full" onClick={() => revokeAccess.mutate({ accessId: access.id })}>
-                        <X className="mr-2 h-4 w-4" />
-                        Revogar vínculo
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )) : (
-                <Empty text="Nenhum paciente autorizado ainda." />
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle>Consentimento do paciente</CardTitle>
-              <CardDescription>
-                As solicitações recebidas como paciente foram movidas para Configurações, junto do vínculo do WhatsApp e dos demais ajustes pessoais.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <InfoStep title="1. Envie a solicitação" text="Use o e-mail do paciente para iniciar o pedido de compartilhamento com contexto claro." />
-              <InfoStep title="2. O paciente decide em Configurações" text="A aprovação ou revogação agora fica na área pessoal do usuário para reduzir duplicidade entre telas." />
-              <InfoStep title="3. Acompanhe após aprovação" text="Assim que o consentimento for aprovado, o dashboard do paciente já pode ser aberto por aqui." />
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Solicitar acesso</CardTitle>
+            <CardDescription>Informe o e-mail ou celular vinculado ao paciente. O acesso só abre após aprovação.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 lg:grid-cols-[1fr_1.4fr_auto] lg:items-end">
+            <label className="space-y-2">
+              <Label>E-mail ou celular do paciente</Label>
+              <Input
+                value={patientContact}
+                onChange={event => setPatientContact(event.target.value.trimStart())}
+                placeholder="paciente@exemplo.com ou (11) 99999-9999"
+              />
+            </label>
+            <label className="space-y-2">
+              <Label>Motivo</Label>
+              <Textarea value={reason} onChange={event => setReason(event.target.value)} className="min-h-11 lg:min-h-11" />
+            </label>
+            <Button
+              className="h-11 rounded-full"
+              disabled={requestAccess.isPending || !patientContact.trim()}
+              onClick={() => requestAccess.mutate({ patientContact: patientContact.trim(), reason })}
+            >
+              <Mail className="mr-2 h-4 w-4" />
+              Solicitar
+            </Button>
+          </CardContent>
+        </Card>
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /> Dashboard do paciente</CardTitle>
-            <CardDescription>Dados agregados e registros recentes do paciente autorizado.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><UserCheck className="h-5 w-5 text-primary" /> Pacientes autorizados</CardTitle>
+            <CardDescription>Somente vínculos aprovados liberam dados de Hoje, Relatórios, metas e registros recentes.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {approvedAccesses.length ? approvedAccesses.map(access => (
+              <div key={access.id} className="rounded-2xl border bg-background p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{access.patient?.name || access.patient?.email || `Paciente #${access.patientUserId}`}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {access.patient?.email || `ID interno #${access.patientUserId}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Aprovado em {access.approvedAt ? new Date(access.approvedAt).toLocaleString("pt-BR") : "-"}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" className="rounded-full" onClick={() => setSelectedPatientId(access.patientUserId)}>Abrir acompanhamento</Button>
+                    <Button variant="outline" className="rounded-full" onClick={() => revokeAccess.mutate({ accessId: access.id })}>
+                      <X className="mr-2 h-4 w-4" />
+                      Revogar vínculo
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <Empty text="Nenhum paciente autorizado ainda." />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /> Visão do paciente</CardTitle>
+            <CardDescription>Dados do paciente autorizado organizados por contexto profissional.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {dashboard.data ? (
@@ -214,26 +285,225 @@ export default function ProfessionalPage() {
                   <p>{dashboard.data.patient?.name || dashboard.data.patient?.email || `Paciente #${dashboard.data.patientId}`}</p>
                   <p>{dashboard.data.patient?.email || `ID interno #${dashboard.data.patientId}`}</p>
                 </div>
-                <div className="grid gap-3 md:grid-cols-4">
-                  <Metric label="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} />
-                  <Metric label="Calorias consumidas" value={formatCalories(dashboard.data.calories.consumed)} />
-                  <Metric label="Proteínas" value={formatGrams(dashboard.data.macros.protein)} />
-                  <Metric label="Variação de peso" value={`${dashboard.data.weight.deltaKg ?? 0} kg`} />
-                </div>
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <div className="space-y-2">
-                    <p className="font-medium">Refeições registradas</p>
-                    {dashboard.data.meals.slice(0, 6).map(meal => (
-                      <div key={meal.id} className="rounded-xl border bg-background p-3 text-sm">
-                        <div className="flex justify-between gap-3">
-                          <span className="font-medium">{meal.mealLabel}</span>
-                          <span>{formatCalories(meal.totals.calories)}</span>
+
+                <Tabs defaultValue="resumo" className="gap-4">
+                  <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-7">
+                    <TabsTrigger className="min-h-11 rounded-xl" value="resumo">Resumo</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="hoje">Hoje</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="relatorios">Relatórios</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="metas">Metas</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="sugestoes">Sugestões</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="ia">IA</TabsTrigger>
+                    <TabsTrigger className="min-h-11 rounded-xl" value="comentarios">Comentários</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="resumo" className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <Metric label="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} />
+                      <Metric label="Calorias consumidas" value={formatCalories(dashboard.data.calories.consumed)} />
+                      <Metric label="Proteínas" value={formatGrams(dashboard.data.macros.protein)} />
+                      <Metric label="Variação de peso" value={`${dashboard.data.weight.deltaKg ?? 0} kg`} />
+                    </div>
+                    <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                      Esta visão é do paciente selecionado, não da conta pessoal do nutricionista. Os dados só aparecem enquanto houver vínculo aprovado.
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="hoje" className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Metric label="Refeições hoje" value={String(todayMeals.length)} />
+                      <Metric label="Calorias semanais" value={formatCalories(dashboard.data.calories.consumed)} />
+                      <Metric label="Proteína semanal" value={formatGrams(dashboard.data.macros.protein)} />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-medium">Registros do dia</p>
+                      {todayMeals.length ? todayMeals.map(meal => <MealRow key={meal.id} meal={meal} />) : <Empty text="Nenhuma refeição registrada hoje para este paciente." />}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="relatorios" className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <Metric label="Planejado na semana" value={formatCalories(dashboard.data.calories.planned)} />
+                      <Metric label="Consumido na semana" value={formatCalories(dashboard.data.calories.consumed)} />
+                      <Metric label="Gasto estimado" value={formatCalories(dashboard.data.calories.burned)} />
+                      <Metric label="Peso" value={dashboard.data.weight.hasData ? `${dashboard.data.weight.lastWeightKg} kg` : "Sem dados"} />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-medium">Registros recentes</p>
+                      {dashboard.data.meals.slice(0, 8).map(meal => <MealRow key={meal.id} meal={meal} />)}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="metas" className="space-y-4">
+                    {defaultNutritionGoal ? (
+                      <>
+                        <div className="grid gap-3 md:grid-cols-5">
+                          <Metric label="Meta calórica" value={formatCalories(defaultNutritionGoal.calories)} />
+                          <Metric label="Meta proteína" value={formatGrams(defaultNutritionGoal.proteinGrams)} />
+                          <Metric label="Meta carboidratos" value={formatGrams(defaultNutritionGoal.carbsGrams)} />
+                          <Metric label="Meta gorduras" value={formatGrams(defaultNutritionGoal.fatGrams)} />
+                          <Metric label="Exceções" value={String(dashboard.data.nutritionGoal.exceptions.length)} />
                         </div>
-                        <p className="text-xs text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
+                        <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                          A sugestão fica registrada para o paciente avaliar depois. A meta ativa não é alterada automaticamente por esta área profissional.
+                        </div>
+                      </>
+                    ) : <Empty text="Nenhuma meta nutricional encontrada para este paciente." />}
+
+                    <div className="rounded-2xl border bg-background p-4">
+                      <div className="mb-4">
+                        <p className="font-medium">Sugerir ajuste de meta</p>
+                        <p className="text-sm text-muted-foreground">Os campos começam com a meta atual para facilitar pequenos ajustes.</p>
                       </div>
-                    ))}
-                  </div>
-                  <div className="space-y-3">
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <label className="space-y-2">
+                          <Label>Calorias</Label>
+                          <Input type="number" min={800} value={goalSuggestion.calories} onChange={event => setGoalSuggestion(previous => ({ ...previous, calories: event.target.value }))} />
+                        </label>
+                        <label className="space-y-2">
+                          <Label>Proteína (g)</Label>
+                          <Input type="number" min={20} value={goalSuggestion.proteinGrams} onChange={event => setGoalSuggestion(previous => ({ ...previous, proteinGrams: event.target.value }))} />
+                        </label>
+                        <label className="space-y-2">
+                          <Label>Carboidratos (g)</Label>
+                          <Input type="number" min={20} value={goalSuggestion.carbsGrams} onChange={event => setGoalSuggestion(previous => ({ ...previous, carbsGrams: event.target.value }))} />
+                        </label>
+                        <label className="space-y-2">
+                          <Label>Gorduras (g)</Label>
+                          <Input type="number" min={10} value={goalSuggestion.fatGrams} onChange={event => setGoalSuggestion(previous => ({ ...previous, fatGrams: event.target.value }))} />
+                        </label>
+                      </div>
+                      <label className="mt-3 block space-y-2">
+                        <Label>Justificativa</Label>
+                        <Textarea
+                          value={goalSuggestion.rationale}
+                          onChange={event => setGoalSuggestion(previous => ({ ...previous, rationale: event.target.value }))}
+                          placeholder="Ex.: reduzir calorias mantendo proteína alta para preservar saciedade."
+                        />
+                      </label>
+                      <Button
+                        className="mt-4 rounded-full"
+                        disabled={!canSuggestGoal || suggestGoal.isPending}
+                        onClick={() => selectedPatientId && suggestGoal.mutate({
+                          patientId: selectedPatientId,
+                          rationale: goalSuggestion.rationale.trim(),
+                          status: "sent",
+                          goal: {
+                            defaultGoal: {
+                              calories: suggestedCalories,
+                              proteinGrams: suggestedProtein,
+                              carbsGrams: suggestedCarbs,
+                              fatGrams: suggestedFat,
+                            },
+                            exceptions: dashboard.data.nutritionGoal.exceptions,
+                          },
+                        })}
+                      >
+                        <MessageSquarePlus className="mr-2 h-4 w-4" /> Enviar sugestão
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="font-medium">Sugestões registradas</p>
+                      {goalSuggestions.length ? goalSuggestions.map(suggestion => (
+                        <GoalSuggestionRow key={suggestion.id} suggestion={suggestion} />
+                      )) : <Empty text="Nenhuma sugestão de meta registrada para este paciente." />}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="sugestoes" className="space-y-4">
+                    <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                      Sugestões de refeição ficam registradas para acompanhamento e não criam refeições automaticamente no diário do paciente.
+                    </div>
+                    <div className="rounded-2xl border bg-background p-4">
+                      <div className="mb-4">
+                        <p className="font-medium">Sugerir refeição ou plano alimentar</p>
+                        <p className="text-sm text-muted-foreground">Descreva a proposta em linguagem prática para o paciente revisar depois.</p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-[0.7fr_1.3fr]">
+                        <label className="space-y-2">
+                          <Label>Refeição</Label>
+                          <Input value={mealSuggestion.mealLabel} onChange={event => setMealSuggestion(previous => ({ ...previous, mealLabel: event.target.value }))} placeholder="Almoço" />
+                        </label>
+                        <label className="space-y-2">
+                          <Label>Título</Label>
+                          <Input value={mealSuggestion.title} onChange={event => setMealSuggestion(previous => ({ ...previous, title: event.target.value }))} placeholder="Almoço rico em proteína" />
+                        </label>
+                      </div>
+                      <label className="mt-3 block space-y-2">
+                        <Label>Descrição da sugestão</Label>
+                        <Textarea
+                          value={mealSuggestion.description}
+                          onChange={event => setMealSuggestion(previous => ({ ...previous, description: event.target.value }))}
+                          placeholder="Ex.: arroz, feijão, frango grelhado, salada e uma fruta."
+                        />
+                      </label>
+                      <label className="mt-3 block space-y-2">
+                        <Label>Justificativa</Label>
+                        <Textarea
+                          value={mealSuggestion.rationale}
+                          onChange={event => setMealSuggestion(previous => ({ ...previous, rationale: event.target.value }))}
+                          placeholder="Ex.: melhorar saciedade no almoço mantendo a meta de proteína."
+                        />
+                      </label>
+                      <label className="mt-3 block space-y-2">
+                        <Label>Observações opcionais</Label>
+                        <Textarea
+                          value={mealSuggestion.notes}
+                          onChange={event => setMealSuggestion(previous => ({ ...previous, notes: event.target.value }))}
+                          placeholder="Ex.: trocar frango por ovos nos dias sem preparo."
+                        />
+                      </label>
+                      <Button
+                        className="mt-4 rounded-full"
+                        disabled={!canSuggestMeal || suggestMeal.isPending}
+                        onClick={() => selectedPatientId && suggestMeal.mutate({
+                          patientId: selectedPatientId,
+                          mealLabel: mealSuggestion.mealLabel.trim(),
+                          title: mealSuggestion.title.trim(),
+                          description: mealSuggestion.description.trim(),
+                          rationale: mealSuggestion.rationale.trim(),
+                          notes: mealSuggestion.notes.trim() || undefined,
+                          status: "sent",
+                        })}
+                      >
+                        <MessageSquarePlus className="mr-2 h-4 w-4" /> Enviar sugestão
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="font-medium">Sugestões de refeição registradas</p>
+                      {mealSuggestions.length ? mealSuggestions.map(suggestion => (
+                        <MealSuggestionRow key={suggestion.id} suggestion={suggestion} />
+                      )) : <Empty text="Nenhuma sugestão de refeição registrada para este paciente." />}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="ia" className="space-y-4">
+                    <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                      Perguntas com IA usam apenas o contexto autorizado deste paciente e retornam apoio educativo para análise profissional.
+                    </div>
+                    <div className="rounded-2xl border bg-background p-4">
+                      <label className="space-y-2">
+                        <Label>Pergunta sobre o paciente</Label>
+                        <Textarea
+                          value={patientQuestion}
+                          onChange={event => setPatientQuestion(event.target.value)}
+                          placeholder="Ex.: O que chama atenção na aderência desta semana?"
+                        />
+                      </label>
+                      <Button
+                        className="mt-4 rounded-full"
+                        disabled={!canAskQuestion || askPatientQuestion.isPending}
+                        onClick={() => selectedPatientId && askPatientQuestion.mutate({ patientId: selectedPatientId, question: patientQuestion.trim() })}
+                      >
+                        <MessageSquarePlus className="mr-2 h-4 w-4" /> Perguntar
+                      </Button>
+                    </div>
+                    {patientAnswer ? <PatientAiAnswerCard answer={patientAnswer} /> : <Empty text="Faça uma pergunta para gerar uma resposta com base no contexto autorizado." />}
+                  </TabsContent>
+
+                  <TabsContent value="comentarios" className="space-y-3">
                     <p className="font-medium">Comentários profissionais</p>
                     <Textarea value={comment} onChange={event => setComment(event.target.value)} placeholder="Adicionar comentário de acompanhamento" />
                     <Button
@@ -243,11 +513,11 @@ export default function ProfessionalPage() {
                     >
                       <MessageSquarePlus className="mr-2 h-4 w-4" /> Comentar
                     </Button>
-                    {dashboard.data.comments.map(item => (
+                    {dashboard.data.comments.length ? dashboard.data.comments.map(item => (
                       <div key={item.id} className="rounded-xl border bg-muted/20 p-3 text-sm">{item.comment}</div>
-                    ))}
-                  </div>
-                </div>
+                    )) : <Empty text="Nenhum comentário profissional registrado para este paciente." />}
+                  </TabsContent>
+                </Tabs>
               </>
             ) : (
               <Empty text="Selecione um paciente autorizado para visualizar o acompanhamento." />
@@ -292,13 +562,104 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function InfoStep({ title, text }: { title: string; text: string }) {
+function MealRow({ meal }: { meal: { id: number; mealLabel: string; occurredAt: string | number | Date; totals: { calories: number } } }) {
   return (
-    <div className="rounded-2xl border bg-background p-4">
-      <p className="font-medium tracking-tight">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
+    <div className="rounded-xl border bg-background p-3 text-sm">
+      <div className="flex justify-between gap-3">
+        <span className="font-medium">{meal.mealLabel}</span>
+        <span>{formatCalories(meal.totals.calories)}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
     </div>
   );
+}
+
+function PatientAiAnswerCard({ answer }: { answer: PatientAiAnswer }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 text-sm leading-6">
+      <p className="font-medium">Resposta</p>
+      <p className="mt-2 text-muted-foreground">{answer.answer}</p>
+      {answer.citedContext.length ? (
+        <div className="mt-3">
+          <p className="text-xs font-medium uppercase text-muted-foreground">Contexto usado</p>
+          <div className="mt-2 grid gap-2 md:grid-cols-3">
+            {answer.citedContext.map(item => <span key={item} className="rounded-xl border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">{item}</span>)}
+          </div>
+        </div>
+      ) : null}
+      {answer.caution ? <p className="mt-3 text-xs text-muted-foreground">{answer.caution}</p> : null}
+      <p className="mt-3 text-xs text-muted-foreground">{answer.educationalNotice}</p>
+    </div>
+  );
+}
+
+function GoalSuggestionRow({ suggestion }: {
+  suggestion: {
+    id: string;
+    status: string;
+    rationale: string;
+    createdAt: number;
+    goal: {
+      defaultGoal: {
+        calories: number;
+        proteinGrams: number;
+        carbsGrams: number;
+        fatGrams: number;
+      };
+    };
+  };
+}) {
+  return (
+    <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">{suggestionStatusLabel(suggestion.status)}</span>
+        <span className="text-xs text-muted-foreground">{new Date(suggestion.createdAt).toLocaleString("pt-BR")}</span>
+      </div>
+      <div className="mt-2 grid gap-2 text-muted-foreground md:grid-cols-4">
+        <span>{formatCalories(suggestion.goal.defaultGoal.calories)}</span>
+        <span>{formatGrams(suggestion.goal.defaultGoal.proteinGrams)} proteína</span>
+        <span>{formatGrams(suggestion.goal.defaultGoal.carbsGrams)} carboidratos</span>
+        <span>{formatGrams(suggestion.goal.defaultGoal.fatGrams)} gorduras</span>
+      </div>
+      <p className="mt-2 text-muted-foreground">{suggestion.rationale}</p>
+    </div>
+  );
+}
+
+function MealSuggestionRow({ suggestion }: {
+  suggestion: {
+    id: string;
+    status: string;
+    mealLabel: string;
+    title: string;
+    description: string;
+    rationale: string;
+    notes?: string;
+    createdAt: number;
+  };
+}) {
+  return (
+    <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">{suggestion.mealLabel} · {suggestion.title}</span>
+        <span className="text-xs text-muted-foreground">{suggestionStatusLabel(suggestion.status)} · {new Date(suggestion.createdAt).toLocaleString("pt-BR")}</span>
+      </div>
+      <p className="mt-2 text-muted-foreground">{suggestion.description}</p>
+      <p className="mt-2 text-muted-foreground">Justificativa: {suggestion.rationale}</p>
+      {suggestion.notes ? <p className="mt-2 text-xs text-muted-foreground">Obs.: {suggestion.notes}</p> : null}
+    </div>
+  );
+}
+
+function suggestionStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    draft: "Rascunho",
+    sent: "Enviada",
+    accepted: "Aceita",
+    refused: "Recusada",
+    cancelled: "Cancelada",
+  };
+  return labels[status] ?? status;
 }
 
 function Empty({ text }: { text: string }) {

@@ -1,12 +1,21 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
-import { users } from "../../../drizzle/schema";
+import { eq, or } from "drizzle-orm";
+import { users, whatsappConnections } from "../../../drizzle/schema";
+import { invokeLLM } from "../../_core/llm";
 import { getDb, getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
-import type {
-  ProfessionalCommentInput,
-  ProfessionalGoalSuggestionInput,
-  ProfessionalProfileInput,
-  RequestPatientAccessInput,
+import { redactSensitiveText } from "../../privacy";
+import { getNutritionGoal } from "../goals/service";
+import {
+  professionalPatientAnswerSchema,
+  type ProfessionalCommentInput,
+  type ProfessionalGoalSuggestionInput,
+  type ProfessionalGoalSuggestionStatus,
+  type ProfessionalMealSuggestionInput,
+  type ProfessionalMealSuggestionStatus,
+  type ProfessionalPatientAnswer,
+  type ProfessionalPatientQuestionInput,
+  type ProfessionalProfileInput,
+  type RequestPatientAccessInput,
 } from "./schemas";
 
 type AccessStatus = "pending" | "approved" | "revoked" | "rejected";
@@ -15,6 +24,7 @@ type ProfessionalProfile = {
   userId: number;
   displayName: string;
   registrationNumber?: string;
+  active: boolean;
   createdAt: number;
   updatedAt: number;
 };
@@ -43,8 +53,26 @@ type GoalSuggestion = {
   professionalUserId: number;
   patientUserId: number;
   rationale: string;
+  status: ProfessionalGoalSuggestionStatus;
   goal: ProfessionalGoalSuggestionInput["goal"];
   createdAt: number;
+  sentAt: number | null;
+  respondedAt: number | null;
+};
+
+type MealSuggestion = {
+  id: string;
+  professionalUserId: number;
+  patientUserId: number;
+  mealLabel: string;
+  title: string;
+  description: string;
+  rationale: string;
+  notes?: string;
+  status: ProfessionalMealSuggestionStatus;
+  createdAt: number;
+  sentAt: number | null;
+  respondedAt: number | null;
 };
 
 type HistoryEvent = {
@@ -52,7 +80,7 @@ type HistoryEvent = {
   actorUserId: number;
   patientUserId: number;
   professionalUserId: number;
-  eventType: "profile_upserted" | "access_requested" | "access_approved" | "access_revoked" | "comment_created" | "goal_suggested";
+  eventType: "profile_upserted" | "access_requested" | "access_approved" | "access_revoked" | "comment_created" | "goal_suggested" | "meal_suggested" | "patient_question_answered";
   createdAt: number;
 };
 
@@ -62,10 +90,13 @@ type UserSummary = {
   email: string | null;
 };
 
+const PROFESSIONAL_AI_NOTICE = "Resposta educativa para apoiar a análise profissional. Não substitui julgamento clínico, diagnóstico, prescrição médica ou decisão compartilhada com o paciente.";
+
 const profiles = new Map<number, ProfessionalProfile>();
 const accesses = new Map<string, ProfessionalPatientAccess>();
 const comments: ProfessionalComment[] = [];
 const goalSuggestions: GoalSuggestion[] = [];
+const mealSuggestions: MealSuggestion[] = [];
 const history: HistoryEvent[] = [];
 
 function pushHistory(event: Omit<HistoryEvent, "id" | "createdAt">) {
@@ -82,6 +113,45 @@ function publicAccess(access: ProfessionalPatientAccess) {
     requestedAt: access.requestedAt,
     approvedAt: access.approvedAt,
     revokedAt: access.revokedAt,
+  };
+}
+
+function normalizeContact(value: string) {
+  return value.trim();
+}
+
+function normalizePhoneDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function isEmailContact(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function responseTimestamp(status: ProfessionalGoalSuggestionStatus | ProfessionalMealSuggestionStatus, now: number) {
+  return ["accepted", "refused", "cancelled"].includes(status) ? now : null;
+}
+
+function assertActiveProfessionalProfile(userId: number) {
+  const profile = profiles.get(userId);
+  if (!profile?.active) {
+    throw new Error("Ative seu perfil profissional em Configurações antes de acessar o módulo Nutricionista.");
+  }
+  return profile;
+}
+
+function parseAssistantContent(content: unknown) {
+  const text = Array.isArray(content)
+    ? content.map(part => ("text" in part ? part.text : "")).join("\n")
+    : String(content ?? "");
+  return JSON.parse(text);
+}
+
+export function getProfessionalStatus(userId: number) {
+  const profile = profiles.get(userId) ?? null;
+  return {
+    hasActiveProfile: Boolean(profile?.active),
+    profile,
   };
 }
 
@@ -129,6 +199,38 @@ async function getUserSummaryByEmail(email: string): Promise<UserSummary | null>
   };
 }
 
+async function getUserSummaryByPhone(phone: string): Promise<UserSummary | null> {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("A busca por paciente via celular depende do banco configurado neste ambiente.");
+  }
+
+  const digits = normalizePhoneDigits(phone);
+  const phoneCandidates = Array.from(new Set([phone.trim(), digits, digits ? `+${digits}` : ""].filter(Boolean)));
+  const rows = await db
+    .select({ user: users })
+    .from(whatsappConnections)
+    .innerJoin(users, eq(users.id, whatsappConnections.userId))
+    .where(or(...phoneCandidates.map(candidate => eq(whatsappConnections.phoneNumber, candidate))))
+    .limit(1);
+  const user = rows[0]?.user;
+  if (!user) return null;
+
+  return {
+    userId: user.id,
+    name: user.name ?? null,
+    email: user.email ?? null,
+  };
+}
+
+async function getUserSummaryByContact(contact: string): Promise<UserSummary | null> {
+  const normalizedContact = normalizeContact(contact);
+  if (isEmailContact(normalizedContact)) {
+    return getUserSummaryByEmail(normalizedContact);
+  }
+  return getUserSummaryByPhone(normalizedContact);
+}
+
 function getApprovedAccess(professionalUserId: number, patientUserId: number) {
   return Array.from(accesses.values()).find(access =>
     access.professionalUserId === professionalUserId &&
@@ -142,6 +244,7 @@ function assertApprovedAccess(professionalUserId: number, patientUserId: number)
   if (!access) {
     throw new Error("Acesso profissional não autorizado pelo paciente.");
   }
+  assertActiveProfessionalProfile(professionalUserId);
   return access;
 }
 
@@ -151,6 +254,7 @@ export function upsertProfessionalProfile(userId: number, input: ProfessionalPro
     userId,
     displayName: input.displayName,
     registrationNumber: input.registrationNumber,
+    active: input.active,
     createdAt: profiles.get(userId)?.createdAt ?? now,
     updatedAt: now,
   };
@@ -169,12 +273,12 @@ export function getProfessionalProfile(userId: number) {
 }
 
 export async function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
-  const profile = profiles.get(professionalUserId);
-  if (!profile) throw new Error("Crie seu perfil profissional antes de solicitar acesso.");
+  assertActiveProfessionalProfile(professionalUserId);
 
-  const patient = await getUserSummaryByEmail(input.patientEmail);
-  if (!patient?.email) {
-    throw new Error("Nenhum paciente foi encontrado com esse e-mail.");
+  const patientContact = input.patientContact ?? input.patientEmail ?? "";
+  const patient = await getUserSummaryByContact(patientContact);
+  if (!patient) {
+    throw new Error("Nenhum paciente foi encontrado com esse e-mail ou celular.");
   }
   if (professionalUserId === patient.userId) throw new Error("Profissional e paciente precisam ser usuários diferentes.");
 
@@ -214,6 +318,7 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
 }
 
 export async function listProfessionalAccesses(professionalUserId: number) {
+  assertActiveProfessionalProfile(professionalUserId);
   const professionalAccesses = Array.from(accesses.values()).filter(access => access.professionalUserId === professionalUserId);
   const patients = await Promise.all(professionalAccesses.map(access => getUserSummary(access.patientUserId)));
   const patientMap = new Map(
@@ -268,12 +373,13 @@ export function revokePatientAccess(patientUserId: number, accessId: string) {
 
 export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number) {
   assertApprovedAccess(professionalUserId, patientUserId);
-  const [dashboard, weeklyProgress, weeklyReport, meals, patient] = await Promise.all([
+  const [dashboard, weeklyProgress, weeklyReport, meals, patient, nutritionGoal] = await Promise.all([
     getDashboardSnapshot(patientUserId),
     getWeeklyProgress(patientUserId),
     getWeeklySummary(patientUserId),
     listUserMeals(patientUserId),
     getUserSummary(patientUserId),
+    getNutritionGoal(patientUserId),
   ]);
 
   return {
@@ -291,10 +397,58 @@ export async function getProfessionalPatientDashboard(professionalUserId: number
       fat: dashboard.week.consumed.fat,
     },
     weight: weeklyProgress.weight,
+    nutritionGoal,
     weeklyReport,
     meals: meals.slice(0, 20),
     comments: comments.filter(comment => comment.professionalUserId === professionalUserId && comment.patientUserId === patientUserId),
     goalSuggestions: goalSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
+    mealSuggestions: mealSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
+  };
+}
+
+type ProfessionalPatientDashboard = Awaited<ReturnType<typeof getProfessionalPatientDashboard>>;
+
+function buildPatientQuestionContext(snapshot: ProfessionalPatientDashboard) {
+  return {
+    weeklyAdherence: snapshot.weeklyAdherence,
+    calories: snapshot.calories,
+    consumedMacros: snapshot.macros,
+    currentGoal: snapshot.nutritionGoal.defaultGoal,
+    goalExceptionsCount: snapshot.nutritionGoal.exceptions.length,
+    weight: snapshot.weight,
+    recentMeals: snapshot.meals.slice(0, 8).map(meal => ({
+      mealLabel: meal.mealLabel,
+      occurredAt: meal.occurredAt,
+      calories: meal.totals.calories,
+    })),
+    suggestionCounts: {
+      goals: snapshot.goalSuggestions.length,
+      meals: snapshot.mealSuggestions.length,
+      comments: snapshot.comments.length,
+    },
+  };
+}
+
+function buildFallbackPatientAnswer(question: string, snapshot: ProfessionalPatientDashboard): ProfessionalPatientAnswer & { generatedAt: number } {
+  const context = buildPatientQuestionContext(snapshot);
+  const consumed = Math.round(context.calories.consumed);
+  const planned = Math.round(context.calories.planned);
+  const adherence = Math.round(context.weeklyAdherence);
+
+  return {
+    answer: [
+      `Com base nos dados autorizados, a semana mostra ${consumed} kcal consumidas de ${planned} kcal planejadas e aderência de ${adherence}%.`,
+      "Use essa leitura como apoio para revisar registros recentes, metas e comentários antes de sugerir ajustes.",
+      `Pergunta analisada: ${question}`,
+    ].join(" "),
+    citedContext: [
+      `Aderência semanal: ${adherence}%`,
+      `Calorias semanais: ${consumed}/${planned}`,
+      `Refeições recentes consideradas: ${context.recentMeals.length}`,
+    ],
+    caution: "A resposta foi gerada em modo seguro de fallback, sem chamada ao provedor de IA.",
+    educationalNotice: PROFESSIONAL_AI_NOTICE,
+    generatedAt: Date.now(),
   };
 }
 
@@ -319,13 +473,17 @@ export function addProfessionalComment(professionalUserId: number, input: Profes
 
 export function suggestGoalAdjustment(professionalUserId: number, input: ProfessionalGoalSuggestionInput) {
   assertApprovedAccess(professionalUserId, input.patientId);
+  const now = Date.now();
   const suggestion: GoalSuggestion = {
     id: crypto.randomUUID(),
     professionalUserId,
     patientUserId: input.patientId,
     rationale: input.rationale,
+    status: input.status,
     goal: input.goal,
-    createdAt: Date.now(),
+    createdAt: now,
+    sentAt: input.status === "sent" ? now : null,
+    respondedAt: responseTimestamp(input.status, now),
   };
   goalSuggestions.push(suggestion);
   pushHistory({
@@ -337,6 +495,103 @@ export function suggestGoalAdjustment(professionalUserId: number, input: Profess
   return suggestion;
 }
 
+export function suggestMealPlan(professionalUserId: number, input: ProfessionalMealSuggestionInput) {
+  assertApprovedAccess(professionalUserId, input.patientId);
+  const now = Date.now();
+  const suggestion: MealSuggestion = {
+    id: crypto.randomUUID(),
+    professionalUserId,
+    patientUserId: input.patientId,
+    mealLabel: input.mealLabel,
+    title: input.title,
+    description: input.description,
+    rationale: input.rationale,
+    notes: input.notes,
+    status: input.status,
+    createdAt: now,
+    sentAt: input.status === "sent" ? now : null,
+    respondedAt: responseTimestamp(input.status, now),
+  };
+  mealSuggestions.push(suggestion);
+  pushHistory({
+    actorUserId: professionalUserId,
+    professionalUserId,
+    patientUserId: input.patientId,
+    eventType: "meal_suggested",
+  });
+  return suggestion;
+}
+
+export async function answerProfessionalPatientQuestion(professionalUserId: number, input: ProfessionalPatientQuestionInput) {
+  assertApprovedAccess(professionalUserId, input.patientId);
+  const snapshot = await getProfessionalPatientDashboard(professionalUserId, input.patientId);
+  const sanitizedQuestion = redactSensitiveText(input.question);
+  const context = buildPatientQuestionContext(snapshot);
+
+  try {
+    const result = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: [
+            "Você é um assistente educativo para nutricionistas dentro de um app de controle alimentar.",
+            "Responda somente com base no contexto autorizado do paciente fornecido.",
+            "Não faça diagnóstico, prescrição médica, promessa de resultado ou decisão clínica final.",
+            "Se a pergunta exigir dado ausente, diga claramente que o dado não está disponível no contexto.",
+            "Use linguagem objetiva, profissional e cautelosa.",
+            "Responda apenas JSON válido no schema solicitado.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            pergunta: sanitizedQuestion,
+            contexto: context,
+            avisoObrigatorio: PROFESSIONAL_AI_NOTICE,
+          }),
+        },
+      ],
+      outputSchema: {
+        name: "professional_patient_answer",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            answer: { type: "string" },
+            citedContext: {
+              type: "array",
+              items: { type: "string" },
+            },
+            caution: { type: "string" },
+            educationalNotice: { type: "string" },
+          },
+          required: ["answer", "citedContext", "educationalNotice"],
+        },
+      },
+    });
+
+    const parsed = professionalPatientAnswerSchema.parse(parseAssistantContent(result.choices[0]?.message.content));
+    pushHistory({
+      actorUserId: professionalUserId,
+      professionalUserId,
+      patientUserId: input.patientId,
+      eventType: "patient_question_answered",
+    });
+    return { ...parsed, generatedAt: Date.now() };
+  } catch {
+    const fallback = buildFallbackPatientAnswer(sanitizedQuestion, snapshot);
+    pushHistory({
+      actorUserId: professionalUserId,
+      professionalUserId,
+      patientUserId: input.patientId,
+      eventType: "patient_question_answered",
+    });
+    return fallback;
+  }
+}
+
 export function listProfessionalHistory(userId: number) {
+  assertActiveProfessionalProfile(userId);
   return history.filter(event => event.professionalUserId === userId || event.patientUserId === userId);
 }

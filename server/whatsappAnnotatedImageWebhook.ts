@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import { generateImage, type GenerateImageResponse } from "./_core/imageGeneration";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, logInferenceEvent } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
+import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
 import {
   buildMediaDataUrl,
@@ -13,13 +13,13 @@ import {
   isWhatsAppMessageForConfiguredChannel,
   markWhatsAppMessageAsRead,
   resolveWhatsAppMessageOccurredAt,
-  sendWhatsAppCtaUrlMessage,
   sendWhatsAppImageMessage,
+  sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppTextMessage,
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
-import { MealProcessingResult, processMealInput } from "./nutritionEngine";
+import { processMealInput } from "./nutritionEngine";
 import { storagePut } from "./storage";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
 
@@ -70,96 +70,11 @@ function markAnnotatedImageMessageHandled(messageId?: string) {
   }
 }
 
-function formatMacro(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
-}
-
 function formatReplyTime(date: Date) {
   return date.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "America/Sao_Paulo",
-  });
-}
-
-function formatFoodDescription(item: MealProcessingResult["items"][number]) {
-  const portionHasGrams = /\d\s*g\b/i.test(item.portionText);
-  const gramsLabel = !portionHasGrams && item.estimatedGrams > 0 ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)` : "";
-  return `${item.portionText}${gramsLabel} ${item.foodName}`.trim();
-}
-
-function imageDataFromDataUrl(dataUrl?: string) {
-  const match = dataUrl?.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) return null;
-  return { mimeType: match[1], b64Json: match[2] };
-}
-
-function buildAnnotatedMealImagePrompt(processed: MealProcessingResult) {
-  const labels = processed.items
-    .slice(0, 12)
-    .map((item, index) => `${index + 1}. ${item.foodName}: ${formatMacro(item.calories)} kcal, P ${formatMacro(item.protein)}g, C ${formatMacro(item.carbs)}g, G ${formatMacro(item.fat)}g`)
-    .join("\n");
-
-  return [
-    "Edite a foto original da refeição adicionando legendas visuais sobre os alimentos identificados, no estilo de análise nutricional da imagem de referência.",
-    "Use etiquetas verdes translúcidas com texto grande e linhas discretas apontando para cada alimento quando fizer sentido.",
-    "Cada legenda deve mostrar nome do alimento, calorias e macronutrientes no formato P/C/G em gramas.",
-    "Mantenha a foto realista, preserve o prato original e não adicione alimentos novos.",
-    "Use texto em português do Brasil, grande e legível em celular.",
-    `Itens detectados:\n${labels || "Alimentos identificados na refeição."}`,
-  ].join("\n");
-}
-
-function buildMealCardsImagePrompt(processed: MealProcessingResult) {
-  const labels = processed.items
-    .slice(0, 12)
-    .map((item, index) => `${index + 1}. ${item.foodName}: ${formatFoodDescription(item)}, ${formatMacro(item.calories)} kcal, proteína ${formatMacro(item.protein)}g, carboidratos ${formatMacro(item.carbs)}g, gorduras ${formatMacro(item.fat)}g`)
-    .join("\n");
-
-  return [
-    "Crie uma imagem quadrada com cards nutricionais limpos e legíveis para celular.",
-    "Use fundo claro, cards organizados, ícones simples de comida e texto em português do Brasil.",
-    "Cada card deve mostrar alimento, porção, calorias e macronutrientes P/C/G.",
-    "Não inclua foto real nem alimentos novos; use apenas os dados abaixo.",
-    `Refeição: ${processed.detectedMealLabel || "Refeição"}`,
-    `Total: ${formatMacro(processed.totals.calories)} kcal | P ${formatMacro(processed.totals.protein)}g | C ${formatMacro(processed.totals.carbs)}g | G ${formatMacro(processed.totals.fat)}g`,
-    `Itens:\n${labels || "Alimentos identificados na refeição."}`,
-  ].join("\n");
-}
-
-async function generateAnnotatedMealImage(processed: MealProcessingResult, prepared: PreparedImageMessage): Promise<GenerateImageResponse> {
-  const sourceImage = imageDataFromDataUrl(prepared.imageAnalysisUrl);
-  if (!processed.items.length) {
-    return { skippedReason: "no_prompt" };
-  }
-
-  if (sourceImage) {
-    const editedImage = await generateImage({
-      prompt: buildAnnotatedMealImagePrompt(processed),
-      originalImages: [sourceImage],
-    });
-
-    if (editedImage.url) {
-      return editedImage;
-    }
-  }
-
-  return generateImage({
-    prompt: buildMealCardsImagePrompt(processed),
-  });
-}
-
-function buildAnnotatedImageMedia(annotatedImage: GenerateImageResponse) {
-  if (!annotatedImage.url || !annotatedImage.storageKey) {
-    return null;
-  }
-
-  return buildSavedMedia({
-    mediaType: "image",
-    storageKey: annotatedImage.storageKey,
-    storageUrl: annotatedImage.url,
-    mimeType: annotatedImage.mimeType || "image/png",
-    originalFileName: "whatsapp-annotated-meal.png",
   });
 }
 
@@ -218,6 +133,20 @@ async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone:
   }
 
   return prepared;
+}
+
+function buildAnnotatedImageMedia(annotatedImage: { url?: string; storageKey?: string; mimeType?: string }) {
+  if (!annotatedImage.url || !annotatedImage.storageKey) {
+    return null;
+  }
+
+  return buildSavedMedia({
+    mediaType: "image",
+    storageKey: annotatedImage.storageKey,
+    storageUrl: annotatedImage.url,
+    mimeType: annotatedImage.mimeType || "image/png",
+    originalFileName: "whatsapp-annotated-meal.png",
+  });
 }
 
 function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Set<string>) {
@@ -330,7 +259,7 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
       imageUrl: prepared.imageUrl,
     };
 
-    const annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared);
+    const annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared.imageAnalysisUrl);
     const annotatedMedia = buildAnnotatedImageMedia(annotatedImage);
     if (annotatedMedia) {
       prepared.media.push(annotatedMedia);
@@ -364,13 +293,13 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
     });
 
     const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: savedMeal.id });
-    const replyResult = await sendWhatsAppTextMessage(
-      sourcePhone,
-      buildWhatsAppMealReplyMessage(processedForPersistence, {
-        registeredAt: occurredAt,
-        goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
-      }),
-    );
+    const mealReplyText = buildWhatsAppMealReplyMessage(processedForPersistence, {
+      registeredAt: occurredAt,
+      goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+    });
+    const replyResult = quickEditLink?.url
+      ? await sendWhatsAppInteractiveUrlButtonMessage(sourcePhone, mealReplyText, "Editar refeição", quickEditLink.url)
+      : await sendWhatsAppTextMessage(sourcePhone, mealReplyText);
 
     if (!replyResult.ok) {
       logInferenceEvent({
@@ -380,24 +309,6 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
         eventType: "whatsapp.reply_failed",
         detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
       });
-    }
-
-    if (quickEditLink?.url) {
-      const ctaResult = await sendWhatsAppCtaUrlMessage(
-        sourcePhone,
-        "Quer ajustar algum alimento, quantidade ou unidade?",
-        "Editar refeição",
-        quickEditLink.url,
-      );
-      if (!ctaResult.ok) {
-        logInferenceEvent({
-          userId,
-          origin: "whatsapp",
-          status: "warning",
-          eventType: "whatsapp.cta_reply_failed",
-          detail: `Falha ao enviar botão de edição para ${sourcePhone}: ${ctaResult.detail}`,
-        });
-      }
     }
 
     if (annotatedImage.url) {
