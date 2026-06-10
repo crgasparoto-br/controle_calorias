@@ -560,10 +560,12 @@ describe("nutrition pages", () => {
     const { default: Home } = await import("./Home");
     const html = renderToString(React.createElement(Home));
 
-    expect(html).toContain("Resumo do dia selecionado");
+    expect(html).toContain("Resumo");
     expect(html).toContain("Calorias consumidas");
     expect(html).toContain("Foco do dia");
-    expect(html).toContain("Registrar refeição");
+    expect(html).not.toContain("Registrar refeição");
+    expect(html).not.toContain("Ver registros do dia");
+    expect(html).not.toContain("Ver relatório da semana");
     expect(html).toContain("Água do dia");
     expect(html).toContain("Status do dia");
     expect(html).toContain("Meta 2.500 ml");
