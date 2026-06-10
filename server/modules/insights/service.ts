@@ -425,7 +425,7 @@ function buildWeeklyProgressFromSummary(
     { within: 0, above: 0, below: 0, no_data: 0 },
   );
 
-  const balanceCalories = roundNutritionValue(totalGoalCalories - totalNetCalories);
+  const balanceCalories = roundNutritionValue(totalGoalCalories - totalCalories);
   const message = buildWeeklyNutritionStatus({
     totalCalories,
     daysAboveGoal: daysByStatus.above,
