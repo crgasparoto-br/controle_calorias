@@ -382,7 +382,9 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
   });
 }
 
-function classifyWeeklyDay(day: Awaited<ReturnType<typeof buildWeeklyReportSummary>>[number]) {
+type WeeklyReportSummary = Awaited<ReturnType<typeof buildWeeklyReportSummary>>;
+
+function classifyWeeklyDay(day: WeeklyReportSummary[number]) {
   if (day.calories <= 0) return "no_data" as const;
   const ratio = day.adjustedGoalCalories ? day.calories / day.adjustedGoalCalories : 0;
   if (ratio > 1.05) return "above" as const;
@@ -401,6 +403,63 @@ function emptyQualityIndicators(waterMl = 0) {
     mealCount: 0,
     regularityScore: 0,
     foodQualityItems: [] as FoodQualityDay["items"],
+  };
+}
+
+function buildWeeklyProgressFromSummary(
+  days: WeeklyReportSummary,
+  fallbackProgress: Awaited<ReturnType<typeof getWeeklyProgress>>,
+) {
+  const totalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.calories, 0));
+  const totalGoalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.adjustedGoalCalories, 0));
+  const totalExerciseCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.exerciseCalories, 0));
+  const totalNetCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.netCalories, 0));
+  const averageCalories = roundNutritionValue(totalCalories / Math.max(days.length, 1));
+  const averageProtein = roundNutritionValue(days.reduce((acc, day) => acc + day.protein, 0) / Math.max(days.length, 1));
+  const daysByStatus = days.reduce(
+    (acc, day) => {
+      const status = classifyWeeklyDay(day);
+      acc[status] += 1;
+      return acc;
+    },
+    { within: 0, above: 0, below: 0, no_data: 0 },
+  );
+
+  const balanceCalories = roundNutritionValue(totalGoalCalories - totalNetCalories);
+  const message = buildWeeklyNutritionStatus({
+    totalCalories,
+    daysAboveGoal: daysByStatus.above,
+    daysWithinGoal: daysByStatus.within,
+  });
+  const weightTrend = buildWeightTrendForDates(fallbackProgress.weight.entries, days.map(day => day.date));
+
+  return {
+    days: days.map(day => ({
+      ...day,
+      status: classifyWeeklyDay(day),
+      calorieDelta: roundNutritionValue(day.calories - day.adjustedGoalCalories),
+      netDelta: roundNutritionValue(day.netCalories - day.goalCalories),
+    })),
+    summary: {
+      averageCalories,
+      totalCalories,
+      totalGoalCalories,
+      calorieDelta: roundNutritionValue(totalCalories - totalGoalCalories),
+      daysWithinGoal: daysByStatus.within,
+      daysAboveGoal: daysByStatus.above,
+      daysBelowGoal: daysByStatus.below,
+      daysWithoutRecords: daysByStatus.no_data,
+      averageProtein,
+      totalExerciseCalories,
+      totalNetCalories,
+      balanceCalories,
+      message,
+    },
+    weight: {
+      ...fallbackProgress.weight,
+      entries: weightTrend.points,
+      ...weightTrend.summary,
+    },
   };
 }
 
@@ -561,57 +620,7 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
     getWeeklyProgress(userId),
   ]);
 
-  const totalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.calories, 0));
-  const totalGoalCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.adjustedGoalCalories, 0));
-  const totalExerciseCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.exerciseCalories, 0));
-  const totalNetCalories = roundNutritionValue(days.reduce((acc, day) => acc + day.netCalories, 0));
-  const averageCalories = roundNutritionValue(totalCalories / Math.max(days.length, 1));
-  const averageProtein = roundNutritionValue(days.reduce((acc, day) => acc + day.protein, 0) / Math.max(days.length, 1));
-  const daysByStatus = days.reduce(
-    (acc, day) => {
-      const status = classifyWeeklyDay(day);
-      acc[status] += 1;
-      return acc;
-    },
-    { within: 0, above: 0, below: 0, no_data: 0 },
-  );
-
-  const balanceCalories = roundNutritionValue(totalGoalCalories - totalCalories);
-  const message = buildWeeklyNutritionStatus({
-    totalCalories,
-    daysAboveGoal: daysByStatus.above,
-    daysWithinGoal: daysByStatus.within,
-  });
-  const weightTrend = buildWeightTrendForDates(fallbackProgress.weight.entries, days.map(day => day.date));
-
-  return {
-    days: days.map(day => ({
-      ...day,
-      status: classifyWeeklyDay(day),
-      calorieDelta: roundNutritionValue(day.calories - day.adjustedGoalCalories),
-      netDelta: roundNutritionValue(day.netCalories - day.goalCalories),
-    })),
-    summary: {
-      averageCalories,
-      totalCalories,
-      totalGoalCalories,
-      calorieDelta: roundNutritionValue(totalCalories - totalGoalCalories),
-      daysWithinGoal: daysByStatus.within,
-      daysAboveGoal: daysByStatus.above,
-      daysBelowGoal: daysByStatus.below,
-      daysWithoutRecords: daysByStatus.no_data,
-      averageProtein,
-      totalExerciseCalories,
-      totalNetCalories,
-      balanceCalories,
-      message,
-    },
-    weight: {
-      ...fallbackProgress.weight,
-      entries: weightTrend.points,
-      ...weightTrend.summary,
-    },
-  };
+  return buildWeeklyProgressFromSummary(days, fallbackProgress);
 }
 
 export async function getWeeklyInsightsReport(userId: number, weekOffset = 0) {
@@ -626,11 +635,12 @@ export async function getWeeklyInsightsReport(userId: number, weekOffset = 0) {
 }
 
 export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
-  const [weekly, progress, meals] = await Promise.all([
+  const [weekly, fallbackProgress, meals] = await Promise.all([
     buildWeeklyReportSummary(userId, weekOffset),
-    getWeeklyProgressReport(userId, weekOffset),
+    getWeeklyProgress(userId),
     listUserMeals(userId),
   ]);
+  const progress = buildWeeklyProgressFromSummary(weekly, fallbackProgress);
   const weekDates = new Set(progress.days.map(day => day.date));
   const weeklyMeals = meals.filter(meal => weekDates.has(mealDateKey(meal)));
 
