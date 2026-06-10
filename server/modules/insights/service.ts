@@ -132,6 +132,35 @@ function formatPeriodDateLabel(date: string) {
   }).format(new Date(`${date}T12:00:00Z`));
 }
 
+type WeightEntryForTrend = {
+  date: string;
+  weightKg: number;
+};
+
+function buildWeightTrendForDates(entries: WeightEntryForTrend[] | undefined, dates: string[]) {
+  const dateSet = new Set(dates);
+  const points = (entries ?? [])
+    .filter(entry => dateSet.has(entry.date) && Number.isFinite(entry.weightKg))
+    .map(entry => ({
+      date: entry.date,
+      label: formatPeriodDateLabel(entry.date),
+      weightKg: roundNutritionValue(entry.weightKg),
+    }))
+    .sort((first, second) => first.date.localeCompare(second.date));
+  const firstWeight = points[0];
+  const lastWeight = points[points.length - 1];
+
+  return {
+    points,
+    summary: {
+      hasData: points.length > 0,
+      firstWeightKg: firstWeight?.weightKg ?? null,
+      lastWeightKg: lastWeight?.weightKg ?? null,
+      deltaKg: firstWeight && lastWeight ? roundNutritionValue(lastWeight.weightKg - firstWeight.weightKg) : null,
+    },
+  };
+}
+
 function averageValue(total: number, count: number) {
   if (!count) return 0;
   return total / count;
@@ -549,6 +578,7 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
     daysAboveGoal: daysByStatus.above,
     daysWithinGoal: daysByStatus.within,
   });
+  const weightTrend = buildWeightTrendForDates(fallbackProgress.weight.entries, days.map(day => day.date));
 
   return {
     days: days.map(day => ({
@@ -572,7 +602,11 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
       balanceCalories,
       message,
     },
-    weight: fallbackProgress.weight,
+    weight: {
+      ...fallbackProgress.weight,
+      entries: weightTrend.points,
+      ...weightTrend.summary,
+    },
   };
 }
 
@@ -609,11 +643,12 @@ export async function getPeriodReportBundle(
   userId: number,
   range: { startDate: string; endDate: string },
 ) {
-  const [goal, habitAnalytics, exercises, foods] = await Promise.all([
+  const [goal, habitAnalytics, exercises, foods, progress] = await Promise.all([
     getUserNutritionGoal(userId),
     getHabitAnalyticsReport(userId, range),
     listUserExercises(userId),
     searchFoods(userId, "", 500),
+    getWeeklyProgress(userId),
   ]);
   const dates = listDateKeysInRange(range.startDate, range.endDate);
   const mealsByDay = await Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false })));
@@ -652,6 +687,7 @@ export async function getPeriodReportBundle(
         : 0,
     };
   });
+  const weightTrend = buildWeightTrendForDates(progress.weight.entries, dates);
 
   return {
     range: {
@@ -678,6 +714,7 @@ export async function getPeriodReportBundle(
     quality: {
       foodQuality: calculateFoodQualitySummary(foodQualityDays, dates.length),
     },
+    weightTrend,
   };
 }
 
