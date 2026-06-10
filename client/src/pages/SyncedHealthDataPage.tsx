@@ -10,7 +10,7 @@ import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatIntegerPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Database } from "lucide-react";
-import React, { useState } from "react";
+import { useState } from "react";
 
 const DATA_TYPES = [
   { value: "all", label: "Todos" },
@@ -524,7 +524,8 @@ function formatCaloriesSource(record: SyncedHealthRecord) {
   if (source === "strava") return "Strava";
   if (source === "kilojoules") return "Strava, convertido de kJ";
   if (source === "synced_energy") return "Registro sincronizado";
-  if (estimated) return "Estimativa local";
+  if (source === "estimated_strength") return "Estimativa local de musculação; Strava não retornou calorias oficiais";
+  if (source === "estimated_activity" || estimated) return "Estimativa local; Strava não retornou calorias oficiais";
   return null;
 }
 
