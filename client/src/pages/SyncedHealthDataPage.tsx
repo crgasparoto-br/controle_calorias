@@ -524,7 +524,8 @@ function formatCaloriesSource(record: SyncedHealthRecord) {
   if (source === "strava") return "Strava";
   if (source === "kilojoules") return "Strava, convertido de kJ";
   if (source === "synced_energy") return "Registro sincronizado";
-  if (estimated) return "Estimativa local";
+  if (source === "estimated_strength") return "Estimativa local de musculação; Strava não retornou calorias oficiais";
+  if (source === "estimated_activity" || estimated) return "Estimativa local; Strava não retornou calorias oficiais";
   return null;
 }
 
