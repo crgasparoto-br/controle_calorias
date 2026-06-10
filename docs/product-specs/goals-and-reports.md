@@ -24,6 +24,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - A qualidade alimentar em Relatórios deve ser agregada por período e não deve listar alimentos individualmente.
 - Alimentos sem classificação disponível devem entrar como `não classificados` para não inflar artificialmente percentuais de ultraprocessados ou in natura/minimamente processados.
 - O detalhamento alimento por alimento deve permanecer em Refeições registradas; Relatórios pode apontar para essa tela quando o usuário precisar auditar um dia específico.
+- O gráfico de evolução de peso deve usar os registros de peso existentes nos dias do período selecionado para demonstrar oscilações, mantendo estado vazio quando não houver peso no intervalo.
 
 ## Relatórios orientados a metas
 
@@ -45,7 +46,7 @@ A experiência deve conter:
 - percentual estimado de calorias vindas de alimentos in natura/minimamente processados, quando houver classificação disponível;
 - percentual de calorias não classificadas para deixar clara a limitação dos dados;
 - índice simples de qualidade alimentar calculado apenas sobre calorias classificadas, sem linguagem moralizante;
-- evolução de peso como sinal de apoio, com mensagem cautelosa quando faltarem registros;
+- evolução de peso como sinal de apoio, usando os registros reais do período para mostrar oscilações quando houver mais de um peso registrado;
 - água como contexto da meta, incluindo consumo vs meta de água, média diária, percentual médio de aderência e dias com meta batida;
 - exercícios como contexto da meta, incluindo frequência de dias ativos, gasto estimado e comparação da meta ajustada média entre dias com e sem exercício;
 - comparação de aderência calórica entre dias com exercício e dias sem exercício, para explicar o efeito do gasto estimado na leitura da meta ajustada;
@@ -73,4 +74,5 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 - Relatórios exibem qualidade alimentar agregada por período, sem detalhar alimentos individualmente.
 - Relatórios separam calorias classificadas e não classificadas nos indicadores de qualidade alimentar.
 - Relatórios exibem água e exercícios como indicadores de apoio às metas, sem transformar Reports em dashboard detalhado de treinos ou hidratação.
+- Relatórios usam registros reais de peso do período selecionado no gráfico de evolução de peso quando houver dados no intervalo.
 - Relatórios não duplicam a experiência operacional de Refeições registradas.
