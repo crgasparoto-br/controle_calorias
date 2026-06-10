@@ -13,6 +13,7 @@ import {
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import { executeWhatsappTextIntent } from "./intentActions";
+import { splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
   constructor() {
@@ -101,6 +102,56 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       detail: "Correção textual de alimento detectada antes de interpretar intenção de água.",
     });
     return processMealDraft(userId, { source: "whatsapp", text: correctedFood });
+  }
+
+  const waterFoodSplit = splitWhatsAppWaterAndFoodText(input.text);
+  if (waterFoodSplit) {
+    const waterResults = [];
+    for (const waterLine of waterFoodSplit.waterLines) {
+      const interpretedWater = await executeWhatsappTextIntent(userId, {
+        text: waterLine.text,
+        receivedAt: new Date(),
+      });
+      if (!interpretedWater) {
+        throw new Error(`Não foi possível registrar a hidratação informada em "${waterLine.text}".`);
+      }
+
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: interpretedWater.action === "clarification_needed" ? "warning" : "success",
+        eventType: interpretedWater.eventType,
+        detail: interpretedWater.detail,
+      });
+      waterResults.push(interpretedWater);
+    }
+
+    const meal = await processMealDraft(userId, {
+      source: "whatsapp",
+      text: waterFoodSplit.foodText,
+    });
+
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.water_and_food_multiline_detected",
+      detail: "Mensagem multi-linha com hidratação e alimentos foi separada antes do processamento da refeição.",
+    });
+
+    return {
+      handled: true,
+      action: "water_and_meal_logged",
+      reply: "Registrei a hidratação e encaminhei os alimentos para revisão da refeição.",
+      eventType: "whatsapp.intent.water_and_food_multiline_detected",
+      detail: "Hidratação e alimentos processados a partir de uma mensagem multi-linha.",
+      data: {
+        waterLogs: waterResults.map((result) => result.data),
+        foodText: waterFoodSplit.foodText,
+      },
+      water: waterResults,
+      meal,
+    };
   }
 
   const interpreted = await executeWhatsappTextIntent(userId, {
