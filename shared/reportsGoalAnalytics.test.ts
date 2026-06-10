@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateCalorieAdherence,
+  calculateFoodQualitySummary,
   calculateMacroAdherence,
   calculateMacroDaySummary,
   calculateWeightTrendSummary,
@@ -73,6 +74,52 @@ describe("reportsGoalAnalytics", () => {
     expect(summary.daysWithMacroRecords).toBe(2);
     expect(summary.proteinDaysWithinGoal).toBe(1);
     expect(summary.fatDaysAboveGoal).toBe(1);
+  });
+
+  it("resume qualidade alimentar sem distorcer percentuais por itens não classificados", () => {
+    const summary = calculateFoodQualitySummary(
+      [
+        {
+          date: "2026-06-01",
+          items: [
+            { calories: 120, isFruit: true, isClassified: true },
+            { calories: 180, isVegetable: true, isClassified: true },
+            { calories: 300, isUltraProcessed: true, isClassified: true },
+          ],
+        },
+        {
+          date: "2026-06-02",
+          items: [
+            { calories: 400, isClassified: false },
+            { calories: 100, isVegetable: true, isClassified: true },
+          ],
+        },
+      ],
+      3,
+    );
+
+    expect(summary.hasData).toBe(true);
+    expect(summary.dayCount).toBe(3);
+    expect(summary.daysWithRecords).toBe(2);
+    expect(summary.fruitDays).toBe(1);
+    expect(summary.vegetableDays).toBe(2);
+    expect(summary.totalCalories).toBe(1100);
+    expect(summary.naturalOrMinimallyProcessedCalories).toBe(400);
+    expect(summary.ultraProcessedCalories).toBe(300);
+    expect(summary.unclassifiedCalories).toBe(400);
+    expect(summary.naturalOrMinimallyProcessedCaloriesPercent).toBe(36.4);
+    expect(summary.ultraProcessedCaloriesPercent).toBe(27.3);
+    expect(summary.unclassifiedCaloriesPercent).toBe(36.4);
+    expect(summary.qualityIndex).toBe(57.1);
+  });
+
+  it("retorna estado vazio para qualidade alimentar sem calorias registradas", () => {
+    const summary = calculateFoodQualitySummary([{ date: "2026-06-01", items: [] }], 1);
+
+    expect(summary.hasData).toBe(false);
+    expect(summary.totalCalories).toBe(0);
+    expect(summary.qualityIndex).toBeNull();
+    expect(summary.distribution.every(item => item.percent === 0)).toBe(true);
   });
 
   it("calcula evolução de peso com variação absoluta, percentual e tendência", () => {
