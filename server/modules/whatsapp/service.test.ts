@@ -71,4 +71,41 @@ describe("simulateWhatsappInbound", () => {
       draftId: "draft-1",
     }));
   });
+
+  it("separa hidratação e alimentos em mensagens multi-linha antes de processar refeição", async () => {
+    executeWhatsappTextIntentMock.mockResolvedValue({
+      handled: true,
+      action: "water_logged",
+      reply: "Registrei 300 ml de água.",
+      eventType: "whatsapp.intent.water_logged",
+      detail: "Registro de hidratação via WhatsApp.",
+      data: {
+        amountMl: 300,
+      },
+    });
+
+    const result = await simulateWhatsappInbound(42, {
+      text: "3 bisnaguinhas panco\n300ml água\n19g de mel",
+    });
+
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledTimes(1);
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, {
+      text: "300ml água",
+      receivedAt: expect.any(Date),
+    });
+    expect(processMealDraftMock).toHaveBeenCalledWith(42, {
+      source: "whatsapp",
+      text: "3 bisnaguinhas panco\n19g de mel",
+    });
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "water_and_meal_logged",
+      meal: expect.objectContaining({
+        draftId: "draft-1",
+      }),
+      water: [expect.objectContaining({
+        action: "water_logged",
+      })],
+    }));
+  });
 });
