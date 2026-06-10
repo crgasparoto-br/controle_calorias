@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
-import ProfessionalProfileSettings from "@/components/ProfessionalProfileSettings";
+import ProfessionalProfileSettings, { PatientAccessRequestsCard } from "@/components/ProfessionalProfileSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -422,23 +422,26 @@ export default function OnboardingPage() {
           </TabsList>
 
           <TabsContent value="perfil">
-            <Card defaultOpen className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <UserRound className="h-5 w-5 text-primary" />
-                  Identificação e base física
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-                <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
-                <ReadOnlyField label="Telefone" value={contactPhoneNumber || "Não informado"} />
-                <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
-                <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
-                <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
-                <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
-                <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              <Card defaultOpen className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <UserRound className="h-5 w-5 text-primary" />
+                    Identificação e base física
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                  <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
+                  <ReadOnlyField label="Telefone" value={contactPhoneNumber || "Não informado"} />
+                  <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
+                  <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
+                  <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
+                  <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
+                  <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
+                </CardContent>
+              </Card>
+              <PatientAccessRequestsCard />
+            </div>
           </TabsContent>
 
           <TabsContent value="objetivos">
