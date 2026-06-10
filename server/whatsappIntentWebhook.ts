@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { getCatalogCache } from "./catalogRuntime";
 import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
 import { listMeals } from "./modules/meals/service";
 import {
@@ -17,6 +18,7 @@ import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedIma
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
 
 type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>> | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
+type TextIntentHandlingResult = boolean | { passthroughText: string };
 type NutritionTotals = {
   calories: number;
   protein: number;
@@ -270,7 +272,20 @@ async function sendAndLogTextReply(input: { userId: number; sourcePhone: string;
   }
 }
 
-async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage) {
+function buildMixedWaterReply(waterResults: TextIntentResult[]) {
+  const waterLines = waterResults
+    .map((result) => typeof result.data?.amountMl === "number" ? `* ${formatNumber(result.data.amountMl)} ml de água` : null)
+    .filter((line): line is string => Boolean(line));
+
+  return [
+    "Hidratação registrada:",
+    ...waterLines,
+    "",
+    "Vou processar os alimentos da mesma mensagem separadamente.",
+  ].join("\n");
+}
+
+async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Promise<TextIntentHandlingResult> {
   const sourcePhone = message.from || "unknown";
   if (!isWhatsAppMessageForConfiguredChannel(message) || !canInterpretTextIntent(message)) return false;
   if (wasTextIntentMessageAlreadyHandled(message.id)) return true;
@@ -279,6 +294,37 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage) {
   if (!userId) return false;
 
   const text = getTextBody(message);
+  const mixedWaterFood = splitWhatsAppWaterAndFoodText(text);
+  if (mixedWaterFood) {
+    const waterResults: TextIntentResult[] = [];
+    for (const waterLine of mixedWaterFood.waterLines) {
+      const result = await executeWhatsappTextIntent(userId, { text: waterLine.text, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+      if (!result || result.action !== "water_logged") {
+        await sendAndLogTextReply({
+          userId,
+          sourcePhone,
+          reply: `Não consegui registrar a hidratação em "${waterLine.text}". Reenvie a água e os alimentos em mensagens separadas para evitar registro parcial.`,
+          eventType: "whatsapp.intent.water_food_multiline_failed",
+          detail: "Falha ao registrar hidratação em mensagem multi-linha com alimentos.",
+          status: "warning",
+        });
+        markTextIntentMessageHandled(message.id);
+        return true;
+      }
+      waterResults.push(result);
+    }
+
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      reply: buildMixedWaterReply(waterResults),
+      eventType: "whatsapp.intent.water_food_multiline_split",
+      detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional após separar mensagem multi-linha.",
+      status: "success",
+    });
+    return { passthroughText: mixedWaterFood.foodText };
+  }
+
   const pendingContext = getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
@@ -307,7 +353,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage) {
   return true;
 }
 
-function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Set<string>) {
+function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Set<string>, textOverrides = new Map<string, string>()) {
   const cloned = structuredClone(payload);
   const entries = Array.isArray(cloned?.entry) ? cloned.entry : [];
   cloned.entry = entries
@@ -316,7 +362,25 @@ function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Se
       const changes = entry.changes
         .map((change: any, changeIndex: number) => {
           const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
-          const pendingMessages = messages.filter((_message: WhatsAppWebhookMessage, messageIndex: number) => !handledMessageKeys.has(`${entryIndex}:${changeIndex}:${messageIndex}`));
+          const pendingMessages = messages
+            .map((message: WhatsAppWebhookMessage, messageIndex: number) => {
+              const key = `${entryIndex}:${changeIndex}:${messageIndex}`;
+              if (handledMessageKeys.has(key)) return null;
+
+              const overrideText = textOverrides.get(key);
+              if (overrideText && message.text?.body) {
+                return {
+                  ...message,
+                  text: {
+                    ...message.text,
+                    body: overrideText,
+                  },
+                };
+              }
+
+              return message;
+            })
+            .filter(Boolean);
           return { ...change, value: { ...change.value, messages: pendingMessages } };
         })
         .filter((change: any) => Array.isArray(change?.value?.messages) && change.value.messages.length > 0);
@@ -331,14 +395,20 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
   if (!messages.length) return handleWhatsAppWebhookWithAnnotatedImages(req, res);
 
   const handledMessageKeys = new Set<string>();
+  const textOverrides = new Map<string, string>();
   for (const message of messages) {
     const handled = await tryHandleTextIntent(message);
-    if (handled) handledMessageKeys.add(getExtractedWhatsAppMessageKey(message));
+    const key = getExtractedWhatsAppMessageKey(message);
+    if (handled === true) {
+      handledMessageKeys.add(key);
+    } else if (handled && typeof handled === "object") {
+      textOverrides.set(key, handled.passthroughText);
+    }
   }
 
-  if (!handledMessageKeys.size) return handleWhatsAppWebhookWithAnnotatedImages(req, res);
+  if (!handledMessageKeys.size && !textOverrides.size) return handleWhatsAppWebhookWithAnnotatedImages(req, res);
 
-  const remainingPayload = clonePayloadWithoutHandledMessages(req.body, handledMessageKeys);
+  const remainingPayload = clonePayloadWithoutHandledMessages(req.body, handledMessageKeys, textOverrides);
   if (!Array.isArray(remainingPayload?.entry) || remainingPayload.entry.length === 0) {
     return res.status(200).json({ ok: true, processed: messages.length });
   }
