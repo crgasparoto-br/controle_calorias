@@ -73,6 +73,36 @@ const syncedData = {
   },
 };
 
+const estimatedSyncedData = {
+  ...syncedData,
+  items: [
+    {
+      id: "walk-1:activity",
+      source: "strava",
+      dataType: "activity",
+      measuredAt: "2026-06-09T12:00:00Z",
+      value: 15,
+      unit: "minutes",
+      activityType: "Caminhada",
+      metadata: {
+        externalId: "walk-1",
+        name: "Caminhada sem calorias oficiais",
+        sportType: "Walk",
+        movingTimeSeconds: 900,
+        calories: 60,
+        caloriesSource: "estimated_activity",
+        estimatedCalories: true,
+      },
+    },
+  ],
+  totals: {
+    steps: 0,
+    activityMinutes: 15,
+    energyBurnedCalories: 60,
+    sleepMinutes: 0,
+  },
+};
+
 describe("SyncedHealthDataPage", () => {
   afterEach(cleanup);
 
@@ -136,6 +166,18 @@ describe("SyncedHealthDataPage", () => {
     expect(screen.queryByText("External Id")).toBeNull();
     expect(screen.queryByText("Gear Id")).toBeNull();
     expect(screen.queryByText("ID")).toBeNull();
+  });
+
+  it("explica quando as calorias foram estimadas porque o Strava não retornou valor oficial", async () => {
+    syncedRecordsState = { data: estimatedSyncedData, isLoading: false, error: null, isFetching: false };
+    const { default: SyncedHealthDataPage } = await import("./SyncedHealthDataPage");
+    const user = userEvent.setup();
+
+    render(React.createElement(SyncedHealthDataPage));
+
+    await user.click(screen.getByRole("button", { name: /Caminhada sem calorias oficiais/i }));
+
+    expect(screen.getByText("Estimativa local; Strava não retornou calorias oficiais")).toBeTruthy();
   });
 
   it("renderiza estados de loading e vazio", async () => {
