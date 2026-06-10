@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
-import ProfessionalProfileSettings from "@/components/ProfessionalProfileSettings";
+import ProfessionalProfileSettings, { PatientAccessRequestsCard } from "@/components/ProfessionalProfileSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -423,6 +423,7 @@ export default function OnboardingPage() {
 
           <TabsContent value="perfil">
             <div className="space-y-4">
+              <PatientAccessRequestsCard />
               <Card defaultOpen className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
