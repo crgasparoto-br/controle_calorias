@@ -1105,16 +1105,37 @@ function formatStravaExerciseDate(occurredAt: string) {
   });
 }
 
+function getStravaActivityEmoji(activityType: string) {
+  const t = activityType.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (/corrida|run/.test(t)) return "🏃";
+  if (/caminhada|walk|trilha/.test(t)) return "🚶";
+  if (/pedal|ciclismo|bicicleta|bike|ride/.test(t)) return "🚴";
+  if (/natacao|swim/.test(t)) return "🏊";
+  if (/musculacao|peso|strength|weight/.test(t)) return "🏋️";
+  if (/yoga|pilates/.test(t)) return "🧘";
+  if (/futebol|soccer/.test(t)) return "⚽";
+  if (/tennis|tenis/.test(t)) return "🎾";
+  if (/remo|rowing/.test(t)) return "🚣";
+  if (/escalada|climb/.test(t)) return "🧗";
+  if (/surf/.test(t)) return "🏄";
+  if (/ski|snow/.test(t)) return "⛷️";
+  return "🏃";
+}
+
 function buildStravaExerciseImportedWhatsAppMessage(input: {
   activityType: string;
   durationMinutes: number;
   caloriesBurned: number;
   occurredAt: string;
 }) {
+  const emoji = getStravaActivityEmoji(input.activityType);
+  const duration = `${formatStravaExerciseDuration(input.durationMinutes)} min`;
   return [
-    `*Treino importado do Strava com sucesso: (${formatStravaExerciseDuration(input.durationMinutes)}min)*`,
-    `*${input.activityType} e ${input.caloriesBurned} calorias*`,
-    `*queimadas no dia ${formatStravaExerciseDate(input.occurredAt)}* 🔥`,
+    `*Treino importado do Strava* ${emoji}`,
+    "",
+    `${input.activityType} — ${duration}`,
+    `Calorias queimadas: ${input.caloriesBurned} kcal 🔥`,
+    `Data: ${formatStravaExerciseDate(input.occurredAt)}`,
   ].join("\n");
 }
 

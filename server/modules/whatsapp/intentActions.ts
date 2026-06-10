@@ -1030,7 +1030,7 @@ function buildPeriodGoalSummaryLines(goalCalories: number, diff: number) {
   const pctStr = diff > 0 ? `(+${pct}%)` : `(-${pct}%)`;
 
   return [
-    "*Meta do resumo:*",
+    "*Análise sobre a Meta:*",
     `• Meta estimada: ${formatNumber(goalCalories)} kcal`,
     `• ${balanceLabel}: ${formatNumber(Math.abs(diff))} kcal ${pctStr} ${balanceDetail}`,
   ];
