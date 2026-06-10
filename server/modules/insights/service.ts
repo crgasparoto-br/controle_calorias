@@ -657,15 +657,15 @@ export async function getPeriodReportBundle(
   userId: number,
   range: { startDate: string; endDate: string },
 ) {
-  const [goal, habitAnalytics, exercises, foods, progress] = await Promise.all([
+  const dates = listDateKeysInRange(range.startDate, range.endDate);
+  const [goal, habitAnalytics, exercises, foods, progress, mealsByDay] = await Promise.all([
     getUserNutritionGoal(userId),
     getHabitAnalyticsReport(userId, range),
     listUserExercises(userId),
     searchFoods(userId, "", 500),
     getWeeklyProgress(userId),
+    Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false }))),
   ]);
-  const dates = listDateKeysInRange(range.startDate, range.endDate);
-  const mealsByDay = await Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false })));
   const meals = mealsByDay.flat();
   const totals = calculateDayTotals(meals);
   const mealsByDate = groupMealsByDate(meals);
