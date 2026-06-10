@@ -52,6 +52,7 @@ import {
   calculateMacroDaySummary,
   calculateWeightTrendSummary,
   type CalorieGoalDay,
+  type FoodQualitySummary,
   type MacroGoalDay,
   type MacroTotals,
   type WeightTrendPoint,
@@ -97,6 +98,10 @@ type ExistingWeightSummary = {
 type WeightTrendBundle = {
   points?: WeightTrendPoint[];
   summary?: ExistingWeightSummary;
+};
+
+type ReportsQualityBundle = {
+  foodQuality?: FoodQualitySummary;
 };
 
 const EMPTY_TOTALS: ReportTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
@@ -446,6 +451,7 @@ function QualityCard({
   vegetableServings,
   ultraProcessedServings,
   regularityScore,
+  foodQuality,
 }: {
   proteinGrams?: number;
   fiberGrams?: number;
@@ -453,26 +459,80 @@ function QualityCard({
   vegetableServings?: number;
   ultraProcessedServings?: number;
   regularityScore?: number;
+  foodQuality?: FoodQualitySummary;
 }) {
-  const hasQuality = [proteinGrams, fiberGrams, fruitServings, vegetableServings, ultraProcessedServings].some(value => Number(value ?? 0) > 0);
+  const hasQuality = Boolean(foodQuality?.hasData) || [proteinGrams, fiberGrams, fruitServings, vegetableServings, ultraProcessedServings].some(value => Number(value ?? 0) > 0);
 
   return (
     <Card className="border-0 shadow-sm">
       <SectionHeader
         icon={<Leaf className="h-5 w-5 text-primary" />}
         title="Qualidade alimentar agregada"
-        description="Mostra sinais de qualidade sem detalhar alimento por alimento. Alimentos sem classificação não entram nos indicadores específicos."
+        description="Mostra sinais do período sem detalhar alimento por alimento. Itens sem classificação ficam separados para não distorcer percentuais."
         badge="Agregado"
       />
       <CardContent className="space-y-4">
         {hasQuality ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <StatusTile label="Proteína" value={`${formatMacro(proteinGrams ?? 0)} g`} />
-            <StatusTile label="Fibras" value={`${formatMacro(fiberGrams ?? 0)} g`} />
-            <StatusTile label="Frutas" value={formatMacro(fruitServings ?? 0)} />
-            <StatusTile label="Legumes/verduras" value={formatMacro(vegetableServings ?? 0)} />
-            <StatusTile label="Ultraprocessados" value={formatMacro(ultraProcessedServings ?? 0)} />
-          </div>
+          <>
+            {foodQuality?.hasData ? (
+              <>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <StatusTile
+                    label="Dias com frutas"
+                    value={`${foodQuality.fruitDays}/${foodQuality.dayCount}`}
+                    hint="Dias do período com pelo menos uma fruta classificada."
+                  />
+                  <StatusTile
+                    label="Dias com legumes/verduras"
+                    value={`${foodQuality.vegetableDays}/${foodQuality.dayCount}`}
+                    hint="Dias do período com presença classificada."
+                  />
+                  <StatusTile
+                    label="Ultraprocessados"
+                    value={formatPercent(foodQuality.ultraProcessedCaloriesPercent)}
+                    hint={`${formatCalories(foodQuality.ultraProcessedCalories)} estimadas no período.`}
+                  />
+                  <StatusTile
+                    label="In natura/minimamente"
+                    value={formatPercent(foodQuality.naturalOrMinimallyProcessedCaloriesPercent)}
+                    hint={`${formatCalories(foodQuality.naturalOrMinimallyProcessedCalories)} estimadas no período.`}
+                  />
+                  <StatusTile
+                    label="Índice de qualidade"
+                    value={foodQuality.qualityIndex == null ? "-" : formatPercent(foodQuality.qualityIndex)}
+                    hint="Calculado apenas sobre calorias classificadas."
+                  />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  {foodQuality.distribution.map(item => (
+                    <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium">{item.label}</p>
+                        <Badge variant="secondary" className="rounded-full">{formatPercent(item.percent)}</Badge>
+                      </div>
+                      <Progress className="h-2" value={item.percent} />
+                      <p className="mt-3 text-sm text-muted-foreground">{formatCalories(item.calories)} no período.</p>
+                    </div>
+                  ))}
+                </div>
+
+                {foodQuality.unclassifiedCalories > 0 ? (
+                  <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+                    {formatPercent(foodQuality.unclassifiedCaloriesPercent)} das calorias do período ainda estão sem classificação alimentar. Esses itens ficam separados para não inflar os percentuais de ultraprocessados ou de alimentos in natura/minimamente processados.
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <StatusTile label="Proteína" value={`${formatMacro(proteinGrams ?? 0)} g`} />
+              <StatusTile label="Fibras" value={`${formatMacro(fiberGrams ?? 0)} g`} />
+              <StatusTile label="Porções de frutas" value={formatMacro(fruitServings ?? 0)} />
+              <StatusTile label="Porções de legumes/verduras" value={formatMacro(vegetableServings ?? 0)} />
+              <StatusTile label="Porções ultraprocessadas" value={formatMacro(ultraProcessedServings ?? 0)} />
+            </div>
+          </>
         ) : (
           <div className="rounded-2xl border border-dashed bg-muted/10 p-5 text-sm leading-6 text-muted-foreground">
             Ainda não há classificação alimentar suficiente para gerar indicadores de qualidade neste período.
@@ -715,6 +775,8 @@ export default function ReportsGoalsPage() {
     : periodBundle.data?.habitAnalytics.exercise.totalCalories ?? 0;
 
   const weeklyQuality = reportBundle.data?.quality;
+  const periodQuality = (periodBundle.data as unknown as { quality?: ReportsQualityBundle } | undefined)?.quality;
+  const foodQuality = periodScope === "week" ? weeklyQuality?.foodQuality : periodQuality?.foodQuality;
   const periodWeightBundle = (periodBundle.data as unknown as { weightTrend?: WeightTrendBundle } | undefined)?.weightTrend;
   const weightTrendPoints = periodScope === "week"
     ? buildWeightPointsFromSummary(reportBundle.data?.progress.weight)
@@ -794,6 +856,7 @@ export default function ReportsGoalsPage() {
                 vegetableServings={weeklyQuality?.vegetableServings}
                 ultraProcessedServings={weeklyQuality?.ultraProcessedServings}
                 regularityScore={weeklyQuality?.regularityScore}
+                foodQuality={foodQuality}
               />
               <WeightCard points={weightTrendPoints} adherencePercent={calorieAdherence.adherencePercent} />
             </div>
