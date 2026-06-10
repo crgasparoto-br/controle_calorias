@@ -1,23 +1,17 @@
 import { z } from "zod";
 import { onboardingSchema } from "./schemas";
 
+const requiredConsent = (message: string) => z.boolean().refine(value => value === true, { message });
+
 export const whatsappOnboardingTokenSchema = z.object({
   token: z.string().trim().min(24).max(160),
 });
 
 export const whatsappOnboardingConsentSchema = z.object({
-  acceptedTerms: z.literal(true, {
-    errorMap: () => ({ message: "Aceite os termos de uso para concluir o cadastro." }),
-  }),
-  acceptedPrivacyPolicy: z.literal(true, {
-    errorMap: () => ({ message: "Aceite a política de privacidade para concluir o cadastro." }),
-  }),
-  acceptedHealthDataProcessing: z.literal(true, {
-    errorMap: () => ({ message: "Autorize o tratamento dos dados necessários ao serviço." }),
-  }),
-  acceptedOperationalWhatsapp: z.literal(true, {
-    errorMap: () => ({ message: "Autorize as mensagens operacionais pelo WhatsApp para usar este canal." }),
-  }),
+  acceptedTerms: requiredConsent("Aceite os termos de uso para concluir o cadastro."),
+  acceptedPrivacyPolicy: requiredConsent("Aceite a política de privacidade para concluir o cadastro."),
+  acceptedHealthDataProcessing: requiredConsent("Autorize o tratamento dos dados necessários ao serviço."),
+  acceptedOperationalWhatsapp: requiredConsent("Autorize as mensagens operacionais pelo WhatsApp para usar este canal."),
   acceptedMarketingWhatsapp: z.boolean().default(false),
 });
 
