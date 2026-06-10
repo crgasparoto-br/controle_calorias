@@ -7,16 +7,22 @@ import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
 import {
+  buildMediaDataUrl,
+  downloadWhatsAppMedia,
+  extensionFromMimeType,
   extractWhatsAppWebhookMessages,
   formatDateKeyInSaoPaulo,
   isWhatsAppMessageForConfiguredChannel,
+  markWhatsAppMessageAsRead,
   normalizeWhatsAppIntentText,
   resolveWhatsAppMessageOccurredAt,
+  sendWhatsAppCtaUrlMessage,
+  sendWhatsAppImageMessage,
   sendWhatsAppTextMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
-import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "./whatsappConfig";
+import { getWhatsAppChannelConfig } from "./whatsappConfig";
 
 type PreparedMessageInput = {
   text?: string;
@@ -198,9 +204,8 @@ function buildWhatsAppReplyMessage(
   processed: MealProcessingResult,
   registeredAt = new Date(),
   goalProgress?: WhatsAppMealGoalProgress | null,
-  quickEditUrl?: string | null,
 ) {
-  return buildWhatsAppMealReplyMessage(processed, { registeredAt, goalProgress, quickEditUrl });
+  return buildWhatsAppMealReplyMessage(processed, { registeredAt, goalProgress });
 }
 
 function imageDataFromDataUrl(dataUrl?: string) {
@@ -355,102 +360,6 @@ async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
     eventType: "whatsapp.action_confirmation_requested",
     detail: `Confirmação solicitada para ${summary} em ${matchingMeals.length} registro(s).`,
   };
-}
-
-async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {
-  let config;
-  try {
-    config = await requireWhatsAppSendConfig();
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de imagem.",
-    };
-  }
-
-  try {
-    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "image",
-        image: {
-          link: imageUrl,
-          caption,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio da imagem anotada.`,
-      };
-    }
-
-    return {
-      ok: true,
-      detail: "Imagem anotada enviada com sucesso.",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar imagem anotada do WhatsApp.",
-    };
-  }
-}
-
-async function markWhatsAppMessageAsRead(messageId?: string) {
-  if (!messageId) {
-    return { ok: true, detail: "Mensagem sem ID para marcar como lida." };
-  }
-
-  let config;
-  try {
-    config = await requireWhatsAppSendConfig();
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para marcar mensagem como lida.",
-    };
-  }
-
-  try {
-    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        status: "read",
-        message_id: messageId,
-      }),
-    });
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} ao marcar mensagem como lida.`,
-      };
-    }
-
-    return {
-      ok: true,
-      detail: "Mensagem marcada como lida.",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao marcar mensagem do WhatsApp como lida.",
-    };
-  }
 }
 
 function listMessageContentTypes(message: WhatsAppWebhookMessage) {
@@ -615,15 +524,9 @@ async function sendInterpretedTextIntentReply(input: {
   });
 
   const mealId = typeof input.interpreted.data?.mealId === "number" ? input.interpreted.data.mealId : null;
-  let replyText = input.interpreted.reply;
-  if (mealId) {
-    const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId });
-    if (quickEditLink?.url) {
-      replyText += `\n\nQuer ajustar algum alimento, quantidade ou unidade?\nEditar: ${quickEditLink.url}`;
-    }
-  }
+  const quickEditLink = mealId ? await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId }) : null;
 
-  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, replyText);
+  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.interpreted.reply);
   if (!replyResult.ok) {
     logInferenceEvent({
       userId: input.userId,
@@ -633,63 +536,28 @@ async function sendInterpretedTextIntentReply(input: {
       detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}`,
     });
   }
+
+  if (quickEditLink?.url) {
+    const ctaResult = await sendWhatsAppCtaUrlMessage(
+      input.sourcePhone,
+      "Quer ajustar algum alimento, quantidade ou unidade?",
+      "Editar refeição",
+      quickEditLink.url,
+    );
+    if (!ctaResult.ok) {
+      logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.cta_reply_failed",
+        detail: `Falha ao enviar botão de edição para ${input.sourcePhone}: ${ctaResult.detail}`,
+      });
+    }
+  }
 }
 
 function canInterpretAudioTranscriptIntent(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
   return Boolean(message.audio?.id && !message.image?.id && prepared.transcript?.trim());
-}
-
-async function getMediaDownloadUrl(mediaId: string) {
-  const { accessToken } = await requireWhatsAppMediaConfig();
-
-  const response = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Falha ao obter URL da mídia do WhatsApp: ${response.status} ${response.statusText}`);
-  }
-
-  const payload = await response.json() as { url?: string; mime_type?: string };
-  if (!payload.url) {
-    throw new Error("A API do WhatsApp não retornou a URL da mídia.");
-  }
-
-  return { url: payload.url, mimeType: payload.mime_type };
-}
-
-async function downloadWhatsAppMedia(mediaId: string, fallbackMimeType?: string) {
-  const { accessToken } = await requireWhatsAppMediaConfig();
-
-  const meta = await getMediaDownloadUrl(mediaId);
-  const response = await fetch(meta.url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Falha ao baixar mídia do WhatsApp: ${response.status} ${response.statusText}`);
-  }
-
-  const buffer = Buffer.from(await response.arrayBuffer());
-  return {
-    buffer,
-    mimeType: response.headers.get("content-type") || meta.mimeType || fallbackMimeType || "application/octet-stream",
-  };
-}
-
-function extensionFromMimeType(mimeType: string) {
-  if (mimeType.includes("jpeg")) return "jpg";
-  if (mimeType.includes("png")) return "png";
-  if (mimeType.includes("webp")) return "webp";
-  if (mimeType.includes("ogg")) return "ogg";
-  if (mimeType.includes("mpeg")) return "mp3";
-  if (mimeType.includes("mp4")) return "mp4";
-  if (mimeType.includes("wav")) return "wav";
-  return "bin";
-}
-
-function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
-  return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
 async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string): Promise<PersistedIncomingMedia> {
@@ -1099,7 +967,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           processedForPersistence,
           occurredAt,
           await getWhatsAppMealGoalProgress(userId, occurredAt),
-          quickEditLink?.url,
         ),
       );
 
@@ -1111,6 +978,24 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           eventType: "whatsapp.reply_failed",
           detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
         });
+      }
+
+      if (quickEditLink?.url) {
+        const ctaResult = await sendWhatsAppCtaUrlMessage(
+          sourcePhone,
+          "Quer ajustar algum alimento, quantidade ou unidade?",
+          "Editar refeição",
+          quickEditLink.url,
+        );
+        if (!ctaResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.cta_reply_failed",
+            detail: `Falha ao enviar botão de edição para ${sourcePhone}: ${ctaResult.detail}`,
+          });
+        }
       }
 
       if (annotatedImage?.url) {
