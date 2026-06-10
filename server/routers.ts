@@ -6,7 +6,9 @@ import type { TrpcContext } from "./_core/context";
 import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { webWhatsappGreetingSchema } from "./modules/onboarding/schemas";
+import { sendWebOnboardingWhatsappGreeting } from "./modules/onboarding/webGreetingService";
 import {
   completeWhatsappOnboarding,
   getWhatsappOnboardingLeadByToken,
@@ -98,6 +100,20 @@ export const appRouter = router({
       return {
         success: true,
       } as const;
+    }),
+    sendWhatsappGreeting: protectedProcedure.input(webWhatsappGreetingSchema).mutation(async ({ input, ctx }) => {
+      try {
+        return await sendWebOnboardingWhatsappGreeting(ctx.user.id, {
+          acceptedOperationalWhatsapp: input.acceptedOperationalWhatsapp,
+          userName: ctx.user.name,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "WHATSAPP_GREETING_CONSENT_REQUIRED") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Autorize o contato operacional pelo WhatsApp para receber a saudação." });
+        }
+
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível enviar a saudação pelo WhatsApp." });
+      }
     }),
     whatsappOnboarding: router({
       validate: publicProcedure.input(whatsappOnboardingTokenSchema).query(async ({ input }) => {
