@@ -10,7 +10,7 @@ import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatIntegerPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Database } from "lucide-react";
-import { useState } from "react";
+import React, { useState } from "react";
 
 const DATA_TYPES = [
   { value: "all", label: "Todos" },

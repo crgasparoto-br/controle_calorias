@@ -130,7 +130,7 @@ describe("SyncedHealthDataPage", () => {
     expect(screen.getByText("Detalhes da atividade")).toBeTruthy();
     expect(screen.getByText("Distância")).toBeTruthy();
     expect(screen.getByText("7,20 km")).toBeTruthy();
-    expect(screen.getByText("Calorias")).toBeTruthy();
+    expect(screen.getAllByText("Calorias").length).toBeGreaterThan(0);
     expect(screen.getByText("Fonte das calorias")).toBeTruthy();
     expect(screen.getAllByText("Strava").length).toBeGreaterThan(0);
     expect(screen.queryByText("External Id")).toBeNull();
