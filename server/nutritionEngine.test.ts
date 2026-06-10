@@ -152,6 +152,28 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.reasoning).toContain("heurística");
   });
 
+  it("não gera rascunho quando o texto é apenas uma saudação", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
+
+    await expect(processMealInput({
+      text: "olá",
+    })).rejects.toBeInstanceOf(MealInferenceError);
+  });
+
+  it("ignora saudação no fallback textual sem descartar alimentos informados", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "olá, banana",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].foodName).toBe("banana");
+  });
+
   it("interpreta gramas e nome do alimento no fallback textual", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
@@ -400,6 +422,29 @@ describe("nutritionEngine.processMealInput", () => {
     expect(textInput?.text).toContain("Nunca transforme lista de ingredientes em itens separados da refeição");
     expect(textInput?.text).toContain("Se houver peso líquido, peso drenado, peso na etiqueta da balança ou porção declarada visível");
     expect(textInput?.text).toContain("não use água como fallback apenas por transparência, brilho, reflexo ou plástico translúcido");
+  });
+
+  it("inclui no prompt regra para não inferir alimento a partir de saudação", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_empty_greeting",
+      outputText: JSON.stringify({
+        mealLabel: "Refeição registrada",
+        confidence: 0.1,
+        reasoning: "Mensagem contém apenas saudação.",
+        items: [],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
+
+    await expect(processMealInput({ text: "olá" })).rejects.toBeInstanceOf(MealInferenceError);
+
+    const request = createTextResponseMock.mock.calls[0][0];
+    const textInput = request.input[0].content.find((item: { type: string }) => item.type === "input_text");
+
+    expect(textInput?.text).toContain("Se a mensagem tiver apenas saudação, conversa genérica ou texto sem alimento");
+    expect(request.instructions).toContain("Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança");
   });
 
   it("não limita o fallback heurístico a 8 alimentos", async () => {

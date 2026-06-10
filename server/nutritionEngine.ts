@@ -214,6 +214,25 @@ const NON_FOOD_TERMS = [
   "decoração",
 ];
 
+const CONVERSATIONAL_ONLY_TERMS = new Set([
+  "oi",
+  "ola",
+  "olá",
+  "hello",
+  "hi",
+  "bom dia",
+  "boa tarde",
+  "boa noite",
+  "tudo bem",
+  "ola tudo bem",
+  "olá tudo bem",
+  "oi tudo bem",
+  "obrigado",
+  "obrigada",
+  "valeu",
+  "teste",
+]);
+
 const DEFAULT_MEAL_LABEL_BY_TIME = [
   { mealLabel: "Café da manhã", startTime: "05:00", endTime: "10:59" },
   { mealLabel: "Almoço", startTime: "11:00", endTime: "14:59" },
@@ -634,11 +653,16 @@ function buildHeuristicItem(foodName: string): MealDraftItem {
   };
 }
 
+function isConversationalOnlyText(value: string) {
+  const normalized = normalizeText(value).replace(/-/g, " ").replace(/\s+/g, " ");
+  return !normalized || CONVERSATIONAL_ONLY_TERMS.has(normalized);
+}
+
 function fallbackFromText(sourceText: string): MealDraftItem[] {
   const parts = sourceText
     .split(/,|\be\b|\+|\n/gi)
     .map(value => value.trim())
-    .filter(Boolean);
+    .filter(value => value && !isConversationalOnlyText(value));
 
   if (parts.length === 0) {
     return [];
@@ -672,6 +696,10 @@ function habitsToPrompt(habits: HabitSnapshot[] = []) {
 
 function isLikelyNonFoodNoise(item: MealDraftItem) {
   const normalizedName = normalizeText(`${item.foodName} ${item.canonicalName}`);
+  if (isConversationalOnlyText(item.foodName) || isConversationalOnlyText(item.canonicalName)) {
+    return true;
+  }
+
   return NON_FOOD_TERMS.some(term => {
     const normalizedTerm = normalizeText(term);
     return normalizedName === normalizedTerm || normalizedName.includes(normalizedTerm);
@@ -709,6 +737,7 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
         `Histórico relevante do usuário:\n${habitsToPrompt(input.habits)}`,
         "Retorne apenas JSON válido no schema solicitado.",
         "Inclua somente alimentos ou bebidas explicitamente mencionados, fotografados ou claramente visíveis.",
+        "Se a mensagem tiver apenas saudação, conversa genérica ou texto sem alimento, retorne items como lista vazia e confidence baixo.",
         "Se a imagem não mostrar alimento ou bebida consumível com segurança suficiente, retorne items como lista vazia, confidence baixo e explique a incerteza no reasoning.",
         "Use o histórico apenas para calibrar porções de alimentos já mencionados ou claramente visíveis; nunca inclua alimentos apenas porque aparecem nos hábitos do usuário.",
         "Em fotos de embalagem, pote, rótulo, etiqueta ou balança, identifique no máximo os alimentos consumíveis claramente visíveis ou rotulados; não transforme a cena em uma refeição completa.",
@@ -753,7 +782,7 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
 
   const response = await getAiProvider().createTextResponse({
     model: ENV.openaiModel,
-    instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a foto não permitir identificar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado.",
+    instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado.",
     input: aiInput,
     format: {
       type: "json_schema",
