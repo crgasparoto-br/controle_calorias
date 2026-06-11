@@ -15,7 +15,7 @@ Permitir que o usuário registre refeições por texto, imagem, áudio ou entrad
 
 - Toda inferência nutricional deve ser tratada como rascunho até confirmação explícita ou fluxo conversacional equivalente.
 - O usuário deve conseguir entender quais alimentos foram identificados e quais valores foram estimados.
-- Alimentos reconhecidos por imagem com categoria confiável, como pães de padaria sem tabela nutricional visível, devem usar valores estimados em vez de manter calorias e macronutrientes zerados.
+- Alimentos reconhecidos por imagem com segurança, mas sem tabela nutricional visível ou macros confiáveis, devem usar valores estimados em vez de manter calorias e macronutrientes zerados.
 - Refeições confirmadas devem aparecer nos relatórios, dashboard e totais diários.
 - Texto original, transcrição e mídia são dados sensíveis; usar apenas pelo tempo necessário e evitar logs crus.
 
