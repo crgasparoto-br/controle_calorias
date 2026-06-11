@@ -4,6 +4,8 @@ import {
   approvePatientAccess,
   buildPhoneLookupCandidates,
   getProfessionalProfile,
+  listPatientAccessRequests,
+  listProfessionalAccesses,
   requestPatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
@@ -76,6 +78,62 @@ describe("professional access contact lookup", () => {
   });
 });
 
+describe("professional access requests", () => {
+  it("lists the same pending request for professional and patient", async () => {
+    const professionalUserId = 24120;
+    const patientUserId = 24121;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+
+    await expect(listProfessionalAccesses(professionalUserId)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: access.id,
+        professionalUserId,
+        patientUserId,
+        status: "pending",
+      }),
+    ]));
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: access.id,
+        professionalUserId,
+        patientUserId,
+        status: "pending",
+        professional: expect.objectContaining({ displayName: "Marina Souza" }),
+      }),
+    ]));
+  });
+
+  it("keeps the approved status visible for both sides", async () => {
+    const professionalUserId = 24130;
+    const patientUserId = 24131;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Camila Pereira",
+      active: true,
+    });
+
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+
+    await expect(listProfessionalAccesses(professionalUserId)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: access.id, status: "approved" }),
+    ]));
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: access.id, status: "approved" }),
+    ]));
+  });
+});
+
 describe("professional goal suggestions", () => {
   it("blocks goal suggestions when patient access is not approved", async () => {
     const professionalUserId = 24210;
@@ -105,7 +163,7 @@ describe("professional goal suggestions", () => {
       patientContact: `user-${patientUserId}@example.com`,
       reason: "Acompanhamento semanal",
     });
-    approvePatientAccess(patientUserId, access.id);
+    await approvePatientAccess(patientUserId, access.id);
 
     const suggestion = await suggestGoalAdjustment(professionalUserId, {
       patientId: patientUserId,
@@ -157,7 +215,7 @@ describe("professional meal suggestions", () => {
       patientContact: `user-${patientUserId}@example.com`,
       reason: "Acompanhamento semanal",
     });
-    approvePatientAccess(patientUserId, access.id);
+    await approvePatientAccess(patientUserId, access.id);
 
     const suggestion = await suggestMealPlan(professionalUserId, {
       patientId: patientUserId,
