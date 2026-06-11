@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 type PageIntroProps = {
   eyebrow?: string;
   title: string;
-  description: string;
+  description?: string;
   actions?: ReactNode;
   stats?: ReactNode;
   className?: string;

@@ -22,10 +22,12 @@ Esta implementação cobre a parte do onboarding da issue #209 sem a etapa de pa
 
 1. A página de onboarding web consulta o status do WhatsApp do usuário logado.
 2. Quando existe telefone vinculado, a tela mostra uma opção para enviar saudação única pelo WhatsApp.
-3. O envio exige aceite explícito de contato operacional pelo WhatsApp e não habilita marketing.
-4. Ao salvar o onboarding, a tela chama `auth.sendWhatsappGreeting` se a opção estiver marcada.
-5. O backend verifica consentimento, telefone vinculado e auditoria anterior para evitar duplicidade.
-6. Quando permitido, o sistema envia a mensagem de saudação e registra status, canal e template em `userPreferences`.
+3. Quando não existe telefone vinculado, a aba Perfil das configurações permite informar o telefone do usuário final com país/código separado, trazendo Brasil (+55) como padrão e permitindo escolher os demais países da lista.
+4. O envio exige aceite explícito de contato operacional pelo WhatsApp e não habilita marketing.
+5. Ao salvar o perfil com um telefone novo, a tela valida o número local, junta o código do país selecionado ao número informado, salva primeiro o vínculo em `nutrition.whatsapp.upsertConnection` e em seguida chama `auth.sendWhatsappGreeting`.
+6. Ao salvar o onboarding com telefone já vinculado, a tela chama `auth.sendWhatsappGreeting` apenas se a opção de saudação estiver marcada.
+7. O backend verifica consentimento, telefone vinculado e auditoria anterior para evitar duplicidade.
+8. Quando permitido, o sistema envia a mensagem de saudação e registra status, canal e template em `userPreferences`.
 
 Mensagem enviada:
 
@@ -38,12 +40,14 @@ Mensagem enviada:
 - Disparos ativos de marketing.
 - Mensagens recorrentes sem nova regra de consentimento.
 - Migração automática de usuários existentes.
+- Alteração livre de telefone quando já existe vínculo WhatsApp ativo para o usuário.
 
 ## Segurança e privacidade
 
 - O token não contém telefone nem dados pessoais em claro.
 - O token é armazenado como SHA-256 e expira em 24 horas.
 - O telefone exibido na página pública é mascarado.
+- O telefone informado na aba Perfil é tratado como dado pessoal sensível para logs e mensagens de erro.
 - O fluxo exige aceite de termos, política de privacidade, tratamento de dados necessários ao serviço e comunicação operacional pelo WhatsApp.
 - Marketing pelo WhatsApp é opt-in separado e opcional.
 - A saudação web exige consentimento operacional específico antes do envio.
@@ -75,6 +79,8 @@ A saudação do onboarding web usa `userPreferences` com a chave `whatsapp_web_g
 - momento da tentativa/envio;
 - motivo de skip ou falha quando aplicável.
 
+O telefone informado pela aba Perfil usa o mesmo contrato e persistência de `whatsappConnections` já exposto por `nutrition.whatsapp.upsertConnection`; não há migration nova para esse ajuste.
+
 ## Contratos públicos
 
 Rotas tRPC públicas em `auth.whatsappOnboarding`:
@@ -82,9 +88,10 @@ Rotas tRPC públicas em `auth.whatsappOnboarding`:
 - `validate({ token })`: valida o token e retorna telefone mascarado, status e expiração.
 - `complete({ token, email, password, profile, consents })`: cria a conta, salva onboarding, vincula WhatsApp e inicia sessão.
 
-Rota tRPC protegida em `auth`:
+Rotas tRPC protegidas:
 
-- `sendWhatsappGreeting({ acceptedOperationalWhatsapp })`: envia ou registra skip da saudação inicial para usuário logado com WhatsApp vinculado.
+- `auth.sendWhatsappGreeting({ acceptedOperationalWhatsapp })`: envia ou registra skip da saudação inicial para usuário logado com WhatsApp vinculado.
+- `nutrition.whatsapp.upsertConnection({ phoneNumber, displayName })`: vincula o telefone do usuário final à conta logada e impede uso do número oficial da solução como telefone pessoal.
 
 ## Validação recomendada
 
@@ -95,5 +102,7 @@ Rota tRPC protegida em `auth`:
 - Cadastro sem consentimentos obrigatórios é recusado.
 - Cadastro completo ativa usuário sem pagamento e vincula WhatsApp.
 - Onboarding web exibe a opção de saudação apenas quando houver telefone WhatsApp vinculado.
+- Aba Perfil das configurações permite informar telefone quando o usuário ainda não tem vínculo WhatsApp, mantendo Brasil (+55) como padrão, permitindo selecionar outros países e exigindo apenas o número local no campo principal.
+- Salvar Perfil com telefone novo persiste o vínculo com o código do país selecionado e tenta enviar a saudação inicial uma única vez.
 - Saudação web não é enviada sem consentimento operacional.
 - Saudação web registra status e evita duplicidade depois de envio concluído.
