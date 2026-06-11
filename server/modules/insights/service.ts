@@ -4,11 +4,9 @@ import {
   getUserGamification,
   getUserWaterGoal,
   getWeeklyProgress,
-  listUserExercises,
   listUserExercisesByDate,
   listUserMeals,
   listUserMealsByDate,
-  listUserWaterLogs,
   listUserWaterLogsByDate,
   searchFoods,
 } from "../../db";
@@ -172,6 +170,101 @@ function averageValue(total: number, count: number) {
 
 function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: number) {
   return roundNutritionValue(baseCalories + Math.max(exerciseCalories, 0));
+}
+
+type ReportRangeData = {
+  dates: string[];
+  mealsByDay: Array<Awaited<ReturnType<typeof listUserMealsByDate>>>;
+  exercisesByDay: Array<Awaited<ReturnType<typeof listUserExercisesByDate>>>;
+  waterLogsByDay: Array<Awaited<ReturnType<typeof listUserWaterLogsByDate>>>;
+};
+
+async function loadReportRangeData(userId: number, dates: string[]): Promise<ReportRangeData> {
+  const [mealsByDay, exercisesByDay, waterLogsByDay] = await Promise.all([
+    Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false }))),
+    Promise.all(dates.map(date => listUserExercisesByDate(userId, date))),
+    Promise.all(dates.map(date => listUserWaterLogsByDate(userId, date))),
+  ]);
+
+  return { dates, mealsByDay, exercisesByDay, waterLogsByDay };
+}
+
+function buildHabitAnalyticsFromRange(
+  waterGoal: Awaited<ReturnType<typeof getUserWaterGoal>>,
+  data: ReportRangeData,
+  range: { startDate: string; endDate: string },
+) {
+  const waterDays = data.dates.map((date, index) => ({
+    date,
+    label: formatPeriodDateLabel(date),
+    totalMl: roundNutritionValue(
+      (data.waterLogsByDay[index] ?? []).reduce((total, log) => total + Number(log.amountMl ?? 0), 0),
+    ),
+  }));
+  const totalConsumedMl = roundNutritionValue(waterDays.reduce((total, day) => total + day.totalMl, 0));
+  const totalGoalMl = roundNutritionValue(waterGoal.dailyTargetMl * data.dates.length);
+  const goalHitDays = waterGoal.dailyTargetMl > 0
+    ? waterDays.filter(day => day.totalMl >= waterGoal.dailyTargetMl).length
+    : 0;
+  const lowestWaterDay = waterDays.reduce<(typeof waterDays)[number] | null>((current, day) => {
+    if (day.totalMl <= 0) return current;
+    if (!current || day.totalMl < current.totalMl) return day;
+    return current;
+  }, null);
+
+  const exerciseDays = data.dates.map((date, index) => {
+    const dailyExercises = data.exercisesByDay[index] ?? [];
+    return {
+      date,
+      label: formatPeriodDateLabel(date),
+      caloriesBurned: roundNutritionValue(dailyExercises.reduce((total, exercise) => total + Number(exercise.caloriesBurned ?? 0), 0)),
+      durationMinutes: roundNutritionValue(dailyExercises.reduce((total, exercise) => total + Number(exercise.durationMinutes ?? 0), 0)),
+    };
+  });
+  const totalExerciseCalories = roundNutritionValue(exerciseDays.reduce((total, day) => total + day.caloriesBurned, 0));
+  const totalExerciseDurationMinutes = roundNutritionValue(exerciseDays.reduce((total, day) => total + day.durationMinutes, 0));
+  const activeDays = exerciseDays.filter(day => day.caloriesBurned > 0 || day.durationMinutes > 0).length;
+  const highestExerciseDay = exerciseDays.reduce<(typeof exerciseDays)[number] | null>((current, day) => {
+    if (day.caloriesBurned <= 0) return current;
+    if (!current || day.caloriesBurned > current.caloriesBurned) return day;
+    return current;
+  }, null);
+
+  return {
+    range: {
+      startDate: range.startDate,
+      endDate: range.endDate,
+      dayCount: data.dates.length,
+    },
+    water: {
+      dailyGoalMl: waterGoal.dailyTargetMl,
+      totalGoalMl,
+      totalConsumedMl,
+      goalHitDays,
+      averageDailyMl: roundNutritionValue(averageValue(totalConsumedMl, data.dates.length)),
+      lowestDay: lowestWaterDay
+        ? {
+            date: lowestWaterDay.date,
+            label: lowestWaterDay.label,
+            totalMl: lowestWaterDay.totalMl,
+          }
+        : null,
+    },
+    exercise: {
+      totalCalories: totalExerciseCalories,
+      totalDurationMinutes: totalExerciseDurationMinutes,
+      activeDays,
+      averageCaloriesPerActiveDay: roundNutritionValue(averageValue(totalExerciseCalories, activeDays)),
+      highestDay: highestExerciseDay
+        ? {
+            date: highestExerciseDay.date,
+            label: highestExerciseDay.label,
+            caloriesBurned: highestExerciseDay.caloriesBurned,
+            durationMinutes: highestExerciseDay.durationMinutes,
+          }
+        : null,
+    },
+  };
 }
 
 function normalizeCatalogText(value: string) {
@@ -338,23 +431,21 @@ function calculateQualityIndicators(
 }
 
 async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
-  const [goal, waterGoal, meals, exercises, waterLogs, foods] = await Promise.all([
+  const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
+  const [goal, waterGoal, foods, rangeData] = await Promise.all([
     getUserNutritionGoal(userId),
     getUserWaterGoal(userId),
-    listUserMeals(userId),
-    listUserExercises(userId),
-    listUserWaterLogs(userId),
     searchFoods(userId, "", 500),
+    loadReportRangeData(userId, dateKeys),
   ]);
   const foodLookup = createFoodLookup(foods);
 
-  return resolveWeekDates(weekOffset).map(day => {
-    const date = getDateKeyInTimeZone(day);
-    const weekday = getWeekdayIndexInTimeZone(day);
+  return rangeData.dates.map((date, index) => {
+    const weekday = getWeekdayIndexInTimeZone(dateKeyToLogicalDate(date));
     const planned = goal.days.find(goalDay => goalDay.weekday === weekday) ?? goal.today;
-    const dailyMeals = meals.filter(meal => mealDateKey(meal) === date);
-    const dailyExercises = exercises.filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === date);
-    const dailyWaterLogs = waterLogs.filter(log => getDateKeyInTimeZone(Number(log.occurredAt)) === date);
+    const dailyMeals = rangeData.mealsByDay[index] ?? [];
+    const dailyExercises = rangeData.exercisesByDay[index] ?? [];
+    const dailyWaterLogs = rangeData.waterLogsByDay[index] ?? [];
     const totals = calculateDayTotals(dailyMeals);
     const burnedCalories = dailyExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
     const waterConsumedMl = dailyWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
@@ -624,25 +715,24 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
 }
 
 export async function getWeeklyInsightsReport(userId: number, weekOffset = 0) {
-  const [progress, meals] = await Promise.all([
+  const [progress, mealsByDay] = await Promise.all([
     getWeeklyProgressReport(userId, weekOffset),
-    listUserMeals(userId),
+    Promise.all(resolveWeekDates(weekOffset).map(day => listUserMealsByDate(userId, getDateKeyInTimeZone(day), { includeMedia: false }))),
   ]);
-  const weekDates = new Set(progress.days.map(day => day.date));
-  const weeklyMeals = meals.filter(meal => weekDates.has(mealDateKey(meal)));
+  const weeklyMeals = mealsByDay.flat();
 
   return buildWeeklyInsights(progress, weeklyMeals);
 }
 
 export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
-  const [weekly, fallbackProgress, meals] = await Promise.all([
+  const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
+  const [weekly, fallbackProgress, mealsByDay] = await Promise.all([
     buildWeeklyReportSummary(userId, weekOffset),
     getWeeklyProgress(userId),
-    listUserMeals(userId),
+    Promise.all(dateKeys.map(date => listUserMealsByDate(userId, date, { includeMedia: false }))),
   ]);
   const progress = buildWeeklyProgressFromSummary(weekly, fallbackProgress);
-  const weekDates = new Set(progress.days.map(day => day.date));
-  const weeklyMeals = meals.filter(meal => weekDates.has(mealDateKey(meal)));
+  const weeklyMeals = mealsByDay.flat();
 
   return {
     weekly,
@@ -658,27 +748,26 @@ export async function getPeriodReportBundle(
   range: { startDate: string; endDate: string },
 ) {
   const dates = listDateKeysInRange(range.startDate, range.endDate);
-  const [goal, habitAnalytics, exercises, foods, progress, mealsByDay] = await Promise.all([
+  const [goal, waterGoal, foods, progress, rangeData] = await Promise.all([
     getUserNutritionGoal(userId),
-    getHabitAnalyticsReport(userId, range),
-    listUserExercises(userId),
+    getUserWaterGoal(userId),
     searchFoods(userId, "", 500),
     getWeeklyProgress(userId),
-    Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false }))),
+    loadReportRangeData(userId, dates),
   ]);
-  const meals = mealsByDay.flat();
+  const habitAnalytics = buildHabitAnalyticsFromRange(waterGoal, rangeData, range);
+  const meals = rangeData.mealsByDay.flat();
   const totals = calculateDayTotals(meals);
   const mealsByDate = groupMealsByDate(meals);
   const foodLookup = createFoodLookup(foods);
   const foodQualityDays: FoodQualityDay[] = [];
   const daily = dates.map((date, index) => {
     const planned = goal.days.find(goalDay => goalDay.weekday === getWeekdayIndexInTimeZone(dateKeyToLogicalDate(date))) ?? goal.today;
-    const dailyMeals = mealsByDay[index] ?? [];
+    const dailyMeals = rangeData.mealsByDay[index] ?? [];
+    const dailyExercises = rangeData.exercisesByDay[index] ?? [];
     const dailyTotals = calculateDayTotals(dailyMeals);
     const dailyQuality = calculateQualityIndicators(dailyMeals, 0, foodLookup);
-    const exerciseCalories = exercises
-      .filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === date)
-      .reduce((total, exercise) => total + Number(exercise.caloriesBurned ?? 0), 0);
+    const exerciseCalories = dailyExercises.reduce((total, exercise) => total + Number(exercise.caloriesBurned ?? 0), 0);
     const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, exerciseCalories);
     foodQualityDays.push({ date, items: dailyQuality.foodQualityItems });
 
@@ -736,101 +825,11 @@ export async function getHabitAnalyticsReport(
   userId: number,
   range: { startDate: string; endDate: string },
 ) {
-  const [waterGoal, waterLogs, exercises] = await Promise.all([
+  const dates = listDateKeysInRange(range.startDate, range.endDate);
+  const [waterGoal, rangeData] = await Promise.all([
     getUserWaterGoal(userId),
-    listUserWaterLogs(userId),
-    listUserExercises(userId),
+    loadReportRangeData(userId, dates),
   ]);
 
-  const dates = listDateKeysInRange(range.startDate, range.endDate);
-  const waterByDate = new Map<string, number>(dates.map(date => [date, 0]));
-  const exerciseByDate = new Map<string, { caloriesBurned: number; durationMinutes: number }>(
-    dates.map(date => [date, { caloriesBurned: 0, durationMinutes: 0 }]),
-  );
-
-  waterLogs.forEach(log => {
-    const date = getDateKeyInTimeZone(Number(log.occurredAt));
-    if (!waterByDate.has(date)) return;
-    waterByDate.set(date, roundNutritionValue((waterByDate.get(date) ?? 0) + Number(log.amountMl ?? 0)));
-  });
-
-  exercises.forEach(exercise => {
-    const date = getDateKeyInTimeZone(Number(exercise.occurredAt));
-    if (!exerciseByDate.has(date)) return;
-    const current = exerciseByDate.get(date) ?? { caloriesBurned: 0, durationMinutes: 0 };
-    exerciseByDate.set(date, {
-      caloriesBurned: roundNutritionValue(current.caloriesBurned + Number(exercise.caloriesBurned ?? 0)),
-      durationMinutes: roundNutritionValue(current.durationMinutes + Number(exercise.durationMinutes ?? 0)),
-    });
-  });
-
-  const waterDays = dates.map(date => ({
-    date,
-    label: formatPeriodDateLabel(date),
-    totalMl: roundNutritionValue(waterByDate.get(date) ?? 0),
-  }));
-  const totalConsumedMl = roundNutritionValue(waterDays.reduce((total, day) => total + day.totalMl, 0));
-  const totalGoalMl = roundNutritionValue(waterGoal.dailyTargetMl * dates.length);
-  const goalHitDays = waterGoal.dailyTargetMl > 0
-    ? waterDays.filter(day => day.totalMl >= waterGoal.dailyTargetMl).length
-    : 0;
-  const lowestWaterDay = waterDays.reduce<(typeof waterDays)[number] | null>((current, day) => {
-    if (day.totalMl <= 0) return current;
-    if (!current || day.totalMl < current.totalMl) return day;
-    return current;
-  }, null);
-
-  const exerciseDays = dates.map(date => {
-    const current = exerciseByDate.get(date) ?? { caloriesBurned: 0, durationMinutes: 0 };
-    return {
-      date,
-      label: formatPeriodDateLabel(date),
-      caloriesBurned: roundNutritionValue(current.caloriesBurned),
-      durationMinutes: roundNutritionValue(current.durationMinutes),
-    };
-  });
-  const totalExerciseCalories = roundNutritionValue(exerciseDays.reduce((total, day) => total + day.caloriesBurned, 0));
-  const totalExerciseDurationMinutes = roundNutritionValue(exerciseDays.reduce((total, day) => total + day.durationMinutes, 0));
-  const activeDays = exerciseDays.filter(day => day.caloriesBurned > 0 || day.durationMinutes > 0).length;
-  const highestExerciseDay = exerciseDays.reduce<(typeof exerciseDays)[number] | null>((current, day) => {
-    if (day.caloriesBurned <= 0) return current;
-    if (!current || day.caloriesBurned > current.caloriesBurned) return day;
-    return current;
-  }, null);
-
-  return {
-    range: {
-      startDate: range.startDate,
-      endDate: range.endDate,
-      dayCount: dates.length,
-    },
-    water: {
-      dailyGoalMl: waterGoal.dailyTargetMl,
-      totalGoalMl,
-      totalConsumedMl,
-      goalHitDays,
-      averageDailyMl: roundNutritionValue(averageValue(totalConsumedMl, dates.length)),
-      lowestDay: lowestWaterDay
-        ? {
-            date: lowestWaterDay.date,
-            label: lowestWaterDay.label,
-            totalMl: lowestWaterDay.totalMl,
-          }
-        : null,
-    },
-    exercise: {
-      totalCalories: totalExerciseCalories,
-      totalDurationMinutes: totalExerciseDurationMinutes,
-      activeDays,
-      averageCaloriesPerActiveDay: roundNutritionValue(averageValue(totalExerciseCalories, activeDays)),
-      highestDay: highestExerciseDay
-        ? {
-            date: highestExerciseDay.date,
-            label: highestExerciseDay.label,
-            caloriesBurned: highestExerciseDay.caloriesBurned,
-            durationMinutes: highestExerciseDay.durationMinutes,
-          }
-        : null,
-    },
-  };
+  return buildHabitAnalyticsFromRange(waterGoal, rangeData, range);
 }
