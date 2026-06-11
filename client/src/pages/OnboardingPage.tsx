@@ -569,9 +569,10 @@ export default function OnboardingPage() {
   }, [mealSchedulesQuery.data, schedulesApplied]);
 
   useEffect(() => {
-    setPhoneCountryCode(DEFAULT_PHONE_COUNTRY_OPTION);
-    setPhoneNationalNumber(whatsappPhoneNumber ? normalizeNationalPhoneDigits(whatsappPhoneNumber, DEFAULT_PHONE_COUNTRY_OPTION) : "");
-    if (!whatsappPhoneNumber) {
+    if (whatsappPhoneNumber) {
+      setPhoneCountryCode(DEFAULT_PHONE_COUNTRY_OPTION);
+      setPhoneNationalNumber(normalizeNationalPhoneDigits(whatsappPhoneNumber, DEFAULT_PHONE_COUNTRY_OPTION));
+    } else {
       setSendWhatsappGreeting(false);
       setAcceptedOperationalWhatsappGreeting(false);
     }
