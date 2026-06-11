@@ -1,5 +1,24 @@
 export const DEFAULT_APP_TIME_ZONE = "America/Sao_Paulo";
 
+export const USER_TIME_ZONE_OPTIONS = [
+  { value: "America/Sao_Paulo", label: "UTC-03:00 - Brasília/São Paulo" },
+  { value: "America/Manaus", label: "UTC-04:00 - Manaus" },
+  { value: "America/Rio_Branco", label: "UTC-05:00 - Rio Branco" },
+  { value: "America/Noronha", label: "UTC-02:00 - Fernando de Noronha" },
+  { value: "America/New_York", label: "UTC-05:00 - Nova York" },
+  { value: "America/Chicago", label: "UTC-06:00 - Chicago" },
+  { value: "America/Denver", label: "UTC-07:00 - Denver" },
+  { value: "America/Los_Angeles", label: "UTC-08:00 - Los Angeles" },
+  { value: "Europe/Lisbon", label: "UTC+00:00 - Lisboa" },
+  { value: "UTC", label: "UTC+00:00 - Universal" },
+] as const;
+
+const USER_TIME_ZONE_VALUES = new Set(USER_TIME_ZONE_OPTIONS.map(option => option.value));
+
+export function normalizeUserTimeZone(value: string | null | undefined) {
+  return value && USER_TIME_ZONE_VALUES.has(value) ? value : DEFAULT_APP_TIME_ZONE;
+}
+
 function pad(value: number) {
   return String(value).padStart(2, "0");
 }
