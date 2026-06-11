@@ -466,8 +466,7 @@ export default function GoalsPage() {
                   Meta geral da semana
                 </CardTitle>
                 <CardDescription>
-                  Defina uma regra base válida para todos os dias. Você pode preencher os macronutrientes diretamente em gramas ou por percentual das calorias do dia.
-                  Metas muito extremas são bloqueadas e metas que merecem atenção aparecem como revisão, sem julgamento sobre suas escolhas.
+                  Use esta meta como referência para os dias sem exceção. Preencha os macronutrientes em gramas ou por percentual das calorias e revise os avisos antes de salvar.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
