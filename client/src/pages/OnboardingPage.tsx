@@ -198,6 +198,20 @@ function hasInvalidScheduleTime(schedules: MealScheduleState[]) {
   );
 }
 
+function mealStartMinutes(schedule: MealScheduleState) {
+  const [hour, minute] = schedule.startTime.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return Number.MAX_SAFE_INTEGER;
+  return hour * 60 + minute;
+}
+
+function compareMealSchedulesByStartTime(a: MealScheduleState, b: MealScheduleState) {
+  return mealStartMinutes(a) - mealStartMinutes(b);
+}
+
+function sortMealSchedulesByStartTime(schedules: MealScheduleState[]) {
+  return [...schedules].sort(compareMealSchedulesByStartTime);
+}
+
 function createNewMealSchedule(): MealScheduleState {
   return { mealLabel: "", startTime: "12:00", endTime: "12:59", enabled: true };
 }
@@ -317,7 +331,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!mealSchedulesQuery.data || schedulesApplied) return;
-    setMealSchedules(mealSchedulesQuery.data as MealScheduleState[]);
+    setMealSchedules(sortMealSchedulesByStartTime(mealSchedulesQuery.data as MealScheduleState[]));
     setSchedulesApplied(true);
   }, [mealSchedulesQuery.data, schedulesApplied]);
 
@@ -331,6 +345,12 @@ export default function OnboardingPage() {
   }, [whatsappPhoneNumber]);
 
   const calculatedAgeYears = useMemo(() => calculateAgeYears(form.birthDate), [form.birthDate]);
+  const sortedMealSchedules = useMemo(
+    () => mealSchedules
+      .map((schedule, index) => ({ schedule, index }))
+      .sort((a, b) => compareMealSchedulesByStartTime(a.schedule, b.schedule) || a.index - b.index),
+    [mealSchedules],
+  );
 
   const parsed = useMemo(() => ({
     name: form.name.trim(),
@@ -459,7 +479,7 @@ export default function OnboardingPage() {
   }
 
   function handleSaveMealSchedules() {
-    const normalizedSchedules = mealSchedules.map(schedule => ({ ...schedule, mealLabel: schedule.mealLabel.trim() }));
+    const normalizedSchedules = sortMealSchedulesByStartTime(mealSchedules.map(schedule => ({ ...schedule, mealLabel: schedule.mealLabel.trim() })));
     if (normalizedSchedules.some(schedule => !schedule.mealLabel)) {
       toast.error("Informe o nome de todas as refeições habituais.");
       return;
@@ -653,10 +673,10 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="grid gap-3">
-                  {mealSchedules.map((schedule, index) => (
+                  {sortedMealSchedules.map(({ schedule, index }, displayIndex) => (
                     <div key={index} className="grid gap-3 rounded-2xl border bg-background p-4 lg:grid-cols-[minmax(0,1.2fr)_140px_140px_auto_auto] lg:items-center">
                       <div className="space-y-2">
-                        <FieldLabel label={`Refeição ${index + 1}`} />
+                        <FieldLabel label={`Refeição ${displayIndex + 1}`} />
                         <Input
                           value={schedule.mealLabel}
                           onChange={event => updateSchedule(index, "mealLabel", event.target.value)}
@@ -685,7 +705,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(current => [...current, createNewMealSchedule()])} disabled={mealSchedules.length >= 12}>
+                  <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(current => sortMealSchedulesByStartTime([...current, createNewMealSchedule()]))} disabled={mealSchedules.length >= 12}>
                     <Plus className="mr-2 h-4 w-4" />
                     Adicionar refeição
                   </Button>
