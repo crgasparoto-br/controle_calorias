@@ -418,7 +418,7 @@ export default function GoalsPage() {
         <PageIntro
           eyebrow="Planejamento nutricional"
           title="Metas e exceções da semana"
-          description="Defina uma regra base para o plano nutricional e ajuste apenas os dias que realmente precisam sair do padrão. A tela continua com a mesma lógica, mas agora entrega um resumo mais claro antes da edição detalhada."
+          description="Defina a meta geral do seu plano nutricional e ajuste apenas os dias que precisam de valores diferentes. Use o resumo para conferir como a semana ficará antes de salvar."
           actions={(
             <Button
               className="rounded-full"
