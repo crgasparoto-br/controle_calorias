@@ -5,10 +5,15 @@ import { useLocation } from "wouter";
 
 const SLOT_ATTRIBUTE = "data-profile-access-requests-root";
 const SETTINGS_TITLE_COPY = "Atualize seus dados, metas e acompanhamentos";
+const SAVE_PROFILE_LABEL = "Salvar perfil";
+
+function elementText(element: Element) {
+  return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
 
 function replaceExactText(currentText: string, nextText: string) {
   const element = Array.from(document.querySelectorAll("h1, h2, h3, div, span, p, [role='heading']")).find(item =>
-    item.textContent?.trim() === currentText,
+    elementText(item) === currentText,
   );
 
   if (element) element.textContent = nextText;
@@ -21,20 +26,18 @@ function updateSettingsCopy() {
   replaceExactText("módulo nutricionista", "área profissional");
 }
 
-function hasClassName(element: Element, className: string) {
-  return element.className.toString().includes(className);
+function findSaveProfileButton() {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(button =>
+    elementText(button).includes(SAVE_PROFILE_LABEL),
+  ) ?? null;
 }
 
-function findTextElement(text: string) {
-  const elements = Array.from(document.querySelectorAll("h1, h2, h3, div, span, p, [role='heading']"));
-  return elements.find(element => element.textContent?.trim() === text) ?? null;
-}
-
-function findProfileCard(title: Element) {
-  let current = title.parentElement;
+function findProfileCardContent(saveButton: HTMLButtonElement) {
+  let current: Element | null = saveButton.parentElement;
 
   while (current) {
-    if (hasClassName(current, "shadow-sm") && current.textContent?.includes("Peso atual")) {
+    const text = elementText(current);
+    if (text.includes("Identificação e base física") && text.includes("Nome") && text.includes("Peso atual")) {
       return current;
     }
     current = current.parentElement;
@@ -43,36 +46,23 @@ function findProfileCard(title: Element) {
   return null;
 }
 
-function findProfileCardContent(card: Element) {
-  const contents = Array.from(card.querySelectorAll("div"));
-  return contents.find(element => {
-    const text = element.textContent ?? "";
-    return hasClassName(element, "space-y-4") && text.includes("Nome") && text.includes("Peso atual") && text.includes("Salvar perfil");
-  }) ?? null;
-}
-
 function findProfileAccessSlot() {
   if (typeof document === "undefined") return null;
 
-  const title = findTextElement("Identificação e base física");
-  if (!title) return null;
+  const saveButton = findSaveProfileButton();
+  if (!saveButton) return null;
 
-  const card = findProfileCard(title);
-  if (!card) return null;
+  const profileContent = findProfileCardContent(saveButton);
+  if (!profileContent) return null;
 
-  const content = findProfileCardContent(card);
-  if (!content) return null;
-
-  const existingSlot = content.querySelector<HTMLDivElement>(`[${SLOT_ATTRIBUTE}='true']`);
+  const existingSlot = profileContent.querySelector<HTMLDivElement>(`[${SLOT_ATTRIBUTE}='true']`);
   if (existingSlot) return existingSlot;
 
   const slot = document.createElement("div");
   slot.setAttribute(SLOT_ATTRIBUTE, "true");
 
-  const saveButtonArea = Array.from(content.children).find(element =>
-    element.textContent?.includes("Salvar perfil"),
-  );
-  content.insertBefore(slot, saveButtonArea ?? null);
+  const saveButtonArea = saveButton.parentElement;
+  profileContent.insertBefore(slot, saveButtonArea ?? null);
 
   return slot;
 }
