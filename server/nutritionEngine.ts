@@ -242,6 +242,18 @@ const DEFAULT_MEAL_LABEL_BY_TIME = [
   { mealLabel: "Ceia", startTime: "23:00", endTime: "04:59" },
 ] as const;
 
+const GENERIC_ESTIMATED_FOOD_REFERENCE: CatalogFood = {
+  slug: "generic-food-estimate",
+  name: "Alimento estimado",
+  aliases: [],
+  servingLabel: "100 g",
+  gramsPerServing: 100,
+  calories: 150,
+  protein: 6,
+  carbs: 15,
+  fat: 5,
+};
+
 const BAKERY_BREAD_REFERENCE: CatalogFood = {
   slug: "bakery-bread-estimate",
   name: "Pão de padaria",
@@ -610,18 +622,26 @@ function isLikelyBakeryBreadProduct(foodName: string) {
   return !/\bpao de queijo\b/.test(normalized);
 }
 
-function shouldUseBakeryBreadFallback(item: LlmItem) {
-  return !hasUsableNutrition(item) && isLikelyBakeryBreadProduct(item.foodName);
+function resolveEstimatedNutritionReference(item: LlmItem): CatalogFood {
+  if (isLikelyBakeryBreadProduct(item.foodName)) {
+    return BAKERY_BREAD_REFERENCE;
+  }
+
+  return {
+    ...GENERIC_ESTIMATED_FOOD_REFERENCE,
+    name: item.foodName,
+  };
 }
 
-function buildBakeryBreadFallbackItem(llmItem: LlmItem): MealDraftItem {
-  const item = buildItemFromCatalog(BAKERY_BREAD_REFERENCE, {
+function buildEstimatedNutritionFallbackItem(llmItem: LlmItem): MealDraftItem {
+  const reference = resolveEstimatedNutritionReference(llmItem);
+  const item = buildItemFromCatalog(reference, {
     ...llmItem,
-    estimatedCalories: BAKERY_BREAD_REFERENCE.calories,
+    estimatedCalories: reference.calories,
     estimatedMacros: {
-      protein: BAKERY_BREAD_REFERENCE.protein,
-      carbs: BAKERY_BREAD_REFERENCE.carbs,
-      fat: BAKERY_BREAD_REFERENCE.fat,
+      protein: reference.protein,
+      carbs: reference.carbs,
+      fat: reference.fat,
     },
     confidence: Math.min(clampConfidence(llmItem.confidence), 0.72),
   });
@@ -803,7 +823,7 @@ async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof
         "Use o rótulo apenas para identificar o alimento real e a porção consumida; não crie itens extras a partir de ingredientes da embalagem.",
         "Nunca transforme lista de ingredientes em itens separados da refeição; ingredientes no rótulo servem apenas como contexto do produto principal.",
         "Se houver peso líquido, peso drenado, peso na etiqueta da balança ou porção declarada visível (ex.: 200 g, 500 ml), use esse valor como porção estimada quando fizer sentido para o item identificado.",
-        "Quando reconhecer um produto de padaria claramente identificado como pão, mas sem tabela nutricional visível, não deixe calorias nem macronutrientes zerados; use uma estimativa média proporcional à porção informada e explique que é estimado.",
+        "Quando reconhecer alimento consumível com segurança, mas sem tabela nutricional visível nem macros confiáveis, não deixe calorias nem macronutrientes zerados; use uma estimativa média proporcional à porção informada e explique que é estimado.",
         "Em foto com embalagem, rótulo ou alimento visível, não use água como fallback apenas por transparência, brilho, reflexo ou plástico translúcido.",
         "Só classifique como água quando houver evidência explícita de água consumida (texto legível contendo 'água' ou recipiente claramente de água sem rótulo de outro alimento).",
         "Não invente totais agregados; detalhe por item com quantidade, unidade, porção, gramas estimados e macronutrientes por item.",
@@ -869,8 +889,8 @@ async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOpti
     }
     if (catalog && !options.preferInferredNutrition) {
       results.push(buildItemFromCatalog(catalog, normalizedItem));
-    } else if (shouldUseBakeryBreadFallback(normalizedItem)) {
-      results.push(buildBakeryBreadFallbackItem(normalizedItem));
+    } else if (!hasUsableNutrition(normalizedItem)) {
+      results.push(buildEstimatedNutritionFallbackItem(normalizedItem));
     } else {
       results.push(buildHybridItem(normalizedItem));
     }
