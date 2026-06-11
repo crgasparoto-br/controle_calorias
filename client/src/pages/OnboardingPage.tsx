@@ -552,38 +552,12 @@ export default function OnboardingPage() {
                   <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
                   <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
                   <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
+                  <SelectField label="Fuso horário" value={form.timezone} options={USER_TIME_ZONE_OPTIONS} onChange={value => updateField("timezone", value as FormState["timezone"])} />
                 </div>
                 <div className="flex justify-end">
                   <Button type="button" className="rounded-full" disabled={isSavingProfile} onClick={handleSaveProfile}>
                     <Save className="mr-2 h-4 w-4" />
                     {isSavingProfile ? "Salvando perfil..." : "Salvar perfil"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <Clock3 className="h-5 w-5 text-primary" />
-                  Fuso horário
-                </CardTitle>
-                <CardDescription>
-                  Use o fuso da sua rotina para que refeições, água, exercícios e resumos apareçam no dia certo.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <SelectField
-                  label="Fuso do perfil"
-                  value={form.timezone}
-                  options={USER_TIME_ZONE_OPTIONS}
-                  onChange={value => updateField("timezone", value as FormState["timezone"])}
-                  helper="Se você não alterar, usaremos Brasília/São Paulo como padrão."
-                />
-                <div className="flex justify-end">
-                  <Button type="button" className="rounded-full" disabled={isSavingProfile} onClick={handleSaveProfile}>
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSavingProfile ? "Salvando fuso..." : "Salvar fuso"}
                   </Button>
                 </div>
               </CardContent>
