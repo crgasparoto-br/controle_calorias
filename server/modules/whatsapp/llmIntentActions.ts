@@ -1,0 +1,435 @@
+import { roundNutritionValue } from "../../../shared/mealTotals";
+import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
+import type { MealDraftItem } from "../../nutritionEngine";
+import { createManualMeal, listMeals, updateMeal } from "../meals/service";
+import type { MealItemInput } from "../meals/schemas";
+import { buildWhatsappIntentContext } from "./intentContext";
+import { interpretWhatsappMessage } from "./intentInterpreter";
+import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappInterpretedIntent } from "./intentSchema";
+
+const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
+const HEURISTIC_NUTRITION_PER_100G = {
+  calories: 150,
+  protein: 6,
+  carbs: 15,
+  fat: 5,
+};
+
+type WhatsappLlmIntentResult = {
+  handled: true;
+  action:
+    | "llm_intent_add_foods_to_meal"
+    | "llm_intent_replace_food_in_meal"
+    | "llm_intent_list_meal_records"
+    | "llm_intent_daily_summary"
+    | "llm_intent_open_records_link"
+    | "llm_intent_help"
+    | "clarification_needed";
+  reply: string;
+  eventType: string;
+  detail: string;
+  data?: Record<string, unknown>;
+};
+
+type WhatsappLlmIntentInput = {
+  text?: string | null;
+  receivedAt?: Date;
+};
+
+type ExistingMeal = {
+  id: number;
+  mealLabel: string;
+  occurredAt: number | string | Date;
+  notes?: string;
+  items?: MealDraftItem[];
+};
+
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[-_]/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value);
+}
+
+function formatReplyDate(date: Date) {
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: SAO_PAULO_TIME_ZONE,
+  });
+}
+
+function startOfSaoPauloDay(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: SAO_PAULO_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return new Date(`${values.year}-${values.month}-${values.day}T00:00:00-03:00`);
+}
+
+function endOfSaoPauloDay(date: Date) {
+  return new Date(startOfSaoPauloDay(date).getTime() + 86_400_000 - 1);
+}
+
+function isMealInsideDay(meal: ExistingMeal, date: Date) {
+  const occurredAt = new Date(meal.occurredAt).getTime();
+  return occurredAt >= startOfSaoPauloDay(date).getTime() && occurredAt <= endOfSaoPauloDay(date).getTime();
+}
+
+function normalizeMealLabel(value: string) {
+  const normalized = normalizeText(value);
+  if (/(^|\s)(cafe|manha|desjejum)(\s|$)/.test(normalized)) return "Café da manhã";
+  if (/\balmoco\b/.test(normalized)) return "Almoço";
+  if (/\bjantar\b|\bjanta\b/.test(normalized)) return "Jantar";
+  if (/\bceia\b/.test(normalized)) return "Ceia";
+  if (/\blanche\b/.test(normalized)) return "Lanche";
+  return value.trim();
+}
+
+function resolveIntentDate(intent: WhatsappInterpretedIntent, receivedAt: Date) {
+  if (!intent.date) {
+    return receivedAt;
+  }
+  const normalized = normalizeText(intent.date);
+  if (normalized === "hoje") return receivedAt;
+  if (normalized === "ontem") return new Date(receivedAt.getTime() - 86_400_000);
+  const parsed = new Date(intent.date);
+  return Number.isNaN(parsed.getTime()) ? receivedAt : parsed;
+}
+
+function findMealByLabel(meals: ExistingMeal[], label: string, date: Date) {
+  const normalizedLabel = normalizeText(normalizeMealLabel(label));
+  return meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel && isMealInsideDay(meal, date))
+    ?? meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel)
+    ?? null;
+}
+
+function quantityToEstimatedGrams(item: WhatsappIntentFoodItem) {
+  const quantity = item.quantity ?? 1;
+  const unit = normalizeMeasurementUnit(item.unit ?? "porção");
+  if (unit === "kg" || /\bkg\b/i.test(item.unit ?? "")) return quantity * 1000;
+  if (unit === "l") return quantity * 1000;
+  if (unit === "mg") return quantity / 1000;
+  if (unit === "ml" || unit === "g") return quantity;
+  if (/fatias?/i.test(item.unit ?? "")) return quantity * 25;
+  if (/x[ií]caras?|copos?/i.test(item.unit ?? "")) return quantity * 50;
+  return quantity * 100;
+}
+
+function buildMealItem(item: WhatsappIntentFoodItem): MealItemInput {
+  const quantity = item.quantity ?? 1;
+  const unit = normalizeMeasurementUnit(item.unit ?? "porção");
+  const estimatedGrams = Math.max(quantityToEstimatedGrams(item), 1);
+  const factor = estimatedGrams / 100;
+  const foodName = [item.foodName, item.preparation].filter(Boolean).join(" ").trim();
+
+  return {
+    foodName,
+    canonicalName: foodName,
+    brand: item.brand ?? undefined,
+    quantity,
+    unit,
+    portionText: item.quantity && item.unit ? `${formatNumber(quantity)} ${unit}` : "1 porção estimada",
+    servings: Math.max(factor, 0.1),
+    estimatedGrams: roundNutritionValue(estimatedGrams),
+    calories: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.calories * factor),
+    protein: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.protein * factor),
+    carbs: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.carbs * factor),
+    fat: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.fat * factor),
+    confidence: item.quantity && item.unit ? 0.65 : 0.45,
+    source: "heuristic",
+  };
+}
+
+function toMealItemInput(item: MealDraftItem): MealItemInput {
+  const quantityUnit = item as MealDraftItem & Partial<Pick<MealItemInput, "quantity" | "unit" | "brand">>;
+  return {
+    ...item,
+    ...(quantityUnit.brand ? { brand: quantityUnit.brand } : {}),
+    quantity: quantityUnit.quantity ?? item.servings,
+    unit: quantityUnit.unit?.trim() || "porção",
+  };
+}
+
+function itemMatchScore(item: MealItemInput, targetFood: string) {
+  const target = normalizeText(targetFood);
+  const foodName = normalizeText(item.foodName);
+  const canonicalName = normalizeText(item.canonicalName);
+  if (foodName === target || canonicalName === target) return 3;
+  if (foodName.includes(target) || canonicalName.includes(target) || target.includes(foodName)) return 2;
+  const targetWords = new Set(target.split(" ").filter(Boolean));
+  const itemWords = new Set(`${foodName} ${canonicalName}`.split(" ").filter(Boolean));
+  const overlap = [...targetWords].filter(word => itemWords.has(word)).length;
+  return overlap >= Math.max(1, Math.min(2, targetWords.size)) ? 1 : 0;
+}
+
+function findReplacementTarget(items: MealItemInput[], sourceFood: string) {
+  const candidates = items
+    .map((item, index) => ({ item, index, score: itemMatchScore(item, sourceFood) }))
+    .filter(candidate => candidate.score > 0)
+    .sort((a, b) => b.score - a.score);
+  if (!candidates.length) return null;
+  if (candidates.length > 1 && candidates[0].score === candidates[1].score) return "ambiguous" as const;
+  return candidates[0];
+}
+
+function replaceMealItemFood(item: MealItemInput, targetFood: string): MealItemInput {
+  const estimatedGrams = Math.max(Number(item.estimatedGrams || 0), 1);
+  const factor = estimatedGrams / 100;
+  return {
+    ...item,
+    foodName: targetFood,
+    canonicalName: targetFood,
+    calories: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.calories * factor),
+    protein: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.protein * factor),
+    carbs: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.carbs * factor),
+    fat: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.fat * factor),
+    confidence: Math.min(Number(item.confidence || 0.7), 0.7),
+    source: "heuristic",
+  };
+}
+
+function sumMealItems(items: MealItemInput[]) {
+  return items.reduce(
+    (acc, item) => ({
+      calories: acc.calories + Number(item.calories || 0),
+      protein: acc.protein + Number(item.protein || 0),
+      carbs: acc.carbs + Number(item.carbs || 0),
+      fat: acc.fat + Number(item.fat || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+}
+
+function formatTotalsLine(totals: { calories: number; protein: number; carbs: number; fat: number }) {
+  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
+}
+
+async function handleAddFoodsToMeal(
+  userId: number,
+  intent: WhatsappInterpretedIntent,
+  receivedAt: Date,
+): Promise<WhatsappLlmIntentResult | null> {
+  if (!intent.meal?.label || !intent.items.length) {
+    return null;
+  }
+  const targetDate = resolveIntentDate(intent, receivedAt);
+  const mealLabel = normalizeMealLabel(intent.meal.label);
+  const meals = await listMeals(userId);
+  const existingMeal = findMealByLabel(meals, mealLabel, targetDate);
+  if (!existingMeal && !intent.meal.createIfMissing) {
+    return null;
+  }
+
+  const addedItems = intent.items.map(buildMealItem);
+  const meal = existingMeal
+    ? await updateMeal(userId, {
+        mealId: existingMeal.id,
+        mealLabel: existingMeal.mealLabel,
+        occurredAt: new Date(existingMeal.occurredAt).toISOString(),
+        notes: existingMeal.notes,
+        items: [...(existingMeal.items ?? []), ...addedItems] as MealItemInput[],
+      })
+    : await createManualMeal(userId, {
+        mealLabel,
+        occurredAt: targetDate.toISOString(),
+        notes: "Criada automaticamente pelo interpretador estruturado do WhatsApp.",
+        items: addedItems,
+      });
+
+  return {
+    handled: true,
+    action: "llm_intent_add_foods_to_meal",
+    reply: `Registrei ${addedItems.length} item(ns) em ${meal.mealLabel} de ${formatReplyDate(new Date(meal.occurredAt))}: ${addedItems.map(item => `${item.portionText} de ${item.foodName}`).join(", ")}.`,
+    eventType: "whatsapp.llm_intent.add_foods_to_meal",
+    detail: existingMeal
+      ? "Alimentos adicionados a refeição existente por intenção estruturada."
+      : "Refeição criada automaticamente por intenção estruturada com createIfMissing.",
+    data: {
+      mealId: meal.id,
+      mealLabel: meal.mealLabel,
+      createdMeal: !existingMeal,
+      itemCount: addedItems.length,
+      intentConfidence: intent.confidence,
+    },
+  };
+}
+
+async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpretedIntent): Promise<WhatsappLlmIntentResult | null> {
+  if (!intent.sourceFood || !intent.targetFood) {
+    return null;
+  }
+  const latestMeal = (await listMeals(userId))[0];
+  if (!latestMeal?.items?.length) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: "Nao encontrei uma refeicao recente para corrigir. Me diga qual alimento devo trocar.",
+      eventType: "whatsapp.llm_intent.clarification_needed",
+      detail: "Intencao estruturada de troca sem refeicao recente.",
+    };
+  }
+
+  const latestItems = latestMeal.items.map(toMealItemInput);
+  const target = findReplacementTarget(latestItems, intent.sourceFood);
+  if (!target || target === "ambiguous") {
+    const options = latestItems.map((item, index) => `${index + 1}. ${item.foodName}`).join(" ");
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: `Nao encontrei uma correspondencia segura para ${intent.sourceFood}. Qual item devo trocar? ${options}`,
+      eventType: "whatsapp.llm_intent.clarification_needed",
+      detail: target === "ambiguous"
+        ? "Intencao estruturada de troca com correspondencia ambigua."
+        : "Intencao estruturada de troca sem item compativel.",
+    };
+  }
+
+  const nextItems = latestItems.map((item, index) => index === target.index
+    ? replaceMealItemFood(item, intent.targetFood!)
+    : item);
+  const updatedMeal = await updateMeal(userId, {
+    mealId: latestMeal.id,
+    mealLabel: latestMeal.mealLabel,
+    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
+    notes: latestMeal.notes,
+    items: nextItems,
+  });
+  const replacedItem = nextItems[target.index];
+
+  return {
+    handled: true,
+    action: "llm_intent_replace_food_in_meal",
+    reply: `Troquei ${target.item.foodName} por ${intent.targetFood} na ultima refeicao e mantive ${formatNumber(replacedItem.estimatedGrams)} g. Estimativa: ${formatTotalsLine(replacedItem)}.`,
+    eventType: "whatsapp.llm_intent.replace_food_in_meal",
+    detail: "Alimento substituido por intencao estruturada validada.",
+    data: {
+      mealId: updatedMeal.id,
+      previousFoodName: target.item.foodName,
+      nextFoodName: intent.targetFood,
+      intentConfidence: intent.confidence,
+    },
+  };
+}
+
+async function handleListMeals(userId: number, receivedAt: Date, dailyOnly = true): Promise<WhatsappLlmIntentResult> {
+  const meals = await listMeals(userId);
+  const filteredMeals = dailyOnly ? meals.filter(meal => isMealInsideDay(meal, receivedAt)) : meals.slice(0, 8);
+  if (!filteredMeals.length) {
+    return {
+      handled: true,
+      action: dailyOnly ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
+      reply: dailyOnly
+        ? "Nao encontrei refeicoes registradas hoje."
+        : "Nao encontrei refeicoes recentes para resumir.",
+      eventType: "whatsapp.llm_intent.list_meal_records",
+      detail: "Consulta estruturada de refeicoes sem registros encontrados.",
+      data: { mealCount: 0 },
+    };
+  }
+
+  const lines = filteredMeals.map(meal => {
+    const totals = sumMealItems((meal.items ?? []).map(toMealItemInput));
+    return `• ${meal.mealLabel}: ${formatTotalsLine(totals)}`;
+  });
+
+  return {
+    handled: true,
+    action: dailyOnly ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
+    reply: [`Refeicoes registradas ${dailyOnly ? "hoje" : "recentemente"}:`, "", ...lines].join("\n"),
+    eventType: dailyOnly ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
+    detail: "Consulta estruturada de refeicoes respondida pelo WhatsApp.",
+    data: { mealCount: filteredMeals.length },
+  };
+}
+
+function buildHelpReply() {
+  return [
+    "Posso ajudar pelo WhatsApp com:",
+    "",
+    "• registrar alimentos em uma refeicao",
+    "• corrigir ou trocar um alimento da ultima refeicao",
+    "• listar refeicoes registradas hoje",
+    "• mostrar resumo do dia",
+    "• registrar agua com quantidade",
+  ].join("\n");
+}
+
+function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmIntentResult {
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: intent.clarificationQuestion
+      ?? "Nao entendi com seguranca. Voce quer registrar alimento, corrigir uma refeicao ou consultar seus registros?",
+    eventType: "whatsapp.llm_intent.clarification_needed",
+    detail: `Intencao ${intent.intent} exige esclarecimento antes de executar.`,
+    data: {
+      intent: intent.intent,
+      intentConfidence: intent.confidence,
+      possibleIntents: intent.possibleIntents,
+    },
+  };
+}
+
+export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLlmIntentInput): Promise<WhatsappLlmIntentResult | null> {
+  const text = input.text?.trim();
+  if (!text) {
+    return null;
+  }
+
+  const receivedAt = input.receivedAt ?? new Date();
+  const context = await buildWhatsappIntentContext(userId, { receivedAt });
+  const intent = await interpretWhatsappMessage(text, context);
+
+  if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) {
+    return buildClarification(intent);
+  }
+
+  if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute && intent.intent !== "ambiguous") {
+    return null;
+  }
+
+  switch (intent.intent) {
+    case "add_foods_to_meal":
+      return handleAddFoodsToMeal(userId, intent, receivedAt);
+    case "replace_food_in_meal":
+      return handleReplaceFoodInMeal(userId, intent);
+    case "list_meal_records":
+      return handleListMeals(userId, receivedAt, true);
+    case "daily_summary":
+      return handleListMeals(userId, receivedAt, false);
+    case "open_records_link":
+      return {
+        handled: true,
+        action: "llm_intent_open_records_link",
+        reply: "Voce pode revisar seus registros na tela de refeicoes do app.",
+        eventType: "whatsapp.llm_intent.open_records_link",
+        detail: "Pedido estruturado para abrir registros respondido sem criar refeicao.",
+      };
+    case "help":
+      return {
+        handled: true,
+        action: "llm_intent_help",
+        reply: buildHelpReply(),
+        eventType: "whatsapp.llm_intent.help",
+        detail: "Ajuda de comandos enviada por intencao estruturada.",
+      };
+    case "ambiguous":
+    case "unknown":
+      return buildClarification(intent);
+    default:
+      return null;
+  }
+}

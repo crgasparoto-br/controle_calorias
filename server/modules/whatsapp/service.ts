@@ -13,35 +13,14 @@ import {
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import { executeWhatsappTextIntent } from "./intentActions";
-import { splitWhatsAppWaterAndFoodText } from "./waterFoodText";
+import { executeWhatsappLlmIntent } from "./llmIntentActions";
+import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
   constructor() {
     super("Informe o telefone de origem do usuário final, não o número oficial fixo da solução.");
     this.name = "OfficialWhatsappNumberError";
   }
-}
-
-function cleanCorrectedFoodText(value?: string) {
-  return value
-    ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/gi, "")
-    .replace(/[.,;:!?]+$/g, "")
-    .replace(/^\b(?:o|a|os|as|do|da|de|dos|das)\b\s+/i, "")
-    .trim() || null;
-}
-
-function extractFoodCorrectionTarget(text?: string | null) {
-  const correctionMatch = text?.match(/\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i);
-  if (!correctionMatch) {
-    return null;
-  }
-
-  const targetFood = cleanCorrectedFoodText(correctionMatch[2]);
-  if (!targetFood || /\d/.test(targetFood)) {
-    return null;
-  }
-
-  return targetFood;
 }
 
 export async function getWhatsappStatus(userId: number) {
@@ -91,19 +70,29 @@ export async function updateWhatsappConnection(userId: number, input: WhatsappCo
   return connection;
 }
 
-export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
-  const correctedFood = extractFoodCorrectionTarget(input.text);
-  if (correctedFood) {
-    logInferenceEvent({
-      userId,
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.food_correction_text_detected",
-      detail: "Correção textual de alimento detectada antes de interpretar intenção de água.",
-    });
-    return processMealDraft(userId, { source: "whatsapp", text: correctedFood });
+async function logAndReturnInterpretedIntent(
+  userId: number,
+  interpreted: {
+    action: string;
+    eventType: string;
+    detail: string;
+  } | null,
+) {
+  if (!interpreted) {
+    return null;
   }
 
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: interpreted.action === "clarification_needed" ? "warning" : "success",
+    eventType: interpreted.eventType,
+    detail: interpreted.detail,
+  });
+  return interpreted;
+}
+
+export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const waterFoodSplit = splitWhatsAppWaterAndFoodText(input.text);
   if (waterFoodSplit) {
     const waterResults = [];
@@ -154,19 +143,35 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     };
   }
 
-  const interpreted = await executeWhatsappTextIntent(userId, {
+  const waterCorrectionMatch = input.text ? /\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i.exec(input.text) : null;
+  if (waterCorrectionMatch) {
+    const fromText = waterCorrectionMatch[1].trim();
+    const toText = waterCorrectionMatch[2].trim();
+    if (isWhatsAppWaterOnlyText(fromText) && toText) {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.food_correction_text_detected",
+        detail: `Correção detectada: "${fromText}" (água) substituída por "${toText}" como alimento.`,
+      });
+      return processMealDraft(userId, { source: "whatsapp", text: toText });
+    }
+  }
+
+  const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
     text: input.text,
     receivedAt: new Date(),
-  });
+  }));
+  if (llmInterpreted) {
+    return llmInterpreted;
+  }
 
+  const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
+    text: input.text,
+    receivedAt: new Date(),
+  }));
   if (interpreted) {
-    logInferenceEvent({
-      userId,
-      origin: "whatsapp",
-      status: interpreted.action === "clarification_needed" ? "warning" : "success",
-      eventType: interpreted.eventType,
-      detail: interpreted.detail,
-    });
     return interpreted;
   }
 
