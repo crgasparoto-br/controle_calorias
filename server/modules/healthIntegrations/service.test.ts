@@ -905,8 +905,9 @@ describe("healthIntegrationService Strava", () => {
     expect(strava?.athleteName).toBe("Ana Atleta");
 
     await secondImport.healthIntegrationService.sync(42, { provider: "strava" });
+    // incremental: lastSyncedAt (2026-06-02T12:00:00Z) minus 24h overlap = 2026-06-01T12:00:00Z
     expect(fetch).toHaveBeenLastCalledWith(
-      "https://www.strava.com/api/v3/athlete/activities?per_page=100&page=1&after=1775131200",
+      "https://www.strava.com/api/v3/athlete/activities?per_page=100&page=1&after=1780315200",
       expect.objectContaining({
         headers: { Authorization: "Bearer persisted-access-token" },
       }),
@@ -940,5 +941,269 @@ describe("healthIntegrationService Strava", () => {
       .toThrow("Limite de requisições do Strava atingido");
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("backfill inicial usa janela de 7 dias quando não há lastSyncedAt", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T12:00:00Z"));
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    // 2026-06-10T12:00:00Z - 7 days = 2026-06-03T12:00:00Z
+    const expectedAfter = Math.floor((new Date("2026-06-03T12:00:00Z").getTime()) / 1000);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(`after=${expectedAfter}`),
+      expect.anything(),
+    );
+  });
+
+  it("sync incremental usa lastSyncedAt com margem de overlap de 24h", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T12:00:00Z"));
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    // second sync: lastSyncedAt = 2026-06-10T12:00:00Z, overlap 24h → after = 2026-06-09T12:00:00Z
+    await healthIntegrationService.sync(42, { provider: "strava" });
+    const expectedAfter = Math.floor((new Date("2026-06-09T12:00:00Z").getTime()) / 1000);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      expect.stringContaining(`after=${expectedAfter}`),
+      expect.anything(),
+    );
+  });
+
+  it("overlap é configurável via STRAVA_INCREMENTAL_OVERLAP_HOURS", async () => {
+    process.env.STRAVA_INCREMENTAL_OVERLAP_HOURS = "48";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T12:00:00Z"));
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    await healthIntegrationService.sync(42, { provider: "strava" });
+    // overlap 48h: lastSyncedAt (2026-06-10T12:00:00Z) - 48h = 2026-06-08T12:00:00Z
+    const expectedAfter = Math.floor((new Date("2026-06-08T12:00:00Z").getTime()) / 1000);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      expect.stringContaining(`after=${expectedAfter}`),
+      expect.anything(),
+    );
+
+    delete process.env.STRAVA_INCREMENTAL_OVERLAP_HOURS;
+  });
+
+  it("cooldown global bloqueia todos os usuários após 429 na lista de atividades", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T12:00:00Z"));
+
+    const fetchMockUser42 = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "token-user-42",
+        refresh_token: "refresh-42",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10 },
+      }))
+      .mockResolvedValueOnce(stravaRateLimitResponse(120));
+    vi.stubGlobal("fetch", fetchMockUser42);
+
+    const { healthIntegrationService } = await import("./service");
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code-42",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    // user 42 hits 429
+    await expect(healthIntegrationService.sync(42, { provider: "strava" }))
+      .rejects
+      .toThrow("Limite de requisições do Strava atingido");
+
+    // persist a second user (99) with a stored token
+    const fetchMockUser99 = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "token-user-99",
+        refresh_token: "refresh-99",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 20 },
+      }))
+      .mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMockUser99);
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code-99",
+      state: encodeState(99),
+      scope: "read,activity:read",
+    });
+
+    // user 99 should also be blocked by global cooldown — no fetch should happen
+    const fetchMockAfterCooldown = vi.fn();
+    vi.stubGlobal("fetch", fetchMockAfterCooldown);
+
+    await expect(healthIntegrationService.sync(99, { provider: "strava" }))
+      .rejects
+      .toThrow("Limite de requisições do Strava atingido");
+
+    expect(fetchMockAfterCooldown).not.toHaveBeenCalled();
+  });
+
+  it("cooldown global expira e libera sincronização após o tempo de espera", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T12:00:00Z"));
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read",
+        athlete: { id: 10 },
+      }))
+      .mockResolvedValueOnce(stravaRateLimitResponse(60))
+      .mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read",
+    });
+
+    await expect(healthIntegrationService.sync(42, { provider: "strava" }))
+      .rejects
+      .toThrow("Limite de requisições do Strava atingido");
+
+    // advance time past the cooldown window
+    vi.advanceTimersByTime(90_000);
+
+    // should succeed now
+    await healthIntegrationService.sync(42, { provider: "strava" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("limite padrão de chamadas de detalhe por sync é 5", async () => {
+    const activitiesWithoutCalories = Array.from({ length: 10 }, (_, i) => ({
+      id: 5_000 + i,
+      name: `Treino ${i + 1}`,
+      sport_type: "Run",
+      start_date: "2026-06-01T10:00:00Z",
+      moving_time: 1800,
+    }));
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        token_type: "Bearer",
+        access_token: "access-token",
+        refresh_token: "refresh-token",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        scope: "read,activity:read_all",
+        athlete: { id: 10, firstname: "Ana", lastname: "Atleta" },
+      }))
+      .mockResolvedValueOnce(jsonResponse(activitiesWithoutCalories));
+
+    // Mock 5 detail responses
+    for (let i = 0; i < 5; i++) {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ ...activitiesWithoutCalories[i], calories: 200 + i }));
+    }
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { healthIntegrationService } = await import("./service");
+    await healthIntegrationService.handleStravaCallback({
+      code: "oauth-code",
+      state: encodeState(42),
+      scope: "read,activity:read_all",
+    });
+
+    // 1 token exchange + 1 list page + 5 detail requests = 7 total
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+  });
+
+  it("intervalo padrão do auto sync é 120 minutos", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T12:00:00Z"));
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([])));
+
+    const { startStravaAutoSyncScheduler, healthIntegrationService: svc } = await import("./service");
+
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const scheduler = startStravaAutoSyncScheduler();
+    expect(scheduler.enabled).toBe(true);
+
+    // initial run fires after 5s
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    // reset call count
+    fetchMock.mockClear();
+
+    // advance 119 minutes — should NOT have triggered another run
+    await vi.advanceTimersByTimeAsync(119 * 60_000);
+    const callsAt119 = fetchMock.mock.calls.length;
+
+    // advance 1 more minute (total 120) — interval fires
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    // no Strava users connected so syncConnectedStravaUsers resolves immediately without fetching
+    expect(callsAt119).toBe(0);
+    scheduler.stop();
   });
 });
