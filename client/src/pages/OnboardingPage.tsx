@@ -443,8 +443,7 @@ function hasInvalidScheduleTime(schedules: MealScheduleState[]) {
   return schedules.some(
     schedule => !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.endTime),
   );
-}
-
+}\n
 function createNewMealSchedule(): MealScheduleState {
   return { mealLabel: "", startTime: "12:00", endTime: "12:59", enabled: true };
 }
@@ -1059,9 +1058,6 @@ function PhoneNumberField({ countryCode, countryOptions, nationalNumber, onCount
           placeholder="Ex.: 11 99999-8888"
         />
       </div>
-      <p className="text-xs leading-5 text-muted-foreground">
-        Brasil vem selecionado por padrão. Informe apenas o número local; o código do país selecionado será incluído automaticamente ao salvar.
-      </p>
     </div>
   );
 }
