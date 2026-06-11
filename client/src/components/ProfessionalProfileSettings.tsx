@@ -15,6 +15,10 @@ type ProfessionalFormState = {
   active: boolean;
 };
 
+type PatientAccessRequestsCardProps = {
+  embedded?: boolean;
+};
+
 const initialForm: ProfessionalFormState = {
   displayName: "",
   registrationNumber: "",
@@ -171,7 +175,7 @@ export default function ProfessionalProfileSettings() {
   );
 }
 
-export function PatientAccessRequestsCard() {
+export function PatientAccessRequestsCard({ embedded = false }: PatientAccessRequestsCardProps) {
   const utils = trpc.useUtils();
   const patientRequests = trpc.nutrition.professionals.patientRequests.useQuery(undefined, { retry: false });
 
@@ -202,6 +206,82 @@ export function PatientAccessRequestsCard() {
   });
 
   const requests = patientRequests.data ?? [];
+  const content = (
+    <div className="space-y-3">
+      {patientRequests.isLoading ? (
+        <div className="rounded-2xl border bg-muted/20 p-6 text-sm text-muted-foreground" role="status" aria-live="polite">
+          Carregando solicitações recebidas...
+        </div>
+      ) : null}
+
+      {patientRequests.isError ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
+          Não foi possível carregar as solicitações recebidas. Tente novamente em instantes.
+        </div>
+      ) : null}
+
+      {!patientRequests.isLoading && !patientRequests.isError && requests.length ? requests.map(request => (
+        <div key={request.id} className="rounded-2xl border bg-background p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 space-y-3">
+              <div>
+                <p className="font-medium">{request.professional?.displayName ?? `Profissional #${request.professionalUserId}`}</p>
+                <p className="text-xs text-muted-foreground">Status: {formatAccessStatus(request.status)}</p>
+                <p className="text-xs text-muted-foreground">Solicitado em {new Date(request.requestedAt).toLocaleString("pt-BR")}</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase text-muted-foreground">{permissionsTitle(request.status)}</p>
+                <ul className="flex flex-wrap gap-2" aria-label={permissionsTitle(request.status)}>
+                  {PATIENT_ACCESS_PERMISSIONS.map(permission => (
+                    <li key={permission} className="rounded-full border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
+                      {permission}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {request.status === "pending" ? (
+                <Button type="button" className="rounded-full" onClick={() => approveAccess.mutate({ accessId: request.id })} disabled={approveAccess.isPending}>
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  Aprovar
+                </Button>
+              ) : null}
+              {request.status !== "revoked" ? (
+                <Button type="button" variant="outline" className="rounded-full" onClick={() => revokeAccess.mutate({ accessId: request.id })} disabled={revokeAccess.isPending}>
+                  <X className="mr-2 h-4 w-4" />
+                  Revogar
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )) : null}
+
+      {!patientRequests.isLoading && !patientRequests.isError && !requests.length ? (
+        <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
+          Nenhuma solicitação recebida até agora.
+        </div>
+      ) : null}
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <section className="rounded-2xl border bg-muted/10 p-4">
+        <div className="mb-3">
+          <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+            <UserCheck className="h-5 w-5 text-primary" />
+            Solicitações de acesso
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Revise pedidos de acompanhamento e escolha quais profissionais podem acessar seus dados autorizados.
+          </p>
+        </div>
+        {content}
+      </section>
+    );
+  }
 
   return (
     <Card className="border-0 shadow-sm">
@@ -214,63 +294,7 @@ export function PatientAccessRequestsCard() {
           Revise pedidos de acompanhamento e escolha quais profissionais podem acessar seus dados autorizados.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {patientRequests.isLoading ? (
-          <div className="rounded-2xl border bg-muted/20 p-6 text-sm text-muted-foreground" role="status" aria-live="polite">
-            Carregando solicitações recebidas...
-          </div>
-        ) : null}
-
-        {patientRequests.isError ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
-            Não foi possível carregar as solicitações recebidas. Tente novamente em instantes.
-          </div>
-        ) : null}
-
-        {!patientRequests.isLoading && !patientRequests.isError && requests.length ? requests.map(request => (
-          <div key={request.id} className="rounded-2xl border bg-background p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 space-y-3">
-                <div>
-                  <p className="font-medium">{request.professional?.displayName ?? `Profissional #${request.professionalUserId}`}</p>
-                  <p className="text-xs text-muted-foreground">Status: {formatAccessStatus(request.status)}</p>
-                  <p className="text-xs text-muted-foreground">Solicitado em {new Date(request.requestedAt).toLocaleString("pt-BR")}</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase text-muted-foreground">{permissionsTitle(request.status)}</p>
-                  <ul className="flex flex-wrap gap-2" aria-label={permissionsTitle(request.status)}>
-                    {PATIENT_ACCESS_PERMISSIONS.map(permission => (
-                      <li key={permission} className="rounded-full border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
-                        {permission}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {request.status === "pending" ? (
-                  <Button type="button" className="rounded-full" onClick={() => approveAccess.mutate({ accessId: request.id })} disabled={approveAccess.isPending}>
-                    <UserCheck className="mr-2 h-4 w-4" />
-                    Aprovar
-                  </Button>
-                ) : null}
-                {request.status !== "revoked" ? (
-                  <Button type="button" variant="outline" className="rounded-full" onClick={() => revokeAccess.mutate({ accessId: request.id })} disabled={revokeAccess.isPending}>
-                    <X className="mr-2 h-4 w-4" />
-                    Revogar
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        )) : null}
-
-        {!patientRequests.isLoading && !patientRequests.isError && !requests.length ? (
-          <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-            Nenhuma solicitação recebida até agora.
-          </div>
-        ) : null}
-      </CardContent>
+      <CardContent>{content}</CardContent>
     </Card>
   );
 }
