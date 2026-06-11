@@ -69,7 +69,7 @@ export function MealAiTabContent({
             <WandSparkles className="h-5 w-5 text-primary" />
             Registrar
           </CardTitle>
-          <CardDescription>Texto, foto e áudio no mesmo rascunho.</CardDescription>
+          <CardDescription>Descreva a refeição ou envie foto e áudio para montar um rascunho revisável.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
@@ -113,7 +113,7 @@ export function MealAiTabContent({
       <Card defaultOpen className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle>Revisão rápida</CardTitle>
-          <CardDescription>Revise os itens antes de salvar.</CardDescription>
+          <CardDescription>Confira os itens, a data e o nome da refeição antes de salvar.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {draft ? (
@@ -140,7 +140,7 @@ export function MealAiTabContent({
                   id="meal-notes"
                   value={notes}
                   onChange={event => onNotesChange(event.target.value)}
-                  placeholder="Observações adicionais do usuário"
+                  placeholder="Observações adicionais sobre a refeição"
                   className="min-h-24 rounded-2xl"
                 />
               </div>
@@ -157,7 +157,7 @@ export function MealAiTabContent({
                         <div>
                           <p className="text-sm font-medium tracking-tight">Alimento {index + 1}</p>
                           <p className="text-xs text-muted-foreground">
-                            {hasFoodSwap ? "Confira o início e o fim da troca antes de salvar." : "Revise texto e valores nutricionais antes de salvar."}
+                            {hasFoodSwap ? "Confira se a substituição sugerida faz sentido antes de salvar." : "Revise nome, porção e valores nutricionais antes de salvar."}
                           </p>
                         </div>
                         {hasFoodSwap ? <Badge variant="secondary" className="bg-amber-100 text-amber-900 hover:bg-amber-100">Troca de alimento</Badge> : null}
