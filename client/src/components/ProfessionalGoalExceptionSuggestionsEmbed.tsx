@@ -127,10 +127,6 @@ function activeExceptions(goal: NutritionGoalView | undefined) {
   })) ?? [];
 }
 
-function weekdayLabel(weekday: number) {
-  return WEEKDAY_OPTIONS.find(option => option.weekday === weekday)?.label ?? "Dia";
-}
-
 export default function ProfessionalGoalExceptionSuggestionsEmbed() {
   const [location] = useLocation();
   const shouldRender = location.startsWith("/professional");
@@ -196,7 +192,9 @@ export default function ProfessionalGoalExceptionSuggestionsEmbed() {
     onSuccess: async () => {
       toast.success("Sugestão de meta com exceções registrada para acompanhamento.");
       setRationale("");
-      await utils.nutrition.professionals.patientDashboard.invalidate();
+      if (patientId) {
+        await utils.nutrition.professionals.patientDashboard.invalidate({ patientId });
+      }
     },
     onError: error => toast.error(error.message || "Não foi possível registrar a sugestão de meta."),
   });
