@@ -725,7 +725,7 @@ export default function OnboardingPage() {
         <PageIntro
           eyebrow="Configurações"
           title="Ajuste seu perfil sem se perder em blocos longos"
-          description="Organizamos a tela em etapas curtas para reduzir rolagem, facilitar revisões rápidas e deixar as refeições habituais mais simples de manter no dia a dia."
+
           stats={completionStats}
           actions={
             <Button className="h-11 rounded-full px-5" disabled={isSavingProfile} type="submit">
