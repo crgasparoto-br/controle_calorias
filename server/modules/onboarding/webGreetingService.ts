@@ -91,13 +91,9 @@ function buildGreetingMessage(name: string | null | undefined) {
 }
 
 export async function sendWebOnboardingWhatsappGreeting(userId: number, input: {
-  acceptedOperationalWhatsapp: boolean;
+  acceptedOperationalWhatsapp?: boolean;
   userName?: string | null;
 }) {
-  if (!input.acceptedOperationalWhatsapp) {
-    throw new Error("WHATSAPP_GREETING_CONSENT_REQUIRED");
-  }
-
   const existing = await getGreetingAudit(userId);
   if (existing?.status === "sent") {
     return {
