@@ -8,7 +8,7 @@ vi.mock("./_core/aiProvider", () => ({
   }),
 }));
 
-describe("nutritionEngine bakery bread fallback", () => {
+describe("nutritionEngine estimated nutrition fallback", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
   });
@@ -56,16 +56,71 @@ describe("nutritionEngine bakery bread fallback", () => {
       portionText: "49 g",
       estimatedGrams: 49,
       calories: 147,
-      protein: 3.9,
-      carbs: 27.4,
-      fat: 2,
+      protein: 3.92,
+      carbs: 27.44,
+      fat: 1.96,
       source: "heuristic",
     }));
     expect(result.totals).toEqual({
       calories: 147,
-      protein: 3.9,
-      carbs: 27.4,
-      fat: 2,
+      protein: 3.92,
+      carbs: 27.44,
+      fat: 1.96,
+    });
+  });
+
+  it("estima macros genéricos para alimento reconhecido sem tabela nutricional", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_generic_food_zero_macros",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.8,
+        reasoning: "Produto alimentício identificado pela embalagem, mas sem tabela nutricional visível.",
+        items: [
+          {
+            foodName: "Bolinho caseiro",
+            quantity: 80,
+            unit: "g",
+            portionText: "80 g",
+            servings: 1,
+            estimatedGrams: 80,
+            estimatedCalories: 0,
+            estimatedMacros: {
+              protein: 0,
+              carbs: 0,
+              fat: 0,
+            },
+            confidence: 0.8,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "80g",
+      imageUrl: "data:image/jpeg;base64,Ym9saW5oby1jYXNlaXJv",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Bolinho caseiro",
+      canonicalName: "Bolinho caseiro",
+      quantity: 80,
+      unit: "g",
+      portionText: "80 g",
+      estimatedGrams: 80,
+      calories: 120,
+      protein: 4.8,
+      carbs: 12,
+      fat: 4,
+      source: "heuristic",
+    }));
+    expect(result.totals).toEqual({
+      calories: 120,
+      protein: 4.8,
+      carbs: 12,
+      fat: 4,
     });
   });
 
