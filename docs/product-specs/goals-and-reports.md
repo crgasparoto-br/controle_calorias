@@ -17,6 +17,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Registros deve incluir refeições, hidratação e atividade física no mesmo intervalo ativo para revisão operacional.
 - Relatórios deve permitir análise por dia, semana, mês e período configurável com o mesmo padrão visual de seleção.
 - Relatórios devem priorizar aderência às metas e evolução, não listagem detalhada de alimentos.
+- Relatórios de semana, mês e período devem carregar a primeira leitura usando apenas dados do intervalo ativo, evitando depender de consultas históricas pesadas.
 - A leitura principal de relatórios deve comparar consumido vs meta ajustada, macros planejados vs realizados, peso, qualidade alimentar, água e exercícios.
 - A organização visual de Relatórios deve começar por um resumo do período com cards de decisão antes dos blocos analíticos detalhados.
 - Meta ajustada de calorias é a meta base do dia somada às calorias de exercícios registradas no mesmo dia, quando houver gasto aplicável.
