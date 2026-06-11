@@ -443,7 +443,8 @@ function hasInvalidScheduleTime(schedules: MealScheduleState[]) {
   return schedules.some(
     schedule => !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.endTime),
   );
-}\n
+}
+
 function createNewMealSchedule(): MealScheduleState {
   return { mealLabel: "", startTime: "12:00", endTime: "12:59", enabled: true };
 }
