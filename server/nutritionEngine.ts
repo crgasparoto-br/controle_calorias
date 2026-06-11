@@ -622,19 +622,21 @@ function isLikelyBakeryBreadProduct(foodName: string) {
   return !/\bpao de queijo\b/.test(normalized);
 }
 
-function resolveEstimatedNutritionReference(item: LlmItem): CatalogFood {
+function resolveEstimatedNutritionReference(
+  item: LlmItem,
+  similarFood?: CatalogFood,
+): { reference: CatalogFood; confidenceCap: number } {
   if (isLikelyBakeryBreadProduct(item.foodName)) {
-    return BAKERY_BREAD_REFERENCE;
+    return { reference: BAKERY_BREAD_REFERENCE, confidenceCap: 0.72 };
   }
-
-  return {
-    ...GENERIC_ESTIMATED_FOOD_REFERENCE,
-    name: item.foodName,
-  };
+  if (similarFood) {
+    return { reference: similarFood, confidenceCap: 0.65 };
+  }
+  return { reference: { ...GENERIC_ESTIMATED_FOOD_REFERENCE, name: item.foodName }, confidenceCap: 0.55 };
 }
 
-function buildEstimatedNutritionFallbackItem(llmItem: LlmItem): MealDraftItem {
-  const reference = resolveEstimatedNutritionReference(llmItem);
+function buildEstimatedNutritionFallbackItem(llmItem: LlmItem, similarFood?: CatalogFood): MealDraftItem {
+  const { reference, confidenceCap } = resolveEstimatedNutritionReference(llmItem, similarFood);
   const item = buildItemFromCatalog(reference, {
     ...llmItem,
     estimatedCalories: reference.calories,
@@ -643,7 +645,7 @@ function buildEstimatedNutritionFallbackItem(llmItem: LlmItem): MealDraftItem {
       carbs: reference.carbs,
       fat: reference.fat,
     },
-    confidence: Math.min(clampConfidence(llmItem.confidence), 0.72),
+    confidence: Math.min(clampConfidence(llmItem.confidence), confidenceCap),
   });
 
   return {
@@ -890,7 +892,7 @@ async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOpti
     if (catalog && !options.preferInferredNutrition) {
       results.push(buildItemFromCatalog(catalog, normalizedItem));
     } else if (!hasUsableNutrition(normalizedItem)) {
-      results.push(buildEstimatedNutritionFallbackItem(normalizedItem));
+      results.push(buildEstimatedNutritionFallbackItem(normalizedItem, catalog));
     } else {
       results.push(buildHybridItem(normalizedItem));
     }

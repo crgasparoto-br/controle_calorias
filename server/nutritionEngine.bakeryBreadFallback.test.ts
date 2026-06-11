@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createTextResponseMock = vi.fn();
+const findCatalogFoodSemanticMock = vi.fn();
 
 vi.mock("./_core/aiProvider", () => ({
   getAiProvider: () => ({
@@ -8,9 +9,14 @@ vi.mock("./_core/aiProvider", () => ({
   }),
 }));
 
+vi.mock("./catalogSemanticSearch", () => ({
+  findCatalogFoodSemantic: (...args: unknown[]) => findCatalogFoodSemanticMock(...args),
+}));
+
 describe("nutritionEngine estimated nutrition fallback", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
+    findCatalogFoodSemanticMock.mockResolvedValue(null);
   });
 
   it("estima macros para pão de padaria reconhecido por imagem sem tabela nutricional", async () => {
@@ -122,6 +128,60 @@ describe("nutritionEngine estimated nutrition fallback", () => {
       carbs: 12,
       fat: 4,
     });
+  });
+
+  it("usa alimento similar da busca semântica quando IA retorna nutrição zerada e nenhum match textual existe", async () => {
+    findCatalogFoodSemanticMock.mockResolvedValue({
+      slug: "biscoito-aveia",
+      name: "Biscoito de aveia",
+      aliases: [],
+      servingLabel: "100 g",
+      gramsPerServing: 100,
+      calories: 430,
+      protein: 7,
+      carbs: 70,
+      fat: 14,
+    });
+
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_semantic_match_zero_macros",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.75,
+        reasoning: "Cookie caseiro identificado pela embalagem, sem tabela nutricional visível.",
+        items: [
+          {
+            foodName: "Cookie caseiro especial",
+            quantity: 30,
+            unit: "g",
+            portionText: "30 g",
+            servings: 1,
+            estimatedGrams: 30,
+            estimatedCalories: 0,
+            estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+            confidence: 0.75,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "30g",
+      imageUrl: "data:image/jpeg;base64,Y29va2llLWNhc2Vpcm8=",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Cookie caseiro especial",
+      canonicalName: "Biscoito de aveia",
+      estimatedGrams: 30,
+      calories: 129,
+      protein: 2.1,
+      carbs: 21,
+      fat: 4.2,
+      source: "heuristic",
+    }));
   });
 
   it("preserva macros da tabela nutricional quando a IA extrai valores do rótulo", async () => {
