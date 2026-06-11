@@ -76,6 +76,7 @@ import {
 import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingSchema } from "./modules/onboarding/schemas";
+import { sendOnboardingWelcomeWhatsapp } from "./modules/onboarding/webGreetingService";
 import {
   listMealSchedules,
   suggestMealLabelForTime,
@@ -326,6 +327,7 @@ export const nutritionRouter = router({
         has_weight_entry: true,
       });
       void analyticsService.track("weight_logged", { source: "onboarding" });
+      void sendOnboardingWelcomeWhatsapp(ctx.user.id);
       return result;
     }),
   }),
@@ -646,7 +648,9 @@ export const nutritionRouter = router({
       .input(whatsappConnectionSchema)
       .mutation(async ({ ctx, input }) => {
         try {
-          return await updateWhatsappConnection(ctx.user.id, input);
+          const connection = await updateWhatsappConnection(ctx.user.id, input);
+          void sendOnboardingWelcomeWhatsapp(ctx.user.id);
+          return connection;
         } catch (error) {
           if (!(error instanceof OfficialWhatsappNumberError)) {
             throw error;

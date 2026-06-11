@@ -5,6 +5,7 @@ import { getDb, logInferenceEvent, normalizeWhatsAppPhoneNumber, upsertUserWhats
 import { completeOnboarding } from "./service";
 import type { OnboardingInput } from "./schemas";
 import type { WhatsappOnboardingConsents } from "./whatsappLeadSchemas";
+import { sendOnboardingWelcomeWhatsapp } from "./webGreetingService";
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_BYTES = 32;
@@ -248,6 +249,8 @@ export async function completeWhatsappOnboarding(input: {
     eventType: "whatsapp.onboarding_completed",
     detail: "Onboarding iniciado pelo WhatsApp concluído sem etapa de pagamento.",
   });
+
+  void sendOnboardingWelcomeWhatsapp(user.id);
 
   return user;
 }
