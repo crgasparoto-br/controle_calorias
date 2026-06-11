@@ -903,7 +903,7 @@ export default function OnboardingPage() {
 
                 <div className="grid gap-3">
                   {mealSchedules.map((schedule, index) => (
-                    <div key={`${schedule.mealLabel}-${index}`} className="grid gap-3 rounded-2xl border bg-background p-4 lg:grid-cols-[minmax(0,1.2fr)_140px_140px_auto_auto] lg:items-center">
+                    <div key={index} className="grid gap-3 rounded-2xl border bg-background p-4 lg:grid-cols-[minmax(0,1.2fr)_140px_140px_auto_auto] lg:items-center">
                       <div className="space-y-2">
                         <FieldLabel label={`Refeição ${index + 1}`} />
                         <Input
