@@ -869,7 +869,7 @@ async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOpti
     }
     if (catalog && !options.preferInferredNutrition) {
       results.push(buildItemFromCatalog(catalog, normalizedItem));
-    } else if (!catalog && shouldUseBakeryBreadFallback(normalizedItem)) {
+    } else if (shouldUseBakeryBreadFallback(normalizedItem)) {
       results.push(buildBakeryBreadFallbackItem(normalizedItem));
     } else {
       results.push(buildHybridItem(normalizedItem));
