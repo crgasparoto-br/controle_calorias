@@ -181,7 +181,7 @@ function IntegrationCard({
       <section className="mt-5 rounded-2xl border bg-muted/20 p-4" aria-labelledby="strava-permissions-title">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-primary" />
-          <h3 id="strava-permissions-title" className="text-sm font-semibold tracking-tight">Dados autorizados</h3>
+          <h3 id="strava-permissions-title" className="text-sm font-semibold tracking-tight">Permissões da integração</h3>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {provider.supportedDataTypes.map(scope => {

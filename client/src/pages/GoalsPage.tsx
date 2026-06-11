@@ -500,6 +500,7 @@ export default function GoalsPage() {
                 </div>
                 <PercentValidationNote mode={defaultGoal.inputMode} percentSum={defaultPercentSum} />
                 <NutritionSafetyNotice issues={safetyAssessment.issues} />
+                <p className="text-xs text-muted-foreground">Metas muito extremas são bloqueadas para proteger sua saúde.</p>
               </CardContent>
             </Card>
 

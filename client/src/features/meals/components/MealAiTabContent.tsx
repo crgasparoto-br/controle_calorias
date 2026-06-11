@@ -69,7 +69,7 @@ export function MealAiTabContent({
             <WandSparkles className="h-5 w-5 text-primary" />
             Registrar
           </CardTitle>
-          <CardDescription>Descreva a refeição ou envie foto e áudio para montar um rascunho revisável.</CardDescription>
+          <CardDescription>Texto, foto e áudio no mesmo rascunho.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">

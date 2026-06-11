@@ -70,7 +70,7 @@ export default function ChannelsPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         <PageIntro
           eyebrow="Canais"
-          title="WhatsApp"
+          title="WhatsApp Business Cloud API"
           description="Revise se o canal está pronto para receber mensagens, confira o telefone vinculado e teste uma mensagem antes de usar no dia a dia."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -130,8 +130,8 @@ export default function ChannelsPage() {
                         <StatusRow label="Status do vínculo" value={connection?.status === "active" ? "Ativo" : hasConnection ? connection?.status || "Pendente" : "Pendente de vínculo"} emphasize={!hasConnection} />
                       </div>
                       <div className="grid gap-3">
-                        <StatusRow label="Número oficial do app" value={statusQuery.data?.channel?.phoneNumber || "Não configurado"} emphasize={!hasOfficialChannel} mono />
-                        <StatusRow label="Identificação do número oficial" value={statusQuery.data?.channel?.phoneNumberId || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumberId} mono />
+                        <StatusRow label="Número oficial da solução" value={statusQuery.data?.channel?.phoneNumber || "Não configurado"} emphasize={!hasOfficialChannel} mono />
+                        <StatusRow label="Phone Number ID oficial" value={statusQuery.data?.channel?.phoneNumberId || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumberId} mono />
                       </div>
                     </>
                   )}
