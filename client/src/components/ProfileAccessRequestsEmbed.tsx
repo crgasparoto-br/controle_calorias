@@ -6,14 +6,19 @@ import { useLocation } from "wouter";
 const SLOT_ATTRIBUTE = "data-profile-access-requests-root";
 const SETTINGS_TITLE_COPY = "Atualize seus dados, metas e acompanhamentos";
 
-function updateSettingsTitle() {
-  if (typeof document === "undefined") return;
-
-  const title = Array.from(document.querySelectorAll("h1, h2, [role='heading']")).find(element =>
-    element.textContent?.trim() === "Ajuste seu perfil sem se perder em blocos longos",
+function replaceExactText(currentText: string, nextText: string) {
+  const element = Array.from(document.querySelectorAll("h1, h2, h3, div, span, p, [role='heading']")).find(item =>
+    item.textContent?.trim() === currentText,
   );
 
-  if (title) title.textContent = SETTINGS_TITLE_COPY;
+  if (element) element.textContent = nextText;
+}
+
+function updateSettingsCopy() {
+  if (typeof document === "undefined") return;
+
+  replaceExactText("Ajuste seu perfil sem se perder em blocos longos", SETTINGS_TITLE_COPY);
+  replaceExactText("módulo nutricionista", "área profissional");
 }
 
 function hasClassName(element: Element, className: string) {
@@ -84,7 +89,7 @@ export default function ProfileAccessRequestsEmbed() {
     }
 
     const updateSlot = () => {
-      updateSettingsTitle();
+      updateSettingsCopy();
       setSlot(findProfileAccessSlot());
     };
     updateSlot();
