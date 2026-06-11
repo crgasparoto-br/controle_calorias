@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   answerProfessionalPatientQuestion,
   approvePatientAccess,
+  buildPhoneLookupCandidates,
   getProfessionalProfile,
   requestPatientAccess,
   suggestGoalAdjustment,
@@ -52,6 +53,26 @@ describe("professional profile", () => {
       displayName: "Camila Pereira",
       active: false,
     });
+  });
+});
+
+describe("professional access contact lookup", () => {
+  it("adds Brazilian phone variants when contact is typed without country code", () => {
+    expect(buildPhoneLookupCandidates("1599604601")).toEqual(expect.arrayContaining([
+      "1599604601",
+      "+1599604601",
+      "551599604601",
+      "+551599604601",
+    ]));
+  });
+
+  it("also searches the national format when contact is typed with Brazil country code", () => {
+    expect(buildPhoneLookupCandidates("+55 (15) 99604-601")).toEqual(expect.arrayContaining([
+      "551599604601",
+      "+551599604601",
+      "1599604601",
+      "+1599604601",
+    ]));
   });
 });
 
