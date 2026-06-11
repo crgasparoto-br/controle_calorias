@@ -70,14 +70,14 @@ export default function ChannelsPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         <PageIntro
           eyebrow="Canais"
-          title="Operação do WhatsApp"
-          description="A tela ficou focada na infraestrutura do canal e na simulação de mensagens. O vínculo do contato do usuário foi movido para Configurações para ficar junto das preferências e acessos pessoais."
+          title="WhatsApp"
+          description="Revise se o canal está pronto para receber mensagens, confira o telefone vinculado e teste uma mensagem antes de usar no dia a dia."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <IntroStat label="Integração" value={isConfigured ? "Ativa" : "Pendente"} helper="status do ambiente" />
-              <IntroStat label="Canal oficial" value={hasOfficialChannel ? "Configurado" : "Ausente"} helper="número da solução" />
+              <IntroStat label="Integração" value={isConfigured ? "Ativa" : "Pendente"} helper="status do canal" />
+              <IntroStat label="Canal oficial" value={hasOfficialChannel ? "Configurado" : "Ausente"} helper="número usado pelo app" />
               <IntroStat label="Contato vinculado" value={hasConnection ? "Sim" : "Não"} helper="gerenciado em Configurações" />
-              <IntroStat label="Usuário atual" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "..."} helper="contexto da sessão" />
+              <IntroStat label="Usuário atual" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "..."} helper="sessão em uso" />
             </div>
           }
         />
@@ -102,10 +102,10 @@ export default function ChannelsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <MessageCircle className="h-5 w-5 text-primary" />
-                    WhatsApp Business Cloud API
+                    Canal oficial do WhatsApp
                   </CardTitle>
                   <CardDescription>
-                    Infraestrutura do canal oficial da solução. Este bloco deixa claro o que é ambiente, o que é webhook e o que depende de credenciais válidas.
+                    Veja se o número oficial está configurado e se o canal está pronto para receber registros por mensagem.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -113,7 +113,7 @@ export default function ChannelsPage() {
                     <UXState
                       variant="loading"
                       title="Carregando estado do canal"
-                      description="Estou reunindo as informações do ambiente, webhook e canal oficial do WhatsApp."
+                      description="Estamos verificando o número oficial, o vínculo do contato e a disponibilidade para mensagens."
                     />
                   ) : statusQuery.isError ? (
                     <UXState
@@ -126,12 +126,12 @@ export default function ChannelsPage() {
                       <div className="grid gap-3 md:grid-cols-2">
                         <StatusRow label="Integração configurada" value={isConfigured ? "Sim" : "Não"} emphasize={!isConfigured} />
                         <StatusRow label="Usuário autenticado" value={statusQuery.data?.currentUserId ? `#${statusQuery.data.currentUserId}` : "Carregando..."} mono />
-                        <StatusRow label="Webhook público" value={statusQuery.data?.webhookPath || "/api/whatsapp/webhook"} mono />
+                        <StatusRow label="Endereço de recebimento" value={statusQuery.data?.webhookPath || "/api/whatsapp/webhook"} mono />
                         <StatusRow label="Status do vínculo" value={connection?.status === "active" ? "Ativo" : hasConnection ? connection?.status || "Pendente" : "Pendente de vínculo"} emphasize={!hasConnection} />
                       </div>
                       <div className="grid gap-3">
-                        <StatusRow label="Número oficial da solução" value={statusQuery.data?.channel?.phoneNumber || "Não configurado"} emphasize={!hasOfficialChannel} mono />
-                        <StatusRow label="Phone Number ID oficial" value={statusQuery.data?.channel?.phoneNumberId || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumberId} mono />
+                        <StatusRow label="Número oficial do app" value={statusQuery.data?.channel?.phoneNumber || "Não configurado"} emphasize={!hasOfficialChannel} mono />
+                        <StatusRow label="Identificação do número oficial" value={statusQuery.data?.channel?.phoneNumberId || "Não configurado"} emphasize={!statusQuery.data?.channel?.phoneNumberId} mono />
                       </div>
                     </>
                   )}
@@ -145,19 +145,19 @@ export default function ChannelsPage() {
                       <Webhook className="h-5 w-5 text-primary" />
                       Checklist rápido
                     </CardTitle>
-                    <CardDescription>Leitura curta para identificar o próximo bloqueio sem percorrer a página inteira.</CardDescription>
+                    <CardDescription>Use esta leitura para identificar o que ainda falta antes de receber mensagens reais.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3">
-                    <FlowStep title="1. Ambiente pronto" text={isConfigured ? "As credenciais principais já estão ativas no ambiente." : "Ainda faltam ajustes de ambiente antes do uso real do canal."} />
-                    <FlowStep title="2. Canal oficial definido" text={hasOfficialChannel ? "O número oficial da solução já está associado ao canal." : "O número oficial ainda não está disponível no status atual."} />
-                    <FlowStep title="3. Contato do usuário vinculado" text={hasConnection ? "Já existe um telefone de origem associado ao usuário logado em Configurações." : "O vínculo do contato agora é feito em Configurações para evitar duplicidade com a tela de canais."} />
+                    <FlowStep title="1. Canal pronto" text={isConfigured ? "As credenciais principais já estão ativas." : "Ainda faltam ajustes antes do uso real do canal."} />
+                    <FlowStep title="2. Número oficial definido" text={hasOfficialChannel ? "O número oficial do app já está associado ao canal." : "O número oficial ainda não aparece como disponível."} />
+                    <FlowStep title="3. Contato do usuário vinculado" text={hasConnection ? "Já existe um telefone associado ao usuário logado em Configurações." : "Vincule o telefone em Configurações para associar mensagens ao usuário correto."} />
                   </CardContent>
                 </Card>
 
                 <Card className="border-0 shadow-sm">
                   <CardHeader>
                     <CardTitle>Credenciais esperadas</CardTitle>
-                    <CardDescription>Referência visual do que o ambiente precisa expor para a operação do canal.</CardDescription>
+                    <CardDescription>Itens necessários para manter o WhatsApp funcionando corretamente.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-2 text-xs sm:grid-cols-2">
                     <EnvTile value="WHATSAPP_PHONE_NUMBER" />
@@ -176,17 +176,17 @@ export default function ChannelsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <Link2 className="h-5 w-5 text-primary" />
-                    Vínculo agora fica em Configurações
+                    Vínculo do contato
                   </CardTitle>
                   <CardDescription>
-                    O telefone do usuário final foi centralizado em Configurações para ficar junto das preferências pessoais e das solicitações recebidas como paciente.
+                    O telefone usado para enviar mensagens fica em Configurações, junto das preferências pessoais da conta.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <StatusRow label="Telefone vinculado" value={connection?.phoneNumber || "Nenhum vínculo ativo"} mono emphasize={!hasConnection} />
                   <StatusRow label="Nome exibido" value={connection?.displayName || "Não informado"} emphasize={!connection?.displayName} />
                   <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-                    Use Configurações para editar esse telefone. A tela Canais continua responsável pelo estado do provedor, do webhook e das simulações técnicas.
+                    Use Configurações para editar esse telefone. Esta tela mostra o estado do canal e permite testar mensagens.
                   </div>
                   <Link href="/settings">
                     <Button className="rounded-full" type="button">Abrir configurações</Button>
@@ -200,12 +200,12 @@ export default function ChannelsPage() {
                     <Smartphone className="h-5 w-5 text-primary" />
                     Como o fluxo funciona
                   </CardTitle>
-                  <CardDescription>A sequência abaixo deixa explícita a diferença entre número oficial, telefone do usuário final e resposta do sistema.</CardDescription>
+                  <CardDescription>Entenda a diferença entre o número oficial do app, o seu telefone e a resposta enviada pelo sistema.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3">
-                  <FlowStep title="1. Configurar o canal oficial" text="O ambiente define um único WHATSAPP_PHONE_NUMBER_ID usado para receber e responder mensagens." />
-                  <FlowStep title="2. Vincular o contato em Configurações" text="O telefone de origem salvo nas configurações é associado ao usuário autenticado e passa a resolver o userId correto." />
-                  <FlowStep title="3. Responder pelo canal fixo" text="Após o processamento, a refeição é salva para o contato identificado e a resposta sai pelo Phone Number ID oficial configurado." />
+                  <FlowStep title="1. Usar o número oficial" text="O app recebe mensagens por um número oficial configurado para o serviço." />
+                  <FlowStep title="2. Vincular seu contato" text="O telefone salvo em Configurações identifica a conta que enviou a mensagem." />
+                  <FlowStep title="3. Receber a resposta" text="Depois do registro, a resposta volta pelo número oficial do app para o contato identificado." />
                 </CardContent>
               </Card>
             </div>
@@ -216,10 +216,10 @@ export default function ChannelsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Webhook className="h-5 w-5 text-primary" />
-                  Simulação de mensagem inbound
+                  Simulação de mensagem recebida
                 </CardTitle>
                 <CardDescription>
-                  Use esta área para validar o comportamento lógico do canal com o contexto do usuário autenticado, sem precisar informar manualmente o ID interno.
+                  Teste uma mensagem como se ela tivesse chegado pelo WhatsApp e confira o resultado antes de usar o canal real.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-6 xl:grid-cols-[0.92fr,1.08fr]">
@@ -294,7 +294,7 @@ export default function ChannelsPage() {
                     <UXState
                       variant="empty"
                       title="Nenhuma simulação executada"
-                      description="O resultado da simulação aparecerá aqui com o rascunho criado, ação interpretada ou pedido de esclarecimento."
+                      description="O resultado da simulação aparecerá aqui com o rascunho criado, a ação interpretada ou o pedido de esclarecimento."
                     />
                   )}
                 </div>
