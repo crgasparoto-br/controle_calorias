@@ -22,9 +22,9 @@ Esta implementação cobre a parte do onboarding da issue #209 sem a etapa de pa
 
 1. A página de onboarding web consulta o status do WhatsApp do usuário logado.
 2. Quando existe telefone vinculado, a tela mostra uma opção para enviar saudação única pelo WhatsApp.
-3. Quando não existe telefone vinculado, a aba Perfil das configurações permite informar o telefone do usuário final.
+3. Quando não existe telefone vinculado, a aba Perfil das configurações permite informar o telefone do usuário final com código do país separado, trazendo Brasil (+55) como padrão.
 4. O envio exige aceite explícito de contato operacional pelo WhatsApp e não habilita marketing.
-5. Ao salvar o perfil com um telefone novo, a tela salva primeiro o vínculo em `nutrition.whatsapp.upsertConnection` e em seguida chama `auth.sendWhatsappGreeting`.
+5. Ao salvar o perfil com um telefone novo, a tela valida DDD e número, junta o código do país selecionado ao número local, salva primeiro o vínculo em `nutrition.whatsapp.upsertConnection` e em seguida chama `auth.sendWhatsappGreeting`.
 6. Ao salvar o onboarding com telefone já vinculado, a tela chama `auth.sendWhatsappGreeting` apenas se a opção de saudação estiver marcada.
 7. O backend verifica consentimento, telefone vinculado e auditoria anterior para evitar duplicidade.
 8. Quando permitido, o sistema envia a mensagem de saudação e registra status, canal e template em `userPreferences`.
@@ -102,7 +102,7 @@ Rotas tRPC protegidas:
 - Cadastro sem consentimentos obrigatórios é recusado.
 - Cadastro completo ativa usuário sem pagamento e vincula WhatsApp.
 - Onboarding web exibe a opção de saudação apenas quando houver telefone WhatsApp vinculado.
-- Aba Perfil das configurações permite informar telefone quando o usuário ainda não tem vínculo WhatsApp.
+- Aba Perfil das configurações permite informar telefone quando o usuário ainda não tem vínculo WhatsApp, mantendo Brasil (+55) como padrão e exigindo apenas DDD e número no campo principal.
 - Salvar Perfil com telefone novo persiste o vínculo e tenta enviar a saudação inicial uma única vez.
 - Saudação web não é enviada sem consentimento operacional.
 - Saudação web registra status e evita duplicidade depois de envio concluído.
