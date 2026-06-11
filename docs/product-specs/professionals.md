@@ -13,6 +13,7 @@ Permitir que profissionais acompanhem pessoas mediante solicitação, aprovaçã
 - As APIs profissionais também devem validar perfil profissional ativo, não apenas depender da visibilidade do menu.
 - Acesso profissional exige solicitação e aprovação da pessoa acompanhada.
 - A solicitação pode usar e-mail ou celular da pessoa acompanhada como identificador de entrada no fluxo web.
+- Solicitações e vínculos devem permanecer disponíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação, trocar de sessão ou reiniciar o servidor.
 - As solicitações recebidas pela pessoa acompanhada devem aparecer em Configurações, junto dos vínculos pessoais do usuário.
 - Profissional só pode ver dashboard, histórico, metas nutricionais e dados autorizados da pessoa acompanhada.
 - A visão da pessoa acompanhada no módulo Profissional deve separar contexto profissional em áreas como Resumo, Hoje, Relatórios, Metas, Sugestões, Comentários e IA.
@@ -24,7 +25,7 @@ Permitir que profissionais acompanhem pessoas mediante solicitação, aprovaçã
 - A criação de sugestão de meta pelo profissional não altera automaticamente a meta ativa da pessoa acompanhada.
 - A criação de sugestão de refeição pelo profissional não cria automaticamente refeição no diário da pessoa acompanhada.
 - Perguntas com IA não alteram metas, refeições, comentários ou dados automaticamente.
-- Revogação deve bloquear novos acessos imediatamente.
+- Revogação deve bloquear novos acessos imediatamente para o profissional e continuar visível no histórico da pessoa acompanhada.
 - O controle de consentimento é operacional e não deve aparecer como bloco visual destacado na tela principal Profissional.
 
 ## Critérios de aceite
@@ -34,6 +35,8 @@ Permitir que profissionais acompanhem pessoas mediante solicitação, aprovaçã
 - Rota e APIs do módulo Profissional bloqueiam operações quando o perfil profissional não está ativo.
 - O estado de modo profissional ativo permanece consistente após recarregar a aplicação e iniciar uma nova sessão.
 - Solicitação, aprovação e revogação passam por procedimentos protegidos.
+- Solicitações pendentes continuam visíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação ou iniciar nova sessão.
+- Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento.
 - Dashboard profissional respeita vínculo aprovado.
 - Comentários não expõem dados de outras pessoas acompanhadas.
 - Solicitação por e-mail ou celular encontra a pessoa correta ou retorna erro amigável.
