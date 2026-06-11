@@ -60,12 +60,14 @@ type GoalTarget = {
   fatGrams: number;
 };
 
+type DurationType = "always" | "1_week" | "2_weeks" | "3_weeks";
+
 type GoalDayView = GoalTarget & {
   weekday: number;
   label: string;
   shortLabel?: string;
   source?: string;
-  durationType?: string;
+  durationType?: DurationType;
 };
 
 type GoalExceptionView = GoalTarget & {
@@ -73,7 +75,7 @@ type GoalExceptionView = GoalTarget & {
   weekday: number;
   label?: string;
   shortLabel?: string;
-  durationType: string;
+  durationType: DurationType;
   isActive?: boolean;
 };
 
