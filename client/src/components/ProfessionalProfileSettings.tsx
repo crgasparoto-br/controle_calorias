@@ -22,7 +22,7 @@ const initialForm: ProfessionalFormState = {
 };
 
 const PATIENT_ACCESS_PERMISSIONS = [
-  "Dashboard e resumo alimentar",
+  "Resumo alimentar e painel diário",
   "Histórico de refeições e relatórios",
   "Metas nutricionais autorizadas",
   "Comentários e sugestões profissionais",
@@ -116,10 +116,10 @@ export default function ProfessionalProfileSettings() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl">
           <Stethoscope className="h-5 w-5 text-primary" />
-          Perfil profissional de nutricionista
+          Perfil profissional
         </CardTitle>
         <CardDescription>
-          O nutricionista continua usando a própria conta pessoal. Ao ativar este perfil, o menu e as funcionalidades profissionais ficam disponíveis como uma camada adicional.
+          Ative a área Profissional para acompanhar pessoas autorizadas, solicitar vínculos e consultar dados compartilhados com consentimento.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -144,19 +144,19 @@ export default function ProfessionalProfileSettings() {
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
             <Label>Nome profissional</Label>
-            <Input value={form.displayName} onChange={event => updateField("displayName", event.target.value)} placeholder={suggestedProfessionalName || "Nome usado com pacientes"} />
+            <Input value={form.displayName} onChange={event => updateField("displayName", event.target.value)} placeholder={suggestedProfessionalName || "Nome exibido para pessoas acompanhadas"} />
           </div>
           <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
             <Label>Registro profissional</Label>
-            <Input value={form.registrationNumber} onChange={event => updateField("registrationNumber", event.target.value)} placeholder="CRN ou outro registro" />
+            <Input value={form.registrationNumber} onChange={event => updateField("registrationNumber", event.target.value)} placeholder="Registro, conselho ou identificação profissional" />
           </div>
         </div>
 
         <label className="flex items-start gap-3 rounded-2xl border bg-muted/20 p-4 text-sm leading-6">
           <Checkbox checked={form.active} onCheckedChange={value => updateField("active", Boolean(value))} className="mt-1" />
           <span>
-            <span className="block font-medium text-foreground">Ativar perfil profissional de nutricionista</span>
-            <span className="text-muted-foreground">Quando ativo, o menu Nutricionista aparece e as APIs profissionais aceitam solicitações, pacientes autorizados e acompanhamento.</span>
+            <span className="block font-medium text-foreground">Ativar área Profissional</span>
+            <span className="text-muted-foreground">Quando ativo, o menu Profissional aparece e você pode solicitar vínculos de acompanhamento com pessoas que autorizarem o acesso.</span>
           </span>
         </label>
 
@@ -211,7 +211,7 @@ export function PatientAccessRequestsCard() {
           Solicitações recebidas
         </CardTitle>
         <CardDescription>
-          Aprove ou revogue vínculos profissionais e confira quais dados ficam disponíveis ao nutricionista.
+          Revise pedidos de acompanhamento e escolha quais profissionais podem acessar seus dados autorizados.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
