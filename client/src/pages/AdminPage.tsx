@@ -50,7 +50,7 @@ export default function AdminPage() {
         <PageIntro
           eyebrow="Operação e segurança"
           title="Administração da plataforma"
-          description="Acompanhe o uso do sistema, revise os perfis existentes e atualize a credencial do WhatsApp com um ponto de entrada mais claro. Toda a operação continua igual; o ajuste aqui é de organização visual e leitura da página."
+          description="Acompanhe o uso do sistema, revise perfis cadastrados e atualize a credencial do WhatsApp quando houver troca de token."
           stats={(
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat
@@ -66,12 +66,12 @@ export default function AdminPage() {
               <IntroStat
                 label="WhatsApp"
                 value={tokenStatus?.configured ? "Configurado" : "Pendente"}
-                supporting={tokenStatus?.source === "database" ? "credencial salva no painel" : tokenStatus?.source === "environment" ? "credencial vinda do ambiente" : "nenhuma credencial ativa"}
+                supporting={tokenStatus?.source === "database" ? "credencial salva no painel" : tokenStatus?.source === "environment" ? "credencial vinda das configurações do servidor" : "nenhuma credencial ativa"}
               />
               <IntroStat
                 label="Logs registrados"
                 value={formatCountPtBr(admin.data?.usage.logsCount ?? 0)}
-                supporting={`${formatCountPtBr(admin.data?.usage.pendingInferences ?? 0)} inferências pendentes`}
+                supporting={`${formatCountPtBr(admin.data?.usage.pendingInferences ?? 0)} análises pendentes`}
               />
             </div>
           )}
@@ -85,7 +85,7 @@ export default function AdminPage() {
                 Credenciais do WhatsApp
               </CardTitle>
               <CardDescription>
-                Atualize o token de acesso diretamente pelo painel administrativo. O valor atual nunca é exibido por completo e o webhook passa a usar a credencial salva com segurança.
+                Atualize o token de acesso usado pelo WhatsApp. O valor salvo fica protegido e aparece apenas mascarado nesta tela.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -97,7 +97,7 @@ export default function AdminPage() {
                 />
                 <StatusPill
                   label="Origem ativa"
-                  value={tokenStatus?.source === "database" ? "Painel admin" : tokenStatus?.source === "environment" ? "Ambiente" : "Não configurado"}
+                  value={tokenStatus?.source === "database" ? "Painel admin" : tokenStatus?.source === "environment" ? "Servidor" : "Não configurado"}
                   tone={tokenStatus?.source === "database" ? "success" : tokenStatus?.source === "environment" ? "neutral" : "warning"}
                 />
                 <StatusPill
@@ -119,7 +119,7 @@ export default function AdminPage() {
                   placeholder="Cole aqui o novo token de acesso"
                 />
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Ao salvar, o token é persistido de forma protegida e passa a ter prioridade sobre o valor de ambiente na integração do WhatsApp.
+                  Salve um novo token quando a credencial atual expirar, for revogada ou precisar ser substituída.
                 </p>
               </div>
 
@@ -127,7 +127,7 @@ export default function AdminPage() {
                 <div className="space-y-1 text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">Atualização segura da credencial</p>
                   <p>
-                    Use este campo apenas quando você gerar um novo token na Meta. Depois da gravação, o canal de webhook e as respostas automáticas passam a usar a nova credencial.
+                    Use este campo apenas quando você gerar um novo token na Meta. Depois de salvar, as mensagens passam a usar a nova credencial.
                   </p>
                 </div>
                 <Button
@@ -148,7 +148,7 @@ export default function AdminPage() {
                 <Users className="h-5 w-5 text-primary" />
                 Usuários e perfis
               </CardTitle>
-              <CardDescription>Lista resumida dos perfis conhecidos pela aplicação para acompanhamento operacional.</CardDescription>
+              <CardDescription>Lista resumida dos perfis cadastrados para acompanhamento administrativo.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {admin.data?.users.map(user => (
@@ -173,9 +173,9 @@ export default function AdminPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
-              Logs de inferência e operações
+              Histórico de análises e mensagens
             </CardTitle>
-            <CardDescription>Visão consolidada das principais operações do backend multimodal e do canal de mensagens.</CardDescription>
+            <CardDescription>Acompanhe eventos recentes que ajudam a verificar se registros e respostas estão acontecendo como esperado.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {admin.data?.recentInferenceLogs.length ? (
@@ -205,7 +205,7 @@ export default function AdminPage() {
               ))
             ) : (
               <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-                Ainda não há registros administrativos disponíveis. Eles aparecerão automaticamente após o uso do dashboard e das inferências multimodais.
+                Ainda não há registros administrativos disponíveis. Eles aparecerão conforme o app for usado.
               </div>
             )}
           </CardContent>
