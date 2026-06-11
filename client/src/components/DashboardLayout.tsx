@@ -117,7 +117,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     ];
 
     if (hasActiveProfessionalProfile) {
-      baseItems.push({ icon: Stethoscope, label: "Nutricionista", path: "/professional" });
+      baseItems.push({ icon: Stethoscope, label: "Profissional", path: "/professional" });
     }
 
     if (user?.role === "admin") {
@@ -193,7 +193,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 </Avatar>
                 <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
                   <p className="truncate text-sm font-medium text-sidebar-foreground">{user?.name || "Usuário"}</p>
-                  <p className="truncate text-xs text-sidebar-foreground/70">{hasActiveProfessionalProfile ? "Conta pessoal + nutricionista" : user?.role === "admin" ? "Administrador" : "Conta pessoal"}</p>
+                  <p className="truncate text-xs text-sidebar-foreground/70">{hasActiveProfessionalProfile ? "Conta pessoal + profissional" : user?.role === "admin" ? "Administrador" : "Conta pessoal"}</p>
                 </div>
               </button>
             </DropdownMenuTrigger>

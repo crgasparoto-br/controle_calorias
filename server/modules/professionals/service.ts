@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import { eq, or } from "drizzle-orm";
-import { users, whatsappConnections } from "../../../drizzle/schema";
+import { and, eq, or } from "drizzle-orm";
+import { userPreferences, users, whatsappConnections } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
 import { getDb, getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
 import { redactSensitiveText } from "../../privacy";
@@ -90,7 +90,11 @@ type UserSummary = {
   email: string | null;
 };
 
-const PROFESSIONAL_AI_NOTICE = "Resposta educativa para apoiar a análise profissional. Não substitui julgamento clínico, diagnóstico, prescrição médica ou decisão compartilhada com o paciente.";
+const PROFESSIONAL_AI_NOTICE = "Resposta educativa para apoiar a análise profissional. Não substitui julgamento clínico, diagnóstico, prescrição médica ou decisão compartilhada com a pessoa acompanhada.";
+const PROFESSIONAL_PROFILE_PREFERENCE_KEY = "professional_profile_v1";
+const PROFESSIONAL_ACCESSES_PREFERENCE_KEY = "professional_accesses_v1";
+const PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY = "patient_professional_access_requests_v1";
+const BRAZIL_COUNTRY_CODE = "55";
 
 const profiles = new Map<number, ProfessionalProfile>();
 const accesses = new Map<string, ProfessionalPatientAccess>();
@@ -124,6 +128,32 @@ function normalizePhoneDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
+export function buildPhoneLookupCandidates(value: string) {
+  const trimmed = value.trim();
+  const digits = normalizePhoneDigits(value);
+  const candidates = new Set<string>();
+
+  if (trimmed) candidates.add(trimmed);
+  if (digits) {
+    candidates.add(digits);
+    candidates.add(`+${digits}`);
+
+    if (digits.length === 10 || digits.length === 11) {
+      const brazilianDigits = `${BRAZIL_COUNTRY_CODE}${digits}`;
+      candidates.add(brazilianDigits);
+      candidates.add(`+${brazilianDigits}`);
+    }
+
+    if (digits.startsWith(BRAZIL_COUNTRY_CODE) && digits.length > BRAZIL_COUNTRY_CODE.length) {
+      const nationalDigits = digits.slice(BRAZIL_COUNTRY_CODE.length);
+      candidates.add(nationalDigits);
+      candidates.add(`+${nationalDigits}`);
+    }
+  }
+
+  return Array.from(candidates).filter(Boolean);
+}
+
 function isEmailContact(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
@@ -132,10 +162,158 @@ function responseTimestamp(status: ProfessionalGoalSuggestionStatus | Profession
   return ["accepted", "refused", "cancelled"].includes(status) ? now : null;
 }
 
-function assertActiveProfessionalProfile(userId: number) {
-  const profile = profiles.get(userId);
+function isAccessStatus(value: unknown): value is AccessStatus {
+  return value === "pending" || value === "approved" || value === "revoked" || value === "rejected";
+}
+
+function normalizeStoredAccess(value: Partial<ProfessionalPatientAccess>): ProfessionalPatientAccess | null {
+  if (
+    typeof value.id !== "string" ||
+    typeof value.professionalUserId !== "number" ||
+    typeof value.patientUserId !== "number" ||
+    !isAccessStatus(value.status) ||
+    typeof value.reason !== "string" ||
+    typeof value.requestedAt !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    id: value.id,
+    professionalUserId: value.professionalUserId,
+    patientUserId: value.patientUserId,
+    status: value.status,
+    reason: value.reason,
+    requestedAt: value.requestedAt,
+    approvedAt: typeof value.approvedAt === "number" ? value.approvedAt : null,
+    revokedAt: typeof value.revokedAt === "number" ? value.revokedAt : null,
+  };
+}
+
+function parseStoredAccesses(userId: number, preferenceKey: string, value: string): ProfessionalPatientAccess[] {
+  try {
+    const parsed = JSON.parse(value) as Array<Partial<ProfessionalPatientAccess>>;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map(normalizeStoredAccess)
+      .filter((access): access is ProfessionalPatientAccess => Boolean(access))
+      .filter(access => preferenceKey === PROFESSIONAL_ACCESSES_PREFERENCE_KEY
+        ? access.professionalUserId === userId
+        : access.patientUserId === userId,
+      );
+  } catch {
+    return [];
+  }
+}
+
+function mergeAccesses(current: ProfessionalPatientAccess[], nextAccess: ProfessionalPatientAccess) {
+  const next = current.filter(access => access.id !== nextAccess.id);
+  next.push(nextAccess);
+  return next.sort((a, b) => b.requestedAt - a.requestedAt);
+}
+
+async function loadPersistedAccesses(userId: number, preferenceKey: string) {
+  const db = await getDb();
+  if (!db) {
+    return Array.from(accesses.values()).filter(access => preferenceKey === PROFESSIONAL_ACCESSES_PREFERENCE_KEY
+      ? access.professionalUserId === userId
+      : access.patientUserId === userId,
+    );
+  }
+
+  const rows = await db
+    .select()
+    .from(userPreferences)
+    .where(and(eq(userPreferences.userId, userId), eq(userPreferences.preferenceKey, preferenceKey)))
+    .limit(1);
+  const loadedAccesses = rows[0]?.preferenceValue ? parseStoredAccesses(userId, preferenceKey, rows[0].preferenceValue) : [];
+  loadedAccesses.forEach(access => accesses.set(access.id, access));
+  return loadedAccesses;
+}
+
+async function persistAccessesForUser(userId: number, preferenceKey: string, nextAccesses: ProfessionalPatientAccess[]) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.insert(userPreferences).values({
+    userId,
+    preferenceKey,
+    preferenceValue: JSON.stringify(nextAccesses.map(publicAccess)),
+  }).onDuplicateKeyUpdate({
+    set: {
+      preferenceValue: JSON.stringify(nextAccesses.map(publicAccess)),
+    },
+  });
+}
+
+async function persistAccessForBothSides(access: ProfessionalPatientAccess) {
+  accesses.set(access.id, access);
+
+  const [professionalAccesses, patientAccesses] = await Promise.all([
+    loadPersistedAccesses(access.professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY),
+    loadPersistedAccesses(access.patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY),
+  ]);
+
+  await Promise.all([
+    persistAccessesForUser(access.professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY, mergeAccesses(professionalAccesses, access)),
+    persistAccessesForUser(access.patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY, mergeAccesses(patientAccesses, access)),
+  ]);
+}
+
+async function parseStoredProfessionalProfile(userId: number, value: string): Promise<ProfessionalProfile | null> {
+  try {
+    const parsed = JSON.parse(value) as Partial<ProfessionalProfile>;
+    if (parsed.userId !== userId || typeof parsed.displayName !== "string" || typeof parsed.active !== "boolean") {
+      return null;
+    }
+
+    return {
+      userId,
+      displayName: parsed.displayName,
+      registrationNumber: typeof parsed.registrationNumber === "string" ? parsed.registrationNumber : undefined,
+      active: parsed.active,
+      createdAt: typeof parsed.createdAt === "number" ? parsed.createdAt : Date.now(),
+      updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function persistProfessionalProfile(profile: ProfessionalProfile) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.insert(userPreferences).values({
+    userId: profile.userId,
+    preferenceKey: PROFESSIONAL_PROFILE_PREFERENCE_KEY,
+    preferenceValue: JSON.stringify(profile),
+  }).onDuplicateKeyUpdate({
+    set: {
+      preferenceValue: JSON.stringify(profile),
+    },
+  });
+}
+
+async function loadPersistedProfessionalProfile(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const rows = await db
+    .select()
+    .from(userPreferences)
+    .where(and(eq(userPreferences.userId, userId), eq(userPreferences.preferenceKey, PROFESSIONAL_PROFILE_PREFERENCE_KEY)))
+    .limit(1);
+  const profile = rows[0]?.preferenceValue ? await parseStoredProfessionalProfile(userId, rows[0].preferenceValue) : null;
+  if (profile) profiles.set(userId, profile);
+  return profile;
+}
+
+async function assertActiveProfessionalProfile(userId: number) {
+  const profile = await getProfessionalProfile(userId);
   if (!profile?.active) {
-    throw new Error("Ative seu perfil profissional em Configurações antes de acessar o módulo Nutricionista.");
+    throw new Error("Ative seu perfil profissional em Configurações antes de acessar a área Profissional.");
   }
   return profile;
 }
@@ -147,8 +325,8 @@ function parseAssistantContent(content: unknown) {
   return JSON.parse(text);
 }
 
-export function getProfessionalStatus(userId: number) {
-  const profile = profiles.get(userId) ?? null;
+export async function getProfessionalStatus(userId: number) {
+  const profile = await getProfessionalProfile(userId);
   return {
     hasActiveProfile: Boolean(profile?.active),
     profile,
@@ -185,7 +363,7 @@ async function getUserSummaryByEmail(email: string): Promise<UserSummary | null>
         };
       }
     }
-    throw new Error("A busca por paciente via e-mail depende do banco configurado neste ambiente.");
+    throw new Error("A busca por pessoa acompanhada via e-mail depende do banco configurado neste ambiente.");
   }
 
   const rows = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
@@ -202,11 +380,10 @@ async function getUserSummaryByEmail(email: string): Promise<UserSummary | null>
 async function getUserSummaryByPhone(phone: string): Promise<UserSummary | null> {
   const db = await getDb();
   if (!db) {
-    throw new Error("A busca por paciente via celular depende do banco configurado neste ambiente.");
+    throw new Error("A busca por pessoa acompanhada via celular depende do banco configurado neste ambiente.");
   }
 
-  const digits = normalizePhoneDigits(phone);
-  const phoneCandidates = Array.from(new Set([phone.trim(), digits, digits ? `+${digits}` : ""].filter(Boolean)));
+  const phoneCandidates = buildPhoneLookupCandidates(phone);
   const rows = await db
     .select({ user: users })
     .from(whatsappConnections)
@@ -231,24 +408,28 @@ async function getUserSummaryByContact(contact: string): Promise<UserSummary | n
   return getUserSummaryByPhone(normalizedContact);
 }
 
-function getApprovedAccess(professionalUserId: number, patientUserId: number) {
-  return Array.from(accesses.values()).find(access =>
+async function getApprovedAccess(professionalUserId: number, patientUserId: number) {
+  const current = Array.from(accesses.values()).find(access =>
     access.professionalUserId === professionalUserId &&
     access.patientUserId === patientUserId &&
     access.status === "approved",
   );
+  if (current) return current;
+
+  const professionalAccesses = await loadPersistedAccesses(professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY);
+  return professionalAccesses.find(access => access.patientUserId === patientUserId && access.status === "approved");
 }
 
-function assertApprovedAccess(professionalUserId: number, patientUserId: number) {
-  const access = getApprovedAccess(professionalUserId, patientUserId);
+async function assertApprovedAccess(professionalUserId: number, patientUserId: number) {
+  const access = await getApprovedAccess(professionalUserId, patientUserId);
   if (!access) {
-    throw new Error("Acesso profissional não autorizado pelo paciente.");
+    throw new Error("Acesso profissional não autorizado pela pessoa acompanhada.");
   }
-  assertActiveProfessionalProfile(professionalUserId);
+  await assertActiveProfessionalProfile(professionalUserId);
   return access;
 }
 
-export function upsertProfessionalProfile(userId: number, input: ProfessionalProfileInput) {
+export async function upsertProfessionalProfile(userId: number, input: ProfessionalProfileInput) {
   const now = Date.now();
   const profile: ProfessionalProfile = {
     userId,
@@ -259,6 +440,7 @@ export function upsertProfessionalProfile(userId: number, input: ProfessionalPro
     updatedAt: now,
   };
   profiles.set(userId, profile);
+  await persistProfessionalProfile(profile);
   pushHistory({
     actorUserId: userId,
     professionalUserId: userId,
@@ -268,21 +450,22 @@ export function upsertProfessionalProfile(userId: number, input: ProfessionalPro
   return profile;
 }
 
-export function getProfessionalProfile(userId: number) {
-  return profiles.get(userId) ?? null;
+export async function getProfessionalProfile(userId: number) {
+  return profiles.get(userId) ?? await loadPersistedProfessionalProfile(userId);
 }
 
 export async function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
-  assertActiveProfessionalProfile(professionalUserId);
+  await assertActiveProfessionalProfile(professionalUserId);
 
   const patientContact = input.patientContact ?? input.patientEmail ?? "";
   const patient = await getUserSummaryByContact(patientContact);
   if (!patient) {
-    throw new Error("Nenhum paciente foi encontrado com esse e-mail ou celular.");
+    throw new Error("Nenhuma pessoa foi encontrada com esse e-mail ou celular.");
   }
-  if (professionalUserId === patient.userId) throw new Error("Profissional e paciente precisam ser usuários diferentes.");
+  if (professionalUserId === patient.userId) throw new Error("Profissional e pessoa acompanhada precisam ser usuários diferentes.");
 
-  const existing = Array.from(accesses.values()).find(access =>
+  const professionalAccesses = await loadPersistedAccesses(professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY);
+  const existing = professionalAccesses.find(access =>
     access.professionalUserId === professionalUserId &&
     access.patientUserId === patient.userId &&
     access.status !== "revoked",
@@ -304,7 +487,7 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
     approvedAt: null,
     revokedAt: null,
   };
-  accesses.set(access.id, access);
+  await persistAccessForBothSides(access);
   pushHistory({
     actorUserId: professionalUserId,
     professionalUserId,
@@ -318,8 +501,8 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
 }
 
 export async function listProfessionalAccesses(professionalUserId: number) {
-  assertActiveProfessionalProfile(professionalUserId);
-  const professionalAccesses = Array.from(accesses.values()).filter(access => access.professionalUserId === professionalUserId);
+  await assertActiveProfessionalProfile(professionalUserId);
+  const professionalAccesses = await loadPersistedAccesses(professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY);
   const patients = await Promise.all(professionalAccesses.map(access => getUserSummary(access.patientUserId)));
   const patientMap = new Map(
     patients
@@ -333,21 +516,28 @@ export async function listProfessionalAccesses(professionalUserId: number) {
   }));
 }
 
-export function listPatientAccessRequests(patientUserId: number) {
-  return Array.from(accesses.values())
-    .filter(access => access.patientUserId === patientUserId)
-    .map(access => ({
-      ...publicAccess(access),
-      professional: profiles.get(access.professionalUserId) ?? null,
-    }));
+export async function listPatientAccessRequests(patientUserId: number) {
+  const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
+  const professionalProfiles = await Promise.all(patientAccesses.map(access => getProfessionalProfile(access.professionalUserId)));
+  const professionalMap = new Map(
+    professionalProfiles
+      .filter((profile): profile is ProfessionalProfile => Boolean(profile))
+      .map(profile => [profile.userId, profile]),
+  );
+
+  return patientAccesses.map(access => ({
+    ...publicAccess(access),
+    professional: professionalMap.get(access.professionalUserId) ?? null,
+  }));
 }
 
-export function approvePatientAccess(patientUserId: number, accessId: string) {
-  const access = accesses.get(accessId);
+export async function approvePatientAccess(patientUserId: number, accessId: string) {
+  const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
+  const access = accesses.get(accessId) ?? patientAccesses.find(item => item.id === accessId);
   if (!access || access.patientUserId !== patientUserId) throw new Error("Solicitação de acesso não encontrada.");
   if (access.status !== "pending") throw new Error("Apenas solicitações pendentes podem ser aprovadas.");
   const approved = { ...access, status: "approved" as const, approvedAt: Date.now(), revokedAt: null };
-  accesses.set(accessId, approved);
+  await persistAccessForBothSides(approved);
   pushHistory({
     actorUserId: patientUserId,
     professionalUserId: access.professionalUserId,
@@ -357,11 +547,12 @@ export function approvePatientAccess(patientUserId: number, accessId: string) {
   return publicAccess(approved);
 }
 
-export function revokePatientAccess(patientUserId: number, accessId: string) {
-  const access = accesses.get(accessId);
+export async function revokePatientAccess(patientUserId: number, accessId: string) {
+  const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
+  const access = accesses.get(accessId) ?? patientAccesses.find(item => item.id === accessId);
   if (!access || access.patientUserId !== patientUserId) throw new Error("Vínculo de acesso não encontrado.");
   const revoked = { ...access, status: "revoked" as const, revokedAt: Date.now() };
-  accesses.set(accessId, revoked);
+  await persistAccessForBothSides(revoked);
   pushHistory({
     actorUserId: patientUserId,
     professionalUserId: access.professionalUserId,
@@ -372,7 +563,7 @@ export function revokePatientAccess(patientUserId: number, accessId: string) {
 }
 
 export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number) {
-  assertApprovedAccess(professionalUserId, patientUserId);
+  await assertApprovedAccess(professionalUserId, patientUserId);
   const [dashboard, weeklyProgress, weeklyReport, meals, patient, nutritionGoal] = await Promise.all([
     getDashboardSnapshot(patientUserId),
     getWeeklyProgress(patientUserId),
@@ -452,8 +643,8 @@ function buildFallbackPatientAnswer(question: string, snapshot: ProfessionalPati
   };
 }
 
-export function addProfessionalComment(professionalUserId: number, input: ProfessionalCommentInput) {
-  assertApprovedAccess(professionalUserId, input.patientId);
+export async function addProfessionalComment(professionalUserId: number, input: ProfessionalCommentInput) {
+  await assertApprovedAccess(professionalUserId, input.patientId);
   const comment: ProfessionalComment = {
     id: crypto.randomUUID(),
     professionalUserId,
@@ -471,8 +662,8 @@ export function addProfessionalComment(professionalUserId: number, input: Profes
   return comment;
 }
 
-export function suggestGoalAdjustment(professionalUserId: number, input: ProfessionalGoalSuggestionInput) {
-  assertApprovedAccess(professionalUserId, input.patientId);
+export async function suggestGoalAdjustment(professionalUserId: number, input: ProfessionalGoalSuggestionInput) {
+  await assertApprovedAccess(professionalUserId, input.patientId);
   const now = Date.now();
   const suggestion: GoalSuggestion = {
     id: crypto.randomUUID(),
@@ -495,8 +686,8 @@ export function suggestGoalAdjustment(professionalUserId: number, input: Profess
   return suggestion;
 }
 
-export function suggestMealPlan(professionalUserId: number, input: ProfessionalMealSuggestionInput) {
-  assertApprovedAccess(professionalUserId, input.patientId);
+export async function suggestMealPlan(professionalUserId: number, input: ProfessionalMealSuggestionInput) {
+  await assertApprovedAccess(professionalUserId, input.patientId);
   const now = Date.now();
   const suggestion: MealSuggestion = {
     id: crypto.randomUUID(),
@@ -523,7 +714,7 @@ export function suggestMealPlan(professionalUserId: number, input: ProfessionalM
 }
 
 export async function answerProfessionalPatientQuestion(professionalUserId: number, input: ProfessionalPatientQuestionInput) {
-  assertApprovedAccess(professionalUserId, input.patientId);
+  await assertApprovedAccess(professionalUserId, input.patientId);
   const snapshot = await getProfessionalPatientDashboard(professionalUserId, input.patientId);
   const sanitizedQuestion = redactSensitiveText(input.question);
   const context = buildPatientQuestionContext(snapshot);
@@ -534,8 +725,8 @@ export async function answerProfessionalPatientQuestion(professionalUserId: numb
         {
           role: "system",
           content: [
-            "Você é um assistente educativo para nutricionistas dentro de um app de controle alimentar.",
-            "Responda somente com base no contexto autorizado do paciente fornecido.",
+            "Você é um assistente educativo para profissionais dentro de um app de controle alimentar.",
+            "Responda somente com base no contexto autorizado da pessoa acompanhada fornecido.",
             "Não faça diagnóstico, prescrição médica, promessa de resultado ou decisão clínica final.",
             "Se a pergunta exigir dado ausente, diga claramente que o dado não está disponível no contexto.",
             "Use linguagem objetiva, profissional e cautelosa.",
@@ -591,7 +782,7 @@ export async function answerProfessionalPatientQuestion(professionalUserId: numb
   }
 }
 
-export function listProfessionalHistory(userId: number) {
-  assertActiveProfessionalProfile(userId);
+export async function listProfessionalHistory(userId: number) {
+  await assertActiveProfessionalProfile(userId);
   return history.filter(event => event.professionalUserId === userId || event.patientUserId === userId);
 }
