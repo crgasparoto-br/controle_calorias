@@ -5,6 +5,7 @@ const getUserWhatsappConnectionMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const upsertUserWhatsappConnectionMock = vi.fn();
 const processMealDraftMock = vi.fn();
+const executeWhatsappLlmIntentMock = vi.fn();
 const executeWhatsappTextIntentMock = vi.fn();
 const executeWhatsAppFoodAssistantIntentMock = vi.fn();
 
@@ -17,6 +18,10 @@ vi.mock("../../db", () => ({
 
 vi.mock("../meals/service", () => ({
   processMealDraft: processMealDraftMock,
+}));
+
+vi.mock("./llmIntentActions", () => ({
+  executeWhatsappLlmIntent: executeWhatsappLlmIntentMock,
 }));
 
 vi.mock("./intentActions", () => ({
@@ -36,8 +41,12 @@ describe("simulateWhatsappInbound", () => {
     logInferenceEventMock.mockReset();
     upsertUserWhatsappConnectionMock.mockReset();
     processMealDraftMock.mockReset();
+    executeWhatsappLlmIntentMock.mockReset();
     executeWhatsappTextIntentMock.mockReset();
     executeWhatsAppFoodAssistantIntentMock.mockReset();
+    executeWhatsappLlmIntentMock.mockResolvedValue(null);
+    executeWhatsappTextIntentMock.mockResolvedValue(null);
+    executeWhatsAppFoodAssistantIntentMock.mockReturnValue(null);
     processMealDraftMock.mockResolvedValue({
       draftId: "draft-1",
       processed: {
@@ -72,6 +81,36 @@ describe("simulateWhatsappInbound", () => {
     }));
   });
 
+  it("normaliza unidade digitada incorretamente antes de interpretar texto de água", async () => {
+    executeWhatsappTextIntentMock.mockResolvedValueOnce({
+      handled: true,
+      action: "water_logged",
+      reply: "Registrei 300 ml de água.",
+      eventType: "whatsapp.intent.water_logged",
+      detail: "Registro de hidratação via WhatsApp.",
+      data: {
+        amountMl: 300,
+      },
+    });
+
+    const result = await simulateWhatsappInbound(42, {
+      text: "300mo água",
+    });
+
+    expect(executeWhatsappLlmIntentMock).toHaveBeenCalledWith(42, {
+      text: "300 ml água",
+      receivedAt: expect.any(Date),
+    });
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, {
+      text: "300 ml água",
+      receivedAt: expect.any(Date),
+    });
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "water_logged",
+    }));
+  });
+
   it("separa hidratação e alimentos em mensagens multi-linha antes de processar refeição", async () => {
     executeWhatsappTextIntentMock.mockResolvedValue({
       handled: true,
@@ -90,12 +129,12 @@ describe("simulateWhatsappInbound", () => {
 
     expect(executeWhatsappTextIntentMock).toHaveBeenCalledTimes(1);
     expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, {
-      text: "300ml água",
+      text: "300 ml água",
       receivedAt: expect.any(Date),
     });
     expect(processMealDraftMock).toHaveBeenCalledWith(42, {
       source: "whatsapp",
-      text: "3 bisnaguinhas panco\n19g de mel",
+      text: "3 bisnaguinhas panco\n19 g de mel",
     });
     expect(result).toEqual(expect.objectContaining({
       handled: true,
