@@ -65,8 +65,258 @@ const MEAL_LABEL_SUGGESTIONS = [
   "outro",
 ] as const;
 
+const DEFAULT_PHONE_COUNTRY_OPTION = "BR:55";
+
 const COUNTRY_CODE_OPTIONS = [
-  { value: "55", label: "Brasil (+55)" },
+  { value: DEFAULT_PHONE_COUNTRY_OPTION, label: "Brasil (+55)" },
+  { value: "AF:93", label: "Afeganistão (+93)" },
+  { value: "ZA:27", label: "África do Sul (+27)" },
+  { value: "AL:355", label: "Albânia (+355)" },
+  { value: "DE:49", label: "Alemanha (+49)" },
+  { value: "AD:376", label: "Andorra (+376)" },
+  { value: "AO:244", label: "Angola (+244)" },
+  { value: "AI:1264", label: "Anguilla (+1264)" },
+  { value: "AQ:672", label: "Antártida (+672)" },
+  { value: "AG:1268", label: "Antígua e Barbuda (+1268)" },
+  { value: "SA:966", label: "Arábia Saudita (+966)" },
+  { value: "DZ:213", label: "Argélia (+213)" },
+  { value: "AR:54", label: "Argentina (+54)" },
+  { value: "AM:374", label: "Armênia (+374)" },
+  { value: "AW:297", label: "Aruba (+297)" },
+  { value: "AU:61", label: "Austrália (+61)" },
+  { value: "AT:43", label: "Áustria (+43)" },
+  { value: "AZ:994", label: "Azerbaijão (+994)" },
+  { value: "BS:1242", label: "Bahamas (+1242)" },
+  { value: "BH:973", label: "Bahrein (+973)" },
+  { value: "BD:880", label: "Bangladesh (+880)" },
+  { value: "BB:1246", label: "Barbados (+1246)" },
+  { value: "BE:32", label: "Bélgica (+32)" },
+  { value: "BZ:501", label: "Belize (+501)" },
+  { value: "BJ:229", label: "Benin (+229)" },
+  { value: "BM:1441", label: "Bermudas (+1441)" },
+  { value: "BY:375", label: "Bielorrússia (+375)" },
+  { value: "BO:591", label: "Bolívia (+591)" },
+  { value: "BA:387", label: "Bósnia e Herzegovina (+387)" },
+  { value: "BW:267", label: "Botsuana (+267)" },
+  { value: "BN:673", label: "Brunei (+673)" },
+  { value: "BG:359", label: "Bulgária (+359)" },
+  { value: "BF:226", label: "Burkina Faso (+226)" },
+  { value: "BI:257", label: "Burundi (+257)" },
+  { value: "BT:975", label: "Butão (+975)" },
+  { value: "CV:238", label: "Cabo Verde (+238)" },
+  { value: "CM:237", label: "Camarões (+237)" },
+  { value: "KH:855", label: "Camboja (+855)" },
+  { value: "CA:1", label: "Canadá (+1)" },
+  { value: "QA:974", label: "Catar (+974)" },
+  { value: "KZ:7", label: "Cazaquistão (+7)" },
+  { value: "TD:235", label: "Chade (+235)" },
+  { value: "CL:56", label: "Chile (+56)" },
+  { value: "CN:86", label: "China (+86)" },
+  { value: "CY:357", label: "Chipre (+357)" },
+  { value: "SG:65", label: "Cingapura (+65)" },
+  { value: "CO:57", label: "Colômbia (+57)" },
+  { value: "KM:269", label: "Comores (+269)" },
+  { value: "CG:242", label: "Congo (+242)" },
+  { value: "CD:243", label: "Congo, República Democrática (+243)" },
+  { value: "KR:82", label: "Coreia do Sul (+82)" },
+  { value: "KP:850", label: "Coreia do Norte (+850)" },
+  { value: "CI:225", label: "Costa do Marfim (+225)" },
+  { value: "CR:506", label: "Costa Rica (+506)" },
+  { value: "HR:385", label: "Croácia (+385)" },
+  { value: "CU:53", label: "Cuba (+53)" },
+  { value: "CW:599", label: "Curaçao (+599)" },
+  { value: "DK:45", label: "Dinamarca (+45)" },
+  { value: "DJ:253", label: "Djibuti (+253)" },
+  { value: "DM:1767", label: "Dominica (+1767)" },
+  { value: "EG:20", label: "Egito (+20)" },
+  { value: "SV:503", label: "El Salvador (+503)" },
+  { value: "AE:971", label: "Emirados Árabes Unidos (+971)" },
+  { value: "EC:593", label: "Equador (+593)" },
+  { value: "ER:291", label: "Eritreia (+291)" },
+  { value: "SK:421", label: "Eslováquia (+421)" },
+  { value: "SI:386", label: "Eslovênia (+386)" },
+  { value: "ES:34", label: "Espanha (+34)" },
+  { value: "US:1", label: "Estados Unidos (+1)" },
+  { value: "EE:372", label: "Estônia (+372)" },
+  { value: "SZ:268", label: "Essuatíni (+268)" },
+  { value: "ET:251", label: "Etiópia (+251)" },
+  { value: "FJ:679", label: "Fiji (+679)" },
+  { value: "PH:63", label: "Filipinas (+63)" },
+  { value: "FI:358", label: "Finlândia (+358)" },
+  { value: "FR:33", label: "França (+33)" },
+  { value: "GA:241", label: "Gabão (+241)" },
+  { value: "GM:220", label: "Gâmbia (+220)" },
+  { value: "GH:233", label: "Gana (+233)" },
+  { value: "GE:995", label: "Geórgia (+995)" },
+  { value: "GI:350", label: "Gibraltar (+350)" },
+  { value: "GD:1473", label: "Granada (+1473)" },
+  { value: "GR:30", label: "Grécia (+30)" },
+  { value: "GL:299", label: "Groenlândia (+299)" },
+  { value: "GP:590", label: "Guadalupe (+590)" },
+  { value: "GU:1671", label: "Guam (+1671)" },
+  { value: "GT:502", label: "Guatemala (+502)" },
+  { value: "GG:44", label: "Guernsey (+44)" },
+  { value: "GY:592", label: "Guiana (+592)" },
+  { value: "GF:594", label: "Guiana Francesa (+594)" },
+  { value: "GN:224", label: "Guiné (+224)" },
+  { value: "GQ:240", label: "Guiné Equatorial (+240)" },
+  { value: "GW:245", label: "Guiné-Bissau (+245)" },
+  { value: "HT:509", label: "Haiti (+509)" },
+  { value: "HN:504", label: "Honduras (+504)" },
+  { value: "HK:852", label: "Hong Kong (+852)" },
+  { value: "HU:36", label: "Hungria (+36)" },
+  { value: "YE:967", label: "Iêmen (+967)" },
+  { value: "BV:47", label: "Ilha Bouvet (+47)" },
+  { value: "CX:61", label: "Ilha Christmas (+61)" },
+  { value: "IM:44", label: "Ilha de Man (+44)" },
+  { value: "NF:672", label: "Ilha Norfolk (+672)" },
+  { value: "AX:358", label: "Ilhas Åland (+358)" },
+  { value: "KY:1345", label: "Ilhas Cayman (+1345)" },
+  { value: "CC:61", label: "Ilhas Cocos (+61)" },
+  { value: "CK:682", label: "Ilhas Cook (+682)" },
+  { value: "FO:298", label: "Ilhas Faroe (+298)" },
+  { value: "GS:500", label: "Ilhas Geórgia do Sul e Sandwich do Sul (+500)" },
+  { value: "FK:500", label: "Ilhas Malvinas (+500)" },
+  { value: "MP:1670", label: "Ilhas Marianas do Norte (+1670)" },
+  { value: "MH:692", label: "Ilhas Marshall (+692)" },
+  { value: "UM:1", label: "Ilhas Menores Distantes dos EUA (+1)" },
+  { value: "PN:64", label: "Ilhas Pitcairn (+64)" },
+  { value: "SB:677", label: "Ilhas Salomão (+677)" },
+  { value: "TC:1649", label: "Ilhas Turcas e Caicos (+1649)" },
+  { value: "VG:1284", label: "Ilhas Virgens Britânicas (+1284)" },
+  { value: "VI:1340", label: "Ilhas Virgens dos EUA (+1340)" },
+  { value: "IN:91", label: "Índia (+91)" },
+  { value: "ID:62", label: "Indonésia (+62)" },
+  { value: "IR:98", label: "Irã (+98)" },
+  { value: "IQ:964", label: "Iraque (+964)" },
+  { value: "IE:353", label: "Irlanda (+353)" },
+  { value: "IS:354", label: "Islândia (+354)" },
+  { value: "IL:972", label: "Israel (+972)" },
+  { value: "IT:39", label: "Itália (+39)" },
+  { value: "JM:1876", label: "Jamaica (+1876)" },
+  { value: "JP:81", label: "Japão (+81)" },
+  { value: "JE:44", label: "Jersey (+44)" },
+  { value: "JO:962", label: "Jordânia (+962)" },
+  { value: "XK:383", label: "Kosovo (+383)" },
+  { value: "KW:965", label: "Kuwait (+965)" },
+  { value: "LA:856", label: "Laos (+856)" },
+  { value: "LS:266", label: "Lesoto (+266)" },
+  { value: "LV:371", label: "Letônia (+371)" },
+  { value: "LB:961", label: "Líbano (+961)" },
+  { value: "LR:231", label: "Libéria (+231)" },
+  { value: "LY:218", label: "Líbia (+218)" },
+  { value: "LI:423", label: "Liechtenstein (+423)" },
+  { value: "LT:370", label: "Lituânia (+370)" },
+  { value: "LU:352", label: "Luxemburgo (+352)" },
+  { value: "MO:853", label: "Macau (+853)" },
+  { value: "MK:389", label: "Macedônia do Norte (+389)" },
+  { value: "MG:261", label: "Madagascar (+261)" },
+  { value: "YT:262", label: "Maiote (+262)" },
+  { value: "MY:60", label: "Malásia (+60)" },
+  { value: "MW:265", label: "Malawi (+265)" },
+  { value: "MV:960", label: "Maldivas (+960)" },
+  { value: "ML:223", label: "Mali (+223)" },
+  { value: "MT:356", label: "Malta (+356)" },
+  { value: "MA:212", label: "Marrocos (+212)" },
+  { value: "MQ:596", label: "Martinica (+596)" },
+  { value: "MU:230", label: "Maurício (+230)" },
+  { value: "MR:222", label: "Mauritânia (+222)" },
+  { value: "MX:52", label: "México (+52)" },
+  { value: "FM:691", label: "Micronésia (+691)" },
+  { value: "MZ:258", label: "Moçambique (+258)" },
+  { value: "MD:373", label: "Moldávia (+373)" },
+  { value: "MC:377", label: "Mônaco (+377)" },
+  { value: "MN:976", label: "Mongólia (+976)" },
+  { value: "ME:382", label: "Montenegro (+382)" },
+  { value: "MS:1664", label: "Montserrat (+1664)" },
+  { value: "MM:95", label: "Myanmar (+95)" },
+  { value: "NA:264", label: "Namíbia (+264)" },
+  { value: "NR:674", label: "Nauru (+674)" },
+  { value: "NP:977", label: "Nepal (+977)" },
+  { value: "NI:505", label: "Nicarágua (+505)" },
+  { value: "NE:227", label: "Níger (+227)" },
+  { value: "NG:234", label: "Nigéria (+234)" },
+  { value: "NU:683", label: "Niue (+683)" },
+  { value: "NO:47", label: "Noruega (+47)" },
+  { value: "NC:687", label: "Nova Caledônia (+687)" },
+  { value: "NZ:64", label: "Nova Zelândia (+64)" },
+  { value: "OM:968", label: "Omã (+968)" },
+  { value: "BQ:599", label: "Países Baixos Caribenhos (+599)" },
+  { value: "NL:31", label: "Países Baixos (+31)" },
+  { value: "PW:680", label: "Palau (+680)" },
+  { value: "PS:970", label: "Palestina (+970)" },
+  { value: "PA:507", label: "Panamá (+507)" },
+  { value: "PG:675", label: "Papua-Nova Guiné (+675)" },
+  { value: "PK:92", label: "Paquistão (+92)" },
+  { value: "PY:595", label: "Paraguai (+595)" },
+  { value: "PE:51", label: "Peru (+51)" },
+  { value: "PF:689", label: "Polinésia Francesa (+689)" },
+  { value: "PL:48", label: "Polônia (+48)" },
+  { value: "PR:1787", label: "Porto Rico (+1787)" },
+  { value: "PT:351", label: "Portugal (+351)" },
+  { value: "KE:254", label: "Quênia (+254)" },
+  { value: "KG:996", label: "Quirguistão (+996)" },
+  { value: "KI:686", label: "Quiribati (+686)" },
+  { value: "GB:44", label: "Reino Unido (+44)" },
+  { value: "CF:236", label: "República Centro-Africana (+236)" },
+  { value: "DO:1809", label: "República Dominicana (+1809)" },
+  { value: "CZ:420", label: "República Tcheca (+420)" },
+  { value: "RE:262", label: "Reunião (+262)" },
+  { value: "RO:40", label: "Romênia (+40)" },
+  { value: "RW:250", label: "Ruanda (+250)" },
+  { value: "RU:7", label: "Rússia (+7)" },
+  { value: "EH:212", label: "Saara Ocidental (+212)" },
+  { value: "WS:685", label: "Samoa (+685)" },
+  { value: "AS:1684", label: "Samoa Americana (+1684)" },
+  { value: "SM:378", label: "San Marino (+378)" },
+  { value: "SH:290", label: "Santa Helena (+290)" },
+  { value: "LC:1758", label: "Santa Lúcia (+1758)" },
+  { value: "BL:590", label: "São Bartolomeu (+590)" },
+  { value: "KN:1869", label: "São Cristóvão e Névis (+1869)" },
+  { value: "MF:590", label: "São Martinho (+590)" },
+  { value: "PM:508", label: "São Pedro e Miquelão (+508)" },
+  { value: "ST:239", label: "São Tomé e Príncipe (+239)" },
+  { value: "VC:1784", label: "São Vicente e Granadinas (+1784)" },
+  { value: "SN:221", label: "Senegal (+221)" },
+  { value: "SL:232", label: "Serra Leoa (+232)" },
+  { value: "RS:381", label: "Sérvia (+381)" },
+  { value: "SC:248", label: "Seychelles (+248)" },
+  { value: "SX:1721", label: "Sint Maarten (+1721)" },
+  { value: "SY:963", label: "Síria (+963)" },
+  { value: "SO:252", label: "Somália (+252)" },
+  { value: "LK:94", label: "Sri Lanka (+94)" },
+  { value: "SD:249", label: "Sudão (+249)" },
+  { value: "SS:211", label: "Sudão do Sul (+211)" },
+  { value: "SE:46", label: "Suécia (+46)" },
+  { value: "CH:41", label: "Suíça (+41)" },
+  { value: "SR:597", label: "Suriname (+597)" },
+  { value: "SJ:47", label: "Svalbard e Jan Mayen (+47)" },
+  { value: "TH:66", label: "Tailândia (+66)" },
+  { value: "TW:886", label: "Taiwan (+886)" },
+  { value: "TJ:992", label: "Tajiquistão (+992)" },
+  { value: "TZ:255", label: "Tanzânia (+255)" },
+  { value: "IO:246", label: "Território Britânico do Oceano Índico (+246)" },
+  { value: "TF:262", label: "Territórios Franceses do Sul (+262)" },
+  { value: "TL:670", label: "Timor-Leste (+670)" },
+  { value: "TG:228", label: "Togo (+228)" },
+  { value: "TK:690", label: "Tokelau (+690)" },
+  { value: "TO:676", label: "Tonga (+676)" },
+  { value: "TT:1868", label: "Trinidad e Tobago (+1868)" },
+  { value: "TN:216", label: "Tunísia (+216)" },
+  { value: "TM:993", label: "Turcomenistão (+993)" },
+  { value: "TR:90", label: "Turquia (+90)" },
+  { value: "TV:688", label: "Tuvalu (+688)" },
+  { value: "UA:380", label: "Ucrânia (+380)" },
+  { value: "UG:256", label: "Uganda (+256)" },
+  { value: "UY:598", label: "Uruguai (+598)" },
+  { value: "UZ:998", label: "Uzbequistão (+998)" },
+  { value: "VU:678", label: "Vanuatu (+678)" },
+  { value: "VA:39", label: "Vaticano (+39)" },
+  { value: "VE:58", label: "Venezuela (+58)" },
+  { value: "VN:84", label: "Vietnã (+84)" },
+  { value: "WF:681", label: "Wallis e Futuna (+681)" },
+  { value: "ZM:260", label: "Zâmbia (+260)" },
+  { value: "ZW:263", label: "Zimbábue (+263)" },
 ] as const;
 
 const DEFAULT_MEAL_SCHEDULES: MealScheduleState[] = [
@@ -203,23 +453,33 @@ function phoneDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
-function normalizeNationalPhoneDigits(value: string, countryCode: string) {
+function countryCallingCode(countryOption: string) {
+  return countryOption.split(":")[1] ?? countryOption;
+}
+
+function normalizeNationalPhoneDigits(value: string, countryOption: string) {
+  const countryCode = countryCallingCode(countryOption);
   const digits = phoneDigits(value);
-  if (digits.startsWith(countryCode) && digits.length > 11) {
+  if (digits.startsWith(countryCode) && digits.length > Math.max(11, countryCode.length + 4)) {
     return digits.slice(countryCode.length);
   }
 
   return digits;
 }
 
-function buildWhatsappPhoneNumber(countryCode: string, nationalNumber: string) {
-  const nationalDigits = normalizeNationalPhoneDigits(nationalNumber, countryCode);
+function buildWhatsappPhoneNumber(countryOption: string, nationalNumber: string) {
+  const countryCode = countryCallingCode(countryOption);
+  const nationalDigits = normalizeNationalPhoneDigits(nationalNumber, countryOption);
   return nationalDigits ? `${countryCode}${nationalDigits}` : "";
 }
 
-function hasValidBrazilNationalPhone(value: string, countryCode: string) {
-  const digits = normalizeNationalPhoneDigits(value, countryCode);
-  return digits.length === 10 || digits.length === 11;
+function hasValidNationalPhone(value: string, countryOption: string) {
+  const countryCode = countryCallingCode(countryOption);
+  const digits = normalizeNationalPhoneDigits(value, countryOption);
+  if (countryCode === "55") return digits.length === 10 || digits.length === 11;
+
+  const totalDigits = countryCode.length + digits.length;
+  return digits.length >= 4 && totalDigits <= 15;
 }
 
 function formatPhoneNumber(value: string) {
@@ -252,7 +512,7 @@ export default function OnboardingPage() {
   const [nameEdited, setNameEdited] = useState(false);
   const [savedProfileApplied, setSavedProfileApplied] = useState(false);
   const [schedulesApplied, setSchedulesApplied] = useState(false);
-  const [phoneCountryCode, setPhoneCountryCode] = useState("55");
+  const [phoneCountryCode, setPhoneCountryCode] = useState(DEFAULT_PHONE_COUNTRY_OPTION);
   const [phoneNationalNumber, setPhoneNationalNumber] = useState("");
   const [sendWhatsappGreeting, setSendWhatsappGreeting] = useState(false);
   const [acceptedOperationalWhatsappGreeting, setAcceptedOperationalWhatsappGreeting] = useState(false);
@@ -309,8 +569,8 @@ export default function OnboardingPage() {
   }, [mealSchedulesQuery.data, schedulesApplied]);
 
   useEffect(() => {
-    setPhoneCountryCode("55");
-    setPhoneNationalNumber(whatsappPhoneNumber ? normalizeNationalPhoneDigits(whatsappPhoneNumber, "55") : "");
+    setPhoneCountryCode(DEFAULT_PHONE_COUNTRY_OPTION);
+    setPhoneNationalNumber(whatsappPhoneNumber ? normalizeNationalPhoneDigits(whatsappPhoneNumber, DEFAULT_PHONE_COUNTRY_OPTION) : "");
     if (!whatsappPhoneNumber) {
       setSendWhatsappGreeting(false);
       setAcceptedOperationalWhatsappGreeting(false);
@@ -340,7 +600,7 @@ export default function OnboardingPage() {
     if (form.heightCm.trim() && parsed.heightCm === undefined) return "Informe uma altura válida ou deixe o campo em branco.";
     if (parsed.heightCm !== undefined && (parsed.heightCm < 100 || parsed.heightCm > 250)) return "Informe uma altura válida entre 1,00 m e 2,50 m, ou deixe o campo em branco.";
     if (parsed.currentWeightKg !== undefined && (parsed.currentWeightKg < 25 || parsed.currentWeightKg > 350)) return "Informe um peso atual válido ou deixe o campo em branco.";
-    if (shouldAttachWhatsappPhone && !hasValidBrazilNationalPhone(phoneNationalNumber, phoneCountryCode)) return "Informe DDD e telefone válidos para vincular ao WhatsApp.";
+    if (shouldAttachWhatsappPhone && !hasValidNationalPhone(phoneNationalNumber, phoneCountryCode)) return "Informe um telefone válido para vincular ao WhatsApp.";
     if ((shouldAttachWhatsappPhone || sendWhatsappGreeting) && !acceptedOperationalWhatsappGreeting) return "Autorize o contato operacional pelo WhatsApp para receber a saudação.";
     return null;
   }, [acceptedOperationalWhatsappGreeting, calculatedAgeYears, form.heightCm, parsed, phoneCountryCode, phoneNationalNumber, sendWhatsappGreeting, shouldAttachWhatsappPhone]);
@@ -783,9 +1043,9 @@ function PhoneNumberField({ countryCode, countryOptions, nationalNumber, onCount
   return (
     <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
       <FieldLabel label="Telefone para WhatsApp" optional={optional} />
-      <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
+      <div className="grid gap-3 sm:grid-cols-[minmax(190px,0.8fr)_1fr]">
         <select
-          aria-label="Código do país"
+          aria-label="País e código do país"
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           value={countryCode}
           onChange={event => onCountryCodeChange(event.target.value)}
@@ -800,7 +1060,7 @@ function PhoneNumberField({ countryCode, countryOptions, nationalNumber, onCount
         />
       </div>
       <p className="text-xs leading-5 text-muted-foreground">
-        Informe apenas DDD e número. O código do país selecionado será incluído automaticamente ao salvar.
+        Brasil vem selecionado por padrão. Informe apenas o número local; o código do país selecionado será incluído automaticamente ao salvar.
       </p>
     </div>
   );
