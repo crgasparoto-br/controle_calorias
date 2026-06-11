@@ -418,7 +418,7 @@ export default function GoalsPage() {
         <PageIntro
           eyebrow="Planejamento nutricional"
           title="Metas e exceções da semana"
-          description="Defina uma regra base para o plano nutricional e ajuste apenas os dias que realmente precisam sair do padrão. A tela continua com a mesma lógica, mas agora entrega um resumo mais claro antes da edição detalhada."
+          description="Defina a meta geral do seu plano nutricional e ajuste apenas os dias que precisam de valores diferentes. Use o resumo para conferir como a semana ficará antes de salvar."
           actions={(
             <Button
               className="rounded-full"
@@ -466,8 +466,7 @@ export default function GoalsPage() {
                   Meta geral da semana
                 </CardTitle>
                 <CardDescription>
-                  Defina uma regra base válida para todos os dias. Você pode preencher os macronutrientes diretamente em gramas ou por percentual das calorias do dia.
-                  Metas muito extremas são bloqueadas e metas que merecem atenção aparecem como revisão, sem julgamento sobre suas escolhas.
+                  Use esta meta como referência para os dias sem exceção. Preencha os macronutrientes em gramas ou por percentual das calorias e revise os avisos antes de salvar.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -501,6 +500,7 @@ export default function GoalsPage() {
                 </div>
                 <PercentValidationNote mode={defaultGoal.inputMode} percentSum={defaultPercentSum} />
                 <NutritionSafetyNotice issues={safetyAssessment.issues} />
+                <p className="text-xs text-muted-foreground">Metas muito extremas são bloqueadas para proteger sua saúde.</p>
               </CardContent>
             </Card>
 

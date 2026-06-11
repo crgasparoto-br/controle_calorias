@@ -20,15 +20,15 @@ export default function NotFound() {
               <div className="space-y-3">
                 <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">Essa página não foi encontrada</h1>
                 <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                  O endereço pode estar desatualizado, ter sido movido ou talvez a navegação tenha chegado a uma rota que já não existe mais.
+                  O endereço pode estar desatualizado, ter sido movido ou talvez a página não esteja mais disponível.
                 </p>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <IntroStat label="Status" value="404" supporting="rota indisponível" />
-              <IntroStat label="Ação sugerida" value="voltar ao início" supporting="retomar o fluxo principal" />
-              <IntroStat label="Experiência" value="mais clara" supporting="mesmo padrão visual do app" />
+              <IntroStat label="Status" value="404" supporting="página indisponível" />
+              <IntroStat label="Ação sugerida" value="voltar ao início" supporting="retomar sua navegação" />
+              <IntroStat label="Próximo passo" value="abrir início" supporting="acessar o painel principal" />
             </div>
 
             <div className="rounded-[28px] border border-border/70 bg-background/80 p-5 shadow-sm sm:p-6">
@@ -37,7 +37,7 @@ export default function NotFound() {
                 <div>
                   <p className="text-sm font-medium text-foreground">Siga pelo caminho principal</p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Voltar para a página inicial costuma resolver rapidamente quando a rota foi digitada manualmente ou aberta a partir de um link antigo.
+                    Voltar para a página inicial costuma resolver rapidamente quando o endereço foi digitado manualmente ou aberto a partir de um link antigo.
                   </p>
                 </div>
               </div>

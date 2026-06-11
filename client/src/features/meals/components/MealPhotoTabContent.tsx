@@ -63,7 +63,7 @@ export function MealPhotoTabContent({
             Registrar por foto
           </CardTitle>
           <CardDescription>
-            A foto gera alimentos prováveis, porções e confiança. Nada é salvo sem sua confirmação.
+            Envie uma foto da refeição para receber uma sugestão de alimentos e porções. Nada é salvo sem sua confirmação.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -80,7 +80,7 @@ export function MealPhotoTabContent({
             {isAnalyzing ? "Analisando..." : "Analisar foto"}
           </Button>
           <p className="text-sm leading-6 text-muted-foreground">
-            Este modo é melhor quando você quer corrigir rápido uma imagem única sem misturar texto ou áudio.
+            Use este modo quando quiser revisar uma imagem única e ajustar rapidamente o que foi identificado.
           </p>
         </CardContent>
       </Card>
@@ -89,7 +89,7 @@ export function MealPhotoTabContent({
         <CardHeader>
           <CardTitle>Confirmação da análise</CardTitle>
           <CardDescription>
-            Os itens sugeridos ficam em um único painel para reduzir idas e vindas na revisão.
+            Confira os alimentos sugeridos, ajuste quantidades se precisar e só então salve a refeição.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

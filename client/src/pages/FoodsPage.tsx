@@ -122,13 +122,13 @@ export default function FoodsPage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <PageIntro
           eyebrow="Alimentos"
-          title="Base alimentar do usuário"
-          description=""
+          title="Minha base alimentar"
+          description="Busque alimentos, marque favoritos e cadastre itens próprios para deixar seus próximos registros mais rápidos e consistentes."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <IntroStat label="Resultados" value={String(visibleFoods.length)} helper="itens visíveis na busca" />
-              <IntroStat label="Favoritos" value={String(favoriteCount)} helper="na lista filtrada atual" />
-              <IntroStat label="Recentes" value={String(recentFoods.length)} helper="atalhos de uso recente" />
+              <IntroStat label="Resultados" value={String(visibleFoods.length)} helper="alimentos encontrados" />
+              <IntroStat label="Favoritos" value={String(favoriteCount)} helper="na busca atual" />
+              <IntroStat label="Recentes" value={String(recentFoods.length)} helper="usados nos últimos registros" />
               <IntroStat label="Classificados" value={String(classifiedCount)} helper="fruta, vegetal ou ultraprocessado" />
             </div>
           }
@@ -382,7 +382,7 @@ function FoodResultCard({
             {food.isVegetable ? <Badge variant="secondary">Vegetal</Badge> : null}
             {food.isUltraProcessed ? <Badge variant="outline">Ultraprocessado</Badge> : null}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{food.servingSize} {food.servingUnit} por porção · fonte: {food.source}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{food.servingSize} {food.servingUnit} por porção · origem: {food.source}</p>
         </div>
         <div className="flex gap-2">
           {food.isUserCreated ? (
