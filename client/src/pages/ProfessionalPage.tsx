@@ -4,12 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCalories, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { ClipboardList, Mail, MessageSquarePlus, ShieldAlert, UserPlus, X } from "lucide-react";
+import {
+  BarChart3,
+  CalendarDays,
+  ChevronDown,
+  ClipboardList,
+  Droplets,
+  Dumbbell,
+  Lightbulb,
+  Mail,
+  MessageSquarePlus,
+  Scale,
+  ShieldAlert,
+  Target,
+  UserPlus,
+  UtensilsCrossed,
+  X,
+} from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -23,12 +41,94 @@ type PatientAiAnswer = {
 
 type AccessStatus = "pending" | "approved" | "rejected" | "revoked" | string;
 
+type MealSummary = {
+  id: number;
+  mealLabel: string;
+  occurredAt: string | number | Date;
+  totals: {
+    calories: number;
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+  };
+};
+
+type GoalTarget = {
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+};
+
+type GoalDayView = GoalTarget & {
+  weekday: number;
+  label: string;
+  shortLabel?: string;
+  source?: string;
+  durationType?: string;
+};
+
+type GoalExceptionView = GoalTarget & {
+  id?: number;
+  weekday: number;
+  label?: string;
+  shortLabel?: string;
+  durationType: string;
+  isActive?: boolean;
+};
+
+type NutritionGoalView = {
+  defaultGoal: GoalTarget;
+  exceptions: GoalExceptionView[];
+  days: GoalDayView[];
+  today?: GoalDayView;
+  weeklyTotals?: GoalTarget;
+};
+
+type WeeklyReportDay = {
+  date: string;
+  label: string;
+  calories: number;
+  goalCalories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  waterConsumedMl?: number | null;
+  waterGoalMl?: number | null;
+  exerciseCalories?: number | null;
+  quality?: {
+    proteinGrams?: number;
+    fiberGrams?: number;
+    waterMl?: number;
+    fruitServings?: number;
+    vegetableServings?: number;
+    ultraProcessedServings?: number;
+    mealCount?: number;
+    regularityScore?: number;
+  };
+};
+
+type ReportInsight = {
+  title: string;
+  description: string;
+};
+
 const ACCESS_STATUS_LABELS: Record<string, string> = {
   pending: "Aguardando autorização",
   approved: "Autorizado",
   rejected: "Recusado",
   revoked: "Revogado",
 };
+
+const GOAL_WEEKDAYS = [
+  { weekday: 0, label: "Segunda-feira", shortLabel: "seg." },
+  { weekday: 1, label: "Terça-feira", shortLabel: "ter." },
+  { weekday: 2, label: "Quarta-feira", shortLabel: "qua." },
+  { weekday: 3, label: "Quinta-feira", shortLabel: "qui." },
+  { weekday: 4, label: "Sexta-feira", shortLabel: "sex." },
+  { weekday: 5, label: "Sábado", shortLabel: "sáb." },
+  { weekday: 6, label: "Domingo", shortLabel: "dom." },
+] as const;
 
 function accessStatusLabel(status: AccessStatus) {
   return ACCESS_STATUS_LABELS[status] ?? status;
@@ -78,7 +178,8 @@ export default function ProfessionalPage() {
   const approvedAccesses = accesses.data?.filter(access => access.status === "approved") ?? [];
   const pendingAccesses = accesses.data?.filter(access => access.status === "pending") ?? [];
   const nonApprovedAccesses = accesses.data?.filter(access => access.status !== "approved") ?? [];
-  const defaultNutritionGoal = dashboard.data?.nutritionGoal?.defaultGoal;
+  const nutritionGoal = dashboard.data?.nutritionGoal as NutritionGoalView | undefined;
+  const defaultNutritionGoal = nutritionGoal?.defaultGoal;
   const goalSuggestions = dashboard.data?.goalSuggestions ?? [];
   const mealSuggestions = dashboard.data?.mealSuggestions ?? [];
   const suggestedCalories = Number(goalSuggestion.calories);
@@ -86,6 +187,71 @@ export default function ProfessionalPage() {
   const suggestedCarbs = Number(goalSuggestion.carbsGrams);
   const suggestedFat = Number(goalSuggestion.fatGrams);
   const selectedAccess = approvedAccesses.find(access => access.patientUserId === selectedPatientId) ?? null;
+  const weeklyReport = useMemo(() => (dashboard.data?.weeklyReport ?? []) as WeeklyReportDay[], [dashboard.data?.weeklyReport]);
+  const weeklyTrend = useMemo(() => weeklyReport.map(day => ({
+    ...day,
+    goalCalories: Math.round(day.goalCalories ?? 0),
+    calories: Math.round(day.calories ?? 0),
+    protein: Math.round(day.protein ?? 0),
+    carbs: Math.round(day.carbs ?? 0),
+    fat: Math.round(day.fat ?? 0),
+  })), [weeklyReport]);
+  const weeklyQuality = useMemo(() => weeklyReport.reduce(
+    (acc, day) => ({
+      proteinGrams: acc.proteinGrams + (day.quality?.proteinGrams ?? day.protein ?? 0),
+      fiberGrams: acc.fiberGrams + (day.quality?.fiberGrams ?? 0),
+      waterMl: acc.waterMl + (day.quality?.waterMl ?? day.waterConsumedMl ?? 0),
+      fruitServings: acc.fruitServings + (day.quality?.fruitServings ?? 0),
+      vegetableServings: acc.vegetableServings + (day.quality?.vegetableServings ?? 0),
+      ultraProcessedServings: acc.ultraProcessedServings + (day.quality?.ultraProcessedServings ?? 0),
+      mealCount: acc.mealCount + (day.quality?.mealCount ?? 0),
+      regularityScore: acc.regularityScore + ((day.quality?.regularityScore ?? 0) / Math.max(weeklyReport.length, 1)),
+    }),
+    {
+      proteinGrams: 0,
+      fiberGrams: 0,
+      waterMl: 0,
+      fruitServings: 0,
+      vegetableServings: 0,
+      ultraProcessedServings: 0,
+      mealCount: 0,
+      regularityScore: 0,
+    },
+  ), [weeklyReport]);
+  const weeklyWaterTotal = weeklyReport.reduce((total, day) => total + (day.waterConsumedMl ?? 0), 0);
+  const weeklyWaterGoalTotal = weeklyReport.reduce((total, day) => total + (day.waterGoalMl ?? 0), 0);
+  const weeklyWaterGoalHitDays = weeklyReport.filter(day => (day.waterGoalMl ?? 0) > 0 && (day.waterConsumedMl ?? 0) >= (day.waterGoalMl ?? 0)).length;
+  const lowestWaterDay = findExtreme(weeklyReport.filter(day => (day.waterConsumedMl ?? 0) > 0), day => day.waterConsumedMl ?? 0, "min");
+  const weeklyExerciseActiveDays = weeklyReport.filter(day => (day.exerciseCalories ?? 0) > 0).length;
+  const highestExerciseDay = findExtreme(weeklyReport.filter(day => (day.exerciseCalories ?? 0) > 0), day => day.exerciseCalories ?? 0, "max");
+  const daysWithinGoal = weeklyReport.filter(day => day.goalCalories > 0 && Math.abs(day.calories - day.goalCalories) <= Math.max(day.goalCalories * 0.1, 100)).length;
+  const daysAboveGoal = weeklyReport.filter(day => day.goalCalories > 0 && day.calories > day.goalCalories).length;
+  const daysBelowGoal = weeklyReport.filter(day => day.goalCalories > 0 && day.calories > 0 && day.calories < day.goalCalories).length;
+  const daysWithoutRecords = weeklyReport.filter(day => day.calories <= 0).length;
+  const reportInsights = useMemo(() => buildReportInsights({
+    weeklyReport,
+    weeklyAdherence: dashboard.data?.weeklyAdherence ?? 0,
+    weeklyExerciseActiveDays,
+    weeklyWaterGoalHitDays,
+  }), [dashboard.data?.weeklyAdherence, weeklyExerciseActiveDays, weeklyReport, weeklyWaterGoalHitDays]);
+  const weeklyGoalDays = nutritionGoal?.days?.length ? nutritionGoal.days : GOAL_WEEKDAYS.map(day => ({
+    ...day,
+    source: "default",
+    calories: defaultNutritionGoal?.calories ?? 0,
+    proteinGrams: defaultNutritionGoal?.proteinGrams ?? 0,
+    carbsGrams: defaultNutritionGoal?.carbsGrams ?? 0,
+    fatGrams: defaultNutritionGoal?.fatGrams ?? 0,
+  }));
+  const weeklyGoalTotals = nutritionGoal?.weeklyTotals ?? weeklyGoalDays.reduce(
+    (total, day) => ({
+      calories: total.calories + day.calories,
+      proteinGrams: total.proteinGrams + day.proteinGrams,
+      carbsGrams: total.carbsGrams + day.carbsGrams,
+      fatGrams: total.fatGrams + day.fatGrams,
+    }),
+    { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
+  );
+  const activeExceptions = nutritionGoal?.exceptions?.filter(exception => exception.isActive !== false) ?? [];
   const canSuggestGoal = Boolean(
     selectedPatientId &&
     goalSuggestion.rationale.trim() &&
@@ -102,10 +268,6 @@ export default function ProfessionalPage() {
     mealSuggestion.rationale.trim(),
   );
   const canAskQuestion = Boolean(selectedPatientId && patientQuestion.trim().length >= 3);
-  const todayMeals = useMemo(() => {
-    const todayKey = new Date().toLocaleDateString("pt-BR");
-    return dashboard.data?.meals.filter(meal => new Date(meal.occurredAt).toLocaleDateString("pt-BR") === todayKey) ?? [];
-  }, [dashboard.data?.meals]);
 
   useEffect(() => {
     if (!selectedPatientId && approvedAccesses.length) {
@@ -295,7 +457,7 @@ export default function ProfessionalPage() {
                           onRevoke={() => revokeAccess.mutate({ accessId: access.id })}
                           revoking={revokeAccess.isPending}
                         />
-                      )) : <Empty text="Nenhuma pessoa autorizou acompanhamento ainda." />}
+                      )) : <Empty text="Nenhuma pessoa autorizou acompanhamento até agora." />}
                     </div>
                     <div className="space-y-3">
                       <SectionHeading title="Convites e autorizações" description="A pessoa acompanhada controla a autorização dos próprios dados." />
@@ -319,7 +481,7 @@ export default function ProfessionalPage() {
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /> Análise por pessoa acompanhada</CardTitle>
-                <CardDescription>Escolha uma pessoa autorizada para revisar métricas, registros, metas, sugestões e comentários.</CardDescription>
+                <CardDescription>Escolha uma pessoa autorizada para revisar relatórios, metas, sugestões, IA e comentários.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <label className="block max-w-xl space-y-2">
@@ -349,10 +511,8 @@ export default function ProfessionalPage() {
                 {dashboard.isError ? <ErrorMessage text="Não foi possível carregar a análise autorizada. Tente novamente em instantes." /> : null}
 
                 {dashboard.data ? (
-                  <Tabs defaultValue="resumo" className="gap-4">
-                    <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-7">
-                      <TabsTrigger className="min-h-11 rounded-xl" value="resumo">Resumo</TabsTrigger>
-                      <TabsTrigger className="min-h-11 rounded-xl" value="hoje">Hoje</TabsTrigger>
+                  <Tabs defaultValue="relatorios" className="gap-4">
+                    <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-5">
                       <TabsTrigger className="min-h-11 rounded-xl" value="relatorios">Relatórios</TabsTrigger>
                       <TabsTrigger className="min-h-11 rounded-xl" value="metas">Metas</TabsTrigger>
                       <TabsTrigger className="min-h-11 rounded-xl" value="sugestoes">Sugestões</TabsTrigger>
@@ -360,60 +520,249 @@ export default function ProfessionalPage() {
                       <TabsTrigger className="min-h-11 rounded-xl" value="comentarios">Comentários</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="resumo" className="space-y-4">
-                      <div className="grid gap-3 md:grid-cols-4">
-                        <Metric label="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} />
-                        <Metric label="Calorias consumidas" value={formatCalories(dashboard.data.calories.consumed)} />
-                        <Metric label="Proteínas" value={formatGrams(dashboard.data.macros.protein)} />
-                        <Metric label="Variação de peso" value={`${dashboard.data.weight.deltaKg ?? 0} kg`} />
+                    <TabsContent value="relatorios" className="space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-4">
+                        <HighlightCard title="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} description="Comparativo entre consumo e meta da semana autorizada." />
+                        <HighlightCard title="Total da semana" value={formatCalories(dashboard.data.calories.consumed)} description={`Meta semanal: ${formatCalories(dashboard.data.calories.planned)}.`} />
+                        <HighlightCard title="Proteína registrada" value={formatGrams(dashboard.data.macros.protein)} description="Soma de proteínas consumidas no período semanal." />
+                        <HighlightCard title="Calorias líquidas" value={formatCalories(dashboard.data.calories.consumed - dashboard.data.calories.burned)} description={`Exercícios registrados: ${formatCalories(dashboard.data.calories.burned)}.`} />
                       </div>
-                      <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-                        Esta análise mostra dados autorizados da pessoa selecionada. Sua conta pessoal continua separada deste acompanhamento.
-                      </div>
-                    </TabsContent>
 
-                    <TabsContent value="hoje" className="space-y-3">
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <Metric label="Refeições hoje" value={String(todayMeals.length)} />
-                        <Metric label="Calorias semanais" value={formatCalories(dashboard.data.calories.consumed)} />
-                        <Metric label="Proteína semanal" value={formatGrams(dashboard.data.macros.protein)} />
-                      </div>
-                      <div className="space-y-2">
-                        <p className="font-medium">Registros do dia</p>
-                        {todayMeals.length ? todayMeals.map(meal => <MealRow key={meal.id} meal={meal} />) : <Empty text="Nenhuma refeição registrada hoje para esta pessoa." />}
-                      </div>
-                    </TabsContent>
+                      <Card className="border-0 shadow-sm">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <CalendarDays className="h-5 w-5 text-primary" />
+                            Dias da semana
+                          </CardTitle>
+                          <CardDescription>Mesma leitura da tela Relatórios: dias dentro da meta, acima, abaixo e sem registro.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <StatusTile label="Dentro da meta" value={daysWithinGoal} />
+                            <StatusTile label="Acima da meta" value={daysAboveGoal} />
+                            <StatusTile label="Abaixo da meta" value={daysBelowGoal} />
+                            <StatusTile label="Sem registro" value={daysWithoutRecords} />
+                          </div>
+                          <Card className="border bg-muted/10 shadow-none">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <Scale className="h-5 w-5 text-primary" />
+                                Evolução do peso
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              {dashboard.data.weight.hasData ? (
+                                <div className="grid gap-3 sm:grid-cols-3">
+                                  <StatusTile label="Inicial" value={`${dashboard.data.weight.firstWeightKg ?? dashboard.data.weight.lastWeightKg ?? 0} kg`} />
+                                  <StatusTile label="Atual" value={`${dashboard.data.weight.lastWeightKg ?? 0} kg`} />
+                                  <StatusTile label="Variação" value={`${dashboard.data.weight.deltaKg ?? 0} kg`} />
+                                </div>
+                              ) : (
+                                <div className="rounded-2xl border border-dashed bg-background/70 p-5 text-sm leading-6 text-muted-foreground">
+                                  Ainda não há peso registrado para compor a leitura da semana.
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </CardContent>
+                      </Card>
 
-                    <TabsContent value="relatorios" className="space-y-3">
-                      <div className="grid gap-3 md:grid-cols-4">
-                        <Metric label="Planejado na semana" value={formatCalories(dashboard.data.calories.planned)} />
-                        <Metric label="Consumido na semana" value={formatCalories(dashboard.data.calories.consumed)} />
-                        <Metric label="Gasto estimado" value={formatCalories(dashboard.data.calories.burned)} />
-                        <Metric label="Peso" value={dashboard.data.weight.hasData ? `${dashboard.data.weight.lastWeightKg} kg` : "Sem dados"} />
+                      <div className="grid gap-6 xl:grid-cols-2">
+                        <WaterAnalyticsCard
+                          title="Hidratação na semana"
+                          scopeLabel="Semanal"
+                          description="A leitura usa aderência à meta, média diária e ponto mais fraco da semana."
+                          totalConsumedMl={weeklyWaterTotal}
+                          totalGoalMl={weeklyWaterGoalTotal}
+                          goalHitDays={weeklyWaterGoalHitDays}
+                          totalDays={weeklyReport.length}
+                          averageDailyMl={averageValue(weeklyWaterTotal, weeklyReport.length)}
+                          lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatMl(lowestWaterDay.waterConsumedMl ?? 0)}` : "-"}
+                          reading={weeklyWaterGoalHitDays > 0 ? `${weeklyWaterGoalHitDays} de ${weeklyReport.length} dias bateram a meta de água.` : "Nenhum dia bateu a meta de água nesta semana ou os dados ainda não foram registrados."}
+                        />
+
+                        <ExerciseAnalyticsCard
+                          title="Atividade física na semana"
+                          scopeLabel="Semanal"
+                          description="Mostra frequência, distribuição e concentração do gasto ao longo da semana."
+                          activeDays={weeklyExerciseActiveDays}
+                          totalDays={weeklyReport.length}
+                          totalCalories={dashboard.data.calories.burned}
+                          detailLabel="Distribuição"
+                          detailValue={`${weeklyExerciseActiveDays}/${weeklyReport.length || 0} dias`}
+                          averageCaloriesPerActiveDay={averageValue(dashboard.data.calories.burned, weeklyExerciseActiveDays)}
+                          highestDay={highestExerciseDay ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories ?? 0)}` : "Sem exercício"}
+                          reading={weeklyExerciseActiveDays > 1 ? `Os exercícios ficaram distribuídos em ${weeklyExerciseActiveDays} dias da semana.` : weeklyExerciseActiveDays === 1 ? "Toda a atividade física registrada ficou concentrada em um único dia da semana." : "Nenhum exercício foi registrado nesta semana."}
+                        />
                       </div>
-                      <div className="space-y-2">
-                        <p className="font-medium">Registros recentes</p>
-                        {dashboard.data.meals.slice(0, 8).length ? dashboard.data.meals.slice(0, 8).map(meal => <MealRow key={meal.id} meal={meal} />) : <Empty text="Nenhum registro recente encontrado." />}
+
+                      <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
+                        <Card className="border-0 shadow-sm">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <BarChart3 className="h-5 w-5 text-primary" />
+                              Calorias consumidas em relação à meta
+                            </CardTitle>
+                            <CardDescription>Comparativo diário dentro da semana selecionada para a pessoa acompanhada.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="h-[360px]">
+                            {weeklyTrend.length ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={weeklyTrend} barSize={28}>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                  <XAxis dataKey="label" />
+                                  <YAxis />
+                                  <Tooltip />
+                                  <Legend />
+                                  <Bar dataKey="goalCalories" name="Meta" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
+                                  <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
+                                    {weeklyTrend.map(day => (
+                                      <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            ) : <Empty text="Ainda não há dados suficientes para montar o gráfico semanal." />}
+                          </CardContent>
+                        </Card>
+
+                        <Card className="border-0 shadow-sm">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Lightbulb className="h-5 w-5 text-primary" />
+                              Qualidade e insights
+                            </CardTitle>
+                            <CardDescription>Leitura de qualidade alimentar e consistência para apoiar a avaliação profissional.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <StatusTile label="Proteína" value={formatGrams(weeklyQuality.proteinGrams)} />
+                              <StatusTile label="Fibras" value={formatGrams(weeklyQuality.fiberGrams)} />
+                              <StatusTile label="Água" value={formatMl(weeklyQuality.waterMl)} />
+                              <StatusTile label="Regularidade" value={`${Math.round(weeklyQuality.regularityScore)}%`} />
+                            </div>
+                            <div className="space-y-3">
+                              {reportInsights.map(insight => (
+                                <div key={insight.title} className="rounded-2xl border bg-muted/10 p-4">
+                                  <p className="text-sm font-semibold tracking-tight">{insight.title}</p>
+                                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{insight.description}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
                       </div>
+
+                      <Card className="border-0 shadow-sm">
+                        <CardHeader>
+                          <CardTitle>Distribuição de macronutrientes</CardTitle>
+                          <CardDescription>Evolução agregada de proteínas, carboidratos e gorduras ao longo da semana.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="h-[320px]">
+                          {weeklyTrend.length ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={weeklyTrend}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="label" />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Line type="monotone" dataKey="protein" name="Proteínas" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                                <Line type="monotone" dataKey="carbs" name="Carboidratos" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4 }} />
+                                <Line type="monotone" dataKey="fat" name="Gorduras" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          ) : <Empty text="Ainda não há dados suficientes para mostrar a distribuição de macronutrientes." />}
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-0 shadow-sm">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <UtensilsCrossed className="h-5 w-5 text-primary" />
+                            Registros recentes
+                          </CardTitle>
+                          <CardDescription>Registros alimentares autorizados para investigação pontual, sem duplicar a antiga aba Hoje.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {dashboard.data.meals.slice(0, 8).length ? dashboard.data.meals.slice(0, 8).map(meal => <MealRow key={meal.id} meal={meal} />) : <Empty text="Nenhum registro recente encontrado." />}
+                        </CardContent>
+                      </Card>
                     </TabsContent>
 
                     <TabsContent value="metas" className="space-y-4">
                       {defaultNutritionGoal ? (
                         <>
-                          <div className="grid gap-3 md:grid-cols-5">
-                            <Metric label="Meta calórica" value={formatCalories(defaultNutritionGoal.calories)} />
-                            <Metric label="Meta proteína" value={formatGrams(defaultNutritionGoal.proteinGrams)} />
-                            <Metric label="Meta carboidratos" value={formatGrams(defaultNutritionGoal.carbsGrams)} />
-                            <Metric label="Meta gorduras" value={formatGrams(defaultNutritionGoal.fatGrams)} />
-                            <Metric label="Exceções" value={String(dashboard.data.nutritionGoal.exceptions.length)} />
+                          <div className="grid gap-3 md:grid-cols-4">
+                            <Metric label="Meta base" value={formatCalories(defaultNutritionGoal.calories)} />
+                            <Metric label="Proteína" value={formatGrams(defaultNutritionGoal.proteinGrams)} />
+                            <Metric label="Carboidratos" value={formatGrams(defaultNutritionGoal.carbsGrams)} />
+                            <Metric label="Gorduras" value={formatGrams(defaultNutritionGoal.fatGrams)} />
                           </div>
+
+                          <Card className="border bg-muted/10 shadow-none">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <Target className="h-5 w-5 text-primary" />
+                                Soma planejada da semana
+                              </CardTitle>
+                              <CardDescription>Mesma lógica da tela Metas: regra base aplicada aos dias da semana, com exceções quando existirem.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="grid gap-3 md:grid-cols-4">
+                                <StatusTile label="Calorias semanais" value={formatCalories(weeklyGoalTotals.calories)} />
+                                <StatusTile label="Proteínas" value={formatGrams(weeklyGoalTotals.proteinGrams)} />
+                                <StatusTile label="Carboidratos" value={formatGrams(weeklyGoalTotals.carbsGrams)} />
+                                <StatusTile label="Gorduras" value={formatGrams(weeklyGoalTotals.fatGrams)} />
+                              </div>
+                              <div className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-7 xl:overflow-visible xl:pb-0">
+                                {weeklyGoalDays.map(day => (
+                                  <div key={day.weekday} className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="truncate font-medium tracking-tight">{day.label}</p>
+                                        <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel ?? shortWeekdayLabel(day.weekday)}</span>
+                                      </div>
+                                      <p className="min-h-10 text-sm leading-5 text-foreground">
+                                        {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
+                                      </p>
+                                    </div>
+                                    <div className="mt-3 space-y-1 text-sm text-foreground">
+                                      <p>{formatCalories(day.calories)}</p>
+                                      <p>{formatGrams(day.proteinGrams)} proteína</p>
+                                      <p>{formatGrams(day.carbsGrams)} carbo</p>
+                                      <p>{formatGrams(day.fatGrams)} gordura</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <ListSection title="Exceções ativas">
+                            {activeExceptions.length ? activeExceptions.map(exception => (
+                              <div key={`${exception.id ?? exception.weekday}-${exception.durationType}`} className="rounded-xl border bg-muted/20 p-3 text-sm">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="font-medium">{exception.label ?? weekdayLabel(exception.weekday)}</span>
+                                  <span className="text-xs text-muted-foreground">{durationTypeLabel(exception.durationType)}</span>
+                                </div>
+                                <div className="mt-2 grid gap-2 text-muted-foreground md:grid-cols-4">
+                                  <span>{formatCalories(exception.calories)}</span>
+                                  <span>{formatGrams(exception.proteinGrams)} proteína</span>
+                                  <span>{formatGrams(exception.carbsGrams)} carboidratos</span>
+                                  <span>{formatGrams(exception.fatGrams)} gorduras</span>
+                                </div>
+                              </div>
+                            )) : <Empty text="Nenhuma exceção ativa. A meta base é aplicada a todos os dias da semana." />}
+                          </ListSection>
+
                           <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
                             A sugestão fica registrada para avaliação posterior. A meta ativa da pessoa acompanhada não muda automaticamente.
                           </div>
                         </>
                       ) : <Empty text="Nenhuma meta nutricional encontrada para esta pessoa." />}
 
-                      <SuggestionBox title="Sugerir ajuste de meta" description="Os campos começam com a meta atual para facilitar pequenos ajustes.">
+                      <SuggestionBox title="Sugerir ajuste de meta" description="Os campos começam com a meta atual para facilitar pequenos ajustes. As exceções ativas são preservadas na sugestão.">
                         <div className="grid gap-3 md:grid-cols-4">
                           <NumberField label="Calorias" min={800} value={goalSuggestion.calories} onChange={value => setGoalSuggestion(previous => ({ ...previous, calories: value }))} />
                           <NumberField label="Proteína (g)" min={20} value={goalSuggestion.proteinGrams} onChange={value => setGoalSuggestion(previous => ({ ...previous, proteinGrams: value }))} />
@@ -431,7 +780,7 @@ export default function ProfessionalPage() {
                         <Button
                           className="mt-4 rounded-full"
                           disabled={!canSuggestGoal || suggestGoal.isPending}
-                          onClick={() => selectedPatientId && dashboard.data?.nutritionGoal && suggestGoal.mutate({
+                          onClick={() => selectedPatientId && nutritionGoal && suggestGoal.mutate({
                             patientId: selectedPatientId,
                             rationale: goalSuggestion.rationale.trim(),
                             status: "sent",
@@ -442,7 +791,7 @@ export default function ProfessionalPage() {
                                 carbsGrams: suggestedCarbs,
                                 fatGrams: suggestedFat,
                               },
-                              exceptions: dashboard.data.nutritionGoal.exceptions,
+                              exceptions: nutritionGoal.exceptions,
                             },
                           })}
                         >
@@ -533,6 +882,40 @@ export default function ProfessionalPage() {
   );
 }
 
+function buildReportInsights({
+  weeklyReport,
+  weeklyAdherence,
+  weeklyExerciseActiveDays,
+  weeklyWaterGoalHitDays,
+}: {
+  weeklyReport: WeeklyReportDay[];
+  weeklyAdherence: number;
+  weeklyExerciseActiveDays: number;
+  weeklyWaterGoalHitDays: number;
+}): ReportInsight[] {
+  if (!weeklyReport.length) {
+    return [{ title: "Dados insuficientes", description: "Ainda não há registros suficientes para gerar uma leitura semanal consistente." }];
+  }
+
+  const registeredDays = weeklyReport.filter(day => day.calories > 0).length;
+  const aboveGoalDays = weeklyReport.filter(day => day.goalCalories > 0 && day.calories > day.goalCalories).length;
+
+  return [
+    {
+      title: "Aderência semanal",
+      description: `A semana está com ${formatPercentPtBr(weeklyAdherence)}% de aderência e ${registeredDays} dias com registro alimentar.`,
+    },
+    {
+      title: "Distribuição calórica",
+      description: aboveGoalDays ? `${aboveGoalDays} dias ficaram acima da meta calórica, o que merece revisão de refeições e horários.` : "Nenhum dia registrado ficou acima da meta calórica semanal.",
+    },
+    {
+      title: "Hábitos de apoio",
+      description: `${weeklyWaterGoalHitDays} dias bateram a meta de água e ${weeklyExerciseActiveDays} dias tiveram atividade física registrada.`,
+    },
+  ];
+}
+
 function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -594,7 +977,7 @@ function AccessRow({
   );
 }
 
-function MealRow({ meal }: { meal: { id: number; mealLabel: string; occurredAt: string | number | Date; totals: { calories: number } } }) {
+function MealRow({ meal }: { meal: MealSummary }) {
   return (
     <div className="rounded-xl border bg-background p-3 text-sm">
       <div className="flex justify-between gap-3">
@@ -742,6 +1125,147 @@ function suggestionStatusLabel(status: string) {
   return labels[status] ?? status;
 }
 
+function HighlightCard({ title, value, description }: { title: string; value: string; description: string }) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardContent className="p-5">
+        <p className="text-sm text-muted-foreground">{title}</p>
+        <p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatusTile({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+function AnalyticsHeader({
+  icon,
+  title,
+  scopeLabel,
+  description,
+}: {
+  icon: ReactNode;
+  title: string;
+  scopeLabel: string;
+  description: string;
+}) {
+  return (
+    <CardHeader className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
+        <span className="rounded-full border px-3 py-1 text-xs uppercase tracking-wide text-muted-foreground">
+          {scopeLabel}
+        </span>
+      </div>
+      <CardDescription>{description}</CardDescription>
+    </CardHeader>
+  );
+}
+
+function AnalyticsReading({ children }: { children: ReactNode }) {
+  return <div className="rounded-2xl border bg-background px-4 py-3 text-sm leading-6 text-muted-foreground">{children}</div>;
+}
+
+function WaterAnalyticsCard({
+  title,
+  scopeLabel,
+  description,
+  totalConsumedMl,
+  totalGoalMl,
+  goalHitDays,
+  totalDays,
+  averageDailyMl,
+  lowestDay,
+  reading,
+}: {
+  title: string;
+  scopeLabel: string;
+  description: string;
+  totalConsumedMl: number;
+  totalGoalMl: number;
+  goalHitDays: number;
+  totalDays: number;
+  averageDailyMl: number;
+  lowestDay: string;
+  reading: string;
+}) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <AnalyticsHeader icon={<Droplets className="h-5 w-5 text-primary" />} title={title} scopeLabel={scopeLabel} description={description} />
+      <CardContent className="space-y-4">
+        <div className="rounded-3xl border bg-muted/20 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium tracking-tight">Aderência à meta de água</p>
+            <p className="text-sm text-muted-foreground">{Math.round(progressPercent(totalConsumedMl, totalGoalMl))}%</p>
+          </div>
+          <Progress className="h-2" value={progressPercent(totalConsumedMl, totalGoalMl)} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StatusTile label="Meta do período" value={formatMl(totalGoalMl)} />
+          <StatusTile label="Consumo acumulado" value={formatMl(totalConsumedMl)} />
+          <StatusTile label="Meta batida" value={`${goalHitDays}/${totalDays} dias`} />
+          <StatusTile label="Média diária" value={formatMl(averageDailyMl)} />
+          <StatusTile label="Menor dia" value={lowestDay} />
+        </div>
+        <AnalyticsReading>{reading}</AnalyticsReading>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ExerciseAnalyticsCard({
+  title,
+  scopeLabel,
+  description,
+  activeDays,
+  totalDays,
+  totalCalories,
+  detailLabel,
+  detailValue,
+  averageCaloriesPerActiveDay,
+  highestDay,
+  reading,
+}: {
+  title: string;
+  scopeLabel: string;
+  description: string;
+  activeDays: number;
+  totalDays: number;
+  totalCalories: number;
+  detailLabel: string;
+  detailValue: string;
+  averageCaloriesPerActiveDay: number;
+  highestDay: string;
+  reading: string;
+}) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <AnalyticsHeader icon={<Dumbbell className="h-5 w-5 text-primary" />} title={title} scopeLabel={scopeLabel} description={description} />
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StatusTile label="Dias ativos" value={`${activeDays}/${totalDays}`} />
+          <StatusTile label="Gasto total" value={formatCalories(totalCalories)} />
+          <StatusTile label={detailLabel} value={detailValue} />
+          <StatusTile label="Média por dia ativo" value={activeDays ? formatCalories(averageCaloriesPerActiveDay) : "0 kcal"} />
+          <StatusTile label="Maior dia" value={highestDay} />
+        </div>
+        <AnalyticsReading>{reading}</AnalyticsReading>
+      </CardContent>
+    </Card>
+  );
+}
+
 function StatusMessage({ text }: { text: string }) {
   return <div className="rounded-2xl border bg-muted/20 p-6 text-sm text-muted-foreground" role="status" aria-live="polite">{text}</div>;
 }
@@ -752,4 +1276,49 @@ function ErrorMessage({ text }: { text: string }) {
 
 function Empty({ text }: { text: string }) {
   return <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">{text}</div>;
+}
+
+function progressPercent(value: number, goal: number) {
+  if (!goal) return 0;
+  return Math.min(Math.max((value / goal) * 100, 0), 100);
+}
+
+function averageValue(total: number, count: number) {
+  if (!count) return 0;
+  return total / count;
+}
+
+function getCalorieBarColor(calories: number, goalCalories: number) {
+  return goalCalories > 0 && calories > goalCalories ? "#dc2626" : "#10b981";
+}
+
+function formatMl(value: number) {
+  return `${Math.round(value).toLocaleString("pt-BR")} ml`;
+}
+
+function findExtreme<T>(items: T[], getValue: (item: T) => number, direction: "min" | "max") {
+  return items.reduce<T | null>((current, item) => {
+    if (!current) return item;
+    const nextValue = getValue(item);
+    const currentValue = getValue(current);
+    return direction === "max" ? (nextValue > currentValue ? item : current) : (nextValue < currentValue ? item : current);
+  }, null);
+}
+
+function weekdayLabel(weekday: number) {
+  return GOAL_WEEKDAYS.find(day => day.weekday === weekday)?.label ?? "Dia";
+}
+
+function shortWeekdayLabel(weekday: number) {
+  return GOAL_WEEKDAYS.find(day => day.weekday === weekday)?.shortLabel ?? "dia";
+}
+
+function durationTypeLabel(durationType: string) {
+  const labels: Record<string, string> = {
+    "1_week": "Por 1 semana",
+    "2_weeks": "Por 2 semanas",
+    "3_weeks": "Por 3 semanas",
+    always: "Sempre",
+  };
+  return labels[durationType] ?? durationType;
 }
