@@ -50,7 +50,7 @@ export default function HealthIntegrationsPage() {
 
   const disconnect = trpc.nutrition.healthIntegrations.disconnect.useMutation({
     onSuccess: async () => {
-      toast.success("Integração desconectada. Dados sincronizados desse provider foram removidos da área de integração.");
+      toast.success("Integração desconectada. Os dados dessa conexão foram removidos da área de integrações.");
       await invalidate();
     },
     onError: error => toast.error(error.message || "Não foi possível desconectar a integração."),
@@ -64,13 +64,14 @@ export default function HealthIntegrationsPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Integrações</h1>
+          <p className="text-sm leading-6 text-muted-foreground">Conecte serviços externos para importar atividades físicas e usar esses dados no acompanhamento diário.</p>
         </div>
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
-              Providers disponíveis
+              Serviços disponíveis
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -78,13 +79,13 @@ export default function HealthIntegrationsPage() {
               <UXState
                 variant="loading"
                 title="Carregando integrações"
-                description="Estou buscando o estado atual dos providers e vínculos externos."
+                description="Estamos verificando quais serviços estão disponíveis para conexão."
               />
             ) : status.error ? (
               <UXState
                 variant="error"
                 title="Não foi possível carregar as integrações"
-                description={status.error.message || "Tente novamente em instantes para revisar o estado dos providers."}
+                description={status.error.message || "Tente novamente em instantes para revisar o estado das conexões."}
               />
             ) : visibleProviders.length ? (
               <div className="grid gap-4">
@@ -102,8 +103,8 @@ export default function HealthIntegrationsPage() {
             ) : (
               <UXState
                 variant="empty"
-                title="Nenhuma integração finalizada disponível"
-                description="O Strava aparecerá aqui quando as credenciais OAuth estiverem configuradas. Apple Health, Health Connect, Google Fit, Garmin e mock seguem ocultos para reduzir ruído."
+                title="Nenhuma integração disponível ainda"
+                description="Quando uma integração estiver pronta para uso, ela aparecerá aqui para conexão e sincronização dos seus dados."
               />
             )}
           </CardContent>
@@ -172,15 +173,15 @@ function IntegrationCard({
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
-        <StatusLine label="Plataforma" value={provider.platform === "web" ? "Web OAuth" : provider.platform} />
-        <StatusLine label="Consentimento" value={connection?.consentGrantedAt ? new Date(connection.consentGrantedAt).toLocaleString("pt-BR") : "Aguardando autorização"} />
+        <StatusLine label="Forma de conexão" value={provider.platform === "web" ? "Conexão pela web" : provider.platform} />
+        <StatusLine label="Autorização" value={connection?.consentGrantedAt ? new Date(connection.consentGrantedAt).toLocaleString("pt-BR") : "Aguardando autorização"} />
         <StatusLine label="Última sincronização" value={connection?.lastSyncedAt ? new Date(connection.lastSyncedAt).toLocaleString("pt-BR") : "Nunca"} />
       </div>
 
       <section className="mt-5 rounded-2xl border bg-muted/20 p-4" aria-labelledby="strava-permissions-title">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-primary" />
-          <h3 id="strava-permissions-title" className="text-sm font-semibold tracking-tight">Permissões da integração</h3>
+          <h3 id="strava-permissions-title" className="text-sm font-semibold tracking-tight">Dados autorizados</h3>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {provider.supportedDataTypes.map(scope => {
