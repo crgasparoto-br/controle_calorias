@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import { eq, or } from "drizzle-orm";
-import { users, whatsappConnections } from "../../../drizzle/schema";
+import { and, eq, or } from "drizzle-orm";
+import { userPreferences, users, whatsappConnections } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
 import { getDb, getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
 import { redactSensitiveText } from "../../privacy";
@@ -90,7 +90,8 @@ type UserSummary = {
   email: string | null;
 };
 
-const PROFESSIONAL_AI_NOTICE = "Resposta educativa para apoiar a análise profissional. Não substitui julgamento clínico, diagnóstico, prescrição médica ou decisão compartilhada com o paciente.";
+const PROFESSIONAL_AI_NOTICE = "Resposta educativa para apoiar a análise profissional. Não substitui julgamento clínico, diagnóstico, prescrição médica ou decisão compartilhada com a pessoa acompanhada.";
+const PROFESSIONAL_PROFILE_PREFERENCE_KEY = "professional_profile_v1";
 
 const profiles = new Map<number, ProfessionalProfile>();
 const accesses = new Map<string, ProfessionalPatientAccess>();
@@ -132,10 +133,59 @@ function responseTimestamp(status: ProfessionalGoalSuggestionStatus | Profession
   return ["accepted", "refused", "cancelled"].includes(status) ? now : null;
 }
 
-function assertActiveProfessionalProfile(userId: number) {
-  const profile = profiles.get(userId);
+function parseStoredProfessionalProfile(userId: number, value: string): ProfessionalProfile | null {
+  try {
+    const parsed = JSON.parse(value) as Partial<ProfessionalProfile>;
+    if (parsed.userId !== userId || typeof parsed.displayName !== "string" || typeof parsed.active !== "boolean") {
+      return null;
+    }
+
+    return {
+      userId,
+      displayName: parsed.displayName,
+      registrationNumber: typeof parsed.registrationNumber === "string" ? parsed.registrationNumber : undefined,
+      active: parsed.active,
+      createdAt: typeof parsed.createdAt === "number" ? parsed.createdAt : Date.now(),
+      updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function persistProfessionalProfile(profile: ProfessionalProfile) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.insert(userPreferences).values({
+    userId: profile.userId,
+    preferenceKey: PROFESSIONAL_PROFILE_PREFERENCE_KEY,
+    preferenceValue: JSON.stringify(profile),
+  }).onDuplicateKeyUpdate({
+    set: {
+      preferenceValue: JSON.stringify(profile),
+    },
+  });
+}
+
+async function loadPersistedProfessionalProfile(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const rows = await db
+    .select()
+    .from(userPreferences)
+    .where(and(eq(userPreferences.userId, userId), eq(userPreferences.preferenceKey, PROFESSIONAL_PROFILE_PREFERENCE_KEY)))
+    .limit(1);
+  const profile = rows[0]?.preferenceValue ? parseStoredProfessionalProfile(userId, rows[0].preferenceValue) : null;
+  if (profile) profiles.set(userId, profile);
+  return profile;
+}
+
+async function assertActiveProfessionalProfile(userId: number) {
+  const profile = await getProfessionalProfile(userId);
   if (!profile?.active) {
-    throw new Error("Ative seu perfil profissional em Configurações antes de acessar o módulo Nutricionista.");
+    throw new Error("Ative seu perfil profissional em Configurações antes de acessar a área Profissional.");
   }
   return profile;
 }
@@ -147,8 +197,8 @@ function parseAssistantContent(content: unknown) {
   return JSON.parse(text);
 }
 
-export function getProfessionalStatus(userId: number) {
-  const profile = profiles.get(userId) ?? null;
+export async function getProfessionalStatus(userId: number) {
+  const profile = await getProfessionalProfile(userId);
   return {
     hasActiveProfile: Boolean(profile?.active),
     profile,
@@ -185,7 +235,7 @@ async function getUserSummaryByEmail(email: string): Promise<UserSummary | null>
         };
       }
     }
-    throw new Error("A busca por paciente via e-mail depende do banco configurado neste ambiente.");
+    throw new Error("A busca por pessoa acompanhada via e-mail depende do banco configurado neste ambiente.");
   }
 
   const rows = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
@@ -202,7 +252,7 @@ async function getUserSummaryByEmail(email: string): Promise<UserSummary | null>
 async function getUserSummaryByPhone(phone: string): Promise<UserSummary | null> {
   const db = await getDb();
   if (!db) {
-    throw new Error("A busca por paciente via celular depende do banco configurado neste ambiente.");
+    throw new Error("A busca por pessoa acompanhada via celular depende do banco configurado neste ambiente.");
   }
 
   const digits = normalizePhoneDigits(phone);
@@ -239,16 +289,16 @@ function getApprovedAccess(professionalUserId: number, patientUserId: number) {
   );
 }
 
-function assertApprovedAccess(professionalUserId: number, patientUserId: number) {
+async function assertApprovedAccess(professionalUserId: number, patientUserId: number) {
   const access = getApprovedAccess(professionalUserId, patientUserId);
   if (!access) {
-    throw new Error("Acesso profissional não autorizado pelo paciente.");
+    throw new Error("Acesso profissional não autorizado pela pessoa acompanhada.");
   }
-  assertActiveProfessionalProfile(professionalUserId);
+  await assertActiveProfessionalProfile(professionalUserId);
   return access;
 }
 
-export function upsertProfessionalProfile(userId: number, input: ProfessionalProfileInput) {
+export async function upsertProfessionalProfile(userId: number, input: ProfessionalProfileInput) {
   const now = Date.now();
   const profile: ProfessionalProfile = {
     userId,
@@ -259,6 +309,7 @@ export function upsertProfessionalProfile(userId: number, input: ProfessionalPro
     updatedAt: now,
   };
   profiles.set(userId, profile);
+  await persistProfessionalProfile(profile);
   pushHistory({
     actorUserId: userId,
     professionalUserId: userId,
@@ -268,19 +319,19 @@ export function upsertProfessionalProfile(userId: number, input: ProfessionalPro
   return profile;
 }
 
-export function getProfessionalProfile(userId: number) {
-  return profiles.get(userId) ?? null;
+export async function getProfessionalProfile(userId: number) {
+  return profiles.get(userId) ?? await loadPersistedProfessionalProfile(userId);
 }
 
 export async function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
-  assertActiveProfessionalProfile(professionalUserId);
+  await assertActiveProfessionalProfile(professionalUserId);
 
   const patientContact = input.patientContact ?? input.patientEmail ?? "";
   const patient = await getUserSummaryByContact(patientContact);
   if (!patient) {
-    throw new Error("Nenhum paciente foi encontrado com esse e-mail ou celular.");
+    throw new Error("Nenhuma pessoa foi encontrada com esse e-mail ou celular.");
   }
-  if (professionalUserId === patient.userId) throw new Error("Profissional e paciente precisam ser usuários diferentes.");
+  if (professionalUserId === patient.userId) throw new Error("Profissional e pessoa acompanhada precisam ser usuários diferentes.");
 
   const existing = Array.from(accesses.values()).find(access =>
     access.professionalUserId === professionalUserId &&
@@ -318,7 +369,7 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
 }
 
 export async function listProfessionalAccesses(professionalUserId: number) {
-  assertActiveProfessionalProfile(professionalUserId);
+  await assertActiveProfessionalProfile(professionalUserId);
   const professionalAccesses = Array.from(accesses.values()).filter(access => access.professionalUserId === professionalUserId);
   const patients = await Promise.all(professionalAccesses.map(access => getUserSummary(access.patientUserId)));
   const patientMap = new Map(
@@ -372,7 +423,7 @@ export function revokePatientAccess(patientUserId: number, accessId: string) {
 }
 
 export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number) {
-  assertApprovedAccess(professionalUserId, patientUserId);
+  await assertApprovedAccess(professionalUserId, patientUserId);
   const [dashboard, weeklyProgress, weeklyReport, meals, patient, nutritionGoal] = await Promise.all([
     getDashboardSnapshot(patientUserId),
     getWeeklyProgress(patientUserId),
@@ -452,8 +503,8 @@ function buildFallbackPatientAnswer(question: string, snapshot: ProfessionalPati
   };
 }
 
-export function addProfessionalComment(professionalUserId: number, input: ProfessionalCommentInput) {
-  assertApprovedAccess(professionalUserId, input.patientId);
+export async function addProfessionalComment(professionalUserId: number, input: ProfessionalCommentInput) {
+  await assertApprovedAccess(professionalUserId, input.patientId);
   const comment: ProfessionalComment = {
     id: crypto.randomUUID(),
     professionalUserId,
@@ -471,8 +522,8 @@ export function addProfessionalComment(professionalUserId: number, input: Profes
   return comment;
 }
 
-export function suggestGoalAdjustment(professionalUserId: number, input: ProfessionalGoalSuggestionInput) {
-  assertApprovedAccess(professionalUserId, input.patientId);
+export async function suggestGoalAdjustment(professionalUserId: number, input: ProfessionalGoalSuggestionInput) {
+  await assertApprovedAccess(professionalUserId, input.patientId);
   const now = Date.now();
   const suggestion: GoalSuggestion = {
     id: crypto.randomUUID(),
@@ -495,8 +546,8 @@ export function suggestGoalAdjustment(professionalUserId: number, input: Profess
   return suggestion;
 }
 
-export function suggestMealPlan(professionalUserId: number, input: ProfessionalMealSuggestionInput) {
-  assertApprovedAccess(professionalUserId, input.patientId);
+export async function suggestMealPlan(professionalUserId: number, input: ProfessionalMealSuggestionInput) {
+  await assertApprovedAccess(professionalUserId, input.patientId);
   const now = Date.now();
   const suggestion: MealSuggestion = {
     id: crypto.randomUUID(),
@@ -523,7 +574,7 @@ export function suggestMealPlan(professionalUserId: number, input: ProfessionalM
 }
 
 export async function answerProfessionalPatientQuestion(professionalUserId: number, input: ProfessionalPatientQuestionInput) {
-  assertApprovedAccess(professionalUserId, input.patientId);
+  await assertApprovedAccess(professionalUserId, input.patientId);
   const snapshot = await getProfessionalPatientDashboard(professionalUserId, input.patientId);
   const sanitizedQuestion = redactSensitiveText(input.question);
   const context = buildPatientQuestionContext(snapshot);
@@ -534,8 +585,8 @@ export async function answerProfessionalPatientQuestion(professionalUserId: numb
         {
           role: "system",
           content: [
-            "Você é um assistente educativo para nutricionistas dentro de um app de controle alimentar.",
-            "Responda somente com base no contexto autorizado do paciente fornecido.",
+            "Você é um assistente educativo para profissionais dentro de um app de controle alimentar.",
+            "Responda somente com base no contexto autorizado da pessoa acompanhada fornecido.",
             "Não faça diagnóstico, prescrição médica, promessa de resultado ou decisão clínica final.",
             "Se a pergunta exigir dado ausente, diga claramente que o dado não está disponível no contexto.",
             "Use linguagem objetiva, profissional e cautelosa.",
@@ -591,7 +642,7 @@ export async function answerProfessionalPatientQuestion(professionalUserId: numb
   }
 }
 
-export function listProfessionalHistory(userId: number) {
-  assertActiveProfessionalProfile(userId);
+export async function listProfessionalHistory(userId: number) {
+  await assertActiveProfessionalProfile(userId);
   return history.filter(event => event.professionalUserId === userId || event.patientUserId === userId);
 }
