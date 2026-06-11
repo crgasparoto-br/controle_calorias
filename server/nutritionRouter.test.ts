@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
+vi.mock("./modules/whatsapp/llmIntentActions", () => ({
+  executeWhatsappLlmIntent: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("./nutritionEngine", async () => {
   const actual = await vi.importActual<typeof import("./nutritionEngine")>("./nutritionEngine");
   return {

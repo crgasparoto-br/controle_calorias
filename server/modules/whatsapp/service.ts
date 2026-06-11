@@ -14,7 +14,7 @@ import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
-import { splitWhatsAppWaterAndFoodText } from "./waterFoodText";
+import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
   constructor() {
@@ -141,6 +141,22 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       water: waterResults,
       meal,
     };
+  }
+
+  const waterCorrectionMatch = input.text ? /\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i.exec(input.text) : null;
+  if (waterCorrectionMatch) {
+    const fromText = waterCorrectionMatch[1].trim();
+    const toText = waterCorrectionMatch[2].trim();
+    if (isWhatsAppWaterOnlyText(fromText) && toText) {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.intent.food_correction_text_detected",
+        detail: `Correção detectada: "${fromText}" (água) substituída por "${toText}" como alimento.`,
+      });
+      return processMealDraft(userId, { source: "whatsapp", text: toText });
+    }
   }
 
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {

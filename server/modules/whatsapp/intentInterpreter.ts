@@ -1,6 +1,7 @@
 import { getAiProvider } from "../../_core/aiProvider";
 import {
   parseWhatsappInterpretedIntent,
+  type WhatsappIntentFoodItem,
   type WhatsappInterpretedIntent,
   whatsappIntentJsonSchema,
 } from "./intentSchema";
@@ -44,20 +45,20 @@ function parseQuantity(value: string) {
 
 function splitFoodItems(value: string) {
   return value
-    .split(/\s*[;,]\s*|\s+\be\s+(?=\d|caf[eé]\b)/i)
+    .split(/\s*[;,]\s*|\s+\be\s+(?=\d|caf[eé](?!\w))/i)
     .map(part => part.trim())
     .filter(Boolean);
 }
 
 function buildFoodItems(itemsText: string): WhatsappInterpretedIntent["items"] {
-  return splitFoodItems(itemsText).flatMap(part => {
+  return splitFoodItems(itemsText).flatMap((part): WhatsappIntentFoodItem[] => {
     const quantity = parseQuantity(part);
     if (!quantity) {
       const name = cleanFoodText(part);
       if (!name) {
         return [];
       }
-      if (/\bcaf[eé]\b/i.test(name)) {
+      if (/\bcaf[eé](?!\w)/i.test(name)) {
         return [{ foodName: name, quantity: 1, unit: "xícara" }];
       }
       return [{ foodName: name, quantity: null, unit: null }];
