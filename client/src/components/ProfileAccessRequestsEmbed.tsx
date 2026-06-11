@@ -16,25 +16,46 @@ function updateSettingsTitle() {
   if (title) title.textContent = SETTINGS_TITLE_COPY;
 }
 
+function hasClassName(element: Element, className: string) {
+  return element.className.toString().includes(className);
+}
+
+function findTextElement(text: string) {
+  const elements = Array.from(document.querySelectorAll("h1, h2, h3, div, span, p, [role='heading']"));
+  return elements.find(element => element.textContent?.trim() === text) ?? null;
+}
+
+function findProfileCard(title: Element) {
+  let current = title.parentElement;
+
+  while (current) {
+    if (hasClassName(current, "shadow-sm") && current.textContent?.includes("Peso atual")) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+
+  return null;
+}
+
+function findProfileCardContent(card: Element) {
+  const contents = Array.from(card.querySelectorAll("div"));
+  return contents.find(element => {
+    const text = element.textContent ?? "";
+    return hasClassName(element, "space-y-4") && text.includes("Nome") && text.includes("Peso atual") && text.includes("Salvar perfil");
+  }) ?? null;
+}
+
 function findProfileAccessSlot() {
   if (typeof document === "undefined") return null;
 
-  const title = Array.from(document.querySelectorAll("h1, h2, h3, [role='heading']")).find(element =>
-    element.textContent?.trim().includes("Identificação e base física"),
-  );
+  const title = findTextElement("Identificação e base física");
   if (!title) return null;
 
-  let card = title.parentElement;
-  while (card && !card.className.toString().includes("shadow-sm")) {
-    card = card.parentElement;
-  }
+  const card = findProfileCard(title);
   if (!card) return null;
 
-  const content = Array.from(card.querySelectorAll("div")).find(element => {
-    const className = element.className.toString();
-    const text = element.textContent ?? "";
-    return className.includes("space-y-4") && text.includes("Nome") && text.includes("Peso atual");
-  });
+  const content = findProfileCardContent(card);
   if (!content) return null;
 
   const existingSlot = content.querySelector<HTMLDivElement>(`[${SLOT_ATTRIBUTE}='true']`);
@@ -44,7 +65,7 @@ function findProfileAccessSlot() {
   slot.setAttribute(SLOT_ATTRIBUTE, "true");
 
   const saveButtonArea = Array.from(content.children).find(element =>
-    element.className.toString().includes("justify-end"),
+    element.textContent?.includes("Salvar perfil"),
   );
   content.insertBefore(slot, saveButtonArea ?? null);
 
