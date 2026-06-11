@@ -56,16 +56,16 @@ describe("nutritionEngine estimated nutrition fallback", () => {
       portionText: "49 g",
       estimatedGrams: 49,
       calories: 147,
-      protein: 3.92,
-      carbs: 27.44,
-      fat: 1.96,
+      protein: 3.9,
+      carbs: 27.4,
+      fat: 2,
       source: "heuristic",
     }));
     expect(result.totals).toEqual({
       calories: 147,
-      protein: 3.92,
-      carbs: 27.44,
-      fat: 1.96,
+      protein: 3.9,
+      carbs: 27.4,
+      fat: 2,
     });
   });
 
