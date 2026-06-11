@@ -62,9 +62,9 @@ export default function AuthShell({
               </div>
 
               <div className="rounded-[28px] border border-border/70 bg-background/80 p-5 shadow-sm sm:p-6">
-                <p className="text-sm font-medium text-foreground">Planejamento em um fluxo mais leve</p>
+                <p className="text-sm font-medium text-foreground">Comece pelo essencial</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  A entrada do app agora segue a mesma linha visual do restante da plataforma: leitura mais clara, menos peso visual e melhor adaptação para mobile e desktop.
+                  Entre ou crie sua conta para registrar refeições, acompanhar metas e revisar seu progresso com calma em qualquer tela.
                 </p>
               </div>
             </div>
