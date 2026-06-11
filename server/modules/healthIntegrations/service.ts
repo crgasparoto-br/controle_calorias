@@ -164,6 +164,7 @@ const connections = new Map<string, HealthConnection>();
 const records = new Map<number, HealthRecord[]>();
 const stravaTokens = new Map<number, StravaTokenState>();
 const stravaRateLimitCooldowns = new Map<number, number>();
+let stravaGlobalRateLimitCooldownAt: number | null = null;
 
 const STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize";
 const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
@@ -172,11 +173,12 @@ const STRAVA_ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities";
 const STRAVA_SCOPES = "read,activity:read_all";
 const STRAVA_ACTIVITY_NOTE_PREFIX = "Importado automaticamente do Strava";
 const STRAVA_TOKEN_SECRET_PREFIX = "strava_oauth_user";
-const STRAVA_SYNC_LOOKBACK_MONTHS = 2;
+const STRAVA_BACKFILL_DAYS = 7;
+const STRAVA_INCREMENTAL_OVERLAP_HOURS = 24;
 const STRAVA_ACTIVITIES_PER_PAGE = 100;
 const STRAVA_MAX_ACTIVITY_PAGES = 20;
-const DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = 20;
-const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 30;
+const DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = 5;
+const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 120;
 const DEFAULT_STRENGTH_ESTIMATION_WEIGHT_KG = 75;
 const DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES = 15;
 const STRAVA_ACTIVITY_TYPE_LABELS: Record<string, string> = {
@@ -696,13 +698,23 @@ async function ensureValidStravaToken(userId: number) {
   return nextToken;
 }
 
-function getStravaActivitiesAfterTimestamp(now = new Date()) {
-  const lookbackDate = new Date(now);
-  lookbackDate.setMonth(lookbackDate.getMonth() - STRAVA_SYNC_LOOKBACK_MONTHS);
-  return Math.floor(lookbackDate.getTime() / 1000);
+function getStravaIncrementalOverlapHours() {
+  const configured = Number(process.env.STRAVA_INCREMENTAL_OVERLAP_HOURS ?? STRAVA_INCREMENTAL_OVERLAP_HOURS);
+  if (!Number.isFinite(configured) || configured < 0) return STRAVA_INCREMENTAL_OVERLAP_HOURS;
+  return configured;
 }
 
-function buildStravaActivitiesUrl(page: number, after = getStravaActivitiesAfterTimestamp()) {
+function getStravaActivitiesAfterTimestamp(lastSyncedAt: number | null, now = Date.now()) {
+  if (lastSyncedAt) {
+    const overlapMs = getStravaIncrementalOverlapHours() * 3_600_000;
+    return Math.floor((lastSyncedAt - overlapMs) / 1000);
+  }
+
+  const backfillMs = STRAVA_BACKFILL_DAYS * 24 * 3_600_000;
+  return Math.floor((now - backfillMs) / 1000);
+}
+
+function buildStravaActivitiesUrl(page: number, after: number) {
   const params = new URLSearchParams({
     per_page: String(STRAVA_ACTIVITIES_PER_PAGE),
     page: String(page),
@@ -825,6 +837,35 @@ function getStravaCooldownError(userId: number) {
   }
 
   return new StravaRateLimitError(retryAfterMs);
+}
+
+function getStravaGlobalCooldownError() {
+  if (!stravaGlobalRateLimitCooldownAt) return null;
+
+  const retryAfterMs = stravaGlobalRateLimitCooldownAt - Date.now();
+  if (retryAfterMs <= 0) {
+    stravaGlobalRateLimitCooldownAt = null;
+    return null;
+  }
+
+  return new StravaRateLimitError(retryAfterMs);
+}
+
+function setStravaGlobalCooldown(retryAfterMs: number) {
+  const retryAt = Date.now() + retryAfterMs;
+  if (!stravaGlobalRateLimitCooldownAt || retryAt > stravaGlobalRateLimitCooldownAt) {
+    stravaGlobalRateLimitCooldownAt = retryAt;
+  }
+}
+
+function isApproachingStravaRateLimit(response: Response) {
+  const limit = response.headers.get("X-ReadRateLimit-Limit");
+  const usage = response.headers.get("X-ReadRateLimit-Usage");
+  if (!limit || !usage) return false;
+
+  const limits = limit.split(",").map(Number);
+  const usages = usage.split(",").map(Number);
+  return usages.some((u, i) => limits[i] > 0 && u / limits[i] > 0.9);
 }
 
 function getStravaCaloriesInfo(activity: StravaActivity) {
@@ -987,7 +1028,9 @@ async function fetchStravaActivityDetail(accessToken: string, activityId: number
       status: response.status,
     });
     if (response.status === 429) {
-      throw createStravaRateLimitError(response);
+      const error = createStravaRateLimitError(response);
+      setStravaGlobalCooldown(error.retryAfterMs);
+      throw error;
     }
     return null;
   }
@@ -1019,15 +1062,16 @@ async function enrichStravaActivitiesWithDetails(accessToken: string, activities
   return { activities: enrichedActivities, usedDetailRequests };
 }
 
-async function fetchStravaActivities(userId: number) {
+async function fetchStravaActivities(userId: number, lastSyncedAt: number | null) {
+  const globalCooldownError = getStravaGlobalCooldownError();
+  if (globalCooldownError) throw globalCooldownError;
+
   const cooldownError = getStravaCooldownError(userId);
-  if (cooldownError) {
-    throw cooldownError;
-  }
+  if (cooldownError) throw cooldownError;
 
   const token = await ensureValidStravaToken(userId);
   const activities: StravaActivity[] = [];
-  const after = getStravaActivitiesAfterTimestamp();
+  const after = getStravaActivitiesAfterTimestamp(lastSyncedAt);
   let remainingDetailRequests = getStravaMaxActivityDetailRequestsPerSync();
 
   for (let page = 1; page <= STRAVA_MAX_ACTIVITY_PAGES; page += 1) {
@@ -1039,9 +1083,15 @@ async function fetchStravaActivities(userId: number) {
 
     if (!response.ok) {
       if (response.status === 429) {
-        throw createStravaRateLimitError(response);
+        const error = createStravaRateLimitError(response);
+        setStravaGlobalCooldown(error.retryAfterMs);
+        throw error;
       }
       throw new Error(`Falha ao buscar atividades do Strava (${response.status}).`);
+    }
+
+    if (isApproachingStravaRateLimit(response)) {
+      setStravaGlobalCooldown(DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES * 60_000);
     }
 
     const pageActivities = await response.json() as StravaActivity[];
@@ -1496,7 +1546,7 @@ export class HealthIntegrationService {
     }
 
     try {
-      const stravaActivities = input.provider === "strava" ? await fetchStravaActivities(userId) : null;
+      const stravaActivities = input.provider === "strava" ? await fetchStravaActivities(userId, storedStravaToken?.lastSyncedAt ?? null) : null;
       const importedExercises = stravaActivities
         ? await upsertStravaActivitiesAsExercises(userId, stravaActivities)
         : null;
