@@ -13,7 +13,7 @@ export const USER_TIME_ZONE_OPTIONS = [
   { value: "UTC", label: "UTC+00:00 - Universal" },
 ] as const;
 
-const USER_TIME_ZONE_VALUES = new Set(USER_TIME_ZONE_OPTIONS.map(option => option.value));
+const USER_TIME_ZONE_VALUES: Set<string> = new Set(USER_TIME_ZONE_OPTIONS.map(option => option.value));
 
 export function normalizeUserTimeZone(value: string | null | undefined) {
   return value && USER_TIME_ZONE_VALUES.has(value) ? value : DEFAULT_APP_TIME_ZONE;
