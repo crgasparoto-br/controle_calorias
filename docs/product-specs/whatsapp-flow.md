@@ -17,6 +17,10 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Se a geração do link de edição rápida falhar, o registro da refeição e a resposta nutricional principal devem continuar funcionando.
 - Recursos visuais auxiliares são opcionais. Falha nesse apoio não pode bloquear registro nem confirmação da refeição.
 - Pedidos naturais de orientação alimentar devem responder com sugestão educativa e não devem criar refeição automaticamente.
+- Mensagens naturais de texto devem passar por uma camada de interpretação estruturada antes do fallback genérico de refeição.
+- O interpretador estruturado pode usar LLM, mas o LLM só pode retornar intenção JSON validada; a execução continua controlada pelo backend.
+- Mensagens de consulta como `refeições registradas` não devem cair na resposta de alimento incompleto.
+- Quando o usuário informar alimentos junto de uma refeição válida ainda inexistente, o backend pode criar a refeição automaticamente se a intenção validada permitir `createIfMissing`.
 
 ## Entradas suportadas
 
@@ -38,3 +42,6 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
 - Token inválido ou expirado deve exibir mensagem amigável na tela web de edição rápida.
 - Falha de visual auxiliar não bloqueia o fluxo conversacional principal.
+- Payload inválido do interpretador LLM não executa ação e cai no classificador determinístico/fallback seguro.
+- Baixa confiança ou ambiguidade gera pergunta contextual antes de alterar dados.
+- Casos reais como troca de alimento, inclusão em refeição inexistente e consulta de refeições registradas ficam cobertos por testes de regressão.
