@@ -15,6 +15,9 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Ao salvar perfil com telefone de WhatsApp ou pedir envio de saudação, o fluxo operacional necessário para essa mensagem é considerado concedido, sem habilitar marketing ou disparos recorrentes.
 - O fuso horário do perfil deve ser usado como referência para interpretar datas e horários do usuário; quando ausente, o padrão é `America/Sao_Paulo` (UTC-03:00 - Brasília/São Paulo).
 - Respostas devem listar alimentos, porções, macros, calorias e horário em formato legível.
+- Mensagens de texto devem corrigir unidades prováveis quando houver quantidade numérica e contexto seguro, por exemplo `300mo água` como `300 ml de água`.
+- Conversões entre massa e volume só devem acontecer quando houver densidade confiável para o alimento ou bebida; alimentos sólidos sem densidade não devem ser convertidos automaticamente para volume.
+- Quando uma medida for convertida, a resposta ao usuário deve deixar clara a medida interpretada, por exemplo usando a porção convertida na confirmação.
 - Após registrar uma refeição pelo WhatsApp, a resposta pode incluir um link temporário de edição rápida para corrigir alimentos, quantidades ou unidades da refeição recém-criada.
 - Correções textuais no formato `não é X, é Y` devem ser interpretadas como correção de alimento antes de qualquer intenção de hidratação, mesmo quando `X` for água.
 - O link de edição rápida deve usar token opaco, expirar em janela curta e não expor IDs internos de usuário ou refeição.
@@ -43,6 +46,9 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O perfil pode salvar telefone e disparar saudação inicial sem checkbox de autorização explícita separado.
 - Usuários sem fuso salvo usam `America/Sao_Paulo` como padrão.
 - O fuso selecionado no perfil permanece salvo e fica disponível para fluxos que dependem de data/hora.
+- Mensagens com erro provável de unidade, como `300mo água`, são normalizadas quando a correção for segura pelo contexto.
+- Medidas massa-volume usam densidade confiável quando disponível, por exemplo leite integral informado em gramas convertido para volume aproximado.
+- Alimentos sólidos sem densidade confiável não são convertidos automaticamente de gramas para mililitros.
 - Pedidos como `O que posso comer no jantar?` respondem pelo WhatsApp sem cair no fallback de registro de refeição.
 - Correções como `Não é água é pão de cenoura` não devem cair no fluxo de água sem quantidade; devem gerar correção ou novo rascunho com o alimento informado.
 - Texto comum de refeição continua disponível para inferência nutricional e registro conversacional.
