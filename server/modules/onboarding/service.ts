@@ -1,4 +1,6 @@
-import { saveUserOnboardingProfile } from "../../db";
+import { eq } from "drizzle-orm";
+import { userProfiles } from "../../../drizzle/schema";
+import { getDb, saveUserOnboardingProfile } from "../../db";
 import { updateNutritionGoal } from "../goals/service";
 import { nutritionGoalService, type ActivityLevel, type NutritionObjective } from "../goals/nutritionGoalService";
 import { persistOnboardingBirthDate } from "./profilePersistence";
@@ -11,6 +13,16 @@ const OBJECTIVE_MAP: Record<OnboardingInput["objective"], NutritionObjective> = 
   melhorar_habitos: "melhora_de_habitos",
 };
 
+async function persistProfileTimeZone(userId: number, timezone: string) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(userProfiles)
+    .set({ timezone, updatedAt: new Date() })
+    .where(eq(userProfiles.userId, userId));
+}
+
 export async function completeOnboarding(userId: number, input: OnboardingInput) {
   const calculation = nutritionGoalService.calculate({
     ageYears: input.ageYears,
@@ -22,6 +34,7 @@ export async function completeOnboarding(userId: number, input: OnboardingInput)
   });
 
   const savedProfile = await saveUserOnboardingProfile(userId, input);
+  await persistProfileTimeZone(userId, input.timezone);
   await persistOnboardingBirthDate(userId, input);
   const goal = await updateNutritionGoal(userId, {
     defaultGoal: calculation.calculatedGoal,
@@ -29,7 +42,7 @@ export async function completeOnboarding(userId: number, input: OnboardingInput)
   });
 
   return {
-    profile: { ...savedProfile, birthDate: input.birthDate, ageYears: input.ageYears },
+    profile: { ...savedProfile, birthDate: input.birthDate, ageYears: input.ageYears, timezone: input.timezone },
     calculation,
     goal,
   };

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { DEFAULT_APP_TIME_ZONE, normalizeUserTimeZone, USER_TIME_ZONE_OPTIONS } from "../../../shared/timeZone";
+
+const userTimeZoneValues = USER_TIME_ZONE_OPTIONS.map(option => option.value) as [string, ...string[]];
 
 export function calculateAgeYearsFromBirthDate(birthDate: string, referenceDate = new Date()) {
   const parts = birthDate.split("-").map(Number);
@@ -30,6 +33,7 @@ const onboardingBaseSchema = z.object({
   dietaryRestrictions: z.array(z.string().trim().min(1).max(80)).max(12).default([]),
   eatingRoutine: z.enum(["cozinha_em_casa", "come_fora", "delivery", "marmita", "misto"]),
   mainDifficulty: z.enum(["fome", "ansiedade", "falta_de_tempo", "beliscos", "doces", "comer_fora", "falta_de_planejamento"]),
+  timezone: z.enum(userTimeZoneValues).default(DEFAULT_APP_TIME_ZONE),
 });
 
 export const onboardingSchema = onboardingBaseSchema
@@ -46,13 +50,12 @@ export const onboardingSchema = onboardingBaseSchema
   })
   .transform(input => ({
     ...input,
+    timezone: normalizeUserTimeZone(input.timezone),
     ageYears: calculateAgeYearsFromBirthDate(input.birthDate) ?? 0,
   }));
 
 export const webWhatsappGreetingSchema = z.object({
-  acceptedOperationalWhatsapp: z.boolean().refine(value => value === true, {
-    message: "Autorize o contato operacional pelo WhatsApp para receber a saudação.",
-  }),
+  acceptedOperationalWhatsapp: z.boolean().default(true),
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;

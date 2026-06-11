@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { userPreferences, userProfiles, userRestrictions } from "../../../drizzle/schema";
+import { normalizeUserTimeZone } from "../../../shared/timeZone";
 import { getDb } from "../../db";
 
 const DEFAULT_ONBOARDING_PROFILE = {
@@ -53,6 +54,7 @@ export async function getUserOnboardingProfile(userId: number) {
     dietaryRestrictions,
     eatingRoutine: profile.eatingRoutine ?? DEFAULT_ONBOARDING_PROFILE.eatingRoutine,
     mainDifficulty: profile.mainDifficulty ?? DEFAULT_ONBOARDING_PROFILE.mainDifficulty,
+    timezone: normalizeUserTimeZone(profile.timezone),
     onboardingCompletedAt: profile.onboardingCompletedAt?.toISOString() ?? null,
   };
 }
