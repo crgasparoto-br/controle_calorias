@@ -10,6 +10,7 @@ import {
   getWhatsAppChannelConfig,
   normalizeWhatsAppPhoneNumber,
 } from "../../whatsappConfig";
+import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import { executeWhatsappTextIntent } from "./intentActions";
@@ -93,7 +94,8 @@ async function logAndReturnInterpretedIntent(
 }
 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
-  const waterFoodSplit = splitWhatsAppWaterAndFoodText(input.text);
+  const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
+  const waterFoodSplit = splitWhatsAppWaterAndFoodText(text);
   if (waterFoodSplit) {
     const waterResults = [];
     for (const waterLine of waterFoodSplit.waterLines) {
@@ -143,7 +145,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     };
   }
 
-  const waterCorrectionMatch = input.text ? /\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i.exec(input.text) : null;
+  const waterCorrectionMatch = text ? /\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i.exec(text) : null;
   if (waterCorrectionMatch) {
     const fromText = waterCorrectionMatch[1].trim();
     const toText = waterCorrectionMatch[2].trim();
@@ -160,7 +162,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
 
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
-    text: input.text,
+    text,
     receivedAt: new Date(),
   }));
   if (llmInterpreted) {
@@ -168,14 +170,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
 
   const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
-    text: input.text,
+    text,
     receivedAt: new Date(),
   }));
   if (interpreted) {
     return interpreted;
   }
 
-  const assistant = executeWhatsAppFoodAssistantIntent(input.text);
+  const assistant = executeWhatsAppFoodAssistantIntent(text);
   if (assistant) {
     logInferenceEvent({
       userId,
@@ -187,5 +189,5 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return assistant;
   }
 
-  return processMealDraft(userId, { source: "whatsapp", text: input.text });
+  return processMealDraft(userId, { source: "whatsapp", text });
 }
