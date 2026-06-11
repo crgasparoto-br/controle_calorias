@@ -70,7 +70,7 @@ export default function DashboardLayout({
             <ProductIcon className="mx-auto h-16 w-16" />
             <h1 className="text-2xl font-semibold tracking-tight">Entre para acessar sua jornada nutricional</h1>
             <p className="text-sm leading-6 text-muted-foreground">
-              Faça login para registrar refeições, acompanhar metas calóricas, revisar inferências da IA e visualizar seu painel diário e semanal.
+              Faça login para registrar refeições, acompanhar metas calóricas, revisar sugestões e visualizar seu painel diário e semanal.
             </p>
           </div>
           <Button
@@ -234,7 +234,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 className="h-10 rounded-full px-4"
                 onClick={() => setLocation("/meals")}
               >
-                Registros dos alimentos
+                Ver registros
               </Button>
               {!isMobile ? (
                 <Button
