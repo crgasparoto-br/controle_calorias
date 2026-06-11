@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
+import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
 import ProfileAccessRequestsEmbed from "./components/ProfileAccessRequestsEmbed";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
@@ -87,6 +88,7 @@ function App() {
           <Toaster />
           <ProfileAccessRequestsEmbed />
           <ProfessionalAnalyzeTabBridge />
+          <ProfessionalGoalExceptionSuggestionsEmbed />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
