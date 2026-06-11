@@ -65,6 +65,10 @@ const MEAL_LABEL_SUGGESTIONS = [
   "outro",
 ] as const;
 
+const COUNTRY_CODE_OPTIONS = [
+  { value: "55", label: "Brasil (+55)" },
+] as const;
+
 const DEFAULT_MEAL_SCHEDULES: MealScheduleState[] = [
   { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
   { mealLabel: "almoço", startTime: "11:00", endTime: "14:59", enabled: true },
@@ -199,9 +203,23 @@ function phoneDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
-function hasValidWhatsappPhone(value: string) {
+function normalizeNationalPhoneDigits(value: string, countryCode: string) {
   const digits = phoneDigits(value);
-  return digits.length >= 10 && digits.length <= 13;
+  if (digits.startsWith(countryCode) && digits.length > 11) {
+    return digits.slice(countryCode.length);
+  }
+
+  return digits;
+}
+
+function buildWhatsappPhoneNumber(countryCode: string, nationalNumber: string) {
+  const nationalDigits = normalizeNationalPhoneDigits(nationalNumber, countryCode);
+  return nationalDigits ? `${countryCode}${nationalDigits}` : "";
+}
+
+function hasValidBrazilNationalPhone(value: string, countryCode: string) {
+  const digits = normalizeNationalPhoneDigits(value, countryCode);
+  return digits.length === 10 || digits.length === 11;
 }
 
 function formatPhoneNumber(value: string) {
@@ -234,7 +252,8 @@ export default function OnboardingPage() {
   const [nameEdited, setNameEdited] = useState(false);
   const [savedProfileApplied, setSavedProfileApplied] = useState(false);
   const [schedulesApplied, setSchedulesApplied] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("55");
+  const [phoneNationalNumber, setPhoneNationalNumber] = useState("");
   const [sendWhatsappGreeting, setSendWhatsappGreeting] = useState(false);
   const [acceptedOperationalWhatsappGreeting, setAcceptedOperationalWhatsappGreeting] = useState(false);
   const [mealSchedules, setMealSchedules] = useState<MealScheduleState[]>(DEFAULT_MEAL_SCHEDULES);
@@ -252,8 +271,9 @@ export default function OnboardingPage() {
   const whatsappPhoneNumber = whatsappStatusQuery.data?.connection?.phoneNumber ?? "";
   const hasWhatsappConnection = Boolean(whatsappPhoneNumber);
   const canEditPhone = !hasWhatsappConnection;
-  const shouldAttachWhatsappPhone = canEditPhone && Boolean(phoneNumber.trim());
-  const contactPhoneNumber = formatPhoneNumber(hasWhatsappConnection ? whatsappPhoneNumber : phoneNumber);
+  const pendingWhatsappPhoneNumber = buildWhatsappPhoneNumber(phoneCountryCode, phoneNationalNumber);
+  const shouldAttachWhatsappPhone = canEditPhone && Boolean(phoneNationalNumber.trim());
+  const contactPhoneNumber = formatPhoneNumber(hasWhatsappConnection ? whatsappPhoneNumber : pendingWhatsappPhoneNumber);
 
   useEffect(() => {
     const profile = savedProfileQuery.data;
@@ -289,7 +309,8 @@ export default function OnboardingPage() {
   }, [mealSchedulesQuery.data, schedulesApplied]);
 
   useEffect(() => {
-    setPhoneNumber(whatsappPhoneNumber);
+    setPhoneCountryCode("55");
+    setPhoneNationalNumber(whatsappPhoneNumber ? normalizeNationalPhoneDigits(whatsappPhoneNumber, "55") : "");
     if (!whatsappPhoneNumber) {
       setSendWhatsappGreeting(false);
       setAcceptedOperationalWhatsappGreeting(false);
@@ -319,10 +340,10 @@ export default function OnboardingPage() {
     if (form.heightCm.trim() && parsed.heightCm === undefined) return "Informe uma altura válida ou deixe o campo em branco.";
     if (parsed.heightCm !== undefined && (parsed.heightCm < 100 || parsed.heightCm > 250)) return "Informe uma altura válida entre 1,00 m e 2,50 m, ou deixe o campo em branco.";
     if (parsed.currentWeightKg !== undefined && (parsed.currentWeightKg < 25 || parsed.currentWeightKg > 350)) return "Informe um peso atual válido ou deixe o campo em branco.";
-    if (shouldAttachWhatsappPhone && !hasValidWhatsappPhone(phoneNumber)) return "Informe um telefone válido para vincular ao WhatsApp.";
+    if (shouldAttachWhatsappPhone && !hasValidBrazilNationalPhone(phoneNationalNumber, phoneCountryCode)) return "Informe DDD e telefone válidos para vincular ao WhatsApp.";
     if ((shouldAttachWhatsappPhone || sendWhatsappGreeting) && !acceptedOperationalWhatsappGreeting) return "Autorize o contato operacional pelo WhatsApp para receber a saudação.";
     return null;
-  }, [acceptedOperationalWhatsappGreeting, calculatedAgeYears, form.heightCm, parsed, phoneNumber, sendWhatsappGreeting, shouldAttachWhatsappPhone]);
+  }, [acceptedOperationalWhatsappGreeting, calculatedAgeYears, form.heightCm, parsed, phoneCountryCode, phoneNationalNumber, sendWhatsappGreeting, shouldAttachWhatsappPhone]);
 
   const payload = useMemo(() => ({
     name: parsed.name || userName || OPTIONAL_ONBOARDING_FALLBACK.name,
@@ -372,7 +393,7 @@ export default function OnboardingPage() {
       if (shouldAttachWhatsappPhone) {
         try {
           await saveWhatsappConnection.mutateAsync({
-            phoneNumber: phoneNumber.trim(),
+            phoneNumber: pendingWhatsappPhoneNumber,
             displayName: payload.name,
           });
           await sendGreetingToast();
@@ -502,13 +523,13 @@ export default function OnboardingPage() {
                 <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                   <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
                   {canEditPhone ? (
-                    <TextField
-                      label="Telefone para WhatsApp"
-                      value={phoneNumber}
-                      onChange={setPhoneNumber}
+                    <PhoneNumberField
+                      countryCode={phoneCountryCode}
+                      countryOptions={COUNTRY_CODE_OPTIONS}
+                      nationalNumber={phoneNationalNumber}
+                      onCountryCodeChange={setPhoneCountryCode}
+                      onNationalNumberChange={setPhoneNationalNumber}
                       optional
-                      inputMode="tel"
-                      placeholder="Ex.: 5511999998888"
                     />
                   ) : (
                     <ReadOnlyField label="Telefone" value={contactPhoneNumber || "Não informado"} />
@@ -747,6 +768,40 @@ function TextField({ label, value, onChange, inputMode, suffix, type = "text", o
         <Input type={type} inputMode={inputMode} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} />
         {suffix ? <span className="shrink-0 text-sm text-muted-foreground">{suffix}</span> : null}
       </div>
+    </div>
+  );
+}
+
+function PhoneNumberField({ countryCode, countryOptions, nationalNumber, onCountryCodeChange, onNationalNumberChange, optional = false }: {
+  countryCode: string;
+  countryOptions: readonly { value: string; label: string }[];
+  nationalNumber: string;
+  onCountryCodeChange: (value: string) => void;
+  onNationalNumberChange: (value: string) => void;
+  optional?: boolean;
+}) {
+  return (
+    <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
+      <FieldLabel label="Telefone para WhatsApp" optional={optional} />
+      <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
+        <select
+          aria-label="Código do país"
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          value={countryCode}
+          onChange={event => onCountryCodeChange(event.target.value)}
+        >
+          {countryOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        <Input
+          inputMode="tel"
+          value={nationalNumber}
+          onChange={event => onNationalNumberChange(event.target.value)}
+          placeholder="Ex.: 11 99999-8888"
+        />
+      </div>
+      <p className="text-xs leading-5 text-muted-foreground">
+        Informe apenas DDD e número. O código do país selecionado será incluído automaticamente ao salvar.
+      </p>
     </div>
   );
 }
