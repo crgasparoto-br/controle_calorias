@@ -50,7 +50,6 @@ export default function ProfessionalPage() {
   const profile = trpc.nutrition.professionals.profile.useQuery(undefined, { retry: false });
   const hasActiveProfile = Boolean(profile.data?.active);
   const accesses = trpc.nutrition.professionals.myAccesses.useQuery(undefined, { enabled: hasActiveProfile });
-  const history = trpc.nutrition.professionals.history.useQuery(undefined, { enabled: hasActiveProfile });
   const [patientContact, setPatientContact] = useState("");
   const [reason, setReason] = useState("Acompanhamento profissional com consentimento da pessoa acompanhada.");
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
@@ -79,7 +78,6 @@ export default function ProfessionalPage() {
   const approvedAccesses = accesses.data?.filter(access => access.status === "approved") ?? [];
   const pendingAccesses = accesses.data?.filter(access => access.status === "pending") ?? [];
   const nonApprovedAccesses = accesses.data?.filter(access => access.status !== "approved") ?? [];
-  const historyCount = history.data?.length ?? 0;
   const defaultNutritionGoal = dashboard.data?.nutritionGoal?.defaultGoal;
   const goalSuggestions = dashboard.data?.goalSuggestions ?? [];
   const mealSuggestions = dashboard.data?.mealSuggestions ?? [];
@@ -149,7 +147,6 @@ export default function ProfessionalPage() {
       utils.nutrition.professionals.profile.invalidate(),
       utils.nutrition.professionals.myAccesses.invalidate(),
       utils.nutrition.professionals.patientRequests.invalidate(),
-      utils.nutrition.professionals.history.invalidate(),
     ]);
     if (selectedPatientId) await utils.nutrition.professionals.patientDashboard.invalidate({ patientId: selectedPatientId });
   };
@@ -238,11 +235,10 @@ export default function ProfessionalPage() {
           title="Acompanhamento profissional"
           description="Gerencie vínculos autorizados e analise cada pessoa acompanhada em uma área separada da sua conta pessoal."
           stats={
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <IntroStat label="Perfil" value={hasActiveProfile ? "Ativo" : "Carregando"} helper={profile.data?.displayName ?? "perfil profissional"} />
               <IntroStat label="Pessoas acompanhadas" value={String(approvedAccesses.length)} helper="com vínculo autorizado" />
               <IntroStat label="Aguardando autorização" value={String(pendingAccesses.length)} helper="solicitações enviadas" />
-              <IntroStat label="Eventos no histórico" value={String(historyCount)} helper="ações registradas" />
             </div>
           }
         />
@@ -532,20 +528,6 @@ export default function ProfessionalPage() {
             </Card>
           </TabsContent>
         </Tabs>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle>Histórico de alterações</CardTitle>
-            <CardDescription>Registro de perfil, solicitações, autorizações, revogações, sugestões e comentários.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {history.data?.slice(-10).reverse().map(event => (
-              <div key={event.id} className="rounded-xl border bg-background px-3 py-2 text-sm">
-                {event.eventType} · pessoa #{event.patientUserId} · profissional #{event.professionalUserId}
-              </div>
-            )) ?? <Empty text="Sem histórico ainda." />}
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );
