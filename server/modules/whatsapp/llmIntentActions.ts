@@ -1,5 +1,5 @@
 import { roundNutritionValue } from "../../../shared/mealTotals";
-import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
+import { convertFoodQuantityForRegistration, normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { createManualMeal, listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
@@ -116,32 +116,54 @@ function findMealByLabel(meals: ExistingMeal[], label: string, date: Date) {
     ?? null;
 }
 
-function quantityToEstimatedGrams(item: WhatsappIntentFoodItem) {
-  const quantity = item.quantity ?? 1;
-  const unit = normalizeMeasurementUnit(item.unit ?? "porção");
-  if (unit === "kg" || /\bkg\b/i.test(item.unit ?? "")) return quantity * 1000;
+type ResolvedFoodMeasurement = {
+  quantity: number;
+  unit: string;
+  estimatedGrams: number;
+  portionText: string;
+  conversionNote: string | null;
+};
+
+function quantityToEstimatedGrams(quantity: number, unit: string) {
+  if (unit === "kg" || /\bkg\b/i.test(unit)) return quantity * 1000;
   if (unit === "l") return quantity * 1000;
   if (unit === "mg") return quantity / 1000;
   if (unit === "ml" || unit === "g") return quantity;
-  if (/fatias?/i.test(item.unit ?? "")) return quantity * 25;
-  if (/x[ií]caras?|copos?/i.test(item.unit ?? "")) return quantity * 50;
+  if (/fatias?/i.test(unit)) return quantity * 25;
+  if (/x[ií]caras?|copos?/i.test(unit)) return quantity * 50;
   return quantity * 100;
 }
 
-function buildMealItem(item: WhatsappIntentFoodItem): MealItemInput {
+function resolveFoodMeasurement(item: WhatsappIntentFoodItem, foodName: string): ResolvedFoodMeasurement {
   const quantity = item.quantity ?? 1;
   const unit = normalizeMeasurementUnit(item.unit ?? "porção");
-  const estimatedGrams = Math.max(quantityToEstimatedGrams(item), 1);
-  const factor = estimatedGrams / 100;
+  const converted = convertFoodQuantityForRegistration({ foodName, quantity, unit });
+  if (converted) {
+    return converted;
+  }
+
+  return {
+    quantity,
+    unit,
+    estimatedGrams: quantityToEstimatedGrams(quantity, unit),
+    portionText: item.quantity && item.unit ? `${formatNumber(quantity)} ${unit}` : "1 porção estimada",
+    conversionNote: null,
+  };
+}
+
+function buildMealItem(item: WhatsappIntentFoodItem): MealItemInput {
   const foodName = [item.foodName, item.preparation].filter(Boolean).join(" ").trim();
+  const measurement = resolveFoodMeasurement(item, foodName);
+  const estimatedGrams = Math.max(measurement.estimatedGrams, 1);
+  const factor = estimatedGrams / 100;
 
   return {
     foodName,
     canonicalName: foodName,
     brand: item.brand ?? undefined,
-    quantity,
-    unit,
-    portionText: item.quantity && item.unit ? `${formatNumber(quantity)} ${unit}` : "1 porção estimada",
+    quantity: measurement.quantity,
+    unit: measurement.unit,
+    portionText: measurement.portionText,
     servings: Math.max(factor, 0.1),
     estimatedGrams: roundNutritionValue(estimatedGrams),
     calories: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.calories * factor),
