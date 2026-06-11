@@ -97,7 +97,8 @@ function formatPortionText(item: MealProcessingResult["items"][number]) {
 }
 
 function formatFoodDescription(item: MealProcessingResult["items"][number]) {
-  return `${item.foodName}, ${formatPortionText(item)} - ${formatMacro(item.calories)} Kcal`.trim();
+  const estimationLabel = item.source === "heuristic" ? " (estimado)" : "";
+  return `${item.foodName}, ${formatPortionText(item)}${estimationLabel} - ${formatMacro(item.calories)} Kcal`.trim();
 }
 
 function formatItemMacros(item: MealProcessingResult["items"][number]) {
