@@ -54,17 +54,6 @@ const DIFFICULTY_OPTIONS = [
   { value: "falta_de_planejamento", label: "Falta de planejamento" },
 ] as const;
 
-const MEAL_LABEL_SUGGESTIONS = [
-  "café da manhã",
-  "almoço",
-  "lanche da tarde",
-  "pré-treino",
-  "pós-treino",
-  "jantar",
-  "ceia",
-  "outro",
-] as const;
-
 const DEFAULT_PHONE_COUNTRY_OPTION = "BR:55";
 
 const COUNTRY_CODE_OPTIONS = [
@@ -911,7 +900,6 @@ export default function OnboardingPage() {
                           value={schedule.mealLabel}
                           onChange={event => updateSchedule(index, "mealLabel", event.target.value)}
                           placeholder="Ex.: lanche da tarde"
-                          list="meal-label-suggestions"
                         />
                       </div>
                       <TextField compact label="Início" type="time" value={schedule.startTime} onChange={value => updateSchedule(index, "startTime", value)} />
@@ -934,10 +922,6 @@ export default function OnboardingPage() {
                     </div>
                   ))}
                 </div>
-
-                <datalist id="meal-label-suggestions">
-                  {MEAL_LABEL_SUGGESTIONS.map(label => <option key={label} value={label} />)}
-                </datalist>
 
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button type="button" variant="outline" className="rounded-full" onClick={() => setMealSchedules(current => [...current, createNewMealSchedule()])} disabled={mealSchedules.length >= 12}>
