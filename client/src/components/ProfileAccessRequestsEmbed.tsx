@@ -4,6 +4,17 @@ import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
 const SLOT_ATTRIBUTE = "data-profile-access-requests-root";
+const SETTINGS_TITLE_COPY = "Atualize seus dados, metas e acompanhamentos";
+
+function updateSettingsTitle() {
+  if (typeof document === "undefined") return;
+
+  const title = Array.from(document.querySelectorAll("h1, h2, [role='heading']")).find(element =>
+    element.textContent?.trim() === "Ajuste seu perfil sem se perder em blocos longos",
+  );
+
+  if (title) title.textContent = SETTINGS_TITLE_COPY;
+}
 
 function findProfileAccessSlot() {
   if (typeof document === "undefined") return null;
@@ -51,7 +62,10 @@ export default function ProfileAccessRequestsEmbed() {
       return;
     }
 
-    const updateSlot = () => setSlot(findProfileAccessSlot());
+    const updateSlot = () => {
+      updateSettingsTitle();
+      setSlot(findProfileAccessSlot());
+    };
     updateSlot();
 
     const observer = new MutationObserver(updateSlot);
