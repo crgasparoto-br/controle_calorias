@@ -92,6 +92,7 @@ type UserSummary = {
 
 const PROFESSIONAL_AI_NOTICE = "Resposta educativa para apoiar a análise profissional. Não substitui julgamento clínico, diagnóstico, prescrição médica ou decisão compartilhada com a pessoa acompanhada.";
 const PROFESSIONAL_PROFILE_PREFERENCE_KEY = "professional_profile_v1";
+const BRAZIL_COUNTRY_CODE = "55";
 
 const profiles = new Map<number, ProfessionalProfile>();
 const accesses = new Map<string, ProfessionalPatientAccess>();
@@ -123,6 +124,32 @@ function normalizeContact(value: string) {
 
 function normalizePhoneDigits(value: string) {
   return value.replace(/\D/g, "");
+}
+
+export function buildPhoneLookupCandidates(value: string) {
+  const trimmed = value.trim();
+  const digits = normalizePhoneDigits(value);
+  const candidates = new Set<string>();
+
+  if (trimmed) candidates.add(trimmed);
+  if (digits) {
+    candidates.add(digits);
+    candidates.add(`+${digits}`);
+
+    if (digits.length === 10 || digits.length === 11) {
+      const brazilianDigits = `${BRAZIL_COUNTRY_CODE}${digits}`;
+      candidates.add(brazilianDigits);
+      candidates.add(`+${brazilianDigits}`);
+    }
+
+    if (digits.startsWith(BRAZIL_COUNTRY_CODE) && digits.length > BRAZIL_COUNTRY_CODE.length) {
+      const nationalDigits = digits.slice(BRAZIL_COUNTRY_CODE.length);
+      candidates.add(nationalDigits);
+      candidates.add(`+${nationalDigits}`);
+    }
+  }
+
+  return Array.from(candidates).filter(Boolean);
 }
 
 function isEmailContact(value: string) {
@@ -255,8 +282,7 @@ async function getUserSummaryByPhone(phone: string): Promise<UserSummary | null>
     throw new Error("A busca por pessoa acompanhada via celular depende do banco configurado neste ambiente.");
   }
 
-  const digits = normalizePhoneDigits(phone);
-  const phoneCandidates = Array.from(new Set([phone.trim(), digits, digits ? `+${digits}` : ""].filter(Boolean)));
+  const phoneCandidates = buildPhoneLookupCandidates(phone);
   const rows = await db
     .select({ user: users })
     .from(whatsappConnections)
