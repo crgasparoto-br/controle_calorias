@@ -10,6 +10,10 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O telefone do usuário final vem do campo `from` do payload da Meta.
 - O sistema deve responder sempre ao telefone de origem usando o número oficial configurado.
 - O usuário não deve cadastrar o número oficial como se fosse seu telefone pessoal.
+- O WhatsApp é o canal principal para registrar refeições, água e exercícios.
+- A saudação inicial pelo WhatsApp é uma mensagem operacional/de boas-vindas e não deve exigir aceite explícito separado na tela de perfil.
+- Ao salvar perfil com telefone de WhatsApp ou pedir envio de saudação, o fluxo operacional necessário para essa mensagem é considerado concedido, sem habilitar marketing ou disparos recorrentes.
+- O fuso horário do perfil deve ser usado como referência para interpretar datas e horários do usuário; quando ausente, o padrão é `America/Sao_Paulo` (UTC-03:00 - Brasília/São Paulo).
 - Respostas devem listar alimentos, porções, macros, calorias e horário em formato legível.
 - Após registrar uma refeição pelo WhatsApp, a resposta pode incluir um link temporário de edição rápida para corrigir alimentos, quantidades ou unidades da refeição recém-criada.
 - Correções textuais no formato `não é X, é Y` devem ser interpretadas como correção de alimento antes de qualquer intenção de hidratação, mesmo quando `X` for água.
@@ -36,6 +40,9 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Mensagem inbound encontra ou solicita vínculo com usuário interno.
 - Erros de configuração de token/número são explícitos para operação, mas não vazam segredo.
 - Simulação inbound continua disponível para testes operacionais.
+- O perfil pode salvar telefone e disparar saudação inicial sem checkbox de autorização explícita separado.
+- Usuários sem fuso salvo usam `America/Sao_Paulo` como padrão.
+- O fuso selecionado no perfil permanece salvo e fica disponível para fluxos que dependem de data/hora.
 - Pedidos como `O que posso comer no jantar?` respondem pelo WhatsApp sem cair no fallback de registro de refeição.
 - Correções como `Não é água é pão de cenoura` não devem cair no fluxo de água sem quantidade; devem gerar correção ou novo rascunho com o alimento informado.
 - Texto comum de refeição continua disponível para inferência nutricional e registro conversacional.
