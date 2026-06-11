@@ -15,6 +15,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Wrapper do webhook real em `server/whatsappIntentWebhook.ts`, executado antes do fallback de inferência nutricional.
 - Wrapper de imagens anotadas em `server/whatsappAnnotatedImageWebhook.ts`, responsável por devolver e persistir a imagem auxiliar gerada após a análise visual.
 - Schemas em `server/modules/whatsapp/schemas.ts`.
+- Normalização compartilhada de unidades em `shared/measurementUnits.ts`, aplicada antes da interpretação textual do WhatsApp.
 - Configuração por variáveis `WHATSAPP_*`.
 - Persistência de vínculo em `whatsappConnections`.
 
@@ -34,6 +35,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Apenas mensagens de texto puro, sem imagem e sem áudio, podem ser tratadas pelo interpretador de ações antes do acknowledgement e antes do fluxo nutricional.
 - Áudios sem imagem podem ser transcritos e, depois da resposta inicial de processamento, a transcrição pode ser tratada pelo mesmo interpretador de ações antes da inferência nutricional.
 - Captions de imagem continuam no caminho multimodal normal e não devem ser interceptadas como intenção, para não perder a análise visual da foto.
+- Textos recebidos pelo WhatsApp devem passar por normalização segura de unidades antes da interpretação estruturada, do interpretador determinístico e do fallback nutricional. Exemplos: `mo` com quantidade numérica pode ser corrigido para `ml`, `grs` para `g` e `kgs` para `kg`.
+- Conversões massa-volume só devem ser automáticas quando houver densidade confiável para o alimento ou bebida. Exemplo: leite integral pode converter `g` para `ml` usando densidade documentada; alimentos sólidos sem densidade não devem ser convertidos silenciosamente.
 - Textos que descrevem apenas consumo de água com quantidade explícita devem atualizar hidratação, não criar refeição ou item alimentar.
 - Textos de hidratação com data relativa, como `ontem` ou `anteontem`, devem registrar o consumo no dia interpretado em `America/Sao_Paulo`.
 - Textos de hidratação sem quantidade explícita devem pedir esclarecimento, não criar refeição.
@@ -77,8 +80,11 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que falha na geração do link de edição rápida não impede registro nem resposta principal.
 - Testar leitura e salvamento da tela `/quick-edit/:token` com token válido, inválido e expirado.
 - Testar que texto como `250ml de água` registra consumo de água sem chamar inferência nutricional nem criar refeição.
-- Testar que texto como `500 ml de água ontem` registra consumo de água no dia anterior em `America/Sao_Paulo`.
+- Testar que texto como `300mo água` é normalizado para `300 ml de água` antes da interpretação e registra hidratação corretamente.
+- Testar que texto como `500 ml de água ontem` registra o consumo no dia anterior em `America/Sao_Paulo`.
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
+- Testar que texto como `211g de leite integral` não troca `g` por `ml` diretamente; quando convertido, deve usar densidade confiável e informar a medida interpretada ao usuário.
+- Testar que alimento sólido sem densidade confiável não é convertido automaticamente de `g` para `ml`.
 - Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
 - Testar que texto ou áudio transcrito como `somar 45 g ao arroz` ajusta o item compatível da última refeição e não chama inferência nutricional.
 - Testar que texto como `diminuir 30 g` ajusta o último item da última refeição quando não há alimento explícito.
@@ -88,7 +94,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que correção curta sem item recente de `330ml` pede esclarecimento antes de alterar registro.
 - Testar que texto como `Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem` adiciona o alimento à refeição indicada no dia relativo e não chama inferência nutricional.
 - Testar que pedido para adicionar alimento em gramas a refeição inexistente pede esclarecimento e não altera registros.
-- Testar que texto como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã` adiciona café à refeição indicada e não chama inferência nutricional.
+- Testar que texto como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã` adiciona café à refeição indicada e não cria uma nova refeição por fallback.
 - Testar que pedido para adicionar café sem refeição ou sem quantidade suficiente pede esclarecimento e não altera registros.
 - Testar que pedido de sugestão de lanche retorna uma sugestão e não chama inferência nutricional.
 - Testar que texto como `Me envie um resumo da semana` retorna relatório do período e não chama inferência nutricional.
