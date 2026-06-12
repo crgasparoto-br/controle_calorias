@@ -144,12 +144,15 @@ function applyPercentagesToGoal(goal: GoalTargetForm, percentages: Pick<GoalTarg
   };
 }
 
-function createGoalTargetForm(goal: GoalTargetBase): GoalTargetForm {
-  return {
+function createGoalTargetForm(goal: GoalTargetBase, inputMode: MacroInputMode = "grams"): GoalTargetForm {
+  const percentages = derivePercentagesFromGoal(goal);
+  const form = {
     ...goal,
-    inputMode: "grams",
-    ...derivePercentagesFromGoal(goal),
+    inputMode,
+    ...percentages,
   };
+
+  return inputMode === "percent" ? applyPercentagesToGoal(form, percentages) : form;
 }
 
 function buildException(weekday: number): GoalExceptionForm {
@@ -223,7 +226,7 @@ export default function GoalsPage() {
     proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
     carbsGrams: goalQuery.data.defaultGoal.carbsGrams,
     fatGrams: goalQuery.data.defaultGoal.fatGrams,
-  }) : createGoalTargetForm(DEFAULT_GOAL_BASE));
+  }, "percent") : createGoalTargetForm(DEFAULT_GOAL_BASE, "percent"));
   const [exceptions, setExceptions] = useState<GoalExceptionForm[]>(() => goalQuery.data ? normalizeExceptionsForEditing(goalQuery.data.exceptions).map(exception => ({
     id: exception.id,
     weekday: exception.weekday,
@@ -244,7 +247,7 @@ export default function GoalsPage() {
       proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
       carbsGrams: goalQuery.data.defaultGoal.carbsGrams,
       fatGrams: goalQuery.data.defaultGoal.fatGrams,
-    }));
+    }, "percent"));
 
     setExceptions(normalizeExceptionsForEditing(goalQuery.data.exceptions).map(exception => ({
       id: exception.id,
@@ -466,7 +469,7 @@ export default function GoalsPage() {
                   Meta geral da semana
                 </CardTitle>
                 <CardDescription>
-                  Esta é a meta aplicada aos dias sem exceção. Informe calorias, proteínas, carboidratos e gorduras em gramas ou percentuais e revise os avisos antes de salvar.
+                  Esta é a meta aplicada aos dias sem exceção. A meta geral começa em percentuais para facilitar a divisão das calorias entre proteínas, carboidratos e gorduras.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -791,7 +794,7 @@ function MacroField({
         <span className="text-sm text-muted-foreground">{mode === "grams" ? "g" : "%"}</span>
       </div>
       {mode === "percent" ? (
-        <p className="text-xs text-muted-foreground">O app converte este percentual para {formatGrams(grams)}.</p>
+        <p className="text-xs text-muted-foreground">O app converte este percentual pela meta calórica: {formatGrams(grams)}.</p>
       ) : (
         <p className="text-xs text-muted-foreground">Informe a quantidade planejada em gramas.</p>
       )}
