@@ -299,11 +299,12 @@ function buildGoalDayView(rows: NutritionGoal[], userId: number, date: Date) {
 
 function buildGoalSummaryForReferenceDate(rows: NutritionGoal[], userId: number, referenceDate: Date) {
   const monday = startOfUtcWeek(referenceDate);
-  const days = Array.from({ length: 7 }).map((_, index) => {
+  const maybeDays = Array.from({ length: 7 }).map((_, index) => {
     const current = new Date(monday);
     current.setUTCDate(monday.getUTCDate() + index);
     return buildGoalDayView(rows, userId, current);
-  }).filter((day): day is NonNullable<typeof day> => Boolean(day));
+  });
+  const days = maybeDays.filter((day): day is NonNullable<(typeof maybeDays)[number]> => Boolean(day));
   const today = buildGoalDayView(rows, userId, referenceDate) ?? days[0];
   const defaultGoal = resolveDefaultGoalForDate(rows, referenceDate) ?? rows.find(row => row.ruleType === "default");
   const currentTime = referenceDate.getTime();
