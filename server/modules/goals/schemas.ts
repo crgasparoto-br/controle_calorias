@@ -13,14 +13,31 @@ export const goalExceptionSchema = goalTargetSchema.extend({
   id: z.number().int().positive().optional(),
   weekday: z.number().int().min(0).max(6),
   durationType: z.enum(["1_week", "2_weeks", "3_weeks", "always"]),
+  startDate: dateKeySchema.optional(),
 });
 
 export const goalSchema = z.object({
   startDate: dateKeySchema.optional(),
   defaultGoal: goalTargetSchema,
-  exceptions: z
-    .array(goalExceptionSchema)
-    .refine(exceptions => new Set(exceptions.map(item => item.weekday)).size === exceptions.length, "Informe no máximo uma exceção ativa por dia da semana."),
+  exceptions: z.array(goalExceptionSchema),
+}).superRefine((goal, ctx) => {
+  const seenExceptionVersions = new Set<string>();
+
+  goal.exceptions.forEach((exception, index) => {
+    const effectiveStartDate = exception.startDate ?? goal.startDate ?? "current";
+    const versionKey = `${exception.weekday}:${effectiveStartDate}`;
+
+    if (seenExceptionVersions.has(versionKey)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Informe no máximo uma exceção para o mesmo dia da semana e data de início.",
+        path: ["exceptions", index, "startDate"],
+      });
+      return;
+    }
+
+    seenExceptionVersions.add(versionKey);
+  });
 });
 
 export const goalForDateSchema = z.object({
