@@ -848,3 +848,65 @@ function PercentValidationNote({ mode, percentSum }: { mode: MacroInputMode; per
     </div>
   );
 }
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-2xl border bg-background p-4">
+      <Label>{label}</Label>
+      <select
+        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+        value={value}
+        onChange={event => onChange(event.target.value)}
+      >
+        {options.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function MacroSplit({
+  label,
+  value,
+  calorieFactor,
+  accent,
+}: {
+  label: string;
+  value: number;
+  calorieFactor: number;
+  accent: string;
+}) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`h-3 w-3 rounded-full ${accent}`} />
+          <p className="font-medium tracking-tight">{label}</p>
+        </div>
+        <p className="text-sm text-muted-foreground">{formatGrams(value)}</p>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground">{formatCalories(value * calorieFactor)} planejadas a partir deste macronutriente.</p>
+    </div>
+  );
+}
+
+function IntroStat({ label, value, supporting }: { label: string; value: string; supporting: string }) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background px-4 py-3">
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{supporting}</p>
+    </div>
+  );
+}
