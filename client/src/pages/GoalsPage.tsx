@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import {
   assessNutritionGoalTargets,
 } from "@shared/nutritionSafety";
@@ -389,8 +388,6 @@ export default function GoalsPage() {
     { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
   ), [previewDays]);
 
-  const weeklyMacroCalories = weeklyTotals.proteinGrams * 4 + weeklyTotals.carbsGrams * 4 + weeklyTotals.fatGrams * 9;
-  const alignment = weeklyTotals.calories ? Math.min((weeklyMacroCalories / weeklyTotals.calories) * 100, 140) : 0;
   const availableWeekdays = WEEKDAY_META;
   const defaultPercentSum = getPercentSum(defaultGoal);
   const hasInvalidPercentages = !isPercentModeValid(defaultGoal) || exceptions.some(exception => !isPercentModeValid(exception));
@@ -745,7 +742,7 @@ export default function GoalsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-2 xl:overflow-visible xl:pb-0">
+                <div className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-3 xl:overflow-visible xl:pb-0">
                   {previewDays.map(day => (
                     <div key={`${day.weekday}-${day.date}`} className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
                       <div className="space-y-2">
@@ -765,29 +762,23 @@ export default function GoalsPage() {
                       </div>
                     </div>
                   ))}
-                </div>
-
-                <div className="rounded-2xl border bg-background p-4 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium tracking-tight">Total planejado</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Soma das metas simuladas para a semana de referência.</p>
+                  <div className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate font-medium tracking-tight">Total da Semana</p>
+                        <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">sem.</span>
+                      </div>
+                      <p className="min-h-10 text-sm leading-5 text-foreground">
+                        Soma das metas simuladas para a semana de referência.
+                      </p>
                     </div>
-                    <p className="text-xl font-semibold tracking-tight">{formatCalories(weeklyTotals.calories)}</p>
+                    <div className="mt-3 space-y-1 text-sm text-foreground">
+                      <p>{formatCalories(weeklyTotals.calories)}</p>
+                      <p>{formatGrams(weeklyTotals.proteinGrams)} proteína</p>
+                      <p>{formatGrams(weeklyTotals.carbsGrams)} carbo</p>
+                      <p>{formatGrams(weeklyTotals.fatGrams)} gordura</p>
+                    </div>
                   </div>
-                  <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                    <span>{formatGrams(weeklyTotals.proteinGrams)} proteína</span>
-                    <span>{formatGrams(weeklyTotals.carbsGrams)} carbo</span>
-                    <span>{formatGrams(weeklyTotals.fatGrams)} gordura</span>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border bg-background p-4 shadow-sm">
-                  <p className="font-medium tracking-tight">Conferência das metas planejadas</p>
-                  <p className="mt-2 text-2xl font-semibold tracking-tight">{formatCalories(weeklyMacroCalories)}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Calorias estimadas a partir das proteínas, carboidratos e gorduras planejados para a semana simulada.</p>
-                  <Progress className="mt-4 h-2" value={alignment} />
-                  <p className="mt-3 text-sm text-muted-foreground">{formatPercentPtBr(alignment)}% de proximidade entre as calorias informadas e os macronutrientes planejados.</p>
                 </div>
               </CardContent>
             </Card>
