@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
+import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import {
   BarChart3,
@@ -111,10 +111,6 @@ type WeeklyReportDay = {
   };
 };
 
-type ReportInsight = {
-  title: string;
-  description: string;
-};
 
 const ACCESS_STATUS_LABELS: Record<string, string> = {
   pending: "Aguardando autorização",
@@ -199,44 +195,24 @@ export default function ProfessionalPage() {
     carbs: Math.round(day.carbs ?? 0),
     fat: Math.round(day.fat ?? 0),
   })), [weeklyReport]);
-  const weeklyQuality = useMemo(() => weeklyReport.reduce(
-    (acc, day) => ({
-      proteinGrams: acc.proteinGrams + (day.quality?.proteinGrams ?? day.protein ?? 0),
-      fiberGrams: acc.fiberGrams + (day.quality?.fiberGrams ?? 0),
-      waterMl: acc.waterMl + (day.quality?.waterMl ?? day.waterConsumedMl ?? 0),
-      fruitServings: acc.fruitServings + (day.quality?.fruitServings ?? 0),
-      vegetableServings: acc.vegetableServings + (day.quality?.vegetableServings ?? 0),
-      ultraProcessedServings: acc.ultraProcessedServings + (day.quality?.ultraProcessedServings ?? 0),
-      mealCount: acc.mealCount + (day.quality?.mealCount ?? 0),
-      regularityScore: acc.regularityScore + ((day.quality?.regularityScore ?? 0) / Math.max(weeklyReport.length, 1)),
-    }),
-    {
-      proteinGrams: 0,
-      fiberGrams: 0,
-      waterMl: 0,
-      fruitServings: 0,
-      vegetableServings: 0,
-      ultraProcessedServings: 0,
-      mealCount: 0,
-      regularityScore: 0,
-    },
-  ), [weeklyReport]);
+  const weeklyQuality = dashboard.data?.quality ?? {
+    proteinGrams: 0,
+    fiberGrams: 0,
+    waterMl: 0,
+    fruitServings: 0,
+    vegetableServings: 0,
+    ultraProcessedServings: 0,
+    mealCount: 0,
+    regularityScore: 0,
+  };
+  const weeklyInsights = dashboard.data?.insights;
+  const weeklyProgress = dashboard.data?.progress;
   const weeklyWaterTotal = weeklyReport.reduce((total, day) => total + (day.waterConsumedMl ?? 0), 0);
   const weeklyWaterGoalTotal = weeklyReport.reduce((total, day) => total + (day.waterGoalMl ?? 0), 0);
   const weeklyWaterGoalHitDays = weeklyReport.filter(day => (day.waterGoalMl ?? 0) > 0 && (day.waterConsumedMl ?? 0) >= (day.waterGoalMl ?? 0)).length;
   const lowestWaterDay = findExtreme(weeklyReport.filter(day => (day.waterConsumedMl ?? 0) > 0), day => day.waterConsumedMl ?? 0, "min");
   const weeklyExerciseActiveDays = weeklyReport.filter(day => (day.exerciseCalories ?? 0) > 0).length;
   const highestExerciseDay = findExtreme(weeklyReport.filter(day => (day.exerciseCalories ?? 0) > 0), day => day.exerciseCalories ?? 0, "max");
-  const daysWithinGoal = weeklyReport.filter(day => day.goalCalories > 0 && Math.abs(day.calories - day.goalCalories) <= Math.max(day.goalCalories * 0.1, 100)).length;
-  const daysAboveGoal = weeklyReport.filter(day => day.goalCalories > 0 && day.calories > day.goalCalories).length;
-  const daysBelowGoal = weeklyReport.filter(day => day.goalCalories > 0 && day.calories > 0 && day.calories < day.goalCalories).length;
-  const daysWithoutRecords = weeklyReport.filter(day => day.calories <= 0).length;
-  const reportInsights = useMemo(() => buildReportInsights({
-    weeklyReport,
-    weeklyAdherence: dashboard.data?.weeklyAdherence ?? 0,
-    weeklyExerciseActiveDays,
-    weeklyWaterGoalHitDays,
-  }), [dashboard.data?.weeklyAdherence, weeklyExerciseActiveDays, weeklyReport, weeklyWaterGoalHitDays]);
   const weeklyGoalDays = nutritionGoal?.days?.length ? nutritionGoal.days : GOAL_WEEKDAYS.map(day => ({
     ...day,
     source: "default",
@@ -539,10 +515,10 @@ export default function ProfessionalPage() {
 
                     <TabsContent value="relatorios" className="space-y-4">
                       <div className="grid gap-4 lg:grid-cols-4">
-                        <HighlightCard title="Aderência semanal" value={`${formatPercentPtBr(dashboard.data.weeklyAdherence)}%`} description="Comparativo entre consumo e meta da semana autorizada." />
-                        <HighlightCard title="Total da semana" value={formatCalories(dashboard.data.calories.consumed)} description={`Meta semanal: ${formatCalories(dashboard.data.calories.planned)}.`} />
-                        <HighlightCard title="Proteína registrada" value={formatGrams(dashboard.data.macros.protein)} description="Soma de proteínas consumidas no período semanal." />
-                        <HighlightCard title="Calorias líquidas" value={formatCalories(dashboard.data.calories.consumed - dashboard.data.calories.burned)} description={`Exercícios registrados: ${formatCalories(dashboard.data.calories.burned)}.`} />
+                        <HighlightCard title="Média semanal" value={formatCalories(weeklyProgress?.summary.averageCalories ?? 0)} description="Média diária de calorias no período selecionado." />
+                        <HighlightCard title="Total da semana" value={formatCalories(weeklyProgress?.summary.totalCalories ?? 0)} description={`Meta semanal: ${formatCalories(weeklyProgress?.summary.totalGoalCalories ?? 0)}.`} />
+                        <HighlightCard title="Proteína média" value={`${formatGrams(weeklyProgress?.summary.averageProtein ?? 0)}`} description="Média diária de proteína registrada." />
+                        <HighlightCard title="Calorias líquidas" value={formatCalories(weeklyProgress?.summary.totalNetCalories ?? 0)} description={`Exercícios registrados: ${formatCalories(weeklyProgress?.summary.totalExerciseCalories ?? 0)}.`} />
                       </div>
 
                       <Card className="border-0 shadow-sm">
@@ -555,10 +531,10 @@ export default function ProfessionalPage() {
                         </CardHeader>
                         <CardContent className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
                           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                            <StatusTile label="Dentro da meta" value={daysWithinGoal} />
-                            <StatusTile label="Acima da meta" value={daysAboveGoal} />
-                            <StatusTile label="Abaixo da meta" value={daysBelowGoal} />
-                            <StatusTile label="Sem registro" value={daysWithoutRecords} />
+                            <StatusTile label="Dentro da meta" value={weeklyProgress?.summary.daysWithinGoal ?? 0} />
+                            <StatusTile label="Acima da meta" value={weeklyProgress?.summary.daysAboveGoal ?? 0} />
+                            <StatusTile label="Abaixo da meta" value={weeklyProgress?.summary.daysBelowGoal ?? 0} />
+                            <StatusTile label="Sem registro" value={weeklyProgress?.summary.daysWithoutRecords ?? 0} />
                           </div>
                           <Card className="border bg-muted/10 shadow-none">
                             <CardHeader>
@@ -568,11 +544,11 @@ export default function ProfessionalPage() {
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
-                              {dashboard.data.weight.hasData ? (
+                              {weeklyProgress?.weight.hasData ? (
                                 <div className="grid gap-3 sm:grid-cols-3">
-                                  <StatusTile label="Inicial" value={`${dashboard.data.weight.firstWeightKg ?? dashboard.data.weight.lastWeightKg ?? 0} kg`} />
-                                  <StatusTile label="Atual" value={`${dashboard.data.weight.lastWeightKg ?? 0} kg`} />
-                                  <StatusTile label="Variação" value={`${dashboard.data.weight.deltaKg ?? 0} kg`} />
+                                  <StatusTile label="Inicial" value={`${weeklyProgress.weight.firstWeightKg ?? weeklyProgress.weight.lastWeightKg ?? 0} kg`} />
+                                  <StatusTile label="Atual" value={`${weeklyProgress.weight.lastWeightKg ?? 0} kg`} />
+                                  <StatusTile label="Variação" value={`${weeklyProgress.weight.deltaKg ?? 0} kg`} />
                                 </div>
                               ) : (
                                 <div className="rounded-2xl border border-dashed bg-background/70 p-5 text-sm leading-6 text-muted-foreground">
@@ -604,10 +580,10 @@ export default function ProfessionalPage() {
                           description="Mostra frequência, distribuição e concentração do gasto ao longo da semana."
                           activeDays={weeklyExerciseActiveDays}
                           totalDays={weeklyReport.length}
-                          totalCalories={dashboard.data.calories.burned}
+                          totalCalories={weeklyProgress?.summary.totalExerciseCalories ?? 0}
                           detailLabel="Distribuição"
                           detailValue={`${weeklyExerciseActiveDays}/${weeklyReport.length || 0} dias`}
-                          averageCaloriesPerActiveDay={averageValue(dashboard.data.calories.burned, weeklyExerciseActiveDays)}
+                          averageCaloriesPerActiveDay={averageValue(weeklyProgress?.summary.totalExerciseCalories ?? 0, weeklyExerciseActiveDays)}
                           highestDay={highestExerciseDay ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories ?? 0)}` : "Sem exercício"}
                           reading={weeklyExerciseActiveDays > 1 ? `Os exercícios ficaram distribuídos em ${weeklyExerciseActiveDays} dias da semana.` : weeklyExerciseActiveDays === 1 ? "Toda a atividade física registrada ficou concentrada em um único dia da semana." : "Nenhum exercício foi registrado nesta semana."}
                         />
@@ -658,9 +634,9 @@ export default function ProfessionalPage() {
                               <StatusTile label="Água" value={formatCountPtBr(Math.round(weeklyQuality.waterMl), " ml")} />
                               <StatusTile label="Regularidade" value={`${Math.round(weeklyQuality.regularityScore)}%`} />
                             </div>
-                            {reportInsights.length ? (
+                            {weeklyInsights?.insights.length ? (
                               <div className="space-y-3">
-                                {reportInsights.map(insight => (
+                                {weeklyInsights.insights.slice(0, 3).map(insight => (
                                   <div key={insight.title} className="rounded-2xl border bg-muted/10 p-4">
                                     <p className="text-sm font-semibold tracking-tight">{insight.title}</p>
                                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{insight.description}</p>
@@ -905,39 +881,6 @@ export default function ProfessionalPage() {
   );
 }
 
-function buildReportInsights({
-  weeklyReport,
-  weeklyAdherence,
-  weeklyExerciseActiveDays,
-  weeklyWaterGoalHitDays,
-}: {
-  weeklyReport: WeeklyReportDay[];
-  weeklyAdherence: number;
-  weeklyExerciseActiveDays: number;
-  weeklyWaterGoalHitDays: number;
-}): ReportInsight[] {
-  if (!weeklyReport.length) {
-    return [{ title: "Dados insuficientes", description: "Ainda não há registros suficientes para gerar uma leitura semanal consistente." }];
-  }
-
-  const registeredDays = weeklyReport.filter(day => day.calories > 0).length;
-  const aboveGoalDays = weeklyReport.filter(day => day.goalCalories > 0 && day.calories > day.goalCalories).length;
-
-  return [
-    {
-      title: "Aderência semanal",
-      description: `A semana está com ${formatPercentPtBr(weeklyAdherence)}% de aderência e ${registeredDays} dias com registro alimentar.`,
-    },
-    {
-      title: "Distribuição calórica",
-      description: aboveGoalDays ? `${aboveGoalDays} dias ficaram acima da meta calórica, o que merece revisão de refeições e horários.` : "Nenhum dia registrado ficou acima da meta calórica semanal.",
-    },
-    {
-      title: "Hábitos de apoio",
-      description: `${weeklyWaterGoalHitDays} dias bateram a meta de água e ${weeklyExerciseActiveDays} dias tiveram atividade física registrada.`,
-    },
-  ];
-}
 
 function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
