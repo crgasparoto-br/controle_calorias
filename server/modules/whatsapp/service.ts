@@ -162,20 +162,20 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     }
   }
 
-  const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
-    text,
-    receivedAt: new Date(),
-  }));
-  if (interpreted) {
-    return interpreted;
-  }
-
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
     text,
     receivedAt: new Date(),
   }));
   if (llmInterpreted) {
     return llmInterpreted;
+  }
+
+  const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
+    text,
+    receivedAt: new Date(),
+  }));
+  if (interpreted) {
+    return interpreted;
   }
 
   const assistant = executeWhatsAppFoodAssistantIntent(text);
