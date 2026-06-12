@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { getCatalogCache } from "./catalogRuntime";
 import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
 import { listMeals } from "./modules/meals/service";
@@ -264,7 +265,7 @@ export function __resetWhatsAppTextIntentContextForTests() {
   recentlyHandledTextIntentMessageIds.clear();
 }
 
-async function sendAndLogTextReply(input: { userId: number; sourcePhone: string; reply: string; eventType: string; detail: string; status: "success" | "warning" }) {
+async function sendAndLogTextReply(input: { userId: number; sourcePhone: string; reply: string; eventType: string; detail: string; status: WhatsAppIntentLogStatus }) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
   const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
   if (!replyResult.ok) {
@@ -348,7 +349,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     reply: await buildExerciseAwarePeriodReportReply(userId, result),
     eventType: result.eventType,
     detail: result.detail,
-    status: result.action === "clarification_needed" ? "warning" : "success",
+    status: getWhatsAppIntentLogStatus(result.action),
   });
   return true;
 }
