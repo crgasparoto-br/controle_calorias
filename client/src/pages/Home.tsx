@@ -69,9 +69,9 @@ function uncappedGoalProgress(consumed: number, goal: number) {
   return (consumed / goal) * 100;
 }
 
-function formatGoalProgressText(consumed: number, goal: number) {
+function formatGoalProgressText(consumed: number, goal: number, goalLabel = "meta do dia") {
   if (!goal) return "Meta não definida.";
-  return `${formatPercentPtBr(uncappedGoalProgress(consumed, goal))}% da meta do dia.`;
+  return `${formatPercentPtBr(uncappedGoalProgress(consumed, goal))}% da ${goalLabel}.`;
 }
 
 function formatGoalComparison(consumed: number, goal: number, formatter: (value: number) => string) {
@@ -220,15 +220,15 @@ export default function Home() {
   const consumedProtein = overview.data?.today.consumed.protein ?? 0;
   const consumedCarbs = overview.data?.today.consumed.carbs ?? 0;
   const consumedFat = overview.data?.today.consumed.fat ?? 0;
-  const calorieGoal = overview.data?.today.goal.calories ?? 0;
+  const baseCalorieGoal = overview.data?.today.goal.calories ?? 0;
+  const adjustedCalorieGoal = overview.data?.today.goal.adjustedCalories ?? baseCalorieGoal;
   const proteinGoal = overview.data?.today.goal.protein ?? 0;
   const carbsGoal = overview.data?.today.goal.carbs ?? 0;
   const fatGoal = overview.data?.today.goal.fat ?? 0;
   const consumedMacroTotal = macroGramTotal(consumedProtein, consumedCarbs, consumedFat);
   const goalMacroTotal = macroGramTotal(proteinGoal, carbsGoal, fatGoal);
-  const remainingCalories = overview.data?.today.remaining.calories ?? 0;
+  const remainingCalories = adjustedCalorieGoal - consumedCalories;
   const exerciseCalories = overview.data?.today.burned.calories ?? 0;
-  const netCalories = overview.data?.today.net.calories ?? 0;
   const waterConsumedMl = overview.data?.today.water.consumedMl ?? 0;
   const waterGoalMl = overview.data?.today.water.goalMl ?? 0;
   const macroSummaries: MacroSummary[] = [
@@ -321,9 +321,9 @@ export default function Home() {
             <div className="space-y-4">
               <TodayStatusCard
                 consumedCalories={consumedCalories}
-                calorieGoal={calorieGoal}
+                baseCalorieGoal={baseCalorieGoal}
+                adjustedCalorieGoal={adjustedCalorieGoal}
                 remainingCalories={remainingCalories}
-                netCalories={netCalories}
                 exerciseCalories={exerciseCalories}
                 waterConsumedMl={waterConsumedMl}
                 waterGoalMl={waterGoalMl}
@@ -438,9 +438,9 @@ function SectionHeading({ title, description }: { title: string; description?: s
 
 function TodayStatusCard({
   consumedCalories,
-  calorieGoal,
+  baseCalorieGoal,
+  adjustedCalorieGoal,
   remainingCalories,
-  netCalories,
   exerciseCalories,
   waterConsumedMl,
   waterGoalMl,
@@ -450,9 +450,9 @@ function TodayStatusCard({
   goalMacroTotal,
 }: {
   consumedCalories: number;
-  calorieGoal: number;
+  baseCalorieGoal: number;
+  adjustedCalorieGoal: number;
   remainingCalories: number;
-  netCalories: number;
   exerciseCalories: number;
   waterConsumedMl: number;
   waterGoalMl: number;
@@ -461,7 +461,10 @@ function TodayStatusCard({
   consumedMacroTotal: number;
   goalMacroTotal: number;
 }) {
-  const isAboveCalorieGoal = remainingCalories < 0;
+  const isAboveAdjustedGoal = remainingCalories < 0;
+  const hasExerciseAdjustment = exerciseCalories > 0;
+  const balanceLabel = isAboveAdjustedGoal ? "Excesso do dia" : "Disponível para consumir";
+  const balanceSublabel = isAboveAdjustedGoal ? "Acima da meta ajustada do dia" : "Ainda disponível dentro da meta ajustada";
 
   return (
     <Card className="border-0 shadow-sm">
@@ -470,15 +473,28 @@ function TodayStatusCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatBlock label="Calorias consumidas" value={formatCalories(consumedCalories)} sublabel={formatGoalComparison(consumedCalories, calorieGoal, formatCalories)} />
           <StatBlock
-            label="Calorias restantes"
-            value={formatCalories(remainingCalories)}
-            valueClassName={isAboveCalorieGoal ? "text-destructive" : undefined}
-            sublabel={isAboveCalorieGoal ? "Acima da meta planejada para o dia" : "Disponíveis para os próximos registros"}
+            label="Meta ajustada do dia"
+            value={formatCalories(adjustedCalorieGoal)}
+            sublabel={
+              hasExerciseAdjustment
+                ? `Meta base ${formatCalories(baseCalorieGoal)} + ${formatCalories(exerciseCalories)} de exercícios`
+                : "Meta do dia sem exercícios registrados"
+            }
           />
-          <StatBlock label="Saldo líquido" value={formatCalories(netCalories)} sublabel="Consumo menos exercícios registrados" />
-          <StatBlock label="Refeições" value={formatCountPtBr(groupedMealsCount)} sublabel="Agrupadas por nome" />
+          <StatBlock
+            label="Consumido"
+            value={formatCalories(consumedCalories)}
+            sublabel={formatGoalComparison(consumedCalories, adjustedCalorieGoal, formatCalories)}
+            valueClassName={isAboveAdjustedGoal ? "text-destructive" : undefined}
+          />
+          <StatBlock label="Exercícios" value={formatCalories(exerciseCalories)} sublabel="Gasto registrado para ajustar a meta" />
+          <StatBlock
+            label={balanceLabel}
+            value={formatCalories(Math.abs(remainingCalories))}
+            valueClassName={isAboveAdjustedGoal ? "text-destructive" : undefined}
+            sublabel={balanceSublabel}
+          />
         </div>
 
         <div className="grid gap-3 lg:grid-cols-3">
@@ -497,14 +513,14 @@ function TodayStatusCard({
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-          <CalorieBar consumed={consumedCalories} goal={calorieGoal} />
+          <CalorieBar consumed={consumedCalories} goal={adjustedCalorieGoal} />
           {macroSummaries.map(macro => (
             <MacroBar key={macro.label} label={macro.label} consumed={macro.consumed} goal={macro.goal} />
           ))}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <SupportMetric label="Exercícios" value={formatCalories(exerciseCalories)} helper="Queimadas no dia" />
+          <SupportMetric label="Refeições" value={formatCountPtBr(groupedMealsCount)} helper="Agrupadas por nome" />
           <SupportMetric label="Água do dia" value={formatCountPtBr(waterConsumedMl, " ml")} helper={`Meta ${formatCountPtBr(waterGoalMl, " ml")}`} />
         </div>
       </CardContent>
@@ -723,13 +739,13 @@ function SupportMetric({ label, value, helper }: { label: string; value: string;
 
 function CalorieBar({ consumed, goal }: { consumed: number; goal: number }) {
   const progress = macroProgress(consumed, goal);
-  const progressText = formatGoalProgressText(consumed, goal);
+  const progressText = formatGoalProgressText(consumed, goal, "meta ajustada");
   const isAboveGoal = goal > 0 && consumed > goal;
 
   return (
     <div className="space-y-2 rounded-2xl border bg-muted/30 p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="font-medium tracking-tight">Calorias</p>
+        <p className="font-medium tracking-tight">Consumo vs meta ajustada</p>
         <p className="text-sm text-muted-foreground">
           {formatCalories(consumed)} / {formatCalories(goal)}
         </p>

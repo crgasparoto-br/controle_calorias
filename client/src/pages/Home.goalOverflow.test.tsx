@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardOverviewMock = vi.fn();
 const invalidateMock = vi.fn();
@@ -45,58 +45,118 @@ vi.mock("@/lib/trpc", () => ({
   },
 }));
 
-const overviewAboveGoal = {
-  goal: {
-    today: { label: "Terça-feira", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70 },
-  },
-  today: {
-    goal: { label: "Terça-feira", calories: 2200, protein: 160, carbs: 240, fat: 70 },
-    consumed: { calories: 2450, protein: 180, carbs: 260, fat: 80 },
-    burned: { calories: 0 },
-    water: { consumedMl: 1200, goalMl: 2500, remainingMl: 1300 },
-    net: { calories: 2450, remainingToGoal: -250 },
-    remaining: { calories: -250, protein: -20, carbs: -20, fat: -10 },
-    adherence: 100,
-  },
-  week: {
-    planned: { calories: 15400, protein: 1120, carbs: 1680, fat: 490 },
-    consumed: { calories: 2450, protein: 180, carbs: 260, fat: 80 },
-    burned: { calories: 0 },
-    water: { consumedMl: 1200, goalMl: 17500, remainingMl: 16300 },
-    net: { calories: 2450, remainingToGoal: 12950 },
-    remaining: { calories: 12950, protein: 940, carbs: 1420, fat: 410 },
-    adherence: 16,
-  },
-  weekly: [],
-  meals: [
-    {
-      id: 1,
-      mealLabel: "Almoço",
-      occurredAt: Date.now(),
-      source: "web",
-      items: [],
-      totals: { calories: 2450, protein: 180, carbs: 260, fat: 80 },
-    },
-  ],
-  exercises: [],
-  water: { goal: { dailyTargetMl: 2500 }, logs: [] },
-  gamification: { enabled: false, availableBadges: [], newlyEarnedBadges: [], earnedBadges: [] },
-  habits: [],
-};
+function buildOverview({
+  consumedCalories,
+  baseGoalCalories = 2200,
+  adjustedGoalCalories,
+  exerciseCalories = 0,
+}: {
+  consumedCalories: number;
+  baseGoalCalories?: number;
+  adjustedGoalCalories?: number;
+  exerciseCalories?: number;
+}) {
+  const resolvedAdjustedGoalCalories = adjustedGoalCalories ?? baseGoalCalories;
+  const remainingCalories = resolvedAdjustedGoalCalories - consumedCalories;
 
-describe("Home goal overflow display", () => {
-  it("mostra consumo real, percentual real e excedente quando o dia passa da meta", async () => {
-    dashboardOverviewMock.mockReturnValue({ data: overviewAboveGoal, isLoading: false, isError: false });
+  return {
+    goal: {
+      today: { label: "Terça-feira", calories: baseGoalCalories, proteinGrams: 160, carbsGrams: 240, fatGrams: 70 },
+    },
+    today: {
+      goal: { label: "Terça-feira", calories: baseGoalCalories, adjustedCalories: resolvedAdjustedGoalCalories, protein: 160, carbs: 240, fat: 70 },
+      consumed: { calories: consumedCalories, protein: 180, carbs: 260, fat: 80 },
+      burned: { calories: exerciseCalories },
+      water: { consumedMl: 1200, goalMl: 2500, remainingMl: 1300 },
+      net: { calories: consumedCalories - exerciseCalories, remainingToGoal: baseGoalCalories - (consumedCalories - exerciseCalories) },
+      remaining: { calories: remainingCalories, protein: -20, carbs: -20, fat: -10 },
+      adherence: resolvedAdjustedGoalCalories ? Math.min((consumedCalories / resolvedAdjustedGoalCalories) * 100, 100) : 0,
+    },
+    week: {
+      planned: { calories: 15400, protein: 1120, carbs: 1680, fat: 490 },
+      consumed: { calories: consumedCalories, protein: 180, carbs: 260, fat: 80 },
+      burned: { calories: exerciseCalories },
+      water: { consumedMl: 1200, goalMl: 17500, remainingMl: 16300 },
+      net: { calories: consumedCalories - exerciseCalories, remainingToGoal: 12950 },
+      remaining: { calories: 12950, protein: 940, carbs: 1420, fat: 410 },
+      adherence: 16,
+    },
+    weekly: [],
+    meals: [
+      {
+        id: 1,
+        mealLabel: "Almoço",
+        occurredAt: Date.now(),
+        source: "web",
+        items: [],
+        totals: { calories: consumedCalories, protein: 180, carbs: 260, fat: 80 },
+      },
+    ],
+    exercises: [],
+    water: { goal: { dailyTargetMl: 2500 }, logs: [] },
+    gamification: { enabled: false, availableBadges: [], newlyEarnedBadges: [], earnedBadges: [] },
+    habits: [],
+  };
+}
+
+describe("Home adjusted calorie goal display", () => {
+  beforeEach(() => {
+    dashboardOverviewMock.mockReset();
+  });
+
+  it("mostra meta ajustada e saldo disponível quando há exercício e consumo abaixo da meta ajustada", async () => {
+    dashboardOverviewMock.mockReturnValue({
+      data: buildOverview({ consumedCalories: 2100, baseGoalCalories: 2200, adjustedGoalCalories: 2500, exerciseCalories: 300 }),
+      isLoading: false,
+      isError: false,
+    });
     const { default: Home } = await import("./Home");
 
     const html = renderToString(React.createElement(Home));
 
-    expect(html).toContain("2.450 kcal");
-    expect(html).toContain("111% da meta do dia.");
-    expect(html).toContain("Meta 2.200 kcal");
-    expect(html).toContain("-250 kcal");
+    expect(html).toContain("Meta ajustada do dia");
+    expect(html).toContain("Meta base 2.200 kcal + 300 kcal de exercícios");
+    expect(html).toContain("Consumido");
+    expect(html).toContain("Exercícios");
+    expect(html).toContain("Disponível para consumir");
+    expect(html).toContain("400 kcal");
+    expect(html).toContain("84% da meta ajustada.");
+    expect(html).not.toContain("Saldo líquido");
+  });
+
+  it("mostra excesso do dia quando o consumo passa da meta ajustada", async () => {
+    dashboardOverviewMock.mockReturnValue({
+      data: buildOverview({ consumedCalories: 2700, baseGoalCalories: 2200, adjustedGoalCalories: 2500, exerciseCalories: 300 }),
+      isLoading: false,
+      isError: false,
+    });
+    const { default: Home } = await import("./Home");
+
+    const html = renderToString(React.createElement(Home));
+
+    expect(html).toContain("Excesso do dia");
+    expect(html).toContain("200 kcal");
+    expect(html).toContain("Acima da meta ajustada do dia");
+    expect(html).toContain("108% da meta ajustada.");
+    expect(html).toContain("Meta 2.500 kcal · 200 kcal acima");
     expect(html).toContain("text-destructive");
-    expect(html).toContain("250 kcal acima");
-    expect(html).toContain("20 g acima");
+    expect(html).not.toContain("-200 kcal");
+  });
+
+  it("usa a meta base como meta ajustada quando não há exercício registrado", async () => {
+    dashboardOverviewMock.mockReturnValue({
+      data: buildOverview({ consumedCalories: 1800, baseGoalCalories: 2200, exerciseCalories: 0 }),
+      isLoading: false,
+      isError: false,
+    });
+    const { default: Home } = await import("./Home");
+
+    const html = renderToString(React.createElement(Home));
+
+    expect(html).toContain("Meta ajustada do dia");
+    expect(html).toContain("Meta do dia sem exercícios registrados");
+    expect(html).toContain("Disponível para consumir");
+    expect(html).toContain("400 kcal");
+    expect(html).toContain("82% da meta ajustada.");
   });
 });
