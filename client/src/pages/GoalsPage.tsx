@@ -215,7 +215,7 @@ export default function GoalsPage() {
       if (result.safetyWarnings.length) {
         toast.warning("Metas salvas. Há alguns pontos para revisar com calma.");
       } else {
-        toast.success("Meta padrão e exceções atualizadas com sucesso.");
+        toast.success("Metas atualizadas com sucesso.");
       }
     },
     onError: error => toast.error(error.message || SAFE_NUTRITION_MESSAGES.couldNotUpdateGoals),
@@ -421,7 +421,7 @@ export default function GoalsPage() {
         <PageIntro
           eyebrow="Planejamento nutricional"
           title="Metas e exceções da semana"
-          description="Defina a meta geral do seu plano nutricional e ajuste apenas os dias que precisam de valores diferentes. Use o resumo para conferir como a semana ficará antes de salvar."
+          description="Defina a meta usada na maior parte dos dias e ajuste somente os dias que precisam de valores diferentes. As metas salvas passam a valer a partir de hoje e aparecem no dashboard e nos relatórios."
           actions={(
             <Button
               className="rounded-full"
@@ -444,12 +444,12 @@ export default function GoalsPage() {
               <IntroStat
                 label="Exceções ativas"
                 value={String(exceptions.length)}
-                supporting={exceptions.length ? "dias com regra própria" : "sem desvios da meta base"}
+                supporting={exceptions.length ? "dias com meta própria" : "todos os dias usam a meta geral"}
               />
               <IntroStat
-                label="Meta base"
+                label="Meta geral"
                 value={formatCalories(defaultGoal.calories)}
-                supporting={`${formatGrams(defaultGoal.proteinGrams)} proteína`}
+                supporting={`${formatGrams(defaultGoal.proteinGrams)} de proteína por dia`}
               />
               <IntroStat
                 label="Calorias na semana"
@@ -469,7 +469,7 @@ export default function GoalsPage() {
                   Meta geral da semana
                 </CardTitle>
                 <CardDescription>
-                  Use esta meta como referência para os dias sem exceção. A meta geral começa em percentual para facilitar a divisão das calorias entre proteínas, carboidratos e gorduras.
+                  Use esta meta como referência para os dias sem exceção. Preencha os macronutrientes em gramas ou por percentual das calorias e revise os avisos antes de salvar.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -503,7 +503,7 @@ export default function GoalsPage() {
                 </div>
                 <PercentValidationNote mode={defaultGoal.inputMode} percentSum={defaultPercentSum} />
                 <NutritionSafetyNotice issues={safetyAssessment.issues} />
-                <p className="text-xs text-muted-foreground">Metas muito extremas são bloqueadas para proteger sua saúde.</p>
+                <p className="text-xs text-muted-foreground">Metas muito extremas são bloqueadas para proteger sua saúde. Ajuste esses valores antes de salvar.</p>
               </CardContent>
             </Card>
 
@@ -511,7 +511,7 @@ export default function GoalsPage() {
               <CardHeader>
                 <CardTitle>Exceções por dia da semana</CardTitle>
                 <CardDescription>
-                  Escolha apenas os dias que precisam sair da meta geral e por quanto tempo essa exceção deve valer.
+                  Use exceções para dias com uma rotina diferente, como treino, descanso ou compromisso especial. Escolha o dia e por quanto tempo essa meta própria deve valer a partir de hoje.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -573,7 +573,7 @@ export default function GoalsPage() {
                   );
                 }) : (
                   <div className="rounded-3xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
-                    Nenhuma exceção cadastrada. Neste caso, a meta geral será aplicada a todos os dias da semana.
+                    Nenhuma exceção adicionada. A meta geral será usada em todos os dias da semana.
                   </div>
                 )}
 
@@ -583,7 +583,7 @@ export default function GoalsPage() {
                   onClick={handleSave}
                 >
                   <Save className="mr-2 h-4 w-4" />
-                  {updateGoal.isPending ? "Salvando..." : "Salvar regra geral e exceções"}
+                  {updateGoal.isPending ? "Salvando..." : "Salvar metas"}
                 </Button>
               </CardContent>
             </Card>
@@ -597,7 +597,7 @@ export default function GoalsPage() {
                   Soma planejada da semana
                 </CardTitle>
                 <CardDescription>
-                  A semana segue de segunda-feira a domingo, somando a meta geral com as exceções ativas no planejamento.
+                  Confira como a meta geral e as exceções ficam distribuídas de segunda-feira a domingo.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -610,7 +610,7 @@ export default function GoalsPage() {
                           <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
                         </div>
                         <p className="min-h-10 text-sm leading-5 text-foreground">
-                          {day.source === "exception" ? "Exceção aplicada neste dia." : "Usando a meta geral."}
+                          {day.source === "exception" ? "Usa uma meta própria neste dia." : "Usa a meta geral."}
                         </p>
                       </div>
                       <div className="mt-3 space-y-1 text-sm text-foreground">
@@ -646,7 +646,7 @@ export default function GoalsPage() {
               <CardHeader>
                 <CardTitle>Foco do dia atual</CardTitle>
                 <CardDescription>
-                  Meta efetiva usada hoje no dashboard e nos relatórios, considerando a regra geral e as exceções vigentes.
+                  Veja qual meta vale para hoje, considerando a meta geral e qualquer exceção ativa para este dia.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -654,7 +654,7 @@ export default function GoalsPage() {
                   <p className="text-sm text-muted-foreground">Meta ativa hoje</p>
                   <p className="mt-2 text-3xl font-semibold tracking-tight">{todayGoal.label}</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {formatCalories(todayGoal.calories)} planejadas para o dia {todayGoal.source === "exception" ? "com exceção ativa" : "pela regra geral"}.
+                    {formatCalories(todayGoal.calories)} planejadas para hoje {todayGoal.source === "exception" ? "por uma exceção deste dia" : "pela meta geral"}.
                   </p>
                 </div>
                 <div className="grid gap-3">
@@ -663,11 +663,11 @@ export default function GoalsPage() {
                   <MacroSplit label="Gorduras" value={todayGoal.fatGrams} calorieFactor={9} accent="bg-amber-500" />
                 </div>
                 <div className="rounded-3xl border bg-background p-4 shadow-sm">
-                  <p className="text-sm text-muted-foreground">Consistência energética da semana</p>
+                  <p className="text-sm text-muted-foreground">Conferência entre calorias e macros</p>
                   <p className="mt-2 text-3xl font-semibold tracking-tight">{formatCalories(weeklyMacroCalories)}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Equivalente calórico estimado a partir dos macronutrientes planejados para a semana atual.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Calorias estimadas a partir das proteínas, carboidratos e gorduras planejados para a semana.</p>
                   <Progress className="mt-4 h-2" value={alignment} />
-                  <p className="mt-3 text-sm text-muted-foreground">{formatPercentPtBr(alignment)}% de alinhamento entre macros e calorias planejadas.</p>
+                  <p className="mt-3 text-sm text-muted-foreground">{formatPercentPtBr(alignment)}% de proximidade entre as calorias informadas e os macronutrientes planejados.</p>
                 </div>
               </CardContent>
             </Card>
@@ -711,8 +711,8 @@ function ModeSelector({ mode, onChange }: { mode: MacroInputMode; onChange: (mod
     <div className="rounded-2xl border bg-background p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-medium tracking-tight">Modo de preenchimento dos macronutrientes</p>
-          <p className="text-sm text-muted-foreground">Escolha entre informar em gramas ou por percentual das calorias do dia.</p>
+          <p className="font-medium tracking-tight">Como preencher os macronutrientes</p>
+          <p className="text-sm text-muted-foreground">Use gramas quando já souber os valores. Use percentual das calorias do dia quando quiser dividir a meta entre proteínas, carboidratos e gorduras.</p>
         </div>
         <div className="flex rounded-full bg-muted p-1">
           <button
@@ -794,9 +794,9 @@ function MacroField({
         <span className="text-sm text-muted-foreground">{mode === "grams" ? "g" : "%"}</span>
       </div>
       {mode === "percent" ? (
-        <p className="text-xs text-muted-foreground">Calculado automaticamente pela meta calórica: {formatGrams(grams)}</p>
+        <p className="text-xs text-muted-foreground">Calculado automaticamente: {formatGrams(grams)}</p>
       ) : (
-        <p className="text-xs text-muted-foreground">Equivalente atual da meta em gramas.</p>
+        <p className="text-xs text-muted-foreground">Informe a quantidade planejada em gramas.</p>
       )}
     </div>
   );
@@ -839,9 +839,9 @@ function PercentValidationNote({ mode, percentSum }: { mode: MacroInputMode; per
       <div className="flex items-start gap-3">
         <AlertCircle className="mt-0.5 h-4 w-4" />
         <div>
-          <p className="font-medium tracking-tight">Soma dos percentuais</p>
+          <p className="font-medium tracking-tight">Distribuição dos macronutrientes</p>
           <p>
-            A soma atual é de <strong>{formatPercentPtBr(percentSum, 1)}%</strong>. Para salvar no modo percentual, proteínas, carboidratos e gorduras precisam totalizar exatamente <strong>100%</strong>.
+            A soma atual é de <strong>{formatPercentPtBr(percentSum, 1)}%</strong>. Para salvar por percentual, proteínas, carboidratos e gorduras precisam somar exatamente <strong>100%</strong>.
           </p>
         </div>
       </div>
@@ -911,7 +911,7 @@ function MacroSplit({
         </div>
         <p className="text-sm text-muted-foreground">{formatGrams(value)}</p>
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">{formatCalories(value * calorieFactor)} atribuídas a este macronutriente.</p>
+      <p className="mt-2 text-sm text-muted-foreground">{formatCalories(value * calorieFactor)} planejadas a partir deste macronutriente.</p>
     </div>
   );
 }
