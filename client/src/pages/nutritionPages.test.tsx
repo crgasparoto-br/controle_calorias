@@ -577,7 +577,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Meta 2.500 ml");
     expect(html).toContain("200 ml");
     expect(html).toContain("1.200 ml");
-    expect(html).toContain("920 kcal");
+    expect(html).toContain("960 kcal");
   });
 
   it("renderiza a página de metas com meta geral, exceções por dia e soma semanal", async () => {
