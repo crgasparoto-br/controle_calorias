@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCalories, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import {
   BarChart3,
@@ -509,7 +510,21 @@ export default function ProfessionalPage() {
                   </div>
                 ) : null}
 
-                {dashboard.isLoading ? <StatusMessage text="Carregando análise da pessoa selecionada..." /> : null}
+                {dashboard.isLoading ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 lg:grid-cols-4">
+                      <Skeleton className="h-28 rounded-2xl" />
+                      <Skeleton className="h-28 rounded-2xl" />
+                      <Skeleton className="h-28 rounded-2xl" />
+                      <Skeleton className="h-28 rounded-2xl" />
+                    </div>
+                    <Skeleton className="h-48 rounded-2xl" />
+                    <div className="grid gap-6 xl:grid-cols-2">
+                      <Skeleton className="h-64 rounded-2xl" />
+                      <Skeleton className="h-64 rounded-2xl" />
+                    </div>
+                  </div>
+                ) : null}
                 {dashboard.isError ? <ErrorMessage text="Não foi possível carregar a análise autorizada. Tente novamente em instantes." /> : null}
 
                 {dashboard.data ? (
@@ -579,7 +594,7 @@ export default function ProfessionalPage() {
                           goalHitDays={weeklyWaterGoalHitDays}
                           totalDays={weeklyReport.length}
                           averageDailyMl={averageValue(weeklyWaterTotal, weeklyReport.length)}
-                          lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatMl(lowestWaterDay.waterConsumedMl ?? 0)}` : "-"}
+                          lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(Math.round(lowestWaterDay.waterConsumedMl ?? 0), " ml")}` : "-"}
                           reading={weeklyWaterGoalHitDays > 0 ? `${weeklyWaterGoalHitDays} de ${weeklyReport.length} dias bateram a meta de água.` : "Nenhum dia bateu a meta de água nesta semana ou os dados ainda não foram registrados."}
                         />
 
@@ -640,17 +655,23 @@ export default function ProfessionalPage() {
                             <div className="grid gap-3 sm:grid-cols-2">
                               <StatusTile label="Proteína" value={formatGrams(weeklyQuality.proteinGrams)} />
                               <StatusTile label="Fibras" value={formatGrams(weeklyQuality.fiberGrams)} />
-                              <StatusTile label="Água" value={formatMl(weeklyQuality.waterMl)} />
+                              <StatusTile label="Água" value={formatCountPtBr(Math.round(weeklyQuality.waterMl), " ml")} />
                               <StatusTile label="Regularidade" value={`${Math.round(weeklyQuality.regularityScore)}%`} />
                             </div>
-                            <div className="space-y-3">
-                              {reportInsights.map(insight => (
-                                <div key={insight.title} className="rounded-2xl border bg-muted/10 p-4">
-                                  <p className="text-sm font-semibold tracking-tight">{insight.title}</p>
-                                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{insight.description}</p>
-                                </div>
-                              ))}
-                            </div>
+                            {reportInsights.length ? (
+                              <div className="space-y-3">
+                                {reportInsights.map(insight => (
+                                  <div key={insight.title} className="rounded-2xl border bg-muted/10 p-4">
+                                    <p className="text-sm font-semibold tracking-tight">{insight.title}</p>
+                                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{insight.description}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm leading-6 text-muted-foreground">
+                                Ainda não há dados suficientes para gerar insights automáticos nesta semana.
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       </div>
@@ -684,10 +705,10 @@ export default function ProfessionalPage() {
                             <UtensilsCrossed className="h-5 w-5 text-primary" />
                             Registros recentes
                           </CardTitle>
-                          <CardDescription>Registros alimentares autorizados para investigação pontual, sem duplicar a antiga aba Hoje.</CardDescription>
+                          <CardDescription>Registros alimentares autorizados agrupados por dia. Abra apenas os dias que precisar investigar.</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                          {dashboard.data.meals.slice(0, 8).length ? dashboard.data.meals.slice(0, 8).map(meal => <MealRow key={meal.id} meal={meal} />) : <Empty text="Nenhum registro recente encontrado." />}
+                        <CardContent>
+                          <MealsByDateSection meals={dashboard.data.meals} />
                         </CardContent>
                       </Card>
                     </TabsContent>
@@ -991,6 +1012,46 @@ function MealRow({ meal }: { meal: MealSummary }) {
   );
 }
 
+function MealsByDateSection({ meals }: { meals: MealSummary[] }) {
+  const mealsByDate = useMemo(() => {
+    const groups = new Map<string, MealSummary[]>();
+    for (const meal of meals) {
+      const date = new Date(meal.occurredAt).toISOString().slice(0, 10);
+      if (!groups.has(date)) groups.set(date, []);
+      groups.get(date)!.push(meal);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => b.localeCompare(a));
+  }, [meals]);
+
+  if (!mealsByDate.length) return <Empty text="Nenhum registro recente encontrado." />;
+
+  return (
+    <div className="space-y-3">
+      {mealsByDate.map(([date, dayMeals]) => {
+        const totalCalories = dayMeals.reduce((sum, m) => sum + m.totals.calories, 0);
+        const heading = new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "short" });
+        return (
+          <details key={date} className="group rounded-3xl border bg-muted/10 p-4">
+            <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-base font-semibold tracking-tight capitalize">{heading}</p>
+                <p className="text-sm text-muted-foreground">{dayMeals.length} refeições no dia</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full border px-3 py-1 text-xs font-medium">{formatCalories(totalCalories)}</span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+              </div>
+            </summary>
+            <div className="mt-4 space-y-2">
+              {dayMeals.map(meal => <MealRow key={meal.id} meal={meal} />)}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
 function SuggestionBox({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
     <div className="rounded-2xl border bg-background p-4">
@@ -1179,6 +1240,15 @@ function AnalyticsReading({ children }: { children: ReactNode }) {
   return <div className="rounded-2xl border bg-background px-4 py-3 text-sm leading-6 text-muted-foreground">{children}</div>;
 }
 
+function CompactMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border bg-muted/10 px-4 py-3">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-semibold tracking-tight">{value}</p>
+    </div>
+  );
+}
+
 function WaterAnalyticsCard({
   title,
   scopeLabel,
@@ -1214,10 +1284,13 @@ function WaterAnalyticsCard({
           <Progress className="h-2" value={progressPercent(totalConsumedMl, totalGoalMl)} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <StatusTile label="Meta do período" value={formatMl(totalGoalMl)} />
-          <StatusTile label="Consumo acumulado" value={formatMl(totalConsumedMl)} />
+          <CompactMetric label="Meta do período" value={formatCountPtBr(Math.round(totalGoalMl), " ml")} />
+          <CompactMetric label="Consumo acumulado" value={formatCountPtBr(Math.round(totalConsumedMl), " ml")} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
           <StatusTile label="Meta batida" value={`${goalHitDays}/${totalDays} dias`} />
-          <StatusTile label="Média diária" value={formatMl(averageDailyMl)} />
+          <StatusTile label="Média diária" value={formatCountPtBr(Math.round(averageDailyMl), " ml")} />
+          <StatusTile label="Total consumido" value={formatCountPtBr(Math.round(totalConsumedMl), " ml")} />
           <StatusTile label="Menor dia" value={lowestDay} />
         </div>
         <AnalyticsReading>{reading}</AnalyticsReading>
@@ -1256,8 +1329,10 @@ function ExerciseAnalyticsCard({
       <AnalyticsHeader icon={<Dumbbell className="h-5 w-5 text-primary" />} title={title} scopeLabel={scopeLabel} description={description} />
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <StatusTile label="Dias ativos" value={`${activeDays}/${totalDays}`} />
-          <StatusTile label="Gasto total" value={formatCalories(totalCalories)} />
+          <CompactMetric label="Dias ativos" value={`${activeDays}/${totalDays}`} />
+          <CompactMetric label="Gasto total" value={formatCalories(totalCalories)} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
           <StatusTile label={detailLabel} value={detailValue} />
           <StatusTile label="Média por dia ativo" value={activeDays ? formatCalories(averageCaloriesPerActiveDay) : "0 kcal"} />
           <StatusTile label="Maior dia" value={highestDay} />
@@ -1294,9 +1369,6 @@ function getCalorieBarColor(calories: number, goalCalories: number) {
   return goalCalories > 0 && calories > goalCalories ? "#dc2626" : "#10b981";
 }
 
-function formatMl(value: number) {
-  return `${Math.round(value).toLocaleString("pt-BR")} ml`;
-}
 
 function findExtreme<T>(items: T[], getValue: (item: T) => number, direction: "min" | "max") {
   return items.reduce<T | null>((current, item) => {

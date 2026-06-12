@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { and, eq, or } from "drizzle-orm";
 import { userPreferences, users, whatsappConnections } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
-import { getDb, getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
+import { getDb, getWeeklyProgress, listUserMeals } from "../../db";
 import { redactSensitiveText } from "../../privacy";
 import { getNutritionGoal } from "../goals/service";
 import {
@@ -564,33 +564,38 @@ export async function revokePatientAccess(patientUserId: number, accessId: strin
 
 export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number) {
   await assertApprovedAccess(professionalUserId, patientUserId);
-  const [dashboard, weeklyProgress, weeklyReport, meals, patient, nutritionGoal] = await Promise.all([
-    getDashboardSnapshot(patientUserId),
+  const [weeklyProgress, recentMeals, patient, nutritionGoal] = await Promise.all([
     getWeeklyProgress(patientUserId),
-    getWeeklySummary(patientUserId),
     listUserMeals(patientUserId),
     getUserSummary(patientUserId),
     getNutritionGoal(patientUserId),
   ]);
 
+  const totalProtein = weeklyProgress.days.reduce((acc, day) => acc + day.protein, 0);
+  const totalCarbs = weeklyProgress.days.reduce((acc, day) => acc + day.carbs, 0);
+  const totalFat = weeklyProgress.days.reduce((acc, day) => acc + day.fat, 0);
+  const weeklyAdherence = weeklyProgress.summary.totalGoalCalories
+    ? Math.min(Math.round((weeklyProgress.summary.totalCalories / weeklyProgress.summary.totalGoalCalories) * 100), 100)
+    : 0;
+
   return {
     patientId: patientUserId,
     patient,
-    weeklyAdherence: dashboard.week.adherence,
+    weeklyAdherence,
     calories: {
-      consumed: dashboard.week.consumed.calories,
-      planned: dashboard.week.planned.calories,
-      burned: dashboard.week.burned.calories,
+      consumed: weeklyProgress.summary.totalCalories,
+      planned: weeklyProgress.summary.totalGoalCalories,
+      burned: weeklyProgress.summary.totalExerciseCalories,
     },
     macros: {
-      protein: dashboard.week.consumed.protein,
-      carbs: dashboard.week.consumed.carbs,
-      fat: dashboard.week.consumed.fat,
+      protein: Math.round(totalProtein),
+      carbs: Math.round(totalCarbs),
+      fat: Math.round(totalFat),
     },
     weight: weeklyProgress.weight,
     nutritionGoal,
-    weeklyReport,
-    meals: meals.slice(0, 20),
+    weeklyReport: weeklyProgress.days,
+    meals: recentMeals.slice(0, 20),
     comments: comments.filter(comment => comment.professionalUserId === professionalUserId && comment.patientUserId === patientUserId),
     goalSuggestions: goalSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
     mealSuggestions: mealSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
