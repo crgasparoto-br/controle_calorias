@@ -6,7 +6,7 @@ import type { NutritionGoalSafetyIssue } from "@shared/nutritionSafety";
 import { GoalInput } from "./schemas";
 
 type GoalValidationIssue = NutritionGoalSafetyIssue | {
-  code: "conflicting_goal_version";
+  code: "conflicting_goal_version" | "conflicting_goal_exception_version";
   severity: "block";
   targetLabel: string;
   message: string;
@@ -33,7 +33,31 @@ export class ConflictingNutritionGoalVersionError extends UnsafeNutritionGoalErr
   }
 }
 
+export class ConflictingNutritionGoalExceptionVersionError extends UnsafeNutritionGoalError {
+  constructor(weekdayLabel: string, startDate: string) {
+    super([
+      {
+        code: "conflicting_goal_exception_version",
+        severity: "block",
+        targetLabel: weekdayLabel,
+        message: `Já existe uma exceção para ${weekdayLabel} iniciando em ${startDate}. Escolha outra data de início.`,
+      },
+    ]);
+    this.name = "ConflictingNutritionGoalExceptionVersionError";
+  }
+}
+
 const DEFAULT_GOAL_WEEKDAY = -1;
+
+const WEEKDAY_LABELS = [
+  "segunda-feira",
+  "terça-feira",
+  "quarta-feira",
+  "quinta-feira",
+  "sexta-feira",
+  "sábado",
+  "domingo",
+] as const;
 
 type GoalExceptionDuration = "1_week" | "2_weeks" | "3_weeks" | "always";
 
@@ -76,25 +100,29 @@ function buildExceptionEndDate(referenceDate: Date, durationType: GoalExceptionD
   return value;
 }
 
-function buildVersionRows(userId: number, input: GoalInput, effectiveFrom: Date): NutritionGoal[] {
-  const now = new Date();
-  return [
-    {
-      id: 0,
-      userId,
-      ruleType: "default",
-      weekday: DEFAULT_GOAL_WEEKDAY,
-      durationType: "always",
-      calories: input.defaultGoal.calories,
-      proteinGrams: input.defaultGoal.proteinGrams,
-      carbsGrams: input.defaultGoal.carbsGrams,
-      fatGrams: input.defaultGoal.fatGrams,
-      effectiveFrom,
-      effectiveUntil: null,
-      createdAt: now,
-      updatedAt: now,
-    },
-    ...input.exceptions.map(exception => ({
+function buildDefaultVersionRow(userId: number, input: GoalInput, startDate: string, now: Date): NutritionGoal {
+  return {
+    id: 0,
+    userId,
+    ruleType: "default",
+    weekday: DEFAULT_GOAL_WEEKDAY,
+    durationType: "always",
+    calories: input.defaultGoal.calories,
+    proteinGrams: input.defaultGoal.proteinGrams,
+    carbsGrams: input.defaultGoal.carbsGrams,
+    fatGrams: input.defaultGoal.fatGrams,
+    effectiveFrom: startOfUtcDate(startDate),
+    effectiveUntil: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function buildExceptionVersionRows(userId: number, input: GoalInput, defaultStartDate: string, now: Date): NutritionGoal[] {
+  return input.exceptions.map(exception => {
+    const exceptionEffectiveFrom = startOfUtcDate(exception.startDate ?? defaultStartDate);
+
+    return {
       id: 0,
       userId,
       ruleType: "exception" as const,
@@ -104,11 +132,42 @@ function buildVersionRows(userId: number, input: GoalInput, effectiveFrom: Date)
       proteinGrams: exception.proteinGrams,
       carbsGrams: exception.carbsGrams,
       fatGrams: exception.fatGrams,
-      effectiveFrom,
-      effectiveUntil: buildExceptionEndDate(effectiveFrom, exception.durationType),
+      effectiveFrom: exceptionEffectiveFrom,
+      effectiveUntil: buildExceptionEndDate(exceptionEffectiveFrom, exception.durationType),
       createdAt: now,
       updatedAt: now,
-    })),
+    };
+  });
+}
+
+function hasSameGoalTargets(row: NutritionGoal, target: GoalInput["defaultGoal"]) {
+  return row.calories === target.calories
+    && row.proteinGrams === target.proteinGrams
+    && row.carbsGrams === target.carbsGrams
+    && row.fatGrams === target.fatGrams;
+}
+
+function hasSameExceptionVersion(row: NutritionGoal, version: NutritionGoal) {
+  return row.ruleType === "exception"
+    && version.ruleType === "exception"
+    && row.weekday === version.weekday
+    && row.durationType === version.durationType
+    && dateKeyFromDate(row.effectiveFrom) === dateKeyFromDate(version.effectiveFrom)
+    && hasSameGoalTargets(row, version);
+}
+
+function buildVersionRows(userId: number, input: GoalInput, defaultStartDate: string, rows: NutritionGoal[]): NutritionGoal[] {
+  const now = new Date();
+  const existingDefaultVersion = rows.find(row => row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === defaultStartDate);
+  const defaultVersionRows = existingDefaultVersion && hasSameGoalTargets(existingDefaultVersion, input.defaultGoal)
+    ? []
+    : [buildDefaultVersionRow(userId, input, defaultStartDate, now)];
+  const exceptionVersionRows = buildExceptionVersionRows(userId, input, defaultStartDate, now)
+    .filter(version => !rows.some(row => hasSameExceptionVersion(row, version)));
+
+  return [
+    ...defaultVersionRows,
+    ...exceptionVersionRows,
   ];
 }
 
@@ -129,6 +188,38 @@ function summarizeDefaultVersions(rows: NutritionGoal[] | null) {
     .sort((first, second) => second.startDate.localeCompare(first.startDate));
 }
 
+function summarizeExceptionVersions(rows: NutritionGoal[] | null) {
+  return (rows ?? [])
+    .filter(row => row.ruleType === "exception")
+    .map(row => ({
+      id: row.id,
+      weekday: row.weekday,
+      label: WEEKDAY_LABELS[row.weekday] ?? "dia",
+      startDate: dateKeyFromDate(row.effectiveFrom),
+      durationType: row.durationType,
+      effectiveFrom: row.effectiveFrom,
+      effectiveUntil: row.effectiveUntil,
+      calories: row.calories,
+      proteinGrams: row.proteinGrams,
+      carbsGrams: row.carbsGrams,
+      fatGrams: row.fatGrams,
+      isCurrent: !row.effectiveUntil || new Date(row.effectiveUntil).getTime() > Date.now(),
+    }))
+    .sort((first, second) => second.startDate.localeCompare(first.startDate) || first.weekday - second.weekday);
+}
+
+function findDefaultVersionOnStartDate(rows: NutritionGoal[], startDate: string) {
+  return rows.find(row => row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === startDate);
+}
+
+function findConflictingExceptionVersion(rows: NutritionGoal[], versionRows: NutritionGoal[]) {
+  return versionRows.find(version => version.ruleType === "exception" && rows.some(row => (
+    row.ruleType === "exception"
+    && row.weekday === version.weekday
+    && dateKeyFromDate(row.effectiveFrom) === dateKeyFromDate(version.effectiveFrom)
+  )));
+}
+
 async function listGoalRows(userId: number) {
   return nutritionGoalsRepository.findByUserId(userId);
 }
@@ -147,6 +238,7 @@ export async function getNutritionGoal(userId: number) {
     ...goal,
     startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
     versions: summarizeDefaultVersions(rows),
+    exceptionVersions: summarizeExceptionVersions(rows),
     safetyWarnings: assessment.warnings,
   };
 }
@@ -158,7 +250,6 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
   }
 
   const startDate = input.startDate ?? todayDateKey();
-  const effectiveFrom = startOfUtcDate(startDate);
   const rows = await listGoalRows(userId);
 
   if (!rows) {
@@ -172,19 +263,26 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
       ...goal,
       startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
       versions: [],
+      exceptionVersions: [],
       safetyWarnings: savedAssessment.warnings,
     };
   }
 
-  const hasDefaultVersionOnStartDate = rows.some(row => (
-    row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === startDate
-  ));
-  if (hasDefaultVersionOnStartDate) {
+  const defaultVersionOnStartDate = findDefaultVersionOnStartDate(rows, startDate);
+  if (defaultVersionOnStartDate && !hasSameGoalTargets(defaultVersionOnStartDate, input.defaultGoal)) {
     throw new ConflictingNutritionGoalVersionError(startDate);
   }
 
-  const versionRows = buildVersionRows(userId, input, effectiveFrom);
-  await nutritionGoalsRepository.createVersionForUser(userId, versionRows, effectiveFrom);
+  const versionRows = buildVersionRows(userId, input, startDate, rows);
+  const conflictingException = findConflictingExceptionVersion(rows, versionRows);
+  if (conflictingException) {
+    throw new ConflictingNutritionGoalExceptionVersionError(
+      WEEKDAY_LABELS[conflictingException.weekday] ?? "dia",
+      dateKeyFromDate(conflictingException.effectiveFrom),
+    );
+  }
+
+  await nutritionGoalsRepository.createVersionForUser(userId, versionRows, startOfUtcDate(startDate));
 
   const goal = await getUserNutritionGoal(userId);
   const savedRows = await listGoalRows(userId);
@@ -197,6 +295,7 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
     ...goal,
     startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
     versions: summarizeDefaultVersions(savedRows),
+    exceptionVersions: summarizeExceptionVersions(savedRows),
     safetyWarnings: savedAssessment.warnings,
   };
 }

@@ -29,21 +29,26 @@ export function createDrizzleNutritionGoalsRepository(deps: {
   getDb: DbProvider;
   onWarning: PersistenceWarningHandler;
 }): NutritionGoalsRepository {
-  async function createVersionForUser(userId: number, goals: NutritionGoal[], effectiveFrom: Date) {
+  async function createVersionForUser(userId: number, goals: NutritionGoal[], _effectiveFrom: Date) {
     const db = await deps.getDb();
     if (!db || !goals.length) return;
 
     try {
-      await db
-        .update(nutritionGoals)
-        .set({ effectiveUntil: effectiveFrom, updatedAt: new Date() })
-        .where(
-          and(
-            eq(nutritionGoals.userId, userId),
-            lt(nutritionGoals.effectiveFrom, effectiveFrom),
-            or(isNull(nutritionGoals.effectiveUntil), gt(nutritionGoals.effectiveUntil, effectiveFrom)),
-          ),
-        );
+      for (const goal of goals) {
+        await db
+          .update(nutritionGoals)
+          .set({ effectiveUntil: goal.effectiveFrom, updatedAt: new Date() })
+          .where(
+            and(
+              eq(nutritionGoals.userId, userId),
+              eq(nutritionGoals.ruleType, goal.ruleType),
+              eq(nutritionGoals.weekday, goal.weekday),
+              lt(nutritionGoals.effectiveFrom, goal.effectiveFrom),
+              or(isNull(nutritionGoals.effectiveUntil), gt(nutritionGoals.effectiveUntil, goal.effectiveFrom)),
+            ),
+          );
+      }
+
       await db.insert(nutritionGoals).values(toInsertValues(goals));
     } catch (error) {
       deps.onWarning("Goal persistence skipped", error);
