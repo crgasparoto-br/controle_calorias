@@ -9,6 +9,7 @@ const executeWhatsappLlmIntentMock = vi.fn();
 const foodAssistantIntentMock = vi.fn();
 const annotatedWebhookMock = vi.fn();
 const listMealsMock = vi.fn();
+const processProfessionalAccessWhatsappResponseMock = vi.fn();
 
 vi.mock("./db", () => ({
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
@@ -39,6 +40,10 @@ vi.mock("./modules/whatsapp/foodAssistant", () => ({
 
 vi.mock("./modules/meals/service", () => ({
   listMeals: listMealsMock,
+}));
+
+vi.mock("./modules/professionals/service", () => ({
+  processProfessionalAccessWhatsappResponse: processProfessionalAccessWhatsappResponseMock,
 }));
 
 vi.mock("./whatsappAnnotatedImageWebhook", () => ({
@@ -111,6 +116,7 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     foodAssistantIntentMock.mockReset();
     annotatedWebhookMock.mockReset();
     listMealsMock.mockReset();
+    processProfessionalAccessWhatsappResponseMock.mockReset();
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
@@ -120,11 +126,40 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     foodAssistantIntentMock.mockReturnValue(null);
     annotatedWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
     listMealsMock.mockResolvedValue([]);
+    processProfessionalAccessWhatsappResponseMock.mockResolvedValue(null);
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const payload = init?.body ? JSON.parse(String(init.body)) : {};
       if (payload?.text?.body) sentMessages.push(payload.text.body);
       return { ok: true, json: async () => ({}) } as Response;
     }) as typeof fetch;
+  });
+
+  it("processa decisão profissional antes dos fluxos de nutrição", async () => {
+    processProfessionalAccessWhatsappResponseMock.mockResolvedValueOnce({
+      handled: true,
+      action: "professional_access_approved",
+      reply: "Autorização confirmada.",
+      eventType: "professional.access.whatsapp_approved",
+      detail: "Solicitação de acompanhamento aprovada via WhatsApp.",
+    });
+    const req = createTextWebhookRequest("AUTORIZAR ABCD1234");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processProfessionalAccessWhatsappResponseMock).toHaveBeenCalledWith(42, "AUTORIZAR ABCD1234");
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(foodAssistantIntentMock).not.toHaveBeenCalled();
+    expect(annotatedWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "professional.access.whatsapp_approved",
+    }));
+    expect(sentMessages.at(-1)).toBe("Autorização confirmada.");
   });
 
   it("responde intencao contextual do LLM antes do fallback nutricional", async () => {
@@ -142,6 +177,7 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processProfessionalAccessWhatsappResponseMock).not.toHaveBeenCalled();
     expect(executeWhatsappLlmIntentMock).toHaveBeenCalledWith(42, expect.objectContaining({ text: "quais refeições eu registrei hoje?" }));
     expect(annotatedWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -158,6 +194,7 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
+    expect(processProfessionalAccessWhatsappResponseMock).not.toHaveBeenCalled();
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(annotatedWebhookMock).toHaveBeenCalledOnce();
     expect(sentMessages).toEqual([]);
