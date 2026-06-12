@@ -61,7 +61,20 @@ export const WHATSAPP_INTENT_CONFIDENCE = {
 export const whatsappIntentJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["intent", "confidence", "items", "requiresConfirmation", "possibleIntents"],
+  required: [
+    "intent",
+    "confidence",
+    "date",
+    "meal",
+    "items",
+    "sourceFood",
+    "targetFood",
+    "quantity",
+    "requiresConfirmation",
+    "clarificationQuestion",
+    "possibleIntents",
+    "reason",
+  ],
   properties: {
     intent: { type: "string", enum: [...whatsappIntentNames] },
     confidence: { type: "number", minimum: 0, maximum: 1 },
@@ -86,7 +99,7 @@ export const whatsappIntentJsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["foodName"],
+        required: ["foodName", "quantity", "unit", "brand", "preparation"],
         properties: {
           foodName: { type: "string" },
           quantity: { type: ["number", "null"] },

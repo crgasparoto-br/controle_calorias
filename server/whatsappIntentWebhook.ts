@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { getCatalogCache } from "./catalogRuntime";
 import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { executeWhatsappLlmIntent } from "./modules/whatsapp/llmIntentActions";
 import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
@@ -18,7 +19,7 @@ import {
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
 
-type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>> | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
+type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>> | NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>> | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
 type TextIntentHandlingResult = boolean | { passthroughText: string };
 type NutritionTotals = {
   calories: number;
@@ -111,6 +112,14 @@ function buildUnknownFoodReply(text: string) {
 function isBareDailySummaryRequest(text: string) {
   const normalized = normalizeText(text);
   return normalized === "resumo" || normalized === "relatorio" || normalized === "balanco";
+}
+
+function shouldTryContextualLlmIntent(text: string) {
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (hasExplicitFoodQuantity(text)) return false;
+  if (/\b(almocei|jantei|comi|lanchei|ceei|tomei|bebi)\b/.test(normalized)) return false;
+  return /\b(refeicoes?|registrad[ao]s?|registrei|registro|consultar|consulta|listar|mostra|mostrar|ver|resumo do dia|total de hoje|calorias de hoje|corrigir|correcao|trocar|substituir|ajuda|comandos)\b/.test(normalized);
 }
 
 function isInsidePeriod(value: number | string | Date, start: Date, end: Date) {
@@ -330,6 +339,9 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
   let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+  if (!result && shouldTryContextualLlmIntent(textForIntent)) {
+    result = await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+  }
   result ??= executeWhatsAppFoodAssistantIntent(text);
 
   if (!result) {

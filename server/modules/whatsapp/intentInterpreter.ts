@@ -5,11 +5,27 @@ import {
   type WhatsappInterpretedIntent,
   whatsappIntentJsonSchema,
 } from "./intentSchema";
+import type { WhatsappIntentValidationStatus } from "./intentAuditLog";
 import type { WhatsappIntentContext } from "./intentContext";
 
 type InterpretOptions = {
   useLlm?: boolean;
 };
+
+export type WhatsappIntentInterpretationSource = "llm" | "deterministic";
+export type WhatsappIntentFallbackReason = "disabled" | "api_error" | "invalid_json" | "invalid_payload" | "timeout";
+
+export type WhatsappMessageInterpretation = {
+  intent: WhatsappInterpretedIntent;
+  source: WhatsappIntentInterpretationSource;
+  validationStatus: WhatsappIntentValidationStatus;
+  fallbackReason?: WhatsappIntentFallbackReason;
+  errorCode?: string;
+};
+
+const DEFAULT_LLM_TIMEOUT_MS = 8_000;
+const DEFAULT_LLM_RETRIES = 1;
+const MAX_LLM_RETRIES = 2;
 
 function normalizeText(value: string) {
   return value
@@ -176,9 +192,9 @@ export function classifyWhatsappMessageDeterministically(text: string): Whatsapp
 
 function parseJson(value: string) {
   try {
-    return JSON.parse(value) as unknown;
+    return { ok: true as const, value: JSON.parse(value) as unknown };
   } catch {
-    return null;
+    return { ok: false as const };
   }
 }
 
@@ -195,34 +211,117 @@ function buildInstructions(context: WhatsappIntentContext) {
   ].join("\n");
 }
 
+function isWhatsappLlmEnabled(options: InterpretOptions) {
+  if (options.useLlm === false) return false;
+  const flag = process.env.OPENAI_WHATSAPP_INTENT_ENABLED;
+  if (!flag) return true;
+  return !["0", "false", "no", "off"].includes(flag.trim().toLowerCase());
+}
+
+function readPositiveIntegerEnv(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+function getWhatsappIntentTimeoutMs() {
+  return readPositiveIntegerEnv("OPENAI_WHATSAPP_INTENT_TIMEOUT_MS", DEFAULT_LLM_TIMEOUT_MS);
+}
+
+function getWhatsappIntentRetries() {
+  const rawValue = Number(process.env.OPENAI_WHATSAPP_INTENT_RETRIES);
+  if (!Number.isFinite(rawValue) || rawValue < 0) return DEFAULT_LLM_RETRIES;
+  return Math.min(Math.floor(rawValue), MAX_LLM_RETRIES);
+}
+
+class WhatsappIntentTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`WhatsApp intent interpretation timed out after ${timeoutMs}ms`);
+    this.name = "WhatsappIntentTimeoutError";
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new WhatsappIntentTimeoutError(timeoutMs)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function deterministicInterpretation(
+  text: string,
+  fallbackReason: WhatsappIntentFallbackReason,
+  validationStatus: WhatsappIntentValidationStatus,
+  errorCode?: string,
+): WhatsappMessageInterpretation {
+  return {
+    intent: classifyWhatsappMessageDeterministically(text),
+    source: "deterministic",
+    validationStatus,
+    fallbackReason,
+    ...(errorCode ? { errorCode } : {}),
+  };
+}
+
+export async function interpretWhatsappMessageWithDiagnostics(
+  text: string,
+  context: WhatsappIntentContext,
+  options: InterpretOptions = {},
+): Promise<WhatsappMessageInterpretation> {
+  if (!isWhatsappLlmEnabled(options)) {
+    return deterministicInterpretation(text, "disabled", "skipped");
+  }
+
+  const timeoutMs = getWhatsappIntentTimeoutMs();
+  const maxRetries = getWhatsappIntentRetries();
+  let lastErrorCode = "api_error";
+  let lastFallbackReason: WhatsappIntentFallbackReason = "api_error";
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const response = await withTimeout(getAiProvider().createTextResponse({
+        model: process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? "gpt-4.1-mini",
+        instructions: buildInstructions(context),
+        input: [{ role: "user", content: [{ type: "input_text", text }] }],
+        format: {
+          type: "json_schema",
+          name: "whatsapp_intent",
+          schema: whatsappIntentJsonSchema as unknown as Record<string, unknown>,
+          strict: true,
+        },
+      }), timeoutMs);
+
+      const json = parseJson(response.outputText);
+      if (!json.ok) {
+        return deterministicInterpretation(text, "invalid_json", "invalid_json", "invalid_json");
+      }
+      const parsed = parseWhatsappInterpretedIntent(json.value);
+      if (!parsed.success) {
+        return deterministicInterpretation(text, "invalid_payload", "invalid_payload", "invalid_payload");
+      }
+      return {
+        intent: parsed.data,
+        source: "llm",
+        validationStatus: "valid",
+      };
+    } catch (error) {
+      const timedOut = error instanceof WhatsappIntentTimeoutError;
+      lastFallbackReason = timedOut ? "timeout" : "api_error";
+      lastErrorCode = timedOut ? "timeout" : "api_error";
+    }
+  }
+
+  return deterministicInterpretation(text, lastFallbackReason, "skipped", lastErrorCode);
+}
+
 export async function interpretWhatsappMessage(
   text: string,
   context: WhatsappIntentContext,
   options: InterpretOptions = {},
 ): Promise<WhatsappInterpretedIntent> {
-  if (options.useLlm === false) {
-    return classifyWhatsappMessageDeterministically(text);
-  }
-
-  try {
-    const response = await getAiProvider().createTextResponse({
-      model: process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? "gpt-4.1-mini",
-      instructions: buildInstructions(context),
-      input: [{ role: "user", content: [{ type: "input_text", text }] }],
-      format: {
-        type: "json_schema",
-        name: "whatsapp_intent",
-        schema: whatsappIntentJsonSchema as unknown as Record<string, unknown>,
-        strict: true,
-      },
-    });
-    const parsed = parseWhatsappInterpretedIntent(parseJson(response.outputText));
-    if (parsed.success) {
-      return parsed.data;
-    }
-  } catch {
-    // Keep WhatsApp usable when the LLM is unavailable or returns invalid JSON.
-  }
-
-  return classifyWhatsappMessageDeterministically(text);
+  return (await interpretWhatsappMessageWithDiagnostics(text, context, options)).intent;
 }
