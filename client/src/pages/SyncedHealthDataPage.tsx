@@ -24,6 +24,112 @@ const DATA_TYPES = [
 const PAGE_SIZE = 20;
 const TECHNICAL_METADATA_KEYS = new Set(["externalId", "gearId", "id"]);
 
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  alpine_ski: "Esqui alpino",
+  alpineski: "Esqui alpino",
+  backcountry_ski: "Esqui fora de pista",
+  backcountryski: "Esqui fora de pista",
+  badminton: "Badminton",
+  basketball: "Basquete",
+  canoeing: "Canoagem",
+  commute: "Deslocamento",
+  crossfit: "CrossFit",
+  ebikeride: "Pedalada com bicicleta elétrica",
+  elliptical: "Elíptico",
+  emountainbikeride: "Mountain bike elétrica",
+  gravelride: "Pedalada em gravel",
+  handcycle: "Handbike",
+  hike: "Caminhada em trilha",
+  iceskate: "Patinação no gelo",
+  kayaking: "Caiaque",
+  kitesurf: "Kitesurf",
+  mountainbikeride: "Mountain bike",
+  nordicski: "Esqui nórdico",
+  pickleball: "Pickleball",
+  pilates: "Pilates",
+  ride: "Pedalada",
+  rockclimbing: "Escalada",
+  rollerski: "Ski sobre rodas",
+  rowing: "Remo",
+  run: "Corrida",
+  sailing: "Vela",
+  skateboard: "Skate",
+  snowboarding: "Snowboard",
+  snowshoe: "Caminhada na neve",
+  soccer: "Futebol",
+  stairstepper: "Simulador de escada",
+  standuppaddling: "Stand up paddle",
+  strength: "Musculação",
+  strengthtraining: "Musculação",
+  surfing: "Surfe",
+  swim: "Natação",
+  tabletennis: "Tênis de mesa",
+  tennis: "Tênis",
+  trailrun: "Corrida em trilha",
+  velomobile: "Velomóvel",
+  virtualride: "Pedalada virtual",
+  virtualrow: "Remo virtual",
+  virtualrun: "Corrida virtual",
+  walk: "Caminhada",
+  weighttraining: "Musculação",
+  wheelchair: "Cadeira de rodas",
+  workout: "Treino",
+  yoga: "Yoga",
+};
+
+const METADATA_LABELS: Record<string, string> = {
+  achievementCount: "Conquistas",
+  averageCadence: "Cadência média",
+  commute: "Deslocamento",
+  deviceName: "Dispositivo",
+  elapsedTimeSeconds: "Tempo total",
+  hasHeartrate: "Possui frequência cardíaca",
+  manual: "Registro manual",
+  maxHeartRate: "FC máxima",
+  maxSpeedMetersPerSecond: "Velocidade máxima",
+  perceivedEffort: "Esforço percebido",
+  sourceStatus: "Status da sincronização",
+  sportType: "Tipo de atividade",
+  startDateLocal: "Data e hora local",
+  timezone: "Fuso horário",
+  trainer: "Treino indoor",
+  workoutType: "Tipo de treino",
+};
+
+const METADATA_VALUE_LABELS: Record<string, string> = {
+  active: "Ativo",
+  commute: "Deslocamento",
+  easy: "Leve",
+  false: "Não",
+  hard: "Intenso",
+  indoor: "Ambiente interno",
+  manual: "Manual",
+  moderate: "Moderado",
+  outdoor: "Ambiente externo",
+  private: "Privado",
+  public: "Público",
+  synced: "Sincronizado",
+  true: "Sim",
+};
+
+const UNIT_LABELS: Record<string, string> = {
+  bpm: "bpm",
+  count: "",
+  hour: "h",
+  hours: "h",
+  kcal: "kcal",
+  kg: "kg",
+  kilometer: "km",
+  kilometers: "km",
+  km: "km",
+  meter: "m",
+  meters: "m",
+  minute: "min",
+  minutes: "min",
+  second: "s",
+  seconds: "s",
+};
+
 type HealthProvider = "apple_health" | "health_connect" | "google_fit" | "strava" | "garmin_connect" | "mock";
 type HealthDataType = "steps" | "weight" | "activity" | "energy_burned" | "sleep";
 
@@ -421,15 +527,38 @@ function getMetadata(record: SyncedHealthRecord): RecordMetadata {
   return record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata) ? record.metadata : {};
 }
 
+function normalizeDictionaryKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+function formatActivityType(value: string | null | undefined) {
+  if (!value?.trim()) return null;
+  return ACTIVITY_TYPE_LABELS[normalizeDictionaryKey(value)] ?? null;
+}
+
+function getRecordActivityLabel(record: SyncedHealthRecord) {
+  return formatActivityType(record.activityType)
+    ?? formatActivityType(getStringMetadata(record, "sportType"))
+    ?? formatActivityType(getStringMetadata(record, "workoutType"));
+}
+
 function getRecordTitle(record: SyncedHealthRecord) {
+  if (record.dataType === "activity") {
+    return getRecordActivityLabel(record) ?? "Atividade importada";
+  }
+
   const metadata = getMetadata(record);
   const name = metadata.name;
-  return typeof name === "string" && name.trim() ? name : record.activityType || formatDataType(record.dataType);
+  return typeof name === "string" && name.trim() ? name : formatDataType(record.dataType);
 }
 
 function formatDataType(dataType: string) {
   const match = DATA_TYPES.find(item => item.value === dataType);
-  return match?.label ?? dataType;
+  return match?.label ?? formatMetadataLabel(dataType);
 }
 
 function formatSource(source: string) {
@@ -480,12 +609,18 @@ function formatCaloriesBadge(record: SyncedHealthRecord) {
   return formatCalories(calories);
 }
 
+function formatUnit(unit: string) {
+  return UNIT_LABELS[normalizeDictionaryKey(unit)] ?? formatMetadataLabel(unit).toLowerCase();
+}
+
 function formatRecordValue(record: SyncedHealthRecord) {
   if (record.unit === "minutes") return `${formatIntegerPtBr(Math.round(record.value))} min`;
   if (record.unit === "kcal") return formatCalories(record.value);
   if (record.unit === "kg") return `${formatNumberPtBr(record.value, { maximumFractionDigits: 1 })} kg`;
   if (record.unit === "count") return formatIntegerPtBr(record.value);
-  return `${formatNumberPtBr(record.value)} ${record.unit}`;
+
+  const unit = formatUnit(record.unit);
+  return unit ? `${formatNumberPtBr(record.value)} ${unit}` : formatNumberPtBr(record.value);
 }
 
 function formatDuration(seconds: number | null, fallbackMinutes?: number) {
@@ -539,7 +674,7 @@ function buildUserFacingDetails(record: SyncedHealthRecord) {
   const caloriesSource = formatCaloriesSource(record);
   const averageSpeed = getNumberMetadata(record, "averageSpeedMetersPerSecond");
 
-  addDetail(details, "Tipo", record.activityType || formatDataType(record.dataType));
+  addDetail(details, "Tipo", getRecordActivityLabel(record) ?? formatDataType(record.dataType));
   addDetail(details, "Origem", formatSource(record.source));
   addDetail(details, "Data e hora", formatMeasuredAt(record.measuredAt));
   addDetail(details, "Duração", formatDuration(getNumberMetadata(record, "movingTimeSeconds"), record.unit === "minutes" ? record.value : undefined));
@@ -584,16 +719,32 @@ function isKnownFormattedMetadataKey(key: string) {
 }
 
 function formatMetadataLabel(value: string) {
+  const translated = METADATA_LABELS[value];
+  if (translated) return translated;
+
   return value
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
     .replace(/^./, char => char.toUpperCase());
 }
 
+function formatStringMetadataValue(value: string) {
+  const activityLabel = formatActivityType(value);
+  if (activityLabel) return activityLabel;
+
+  const translated = METADATA_VALUE_LABELS[normalizeDictionaryKey(value)];
+  if (translated) return translated;
+
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime()) && /\d{4}-\d{2}-\d{2}/.test(value)) return formatMeasuredAt(value);
+
+  return value;
+}
+
 function formatMetadataValue(value: unknown) {
   if (typeof value === "number") return formatNumberPtBr(value, { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 });
   if (typeof value === "boolean") return value ? "Sim" : "Não";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") return formatStringMetadataValue(value);
   if (value === null || value === undefined) return null;
   return JSON.stringify(value);
 }
