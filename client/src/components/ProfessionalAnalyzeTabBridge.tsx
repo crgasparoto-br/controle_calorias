@@ -9,23 +9,35 @@ function elementText(element: Element) {
 }
 
 function findAnalysisTab() {
-  return Array.from(document.querySelectorAll<HTMLElement>("[role='tab'], button")).find(element =>
-    elementText(element).includes(ANALYSIS_TAB_LABEL),
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>("[role='tab'], [data-value='analise'], button"));
+  return candidates.find(element =>
+    element.getAttribute("data-value") === "analise" || elementText(element).includes(ANALYSIS_TAB_LABEL),
   ) ?? null;
+}
+
+function findAnalysisPanel() {
+  return document.querySelector<HTMLElement>("[role='tabpanel'][data-state='active']") ??
+    Array.from(document.querySelectorAll<HTMLElement>("section, div, article")).find(element =>
+      elementText(element).includes("Escolha uma pessoa autorizada para revisar relatórios"),
+    ) ?? null;
 }
 
 function findAnalyzeButton(target: EventTarget | null) {
   if (!(target instanceof Element)) return null;
   const button = target.closest<HTMLButtonElement>("button");
   if (!button) return null;
-  return elementText(button).includes(ANALYZE_BUTTON_LABEL) ? button : null;
+  return elementText(button) === ANALYZE_BUTTON_LABEL ? button : null;
 }
 
 function openAnalysisTab() {
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => {
-      findAnalysisTab()?.click();
-    });
+  const attempts = [0, 50, 150, 300];
+  attempts.forEach(delay => {
+    window.setTimeout(() => {
+      const tab = findAnalysisTab();
+      tab?.click();
+      tab?.focus({ preventScroll: true });
+      findAnalysisPanel()?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, delay);
   });
 }
 

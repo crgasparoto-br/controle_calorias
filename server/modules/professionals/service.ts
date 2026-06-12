@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import { and, eq, or } from "drizzle-orm";
 import { userPreferences, users, whatsappConnections } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
-import { getDb, getDashboardSnapshot, getWeeklyProgress, getWeeklySummary, listUserMeals } from "../../db";
+import { getDb, listUserMeals } from "../../db";
+import { getPeriodReportBundle, getWeeklyReportBundle } from "../insights/service";
 import { redactSensitiveText } from "../../privacy";
 import { getNutritionGoal } from "../goals/service";
 import {
@@ -562,12 +563,10 @@ export async function revokePatientAccess(patientUserId: number, accessId: strin
   return publicAccess(revoked);
 }
 
-export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number) {
+export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number, weekOffset = 0) {
   await assertApprovedAccess(professionalUserId, patientUserId);
-  const [dashboard, weeklyProgress, weeklyReport, meals, patient, nutritionGoal] = await Promise.all([
-    getDashboardSnapshot(patientUserId),
-    getWeeklyProgress(patientUserId),
-    getWeeklySummary(patientUserId),
+  const [bundle, recentMeals, patient, nutritionGoal] = await Promise.all([
+    getWeeklyReportBundle(patientUserId, weekOffset),
     listUserMeals(patientUserId),
     getUserSummary(patientUserId),
     getNutritionGoal(patientUserId),
@@ -576,25 +575,39 @@ export async function getProfessionalPatientDashboard(professionalUserId: number
   return {
     patientId: patientUserId,
     patient,
-    weeklyAdherence: dashboard.week.adherence,
+    weeklyAdherence: bundle.progress.summary.totalGoalCalories
+      ? Math.min(Math.round((bundle.progress.summary.totalCalories / bundle.progress.summary.totalGoalCalories) * 100), 100)
+      : 0,
     calories: {
-      consumed: dashboard.week.consumed.calories,
-      planned: dashboard.week.planned.calories,
-      burned: dashboard.week.burned.calories,
+      consumed: bundle.progress.summary.totalCalories,
+      planned: bundle.progress.summary.totalGoalCalories,
+      burned: bundle.progress.summary.totalExerciseCalories,
     },
     macros: {
-      protein: dashboard.week.consumed.protein,
-      carbs: dashboard.week.consumed.carbs,
-      fat: dashboard.week.consumed.fat,
+      protein: Math.round(bundle.progress.summary.averageProtein * bundle.weekly.length),
+      carbs: Math.round(bundle.weekly.reduce((acc, day) => acc + day.carbs, 0)),
+      fat: Math.round(bundle.weekly.reduce((acc, day) => acc + day.fat, 0)),
     },
-    weight: weeklyProgress.weight,
+    weight: bundle.progress.weight,
     nutritionGoal,
-    weeklyReport,
-    meals: meals.slice(0, 20),
+    weeklyReport: bundle.weekly,
+    progress: bundle.progress,
+    insights: bundle.insights,
+    quality: bundle.quality,
+    meals: recentMeals.slice(0, 20),
     comments: comments.filter(comment => comment.professionalUserId === professionalUserId && comment.patientUserId === patientUserId),
     goalSuggestions: goalSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
     mealSuggestions: mealSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
   };
+}
+
+export async function getProfessionalPatientPeriodBundle(
+  professionalUserId: number,
+  patientUserId: number,
+  range: { startDate: string; endDate: string },
+) {
+  await assertApprovedAccess(professionalUserId, patientUserId);
+  return getPeriodReportBundle(patientUserId, range);
 }
 
 type ProfessionalPatientDashboard = Awaited<ReturnType<typeof getProfessionalPatientDashboard>>;
