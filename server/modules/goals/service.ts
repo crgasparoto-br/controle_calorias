@@ -196,9 +196,15 @@ function buildVersionRows(userId: number, input: GoalInput, defaultStartDate: st
   ];
 }
 
+function hasZeroLengthVersion(row: NutritionGoal) {
+  return Boolean(row.effectiveUntil) && dateKeyFromDate(row.effectiveFrom) === dateKeyFromDate(row.effectiveUntil!);
+}
+
 function summarizeDefaultVersions(rows: NutritionGoal[] | null) {
+  const seenVersions = new Set<string>();
+
   return (rows ?? [])
-    .filter(row => row.ruleType === "default")
+    .filter(row => row.ruleType === "default" && !hasZeroLengthVersion(row))
     .map(row => ({
       id: row.id,
       startDate: dateKeyFromDate(row.effectiveFrom),
@@ -210,7 +216,31 @@ function summarizeDefaultVersions(rows: NutritionGoal[] | null) {
       fatGrams: row.fatGrams,
       isCurrent: !row.effectiveUntil || new Date(row.effectiveUntil).getTime() > Date.now(),
     }))
-    .sort((first, second) => second.startDate.localeCompare(first.startDate));
+    .filter(version => {
+      const endDate = version.effectiveUntil ? dateKeyFromDate(version.effectiveUntil) : "current";
+      const key = [
+        version.startDate,
+        endDate,
+        version.calories,
+        version.proteinGrams,
+        version.carbsGrams,
+        version.fatGrams,
+      ].join(":");
+
+      if (seenVersions.has(key)) return false;
+      seenVersions.add(key);
+      return true;
+    })
+    .sort((first, second) => {
+      const firstHasEndDate = Boolean(first.effectiveUntil);
+      const secondHasEndDate = Boolean(second.effectiveUntil);
+
+      if (firstHasEndDate !== secondHasEndDate) {
+        return firstHasEndDate ? 1 : -1;
+      }
+
+      return second.startDate.localeCompare(first.startDate);
+    });
 }
 
 function summarizeExceptionVersions(rows: NutritionGoal[] | null) {

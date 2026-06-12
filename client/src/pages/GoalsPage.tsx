@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import {
   assessNutritionGoalTargets,
 } from "@shared/nutritionSafety";
@@ -109,10 +108,6 @@ const DURATION_OPTIONS: Array<{ value: DurationType; label: string }> = [
   { value: "always", label: "Sempre" },
 ];
 
-function getWeekdayIndex(date: Date) {
-  return (date.getDay() + 6) % 7;
-}
-
 function toDateInputValue(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -127,6 +122,44 @@ function dateKeyFromDateLike(value?: Date | string | number | null) {
 
 function getWeekdayLabel(weekday: number) {
   return WEEKDAY_META.find(day => day.weekday === weekday)?.label ?? "Dia";
+}
+
+function dateKeyToLogicalUtcDate(dateKey: string) {
+  return new Date(`${dateKey || toDateInputValue()}T12:00:00Z`);
+}
+
+function getUtcWeekdayIndex(date: Date) {
+  return (date.getUTCDay() + 6) % 7;
+}
+
+function startOfPreviewWeekDateKey(dateKey: string) {
+  const value = dateKeyToLogicalUtcDate(dateKey);
+  value.setUTCDate(value.getUTCDate() - getUtcWeekdayIndex(value));
+  return value.toISOString().slice(0, 10);
+}
+
+function addDaysToDateKey(dateKey: string, days: number) {
+  const value = dateKeyToLogicalUtcDate(dateKey);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function resolvePreviewException(exceptions: GoalExceptionForm[], weekday: number, dateKey: string) {
+  return exceptions
+    .filter(exception => exception.weekday === weekday && exception.startDate && exception.startDate <= dateKey)
+    .sort((first, second) => second.startDate.localeCompare(first.startDate))[0];
+}
+
+function formatMacroSummary(goal: GoalTargetBase) {
+  return `${formatGrams(goal.proteinGrams)} prot. | ${formatGrams(goal.carbsGrams)} carbo | ${formatGrams(goal.fatGrams)} gord.`;
+}
+
+function formatMacroPercentSummary(goal: Pick<GoalTargetForm, MacroPercentField>) {
+  return `${formatPercentPtBr(goal.proteinPercent, 1)} prot. | ${formatPercentPtBr(goal.carbsPercent, 1)} carbo | ${formatPercentPtBr(goal.fatPercent, 1)} gord.`;
+}
+
+function getDurationLabel(durationType: DurationType) {
+  return DURATION_OPTIONS.find(option => option.value === durationType)?.label ?? "Duração definida";
 }
 
 function formatDateKey(dateKey?: string | null) {
@@ -325,11 +358,15 @@ export default function GoalsPage() {
 
   const goalVersions = (goalQuery.data?.versions ?? []) as GoalVersionQuery[];
   const exceptionVersions = (goalQuery.data?.exceptionVersions ?? []) as GoalExceptionVersionQuery[];
-  const previewDays = useMemo(() => WEEKDAY_META.map(day => {
-    const exception = exceptions.find(item => item.weekday === day.weekday);
+  const previewWeekStartDate = useMemo(() => startOfPreviewWeekDateKey(startDate), [startDate]);
+  const previewWeekEndDate = useMemo(() => addDaysToDateKey(previewWeekStartDate, 6), [previewWeekStartDate]);
+  const previewDays = useMemo(() => WEEKDAY_META.map((day, index) => {
+    const date = addDaysToDateKey(previewWeekStartDate, index);
+    const exception = resolvePreviewException(exceptions, day.weekday, date);
     const applied = exception ?? defaultGoal;
     return {
       ...day,
+      date,
       calories: applied.calories,
       proteinGrams: applied.proteinGrams,
       carbsGrams: applied.carbsGrams,
@@ -338,7 +375,7 @@ export default function GoalsPage() {
       durationType: exception?.durationType,
       startDate: exception?.startDate,
     };
-  }), [defaultGoal, exceptions]);
+  }), [defaultGoal, exceptions, previewWeekStartDate]);
 
   const weeklyTotals = useMemo(() => previewDays.reduce(
     (acc, day) => {
@@ -351,9 +388,6 @@ export default function GoalsPage() {
     { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
   ), [previewDays]);
 
-  const weeklyMacroCalories = weeklyTotals.proteinGrams * 4 + weeklyTotals.carbsGrams * 4 + weeklyTotals.fatGrams * 9;
-  const alignment = weeklyTotals.calories ? Math.min((weeklyMacroCalories / weeklyTotals.calories) * 100, 140) : 0;
-  const todayGoal = previewDays[getWeekdayIndex(new Date())] ?? previewDays[0];
   const availableWeekdays = WEEKDAY_META;
   const defaultPercentSum = getPercentSum(defaultGoal);
   const hasInvalidPercentages = !isPercentModeValid(defaultGoal) || exceptions.some(exception => !isPercentModeValid(exception));
@@ -367,7 +401,7 @@ export default function GoalsPage() {
     });
   }, [exceptions, startDate]);
   const safetyAssessment = useMemo(() => assessNutritionGoalTargets([
-    { label: "Meta geral", ...toGoalPayload(defaultGoal) },
+    { label: "Meta padrão", ...toGoalPayload(defaultGoal) },
     ...exceptions.map(exception => ({
       label: WEEKDAY_META.find(day => day.weekday === exception.weekday)?.label ?? "Exceção",
       ...toGoalPayload(exception),
@@ -510,60 +544,49 @@ export default function GoalsPage() {
       <div className="space-y-6">
         <PageIntro
           eyebrow="Planejamento nutricional"
-          title="Metas e exceções da semana"
-          description="Defina a meta usada na maior parte dos dias, escolha quando ela começa a valer e ajuste os dias que precisam de valores diferentes. Cada exceção também pode ter uma data própria de início."
-          actions={(
-            <Button
-              className="rounded-full"
-              type="button"
-              variant="outline"
-              onClick={addException}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Adicionar exceção
-            </Button>
-          )}
+          title="Metas nutricionais"
+          description="Defina a meta padrão de calorias e macronutrientes, acompanhe a distribuição semanal e configure exceções para dias com rotina diferente."
           stats={(
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <IntroStat
-                label="Meta de hoje"
-                value={todayGoal.label}
-                supporting={formatCalories(todayGoal.calories)}
-              />
-              <IntroStat
-                label="Início da versão"
-                value={formatDateKey(startDate)}
-                supporting="data em que a meta geral salva passa a valer"
-              />
-              <IntroStat
-                label="Exceções ativas"
-                value={String(exceptions.length)}
-                supporting={exceptions.length ? "regras com data própria" : "todos os dias usam a meta geral"}
-              />
-              <IntroStat
-                label="Meta geral"
+                label="Meta padrão"
                 value={formatCalories(defaultGoal.calories)}
-                supporting={`${formatGrams(defaultGoal.proteinGrams)} de proteína por dia`}
+                supporting={formatMacroSummary(defaultGoal)}
               />
               <IntroStat
-                label="Calorias na semana"
+                label="Distribuição dos macros"
+                value={formatPercentPtBr(defaultPercentSum, 1)}
+                supporting={formatMacroPercentSummary(defaultGoal)}
+              />
+              <IntroStat
+                label="Exceções programadas"
+                value={String(exceptions.length)}
+                supporting={exceptions.length ? "regras com dia e início próprios" : "meta padrão em todos os dias"}
+              />
+              <IntroStat
+                label="Planejamento semanal"
                 value={formatCalories(weeklyTotals.calories)}
-                supporting="planejamento de segunda a domingo"
+                supporting={`${formatDateKey(previewWeekStartDate)} a ${formatDateKey(previewWeekEndDate)}`}
+              />
+              <IntroStat
+                label="Início da meta geral"
+                value={formatDateKey(startDate)}
+                supporting="data em que a meta padrão passa a valer"
               />
             </div>
           )}
         />
 
-        <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr),minmax(22rem,0.85fr)]">
           <div className="space-y-6">
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Goal className="h-5 w-5 text-primary" />
-                  Meta geral da semana
+                  Meta padrão
                 </CardTitle>
                 <CardDescription>
-                  Use esta meta como referência para os dias sem exceção. Preencha os macronutrientes, informe a data de início e revise os avisos antes de salvar.
+                  Use esta meta como referência para os dias sem exceção. Preencha calorias e macronutrientes, informe a data de início e revise os avisos antes de salvar.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -603,11 +626,22 @@ export default function GoalsPage() {
             </Card>
 
             <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle>Exceções por dia da semana</CardTitle>
-                <CardDescription>
-                  Use exceções para dias com uma rotina diferente, como treino, descanso ou compromisso especial. Cada exceção passa a valer a partir da data escolhida para ela.
-                </CardDescription>
+              <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1.5">
+                  <CardTitle>Exceções programadas</CardTitle>
+                  <CardDescription>
+                    Configure regras com dia da semana, data de início e duração para treinos, descanso, fins de semana ou compromissos especiais.
+                  </CardDescription>
+                </div>
+                <Button
+                  className="shrink-0 rounded-full"
+                  type="button"
+                  variant="outline"
+                  onClick={addException}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Adicionar exceção
+                </Button>
               </CardHeader>
               <CardContent className="space-y-4">
                 {hasExceptionVersionConflict ? (
@@ -642,9 +676,14 @@ export default function GoalsPage() {
                         Remover
                       </Button>
                     </div>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      Esta exceção de {getWeekdayLabel(exception.weekday).toLowerCase()} passa a valer em {formatDateKey(exception.startDate)}.
-                    </p>
+                    <div className="mt-3 rounded-2xl bg-background/70 p-3 text-sm text-muted-foreground">
+                      <p>
+                        {getWeekdayLabel(exception.weekday)} desde {formatDateKey(exception.startDate)} · {getDurationLabel(exception.durationType)}
+                      </p>
+                      <p className="mt-1 text-foreground">
+                        {formatCalories(exception.calories)} · {formatMacroSummary(exception)}
+                      </p>
+                    </div>
                     <div className="mt-4 space-y-4">
                       <ModeSelector mode={exception.inputMode} onChange={mode => updateExceptionInputMode(index, mode)} />
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -679,47 +718,40 @@ export default function GoalsPage() {
                   </div>
                 )) : (
                   <div className="rounded-3xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
-                    Nenhuma exceção adicionada. A meta geral será usada em todos os dias da semana.
+                    <p className="font-medium text-foreground">Nenhuma exceção configurada.</p>
+                    <p className="mt-1">A meta padrão será usada todos os dias. Use exceções para dias de treino, descanso, fim de semana ou compromissos especiais.</p>
+                    <Button className="mt-4 rounded-full" type="button" variant="outline" onClick={addException}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Adicionar exceção
+                    </Button>
                   </div>
                 )}
-
-                <Button
-                  className="rounded-full"
-                  disabled={updateGoal.isPending}
-                  onClick={handleSave}
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {updateGoal.isPending ? "Salvando..." : "Salvar metas"}
-                </Button>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid gap-6">
-            <GoalVersionHistory versions={goalVersions} selectedStartDate={startDate} />
-            <ExceptionVersionHistory versions={exceptionVersions} selectedExceptions={exceptions} />
-
+          <div className="space-y-6">
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CalendarRange className="h-5 w-5 text-primary" />
-                  Soma planejada da semana
+                  Prévia da semana
                 </CardTitle>
                 <CardDescription>
-                  Confira como a meta geral e as exceções ficam distribuídas de segunda-feira a domingo.
+                  Simulação de {formatDateKey(previewWeekStartDate)} a {formatDateKey(previewWeekEndDate)}. Para cada dia, vale a exceção programada mais recente que já iniciou naquela data.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-8 xl:overflow-visible xl:pb-0">
+                <div className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-3 xl:overflow-visible xl:pb-0">
                   {previewDays.map(day => (
-                    <div key={day.weekday} className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
+                    <div key={`${day.weekday}-${day.date}`} className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <p className="truncate font-medium tracking-tight">{day.label}</p>
-                          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
+                          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{formatDateKey(day.date)}</span>
                         </div>
                         <p className="min-h-10 text-sm leading-5 text-foreground">
-                          {day.source === "exception" ? `Exceção desde ${formatDateKey(day.startDate)}.` : "Usa a meta geral."}
+                          {day.source === "exception" ? `Exceção desde ${formatDateKey(day.startDate)}.` : "Usa a meta padrão."}
                         </p>
                       </div>
                       <div className="mt-3 space-y-1 text-sm text-foreground">
@@ -733,11 +765,11 @@ export default function GoalsPage() {
                   <div className="min-w-0 rounded-2xl border border-l-4 border-l-emerald-500 bg-background p-3">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="truncate font-medium tracking-tight">Total</p>
+                        <p className="truncate font-medium tracking-tight">Total da Semana</p>
                         <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">sem.</span>
                       </div>
                       <p className="min-h-10 text-sm leading-5 text-foreground">
-                        Soma das metas planejadas para a semana.
+                        Soma das metas simuladas para a semana de referência.
                       </p>
                     </div>
                     <div className="mt-3 space-y-1 text-sm text-foreground">
@@ -750,37 +782,29 @@ export default function GoalsPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle>Foco do dia atual</CardTitle>
-                <CardDescription>
-                  Veja qual meta vale para hoje, considerando a meta geral e qualquer exceção ativa para este dia.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="rounded-3xl bg-muted/30 p-5">
-                  <p className="text-sm text-muted-foreground">Meta ativa hoje</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight">{todayGoal.label}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {formatCalories(todayGoal.calories)} planejadas para hoje {todayGoal.source === "exception" ? "por uma exceção deste dia" : "pela meta geral"}.
-                  </p>
-                </div>
-                <div className="grid gap-3">
-                  <MacroSplit label="Proteínas" value={todayGoal.proteinGrams} calorieFactor={4} accent="bg-emerald-500" />
-                  <MacroSplit label="Carboidratos" value={todayGoal.carbsGrams} calorieFactor={4} accent="bg-sky-500" />
-                  <MacroSplit label="Gorduras" value={todayGoal.fatGrams} calorieFactor={9} accent="bg-amber-500" />
-                </div>
-                <div className="rounded-3xl border bg-background p-4 shadow-sm">
-                  <p className="text-sm text-muted-foreground">Conferência entre calorias e macros</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight">{formatCalories(weeklyMacroCalories)}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Calorias estimadas a partir das proteínas, carboidratos e gorduras planejados para a semana.</p>
-                  <Progress className="mt-4 h-2" value={alignment} />
-                  <p className="mt-3 text-sm text-muted-foreground">{formatPercentPtBr(alignment)}% de proximidade entre as calorias informadas e os macronutrientes planejados.</p>
-                </div>
-              </CardContent>
-            </Card>
           </div>
+        </div>
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Histórico</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Consulte versões anteriores e programadas sem misturar histórico com a edição principal.</p>
+          </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <GoalVersionHistory versions={goalVersions} selectedStartDate={startDate} />
+            <ExceptionVersionHistory versions={exceptionVersions} selectedExceptions={exceptions} />
+          </div>
+        </section>
+
+        <div className="flex justify-end">
+          <Button
+            className="rounded-full"
+            disabled={updateGoal.isPending}
+            onClick={handleSave}
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {updateGoal.isPending ? "Salvando..." : "Salvar metas"}
+          </Button>
         </div>
       </div>
     </DashboardLayout>
@@ -1113,31 +1137,6 @@ function SelectField({
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>
-    </div>
-  );
-}
-
-function MacroSplit({
-  label,
-  value,
-  calorieFactor,
-  accent,
-}: {
-  label: string;
-  value: number;
-  calorieFactor: number;
-  accent: string;
-}) {
-  return (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className={`h-3 w-3 rounded-full ${accent}`} />
-          <p className="font-medium tracking-tight">{label}</p>
-        </div>
-        <p className="text-sm text-muted-foreground">{formatGrams(value)}</p>
-      </div>
-      <p className="mt-2 text-sm text-muted-foreground">{formatCalories(value * calorieFactor)} planejadas a partir deste macronutriente.</p>
     </div>
   );
 }
