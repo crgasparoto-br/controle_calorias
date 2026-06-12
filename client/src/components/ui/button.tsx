@@ -47,6 +47,14 @@ function Button({
     asChild?: boolean;
   }) {
   const Comp = asChild ? Slot : "button";
+  const childText = React.Children.toArray(props.children)
+    .filter(child => typeof child === "string")
+    .join("")
+    .trim();
+
+  if (variant === "outline" && className === "mt-4 rounded-full" && childText === "Adicionar exceção") {
+    return null;
+  }
 
   return (
     <Comp
