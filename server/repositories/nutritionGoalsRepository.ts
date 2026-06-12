@@ -29,6 +29,27 @@ export function createDrizzleNutritionGoalsRepository(deps: {
   getDb: DbProvider;
   onWarning: PersistenceWarningHandler;
 }): NutritionGoalsRepository {
+  async function createVersionForUser(userId: number, goals: NutritionGoal[], effectiveFrom: Date) {
+    const db = await deps.getDb();
+    if (!db || !goals.length) return;
+
+    try {
+      await db
+        .update(nutritionGoals)
+        .set({ effectiveUntil: effectiveFrom, updatedAt: new Date() })
+        .where(
+          and(
+            eq(nutritionGoals.userId, userId),
+            lt(nutritionGoals.effectiveFrom, effectiveFrom),
+            or(isNull(nutritionGoals.effectiveUntil), gt(nutritionGoals.effectiveUntil, effectiveFrom)),
+          ),
+        );
+      await db.insert(nutritionGoals).values(toInsertValues(goals));
+    } catch (error) {
+      deps.onWarning("Goal persistence skipped", error);
+    }
+  }
+
   return {
     async findByUserId(userId) {
       const db = await deps.getDb();
@@ -48,28 +69,9 @@ export function createDrizzleNutritionGoalsRepository(deps: {
 
     async replaceForUser(userId, goals) {
       if (!goals.length) return;
-      await this.createVersionForUser(userId, goals, goals[0].effectiveFrom);
+      await createVersionForUser(userId, goals, goals[0].effectiveFrom);
     },
 
-    async createVersionForUser(userId, goals, effectiveFrom) {
-      const db = await deps.getDb();
-      if (!db || !goals.length) return;
-
-      try {
-        await db
-          .update(nutritionGoals)
-          .set({ effectiveUntil: effectiveFrom, updatedAt: new Date() })
-          .where(
-            and(
-              eq(nutritionGoals.userId, userId),
-              lt(nutritionGoals.effectiveFrom, effectiveFrom),
-              or(isNull(nutritionGoals.effectiveUntil), gt(nutritionGoals.effectiveUntil, effectiveFrom)),
-            ),
-          );
-        await db.insert(nutritionGoals).values(toInsertValues(goals));
-      } catch (error) {
-        deps.onWarning("Goal persistence skipped", error);
-      }
-    },
+    createVersionForUser,
   };
 }
