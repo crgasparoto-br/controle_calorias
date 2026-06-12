@@ -12,6 +12,10 @@ type GreetingVisibilityInput = {
   hasGreetingCardContext: boolean;
 };
 
+export function isWhatsappGreetingSettingsRoute(location: string) {
+  return SETTINGS_ROUTES.has(location);
+}
+
 export function shouldShowWhatsappGreetingBlock({
   isSettingsRoute,
   hasActiveProfessionalProfile,
@@ -60,9 +64,12 @@ function updateGreetingCardVisibility(hasActiveProfessionalProfile: boolean, isS
 
 export default function ProfileWhatsappGreetingVisibility() {
   const [location] = useLocation();
-  const professionalProfile = trpc.nutrition.professionals.profile.useQuery(undefined, { retry: false });
-  const isSettingsRoute = SETTINGS_ROUTES.has(location);
-  const hasActiveProfessionalProfile = Boolean(professionalProfile.data?.active);
+  const isSettingsRoute = isWhatsappGreetingSettingsRoute(location);
+  const professionalProfile = trpc.nutrition.professionals.profile.useQuery(undefined, {
+    enabled: isSettingsRoute,
+    retry: false,
+  });
+  const hasActiveProfessionalProfile = isSettingsRoute && Boolean(professionalProfile.data?.active);
 
   useEffect(() => {
     if (!isSettingsRoute) return;

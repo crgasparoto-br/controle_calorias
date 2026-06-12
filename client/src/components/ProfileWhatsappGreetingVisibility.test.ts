@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldShowWhatsappGreetingBlock } from "./ProfileWhatsappGreetingVisibility";
+import { isWhatsappGreetingSettingsRoute, shouldShowWhatsappGreetingBlock } from "./ProfileWhatsappGreetingVisibility";
 
 describe("shouldShowWhatsappGreetingBlock", () => {
   it("oculta a saudação no Perfil para usuário sem perfil profissional ativo", () => {
@@ -24,5 +24,18 @@ describe("shouldShowWhatsappGreetingBlock", () => {
       hasActiveProfessionalProfile: true,
       hasGreetingCardContext: true,
     })).toBe(false);
+  });
+});
+
+describe("isWhatsappGreetingSettingsRoute", () => {
+  it("habilita a regra apenas em Configurações e onboarding interno", () => {
+    expect(isWhatsappGreetingSettingsRoute("/settings")).toBe(true);
+    expect(isWhatsappGreetingSettingsRoute("/onboarding")).toBe(true);
+  });
+
+  it("mantém rotas públicas sem consulta protegida de perfil profissional", () => {
+    expect(isWhatsappGreetingSettingsRoute("/quick-edit/token-publico")).toBe(false);
+    expect(isWhatsappGreetingSettingsRoute("/onboarding/whatsapp/token-publico")).toBe(false);
+    expect(isWhatsappGreetingSettingsRoute("/login")).toBe(false);
   });
 });
