@@ -45,12 +45,14 @@ type GoalExceptionForm = GoalTargetForm & {
   id?: number;
   weekday: number;
   durationType: DurationType;
+  startDate: string;
 };
 
 type GoalExceptionQuery = {
   id?: number;
   weekday: number;
   durationType: DurationType;
+  startDate?: string;
   calories: number;
   proteinGrams: number;
   carbsGrams: number;
@@ -65,6 +67,12 @@ type GoalVersionQuery = GoalTargetBase & {
   startDate: string;
   effectiveUntil?: Date | string | number | null;
   isCurrent: boolean;
+};
+
+type GoalExceptionVersionQuery = GoalVersionQuery & {
+  weekday: number;
+  durationType: DurationType;
+  label?: string;
 };
 
 type MacroPercentField = "proteinPercent" | "carbsPercent" | "fatPercent";
@@ -110,6 +118,15 @@ function toDateInputValue(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function dateKeyFromDateLike(value?: Date | string | number | null) {
+  if (!value) return undefined;
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function getWeekdayLabel(weekday: number) {
+  return WEEKDAY_META.find(day => day.weekday === weekday)?.label ?? "Dia";
 }
 
 function formatDateKey(dateKey?: string | null) {
@@ -184,9 +201,10 @@ function createGoalTargetForm(goal: GoalTargetBase, inputMode: MacroInputMode = 
   return inputMode === "percent" ? applyPercentagesToGoal(form, percentages) : form;
 }
 
-function buildException(weekday: number): GoalExceptionForm {
+function buildException(weekday: number, startDate = toDateInputValue()): GoalExceptionForm {
   return {
     weekday,
+    startDate,
     durationType: "always",
     ...createGoalTargetForm(DEFAULT_GOAL_BASE),
   };
@@ -209,7 +227,11 @@ function toGoalPayload(goal: GoalTargetForm): GoalPayload {
   };
 }
 
-function normalizeExceptionsForEditing(exceptions: GoalExceptionQuery[]) {
+function exceptionVersionKey(exception: Pick<GoalExceptionForm, "weekday" | "startDate">, fallbackStartDate: string) {
+  return `${exception.weekday}:${exception.startDate || fallbackStartDate}`;
+}
+
+function normalizeExceptionsForEditing(exceptions: GoalExceptionQuery[], fallbackStartDate: string) {
   const editableExceptions = exceptions.some(exception => typeof exception.isActive === "boolean")
     ? exceptions.filter(exception => exception.isActive !== false)
     : exceptions;
@@ -220,12 +242,14 @@ function normalizeExceptionsForEditing(exceptions: GoalExceptionQuery[]) {
     return new Date(b.effectiveFrom ?? 0).getTime() - new Date(a.effectiveFrom ?? 0).getTime();
   });
 
-  const seenWeekdays = new Set<number>();
+  const seenVersions = new Set<string>();
   return sorted.filter(exception => {
-    if (seenWeekdays.has(exception.weekday)) {
+    const startDate = exception.startDate ?? dateKeyFromDateLike(exception.effectiveFrom) ?? fallbackStartDate;
+    const key = `${exception.weekday}:${startDate}`;
+    if (seenVersions.has(key)) {
       return false;
     }
-    seenWeekdays.add(exception.weekday);
+    seenVersions.add(key);
     return true;
   });
 }
@@ -257,22 +281,27 @@ export default function GoalsPage() {
     carbsGrams: goalQuery.data.defaultGoal.carbsGrams,
     fatGrams: goalQuery.data.defaultGoal.fatGrams,
   }, "percent") : createGoalTargetForm(DEFAULT_GOAL_BASE, "percent"));
-  const [exceptions, setExceptions] = useState<GoalExceptionForm[]>(() => goalQuery.data ? normalizeExceptionsForEditing(goalQuery.data.exceptions).map(exception => ({
-    id: exception.id,
-    weekday: exception.weekday,
-    durationType: exception.durationType,
-    ...createGoalTargetForm({
-      calories: exception.calories,
-      proteinGrams: exception.proteinGrams,
-      carbsGrams: exception.carbsGrams,
-      fatGrams: exception.fatGrams,
-    }),
-  })) : []);
+  const [exceptions, setExceptions] = useState<GoalExceptionForm[]>(() => {
+    const fallbackStartDate = goalQuery.data?.startDate ?? toDateInputValue();
+    return goalQuery.data ? normalizeExceptionsForEditing(goalQuery.data.exceptions, fallbackStartDate).map(exception => ({
+      id: exception.id,
+      weekday: exception.weekday,
+      startDate: exception.startDate ?? dateKeyFromDateLike(exception.effectiveFrom) ?? fallbackStartDate,
+      durationType: exception.durationType,
+      ...createGoalTargetForm({
+        calories: exception.calories,
+        proteinGrams: exception.proteinGrams,
+        carbsGrams: exception.carbsGrams,
+        fatGrams: exception.fatGrams,
+      }),
+    })) : [];
+  });
 
   useEffect(() => {
     if (!goalQuery.data) return;
 
-    setStartDate(goalQuery.data.startDate ?? toDateInputValue());
+    const fallbackStartDate = goalQuery.data.startDate ?? toDateInputValue();
+    setStartDate(fallbackStartDate);
     setDefaultGoal(createGoalTargetForm({
       calories: goalQuery.data.defaultGoal.calories,
       proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
@@ -280,9 +309,10 @@ export default function GoalsPage() {
       fatGrams: goalQuery.data.defaultGoal.fatGrams,
     }, "percent"));
 
-    setExceptions(normalizeExceptionsForEditing(goalQuery.data.exceptions).map(exception => ({
+    setExceptions(normalizeExceptionsForEditing(goalQuery.data.exceptions, fallbackStartDate).map(exception => ({
       id: exception.id,
       weekday: exception.weekday,
+      startDate: exception.startDate ?? dateKeyFromDateLike(exception.effectiveFrom) ?? fallbackStartDate,
       durationType: exception.durationType,
       ...createGoalTargetForm({
         calories: exception.calories,
@@ -294,6 +324,7 @@ export default function GoalsPage() {
   }, [goalQuery.data]);
 
   const goalVersions = (goalQuery.data?.versions ?? []) as GoalVersionQuery[];
+  const exceptionVersions = (goalQuery.data?.exceptionVersions ?? []) as GoalExceptionVersionQuery[];
   const previewDays = useMemo(() => WEEKDAY_META.map(day => {
     const exception = exceptions.find(item => item.weekday === day.weekday);
     const applied = exception ?? defaultGoal;
@@ -305,6 +336,7 @@ export default function GoalsPage() {
       fatGrams: applied.fatGrams,
       source: exception ? "exception" : "default",
       durationType: exception?.durationType,
+      startDate: exception?.startDate,
     };
   }), [defaultGoal, exceptions]);
 
@@ -322,9 +354,18 @@ export default function GoalsPage() {
   const weeklyMacroCalories = weeklyTotals.proteinGrams * 4 + weeklyTotals.carbsGrams * 4 + weeklyTotals.fatGrams * 9;
   const alignment = weeklyTotals.calories ? Math.min((weeklyMacroCalories / weeklyTotals.calories) * 100, 140) : 0;
   const todayGoal = previewDays[getWeekdayIndex(new Date())] ?? previewDays[0];
-  const availableWeekdays = WEEKDAY_META.filter(day => !exceptions.some(exception => exception.weekday === day.weekday));
+  const availableWeekdays = WEEKDAY_META;
   const defaultPercentSum = getPercentSum(defaultGoal);
   const hasInvalidPercentages = !isPercentModeValid(defaultGoal) || exceptions.some(exception => !isPercentModeValid(exception));
+  const hasExceptionVersionConflict = useMemo(() => {
+    const seenVersions = new Set<string>();
+    return exceptions.some(exception => {
+      const key = exceptionVersionKey(exception, startDate);
+      if (seenVersions.has(key)) return true;
+      seenVersions.add(key);
+      return false;
+    });
+  }, [exceptions, startDate]);
   const safetyAssessment = useMemo(() => assessNutritionGoalTargets([
     { label: "Meta geral", ...toGoalPayload(defaultGoal) },
     ...exceptions.map(exception => ({
@@ -420,10 +461,10 @@ export default function GoalsPage() {
   function addException() {
     const nextDay = availableWeekdays[0];
     if (!nextDay) {
-      toast.error("Todos os dias da semana já possuem exceção configurada.");
+      toast.error("Nenhum dia disponível para nova exceção.");
       return;
     }
-    setExceptions(current => [...current, buildException(nextDay.weekday)]);
+    setExceptions(current => [...current, buildException(nextDay.weekday, startDate)]);
   }
 
   function handleSave() {
@@ -437,6 +478,16 @@ export default function GoalsPage() {
       return;
     }
 
+    if (exceptions.some(exception => !exception.startDate)) {
+      toast.error("Informe a data de início de cada exceção.");
+      return;
+    }
+
+    if (hasExceptionVersionConflict) {
+      toast.error("Há duas exceções para o mesmo dia com a mesma data de início.");
+      return;
+    }
+
     if (safetyAssessment.blockers.length) {
       toast.error(safetyAssessment.blockers[0].message);
       return;
@@ -447,6 +498,7 @@ export default function GoalsPage() {
       defaultGoal: toGoalPayload(defaultGoal),
       exceptions: exceptions.map(exception => ({
         weekday: exception.weekday,
+        startDate: exception.startDate,
         durationType: exception.durationType,
         ...toGoalPayload(exception),
       })),
@@ -459,14 +511,13 @@ export default function GoalsPage() {
         <PageIntro
           eyebrow="Planejamento nutricional"
           title="Metas e exceções da semana"
-          description="Defina a meta usada na maior parte dos dias, escolha quando ela começa a valer e ajuste somente os dias que precisam de valores diferentes. Versões anteriores continuam preservadas para consultas históricas."
+          description="Defina a meta usada na maior parte dos dias, escolha quando ela começa a valer e ajuste os dias que precisam de valores diferentes. Cada exceção também pode ter uma data própria de início."
           actions={(
             <Button
               className="rounded-full"
               type="button"
               variant="outline"
               onClick={addException}
-              disabled={!availableWeekdays.length}
             >
               <Plus className="mr-2 h-4 w-4" />
               Adicionar exceção
@@ -482,12 +533,12 @@ export default function GoalsPage() {
               <IntroStat
                 label="Início da versão"
                 value={formatDateKey(startDate)}
-                supporting="data em que a meta salva passa a valer"
+                supporting="data em que a meta geral salva passa a valer"
               />
               <IntroStat
                 label="Exceções ativas"
                 value={String(exceptions.length)}
-                supporting={exceptions.length ? "dias com meta própria" : "todos os dias usam a meta geral"}
+                supporting={exceptions.length ? "regras com data própria" : "todos os dias usam a meta geral"}
               />
               <IntroStat
                 label="Meta geral"
@@ -555,67 +606,78 @@ export default function GoalsPage() {
               <CardHeader>
                 <CardTitle>Exceções por dia da semana</CardTitle>
                 <CardDescription>
-                  Use exceções para dias com uma rotina diferente, como treino, descanso ou compromisso especial. Escolha o dia e por quanto tempo essa meta própria deve valer a partir da data de início informada.
+                  Use exceções para dias com uma rotina diferente, como treino, descanso ou compromisso especial. Cada exceção passa a valer a partir da data escolhida para ela.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {exceptions.length ? exceptions.map((exception, index) => {
-                  const selectedWeekdays = new Set(exceptions.map(item => item.weekday));
-                  const weekdayOptions = WEEKDAY_META.filter(day => day.weekday === exception.weekday || !selectedWeekdays.has(day.weekday));
-                  return (
-                    <div key={`${exception.weekday}-${index}`} className="rounded-3xl border bg-muted/20 p-4">
-                      <div className="grid gap-3 lg:grid-cols-[1fr,1fr,auto] lg:items-end">
-                        <SelectField
-                          label="Dia da exceção"
-                          value={String(exception.weekday)}
-                          options={weekdayOptions.map(day => ({ value: String(day.weekday), label: day.label }))}
-                          onChange={value => updateException(index, { weekday: Number(value) })}
-                        />
-                        <SelectField
-                          label="Duração"
-                          value={exception.durationType}
-                          options={DURATION_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
-                          onChange={value => updateException(index, { durationType: value as DurationType })}
-                        />
-                        <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => removeException(index)}>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Remover
-                        </Button>
-                      </div>
-                      <div className="mt-4 space-y-4">
-                        <ModeSelector mode={exception.inputMode} onChange={mode => updateExceptionInputMode(index, mode)} />
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                          <FormattedField label="Calorias" value={exception.calories} onChange={value => updateExceptionField(index, "calories", value)} suffix="kcal" />
-                          <MacroField
-                            label="Proteínas"
-                            mode={exception.inputMode}
-                            grams={exception.proteinGrams}
-                            percent={exception.proteinPercent}
-                            onGramChange={value => updateExceptionField(index, "proteinGrams", value)}
-                            onPercentChange={value => updateExceptionPercent(index, "proteinPercent", value)}
-                          />
-                          <MacroField
-                            label="Carboidratos"
-                            mode={exception.inputMode}
-                            grams={exception.carbsGrams}
-                            percent={exception.carbsPercent}
-                            onGramChange={value => updateExceptionField(index, "carbsGrams", value)}
-                            onPercentChange={value => updateExceptionPercent(index, "carbsPercent", value)}
-                          />
-                          <MacroField
-                            label="Gorduras"
-                            mode={exception.inputMode}
-                            grams={exception.fatGrams}
-                            percent={exception.fatPercent}
-                            onGramChange={value => updateExceptionField(index, "fatGrams", value)}
-                            onPercentChange={value => updateExceptionPercent(index, "fatPercent", value)}
-                          />
-                        </div>
-                        <PercentValidationNote mode={exception.inputMode} percentSum={getPercentSum(exception)} />
-                      </div>
+                {hasExceptionVersionConflict ? (
+                  <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                    Há duas exceções para o mesmo dia com a mesma data de início. Altere uma das datas antes de salvar.
+                  </div>
+                ) : null}
+
+                {exceptions.length ? exceptions.map((exception, index) => (
+                  <div key={`${exception.weekday}-${exception.startDate}-${index}`} className="rounded-3xl border bg-muted/20 p-4">
+                    <div className="grid gap-3 lg:grid-cols-[1fr,1fr,1fr,auto] lg:items-end">
+                      <SelectField
+                        label="Dia da exceção"
+                        value={String(exception.weekday)}
+                        options={WEEKDAY_META.map(day => ({ value: String(day.weekday), label: day.label }))}
+                        onChange={value => updateException(index, { weekday: Number(value) })}
+                      />
+                      <DateField
+                        id={`exception-start-date-${index}`}
+                        label="Início da exceção"
+                        value={exception.startDate}
+                        onChange={value => updateException(index, { startDate: value })}
+                      />
+                      <SelectField
+                        label="Duração"
+                        value={exception.durationType}
+                        options={DURATION_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
+                        onChange={value => updateException(index, { durationType: value as DurationType })}
+                      />
+                      <Button type="button" variant="ghost" className="rounded-full text-destructive hover:text-destructive" onClick={() => removeException(index)}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Remover
+                      </Button>
                     </div>
-                  );
-                }) : (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Esta exceção de {getWeekdayLabel(exception.weekday).toLowerCase()} passa a valer em {formatDateKey(exception.startDate)}.
+                    </p>
+                    <div className="mt-4 space-y-4">
+                      <ModeSelector mode={exception.inputMode} onChange={mode => updateExceptionInputMode(index, mode)} />
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <FormattedField label="Calorias" value={exception.calories} onChange={value => updateExceptionField(index, "calories", value)} suffix="kcal" />
+                        <MacroField
+                          label="Proteínas"
+                          mode={exception.inputMode}
+                          grams={exception.proteinGrams}
+                          percent={exception.proteinPercent}
+                          onGramChange={value => updateExceptionField(index, "proteinGrams", value)}
+                          onPercentChange={value => updateExceptionPercent(index, "proteinPercent", value)}
+                        />
+                        <MacroField
+                          label="Carboidratos"
+                          mode={exception.inputMode}
+                          grams={exception.carbsGrams}
+                          percent={exception.carbsPercent}
+                          onGramChange={value => updateExceptionField(index, "carbsGrams", value)}
+                          onPercentChange={value => updateExceptionPercent(index, "carbsPercent", value)}
+                        />
+                        <MacroField
+                          label="Gorduras"
+                          mode={exception.inputMode}
+                          grams={exception.fatGrams}
+                          percent={exception.fatPercent}
+                          onGramChange={value => updateExceptionField(index, "fatGrams", value)}
+                          onPercentChange={value => updateExceptionPercent(index, "fatPercent", value)}
+                        />
+                      </div>
+                      <PercentValidationNote mode={exception.inputMode} percentSum={getPercentSum(exception)} />
+                    </div>
+                  </div>
+                )) : (
                   <div className="rounded-3xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
                     Nenhuma exceção adicionada. A meta geral será usada em todos os dias da semana.
                   </div>
@@ -635,6 +697,7 @@ export default function GoalsPage() {
 
           <div className="grid gap-6">
             <GoalVersionHistory versions={goalVersions} selectedStartDate={startDate} />
+            <ExceptionVersionHistory versions={exceptionVersions} selectedExceptions={exceptions} />
 
             <Card className="border-0 shadow-sm">
               <CardHeader>
@@ -656,7 +719,7 @@ export default function GoalsPage() {
                           <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{day.shortLabel}</span>
                         </div>
                         <p className="min-h-10 text-sm leading-5 text-foreground">
-                          {day.source === "exception" ? "Usa uma meta própria neste dia." : "Usa a meta geral."}
+                          {day.source === "exception" ? `Exceção desde ${formatDateKey(day.startDate)}.` : "Usa a meta geral."}
                         </p>
                       </div>
                       <div className="mt-3 space-y-1 text-sm text-foreground">
@@ -734,16 +797,22 @@ function VersionStartField({ value, onChange }: { value: string; onChange: (valu
             A meta salva passa a valer a partir desta data. Dias anteriores continuam usando a versão que já estava vigente.
           </p>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="goal-start-date">Início da meta geral</Label>
-          <Input
-            id="goal-start-date"
-            type="date"
-            value={value}
-            onChange={event => onChange(event.target.value)}
-          />
-        </div>
+        <DateField id="goal-start-date" label="Início da meta geral" value={value} onChange={onChange} />
       </div>
+    </div>
+  );
+}
+
+function DateField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="space-y-2 rounded-2xl border bg-background p-4">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="date"
+        value={value}
+        onChange={event => onChange(event.target.value)}
+      />
     </div>
   );
 }
@@ -761,23 +830,14 @@ function GoalVersionHistory({ versions, selectedStartDate }: { versions: GoalVer
         {versions.length ? versions.map(version => {
           const isSelected = version.startDate === selectedStartDate;
           return (
-            <div key={version.id} className={`rounded-2xl border bg-background p-4 shadow-sm ${isSelected ? "border-primary/50" : ""}`}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium tracking-tight">Início em {formatDateKey(version.startDate)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{formatVersionEndDate(version.effectiveUntil)}</p>
-                </div>
-                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                  {isSelected ? "em edição" : version.isCurrent ? "vigente" : "histórica"}
-                </span>
-              </div>
-              <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                <span>{formatCalories(version.calories)}</span>
-                <span>{formatGrams(version.proteinGrams)} proteína</span>
-                <span>{formatGrams(version.carbsGrams)} carbo</span>
-                <span>{formatGrams(version.fatGrams)} gordura</span>
-              </div>
-            </div>
+            <VersionHistoryItem
+              key={version.id}
+              title={`Início em ${formatDateKey(version.startDate)}`}
+              status={isSelected ? "em edição" : version.isCurrent ? "vigente" : "histórica"}
+              isSelected={isSelected}
+              endDate={version.effectiveUntil}
+              version={version}
+            />
           );
         }) : (
           <div className="rounded-2xl border border-dashed bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
@@ -786,6 +846,76 @@ function GoalVersionHistory({ versions, selectedStartDate }: { versions: GoalVer
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ExceptionVersionHistory({ versions, selectedExceptions }: { versions: GoalExceptionVersionQuery[]; selectedExceptions: GoalExceptionForm[] }) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle>Versões das exceções</CardTitle>
+        <CardDescription>
+          Acompanhe quando cada exceção começa e termina. Exceções vigentes têm prioridade sobre a meta geral no dia correspondente.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {versions.length ? versions.map(version => {
+          const isSelected = selectedExceptions.some(exception => exception.weekday === version.weekday && exception.startDate === version.startDate);
+          return (
+            <VersionHistoryItem
+              key={version.id}
+              title={`${getWeekdayLabel(version.weekday)} desde ${formatDateKey(version.startDate)}`}
+              status={isSelected ? "em edição" : version.isCurrent ? "vigente" : "histórica"}
+              isSelected={isSelected}
+              endDate={version.effectiveUntil}
+              version={version}
+              detail={DURATION_OPTIONS.find(option => option.value === version.durationType)?.label}
+            />
+          );
+        }) : (
+          <div className="rounded-2xl border border-dashed bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+            Nenhuma exceção versionada foi encontrada ainda. Ao salvar uma exceção com data de início, ela aparecerá aqui.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function VersionHistoryItem({
+  title,
+  status,
+  isSelected,
+  endDate,
+  version,
+  detail,
+}: {
+  title: string;
+  status: string;
+  isSelected: boolean;
+  endDate?: Date | string | number | null;
+  version: GoalTargetBase;
+  detail?: string;
+}) {
+  return (
+    <div className={`rounded-2xl border bg-background p-4 shadow-sm ${isSelected ? "border-primary/50" : ""}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-medium tracking-tight">{title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{formatVersionEndDate(endDate)}</p>
+          {detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}
+        </div>
+        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+          {status}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+        <span>{formatCalories(version.calories)}</span>
+        <span>{formatGrams(version.proteinGrams)} proteína</span>
+        <span>{formatGrams(version.carbsGrams)} carbo</span>
+        <span>{formatGrams(version.fatGrams)} gordura</span>
+      </div>
+    </div>
   );
 }
 
