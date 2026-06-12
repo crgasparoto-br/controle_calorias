@@ -59,6 +59,16 @@ const WEEKDAY_LABELS = [
   "domingo",
 ] as const;
 
+const WEEKDAY_META = [
+  { weekday: 0, label: "Segunda-feira", shortLabel: "seg." },
+  { weekday: 1, label: "Terça-feira", shortLabel: "ter." },
+  { weekday: 2, label: "Quarta-feira", shortLabel: "qua." },
+  { weekday: 3, label: "Quinta-feira", shortLabel: "qui." },
+  { weekday: 4, label: "Sexta-feira", shortLabel: "sex." },
+  { weekday: 5, label: "Sábado", shortLabel: "sáb." },
+  { weekday: 6, label: "Domingo", shortLabel: "dom." },
+] as const;
+
 type GoalExceptionDuration = "1_week" | "2_weeks" | "3_weeks" | "always";
 
 const nutritionGoalsRepository = createDrizzleNutritionGoalsRepository({
@@ -76,8 +86,23 @@ function startOfUtcDate(dateKey: string) {
   return new Date(`${dateKey}T00:00:00.000Z`);
 }
 
+function logicalUtcDate(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00.000Z`);
+}
+
 function dateKeyFromDate(value: Date | string | number) {
   return new Date(value).toISOString().slice(0, 10);
+}
+
+function getUtcWeekdayIndex(date: Date) {
+  return (date.getUTCDay() + 6) % 7;
+}
+
+function startOfUtcWeek(date: Date) {
+  const value = new Date(date);
+  value.setUTCHours(0, 0, 0, 0);
+  value.setUTCDate(value.getUTCDate() - getUtcWeekdayIndex(value));
+  return value;
 }
 
 function endOfUtcWeek(date: Date) {
@@ -220,6 +245,100 @@ function findConflictingExceptionVersion(rows: NutritionGoal[], versionRows: Nut
   )));
 }
 
+function isActiveOnDate(row: NutritionGoal, date: Date) {
+  const dateTime = date.getTime();
+  const startTime = new Date(row.effectiveFrom).getTime();
+  const endTime = row.effectiveUntil ? new Date(row.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
+  return startTime <= dateTime && dateTime < endTime;
+}
+
+function sortByEffectiveDateDesc(first: NutritionGoal, second: NutritionGoal) {
+  const effectiveDiff = new Date(second.effectiveFrom).getTime() - new Date(first.effectiveFrom).getTime();
+  if (effectiveDiff !== 0) return effectiveDiff;
+  return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
+}
+
+function resolveDefaultGoalForDate(rows: NutritionGoal[], date: Date) {
+  const defaultRows = rows.filter(row => row.ruleType === "default");
+  return defaultRows
+    .filter(row => isActiveOnDate(row, date))
+    .sort(sortByEffectiveDateDesc)[0]
+    ?? defaultRows.slice().sort((first, second) => new Date(first.effectiveFrom).getTime() - new Date(second.effectiveFrom).getTime())[0]
+    ?? null;
+}
+
+function resolveExceptionForDate(rows: NutritionGoal[], date: Date) {
+  const weekday = getUtcWeekdayIndex(date);
+  return rows
+    .filter(row => row.ruleType === "exception" && row.weekday === weekday && isActiveOnDate(row, date))
+    .sort(sortByEffectiveDateDesc)[0]
+    ?? null;
+}
+
+function buildGoalDayView(rows: NutritionGoal[], userId: number, date: Date) {
+  const defaultGoal = resolveDefaultGoalForDate(rows, date);
+  const exception = resolveExceptionForDate(rows, date);
+  const applied = exception ?? defaultGoal;
+  const weekday = getUtcWeekdayIndex(date);
+  const meta = WEEKDAY_META[weekday] ?? { label: "Dia", shortLabel: "dia" };
+
+  if (!applied) {
+    return null;
+  }
+
+  return {
+    ...applied,
+    userId,
+    weekday,
+    label: meta.label,
+    shortLabel: meta.shortLabel,
+    source: exception ? "exception" as const : "default" as const,
+    exceptionId: exception?.id,
+  };
+}
+
+function buildGoalSummaryForReferenceDate(rows: NutritionGoal[], userId: number, referenceDate: Date) {
+  const monday = startOfUtcWeek(referenceDate);
+  const days = Array.from({ length: 7 }).map((_, index) => {
+    const current = new Date(monday);
+    current.setUTCDate(monday.getUTCDate() + index);
+    return buildGoalDayView(rows, userId, current);
+  }).filter((day): day is NonNullable<typeof day> => Boolean(day));
+  const today = buildGoalDayView(rows, userId, referenceDate) ?? days[0];
+  const defaultGoal = resolveDefaultGoalForDate(rows, referenceDate) ?? rows.find(row => row.ruleType === "default");
+  const currentTime = referenceDate.getTime();
+  const exceptions = rows
+    .filter(row => row.ruleType === "exception" && (!row.effectiveUntil || new Date(row.effectiveUntil).getTime() > currentTime))
+    .sort(sortByEffectiveDateDesc)
+    .map(rule => ({
+      ...rule,
+      label: WEEKDAY_META[rule.weekday]?.label ?? "Dia",
+      shortLabel: WEEKDAY_META[rule.weekday]?.shortLabel ?? "dia",
+      isActive: resolveExceptionForDate(rows, referenceDate)?.id === rule.id,
+    }));
+
+  if (!defaultGoal || !today) {
+    return null;
+  }
+
+  return {
+    defaultGoal,
+    exceptions,
+    days,
+    today,
+    weeklyTotals: days.reduce(
+      (acc, day) => {
+        acc.calories += day.calories;
+        acc.proteinGrams += day.proteinGrams;
+        acc.carbsGrams += day.carbsGrams;
+        acc.fatGrams += day.fatGrams;
+        return acc;
+      },
+      { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
+    ),
+  };
+}
+
 async function listGoalRows(userId: number) {
   return nutritionGoalsRepository.findByUserId(userId);
 }
@@ -229,6 +348,31 @@ export async function getNutritionGoal(userId: number) {
     getUserNutritionGoal(userId),
     listGoalRows(userId),
   ]);
+  const assessment = assessNutritionGoalInput({
+    defaultGoal: goal.defaultGoal,
+    exceptions: goal.exceptions,
+  });
+
+  return {
+    ...goal,
+    startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
+    versions: summarizeDefaultVersions(rows),
+    exceptionVersions: summarizeExceptionVersions(rows),
+    safetyWarnings: assessment.warnings,
+  };
+}
+
+export async function getNutritionGoalForDate(userId: number, date: string) {
+  const rows = await listGoalRows(userId);
+  if (!rows?.length) {
+    return getNutritionGoal(userId);
+  }
+
+  const goal = buildGoalSummaryForReferenceDate(rows, userId, logicalUtcDate(date));
+  if (!goal) {
+    return getNutritionGoal(userId);
+  }
+
   const assessment = assessNutritionGoalInput({
     defaultGoal: goal.defaultGoal,
     exceptions: goal.exceptions,
