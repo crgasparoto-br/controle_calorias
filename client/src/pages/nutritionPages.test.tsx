@@ -561,7 +561,13 @@ describe("nutrition pages", () => {
     const html = renderToString(React.createElement(Home));
 
     expect(html).toContain("Resumo");
-    expect(html).toContain("Calorias consumidas");
+    expect(html).toContain("Meta ajustada do dia");
+    expect(html).toContain("Consumido");
+    expect(html).toContain("Exercícios");
+    expect(html).toContain("Disponível para consumir");
+    expect(html).not.toContain("Calorias consumidas");
+    expect(html).not.toContain("Calorias restantes");
+    expect(html).not.toContain("Saldo líquido");
     expect(html).toContain("Foco do dia");
     expect(html).not.toContain("Registrar refeição");
     expect(html).not.toContain("Ver registros do dia");
