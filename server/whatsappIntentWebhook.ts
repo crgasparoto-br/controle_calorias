@@ -7,7 +7,6 @@ import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modu
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
 import { listMeals } from "./modules/meals/service";
-import { processProfessionalAccessWhatsappResponse } from "./modules/professionals/service";
 import {
   extractWhatsAppWebhookMessages,
   getExtractedWhatsAppMessageKey,
@@ -121,6 +120,11 @@ function shouldTryContextualLlmIntent(text: string) {
   if (hasExplicitFoodQuantity(text)) return false;
   if (/\b(almocei|jantei|comi|lanchei|ceei|tomei|bebi)\b/.test(normalized)) return false;
   return /\b(refeicoes?|registrad[ao]s?|registrei|registro|consultar|consulta|listar|mostra|mostrar|ver|resumo do dia|total de hoje|calorias de hoje|corrigir|correcao|trocar|substituir|ajuda|comandos)\b/.test(normalized);
+}
+
+function looksLikeProfessionalAccessDecision(text: string) {
+  const normalized = normalizeText(text);
+  return /\b(autorizar|autorizo|autorizado|aprovar|aprovo|permitir|permito|negar|nego|recusar|recuso|nao autorizo)\b/.test(normalized);
 }
 
 function isInsidePeriod(value: number | string | Date, start: Date, end: Date) {
@@ -305,19 +309,22 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   if (!userId) return false;
 
   const text = getTextBody(message);
-  const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
-  if (professionalAccessResponse) {
-    markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
-    await sendAndLogTextReply({
-      userId,
-      sourcePhone,
-      reply: professionalAccessResponse.reply,
-      eventType: professionalAccessResponse.eventType,
-      detail: professionalAccessResponse.detail,
-      status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
-    });
-    return true;
+  if (looksLikeProfessionalAccessDecision(text)) {
+    const { processProfessionalAccessWhatsappResponse } = await import("./modules/professionals/service");
+    const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
+    if (professionalAccessResponse) {
+      markTextIntentMessageHandled(message.id);
+      pendingTextIntentContexts.delete(userId);
+      await sendAndLogTextReply({
+        userId,
+        sourcePhone,
+        reply: professionalAccessResponse.reply,
+        eventType: professionalAccessResponse.eventType,
+        detail: professionalAccessResponse.detail,
+        status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
+      });
+      return true;
+    }
   }
 
   const mixedWaterFood = splitWhatsAppWaterAndFoodText(text);
