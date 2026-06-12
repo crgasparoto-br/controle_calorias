@@ -366,7 +366,14 @@ export async function getNutritionGoal(userId: number) {
 export async function getNutritionGoalForDate(userId: number, date: string) {
   const rows = await listGoalRows(userId);
   if (!rows?.length) {
-    return getNutritionGoal(userId);
+    const goal = await getNutritionGoal(userId);
+    const weekday = getUtcWeekdayIndex(logicalUtcDate(date));
+    const today = goal.days.find(day => day.weekday === weekday) ?? goal.today;
+
+    return {
+      ...goal,
+      today,
+    };
   }
 
   const goal = buildGoalSummaryForReferenceDate(rows, userId, logicalUtcDate(date));
