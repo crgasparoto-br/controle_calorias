@@ -7,6 +7,7 @@ import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modu
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
 import { listMeals } from "./modules/meals/service";
+import { processProfessionalAccessWhatsappResponse } from "./modules/professionals/service";
 import {
   extractWhatsAppWebhookMessages,
   getExtractedWhatsAppMessageKey,
@@ -304,6 +305,21 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   if (!userId) return false;
 
   const text = getTextBody(message);
+  const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
+  if (professionalAccessResponse) {
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      reply: professionalAccessResponse.reply,
+      eventType: professionalAccessResponse.eventType,
+      detail: professionalAccessResponse.detail,
+      status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
+    });
+    return true;
+  }
+
   const mixedWaterFood = splitWhatsAppWaterAndFoodText(text);
   if (mixedWaterFood) {
     const waterResults: TextIntentResult[] = [];
