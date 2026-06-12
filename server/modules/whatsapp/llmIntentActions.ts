@@ -3,8 +3,9 @@ import { convertFoodQuantityForRegistration, normalizeMeasurementUnit } from "..
 import type { MealDraftItem } from "../../nutritionEngine";
 import { createManualMeal, listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
+import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
-import { interpretWhatsappMessage } from "./intentInterpreter";
+import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappInterpretedIntent } from "./intentSchema";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
@@ -109,10 +110,15 @@ function resolveIntentDate(intent: WhatsappInterpretedIntent, receivedAt: Date) 
   return Number.isNaN(parsed.getTime()) ? receivedAt : parsed;
 }
 
-function findMealByLabel(meals: ExistingMeal[], label: string, date: Date) {
+function findMealByLabel(
+  meals: ExistingMeal[],
+  label: string,
+  date: Date,
+  options: { allowCrossDayFallback?: boolean } = {},
+) {
   const normalizedLabel = normalizeText(normalizeMealLabel(label));
   return meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel && isMealInsideDay(meal, date))
-    ?? meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel)
+    ?? (options.allowCrossDayFallback ? meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel) : null)
     ?? null;
 }
 
@@ -239,6 +245,42 @@ function formatTotalsLine(totals: { calories: number; protein: number; carbs: nu
   return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
 }
 
+function hasLikelyMealRegistrationSignal(text: string) {
+  const normalized = normalizeText(text);
+  return /\b(almocei|jantei|comi|lanchei|ceei|tomei|bebi|caf[eé]|almoco|jantar|lanche|refeicao)\b/.test(normalized)
+    || /\b\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|ml|l|un|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?|porcao)\b/i.test(text);
+}
+
+function shouldLetNutritionFallbackHandle(text: string, intent: WhatsappInterpretedIntent) {
+  return intent.intent === "unknown" && hasLikelyMealRegistrationSignal(text);
+}
+
+function recordIntentAudit(input: {
+  userId: number;
+  text: string;
+  interpretation: WhatsappMessageInterpretation;
+  result: WhatsappLlmIntentResult | null;
+  fallbackReason?: string;
+  errorCode?: string;
+}) {
+  const resultAction = input.result?.action ?? "fallback_to_nutrition";
+  const replyKind = input.result?.action === "clarification_needed"
+    ? "clarification"
+    : input.result
+      ? "executed"
+      : "fallback";
+  recordWhatsappIntentAuditLog({
+    userId: input.userId,
+    messageText: input.text,
+    intent: input.interpretation.intent,
+    validationStatus: input.interpretation.validationStatus,
+    action: resultAction,
+    replyKind,
+    fallbackReason: input.fallbackReason ?? input.interpretation.fallbackReason,
+    errorCode: input.errorCode ?? input.interpretation.errorCode,
+  });
+}
+
 async function handleAddFoodsToMeal(
   userId: number,
   intent: WhatsappInterpretedIntent,
@@ -250,7 +292,7 @@ async function handleAddFoodsToMeal(
   const targetDate = resolveIntentDate(intent, receivedAt);
   const mealLabel = normalizeMealLabel(intent.meal.label);
   const meals = await listMeals(userId);
-  const existingMeal = findMealByLabel(meals, mealLabel, targetDate);
+  const existingMeal = findMealByLabel(meals, mealLabel, targetDate, { allowCrossDayFallback: !intent.date });
   if (!existingMeal && !intent.meal.createIfMissing) {
     return null;
   }
@@ -346,17 +388,15 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
   };
 }
 
-async function handleListMeals(userId: number, receivedAt: Date, dailyOnly = true): Promise<WhatsappLlmIntentResult> {
+async function handleListMeals(userId: number, receivedAt: Date, mode: "list" | "summary" = "list"): Promise<WhatsappLlmIntentResult> {
   const meals = await listMeals(userId);
-  const filteredMeals = dailyOnly ? meals.filter(meal => isMealInsideDay(meal, receivedAt)) : meals.slice(0, 8);
+  const filteredMeals = meals.filter(meal => isMealInsideDay(meal, receivedAt));
   if (!filteredMeals.length) {
     return {
       handled: true,
-      action: dailyOnly ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
-      reply: dailyOnly
-        ? "Nao encontrei refeicoes registradas hoje."
-        : "Nao encontrei refeicoes recentes para resumir.",
-      eventType: "whatsapp.llm_intent.list_meal_records",
+      action: mode === "list" ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
+      reply: "Nao encontrei refeicoes registradas hoje.",
+      eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
       detail: "Consulta estruturada de refeicoes sem registros encontrados.",
       data: { mealCount: 0 },
     };
@@ -369,9 +409,9 @@ async function handleListMeals(userId: number, receivedAt: Date, dailyOnly = tru
 
   return {
     handled: true,
-    action: dailyOnly ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
-    reply: [`Refeicoes registradas ${dailyOnly ? "hoje" : "recentemente"}:`, "", ...lines].join("\n"),
-    eventType: dailyOnly ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
+    action: mode === "list" ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
+    reply: [`Refeicoes registradas hoje:`, "", ...lines].join("\n"),
+    eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
     detail: "Consulta estruturada de refeicoes respondida pelo WhatsApp.",
     data: { mealCount: filteredMeals.length },
   };
@@ -413,45 +453,67 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
 
   const receivedAt = input.receivedAt ?? new Date();
   const context = await buildWhatsappIntentContext(userId, { receivedAt });
-  const intent = await interpretWhatsappMessage(text, context);
+  const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
+  const intent = interpretation.intent;
 
-  if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) {
-    return buildClarification(intent);
-  }
+  const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string) => {
+    recordIntentAudit({ userId, text, interpretation, result, fallbackReason });
+    return result;
+  };
 
-  if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute && intent.intent !== "ambiguous") {
-    return null;
-  }
+  try {
+    if (shouldLetNutritionFallbackHandle(text, intent)) {
+      return finish(null, "nutrition_fallback");
+    }
 
-  switch (intent.intent) {
-    case "add_foods_to_meal":
-      return handleAddFoodsToMeal(userId, intent, receivedAt);
-    case "replace_food_in_meal":
-      return handleReplaceFoodInMeal(userId, intent);
-    case "list_meal_records":
-      return handleListMeals(userId, receivedAt, true);
-    case "daily_summary":
-      return handleListMeals(userId, receivedAt, false);
-    case "open_records_link":
-      return {
-        handled: true,
-        action: "llm_intent_open_records_link",
-        reply: "Voce pode revisar seus registros na tela de refeicoes do app.",
-        eventType: "whatsapp.llm_intent.open_records_link",
-        detail: "Pedido estruturado para abrir registros respondido sem criar refeicao.",
-      };
-    case "help":
-      return {
-        handled: true,
-        action: "llm_intent_help",
-        reply: buildHelpReply(),
-        eventType: "whatsapp.llm_intent.help",
-        detail: "Ajuda de comandos enviada por intencao estruturada.",
-      };
-    case "ambiguous":
-    case "unknown":
-      return buildClarification(intent);
-    default:
-      return null;
+    if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) {
+      return finish(buildClarification(intent), intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify ? "low_confidence" : undefined);
+    }
+
+    if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute && intent.intent !== "ambiguous") {
+      return finish(null, "low_confidence");
+    }
+
+    switch (intent.intent) {
+      case "add_foods_to_meal":
+        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt));
+      case "replace_food_in_meal":
+        return finish(await handleReplaceFoodInMeal(userId, intent));
+      case "list_meal_records":
+        return finish(await handleListMeals(userId, receivedAt, "list"));
+      case "daily_summary":
+        return finish(await handleListMeals(userId, receivedAt, "summary"));
+      case "open_records_link":
+        return finish({
+          handled: true,
+          action: "llm_intent_open_records_link",
+          reply: "Voce pode revisar seus registros na tela de refeicoes do app.",
+          eventType: "whatsapp.llm_intent.open_records_link",
+          detail: "Pedido estruturado para abrir registros respondido sem criar refeicao.",
+        });
+      case "help":
+        return finish({
+          handled: true,
+          action: "llm_intent_help",
+          reply: buildHelpReply(),
+          eventType: "whatsapp.llm_intent.help",
+          detail: "Ajuda de comandos enviada por intencao estruturada.",
+        });
+      case "ambiguous":
+      case "unknown":
+        return finish(buildClarification(intent));
+      default:
+        return finish(null, "unsupported_intent");
+    }
+  } catch (error) {
+    recordIntentAudit({
+      userId,
+      text,
+      interpretation,
+      result: null,
+      fallbackReason: "executor_error",
+      errorCode: error instanceof Error ? error.name : "executor_error",
+    });
+    throw error;
   }
 }
