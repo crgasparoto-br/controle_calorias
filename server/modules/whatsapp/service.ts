@@ -5,6 +5,7 @@ import {
   upsertUserWhatsappConnection,
 } from "../../db";
 import { processMealDraft } from "../meals/service";
+import { processProfessionalAccessWhatsappResponse } from "../professionals/service";
 import {
   getMissingWhatsAppChannelConfig,
   getWhatsAppChannelConfig,
@@ -96,6 +97,21 @@ async function logAndReturnInterpretedIntent(
 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
+
+  if (text) {
+    const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
+    if (professionalAccessResponse) {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
+        eventType: professionalAccessResponse.eventType,
+        detail: professionalAccessResponse.detail,
+      });
+      return professionalAccessResponse;
+    }
+  }
+
   const waterFoodSplit = splitWhatsAppWaterAndFoodText(text);
   if (waterFoodSplit) {
     const waterResults = [];
