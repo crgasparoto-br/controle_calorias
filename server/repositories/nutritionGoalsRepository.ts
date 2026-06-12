@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, or } from "drizzle-orm";
 import { NutritionGoal, nutritionGoals } from "../../drizzle/schema";
 
 type DbProvider = () => Promise<any | null>;
@@ -62,7 +62,7 @@ export function createDrizzleNutritionGoalsRepository(deps: {
           .where(
             and(
               eq(nutritionGoals.userId, userId),
-              gt(nutritionGoals.effectiveFrom, new Date(0)),
+              lt(nutritionGoals.effectiveFrom, effectiveFrom),
               or(isNull(nutritionGoals.effectiveUntil), gt(nutritionGoals.effectiveUntil, effectiveFrom)),
             ),
           );
