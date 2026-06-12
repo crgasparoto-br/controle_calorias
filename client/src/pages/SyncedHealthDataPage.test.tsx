@@ -44,11 +44,14 @@ const syncedData = {
       measuredAt: "2026-06-03T10:00:00Z",
       value: 35,
       unit: "minutes",
-      activityType: "Corrida",
+      activityType: "Run",
       metadata: {
         externalId: "run-1",
-        name: "Corrida matinal",
+        name: "Morning Run",
         sportType: "Run",
+        workoutType: "Workout",
+        perceivedEffort: "moderate",
+        sourceStatus: "synced",
         distanceMeters: 7200,
         movingTimeSeconds: 2100,
         averageSpeedMetersPerSecond: 3.42,
@@ -83,10 +86,10 @@ const estimatedSyncedData = {
       measuredAt: "2026-06-09T12:00:00Z",
       value: 15,
       unit: "minutes",
-      activityType: "Caminhada",
+      activityType: "Walk",
       metadata: {
         externalId: "walk-1",
-        name: "Caminhada sem calorias oficiais",
+        name: "Walk without official calories",
         sportType: "Walk",
         movingTimeSeconds: 900,
         calories: 60,
@@ -123,7 +126,8 @@ describe("SyncedHealthDataPage", () => {
 
     expect(screen.getAllByText("Dados sincronizados").length).toBeGreaterThan(0);
     expect(screen.getByText("Dia selecionado")).toBeTruthy();
-    expect(screen.getByText("Corrida matinal")).toBeTruthy();
+    expect(screen.getByText("Corrida")).toBeTruthy();
+    expect(screen.queryByText("Morning Run")).toBeNull();
     expect(screen.getByText("Calorias sincronizadas")).toBeTruthy();
     expect(screen.getAllByText("420 kcal").length).toBeGreaterThan(0);
     expect(lastSyncedRecordsInput).toMatchObject({
@@ -137,8 +141,8 @@ describe("SyncedHealthDataPage", () => {
     await user.click(screen.getByRole("button", { name: "Strava" }));
     await waitFor(() => expect(lastSyncedRecordsInput).toMatchObject({ provider: "strava", dataType: "activity" }));
 
-    await user.type(screen.getByPlaceholderText("Buscar por atividade, origem ou tipo"), "matinal");
-    await waitFor(() => expect(lastSyncedRecordsInput).toMatchObject({ q: "matinal" }));
+    await user.type(screen.getByPlaceholderText("Buscar por atividade, origem ou tipo"), "corrida");
+    await waitFor(() => expect(lastSyncedRecordsInput).toMatchObject({ q: "corrida" }));
 
     await user.click(screen.getByLabelText("Dia anterior"));
     await waitFor(() => {
@@ -149,13 +153,13 @@ describe("SyncedHealthDataPage", () => {
     });
   });
 
-  it("abre os detalhes de uma atividade sincronizada sem campos técnicos", async () => {
+  it("abre os detalhes de uma atividade sincronizada sem campos técnicos nem textos crus em inglês", async () => {
     const { default: SyncedHealthDataPage } = await import("./SyncedHealthDataPage");
     const user = userEvent.setup();
 
     render(React.createElement(SyncedHealthDataPage));
 
-    await user.click(screen.getByRole("button", { name: /Corrida matinal/i }));
+    await user.click(screen.getByRole("button", { name: /Corrida/i }));
 
     expect(screen.getByText("Detalhes da atividade")).toBeTruthy();
     expect(screen.getByText("Distância")).toBeTruthy();
@@ -163,9 +167,19 @@ describe("SyncedHealthDataPage", () => {
     expect(screen.getAllByText("Calorias").length).toBeGreaterThan(0);
     expect(screen.getByText("Fonte das calorias")).toBeTruthy();
     expect(screen.getAllByText("Strava").length).toBeGreaterThan(0);
+    expect(screen.getByText("Tipo de treino")).toBeTruthy();
+    expect(screen.getByText("Treino")).toBeTruthy();
+    expect(screen.getByText("Esforço percebido")).toBeTruthy();
+    expect(screen.getByText("Moderado")).toBeTruthy();
+    expect(screen.getByText("Status da sincronização")).toBeTruthy();
+    expect(screen.getByText("Sincronizado")).toBeTruthy();
     expect(screen.queryByText("External Id")).toBeNull();
     expect(screen.queryByText("Gear Id")).toBeNull();
     expect(screen.queryByText("ID")).toBeNull();
+    expect(screen.queryByText("Morning Run")).toBeNull();
+    expect(screen.queryByText("Workout")).toBeNull();
+    expect(screen.queryByText("moderate")).toBeNull();
+    expect(screen.queryByText("synced")).toBeNull();
   });
 
   it("explica quando as calorias foram estimadas porque o Strava não retornou valor oficial", async () => {
@@ -175,9 +189,10 @@ describe("SyncedHealthDataPage", () => {
 
     render(React.createElement(SyncedHealthDataPage));
 
-    await user.click(screen.getByRole("button", { name: /Caminhada sem calorias oficiais/i }));
+    await user.click(screen.getByRole("button", { name: /Caminhada/i }));
 
     expect(screen.getByText("Estimativa local; Strava não retornou calorias oficiais")).toBeTruthy();
+    expect(screen.queryByText("Walk without official calories")).toBeNull();
   });
 
   it("renderiza estados de loading e vazio", async () => {
