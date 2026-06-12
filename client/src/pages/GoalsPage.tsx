@@ -500,7 +500,7 @@ export default function GoalsPage() {
                 </div>
                 <PercentValidationNote mode={defaultGoal.inputMode} percentSum={defaultPercentSum} />
                 <NutritionSafetyNotice issues={safetyAssessment.issues} />
-                <p className="text-xs text-muted-foreground">Para sua segurança, valores muito extremos precisam ser ajustados antes de salvar.</p>
+                <p className="text-xs text-muted-foreground">Metas muito extremas são bloqueadas para proteger sua saúde. Ajuste esses valores antes de salvar.</p>
               </CardContent>
             </Card>
 
@@ -625,7 +625,7 @@ export default function GoalsPage() {
                         <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">sem.</span>
                       </div>
                       <p className="min-h-10 text-sm leading-5 text-foreground">
-                        Soma de todas as metas planejadas para a semana.
+                        Soma das metas planejadas para a semana.
                       </p>
                     </div>
                     <div className="mt-3 space-y-1 text-sm text-foreground">
@@ -709,7 +709,7 @@ function ModeSelector({ mode, onChange }: { mode: MacroInputMode; onChange: (mod
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-medium tracking-tight">Como preencher os macronutrientes</p>
-          <p className="text-sm text-muted-foreground">Use gramas quando já souber os valores. Use percentuais quando quiser dividir as calorias do dia entre proteínas, carboidratos e gorduras.</p>
+          <p className="text-sm text-muted-foreground">Use gramas quando já souber os valores. Use percentual das calorias do dia quando quiser dividir a meta entre proteínas, carboidratos e gorduras.</p>
         </div>
         <div className="flex rounded-full bg-muted p-1">
           <button
