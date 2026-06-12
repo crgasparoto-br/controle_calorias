@@ -563,10 +563,10 @@ export async function revokePatientAccess(patientUserId: number, accessId: strin
   return publicAccess(revoked);
 }
 
-export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number) {
+export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number, weekOffset = 0) {
   await assertApprovedAccess(professionalUserId, patientUserId);
   const [bundle, recentMeals, patient, nutritionGoal] = await Promise.all([
-    getWeeklyReportBundle(patientUserId, 0),
+    getWeeklyReportBundle(patientUserId, weekOffset),
     listUserMeals(patientUserId),
     getUserSummary(patientUserId),
     getNutritionGoal(patientUserId),

@@ -25,6 +25,7 @@ export const accessIdSchema = z.object({
 
 export const patientIdSchema = z.object({
   patientId: z.number().int().positive(),
+  weekOffset: z.number().int().optional().default(0),
 });
 
 export const professionalCommentSchema = z.object({

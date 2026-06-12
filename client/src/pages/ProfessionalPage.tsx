@@ -8,12 +8,22 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  addWeeksToDateValue,
+  formatRangeLabel,
+  getWeekOffsetFromToday,
+  getWeekRange,
+} from "@/lib/dateRanges";
+import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import {
   Activity,
   BarChart3,
+  CalendarRange,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Droplets,
   Dumbbell,
@@ -294,8 +304,12 @@ export default function ProfessionalPage() {
     rationale: "",
     notes: "",
   });
+  const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
+  const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
+  const weekOffset = useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
+  const activeWeekRange = useMemo(() => getWeekRange(selectedDay), [selectedDay]);
   const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery(
-    { patientId: selectedPatientId ?? 0 },
+    { patientId: selectedPatientId ?? 0, weekOffset },
     { enabled: hasActiveProfile && Boolean(selectedPatientId) },
   );
 
@@ -401,6 +415,7 @@ export default function ProfessionalPage() {
 
   useEffect(() => {
     setPatientAnswer(null);
+    setSelectedDay(toDateInputValue());
   }, [selectedPatientId]);
 
   useEffect(() => {
@@ -656,6 +671,7 @@ export default function ProfessionalPage() {
                     </TabsList>
 
                     <TabsContent value="relatorios" className="space-y-6">
+                      <WeekRangeSelector selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} activeWeekRange={activeWeekRange} />
                       <ReportSummarySection metrics={reportSummaryMetrics} />
                       <ReportCalorieAdherenceCard trendData={trendData} dayCount={7} />
                       <ReportCalorieTrendChart trendData={trendData} />
@@ -1306,6 +1322,35 @@ function Empty({ text }: { text: string }) {
 function progressPercent(value: number, goal: number) {
   if (!goal) return 0;
   return Math.min(Math.max((value / goal) * 100, 0), 100);
+}
+
+function WeekRangeSelector({ selectedDay, onSelectedDayChange, activeWeekRange }: { selectedDay: string; onSelectedDayChange: (day: string) => void; activeWeekRange: { start: string; end: string } }) {
+  return (
+    <div className="flex flex-wrap items-end gap-3 rounded-3xl border bg-card p-3 shadow-sm">
+      <div className="space-y-2">
+        <Label htmlFor="prof-week-selector" className="flex items-center gap-2">
+          <CalendarRange className="h-4 w-4 text-primary" />
+          Semana de referência
+        </Label>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="icon" className="rounded-full" onClick={() => onSelectedDayChange(addWeeksToDateValue(selectedDay, -1))} aria-label="Semana anterior">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Input
+            id="prof-week-selector"
+            type="date"
+            value={selectedDay}
+            onChange={event => onSelectedDayChange(event.target.value)}
+            className="min-w-[10.5rem] sm:w-44"
+          />
+          <Button type="button" variant="outline" size="icon" className="rounded-full" onClick={() => onSelectedDayChange(addWeeksToDateValue(selectedDay, 1))} aria-label="Próxima semana">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{formatRangeLabel(activeWeekRange)}</span>
+    </div>
+  );
 }
 
 // ─── Report sub-components (mirrors ReportsGoalsPage week scope) ──────────────

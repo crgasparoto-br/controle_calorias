@@ -299,7 +299,7 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) => revokePatientAccess(ctx.user.id, input.accessId)),
     patientDashboard: protectedProcedure
       .input(patientIdSchema)
-      .query(async ({ ctx, input }) => getProfessionalPatientDashboard(ctx.user.id, input.patientId)),
+      .query(async ({ ctx, input }) => getProfessionalPatientDashboard(ctx.user.id, input.patientId, input.weekOffset)),
     addComment: protectedProcedure
       .input(professionalCommentSchema)
       .mutation(async ({ ctx, input }) => addProfessionalComment(ctx.user.id, input)),
