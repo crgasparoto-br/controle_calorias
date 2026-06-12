@@ -5,8 +5,15 @@ import { assessNutritionGoalInput } from "@shared/nutritionSafety";
 import type { NutritionGoalSafetyIssue } from "@shared/nutritionSafety";
 import { GoalInput } from "./schemas";
 
+type GoalValidationIssue = NutritionGoalSafetyIssue | {
+  code: "conflicting_goal_version";
+  severity: "block";
+  targetLabel: string;
+  message: string;
+};
+
 export class UnsafeNutritionGoalError extends Error {
-  constructor(public readonly blockers: NutritionGoalSafetyIssue[]) {
+  constructor(public readonly blockers: GoalValidationIssue[]) {
     super(blockers.map(issue => issue.message).join(" "));
     this.name = "UnsafeNutritionGoalError";
   }
@@ -20,7 +27,7 @@ export class ConflictingNutritionGoalVersionError extends UnsafeNutritionGoalErr
         severity: "block",
         targetLabel: "Meta geral",
         message: `Já existe uma versão de meta geral iniciando em ${startDate}. Escolha outra data de início.`,
-      } as NutritionGoalSafetyIssue,
+      },
     ]);
     this.name = "ConflictingNutritionGoalVersionError";
   }
