@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
 import ProfileAccessRequestsEmbed from "./components/ProfileAccessRequestsEmbed";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -86,6 +87,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <ProfileAccessRequestsEmbed />
+          <ProfessionalAnalyzeTabBridge />
           <ProfessionalGoalExceptionSuggestionsEmbed />
           <Router />
         </TooltipProvider>
