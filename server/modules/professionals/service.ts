@@ -2,10 +2,11 @@ import crypto from "node:crypto";
 import { and, eq, or } from "drizzle-orm";
 import { userPreferences, users, whatsappConnections } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
-import { getDb, listUserMeals } from "../../db";
+import { getDb, getUserWhatsappConnection, listUserMeals, logInferenceEvent } from "../../db";
 import { getPeriodReportBundle, getWeeklyReportBundle } from "../insights/service";
 import { redactSensitiveText } from "../../privacy";
 import { getNutritionGoal } from "../goals/service";
+import { sendWhatsAppTextMessage } from "../whatsapp/webhookUtils";
 import {
   professionalPatientAnswerSchema,
   type ProfessionalCommentInput,
@@ -20,6 +21,9 @@ import {
 } from "./schemas";
 
 type AccessStatus = "pending" | "approved" | "revoked" | "rejected";
+type AccessResponseOrigin = "web" | "whatsapp";
+type AccessResponseDecision = "approved" | "rejected" | "revoked";
+type AuthorizationMessageStatus = "sent" | "failed" | "skipped";
 
 type ProfessionalProfile = {
   userId: number;
@@ -39,6 +43,13 @@ type ProfessionalPatientAccess = {
   requestedAt: number;
   approvedAt: number | null;
   revokedAt: number | null;
+  rejectedAt: number | null;
+  respondedAt: number | null;
+  responseOrigin: AccessResponseOrigin | null;
+  responseDecision: AccessResponseDecision | null;
+  authorizationMessageStatus: AuthorizationMessageStatus | null;
+  authorizationMessageSentAt: number | null;
+  authorizationMessageError: string | null;
 };
 
 type ProfessionalComment = {
@@ -81,7 +92,18 @@ type HistoryEvent = {
   actorUserId: number;
   patientUserId: number;
   professionalUserId: number;
-  eventType: "profile_upserted" | "access_requested" | "access_approved" | "access_revoked" | "comment_created" | "goal_suggested" | "meal_suggested" | "patient_question_answered";
+  eventType:
+    | "profile_upserted"
+    | "access_requested"
+    | "access_approved"
+    | "access_rejected"
+    | "access_revoked"
+    | "access_authorization_whatsapp_sent"
+    | "access_authorization_whatsapp_failed"
+    | "comment_created"
+    | "goal_suggested"
+    | "meal_suggested"
+    | "patient_question_answered";
   createdAt: number;
 };
 
@@ -89,6 +111,12 @@ type UserSummary = {
   userId: number;
   name: string | null;
   email: string | null;
+};
+
+type AuthorizationSendResult = {
+  status: AuthorizationMessageStatus;
+  detail: string;
+  access: ProfessionalPatientAccess;
 };
 
 const PROFESSIONAL_AI_NOTICE = "Resposta educativa para apoiar a análise profissional. Não substitui julgamento clínico, diagnóstico, prescrição médica ou decisão compartilhada com a pessoa acompanhada.";
@@ -118,6 +146,13 @@ function publicAccess(access: ProfessionalPatientAccess) {
     requestedAt: access.requestedAt,
     approvedAt: access.approvedAt,
     revokedAt: access.revokedAt,
+    rejectedAt: access.rejectedAt,
+    respondedAt: access.respondedAt,
+    responseOrigin: access.responseOrigin,
+    responseDecision: access.responseDecision,
+    authorizationMessageStatus: access.authorizationMessageStatus,
+    authorizationMessageSentAt: access.authorizationMessageSentAt,
+    authorizationMessageError: access.authorizationMessageError,
   };
 }
 
@@ -167,6 +202,65 @@ function isAccessStatus(value: unknown): value is AccessStatus {
   return value === "pending" || value === "approved" || value === "revoked" || value === "rejected";
 }
 
+function isAccessResponseOrigin(value: unknown): value is AccessResponseOrigin {
+  return value === "web" || value === "whatsapp";
+}
+
+function isAccessResponseDecision(value: unknown): value is AccessResponseDecision {
+  return value === "approved" || value === "rejected" || value === "revoked";
+}
+
+function isAuthorizationMessageStatus(value: unknown): value is AuthorizationMessageStatus {
+  return value === "sent" || value === "failed" || value === "skipped";
+}
+
+function firstName(value: string | null | undefined) {
+  return value?.trim().split(/\s+/)[0] || "Profissional";
+}
+
+export function buildProfessionalAccessDecisionCode(accessId: string) {
+  return accessId.replace(/[^a-z0-9]/gi, "").slice(0, 8).toUpperCase();
+}
+
+export function buildProfessionalAccessAuthorizationMessage(input: {
+  professionalDisplayName: string;
+  reason: string;
+  accessId: string;
+}) {
+  const code = buildProfessionalAccessDecisionCode(input.accessId);
+  return [
+    `${input.professionalDisplayName} solicitou autorização para acompanhar seus registros no Controle de Calorias.`,
+    `Motivo: ${input.reason}`,
+    "",
+    "Para responder pelo WhatsApp, envie uma das opções abaixo:",
+    `AUTORIZAR ${code}`,
+    `NEGAR ${code}`,
+    "",
+    "Ao autorizar, você permite que o profissional veja seus dados de acompanhamento. Você pode revogar esse vínculo depois pela plataforma.",
+  ].join("\n");
+}
+
+function normalizeDecisionText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+export function parseProfessionalAccessWhatsappDecision(text: string): "approved" | "rejected" | null {
+  const normalized = normalizeDecisionText(text);
+  if (!normalized) return null;
+
+  if (/\b(negar|nego|negado|recusar|recuso|recusado|rejeitar|rejeito|nao|não)\b/.test(normalized)) {
+    return "rejected";
+  }
+  if (/\b(autorizar|autorizo|autorizado|aprovar|aprovo|aprovado|aceitar|aceito|sim)\b/.test(normalized)) {
+    return "approved";
+  }
+  return null;
+}
+
 function normalizeStoredAccess(value: Partial<ProfessionalPatientAccess>): ProfessionalPatientAccess | null {
   if (
     typeof value.id !== "string" ||
@@ -188,6 +282,13 @@ function normalizeStoredAccess(value: Partial<ProfessionalPatientAccess>): Profe
     requestedAt: value.requestedAt,
     approvedAt: typeof value.approvedAt === "number" ? value.approvedAt : null,
     revokedAt: typeof value.revokedAt === "number" ? value.revokedAt : null,
+    rejectedAt: typeof value.rejectedAt === "number" ? value.rejectedAt : null,
+    respondedAt: typeof value.respondedAt === "number" ? value.respondedAt : null,
+    responseOrigin: isAccessResponseOrigin(value.responseOrigin) ? value.responseOrigin : null,
+    responseDecision: isAccessResponseDecision(value.responseDecision) ? value.responseDecision : null,
+    authorizationMessageStatus: isAuthorizationMessageStatus(value.authorizationMessageStatus) ? value.authorizationMessageStatus : null,
+    authorizationMessageSentAt: typeof value.authorizationMessageSentAt === "number" ? value.authorizationMessageSentAt : null,
+    authorizationMessageError: typeof value.authorizationMessageError === "string" ? value.authorizationMessageError : null,
   };
 }
 
@@ -326,6 +427,153 @@ function parseAssistantContent(content: unknown) {
   return JSON.parse(text);
 }
 
+async function sendProfessionalAccessAuthorizationWhatsapp(
+  access: ProfessionalPatientAccess,
+  professionalProfile: ProfessionalProfile,
+): Promise<AuthorizationSendResult> {
+  const connection = await getUserWhatsappConnection(access.patientUserId);
+  const attemptedAt = Date.now();
+
+  if (!connection?.phoneNumber || connection.status === "disabled") {
+    const detail = "Pessoa acompanhada sem WhatsApp ativo vinculado para receber a autorização.";
+    const skipped: ProfessionalPatientAccess = {
+      ...access,
+      authorizationMessageStatus: "skipped",
+      authorizationMessageSentAt: null,
+      authorizationMessageError: detail,
+    };
+    await persistAccessForBothSides(skipped);
+    logInferenceEvent({
+      userId: access.professionalUserId,
+      origin: "web",
+      status: "warning",
+      eventType: "professional.access.authorization_whatsapp_skipped",
+      detail,
+    });
+    return { status: "skipped", detail, access: skipped };
+  }
+
+  const message = buildProfessionalAccessAuthorizationMessage({
+    professionalDisplayName: professionalProfile.displayName,
+    reason: access.reason,
+    accessId: access.id,
+  });
+  const result = await sendWhatsAppTextMessage(connection.phoneNumber, message);
+  const sent: ProfessionalPatientAccess = result.ok
+    ? {
+        ...access,
+        authorizationMessageStatus: "sent",
+        authorizationMessageSentAt: attemptedAt,
+        authorizationMessageError: null,
+      }
+    : {
+        ...access,
+        authorizationMessageStatus: "failed",
+        authorizationMessageSentAt: null,
+        authorizationMessageError: result.detail.slice(0, 500),
+      };
+
+  await persistAccessForBothSides(sent);
+  pushHistory({
+    actorUserId: access.professionalUserId,
+    professionalUserId: access.professionalUserId,
+    patientUserId: access.patientUserId,
+    eventType: result.ok ? "access_authorization_whatsapp_sent" : "access_authorization_whatsapp_failed",
+  });
+  logInferenceEvent({
+    userId: access.professionalUserId,
+    origin: "web",
+    status: result.ok ? "success" : "warning",
+    eventType: result.ok ? "professional.access.authorization_whatsapp_sent" : "professional.access.authorization_whatsapp_failed",
+    detail: result.ok
+      ? `Autorização profissional enviada ao WhatsApp da pessoa acompanhada #${access.patientUserId}.`
+      : result.detail.slice(0, 500),
+  });
+
+  return {
+    status: result.ok ? "sent" : "failed",
+    detail: result.ok ? "Mensagem de autorização enviada pelo WhatsApp." : result.detail,
+    access: sent,
+  };
+}
+
+function buildDecisionReply(decision: "approved" | "rejected", professionalProfile: ProfessionalProfile | null) {
+  const professionalName = firstName(professionalProfile?.displayName);
+  if (decision === "approved") {
+    return `Autorização confirmada. ${professionalName} já pode acompanhar seus dados autorizados no Controle de Calorias.`;
+  }
+  return `Autorização recusada. ${professionalName} não terá acesso aos seus dados de acompanhamento.`;
+}
+
+function findPendingAccessFromWhatsappText(pendingAccesses: ProfessionalPatientAccess[], text: string) {
+  const normalized = normalizeDecisionText(text).toUpperCase();
+  const accessByCode = pendingAccesses.find(access => normalized.includes(buildProfessionalAccessDecisionCode(access.id)));
+  if (accessByCode) return accessByCode;
+  return pendingAccesses.length === 1 ? pendingAccesses[0] : null;
+}
+
+export async function processProfessionalAccessWhatsappResponse(patientUserId: number, text: string) {
+  const decision = parseProfessionalAccessWhatsappDecision(text);
+  if (!decision) return null;
+
+  const pendingAccesses = (await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY))
+    .filter(access => access.status === "pending");
+  if (!pendingAccesses.length) return null;
+
+  const access = findPendingAccessFromWhatsappText(pendingAccesses, text);
+  if (!access) {
+    return {
+      handled: true,
+      action: "professional_access_decision_ambiguous",
+      reply: "Encontrei mais de uma solicitação pendente. Responda com AUTORIZAR ou NEGAR seguido do código recebido na mensagem do profissional.",
+      eventType: "professional.access.whatsapp_decision_ambiguous",
+      detail: "Resposta de autorização profissional sem código suficiente para identificar a solicitação.",
+    };
+  }
+
+  const now = Date.now();
+  const updated: ProfessionalPatientAccess = decision === "approved"
+    ? {
+        ...access,
+        status: "approved",
+        approvedAt: now,
+        revokedAt: null,
+        rejectedAt: null,
+        respondedAt: now,
+        responseOrigin: "whatsapp",
+        responseDecision: "approved",
+      }
+    : {
+        ...access,
+        status: "rejected",
+        approvedAt: null,
+        revokedAt: null,
+        rejectedAt: now,
+        respondedAt: now,
+        responseOrigin: "whatsapp",
+        responseDecision: "rejected",
+      };
+
+  await persistAccessForBothSides(updated);
+  const professionalProfile = await getProfessionalProfile(access.professionalUserId);
+  pushHistory({
+    actorUserId: patientUserId,
+    professionalUserId: access.professionalUserId,
+    patientUserId,
+    eventType: decision === "approved" ? "access_approved" : "access_rejected",
+  });
+
+  const action = decision === "approved" ? "professional_access_approved" : "professional_access_rejected";
+  return {
+    handled: true,
+    action,
+    reply: buildDecisionReply(decision, professionalProfile),
+    eventType: `professional.access.whatsapp_${decision}`,
+    detail: `Solicitação de acompanhamento ${decision === "approved" ? "aprovada" : "recusada"} via WhatsApp pela pessoa acompanhada #${patientUserId}.`,
+    data: publicAccess(updated),
+  };
+}
+
 export async function getProfessionalStatus(userId: number) {
   const profile = await getProfessionalProfile(userId);
   return {
@@ -456,7 +704,7 @@ export async function getProfessionalProfile(userId: number) {
 }
 
 export async function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
-  await assertActiveProfessionalProfile(professionalUserId);
+  const professionalProfile = await assertActiveProfessionalProfile(professionalUserId);
 
   const patientContact = input.patientContact ?? input.patientEmail ?? "";
   const patient = await getUserSummaryByContact(patientContact);
@@ -475,6 +723,12 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
     return {
       ...publicAccess(existing),
       patient,
+      authorizationMessage: existing.authorizationMessageStatus
+        ? {
+            status: existing.authorizationMessageStatus,
+            detail: existing.authorizationMessageError ?? "Solicitação já registrada anteriormente.",
+          }
+        : null,
     };
   }
 
@@ -487,6 +741,13 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
     requestedAt: Date.now(),
     approvedAt: null,
     revokedAt: null,
+    rejectedAt: null,
+    respondedAt: null,
+    responseOrigin: null,
+    responseDecision: null,
+    authorizationMessageStatus: null,
+    authorizationMessageSentAt: null,
+    authorizationMessageError: null,
   };
   await persistAccessForBothSides(access);
   pushHistory({
@@ -495,9 +756,14 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
     patientUserId: patient.userId,
     eventType: "access_requested",
   });
+  const authorizationMessage = await sendProfessionalAccessAuthorizationWhatsapp(access, professionalProfile);
   return {
-    ...publicAccess(access),
+    ...publicAccess(authorizationMessage.access),
     patient,
+    authorizationMessage: {
+      status: authorizationMessage.status,
+      detail: authorizationMessage.detail,
+    },
   };
 }
 
@@ -537,7 +803,17 @@ export async function approvePatientAccess(patientUserId: number, accessId: stri
   const access = accesses.get(accessId) ?? patientAccesses.find(item => item.id === accessId);
   if (!access || access.patientUserId !== patientUserId) throw new Error("Solicitação de acesso não encontrada.");
   if (access.status !== "pending") throw new Error("Apenas solicitações pendentes podem ser aprovadas.");
-  const approved = { ...access, status: "approved" as const, approvedAt: Date.now(), revokedAt: null };
+  const now = Date.now();
+  const approved = {
+    ...access,
+    status: "approved" as const,
+    approvedAt: now,
+    revokedAt: null,
+    rejectedAt: null,
+    respondedAt: now,
+    responseOrigin: "web" as const,
+    responseDecision: "approved" as const,
+  };
   await persistAccessForBothSides(approved);
   pushHistory({
     actorUserId: patientUserId,
@@ -552,7 +828,15 @@ export async function revokePatientAccess(patientUserId: number, accessId: strin
   const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
   const access = accesses.get(accessId) ?? patientAccesses.find(item => item.id === accessId);
   if (!access || access.patientUserId !== patientUserId) throw new Error("Vínculo de acesso não encontrado.");
-  const revoked = { ...access, status: "revoked" as const, revokedAt: Date.now() };
+  const now = Date.now();
+  const revoked = {
+    ...access,
+    status: "revoked" as const,
+    revokedAt: now,
+    respondedAt: now,
+    responseOrigin: "web" as const,
+    responseDecision: "revoked" as const,
+  };
   await persistAccessForBothSides(revoked);
   pushHistory({
     actorUserId: patientUserId,
