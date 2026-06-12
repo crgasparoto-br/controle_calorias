@@ -144,12 +144,15 @@ function applyPercentagesToGoal(goal: GoalTargetForm, percentages: Pick<GoalTarg
   };
 }
 
-function createGoalTargetForm(goal: GoalTargetBase): GoalTargetForm {
-  return {
+function createGoalTargetForm(goal: GoalTargetBase, inputMode: MacroInputMode = "grams"): GoalTargetForm {
+  const percentages = derivePercentagesFromGoal(goal);
+  const form = {
     ...goal,
-    inputMode: "grams",
-    ...derivePercentagesFromGoal(goal),
+    inputMode,
+    ...percentages,
   };
+
+  return inputMode === "percent" ? applyPercentagesToGoal(form, percentages) : form;
 }
 
 function buildException(weekday: number): GoalExceptionForm {
@@ -223,7 +226,7 @@ export default function GoalsPage() {
     proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
     carbsGrams: goalQuery.data.defaultGoal.carbsGrams,
     fatGrams: goalQuery.data.defaultGoal.fatGrams,
-  }) : createGoalTargetForm(DEFAULT_GOAL_BASE));
+  }, "percent") : createGoalTargetForm(DEFAULT_GOAL_BASE, "percent"));
   const [exceptions, setExceptions] = useState<GoalExceptionForm[]>(() => goalQuery.data ? normalizeExceptionsForEditing(goalQuery.data.exceptions).map(exception => ({
     id: exception.id,
     weekday: exception.weekday,
@@ -244,7 +247,7 @@ export default function GoalsPage() {
       proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
       carbsGrams: goalQuery.data.defaultGoal.carbsGrams,
       fatGrams: goalQuery.data.defaultGoal.fatGrams,
-    }));
+    }, "percent"));
 
     setExceptions(normalizeExceptionsForEditing(goalQuery.data.exceptions).map(exception => ({
       id: exception.id,
@@ -466,7 +469,7 @@ export default function GoalsPage() {
                   Meta geral da semana
                 </CardTitle>
                 <CardDescription>
-                  Esta é a meta aplicada aos dias sem exceção. Informe calorias, proteínas, carboidratos e gorduras em gramas ou percentuais e revise os avisos antes de salvar.
+                  Use esta meta como referência para os dias sem exceção. Preencha os macronutrientes em gramas ou por percentual das calorias e revise os avisos antes de salvar.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -791,7 +794,7 @@ function MacroField({
         <span className="text-sm text-muted-foreground">{mode === "grams" ? "g" : "%"}</span>
       </div>
       {mode === "percent" ? (
-        <p className="text-xs text-muted-foreground">O app converte este percentual para {formatGrams(grams)}.</p>
+        <p className="text-xs text-muted-foreground">Calculado automaticamente pela meta calórica: {formatGrams(grams)}</p>
       ) : (
         <p className="text-xs text-muted-foreground">Informe a quantidade planejada em gramas.</p>
       )}
@@ -869,21 +872,6 @@ function SelectField({
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>
-    </div>
-  );
-}
-
-function SummaryTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border bg-muted/20 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="font-medium tracking-tight">{label}</p>
-          <p className="text-sm text-muted-foreground">Total planejado para a semana.</p>
-        </div>
-        <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">sem.</span>
-      </div>
-      <p className="mt-3 text-sm text-muted-foreground">{value}</p>
     </div>
   );
 }

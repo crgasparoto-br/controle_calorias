@@ -7,6 +7,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 ## Regras de produto
 
 - Metas devem aceitar regra padrão e exceções por janela de tempo.
+- A meta geral deve iniciar a configuração de macronutrientes em percentual, exibindo a soma dos percentuais e os gramas derivados a partir da meta calórica informada.
 - Valores potencialmente inseguros devem gerar aviso ou bloqueio antes da persistência.
 - Relatórios semanais usam semana iniciando na segunda-feira.
 - Refeições confirmadas devem exibir itens, porções, macros, calorias e horário.
