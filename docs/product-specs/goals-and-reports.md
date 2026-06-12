@@ -77,4 +77,4 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 - Relatórios separam calorias classificadas e não classificadas nos indicadores de qualidade alimentar.
 - Relatórios exibem água e exercícios como indicadores de apoio às metas, sem transformar Reports em dashboard detalhado de treinos ou hidratação.
 - Relatórios usam registros reais de peso do período selecionado no gráfico de evolução de peso quando houver dados no intervalo.
-- Relórios não duplicam a experiência operacional de Refeições registradas.
+- Relatórios não duplicam a experiência operacional de Refeições registradas.
