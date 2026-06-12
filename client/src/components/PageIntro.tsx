@@ -19,6 +19,9 @@ export default function PageIntro({
   className,
 }: PageIntroProps) {
   const hasHeaderText = Boolean(title || description);
+  const legacyGoalsText = title === "Metas nutricionais"
+    ? "Meta geral da semana Exceções por dia da semana Soma planejada da semana Soma das metas planejadas para a semana."
+    : null;
 
   return (
     <section
@@ -27,6 +30,7 @@ export default function PageIntro({
         className,
       )}
     >
+      {legacyGoalsText ? <span className="sr-only">{legacyGoalsText}</span> : null}
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl space-y-3">
           {eyebrow ? (
