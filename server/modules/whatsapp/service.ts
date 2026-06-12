@@ -15,6 +15,7 @@ import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
+import { getWhatsAppIntentLogStatus } from "./intentResult";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
@@ -86,7 +87,7 @@ async function logAndReturnInterpretedIntent(
   logInferenceEvent({
     userId,
     origin: "whatsapp",
-    status: interpreted.action === "clarification_needed" ? "warning" : "success",
+    status: getWhatsAppIntentLogStatus(interpreted.action),
     eventType: interpreted.eventType,
     detail: interpreted.detail,
   });
@@ -110,7 +111,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       logInferenceEvent({
         userId,
         origin: "whatsapp",
-        status: interpretedWater.action === "clarification_needed" ? "warning" : "success",
+        status: getWhatsAppIntentLogStatus(interpretedWater.action),
         eventType: interpretedWater.eventType,
         detail: interpretedWater.detail,
       });
