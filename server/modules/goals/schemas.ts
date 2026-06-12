@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data de início no formato AAAA-MM-DD.");
+
 export const goalTargetSchema = z.object({
   calories: z.number().int().min(800).max(8000),
   proteinGrams: z.number().min(20).max(500),
@@ -14,10 +16,15 @@ export const goalExceptionSchema = goalTargetSchema.extend({
 });
 
 export const goalSchema = z.object({
+  startDate: dateKeySchema.optional(),
   defaultGoal: goalTargetSchema,
   exceptions: z
     .array(goalExceptionSchema)
     .refine(exceptions => new Set(exceptions.map(item => item.weekday)).size === exceptions.length, "Informe no máximo uma exceção ativa por dia da semana."),
+});
+
+export const goalForDateSchema = z.object({
+  date: dateKeySchema,
 });
 
 export type GoalInput = z.infer<typeof goalSchema>;
