@@ -37,6 +37,8 @@ const recentlyHandledAnnotatedImageMessageIds = new Map<string, number>();
 const ANNOTATED_IMAGE_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa imagem agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
+const ANNOTATED_IMAGE_UNAVAILABLE_REPLY = "A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.";
+const ANNOTATED_IMAGE_SEND_FAILED_REPLY = "A refeição foi registrada, mas não consegui enviar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.";
 
 function getTextBody(message: WhatsAppWebhookMessage) {
   return message.text?.body?.trim() || message.image?.caption?.trim() || "";
@@ -202,6 +204,23 @@ async function logWhatsAppOperationWarning(input: {
   });
 }
 
+async function sendAnnotatedImageFallbackText(input: {
+  userId: number;
+  sourcePhone: string;
+  reply: string;
+}) {
+  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
+  if (!replyResult.ok) {
+    logInferenceEvent({
+      userId: input.userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.reply_failed",
+      detail: `Falha ao enviar fallback da imagem anotada para ${input.sourcePhone}: ${replyResult.detail}`,
+    });
+  }
+}
+
 async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookMessage) {
   const sourcePhone = message.from || "unknown";
   if (!isWhatsAppMessageForConfiguredChannel(message) || !canHandleAnnotatedImageMessage(message)) {
@@ -326,6 +345,11 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
           eventType: "whatsapp.annotated_image_reply_failed",
           detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
         });
+        await sendAnnotatedImageFallbackText({
+          userId,
+          sourcePhone,
+          reply: ANNOTATED_IMAGE_SEND_FAILED_REPLY,
+        });
       }
     } else {
       logInferenceEvent({
@@ -334,6 +358,11 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
         status: "warning",
         eventType: "whatsapp.annotated_image_skipped",
         detail: `Imagem anotada não enviada para ${sourcePhone}: ${annotatedImage.detail || annotatedImage.skippedReason || "geração sem URL"}.`,
+      });
+      await sendAnnotatedImageFallbackText({
+        userId,
+        sourcePhone,
+        reply: ANNOTATED_IMAGE_UNAVAILABLE_REPLY,
       });
     }
 
