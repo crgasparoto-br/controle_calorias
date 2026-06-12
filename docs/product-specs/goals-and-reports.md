@@ -7,6 +7,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 ## Regras de produto
 
 - Metas devem aceitar regra padrão e exceções por janela de tempo.
+- A meta geral deve iniciar a configuração de macronutrientes em percentual, exibindo a soma dos percentuais e os gramas derivados a partir da meta calórica informada.
 - Valores potencialmente inseguros devem gerar aviso ou bloqueio antes da persistência.
 - Relatórios semanais usam semana iniciando na segunda-feira.
 - Refeições confirmadas devem exibir itens, porções, macros, calorias e horário.
@@ -76,4 +77,4 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 - Relatórios separam calorias classificadas e não classificadas nos indicadores de qualidade alimentar.
 - Relatórios exibem água e exercícios como indicadores de apoio às metas, sem transformar Reports em dashboard detalhado de treinos ou hidratação.
 - Relatórios usam registros reais de peso do período selecionado no gráfico de evolução de peso quando houver dados no intervalo.
-- Relatórios não duplicam a experiência operacional de Refeições registradas.
+- Relórios não duplicam a experiência operacional de Refeições registradas.
