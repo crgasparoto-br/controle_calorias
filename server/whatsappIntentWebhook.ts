@@ -114,6 +114,14 @@ function isBareDailySummaryRequest(text: string) {
   return normalized === "resumo" || normalized === "relatorio" || normalized === "balanco";
 }
 
+function shouldTryContextualLlmIntent(text: string) {
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (hasExplicitFoodQuantity(text)) return false;
+  if (/\b(almocei|jantei|comi|lanchei|ceei|tomei|bebi)\b/.test(normalized)) return false;
+  return /\b(refeicoes?|registrad[ao]s?|registrei|registro|consultar|consulta|listar|mostra|mostrar|ver|resumo do dia|total de hoje|calorias de hoje|corrigir|correcao|trocar|substituir|ajuda|comandos)\b/.test(normalized);
+}
+
 function isInsidePeriod(value: number | string | Date, start: Date, end: Date) {
   const time = new Date(value).getTime();
   return time >= start.getTime() && time <= end.getTime();
@@ -331,7 +339,9 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
   let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
-  result ??= await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+  if (!result && shouldTryContextualLlmIntent(textForIntent)) {
+    result = await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+  }
   result ??= executeWhatsAppFoodAssistantIntent(text);
 
   if (!result) {
