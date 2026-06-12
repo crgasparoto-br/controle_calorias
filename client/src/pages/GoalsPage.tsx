@@ -60,6 +60,13 @@ type GoalExceptionQuery = {
   effectiveFrom?: Date | string | number | null;
 };
 
+type GoalVersionQuery = GoalTargetBase & {
+  id: number;
+  startDate: string;
+  effectiveUntil?: Date | string | number | null;
+  isCurrent: boolean;
+};
+
 type MacroPercentField = "proteinPercent" | "carbsPercent" | "fatPercent";
 type MacroGramField = "proteinGrams" | "carbsGrams" | "fatGrams";
 
@@ -96,6 +103,28 @@ const DURATION_OPTIONS: Array<{ value: DurationType; label: string }> = [
 
 function getWeekdayIndex(date: Date) {
   return (date.getDay() + 6) % 7;
+}
+
+function toDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateKey(dateKey?: string | null) {
+  if (!dateKey) return "Sem data";
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(`${dateKey}T12:00:00Z`));
+}
+
+function formatVersionEndDate(value?: Date | string | number | null) {
+  if (!value) return "sem término definido";
+  return `até ${formatDateKey(new Date(value).toISOString().slice(0, 10))}`;
 }
 
 function roundToOneDecimal(value: number) {
@@ -221,6 +250,7 @@ export default function GoalsPage() {
     onError: error => toast.error(error.message || SAFE_NUTRITION_MESSAGES.couldNotUpdateGoals),
   });
 
+  const [startDate, setStartDate] = useState(() => goalQuery.data?.startDate ?? toDateInputValue());
   const [defaultGoal, setDefaultGoal] = useState<GoalTargetForm>(() => goalQuery.data ? createGoalTargetForm({
     calories: goalQuery.data.defaultGoal.calories,
     proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
@@ -242,6 +272,7 @@ export default function GoalsPage() {
   useEffect(() => {
     if (!goalQuery.data) return;
 
+    setStartDate(goalQuery.data.startDate ?? toDateInputValue());
     setDefaultGoal(createGoalTargetForm({
       calories: goalQuery.data.defaultGoal.calories,
       proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
@@ -262,6 +293,7 @@ export default function GoalsPage() {
     })));
   }, [goalQuery.data]);
 
+  const goalVersions = (goalQuery.data?.versions ?? []) as GoalVersionQuery[];
   const previewDays = useMemo(() => WEEKDAY_META.map(day => {
     const exception = exceptions.find(item => item.weekday === day.weekday);
     const applied = exception ?? defaultGoal;
@@ -400,12 +432,18 @@ export default function GoalsPage() {
       return;
     }
 
+    if (!startDate) {
+      toast.error("Informe a data de início da meta geral.");
+      return;
+    }
+
     if (safetyAssessment.blockers.length) {
       toast.error(safetyAssessment.blockers[0].message);
       return;
     }
 
     updateGoal.mutate({
+      startDate,
       defaultGoal: toGoalPayload(defaultGoal),
       exceptions: exceptions.map(exception => ({
         weekday: exception.weekday,
@@ -421,7 +459,7 @@ export default function GoalsPage() {
         <PageIntro
           eyebrow="Planejamento nutricional"
           title="Metas e exceções da semana"
-          description="Defina a meta usada na maior parte dos dias e ajuste somente os dias que precisam de valores diferentes. As metas salvas passam a valer a partir de hoje e aparecem no dashboard e nos relatórios."
+          description="Defina a meta usada na maior parte dos dias, escolha quando ela começa a valer e ajuste somente os dias que precisam de valores diferentes. Versões anteriores continuam preservadas para consultas históricas."
           actions={(
             <Button
               className="rounded-full"
@@ -435,11 +473,16 @@ export default function GoalsPage() {
             </Button>
           )}
           stats={(
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <IntroStat
                 label="Meta de hoje"
                 value={todayGoal.label}
                 supporting={formatCalories(todayGoal.calories)}
+              />
+              <IntroStat
+                label="Início da versão"
+                value={formatDateKey(startDate)}
+                supporting="data em que a meta salva passa a valer"
               />
               <IntroStat
                 label="Exceções ativas"
@@ -469,10 +512,11 @@ export default function GoalsPage() {
                   Meta geral da semana
                 </CardTitle>
                 <CardDescription>
-                  Use esta meta como referência para os dias sem exceção. Preencha os macronutrientes em gramas ou por percentual das calorias e revise os avisos antes de salvar.
+                  Use esta meta como referência para os dias sem exceção. Preencha os macronutrientes, informe a data de início e revise os avisos antes de salvar.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <VersionStartField value={startDate} onChange={setStartDate} />
                 <ModeSelector mode={defaultGoal.inputMode} onChange={updateDefaultInputMode} />
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <FormattedField label="Calorias" value={defaultGoal.calories} onChange={value => updateDefaultGoal("calories", value)} suffix="kcal" />
@@ -511,7 +555,7 @@ export default function GoalsPage() {
               <CardHeader>
                 <CardTitle>Exceções por dia da semana</CardTitle>
                 <CardDescription>
-                  Use exceções para dias com uma rotina diferente, como treino, descanso ou compromisso especial. Escolha o dia e por quanto tempo essa meta própria deve valer a partir de hoje.
+                  Use exceções para dias com uma rotina diferente, como treino, descanso ou compromisso especial. Escolha o dia e por quanto tempo essa meta própria deve valer a partir da data de início informada.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -590,6 +634,8 @@ export default function GoalsPage() {
           </div>
 
           <div className="grid gap-6">
+            <GoalVersionHistory versions={goalVersions} selectedStartDate={startDate} />
+
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -675,6 +721,71 @@ export default function GoalsPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+function VersionStartField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr),minmax(0,1.2fr)] lg:items-center">
+        <div>
+          <p className="font-medium tracking-tight">Data de início da versão</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            A meta salva passa a valer a partir desta data. Dias anteriores continuam usando a versão que já estava vigente.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="goal-start-date">Início da meta geral</Label>
+          <Input
+            id="goal-start-date"
+            type="date"
+            value={value}
+            onChange={event => onChange(event.target.value)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GoalVersionHistory({ versions, selectedStartDate }: { versions: GoalVersionQuery[]; selectedStartDate: string }) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle>Versões da meta geral</CardTitle>
+        <CardDescription>
+          Confira as datas de início já cadastradas para evitar versões duplicadas e entender o histórico aplicado aos dias anteriores.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {versions.length ? versions.map(version => {
+          const isSelected = version.startDate === selectedStartDate;
+          return (
+            <div key={version.id} className={`rounded-2xl border bg-background p-4 shadow-sm ${isSelected ? "border-primary/50" : ""}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium tracking-tight">Início em {formatDateKey(version.startDate)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{formatVersionEndDate(version.effectiveUntil)}</p>
+                </div>
+                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                  {isSelected ? "em edição" : version.isCurrent ? "vigente" : "histórica"}
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                <span>{formatCalories(version.calories)}</span>
+                <span>{formatGrams(version.proteinGrams)} proteína</span>
+                <span>{formatGrams(version.carbsGrams)} carbo</span>
+                <span>{formatGrams(version.fatGrams)} gordura</span>
+              </div>
+            </div>
+          );
+        }) : (
+          <div className="rounded-2xl border border-dashed bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+            Nenhuma versão salva foi encontrada ainda. Ao salvar a meta, a primeira versão aparecerá aqui com a data de início escolhida.
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
