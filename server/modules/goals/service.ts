@@ -231,7 +231,16 @@ function summarizeDefaultVersions(rows: NutritionGoal[] | null) {
       seenVersions.add(key);
       return true;
     })
-    .sort((first, second) => second.startDate.localeCompare(first.startDate));
+    .sort((first, second) => {
+      const firstHasEndDate = Boolean(first.effectiveUntil);
+      const secondHasEndDate = Boolean(second.effectiveUntil);
+
+      if (firstHasEndDate !== secondHasEndDate) {
+        return firstHasEndDate ? 1 : -1;
+      }
+
+      return second.startDate.localeCompare(first.startDate);
+    });
 }
 
 function summarizeExceptionVersions(rows: NutritionGoal[] | null) {
