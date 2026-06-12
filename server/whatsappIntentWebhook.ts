@@ -122,6 +122,11 @@ function shouldTryContextualLlmIntent(text: string) {
   return /\b(refeicoes?|registrad[ao]s?|registrei|registro|consultar|consulta|listar|mostra|mostrar|ver|resumo do dia|total de hoje|calorias de hoje|corrigir|correcao|trocar|substituir|ajuda|comandos)\b/.test(normalized);
 }
 
+function looksLikeProfessionalAccessDecision(text: string) {
+  const normalized = normalizeText(text);
+  return /\b(autorizar|autorizo|autorizado|aprovar|aprovo|permitir|permito|negar|nego|recusar|recuso|nao autorizo)\b/.test(normalized);
+}
+
 function isInsidePeriod(value: number | string | Date, start: Date, end: Date) {
   const time = new Date(value).getTime();
   return time >= start.getTime() && time <= end.getTime();
@@ -304,6 +309,24 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   if (!userId) return false;
 
   const text = getTextBody(message);
+  if (looksLikeProfessionalAccessDecision(text)) {
+    const { processProfessionalAccessWhatsappResponse } = await import("./modules/professionals/service");
+    const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
+    if (professionalAccessResponse) {
+      markTextIntentMessageHandled(message.id);
+      pendingTextIntentContexts.delete(userId);
+      await sendAndLogTextReply({
+        userId,
+        sourcePhone,
+        reply: professionalAccessResponse.reply,
+        eventType: professionalAccessResponse.eventType,
+        detail: professionalAccessResponse.detail,
+        status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
+      });
+      return true;
+    }
+  }
+
   const mixedWaterFood = splitWhatsAppWaterAndFoodText(text);
   if (mixedWaterFood) {
     const waterResults: TextIntentResult[] = [];
