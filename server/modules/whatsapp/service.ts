@@ -156,18 +156,10 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
         origin: "whatsapp",
         status: "success",
         eventType: "whatsapp.intent.food_correction_text_detected",
-        detail: `Correção detectada: "${fromText}" (água) substituída por "${toText}" como alimento.`,
+        detail: "Correção de texto detectada: hidratação foi substituída por alimento antes do processamento nutricional.",
       });
       return processMealDraft(userId, { source: "whatsapp", text: toText });
     }
-  }
-
-  const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
-    text,
-    receivedAt: new Date(),
-  }));
-  if (llmInterpreted) {
-    return llmInterpreted;
   }
 
   const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
@@ -176,6 +168,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }));
   if (interpreted) {
     return interpreted;
+  }
+
+  const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
+    text,
+    receivedAt: new Date(),
+  }));
+  if (llmInterpreted) {
+    return llmInterpreted;
   }
 
   const assistant = executeWhatsAppFoodAssistantIntent(text);
