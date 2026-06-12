@@ -13,6 +13,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O WhatsApp é o canal principal para registrar refeições, água e exercícios.
 - A saudação inicial pelo WhatsApp é uma mensagem operacional/de boas-vindas e não deve exigir aceite explícito separado na tela de perfil.
 - Ao salvar perfil com telefone de WhatsApp ou pedir envio de saudação, o fluxo operacional necessário para essa mensagem é considerado concedido, sem habilitar marketing ou disparos recorrentes.
+- Na aba Perfil de Configurações, usuários sem perfil profissional ativo não devem ver o bloco Saudação pelo WhatsApp; para esse fluxo, a saudação operacional permanece autorizada e oculta sem exigir ação manual.
+- Usuários com perfil profissional ativo podem ver o bloco de Saudação pelo WhatsApp quando houver telefone vinculado ou telefone pronto para vinculação, mantendo controle explícito do envio quando necessário.
 - O fuso horário do perfil deve ser usado como referência para interpretar datas e horários do usuário; quando ausente, o padrão é `America/Sao_Paulo` (UTC-03:00 - Brasília/São Paulo).
 - Respostas devem listar alimentos, porções, macros, calorias e horário em formato legível.
 - Mensagens de texto devem corrigir unidades prováveis quando houver quantidade numérica e contexto seguro, por exemplo `300mo água` como `300 ml de água`.
@@ -44,6 +46,9 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Erros de configuração de token/número são explícitos para operação, mas não vazam segredo.
 - Simulação inbound continua disponível para testes operacionais.
 - O perfil pode salvar telefone e disparar saudação inicial sem checkbox de autorização explícita separado.
+- Usuário comum sem perfil profissional ativo não visualiza o bloco Saudação pelo WhatsApp na aba Perfil de Configurações.
+- As perguntas internas da saudação ficam autorizadas e ocultas para usuário comum, sem exigir ação manual antes de salvar perfil ou telefone.
+- Usuário com perfil profissional ativo continua vendo o bloco de saudação apenas quando há contexto de telefone para envio.
 - Usuários sem fuso salvo usam `America/Sao_Paulo` como padrão.
 - O fuso selecionado no perfil permanece salvo e fica disponível para fluxos que dependem de data/hora.
 - Mensagens com erro provável de unidade, como `300mo água`, são normalizadas quando a correção for segura pelo contexto.
