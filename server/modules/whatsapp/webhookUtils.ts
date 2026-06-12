@@ -229,6 +229,38 @@ export function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
+function buildInteractiveUrlFallbackText(bodyText: string, buttonDisplayText: string, buttonUrl: string) {
+  return [bodyText, "", `${buttonDisplayText}: ${buttonUrl}`].join("\n");
+}
+
+async function sendWhatsAppTextMessageWithConfig(config: { accessToken: string; phoneNumberId: string }, to: string, body: string) {
+  const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "text",
+      text: {
+        preview_url: true,
+        body,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      detail: `Meta retornou ${response.status} ${response.statusText} no envio do fallback textual.`,
+    };
+  }
+
+  return { ok: true, detail: "Fallback textual enviado com sucesso." };
+}
+
 export async function sendWhatsAppInteractiveUrlButtonMessage(
   to: string,
   bodyText: string,
@@ -271,18 +303,47 @@ export async function sendWhatsAppInteractiveUrlButtonMessage(
     });
 
     if (!response.ok) {
+      const fallback = await sendWhatsAppTextMessageWithConfig(
+        config,
+        to,
+        buildInteractiveUrlFallbackText(bodyText, buttonDisplayText, buttonUrl),
+      );
+      if (fallback.ok) {
+        return {
+          ok: true,
+          detail: `Mensagem interativa não foi aceita (${response.status} ${response.statusText}); fallback textual enviado com sucesso.`,
+        };
+      }
       return {
         ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio da mensagem interativa.`,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da mensagem interativa. ${fallback.detail}`,
       };
     }
 
     return { ok: true, detail: "Mensagem interativa enviada com sucesso." };
   } catch (error) {
-    return {
-      ok: false,
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar mensagem interativa do WhatsApp.",
-    };
+    try {
+      const fallback = await sendWhatsAppTextMessageWithConfig(
+        config,
+        to,
+        buildInteractiveUrlFallbackText(bodyText, buttonDisplayText, buttonUrl),
+      );
+      if (fallback.ok) {
+        return {
+          ok: true,
+          detail: `Mensagem interativa falhou; fallback textual enviado com sucesso.`,
+        };
+      }
+      return {
+        ok: false,
+        detail: `${error instanceof Error ? error.message : "Falha desconhecida ao enviar mensagem interativa do WhatsApp."} ${fallback.detail}`,
+      };
+    } catch (fallbackError) {
+      return {
+        ok: false,
+        detail: fallbackError instanceof Error ? fallbackError.message : "Falha desconhecida ao enviar fallback textual do WhatsApp.",
+      };
+    }
   }
 }
 
