@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getAdminWhatsAppTokenStatusMock = vi.fn();
+const getDbMock = vi.fn();
 const getUserWhatsappConnectionMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const upsertUserWhatsappConnectionMock = vi.fn();
@@ -11,6 +12,7 @@ const executeWhatsAppFoodAssistantIntentMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getAdminWhatsAppTokenStatus: getAdminWhatsAppTokenStatusMock,
+  getDb: getDbMock,
   getUserWhatsappConnection: getUserWhatsappConnectionMock,
   logInferenceEvent: logInferenceEventMock,
   upsertUserWhatsappConnection: upsertUserWhatsappConnectionMock,
@@ -37,6 +39,7 @@ const { simulateWhatsappInbound } = await import("./service");
 describe("simulateWhatsappInbound", () => {
   beforeEach(() => {
     getAdminWhatsAppTokenStatusMock.mockReset();
+    getDbMock.mockReset();
     getUserWhatsappConnectionMock.mockReset();
     logInferenceEventMock.mockReset();
     upsertUserWhatsappConnectionMock.mockReset();
@@ -44,6 +47,7 @@ describe("simulateWhatsappInbound", () => {
     executeWhatsappLlmIntentMock.mockReset();
     executeWhatsappTextIntentMock.mockReset();
     executeWhatsAppFoodAssistantIntentMock.mockReset();
+    getDbMock.mockResolvedValue(null);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     executeWhatsappTextIntentMock.mockResolvedValue(null);
     executeWhatsAppFoodAssistantIntentMock.mockReturnValue(null);
