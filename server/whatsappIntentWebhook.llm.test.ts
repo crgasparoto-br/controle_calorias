@@ -152,13 +152,13 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     expect(sentMessages.at(-1)).toContain("Refeicoes registradas hoje");
   });
 
-  it("mantem texto comum no fluxo nutricional quando a camada LLM nao trata", async () => {
+  it("mantem texto comum no fluxo nutricional sem chamar a camada LLM", async () => {
     const req = createTextWebhookRequest("almocei arroz, feijão e frango");
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(executeWhatsappLlmIntentMock).toHaveBeenCalled();
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(annotatedWebhookMock).toHaveBeenCalledOnce();
     expect(sentMessages).toEqual([]);
   });
