@@ -100,45 +100,63 @@ function buildExceptionEndDate(referenceDate: Date, durationType: GoalExceptionD
   return value;
 }
 
-function buildVersionRows(userId: number, input: GoalInput, defaultStartDate: string): NutritionGoal[] {
-  const now = new Date();
-  const defaultEffectiveFrom = startOfUtcDate(defaultStartDate);
+function buildDefaultVersionRow(userId: number, input: GoalInput, startDate: string, now: Date): NutritionGoal {
+  return {
+    id: 0,
+    userId,
+    ruleType: "default",
+    weekday: DEFAULT_GOAL_WEEKDAY,
+    durationType: "always",
+    calories: input.defaultGoal.calories,
+    proteinGrams: input.defaultGoal.proteinGrams,
+    carbsGrams: input.defaultGoal.carbsGrams,
+    fatGrams: input.defaultGoal.fatGrams,
+    effectiveFrom: startOfUtcDate(startDate),
+    effectiveUntil: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
-  return [
-    {
+function buildExceptionVersionRows(userId: number, input: GoalInput, defaultStartDate: string, now: Date): NutritionGoal[] {
+  return input.exceptions.map(exception => {
+    const exceptionEffectiveFrom = startOfUtcDate(exception.startDate ?? defaultStartDate);
+
+    return {
       id: 0,
       userId,
-      ruleType: "default",
-      weekday: DEFAULT_GOAL_WEEKDAY,
-      durationType: "always",
-      calories: input.defaultGoal.calories,
-      proteinGrams: input.defaultGoal.proteinGrams,
-      carbsGrams: input.defaultGoal.carbsGrams,
-      fatGrams: input.defaultGoal.fatGrams,
-      effectiveFrom: defaultEffectiveFrom,
-      effectiveUntil: null,
+      ruleType: "exception" as const,
+      weekday: exception.weekday,
+      durationType: exception.durationType,
+      calories: exception.calories,
+      proteinGrams: exception.proteinGrams,
+      carbsGrams: exception.carbsGrams,
+      fatGrams: exception.fatGrams,
+      effectiveFrom: exceptionEffectiveFrom,
+      effectiveUntil: buildExceptionEndDate(exceptionEffectiveFrom, exception.durationType),
       createdAt: now,
       updatedAt: now,
-    },
-    ...input.exceptions.map(exception => {
-      const exceptionEffectiveFrom = startOfUtcDate(exception.startDate ?? defaultStartDate);
+    };
+  });
+}
 
-      return {
-        id: 0,
-        userId,
-        ruleType: "exception" as const,
-        weekday: exception.weekday,
-        durationType: exception.durationType,
-        calories: exception.calories,
-        proteinGrams: exception.proteinGrams,
-        carbsGrams: exception.carbsGrams,
-        fatGrams: exception.fatGrams,
-        effectiveFrom: exceptionEffectiveFrom,
-        effectiveUntil: buildExceptionEndDate(exceptionEffectiveFrom, exception.durationType),
-        createdAt: now,
-        updatedAt: now,
-      };
-    }),
+function hasSameGoalTargets(row: NutritionGoal, target: GoalInput["defaultGoal"]) {
+  return row.calories === target.calories
+    && row.proteinGrams === target.proteinGrams
+    && row.carbsGrams === target.carbsGrams
+    && row.fatGrams === target.fatGrams;
+}
+
+function buildVersionRows(userId: number, input: GoalInput, defaultStartDate: string, rows: NutritionGoal[]): NutritionGoal[] {
+  const now = new Date();
+  const existingDefaultVersion = rows.find(row => row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === defaultStartDate);
+  const defaultVersionRows = existingDefaultVersion && hasSameGoalTargets(existingDefaultVersion, input.defaultGoal)
+    ? []
+    : [buildDefaultVersionRow(userId, input, defaultStartDate, now)];
+
+  return [
+    ...defaultVersionRows,
+    ...buildExceptionVersionRows(userId, input, defaultStartDate, now),
   ];
 }
 
@@ -179,8 +197,8 @@ function summarizeExceptionVersions(rows: NutritionGoal[] | null) {
     .sort((first, second) => second.startDate.localeCompare(first.startDate) || first.weekday - second.weekday);
 }
 
-function hasDefaultVersionOnStartDate(rows: NutritionGoal[], startDate: string) {
-  return rows.some(row => row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === startDate);
+function findDefaultVersionOnStartDate(rows: NutritionGoal[], startDate: string) {
+  return rows.find(row => row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === startDate);
 }
 
 function findConflictingExceptionVersion(rows: NutritionGoal[], versionRows: NutritionGoal[]) {
@@ -239,11 +257,12 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
     };
   }
 
-  if (hasDefaultVersionOnStartDate(rows, startDate)) {
+  const defaultVersionOnStartDate = findDefaultVersionOnStartDate(rows, startDate);
+  if (defaultVersionOnStartDate && !hasSameGoalTargets(defaultVersionOnStartDate, input.defaultGoal)) {
     throw new ConflictingNutritionGoalVersionError(startDate);
   }
 
-  const versionRows = buildVersionRows(userId, input, startDate);
+  const versionRows = buildVersionRows(userId, input, startDate, rows);
   const conflictingException = findConflictingExceptionVersion(rows, versionRows);
   if (conflictingException) {
     throw new ConflictingNutritionGoalExceptionVersionError(
