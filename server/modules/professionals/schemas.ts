@@ -28,6 +28,12 @@ export const patientIdSchema = z.object({
   weekOffset: z.number().int().optional().default(0),
 });
 
+export const patientPeriodBundleSchema = z.object({
+  patientId: z.number().int().positive(),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
+});
+
 export const professionalCommentSchema = z.object({
   patientId: z.number().int().positive(),
   comment: z.string().trim().min(1).max(1000),
@@ -70,6 +76,7 @@ export type ProfessionalProfileInput = z.infer<typeof professionalProfileSchema>
 export type RequestPatientAccessInput = z.infer<typeof requestPatientAccessSchema>;
 export type AccessIdInput = z.infer<typeof accessIdSchema>;
 export type PatientIdInput = z.infer<typeof patientIdSchema>;
+export type PatientPeriodBundleInput = z.infer<typeof patientPeriodBundleSchema>;
 export type ProfessionalCommentInput = z.infer<typeof professionalCommentSchema>;
 export type ProfessionalGoalSuggestionInput = z.infer<typeof professionalGoalSuggestionSchema>;
 export type ProfessionalGoalSuggestionStatus = z.infer<typeof professionalGoalSuggestionStatusSchema>;

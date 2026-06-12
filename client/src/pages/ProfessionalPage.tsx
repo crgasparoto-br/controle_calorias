@@ -8,11 +8,15 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PeriodScopeSelector } from "@/components/PeriodScopeSelector";
 import {
-  addWeeksToDateValue,
-  formatRangeLabel,
+  countDaysInRange,
+  getMonthRange,
   getWeekOffsetFromToday,
   getWeekRange,
+  normalizeDateRange,
+  toMonthInputValue,
+  type PeriodScope,
 } from "@/lib/dateRanges";
 import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatNumberPtBr } from "@/lib/numberFormat";
@@ -20,10 +24,7 @@ import { trpc } from "@/lib/trpc";
 import {
   Activity,
   BarChart3,
-  CalendarRange,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ClipboardList,
   Droplets,
   Dumbbell,
@@ -150,6 +151,11 @@ type TrendPoint = CalorieGoalDay & {
 };
 
 type WeightEntryPoint = WeightTrendPoint & { notes?: string | null };
+
+type WeightTrendBundle = {
+  points?: WeightEntryPoint[];
+  summary?: { hasData?: boolean; entries?: WeightEntryPoint[]; firstWeightKg?: number | null; lastWeightKg?: number | null };
+};
 
 const MACRO_COLORS: Record<keyof MacroTotals, string> = {
   protein: "#16a34a",
@@ -305,12 +311,25 @@ export default function ProfessionalPage() {
     notes: "",
   });
   const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
+  const [periodScope, setPeriodScope] = useState<PeriodScope>("week");
   const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
+  const [selectedMonth, setSelectedMonth] = useState(() => toMonthInputValue(new Date(), userTimeZone));
+  const [rangeStart, setRangeStart] = useState(() => toDateInputValue(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000), userTimeZone));
+  const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
+  const activeRange = useMemo(() => {
+    if (periodScope === "day") return { start: selectedDay, end: selectedDay };
+    if (periodScope === "week") return getWeekRange(selectedDay);
+    if (periodScope === "month") return getMonthRange(selectedMonth);
+    return normalizeDateRange(rangeStart, rangeEnd);
+  }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
   const weekOffset = useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
-  const activeWeekRange = useMemo(() => getWeekRange(selectedDay), [selectedDay]);
   const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery(
     { patientId: selectedPatientId ?? 0, weekOffset },
-    { enabled: hasActiveProfile && Boolean(selectedPatientId) },
+    { enabled: hasActiveProfile && Boolean(selectedPatientId) && periodScope === "week" },
+  );
+  const periodBundle = trpc.nutrition.professionals.patientPeriodBundle.useQuery(
+    { patientId: selectedPatientId ?? 0, startDate: activeRange.start, endDate: activeRange.end },
+    { enabled: hasActiveProfile && Boolean(selectedPatientId) && periodScope !== "week" },
   );
 
   const approvedAccesses = accesses.data?.filter(access => access.status === "approved") ?? [];
@@ -326,48 +345,74 @@ export default function ProfessionalPage() {
   const suggestedFat = Number(goalSuggestion.fatGrams);
   const selectedAccess = approvedAccesses.find(access => access.patientUserId === selectedPatientId) ?? null;
   const weeklyReport = useMemo(() => (dashboard.data?.weeklyReport ?? []) as WeeklyReportDay[], [dashboard.data?.weeklyReport]);
-  const trendData = useMemo(() => weeklyReport.map(day => toTrendPoint(day)), [weeklyReport]);
-  const calorieAdherence = useMemo(() => calculateCalorieAdherence(trendData, 7), [trendData]);
-  const consumedMacros = useMemo<MacroTotals>(() => ({
-    protein: weeklyReport.reduce((t, d) => t + d.protein, 0),
-    carbs: weeklyReport.reduce((t, d) => t + d.carbs, 0),
-    fat: weeklyReport.reduce((t, d) => t + d.fat, 0),
-  }), [weeklyReport]);
-  const plannedMacros = useMemo<MacroTotals>(() => ({
-    protein: weeklyReport.reduce((t, d) => t + (d.goalProtein ?? 0), 0),
-    carbs: weeklyReport.reduce((t, d) => t + (d.goalCarbs ?? 0), 0),
-    fat: weeklyReport.reduce((t, d) => t + (d.goalFat ?? 0), 0),
-  }), [weeklyReport]);
-  const dailyMacros = useMemo<MacroGoalDay[]>(() => weeklyReport.map(d => ({
+  const periodDaily = useMemo(() => (periodBundle.data?.daily ?? []) as WeeklyReportDay[], [periodBundle.data?.daily]);
+  const dayCount = periodScope === "week" ? 7 : periodDaily.length || countDaysInRange(activeRange);
+  const periodTotals = periodBundle.data?.totals ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const periodGoal = periodBundle.data?.goal ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const trendData = useMemo(
+    () => periodScope === "week" ? weeklyReport.map(day => toTrendPoint(day)) : periodDaily.map(day => toTrendPoint(day)),
+    [periodScope, weeklyReport, periodDaily],
+  );
+  const calorieAdherence = useMemo(() => calculateCalorieAdherence(trendData, dayCount), [trendData, dayCount]);
+  const consumedMacros = useMemo<MacroTotals>(() => periodScope === "week"
+    ? { protein: weeklyReport.reduce((t, d) => t + d.protein, 0), carbs: weeklyReport.reduce((t, d) => t + d.carbs, 0), fat: weeklyReport.reduce((t, d) => t + d.fat, 0) }
+    : { protein: periodTotals.protein, carbs: periodTotals.carbs, fat: periodTotals.fat },
+  [periodScope, weeklyReport, periodTotals]);
+  const plannedMacros = useMemo<MacroTotals>(() => periodScope === "week"
+    ? { protein: weeklyReport.reduce((t, d) => t + (d.goalProtein ?? 0), 0), carbs: weeklyReport.reduce((t, d) => t + (d.goalCarbs ?? 0), 0), fat: weeklyReport.reduce((t, d) => t + (d.goalFat ?? 0), 0) }
+    : {
+        protein: periodDaily.reduce((t, d) => t + (d.goalProtein ?? 0), 0) || periodGoal.protein * dayCount,
+        carbs: periodDaily.reduce((t, d) => t + (d.goalCarbs ?? 0), 0) || periodGoal.carbs * dayCount,
+        fat: periodDaily.reduce((t, d) => t + (d.goalFat ?? 0), 0) || periodGoal.fat * dayCount,
+      },
+  [periodScope, weeklyReport, periodDaily, periodGoal, dayCount]);
+  const activeDailyRows = periodScope === "week" ? weeklyReport : periodDaily;
+  const dailyMacros = useMemo<MacroGoalDay[]>(() => activeDailyRows.map(d => ({
     protein: d.protein, carbs: d.carbs, fat: d.fat,
     goalProtein: d.goalProtein ?? 0, goalCarbs: d.goalCarbs ?? 0, goalFat: d.goalFat ?? 0,
-  })), [weeklyReport]);
+  })), [activeDailyRows]);
   const weeklyQualityRaw = dashboard.data?.quality;
+  const periodQualityRaw = periodBundle.data?.quality as { foodQuality?: FoodQualitySummary } | undefined;
   const weeklyProgress = dashboard.data?.progress;
-  const foodQuality = weeklyQualityRaw?.foodQuality as FoodQualitySummary | undefined;
-  const waterConsumedMl = weeklyReport.reduce((t, d) => t + (d.waterConsumedMl ?? 0), 0);
-  const waterGoalMl = weeklyReport.reduce((t, d) => t + (d.waterGoalMl ?? 0), 0);
-  const waterHitDays = weeklyReport.filter(d => (d.waterGoalMl ?? 0) > 0 && (d.waterConsumedMl ?? 0) >= (d.waterGoalMl ?? 0)).length;
-  const exerciseActiveDays = weeklyReport.filter(d => (d.exerciseCalories ?? 0) > 0).length;
-  const exerciseCalories = weeklyReport.reduce((t, d) => t + (d.exerciseCalories ?? 0), 0);
+  const foodQuality = (periodScope === "week" ? weeklyQualityRaw?.foodQuality : periodQualityRaw?.foodQuality) as FoodQualitySummary | undefined;
+  const waterConsumedMl = periodScope === "week"
+    ? weeklyReport.reduce((t, d) => t + (d.waterConsumedMl ?? 0), 0)
+    : periodBundle.data?.habitAnalytics.water.totalConsumedMl ?? 0;
+  const waterGoalMl = periodScope === "week"
+    ? weeklyReport.reduce((t, d) => t + (d.waterGoalMl ?? 0), 0)
+    : periodBundle.data?.habitAnalytics.water.totalGoalMl ?? 0;
+  const waterHitDays = periodScope === "week"
+    ? weeklyReport.filter(d => (d.waterGoalMl ?? 0) > 0 && (d.waterConsumedMl ?? 0) >= (d.waterGoalMl ?? 0)).length
+    : periodBundle.data?.habitAnalytics.water.goalHitDays ?? 0;
+  const exerciseActiveDays = periodScope === "week"
+    ? weeklyReport.filter(d => (d.exerciseCalories ?? 0) > 0).length
+    : periodBundle.data?.habitAnalytics.exercise.activeDays ?? 0;
+  const exerciseCalories = periodScope === "week"
+    ? weeklyReport.reduce((t, d) => t + (d.exerciseCalories ?? 0), 0)
+    : periodBundle.data?.habitAnalytics.exercise.totalCalories ?? 0;
   const selectedWeightDates = useMemo(() => new Set(trendData.map(d => d.date)), [trendData]);
-  const weightTrendPoints = useMemo(() => buildWeightPointsFromSummary(weeklyProgress?.weight, selectedWeightDates), [weeklyProgress?.weight, selectedWeightDates]);
+  const periodWeightBundle = (periodBundle.data as unknown as { weightTrend?: WeightTrendBundle } | undefined)?.weightTrend;
+  const weightTrendPoints = useMemo(() => {
+    if (periodScope === "week") return buildWeightPointsFromSummary(weeklyProgress?.weight, selectedWeightDates);
+    const pts = buildWeightPointsFromEntries(periodWeightBundle?.points, selectedWeightDates);
+    return pts.length ? pts : buildWeightPointsFromSummary(periodWeightBundle?.summary, selectedWeightDates);
+  }, [periodScope, weeklyProgress?.weight, periodWeightBundle, selectedWeightDates]);
   const weightSummary = useMemo(() => calculateWeightTrendSummary(weightTrendPoints), [weightTrendPoints]);
   const waterAdherencePercent = progressPercent(waterConsumedMl, waterGoalMl);
   const weightSummaryValue = weightSummary.hasData && weightSummary.deltaKg != null ? `${formatSignedMacro(weightSummary.deltaKg)} kg` : "-";
   const qualitySummaryValue = foodQuality?.qualityIndex == null ? "-" : formatPercent(foodQuality.qualityIndex);
   const qualitySummaryDescription = foodQuality?.hasData
-    ? `${foodQuality.daysWithRecords}/${7} dias com registros e ${formatPercent(foodQuality.unclassifiedCaloriesPercent)} não classificados.`
+    ? `${foodQuality.daysWithRecords}/${dayCount} dias com registros e ${formatPercent(foodQuality.unclassifiedCaloriesPercent)} não classificados.`
     : "Sem dados classificados suficientes no período selecionado.";
   const reportSummaryMetrics = [
-    { title: "Aderência calórica", value: formatPercent(calorieAdherence.adherencePercent), description: `${calorieAdherence.daysWithinRange}/${7} dias dentro da faixa ideal.` },
+    { title: "Aderência calórica", value: formatPercent(calorieAdherence.adherencePercent), description: `${calorieAdherence.daysWithinRange}/${dayCount} dias dentro da faixa ideal.` },
     { title: "Média consumida", value: formatCalories(calorieAdherence.averageCalories), description: "Consumo diário médio no período selecionado." },
     { title: "Média da meta ajustada", value: formatCalories(calorieAdherence.averageGoalCalories), description: "Meta média após considerar exercícios registrados." },
     { title: "Desvio médio", value: formatCalories(calorieAdherence.averageDeltaCalories), description: "Diferença diária média entre consumo e meta ajustada." },
     { title: "Variação de peso", value: weightSummaryValue, description: weightSummary.hasData ? `${formatSignedMacro(weightSummary.deltaPercent)}% no período.` : "Sem registros suficientes no período." },
     { title: "Qualidade alimentar", value: qualitySummaryValue, description: qualitySummaryDescription },
-    { title: "Água", value: formatPercent(waterAdherencePercent), description: `${waterHitDays}/${7} dias com meta batida; ${formatCountPtBr(Math.round(waterConsumedMl), " ml")} no total.` },
-    { title: "Exercícios", value: `${exerciseActiveDays}/${7} dias`, description: `${formatCalories(exerciseCalories)} estimadas e consideradas na meta ajustada.` },
+    { title: "Água", value: formatPercent(waterAdherencePercent), description: `${waterHitDays}/${dayCount} dias com meta batida; ${formatCountPtBr(Math.round(waterConsumedMl), " ml")} no total.` },
+    { title: "Exercícios", value: `${exerciseActiveDays}/${dayCount} dias`, description: `${formatCalories(exerciseCalories)} estimadas e consideradas na meta ajustada.` },
   ];
   const weeklyGoalDays = nutritionGoal?.days?.length ? nutritionGoal.days : GOAL_WEEKDAYS.map(day => ({
     ...day,
@@ -416,6 +461,7 @@ export default function ProfessionalPage() {
   useEffect(() => {
     setPatientAnswer(null);
     setSelectedDay(toDateInputValue());
+    setPeriodScope("week");
   }, [selectedPatientId]);
 
   useEffect(() => {
@@ -658,7 +704,7 @@ export default function ProfessionalPage() {
                     </div>
                   </div>
                 ) : null}
-                {dashboard.isError ? <ErrorMessage text="Não foi possível carregar a análise autorizada. Tente novamente em instantes." /> : null}
+                {(periodScope === "week" ? dashboard.isError : periodBundle.isError) ? <ErrorMessage text="Não foi possível carregar a análise autorizada. Tente novamente em instantes." /> : null}
 
                 {dashboard.data ? (
                   <Tabs defaultValue="relatorios" className="gap-4">
@@ -671,43 +717,68 @@ export default function ProfessionalPage() {
                     </TabsList>
 
                     <TabsContent value="relatorios" className="space-y-6">
-                      <WeekRangeSelector selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} activeWeekRange={activeWeekRange} />
-                      <ReportSummarySection metrics={reportSummaryMetrics} />
-                      <ReportCalorieAdherenceCard trendData={trendData} dayCount={7} />
-                      <ReportCalorieTrendChart trendData={trendData} />
-                      <ReportMacroAdherenceCard consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} />
-                      <ReportQualityCard
-                        proteinGrams={weeklyQualityRaw?.proteinGrams}
-                        fiberGrams={weeklyQualityRaw?.fiberGrams}
-                        fruitServings={weeklyQualityRaw?.fruitServings}
-                        vegetableServings={weeklyQualityRaw?.vegetableServings}
-                        ultraProcessedServings={weeklyQualityRaw?.ultraProcessedServings}
-                        regularityScore={weeklyQualityRaw?.regularityScore}
-                        foodQuality={foodQuality}
+                      <PeriodScopeSelector
+                        scope={periodScope}
+                        onScopeChange={setPeriodScope}
+                        selectedDay={selectedDay}
+                        onSelectedDayChange={setSelectedDay}
+                        selectedMonth={selectedMonth}
+                        onSelectedMonthChange={setSelectedMonth}
+                        rangeStart={rangeStart}
+                        onRangeStartChange={setRangeStart}
+                        rangeEnd={rangeEnd}
+                        onRangeEndChange={setRangeEnd}
                       />
-                      <ReportWeightCard points={weightTrendPoints} adherencePercent={calorieAdherence.adherencePercent} />
-                      <ReportSupportHabitsCard
-                        waterConsumedMl={waterConsumedMl}
-                        waterGoalMl={waterGoalMl}
-                        waterHitDays={waterHitDays}
-                        exerciseActiveDays={exerciseActiveDays}
-                        exerciseCalories={exerciseCalories}
-                        dayCount={7}
-                        trendData={trendData}
-                      />
-                      <ReportDailyCalorieBreakdown trendData={trendData} />
-                      <Card className="border-0 shadow-sm">
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <UtensilsCrossed className="h-5 w-5 text-primary" />
-                            Registros do período
-                          </CardTitle>
-                          <CardDescription>Refeições autorizadas agrupadas por dia. Abra apenas os dias que precisar investigar.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <MealsByDateSection meals={dashboard.data.meals} />
-                        </CardContent>
-                      </Card>
+                      {periodScope !== "week" && periodBundle.isLoading ? (
+                        <div className="grid gap-4 lg:grid-cols-4">
+                          <Skeleton className="h-28 rounded-2xl" />
+                          <Skeleton className="h-28 rounded-2xl" />
+                          <Skeleton className="h-28 rounded-2xl" />
+                          <Skeleton className="h-28 rounded-2xl" />
+                        </div>
+                      ) : null}
+                      {periodScope === "week" || !periodBundle.isLoading ? (
+                        <>
+                          <ReportSummarySection metrics={reportSummaryMetrics} />
+                          <ReportCalorieAdherenceCard trendData={trendData} dayCount={dayCount} />
+                          <ReportCalorieTrendChart trendData={trendData} />
+                          <ReportMacroAdherenceCard consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} />
+                          <ReportQualityCard
+                            proteinGrams={weeklyQualityRaw?.proteinGrams ?? consumedMacros.protein}
+                            fiberGrams={weeklyQualityRaw?.fiberGrams}
+                            fruitServings={weeklyQualityRaw?.fruitServings}
+                            vegetableServings={weeklyQualityRaw?.vegetableServings}
+                            ultraProcessedServings={weeklyQualityRaw?.ultraProcessedServings}
+                            regularityScore={weeklyQualityRaw?.regularityScore}
+                            foodQuality={foodQuality}
+                          />
+                          <ReportWeightCard points={weightTrendPoints} adherencePercent={calorieAdherence.adherencePercent} />
+                          <ReportSupportHabitsCard
+                            waterConsumedMl={waterConsumedMl}
+                            waterGoalMl={waterGoalMl}
+                            waterHitDays={waterHitDays}
+                            exerciseActiveDays={exerciseActiveDays}
+                            exerciseCalories={exerciseCalories}
+                            dayCount={dayCount}
+                            trendData={trendData}
+                          />
+                          <ReportDailyCalorieBreakdown trendData={trendData} />
+                          {periodScope === "week" ? (
+                            <Card className="border-0 shadow-sm">
+                              <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                  <UtensilsCrossed className="h-5 w-5 text-primary" />
+                                  Registros do período
+                                </CardTitle>
+                                <CardDescription>Refeições autorizadas agrupadas por dia. Abra apenas os dias que precisar investigar.</CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <MealsByDateSection meals={dashboard.data.meals} />
+                              </CardContent>
+                            </Card>
+                          ) : null}
+                        </>
+                      ) : null}
                     </TabsContent>
 
                     <TabsContent value="metas" className="space-y-4">
@@ -1324,36 +1395,7 @@ function progressPercent(value: number, goal: number) {
   return Math.min(Math.max((value / goal) * 100, 0), 100);
 }
 
-function WeekRangeSelector({ selectedDay, onSelectedDayChange, activeWeekRange }: { selectedDay: string; onSelectedDayChange: (day: string) => void; activeWeekRange: { start: string; end: string } }) {
-  return (
-    <div className="flex flex-wrap items-end gap-3 rounded-3xl border bg-card p-3 shadow-sm">
-      <div className="space-y-2">
-        <Label htmlFor="prof-week-selector" className="flex items-center gap-2">
-          <CalendarRange className="h-4 w-4 text-primary" />
-          Semana de referência
-        </Label>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="icon" className="rounded-full" onClick={() => onSelectedDayChange(addWeeksToDateValue(selectedDay, -1))} aria-label="Semana anterior">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Input
-            id="prof-week-selector"
-            type="date"
-            value={selectedDay}
-            onChange={event => onSelectedDayChange(event.target.value)}
-            className="min-w-[10.5rem] sm:w-44"
-          />
-          <Button type="button" variant="outline" size="icon" className="rounded-full" onClick={() => onSelectedDayChange(addWeeksToDateValue(selectedDay, 1))} aria-label="Próxima semana">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{formatRangeLabel(activeWeekRange)}</span>
-    </div>
-  );
-}
-
-// ─── Report sub-components (mirrors ReportsGoalsPage week scope) ──────────────
+// ─── Report sub-components (mirrors ReportsGoalsPage) ────────────────────────
 
 type ReportMetric = { title: string; value: string; description: string };
 

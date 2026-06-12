@@ -3,7 +3,7 @@ import { and, eq, or } from "drizzle-orm";
 import { userPreferences, users, whatsappConnections } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
 import { getDb, listUserMeals } from "../../db";
-import { getWeeklyReportBundle } from "../insights/service";
+import { getPeriodReportBundle, getWeeklyReportBundle } from "../insights/service";
 import { redactSensitiveText } from "../../privacy";
 import { getNutritionGoal } from "../goals/service";
 import {
@@ -599,6 +599,15 @@ export async function getProfessionalPatientDashboard(professionalUserId: number
     goalSuggestions: goalSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
     mealSuggestions: mealSuggestions.filter(item => item.professionalUserId === professionalUserId && item.patientUserId === patientUserId),
   };
+}
+
+export async function getProfessionalPatientPeriodBundle(
+  professionalUserId: number,
+  patientUserId: number,
+  range: { startDate: string; endDate: string },
+) {
+  await assertApprovedAccess(professionalUserId, patientUserId);
+  return getPeriodReportBundle(patientUserId, range);
 }
 
 type ProfessionalPatientDashboard = Awaited<ReturnType<typeof getProfessionalPatientDashboard>>;
