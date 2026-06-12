@@ -147,16 +147,27 @@ function hasSameGoalTargets(row: NutritionGoal, target: GoalInput["defaultGoal"]
     && row.fatGrams === target.fatGrams;
 }
 
+function hasSameExceptionVersion(row: NutritionGoal, version: NutritionGoal) {
+  return row.ruleType === "exception"
+    && version.ruleType === "exception"
+    && row.weekday === version.weekday
+    && row.durationType === version.durationType
+    && dateKeyFromDate(row.effectiveFrom) === dateKeyFromDate(version.effectiveFrom)
+    && hasSameGoalTargets(row, version);
+}
+
 function buildVersionRows(userId: number, input: GoalInput, defaultStartDate: string, rows: NutritionGoal[]): NutritionGoal[] {
   const now = new Date();
   const existingDefaultVersion = rows.find(row => row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === defaultStartDate);
   const defaultVersionRows = existingDefaultVersion && hasSameGoalTargets(existingDefaultVersion, input.defaultGoal)
     ? []
     : [buildDefaultVersionRow(userId, input, defaultStartDate, now)];
+  const exceptionVersionRows = buildExceptionVersionRows(userId, input, defaultStartDate, now)
+    .filter(version => !rows.some(row => hasSameExceptionVersion(row, version)));
 
   return [
     ...defaultVersionRows,
-    ...buildExceptionVersionRows(userId, input, defaultStartDate, now),
+    ...exceptionVersionRows,
   ];
 }
 
