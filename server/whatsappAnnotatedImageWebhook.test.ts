@@ -290,6 +290,46 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     ]);
   });
 
+  it("mantém o registro e avisa quando a imagem anotada não pode ser gerada", async () => {
+    generateImageMock.mockResolvedValue({
+      skippedReason: "provider_failed",
+      detail: "provedor indisponível",
+    });
+    const req = createImageWebhookRequest("image-without-annotation");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(fallbackWebhookMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      42,
+      "whatsapp",
+      expect.objectContaining({ imageUrl: "https://storage.test/whatsapp/image/5511999999999-image-media-id.jpg" }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          mediaType: "image",
+          storageKey: "whatsapp/image/5511999999999-image-media-id.jpg",
+        }),
+      ]),
+    );
+    expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
+      draftId: "draft-1",
+      userId: 42,
+      mealLabel: "Almoço",
+    }));
+    expect(sentImageMessages).toEqual([]);
+    expect(sentTextMessages.at(-1)).toBe("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.annotated_image_skipped",
+      detail: expect.stringContaining("provedor indisponível"),
+    }));
+  });
+
   it("responde com erro controlado quando a análise da imagem falha", async () => {
     processMealInputMock.mockRejectedValue(new Error("provider timeout"));
     const req = createImageWebhookRequest("image-analysis-failure");
