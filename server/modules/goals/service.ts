@@ -12,9 +12,16 @@ export class UnsafeNutritionGoalError extends Error {
   }
 }
 
-export class ConflictingNutritionGoalVersionError extends Error {
+export class ConflictingNutritionGoalVersionError extends UnsafeNutritionGoalError {
   constructor(startDate: string) {
-    super(`Já existe uma versão de meta geral iniciando em ${startDate}. Escolha outra data de início.`);
+    super([
+      {
+        code: "conflicting_goal_version",
+        severity: "block",
+        targetLabel: "Meta geral",
+        message: `Já existe uma versão de meta geral iniciando em ${startDate}. Escolha outra data de início.`,
+      } as NutritionGoalSafetyIssue,
+    ]);
     this.name = "ConflictingNutritionGoalVersionError";
   }
 }
@@ -42,17 +49,11 @@ function dateKeyFromDate(value: Date | string | number) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
-function startOfUtcWeek(date: Date) {
+function endOfUtcWeek(date: Date) {
   const value = new Date(date);
   value.setUTCHours(0, 0, 0, 0);
   const weekday = (value.getUTCDay() + 6) % 7;
-  value.setUTCDate(value.getUTCDate() - weekday);
-  return value;
-}
-
-function endOfUtcWeek(date: Date) {
-  const value = startOfUtcWeek(date);
-  value.setUTCDate(value.getUTCDate() + 6);
+  value.setUTCDate(value.getUTCDate() - weekday + 6);
   value.setUTCHours(23, 59, 59, 999);
   return value;
 }
