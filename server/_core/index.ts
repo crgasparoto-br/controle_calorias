@@ -5,6 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { validateRuntimeEnv } from "./env";
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/service";
@@ -33,6 +34,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  validateRuntimeEnv();
+
   const app = express();
   const server = createServer(app);
   try {
