@@ -233,7 +233,7 @@ function routeShortReply(input: RouteInput, normalized: string): WhatsappPreNutr
     canonical,
     shouldUseNutritionFallback: false,
     response: buildClarificationResponse(canonical, "Recebi uma resposta curta, mas não há uma pendência ativa. Me diga o que você quer fazer.", "Resposta curta sem contexto pendente bloqueada antes do parser nutricional."),
-    reason: "short_reply_without_context",
+    reason: affirmative ? "short_affirmative_without_context" : "short_negative_without_context",
   };
 }
 
@@ -464,6 +464,6 @@ export function routeWhatsappMessageBeforeNutrition(input: RouteInput): Whatsapp
       runtimeIntent.clarificationQuestion ?? "Não entendi com segurança. Você quer registrar alimento, corrigir uma refeição ou consultar seus registros?",
       "Mensagem bloqueada antes do parser nutricional por não ter sinal alimentar seguro.",
     ),
-    reason: "safe_non_food_or_ambiguous",
+  reason: "safe_non_food_or_ambiguous",
   };
 }
