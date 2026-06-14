@@ -16,6 +16,19 @@ describe("routeWhatsappMessageBeforeNutrition", () => {
     })]);
   });
 
+  it("preserva comando explicito de adicionar alimento com quantidade", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "adicionar 30g de arroz" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(true);
+    expect(decision.response).toBeNull();
+    expect(decision.canonical.intent).toBe("adicionar_alimento");
+    expect(decision.canonical.extracted_items).toEqual([expect.objectContaining({
+      name: "arroz",
+      quantity: 30,
+      unit: "g",
+    })]);
+  });
+
   it("preserva registro alimentar simples com quantidade sem unidade", () => {
     const decision = routeWhatsappMessageBeforeNutrition({ text: "1 banana" });
 
@@ -71,6 +84,32 @@ describe("routeWhatsappMessageBeforeNutrition", () => {
     }));
   });
 
+  it("bloqueia resposta curta sem contexto pendente", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "sim" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("short_affirmative_without_context");
+    expect(decision.canonical.intent).toBe("mensagem_ambigua");
+    expect(decision.response).toEqual(expect.objectContaining({
+      action: "router_clarification_needed",
+    }));
+  });
+
+  it("roteia resposta curta com contexto pendente como confirmacao", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({
+      text: "não",
+      pendingContextId: "pending-2",
+      pendingContextKind: "confirmar alteracao de refeicao",
+    });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("short_negative_with_context");
+    expect(decision.canonical.intent).toBe("cancelar_pendencia");
+    expect(decision.response).toEqual(expect.objectContaining({
+      action: "router_contextual_response",
+    }));
+  });
+
   it("roteia conta matematica com unidade antes de qualquer registro", () => {
     const decision = routeWhatsappMessageBeforeNutrition({ text: "110 - 30 g" });
 
@@ -82,6 +121,32 @@ describe("routeWhatsappMessageBeforeNutrition", () => {
     })]);
     expect(decision.response).toEqual(expect.objectContaining({
       action: "router_calculation_detected",
+    }));
+  });
+
+  it("bloqueia ajuste numerico sem alvo seguro", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "somar 30g" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("numeric_adjustment_without_context");
+    expect(decision.canonical.intent).toBe("somar_quantidade");
+    expect(decision.response).toEqual(expect.objectContaining({
+      action: "router_clarification_needed",
+    }));
+  });
+
+  it("roteia comando numerico com contexto pendente antes de alterar dados", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({
+      text: "excluir 2",
+      pendingContextId: "pending-3",
+      pendingContextKind: "lista de alimentos para remover",
+    });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("numeric_adjustment_with_context");
+    expect(decision.canonical.intent).toBe("excluir_alimento");
+    expect(decision.response).toEqual(expect.objectContaining({
+      action: "router_contextual_response",
     }));
   });
 
