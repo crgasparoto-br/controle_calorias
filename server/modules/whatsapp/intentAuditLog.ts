@@ -25,6 +25,9 @@ export type WhatsappIntentAuditLogEntry = {
   validationStatus: WhatsappIntentValidationStatus;
   action: string;
   replyKind: "executed" | "clarification" | "fallback" | "none";
+  processingStrategy?: string;
+  durationMs?: number;
+  modelName?: string;
   fallbackReason?: string;
   errorCode?: string;
 };
@@ -37,6 +40,9 @@ type RecordWhatsappIntentAuditLogInput = {
   validationStatus: WhatsappIntentValidationStatus;
   action: string;
   replyKind: WhatsappIntentAuditLogEntry["replyKind"];
+  processingStrategy?: string;
+  durationMs?: number;
+  modelName?: string;
   fallbackReason?: string;
   errorCode?: string;
   createdAt?: Date;
@@ -47,6 +53,7 @@ type ListWhatsappIntentAuditLogsFilter = {
   hasError?: boolean;
   lowConfidence?: boolean;
   fallbackReason?: string;
+  processingStrategy?: string;
 };
 
 const MAX_AUDIT_LOG_ENTRIES = 500;
@@ -85,6 +92,9 @@ export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLog
     validationStatus: input.validationStatus,
     action: input.action,
     replyKind: input.replyKind,
+    ...(input.processingStrategy ? { processingStrategy: input.processingStrategy } : {}),
+    ...(typeof input.durationMs === "number" ? { durationMs: Math.max(0, Math.round(input.durationMs)) } : {}),
+    ...(input.modelName ? { modelName: input.modelName } : {}),
     ...(input.fallbackReason ? { fallbackReason: input.fallbackReason } : {}),
     ...(input.errorCode ? { errorCode: input.errorCode } : {}),
   };
@@ -106,6 +116,7 @@ export function listWhatsappIntentAuditLogs(filter: ListWhatsappIntentAuditLogsF
     }
     if (filter.lowConfidence && entry.confidence >= LOW_CONFIDENCE_THRESHOLD) return false;
     if (filter.fallbackReason && entry.fallbackReason !== filter.fallbackReason) return false;
+    if (filter.processingStrategy && entry.processingStrategy !== filter.processingStrategy) return false;
     return true;
   });
 }
