@@ -30,6 +30,20 @@ describe("routeWhatsappMessageBeforeNutrition", () => {
     })]);
   });
 
+  it("preserva narrativa de refeicao sem quantidades explicitas no fallback nutricional", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "almocei arroz, feijão e frango grelhado" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(true);
+    expect(decision.response).toBeNull();
+    expect(decision.reason).toBe("meal_narrative");
+    expect(decision.canonical.intent).toBe("adicionar_alimento");
+    expect(decision.canonical.extracted_items.map(item => item.name)).toEqual([
+      "arroz",
+      "feijao",
+      "frango grelhado",
+    ]);
+  });
+
   it("bloqueia numero isolado sem contexto antes do parser nutricional", () => {
     const decision = routeWhatsappMessageBeforeNutrition({ text: "2" });
 
