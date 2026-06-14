@@ -35,6 +35,12 @@ type RouteInput = {
   targetUserId?: string | number | null;
 };
 
+type ParsedFoodQuantity = {
+  foodName: string;
+  quantity: number;
+  unit: string | null;
+};
+
 function normalizeText(value: string) {
   return value
     .normalize("NFD")
@@ -230,8 +236,8 @@ function routeNonFoodRequests(input: RouteInput, normalized: string): WhatsappPr
   }> = [
     { pattern: /\b(resuma|resumo|total|calorias)\b.*\b(dia|hoje|ontem|semana|mes)\b/, intent: "resumo_dia", outputType: "resumo", reply: "Consigo montar um resumo. Me diga o período se quiser algo diferente de hoje.", reason: "summary_request" },
     { pattern: /\b(grafico|grafica|evolucao)\b/, intent: "gerar_grafico", outputType: "grafico", reply: "Entendi que você quer um gráfico. Essa solicitação não será tratada como alimento.", reason: "chart_request" },
-    { pattern: /\b(relatorio|relatorio|exportar|pdf)\b/, intent: "gerar_relatorio", outputType: "relatorio", reply: "Entendi que você quer um relatório. Me diga o período para eu preparar a consulta correta.", reason: "report_request" },
-    { pattern: /\b(sugira|sugestao|sugestao|o que comer|opcao de refeicao|lanche da tarde)\b/, intent: "sugestao_refeicao", outputType: "sugestao", reply: "Entendi que você quer uma sugestão. Não vou registrar isso como alimento.", reason: "suggestion_request" },
+    { pattern: /\b(relatorio|exportar|pdf)\b/, intent: "gerar_relatorio", outputType: "relatorio", reply: "Entendi que você quer um relatório. Me diga o período para eu preparar a consulta correta.", reason: "report_request" },
+    { pattern: /\b(sugira|sugestao|o que comer|opcao de refeicao|lanche da tarde)\b/, intent: "sugestao_refeicao", outputType: "sugestao", reply: "Entendi que você quer uma sugestão. Não vou registrar isso como alimento.", reason: "suggestion_request" },
     { pattern: /\b(meta|objetivo|evolucao|proteina|caloria|carboidrato|gordura)\b.*\?$/, intent: "pergunta_sobre_meta", outputType: "texto", reply: "Entendi sua pergunta. Vou tratar isso como consulta, não como registro alimentar.", reason: "question_request" },
   ];
 
@@ -254,31 +260,51 @@ function routeNonFoodRequests(input: RouteInput, normalized: string): WhatsappPr
   };
 }
 
-function parseLikelyFoodWithQuantity(input: RouteInput): WhatsappPreNutritionRouterDecision | null {
-  const match = input.text.match(/\b(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|ml|l|un|unidades?|fatias?|x[ií]caras?|copos?|colheres?|por[cç][oõ]es?|por[cç][aã]o)\b\s*(?:de\s+)?(.+)$/i);
-  if (!match) return null;
+function parseFoodQuantity(text: string): ParsedFoodQuantity | null {
+  const quantityWithUnit = text.match(/\b(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|ml|l|un|unidades?|fatias?|x[ií]caras?|copos?|colheres?|por[cç][oõ]es?|por[cç][aã]o)\b\s*(?:de\s+)?(.+)$/i);
+  if (quantityWithUnit) {
+    return {
+      quantity: parseNumber(quantityWithUnit[1]),
+      unit: quantityWithUnit[2],
+      foodName: quantityWithUnit[3],
+    };
+  }
 
-  const quantity = parseNumber(match[1]);
-  const unit = match[2];
-  const foodName = match[3]
+  const quantityWithoutUnit = text.match(/^\s*(\d+(?:[,.]\d+)?)\s+([\p{L}][\p{L}\s'-]{1,120})$/u);
+  if (!quantityWithoutUnit) return null;
+  return {
+    quantity: parseNumber(quantityWithoutUnit[1]),
+    unit: null,
+    foodName: quantityWithoutUnit[2],
+  };
+}
+
+function parseLikelyFoodWithQuantity(input: RouteInput): WhatsappPreNutritionRouterDecision | null {
+  const parsed = parseFoodQuantity(input.text);
+  if (!parsed) return null;
+
+  const foodName = parsed.foodName
     .replace(/[.,;:!?]+$/g, "")
     .trim();
   if (!foodName || /^(agua|água)$/i.test(foodName)) return null;
 
   const runtimeIntent: WhatsappInterpretedIntent = {
     intent: "add_foods_to_meal",
-    confidence: 0.78,
+    confidence: parsed.unit ? 0.78 : 0.68,
     meal: null,
-    items: [{ foodName, quantity, unit }],
-    requiresConfirmation: false,
+    items: [{ foodName, quantity: parsed.quantity, unit: parsed.unit }],
+    requiresConfirmation: !parsed.unit,
+    clarificationQuestion: parsed.unit ? null : "Entendi o alimento e a quantidade, mas posso precisar confirmar a porção antes de salvar com precisão.",
     possibleIntents: [],
-    reason: "Alimento com quantidade detectado antes do fallback nutricional.",
+    reason: parsed.unit
+      ? "Alimento com quantidade e unidade detectado antes do fallback nutricional."
+      : "Alimento com quantidade simples detectado antes do fallback nutricional.",
   };
   return {
     canonical: buildRuntimeCanonical(input, runtimeIntent),
     shouldUseNutritionFallback: true,
     response: null,
-    reason: "likely_food_with_quantity",
+    reason: parsed.unit ? "likely_food_with_quantity" : "likely_food_with_simple_quantity",
   };
 }
 
