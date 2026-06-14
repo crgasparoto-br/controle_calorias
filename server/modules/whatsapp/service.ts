@@ -18,6 +18,7 @@ import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
 import { normalizeWhatsappMultimodalInput } from "./multimodalNormalizer";
+import { recordWhatsappOperationalTraceStep, startWhatsappOperationalTrace } from "./operationalTrace";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
@@ -74,6 +75,10 @@ export async function updateWhatsappConnection(userId: number, input: WhatsappCo
   return connection;
 }
 
+function elapsedSince(startedAt: number) {
+  return Math.max(0, Date.now() - startedAt);
+}
+
 async function logAndReturnInterpretedIntent(
   userId: number,
   interpreted: {
@@ -125,7 +130,30 @@ function logDuplicateInbound(userId: number, duplicateResponse: ReturnType<typeo
 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const receivedAt = new Date();
+  const trace = startWhatsappOperationalTrace({
+    userId,
+    messageText: input.text ?? input.media?.caption ?? input.media?.transcription ?? input.media?.imageDescription ?? null,
+    messageId: input.messageId,
+    eventId: input.eventId,
+    createdAt: receivedAt,
+  });
+
+  const normalizationStartedAt = Date.now();
   const normalizedInput = await normalizeWhatsappMultimodalInput(input);
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "normalization",
+    status: normalizedInput.needsClarification ? "warning" : "success",
+    durationMs: elapsedSince(normalizationStartedAt),
+    ruleVersion: "whatsapp-normalization-v1",
+    metadata: {
+      inputModality: normalizedInput.inputModality,
+      mediaKind: normalizedInput.mediaContext?.mediaKind ?? null,
+      extractionPerformed: normalizedInput.extraction.performed,
+      extractionConfidence: normalizedInput.extraction.confidence,
+      informalMatches: normalizedInput.informalNormalization.matches.length,
+      candidateAliases: normalizedInput.informalNormalization.candidateAliases.length,
+    },
+  });
   logInferenceEvent({
     userId,
     origin: "whatsapp",
@@ -135,11 +163,23 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   });
 
   if (normalizedInput.needsClarification) {
+    recordWhatsappOperationalTraceStep(trace, {
+      stage: "response",
+      status: "warning",
+      durationMs: 0,
+      fallbackReason: "normalization_clarification",
+    });
     return buildMultimodalClarification(normalizedInput);
   }
 
   const text = normalizedInput.routerText ?? undefined;
   if (!text) {
+    recordWhatsappOperationalTraceStep(trace, {
+      stage: "response",
+      status: "warning",
+      durationMs: 0,
+      fallbackReason: "empty_normalized_input",
+    });
     return buildMultimodalClarification({
       ...normalizedInput,
       needsClarification: true,
@@ -148,6 +188,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     });
   }
 
+  const idempotencyStartedAt = Date.now();
   const idempotencyDecision = checkWhatsappInboundIdempotency({
     userId,
     text,
@@ -156,13 +197,42 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     receivedAt,
     allowIntentionalDuplicate: input.allowIntentionalDuplicate,
   });
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "idempotency",
+    status: idempotencyDecision.duplicate ? "warning" : "success",
+    durationMs: elapsedSince(idempotencyStartedAt),
+    ruleVersion: "whatsapp-idempotency-v1",
+    fallbackReason: idempotencyDecision.duplicate ? idempotencyDecision.kind : undefined,
+    metadata: {
+      duplicate: idempotencyDecision.duplicate,
+      duplicateKind: idempotencyDecision.kind,
+      allowIntentionalDuplicate: Boolean(input.allowIntentionalDuplicate),
+    },
+  });
   if (idempotencyDecision.duplicate) {
+    recordWhatsappOperationalTraceStep(trace, {
+      stage: "response",
+      status: "warning",
+      durationMs: 0,
+      fallbackReason: idempotencyDecision.kind,
+    });
     return logDuplicateInbound(userId, buildWhatsappDuplicateInboundResponse(idempotencyDecision));
   }
 
   if (text) {
+    const professionalStartedAt = Date.now();
     const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
+    recordWhatsappOperationalTraceStep(trace, {
+      stage: "professional_access",
+      status: professionalAccessResponse ? "success" : "skipped",
+      durationMs: elapsedSince(professionalStartedAt),
+    });
     if (professionalAccessResponse) {
+      recordWhatsappOperationalTraceStep(trace, {
+        stage: "response",
+        status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
+        durationMs: 0,
+      });
       logInferenceEvent({
         userId,
         origin: "whatsapp",
@@ -174,13 +244,31 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     }
   }
 
+  const waterFoodStartedAt = Date.now();
   const waterFoodSplit = splitWhatsAppWaterAndFoodText(text);
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "water_food_split",
+    status: waterFoodSplit ? "success" : "skipped",
+    durationMs: elapsedSince(waterFoodStartedAt),
+    ruleVersion: "whatsapp-water-food-split-v1",
+    metadata: {
+      waterLineCount: waterFoodSplit?.waterLines.length ?? 0,
+    },
+  });
   if (waterFoodSplit) {
     const waterResults = [];
     for (const waterLine of waterFoodSplit.waterLines) {
+      const waterStartedAt = Date.now();
       const interpretedWater = await executeWhatsappTextIntent(userId, {
         text: waterLine.text,
         receivedAt,
+      });
+      recordWhatsappOperationalTraceStep(trace, {
+        stage: "deterministic_intent",
+        status: interpretedWater ? "success" : "error",
+        durationMs: elapsedSince(waterStartedAt),
+        intent: "water_logged",
+        errorCode: interpretedWater ? undefined : "water_intent_failed",
       });
       if (!interpretedWater) {
         throw new Error(`Não foi possível registrar a hidratação informada em "${waterLine.text}".`);
@@ -196,9 +284,16 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       waterResults.push(interpretedWater);
     }
 
+    const mealStartedAt = Date.now();
     const meal = await processMealDraft(userId, {
       source: "whatsapp",
       text: waterFoodSplit.foodText,
+    });
+    recordWhatsappOperationalTraceStep(trace, {
+      stage: "nutrition_persistence",
+      status: "success",
+      durationMs: elapsedSince(mealStartedAt),
+      toolNames: ["meal_create"],
     });
 
     logInferenceEvent({
@@ -209,6 +304,11 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       detail: "Mensagem multi-linha com hidratação e alimentos foi separada antes do processamento da refeição.",
     });
 
+    recordWhatsappOperationalTraceStep(trace, {
+      stage: "response",
+      status: "success",
+      durationMs: 0,
+    });
     return {
       handled: true,
       action: "water_and_meal_logged",
@@ -229,6 +329,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     const fromText = waterCorrectionMatch[1].trim();
     const toText = waterCorrectionMatch[2].trim();
     if (isWhatsAppWaterOnlyText(fromText) && toText) {
+      const mealStartedAt = Date.now();
       logInferenceEvent({
         userId,
         origin: "whatsapp",
@@ -236,28 +337,70 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
         eventType: "whatsapp.intent.food_correction_text_detected",
         detail: "Correção de texto detectada: hidratação foi substituída por alimento antes do processamento nutricional.",
       });
-      return processMealDraft(userId, { source: "whatsapp", text: toText });
+      const meal = await processMealDraft(userId, { source: "whatsapp", text: toText });
+      recordWhatsappOperationalTraceStep(trace, {
+        stage: "nutrition_persistence",
+        status: "success",
+        durationMs: elapsedSince(mealStartedAt),
+        toolNames: ["meal_create"],
+        fallbackReason: "water_to_food_correction",
+      });
+      recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "success", durationMs: 0 });
+      return meal;
     }
   }
 
-  const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
+  const llmStartedAt = Date.now();
+  const llmResult = await executeWhatsappLlmIntent(userId, {
     text,
     receivedAt,
-  }));
+  });
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "llm_router",
+    status: llmResult ? "success" : "fallback",
+    durationMs: elapsedSince(llmStartedAt),
+    processingStrategy: llmResult?.action,
+    intent: llmResult?.action,
+    toolNames: llmResult?.toolNames,
+    fallbackReason: llmResult ? undefined : "llm_not_handled",
+    inputChars: text.length,
+    outputChars: llmResult?.reply.length ?? 0,
+  });
+  const llmInterpreted = await logAndReturnInterpretedIntent(userId, llmResult);
   if (llmInterpreted) {
+    recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "success", durationMs: 0 });
     return llmInterpreted;
   }
 
-  const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
+  const deterministicStartedAt = Date.now();
+  const textIntentResult = await executeWhatsappTextIntent(userId, {
     text,
     receivedAt,
-  }));
+  });
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "deterministic_intent",
+    status: textIntentResult ? "success" : "fallback",
+    durationMs: elapsedSince(deterministicStartedAt),
+    intent: textIntentResult?.action,
+    fallbackReason: textIntentResult ? undefined : "deterministic_not_handled",
+  });
+  const interpreted = await logAndReturnInterpretedIntent(userId, textIntentResult);
   if (interpreted) {
+    recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "success", durationMs: 0 });
     return interpreted;
   }
 
+  const assistantStartedAt = Date.now();
   const assistant = executeWhatsAppFoodAssistantIntent(text);
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "food_assistant",
+    status: assistant ? "success" : "fallback",
+    durationMs: elapsedSince(assistantStartedAt),
+    intent: assistant?.action,
+    fallbackReason: assistant ? undefined : "assistant_not_handled",
+  });
   if (assistant) {
+    recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "success", durationMs: 0 });
     logInferenceEvent({
       userId,
       origin: "whatsapp",
@@ -268,5 +411,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return assistant;
   }
 
-  return processMealDraft(userId, { source: "whatsapp", text });
+  const mealStartedAt = Date.now();
+  const meal = await processMealDraft(userId, { source: "whatsapp", text });
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "nutrition_persistence",
+    status: "success",
+    durationMs: elapsedSince(mealStartedAt),
+    toolNames: ["meal_create"],
+  });
+  recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "success", durationMs: 0 });
+  return meal;
 }
