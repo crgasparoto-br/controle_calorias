@@ -154,9 +154,81 @@ describe("routeWhatsappMessageBeforeNutrition", () => {
     const decision = routeWhatsappMessageBeforeNutrition({ text: "gere um gráfico da semana" });
 
     expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("chart_request");
     expect(decision.canonical.intent).toBe("gerar_grafico");
     expect(decision.canonical.requested_output_type).toBe("grafico");
+    expect(decision.canonical.requested_period).toBe("semana");
     expect(decision.response?.reply).toContain("gráfico");
+  });
+
+  it("bloqueia pedido de relatorio antes do parser de alimentos", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "gere um relatório do mês" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("report_request");
+    expect(decision.canonical.intent).toBe("gerar_relatorio");
+    expect(decision.canonical.requested_output_type).toBe("relatorio");
+    expect(decision.canonical.requested_period).toBe("mes");
+  });
+
+  it("roteia resumo de periodo sem criar alimento", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "resuma minha semana" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("summary_request");
+    expect(decision.canonical.intent).toBe("resumo_periodo");
+    expect(decision.canonical.requested_output_type).toBe("resumo");
+    expect(decision.canonical.requested_period).toBe("semana");
+  });
+
+  it("roteia sugestao de refeicao sem registrar alimento", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "sugira um jantar leve" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("suggestion_request");
+    expect(decision.canonical.intent).toBe("sugestao_refeicao");
+    expect(decision.canonical.requested_output_type).toBe("sugestao");
+  });
+
+  it("roteia consulta de historico sem criar registro", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "o que eu comi hoje?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("history_request");
+    expect(decision.canonical.intent).toBe("consulta_historico");
+    expect(decision.canonical.requested_period).toBe("hoje");
+  });
+
+  it("roteia pergunta sobre meta sem registrar alimento", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "como estou em relação à meta?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("goal_question_request");
+    expect(decision.canonical.intent).toBe("pergunta_sobre_meta");
+  });
+
+  it("roteia pergunta sobre evolucao sem registrar alimento", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "como está minha evolução essa semana?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("progress_question_request");
+    expect(decision.canonical.intent).toBe("pergunta_sobre_evolucao");
+  });
+
+  it("roteia pergunta sobre qualidade alimentar sem registrar alimento", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "minha alimentação está balanceada?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("food_quality_question_request");
+    expect(decision.canonical.intent).toBe("pergunta_sobre_qualidade_alimentar");
+  });
+
+  it("roteia pergunta sobre alimento sem criar registro", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "banana tem muita caloria?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("food_question_request");
+    expect(decision.canonical.intent).toBe("pergunta_sobre_alimento");
   });
 
   it("pede esclarecimento para texto ambiguo sem alimento claro", () => {
