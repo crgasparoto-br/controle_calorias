@@ -195,6 +195,22 @@ describe("simulateWhatsappInbound", () => {
     }));
   });
 
+  it("bloqueia ajuste numerico sem contexto antes do fallback nutricional", async () => {
+    const result = await simulateWhatsappInbound(42, { text: "somar 30g" });
+
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "router_clarification_needed",
+      eventType: "whatsapp.router.clarification_needed",
+    }));
+    const [trace] = listWhatsappOperationalTraces({ userId: 42 });
+    expect(trace.steps.find(step => step.stage === "canonical_router")).toEqual(expect.objectContaining({
+      status: "warning",
+      intent: "somar_quantidade",
+    }));
+  });
+
   it("mantem alimento valido no fallback nutricional depois do roteador canonico", async () => {
     const result = await simulateWhatsappInbound(42, { text: "100g de arroz" });
 
