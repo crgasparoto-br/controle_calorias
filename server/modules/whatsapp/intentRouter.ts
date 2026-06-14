@@ -336,7 +336,7 @@ function routeNumericAdjustmentCommand(input: RouteInput, normalized: string): W
 }
 
 function routeHealthSafetyRequests(input: RouteInput, normalized: string): WhatsappPreNutritionRouterDecision | null {
-  const urgent = /\b(passando mal|desmaio|desmaiando|dor no peito|falta de ar|nao consigo respirar|não consigo respirar|pressao alta|pressão alta|hipoglicemia|convulsao|convulsão|sangramento|emergencia|emergência)\b/.test(normalized);
+  const urgent = /\b(passando mal|desmaio|desmaiando|dor no peito|falta de ar|nao consigo respirar|não consigo respirar|pressao\s+(?:esta\s+)?alta|pressão\s+(?:está\s+)?alta|hipoglicemia|convulsao|convulsão|sangramento|emergencia|emergência)\b/.test(normalized);
   const sensitive = /\b(diabetico|diabético|diabetes|hipertensao|hipertensão|pressao|pressão|gravida|grávida|renal|figado|fígado|colesterol|remedio|remédio|medicamento|insulina|antidepressivo|ansiedade|transtorno alimentar|compulsao|compulsão|anorexia|bulimia)\b/.test(normalized);
   const dietCare = /\b(jejum|dieta cetogenica|dieta cetogênica|low carb|suplemento|creatina|whey|termogenico|termogênico|calorias devo cortar|devo cortar|posso fazer|posso tomar|posso comer)\b/.test(normalized);
   if (!urgent && !sensitive && !dietCare) return null;
