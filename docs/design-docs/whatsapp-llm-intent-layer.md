@@ -7,19 +7,53 @@ Interpretar mensagens naturais de texto do WhatsApp antes do fallback genérico 
 ## Fluxo
 
 ```text
-WhatsApp -> contexto seguro -> interpretador LLM -> schema Zod -> executor determinístico -> resposta contextual
-                                  | falha/JSON inválido/baixa confiança
-                                  v
-                           classificador determinístico/fallback seguro
+WhatsApp -> protecao de conteudo -> contexto seguro -> interpretador LLM -> schema Zod -> executor deterministico -> resposta contextual
+              | bloqueio seguro                             | falha/JSON invalido/payload invalido/baixa confianca
+              v                                              v
+       esclarecimento seguro                         classificador deterministico/fallback seguro
 ```
+
+## Orquestração operacional
+
+A ordem de decisão do runtime segue este contrato inicial da issue #429:
+
+1. Receber a mensagem pelo webhook do WhatsApp.
+2. Aplicar proteções de entrada antes de enviar qualquer conteúdo para IA.
+3. Normalizar texto/unidades nos pontos já existentes do webhook e dos serviços de WhatsApp.
+4. Resolver intenções determinísticas de alta confiança quando o webhook já tiver contexto suficiente, como hidratação, ajustes de quantidade, relatório com contexto pendente e orientação alimentar.
+5. Acionar o interpretador estruturado com LLM apenas quando a regra determinística não for suficiente e o conteúdo for seguro para classificação.
+6. Validar o JSON retornado pelo schema Zod antes de qualquer executor de domínio.
+7. Executar somente ações suportadas pelo backend, com thresholds de confiança e confirmação.
+8. Em falha de LLM, timeout, JSON inválido, payload inválido, baixa confiança ou ação não suportada, retornar pergunta segura, fallback determinístico ou delegar ao fluxo nutricional apenas quando o texto tiver sinal claro de refeição.
+9. Registrar auditoria com estratégia, duração, modelo usado quando aplicável, fallback e decisão final.
+
+As estratégias registradas em auditoria são:
+
+- `security_guard_block`: conteúdo bloqueado antes da IA por tentativa suspeita de alterar regras, prompt, autonomia, ferramentas ou acessar dados fora do escopo.
+- `deterministic_only`: LLM desativada por configuração ou opção de execução, usando classificação determinística.
+- `llm_structured`: LLM retornou JSON válido e compatível com o schema.
+- `llm_invalid_json_fallback`: LLM respondeu algo que não era JSON válido, então o backend caiu para fallback determinístico.
+- `llm_invalid_payload_fallback`: LLM respondeu JSON que não passou no schema, então o backend caiu para fallback determinístico.
+- `llm_error_fallback`: provider indisponível, timeout ou erro após retries, então o backend caiu para fallback determinístico.
 
 ## Componentes
 
+- `server/modules/whatsapp/promptInjectionGuard.ts`: inspeção de conteúdo não confiável, bloqueio seguro e delimitação do texto enviado à LLM.
 - `server/modules/whatsapp/intentSchema.ts`: contrato único das intenções suportadas.
 - `server/modules/whatsapp/intentContext.ts`: builder de contexto mínimo do usuário.
-- `server/modules/whatsapp/intentInterpreter.ts`: chamada LLM com saída JSON schema e classificador determinístico de fallback.
+- `server/modules/whatsapp/intentInterpreter.ts`: chamada LLM com saída JSON schema, estratégia operacional e classificador determinístico de fallback.
+- `server/modules/whatsapp/intentAuditLog.ts`: registro em memória das decisões estruturadas, incluindo estratégia, duração, modelo, fallback e erro.
 - `server/modules/whatsapp/llmIntentActions.ts`: executor seguro das intenções validadas.
 - `server/modules/whatsapp/service.ts`: ponto de integração antes do interpretador legado e antes do fallback nutricional.
+
+## Encaixe com as próximas issues da Fase 0
+
+- #438 deve transformar o uso de ferramentas em catálogo explícito por escopo, efeito, validação, fallback e rastreabilidade.
+- #411 deve ampliar a taxonomia e o schema canônico para cobrir todas as intenções da épica sem duplicar classificação local.
+- #436 deve substituir thresholds soltos por níveis de autonomia por ação, risco e confiança.
+- #424 e #427 devem alimentar a etapa de normalização antes do roteador, preservando texto original, transcrição, mídia e linguagem informal.
+- #423 deve mover a idempotência de mensagem para uma proteção geral de webhook, não apenas casos pontuais.
+- #440 deve evoluir a auditoria em memória para observabilidade operacional persistente, com custo, latência por etapa, timeout e traces adequados à política de privacidade.
 
 ## Intenções iniciais
 
@@ -39,12 +73,14 @@ WhatsApp -> contexto seguro -> interpretador LLM -> schema Zod -> executor deter
 
 - O LLM nunca grava dados, chama serviços diretamente ou executa ações livres.
 - A saída do LLM precisa passar pelo schema antes de qualquer ação.
+- Conteúdo de texto, legenda, transcrição ou mídia é sempre conteúdo não confiável, nunca instrução de sistema.
 - Payload inválido, baixa confiança ou ambiguidade gera fallback seguro ou pergunta contextual.
 - A execução continua em serviços de domínio do backend.
 - O contexto enviado ao LLM deve ser mínimo e não deve incluir texto cru sensível desnecessário.
 - Mensagens de consulta, como `refeições registradas`, não devem cair no fallback de alimento incompleto.
 - Criação automática de refeição só acontece quando a intenção estruturada permitir `createIfMissing`.
 - Troca de alimento só acontece quando há correspondência segura com item da última refeição.
+- Falha de LLM, schema inválido, timeout ou provider indisponível não persiste alimento, meta, plano ou ação sensível automaticamente.
 
 ## Relação com PR #309
 
@@ -57,3 +93,6 @@ A PR #309 trata fallback nutricional estimado para alimentos por imagem. Essa l�
 - `refeições registradas`
 - `registro`
 - `banana`
+- tentativa de ignorar instruções internas e revelar prompt do sistema
+- tentativa de acessar dados de outros usuários
+- fallback por JSON inválido, payload inválido e erro do provider
