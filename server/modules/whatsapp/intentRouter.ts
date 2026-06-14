@@ -141,6 +141,17 @@ function buildClarificationResponse(canonical: WhatsappCanonicalIntentOutput, re
   };
 }
 
+function buildContextualResponse(canonical: WhatsappCanonicalIntentOutput, reply: string, detail: string): WhatsappRouterSafeResponse {
+  return {
+    handled: true,
+    action: "router_contextual_response",
+    reply,
+    eventType: "whatsapp.router.contextual_response",
+    detail,
+    data: { canonicalIntent: canonical.intent, pendingContextId: canonical.pending_context_id },
+  };
+}
+
 function routeIsolatedNumber(input: RouteInput, normalized: string): WhatsappPreNutritionRouterDecision | null {
   if (!/^\d+(?:[,.]\d+)?$/.test(normalized)) return null;
 
@@ -156,14 +167,7 @@ function routeIsolatedNumber(input: RouteInput, normalized: string): WhatsappPre
     return {
       canonical,
       shouldUseNutritionFallback: false,
-      response: {
-        handled: true,
-        action: "router_contextual_response",
-        reply: "Recebi sua resposta. Vou usar essa opção no contexto pendente.",
-        eventType: "whatsapp.router.contextual_response",
-        detail: "Número isolado roteado como seleção por existir contexto pendente.",
-        data: { canonicalIntent: canonical.intent, pendingContextId: input.pendingContextId },
-      },
+      response: buildContextualResponse(canonical, "Recebi sua resposta. Vou usar essa opção no contexto pendente.", "Número isolado roteado como seleção por existir contexto pendente."),
       reason: "isolated_number_with_pending_context",
     };
   }
@@ -188,6 +192,48 @@ function routeIsolatedNumber(input: RouteInput, normalized: string): WhatsappPre
       "Número isolado sem contexto pendente bloqueado antes do parser nutricional.",
     ),
     reason: "isolated_number_without_context",
+  };
+}
+
+function routeShortReply(input: RouteInput, normalized: string): WhatsappPreNutritionRouterDecision | null {
+  const affirmative = /^(sim|s|ok|okay|confirmo|confirmar|isso|pode|pode sim)$/.test(normalized);
+  const negative = /^(nao|n|não|cancelar|cancela|negativo)$/.test(normalized);
+  if (!affirmative && !negative) return null;
+
+  if (input.pendingContextId) {
+    const canonical = buildBaseCanonical({
+      ...input,
+      intent: affirmative ? "confirmacao_sim_nao" : "cancelar_pendencia",
+      confidence: 0.88,
+      needsConfirmation: false,
+      contextRequired: true,
+      ambiguityReason: input.pendingContextKind ?? "Resposta curta associada a contexto pendente.",
+    });
+    return {
+      canonical,
+      shouldUseNutritionFallback: false,
+      response: buildContextualResponse(canonical, "Recebi sua resposta e vou aplicá-la ao contexto pendente.", "Resposta curta roteada por existir contexto pendente."),
+      reason: affirmative ? "short_affirmative_with_context" : "short_negative_with_context",
+    };
+  }
+
+  const canonical = buildBaseCanonical({
+    ...input,
+    intent: "mensagem_ambigua",
+    confidence: 0.76,
+    needsConfirmation: true,
+    ambiguityReason: "Resposta curta sem contexto pendente não deve alterar nem registrar dados.",
+    clarificationOptions: [
+      { id: "registrar", label: "Registrar alimento", intent: "registrar_alimento" },
+      { id: "corrigir", label: "Corrigir uma refeição", intent: "corrigir_alimento" },
+      { id: "consultar", label: "Consultar registros", intent: "consulta_historico" },
+    ],
+  });
+  return {
+    canonical,
+    shouldUseNutritionFallback: false,
+    response: buildClarificationResponse(canonical, "Recebi uma resposta curta, mas não há uma pendência ativa. Me diga o que você quer fazer.", "Resposta curta sem contexto pendente bloqueada antes do parser nutricional."),
+    reason: "short_reply_without_context",
   };
 }
 
@@ -231,6 +277,50 @@ function routeCalculation(input: RouteInput, normalized: string): WhatsappPreNut
       data: { canonicalIntent: canonical.intent, resultValue: result, resultUnit: unit },
     },
     reason: "calculation_with_unit",
+  };
+}
+
+function routeNumericAdjustmentCommand(input: RouteInput, normalized: string): WhatsappPreNutritionRouterDecision | null {
+  const addMatch = normalized.match(/^(?:adicionar|adicione|adiciona|somar|soma|some|acrescentar|acrescente)\s+(\d+(?:[,.]\d+)?)\s*(g|kg|ml|l|gramas?|litros?)\s*(?:de\s+(.+))?$/);
+  const removeMatch = normalized.match(/^(?:excluir|exclui|remover|remove|apagar|apaga|deletar|deleta)\s+(\d+(?:[,.]\d+)?)(?:\s+(.+))?$/);
+  const correctionMatch = normalized.match(/^(?:corrigir|corrige|ajustar|ajusta|alterar|altera|era)\s+(\d+(?:[,.]\d+)?)\s*(g|kg|ml|l|gramas?|litros?)?$/);
+  if (!addMatch && !removeMatch && !correctionMatch) return null;
+
+  if (input.pendingContextId) {
+    const intent: WhatsappCanonicalIntentName = removeMatch ? "excluir_alimento" : correctionMatch ? "corrigir_alimento" : "somar_quantidade";
+    const canonical = buildBaseCanonical({
+      ...input,
+      intent,
+      confidence: 0.84,
+      needsConfirmation: true,
+      contextRequired: true,
+      ambiguityReason: input.pendingContextKind ?? "Comando numérico associado a contexto pendente.",
+    });
+    return {
+      canonical,
+      shouldUseNutritionFallback: false,
+      response: buildContextualResponse(canonical, "Recebi o comando e vou usá-lo no contexto pendente antes de alterar qualquer registro.", "Comando numérico roteado por existir contexto pendente."),
+      reason: "numeric_adjustment_with_context",
+    };
+  }
+
+  const intent: WhatsappCanonicalIntentName = removeMatch ? "excluir_alimento" : correctionMatch ? "corrigir_alimento" : "somar_quantidade";
+  const canonical = buildBaseCanonical({
+    ...input,
+    intent,
+    confidence: 0.72,
+    needsConfirmation: true,
+    ambiguityReason: "Comando numérico sem alvo seguro não deve criar nem alterar alimento automaticamente.",
+    clarificationOptions: [
+      { id: "ultima", label: "Usar a última refeição", intent },
+      { id: "escolher", label: "Escolher item da refeição", intent: "selecionar_opcao" },
+    ],
+  });
+  return {
+    canonical,
+    shouldUseNutritionFallback: false,
+    response: buildClarificationResponse(canonical, "Entendi o comando, mas preciso saber qual item ou refeição devo alterar.", "Comando numérico sem contexto pendente bloqueado antes do parser nutricional."),
+    reason: "numeric_adjustment_without_context",
   };
 }
 
@@ -345,7 +435,9 @@ export function routeWhatsappMessageBeforeNutrition(input: RouteInput): Whatsapp
   const normalized = normalizeText(input.text);
 
   const ruleDecision = routeIsolatedNumber(input, normalized)
+    ?? routeShortReply(input, normalized)
     ?? routeCalculation(input, normalized)
+    ?? routeNumericAdjustmentCommand(input, normalized)
     ?? routeNonFoodRequests(input, normalized)
     ?? parseLikelyFoodWithQuantity(input)
     ?? routeMealNarrative(input, normalized);
