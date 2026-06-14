@@ -162,6 +162,72 @@ describe("executeWhatsappLlmIntent", () => {
     }));
   });
 
+  it("bloqueia gravacao da IA quando alimento nao tem quantidade e unidade validadas", async () => {
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      processingStrategy: "llm_structured",
+      durationMs: 18,
+      intent: interpretedIntent({
+        intent: "add_foods_to_meal",
+        confidence: 0.9,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        meal: { label: "jantar", createIfMissing: true },
+        items: [{ foodName: "pão", quantity: null, unit: null }],
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, { text: "Registra pão no jantar" });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      eventType: "whatsapp.llm_intent.validation_failed",
+    }));
+    expect(result?.reply).toContain("quantidade clara");
+    expect(listMealsMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "clarification_needed",
+      replyKind: "clarification",
+      fallbackReason: "backend_validation_failed",
+      errorCode: "invalid_quantity",
+      autonomyLevel: "automatico",
+      autonomyOutcome: "execute",
+    }));
+  });
+
+  it("bloqueia payload estruturado nao validado antes de gravar", async () => {
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "skipped",
+      processingStrategy: "llm_structured",
+      durationMs: 18,
+      intent: interpretedIntent({
+        intent: "add_foods_to_meal",
+        confidence: 0.9,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        meal: { label: "jantar", createIfMissing: true },
+        items: [{ foodName: "arroz", quantity: 100, unit: "g" }],
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, { text: "Registra 100g de arroz no jantar" });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      eventType: "whatsapp.llm_intent.validation_failed",
+    }));
+    expect(listMealsMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      fallbackReason: "backend_validation_failed",
+      errorCode: "invalid_schema",
+    }));
+  });
+
   it("exige confirmacao antes de executar correcao de alimento", async () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
