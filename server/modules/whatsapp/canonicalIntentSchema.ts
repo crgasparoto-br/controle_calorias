@@ -175,6 +175,7 @@ function normalizeForContract(value?: string | null) {
 
 function resolveAutonomyLevel(intent: WhatsappInterpretedIntent): z.infer<typeof whatsappAutonomyLevelSchema> {
   if (intent.intent === "ambiguous" || intent.intent === "unknown") return "requer_confirmacao";
+  if (intent.intent === "replace_food_in_meal" || intent.intent === "edit_food_quantity" || intent.intent === "add_exercise") return "requer_confirmacao";
   if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute) return "requer_confirmacao";
   return "automatico";
 }
@@ -216,7 +217,7 @@ export function buildCanonicalIntentOutputFromRuntime(input: {
         item: extractedItems[0] ?? null,
         quantity: runtimeIntent.quantity ? { value: runtimeIntent.quantity.value, unit: runtimeIntent.quantity.unit } : null,
         autonomy_level: autonomyLevel,
-        needs_confirmation: runtimeIntent.requiresConfirmation,
+        needs_confirmation: autonomyLevel !== "automatico",
         validation_status: autonomyLevel === "automatico" ? "pendente" as const : "bloqueada" as const,
         message: runtimeIntent.reason ?? runtimeIntent.clarificationQuestion ?? null,
       }];
@@ -239,7 +240,7 @@ export function buildCanonicalIntentOutputFromRuntime(input: {
     target_user_id: input.targetUserId == null ? null : String(input.targetUserId),
     professional_id: null,
     context_required: runtimeIntent.requiresConfirmation,
-    needs_confirmation: runtimeIntent.requiresConfirmation,
+    needs_confirmation: autonomyLevel !== "automatico",
     pending_context_id: null,
     pending_proposal_id: null,
     requested_output_type: runtimeIntent.intent === "daily_summary" ? "resumo" : null,
@@ -263,7 +264,7 @@ export function buildCanonicalIntentOutputFromRuntime(input: {
       intent: runtimeToCanonicalIntentMap[intentName],
     })),
     processing_strategy: input.processingStrategy ?? null,
-    warnings: runtimeIntent.requiresConfirmation ? ["Intencao exige confirmacao antes de executar acao sensivel."] : [],
+    warnings: autonomyLevel !== "automatico" ? ["Intencao exige confirmacao antes de executar acao sensivel."] : [],
     ambiguity_reason: runtimeIntent.intent === "ambiguous" ? runtimeIntent.reason ?? runtimeIntent.clarificationQuestion ?? null : null,
   });
 }
