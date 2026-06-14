@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { WhatsappAutonomyLevel, WhatsappAutonomyOutcome } from "./autonomyPolicy";
 import type { WhatsappIntentName, WhatsappInterpretedIntent } from "./intentSchema";
 
 export type WhatsappIntentValidationStatus = "valid" | "invalid_json" | "invalid_payload" | "skipped";
@@ -29,6 +30,9 @@ export type WhatsappIntentAuditLogEntry = {
   durationMs?: number;
   modelName?: string;
   toolNames?: string[];
+  autonomyLevel?: WhatsappAutonomyLevel;
+  autonomyOutcome?: WhatsappAutonomyOutcome;
+  autonomyReason?: string;
   fallbackReason?: string;
   errorCode?: string;
 };
@@ -45,6 +49,9 @@ type RecordWhatsappIntentAuditLogInput = {
   durationMs?: number;
   modelName?: string;
   toolNames?: string[];
+  autonomyLevel?: WhatsappAutonomyLevel;
+  autonomyOutcome?: WhatsappAutonomyOutcome;
+  autonomyReason?: string;
   fallbackReason?: string;
   errorCode?: string;
   createdAt?: Date;
@@ -57,6 +64,8 @@ type ListWhatsappIntentAuditLogsFilter = {
   fallbackReason?: string;
   processingStrategy?: string;
   toolName?: string;
+  autonomyLevel?: WhatsappAutonomyLevel;
+  autonomyOutcome?: WhatsappAutonomyOutcome;
 };
 
 const MAX_AUDIT_LOG_ENTRIES = 500;
@@ -99,6 +108,9 @@ export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLog
     ...(typeof input.durationMs === "number" ? { durationMs: Math.max(0, Math.round(input.durationMs)) } : {}),
     ...(input.modelName ? { modelName: input.modelName } : {}),
     ...(input.toolNames?.length ? { toolNames: [...new Set(input.toolNames)] } : {}),
+    ...(input.autonomyLevel ? { autonomyLevel: input.autonomyLevel } : {}),
+    ...(input.autonomyOutcome ? { autonomyOutcome: input.autonomyOutcome } : {}),
+    ...(input.autonomyReason ? { autonomyReason: input.autonomyReason } : {}),
     ...(input.fallbackReason ? { fallbackReason: input.fallbackReason } : {}),
     ...(input.errorCode ? { errorCode: input.errorCode } : {}),
   };
@@ -122,6 +134,8 @@ export function listWhatsappIntentAuditLogs(filter: ListWhatsappIntentAuditLogsF
     if (filter.fallbackReason && entry.fallbackReason !== filter.fallbackReason) return false;
     if (filter.processingStrategy && entry.processingStrategy !== filter.processingStrategy) return false;
     if (filter.toolName && !entry.toolNames?.includes(filter.toolName)) return false;
+    if (filter.autonomyLevel && entry.autonomyLevel !== filter.autonomyLevel) return false;
+    if (filter.autonomyOutcome && entry.autonomyOutcome !== filter.autonomyOutcome) return false;
     return true;
   });
 }
