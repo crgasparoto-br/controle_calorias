@@ -63,12 +63,21 @@ function splitFoodNames(value: string) {
     .slice(0, 20);
 }
 
+function inferRequestedPeriod(normalized: string) {
+  if (/\bhoje\b|\bdia\b/.test(normalized)) return "hoje";
+  if (/\bontem\b/.test(normalized)) return "ontem";
+  if (/\bsemana\b|\bsemanal\b|\bultimos\s+7\s+dias\b/.test(normalized)) return "semana";
+  if (/\bmes\b|\bmensal\b|\bultimos\s+30\s+dias\b/.test(normalized)) return "mes";
+  return null;
+}
+
 function buildBaseCanonical(input: RouteInput & {
   intent: WhatsappCanonicalIntentName;
   confidence: number;
   needsConfirmation: boolean;
   contextRequired?: boolean;
   requestedOutputType?: WhatsappCanonicalIntentOutput["requested_output_type"];
+  requestedPeriod?: string | null;
   ambiguityReason?: string | null;
   warnings?: string[];
   calculations?: WhatsappCanonicalIntentOutput["calculations"];
@@ -96,9 +105,9 @@ function buildBaseCanonical(input: RouteInput & {
     pending_context_id: input.pendingContextId ?? null,
     pending_proposal_id: null,
     requested_output_type: input.requestedOutputType ?? null,
-    requested_period: null,
+    requested_period: input.requestedPeriod ?? null,
     user_timezone: null,
-    temporal_expression: null,
+    temporal_expression: input.requestedPeriod ?? null,
     resolved_date: null,
     resolved_time_range: null,
     meal_slot: null,
@@ -326,6 +335,7 @@ function routeNumericAdjustmentCommand(input: RouteInput, normalized: string): W
 }
 
 function routeNonFoodRequests(input: RouteInput, normalized: string): WhatsappPreNutritionRouterDecision | null {
+  const requestedPeriod = inferRequestedPeriod(normalized);
   const patterns: Array<{
     pattern: RegExp;
     intent: WhatsappCanonicalIntentName;
@@ -333,11 +343,15 @@ function routeNonFoodRequests(input: RouteInput, normalized: string): WhatsappPr
     reply: string;
     reason: string;
   }> = [
-    { pattern: /\b(resuma|resumo|total|calorias)\b.*\b(dia|hoje|ontem|semana|mes)\b/, intent: "resumo_dia", outputType: "resumo", reply: "Consigo montar um resumo. Me diga o período se quiser algo diferente de hoje.", reason: "summary_request" },
-    { pattern: /\b(grafico|grafica|evolucao)\b/, intent: "gerar_grafico", outputType: "grafico", reply: "Entendi que você quer um gráfico. Essa solicitação não será tratada como alimento.", reason: "chart_request" },
-    { pattern: /\b(relatorio|exportar|pdf)\b/, intent: "gerar_relatorio", outputType: "relatorio", reply: "Entendi que você quer um relatório. Me diga o período para eu preparar a consulta correta.", reason: "report_request" },
-    { pattern: /\b(sugira|sugestao|o que comer|opcao de refeicao|lanche da tarde)\b/, intent: "sugestao_refeicao", outputType: "sugestao", reply: "Entendi que você quer uma sugestão. Não vou registrar isso como alimento.", reason: "suggestion_request" },
-    { pattern: /\b(meta|objetivo|evolucao|proteina|caloria|carboidrato|gordura)\b.*\?$/, intent: "pergunta_sobre_meta", outputType: "texto", reply: "Entendi sua pergunta. Vou tratar isso como consulta, não como registro alimentar.", reason: "question_request" },
+    { pattern: /\b(grafico|grafica|evolucao visual|linha do tempo)\b/, intent: "gerar_grafico", outputType: "grafico", reply: "Entendi que você quer um gráfico. Essa solicitação não será tratada como alimento.", reason: "chart_request" },
+    { pattern: /\b(relatorio|exportar|pdf|documento)\b/, intent: "gerar_relatorio", outputType: "relatorio", reply: "Entendi que você quer um relatório. Me diga o período para eu preparar a consulta correta.", reason: "report_request" },
+    { pattern: /\b(resuma|resumo|resumir|balanco|balanço|fechamento|total do dia|totais?)\b|\b(calorias|macros|proteinas?|carboidratos?|gorduras?)\b.*\b(dia|hoje|ontem|semana|mes)\b/, intent: requestedPeriod && requestedPeriod !== "hoje" && requestedPeriod !== "ontem" ? "resumo_periodo" : "resumo_dia", outputType: "resumo", reply: "Consigo montar um resumo. Me diga o período se quiser algo diferente de hoje.", reason: "summary_request" },
+    { pattern: /\b(historico|historico alimentar|registros?|refeicoes registradas|o que registrei|o que eu comi)\b/, intent: "consulta_historico", outputType: "texto", reply: "Entendi que você quer consultar seus registros. Não vou criar alimento com essa mensagem.", reason: "history_request" },
+    { pattern: /\b(sugira|sugerir|sugestao|sugestão|o que comer|opcao de refeicao|opção de refeição|ideia de|lanche da tarde|jantar leve|almoco leve|almoço leve)\b/, intent: /\b(alimento|produto|ingrediente)\b/.test(normalized) ? "sugestao_alimento" : "sugestao_refeicao", outputType: "sugestao", reply: "Entendi que você quer uma sugestão. Não vou registrar isso como alimento.", reason: "suggestion_request" },
+    { pattern: /\b(meta|objetivo|caloria alvo|deficit|déficit|superavit|superávit)\b.*\?$/, intent: "pergunta_sobre_meta", outputType: "texto", reply: "Entendi sua pergunta sobre meta. Vou tratar isso como consulta, não como registro alimentar.", reason: "goal_question_request" },
+    { pattern: /\b(evolucao|evolução|progresso|resultado|estou indo bem|como estou)\b/, intent: "pergunta_sobre_evolucao", outputType: "texto", reply: "Entendi sua pergunta sobre evolução. Vou responder como consulta, sem registrar alimento.", reason: "progress_question_request" },
+    { pattern: /\b(qualidade|ultraprocessado|ultra processado|saudavel|saudável|balanceado|bom ou ruim|melhorar alimentacao|melhorar alimentação)\b/, intent: "pergunta_sobre_qualidade_alimentar", outputType: "texto", reply: "Entendi sua pergunta sobre qualidade alimentar. Não vou transformar isso em registro.", reason: "food_quality_question_request" },
+    { pattern: /\?$|\b(tem muita caloria|quantas calorias|vale a pena|posso comer|é bom|e bom|faz mal|engorda)\b/, intent: "pergunta_sobre_alimento", outputType: "texto", reply: "Entendi sua pergunta sobre alimento. Vou tratar como consulta, sem salvar alimento.", reason: "food_question_request" },
   ];
 
   const found = patterns.find(entry => entry.pattern.test(normalized));
@@ -346,10 +360,11 @@ function routeNonFoodRequests(input: RouteInput, normalized: string): WhatsappPr
   const canonical = buildBaseCanonical({
     ...input,
     intent: found.intent,
-    confidence: 0.82,
+    confidence: 0.84,
     needsConfirmation: true,
     requestedOutputType: found.outputType,
-    ambiguityReason: "Mensagem não alimentar bloqueada antes do parser nutricional.",
+    requestedPeriod,
+    ambiguityReason: "Mensagem de análise, consulta ou pergunta bloqueada antes do parser nutricional.",
   });
   return {
     canonical,
