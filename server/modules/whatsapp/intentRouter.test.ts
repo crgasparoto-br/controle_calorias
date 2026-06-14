@@ -216,7 +216,7 @@ describe("routeWhatsappMessageBeforeNutrition", () => {
   });
 
   it("roteia pergunta sobre qualidade alimentar sem registrar alimento", () => {
-    const decision = routeWhatsappMessageBeforeNutrition({ text: "minha alimentação está balanceada?" });
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "minha alimentação está saudável?" });
 
     expect(decision.shouldUseNutritionFallback).toBe(false);
     expect(decision.reason).toBe("food_quality_question_request");
