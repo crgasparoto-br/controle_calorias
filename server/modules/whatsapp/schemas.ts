@@ -16,6 +16,9 @@ export const simulateWhatsappInboundMediaSchema = z.object({
 
 export const simulateWhatsappInboundSchema = z.object({
   text: z.string().optional(),
+  messageId: z.string().max(160).nullable().optional(),
+  eventId: z.string().max(160).nullable().optional(),
+  allowIntentionalDuplicate: z.boolean().optional(),
   media: simulateWhatsappInboundMediaSchema.nullable().optional(),
 });
 
