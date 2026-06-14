@@ -8,6 +8,7 @@ import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappInterpretedIntent } from "./intentSchema";
+import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
 import { assertWhatsappAiToolAllowed, type WhatsappAiToolName } from "./toolContracts";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
@@ -476,6 +477,26 @@ function buildAutonomyReply(intent: WhatsappInterpretedIntent, autonomyDecision:
   return "Preciso confirmar antes de continuar. Voce quer que eu aplique essa alteracao?";
 }
 
+function buildValidationClarification(
+  intent: WhatsappInterpretedIntent,
+  validation: WhatsappBackendValidationResult,
+): WhatsappLlmIntentResult {
+  const firstIssue = validation.issues[0];
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: firstIssue?.message ?? "Nao consegui validar essa acao com seguranca. Me envie mais detalhes antes de salvar.",
+    eventType: "whatsapp.llm_intent.validation_failed",
+    detail: `Validacao de backend bloqueou ${intent.intent} antes de persistir dados.`,
+    data: {
+      intent: intent.intent,
+      intentConfidence: intent.confidence,
+      validationStatus: validation.status,
+      validationIssues: validation.issues.map(issue => issue.code),
+    },
+  };
+}
+
 function buildClarification(intent: WhatsappInterpretedIntent, autonomyDecision?: WhatsappAutonomyDecision): WhatsappLlmIntentResult {
   return {
     handled: true,
@@ -520,8 +541,13 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
   const intent = interpretation.intent;
 
-  const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string, autonomyDecision?: WhatsappAutonomyDecision) => {
-    recordIntentAudit({ userId, text, interpretation, result, autonomyDecision, fallbackReason });
+  const finish = (
+    result: WhatsappLlmIntentResult | null,
+    fallbackReason?: string,
+    autonomyDecision?: WhatsappAutonomyDecision,
+    errorCode?: string,
+  ) => {
+    recordIntentAudit({ userId, text, interpretation, result, autonomyDecision, fallbackReason, errorCode });
     return result;
   };
 
@@ -542,10 +568,30 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
     }
 
     switch (intent.intent) {
-      case "add_foods_to_meal":
+      case "add_foods_to_meal": {
+        const validation = validateWhatsappRuntimeIntentForPersistence({
+          intent,
+          autonomyDecision,
+          validationStatus: interpretation.validationStatus,
+          allowedIntents: ["add_foods_to_meal"],
+        });
+        if (!validation.valid) {
+          return finish(buildValidationClarification(intent, validation), validation.fallbackReason, autonomyDecision, validation.errorCode);
+        }
         return finish(await handleAddFoodsToMeal(userId, intent, receivedAt), undefined, autonomyDecision);
-      case "replace_food_in_meal":
+      }
+      case "replace_food_in_meal": {
+        const validation = validateWhatsappRuntimeIntentForPersistence({
+          intent,
+          autonomyDecision,
+          validationStatus: interpretation.validationStatus,
+          allowedIntents: ["replace_food_in_meal"],
+        });
+        if (!validation.valid) {
+          return finish(buildValidationClarification(intent, validation), validation.fallbackReason, autonomyDecision, validation.errorCode);
+        }
         return finish(await handleReplaceFoodInMeal(userId, intent), undefined, autonomyDecision);
+      }
       case "list_meal_records":
         return finish(await handleListMeals(userId, receivedAt, intent, "list"), undefined, autonomyDecision);
       case "daily_summary":
