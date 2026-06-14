@@ -74,9 +74,11 @@ function normalizeRouterText(value?: string | null) {
     return { normalizedText: null, informalNormalization };
   }
 
-  const lineResults = cleaned.split("\n").map(line => normalizeWhatsappInformalText(line));
+  const lineResults = cleaned
+    .split("\n")
+    .map(line => normalizeWhatsappInformalText(normalizeTextMeasurementUnits(line)));
   const normalizedText = lineResults
-    .map(result => result.normalizedText ? normalizeTextMeasurementUnits(result.normalizedText) : null)
+    .map(result => result.normalizedText)
     .filter((line): line is string => Boolean(line))
     .join("\n") || null;
 
