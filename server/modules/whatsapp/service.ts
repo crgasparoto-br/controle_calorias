@@ -20,6 +20,7 @@ import { getWhatsAppIntentLogStatus } from "./intentResult";
 import { routeWhatsappMessageBeforeNutrition } from "./intentRouter";
 import { normalizeWhatsappMultimodalInput } from "./multimodalNormalizer";
 import { recordWhatsappOperationalTraceStep, startWhatsappOperationalTrace } from "./operationalTrace";
+import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
@@ -389,6 +390,24 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   if (interpreted) {
     recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "success", durationMs: 0 });
     return interpreted;
+  }
+
+  const recordAdjustmentStartedAt = Date.now();
+  const recordAdjustment = await executeWhatsappRecordAdjustmentIntent(userId, {
+    text,
+    receivedAt,
+  });
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "record_adjustment",
+    status: recordAdjustment ? "warning" : "fallback",
+    durationMs: elapsedSince(recordAdjustmentStartedAt),
+    intent: recordAdjustment?.action,
+    fallbackReason: recordAdjustment ? "record_adjustment_requires_confirmation" : "record_adjustment_not_handled",
+  });
+  const recordAdjustmentInterpreted = await logAndReturnInterpretedIntent(userId, recordAdjustment);
+  if (recordAdjustmentInterpreted) {
+    recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "warning", durationMs: 0 });
+    return recordAdjustmentInterpreted;
   }
 
   const assistantStartedAt = Date.now();
