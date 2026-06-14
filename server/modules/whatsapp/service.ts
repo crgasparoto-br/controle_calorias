@@ -26,6 +26,7 @@ import { routeWhatsappMessageBeforeNutrition } from "./intentRouter";
 import { normalizeWhatsappMultimodalInput } from "./multimodalNormalizer";
 import { recordWhatsappOperationalTraceStep, startWhatsappOperationalTrace } from "./operationalTrace";
 import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
+import { buildWhatsappTimeReferenceClarification, resolveWhatsappTimeReferences } from "./timeReferenceResolver";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
@@ -197,7 +198,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return buildMultimodalClarification(normalizedInput);
   }
 
-  const text = normalizedInput.routerText ?? undefined;
+  let text = normalizedInput.routerText ?? undefined;
   if (!text) {
     recordWhatsappOperationalTraceStep(trace, {
       stage: "response",
@@ -293,6 +294,45 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       });
       return professionalAccessResponse;
     }
+  }
+
+  const timeReferenceStartedAt = Date.now();
+  const timeReference = await resolveWhatsappTimeReferences(userId, { text, receivedAt });
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "time_reference",
+    status: timeReference.ambiguous ? "warning" : timeReference.timeReference || timeReference.mealReference ? "success" : "skipped",
+    durationMs: elapsedSince(timeReferenceStartedAt),
+    ruleVersion: "whatsapp-time-reference-v1",
+    fallbackReason: timeReference.ambiguous ? "ambiguous_time_reference" : undefined,
+    metadata: {
+      changed: timeReference.changed,
+      dateKey: timeReference.timeReference?.dateKey ?? null,
+      timezone: timeReference.timeReference?.timezone ?? null,
+      timezoneFallbackUsed: timeReference.timeReference?.timezoneFallbackUsed ?? null,
+      mealLabel: timeReference.mealReference?.mealLabel ?? null,
+    },
+  });
+  if (timeReference.ambiguous) {
+    const response = buildWhatsappTimeReferenceClarification(timeReference);
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: response.eventType,
+      detail: response.detail,
+    });
+    recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "warning", durationMs: 0, fallbackReason: "ambiguous_time_reference" });
+    return response;
+  }
+  if (timeReference.timeReference || timeReference.mealReference) {
+    text = timeReference.text;
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.time_reference.resolved",
+      detail: timeReference.historyDetail,
+    });
   }
 
   const waterFoodStartedAt = Date.now();
