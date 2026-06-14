@@ -7,6 +7,7 @@ import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappInterpretedIntent } from "./intentSchema";
+import { assertWhatsappAiToolAllowed, type WhatsappAiToolName } from "./toolContracts";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const HEURISTIC_NUTRITION_PER_100G = {
@@ -30,6 +31,7 @@ type WhatsappLlmIntentResult = {
   eventType: string;
   detail: string;
   data?: Record<string, unknown>;
+  toolNames?: WhatsappAiToolName[];
 };
 
 type WhatsappLlmIntentInput = {
@@ -129,6 +131,15 @@ type ResolvedFoodMeasurement = {
   portionText: string;
   conversionNote: string | null;
 };
+
+function authorizeToolUse(toolName: WhatsappAiToolName, intent: WhatsappInterpretedIntent) {
+  assertWhatsappAiToolAllowed(toolName, intent.intent);
+  return toolName;
+}
+
+function uniqueToolNames(toolNames: WhatsappAiToolName[]) {
+  return [...new Set(toolNames)];
+}
 
 function quantityToEstimatedGrams(quantity: number, unit: string) {
   if (unit === "kg" || /\bkg\b/i.test(unit)) return quantity * 1000;
@@ -279,6 +290,7 @@ function recordIntentAudit(input: {
     processingStrategy: input.interpretation.processingStrategy,
     durationMs: input.interpretation.durationMs,
     modelName: input.interpretation.modelName,
+    toolNames: input.result?.toolNames,
     fallbackReason: input.fallbackReason ?? input.interpretation.fallbackReason,
     errorCode: input.errorCode ?? input.interpretation.errorCode,
   });
@@ -292,6 +304,10 @@ async function handleAddFoodsToMeal(
   if (!intent.meal?.label || !intent.items.length) {
     return null;
   }
+  const toolNames = [
+    authorizeToolUse("nutrition_measurement_resolve", intent),
+    authorizeToolUse("meal_history_read", intent),
+  ];
   const targetDate = resolveIntentDate(intent, receivedAt);
   const mealLabel = normalizeMealLabel(intent.meal.label);
   const meals = await listMeals(userId);
@@ -315,6 +331,7 @@ async function handleAddFoodsToMeal(
         notes: "Criada automaticamente pelo interpretador estruturado do WhatsApp.",
         items: addedItems,
       });
+  toolNames.push(authorizeToolUse(existingMeal ? "meal_update" : "meal_create", intent));
 
   return {
     handled: true,
@@ -331,6 +348,7 @@ async function handleAddFoodsToMeal(
       itemCount: addedItems.length,
       intentConfidence: intent.confidence,
     },
+    toolNames: uniqueToolNames(toolNames),
   };
 }
 
@@ -338,6 +356,7 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
   if (!intent.sourceFood || !intent.targetFood) {
     return null;
   }
+  const toolNames = [authorizeToolUse("meal_history_read", intent)];
   const latestMeal = (await listMeals(userId))[0];
   if (!latestMeal?.items?.length) {
     return {
@@ -346,6 +365,7 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
       reply: "Nao encontrei uma refeicao recente para corrigir. Me diga qual alimento devo trocar.",
       eventType: "whatsapp.llm_intent.clarification_needed",
       detail: "Intencao estruturada de troca sem refeicao recente.",
+      toolNames: uniqueToolNames(toolNames),
     };
   }
 
@@ -361,9 +381,11 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
       detail: target === "ambiguous"
         ? "Intencao estruturada de troca com correspondencia ambigua."
         : "Intencao estruturada de troca sem item compativel.",
+      toolNames: uniqueToolNames(toolNames),
     };
   }
 
+  toolNames.push(authorizeToolUse("meal_update", intent));
   const nextItems = latestItems.map((item, index) => index === target.index
     ? replaceMealItemFood(item, intent.targetFood!)
     : item);
@@ -388,10 +410,12 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
       nextFoodName: intent.targetFood,
       intentConfidence: intent.confidence,
     },
+    toolNames: uniqueToolNames(toolNames),
   };
 }
 
-async function handleListMeals(userId: number, receivedAt: Date, mode: "list" | "summary" = "list"): Promise<WhatsappLlmIntentResult> {
+async function handleListMeals(userId: number, receivedAt: Date, intent: WhatsappInterpretedIntent, mode: "list" | "summary" = "list"): Promise<WhatsappLlmIntentResult> {
+  const toolNames = [authorizeToolUse("meal_history_read", intent)];
   const meals = await listMeals(userId);
   const filteredMeals = meals.filter(meal => isMealInsideDay(meal, receivedAt));
   if (!filteredMeals.length) {
@@ -402,6 +426,7 @@ async function handleListMeals(userId: number, receivedAt: Date, mode: "list" | 
       eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
       detail: "Consulta estruturada de refeicoes sem registros encontrados.",
       data: { mealCount: 0 },
+      toolNames,
     };
   }
 
@@ -417,6 +442,7 @@ async function handleListMeals(userId: number, receivedAt: Date, mode: "list" | 
     eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
     detail: "Consulta estruturada de refeicoes respondida pelo WhatsApp.",
     data: { mealCount: filteredMeals.length },
+    toolNames,
   };
 }
 
@@ -483,9 +509,9 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
       case "replace_food_in_meal":
         return finish(await handleReplaceFoodInMeal(userId, intent));
       case "list_meal_records":
-        return finish(await handleListMeals(userId, receivedAt, "list"));
+        return finish(await handleListMeals(userId, receivedAt, intent, "list"));
       case "daily_summary":
-        return finish(await handleListMeals(userId, receivedAt, "summary"));
+        return finish(await handleListMeals(userId, receivedAt, intent, "summary"));
       case "open_records_link":
         return finish({
           handled: true,
