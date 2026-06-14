@@ -55,6 +55,9 @@ describe("executeWhatsappLlmIntent", () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
       validationStatus: "valid",
+      processingStrategy: "llm_structured",
+      durationMs: 12,
+      modelName: "gpt-4.1-mini",
       intent: interpretedIntent({ confidence: 0.42, clarificationQuestion: "Você quer registrar ou consultar?" }),
     });
 
@@ -69,7 +72,11 @@ describe("executeWhatsappLlmIntent", () => {
       messageText: "registro",
       action: "clarification_needed",
       replyKind: "clarification",
+      processingStrategy: "llm_structured",
+      durationMs: 12,
+      modelName: "gpt-4.1-mini",
       fallbackReason: "low_confidence",
+      toolNames: undefined,
     }));
   });
 
@@ -77,6 +84,8 @@ describe("executeWhatsappLlmIntent", () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
       validationStatus: "valid",
+      processingStrategy: "llm_structured",
+      durationMs: 15,
       intent: interpretedIntent({ intent: "unknown", confidence: 0.34 }),
     });
 
@@ -87,6 +96,8 @@ describe("executeWhatsappLlmIntent", () => {
       action: "fallback_to_nutrition",
       replyKind: "fallback",
       fallbackReason: "nutrition_fallback",
+      processingStrategy: "llm_structured",
+      toolNames: undefined,
     }));
   });
 
@@ -95,6 +106,8 @@ describe("executeWhatsappLlmIntent", () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
       validationStatus: "valid",
+      processingStrategy: "llm_structured",
+      durationMs: 20,
       intent: interpretedIntent({ intent: "list_meal_records", confidence: 0.91, requiresConfirmation: false, possibleIntents: [] }),
     });
 
@@ -103,8 +116,43 @@ describe("executeWhatsappLlmIntent", () => {
     expect(result).toEqual(expect.objectContaining({
       action: "llm_intent_list_meal_records",
       eventType: "whatsapp.llm_intent.list_meal_records",
+      toolNames: ["meal_history_read"],
     }));
     expect(result?.reply).toContain("Refeicoes registradas hoje");
     expect(result?.reply).toContain("Almoço");
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "llm_intent_list_meal_records",
+      replyKind: "executed",
+      toolNames: ["meal_history_read"],
+    }));
+  });
+
+  it("registra ferramentas de validacao, leitura e escrita ao criar refeicao", async () => {
+    createManualMealMock.mockResolvedValue({ id: 22, mealLabel: "Café da manhã", occurredAt: "2026-06-12T12:00:00.000Z" });
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      processingStrategy: "llm_structured",
+      durationMs: 18,
+      intent: interpretedIntent({
+        intent: "add_foods_to_meal",
+        confidence: 0.88,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        meal: { label: "café da manhã", createIfMissing: true },
+        items: [{ foodName: "banana", quantity: 1, unit: "unidade" }],
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, { text: "Inclua no café da manhã: 1 banana", receivedAt: new Date("2026-06-12T12:00:00.000Z") });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "llm_intent_add_foods_to_meal",
+      toolNames: ["nutrition_measurement_resolve", "meal_history_read", "meal_create"],
+    }));
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "llm_intent_add_foods_to_meal",
+      toolNames: ["nutrition_measurement_resolve", "meal_history_read", "meal_create"],
+    }));
   });
 });
