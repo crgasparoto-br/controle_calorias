@@ -78,6 +78,7 @@ function buildBaseCanonical(input: RouteInput & {
   contextRequired?: boolean;
   requestedOutputType?: WhatsappCanonicalIntentOutput["requested_output_type"];
   requestedPeriod?: string | null;
+  safetyLevel?: WhatsappCanonicalIntentOutput["safety_level"];
   ambiguityReason?: string | null;
   warnings?: string[];
   calculations?: WhatsappCanonicalIntentOutput["calculations"];
@@ -93,7 +94,7 @@ function buildBaseCanonical(input: RouteInput & {
     media_context: null,
     intent: input.intent,
     confidence: input.confidence,
-    safety_level: "normal",
+    safety_level: input.safetyLevel ?? "normal",
     autonomy_level: input.needsConfirmation ? "requer_confirmacao" : "automatico",
     autonomy_reason: input.ambiguityReason ?? null,
     actor_type: "usuario",
@@ -334,6 +335,44 @@ function routeNumericAdjustmentCommand(input: RouteInput, normalized: string): W
   };
 }
 
+function routeHealthSafetyRequests(input: RouteInput, normalized: string): WhatsappPreNutritionRouterDecision | null {
+  const urgent = /\b(passando mal|desmaio|desmaiando|dor no peito|falta de ar|nao consigo respirar|não consigo respirar|pressao alta|pressão alta|hipoglicemia|convulsao|convulsão|sangramento|emergencia|emergência)\b/.test(normalized);
+  const sensitive = /\b(diabetico|diabético|diabetes|hipertensao|hipertensão|pressao|pressão|gravida|grávida|renal|figado|fígado|colesterol|remedio|remédio|medicamento|insulina|antidepressivo|ansiedade|transtorno alimentar|compulsao|compulsão|anorexia|bulimia)\b/.test(normalized);
+  const dietCare = /\b(jejum|dieta cetogenica|dieta cetogênica|low carb|suplemento|creatina|whey|termogenico|termogênico|calorias devo cortar|devo cortar|posso fazer|posso tomar|posso comer)\b/.test(normalized);
+  if (!urgent && !sensitive && !dietCare) return null;
+
+  const intent: WhatsappCanonicalIntentName = urgent
+    ? "possivel_urgencia_saude"
+    : sensitive
+      ? "pergunta_medica_sensivel"
+      : "pergunta_saude_dieta";
+  const safetyLevel: WhatsappCanonicalIntentOutput["safety_level"] = urgent
+    ? "risco_saude"
+    : sensitive
+      ? "sensivel"
+      : "sensivel";
+  const reply = urgent
+    ? "Isso pode exigir atendimento imediato. Procure um serviço de urgência ou um profissional de saúde agora. Eu não vou registrar nem alterar dieta com essa mensagem."
+    : "Esse tema depende do seu histórico e de avaliação profissional. Posso ajudar com informação geral, mas não vou prescrever conduta, meta ou plano pelo WhatsApp.";
+
+  const canonical = buildBaseCanonical({
+    ...input,
+    intent,
+    confidence: urgent ? 0.93 : 0.86,
+    needsConfirmation: true,
+    safetyLevel,
+    requestedOutputType: "texto",
+    ambiguityReason: "Pergunta de saúde ou dieta sensível bloqueada antes do parser nutricional.",
+    warnings: ["Conteudo de saude nao deve gerar registro alimentar, meta, plano ou prescricao automatica."],
+  });
+  return {
+    canonical,
+    shouldUseNutritionFallback: false,
+    response: buildClarificationResponse(canonical, reply, "Pergunta de saude ou dieta recebeu fallback seguro antes do parser nutricional."),
+    reason: urgent ? "health_urgency_safe_response" : sensitive ? "sensitive_medical_safe_response" : "diet_health_safe_response",
+  };
+}
+
 function routeNonFoodRequests(input: RouteInput, normalized: string): WhatsappPreNutritionRouterDecision | null {
   const requestedPeriod = inferRequestedPeriod(normalized);
   const patterns: Array<{
@@ -351,7 +390,7 @@ function routeNonFoodRequests(input: RouteInput, normalized: string): WhatsappPr
     { pattern: /\b(meta|objetivo|caloria alvo|deficit|déficit|superavit|superávit)\b/, intent: "pergunta_sobre_meta", outputType: "texto", reply: "Entendi sua pergunta sobre meta. Vou tratar isso como consulta, não como registro alimentar.", reason: "goal_question_request" },
     { pattern: /\b(evolucao|evolução|progresso|resultado|estou indo bem|como estou)\b/, intent: "pergunta_sobre_evolucao", outputType: "texto", reply: "Entendi sua pergunta sobre evolução. Vou responder como consulta, sem registrar alimento.", reason: "progress_question_request" },
     { pattern: /\b(qualidade|ultraprocessado|ultra processado|saudavel|saudável|balanceado|bom ou ruim|melhorar alimentacao|melhorar alimentação)\b/, intent: "pergunta_sobre_qualidade_alimentar", outputType: "texto", reply: "Entendi sua pergunta sobre qualidade alimentar. Não vou transformar isso em registro.", reason: "food_quality_question_request" },
-    { pattern: /\?$|\b(tem muita caloria|quantas calorias|vale a pena|posso comer|é bom|e bom|faz mal|engorda)\b/, intent: "pergunta_sobre_alimento", outputType: "texto", reply: "Entendi sua pergunta sobre alimento. Vou tratar como consulta, sem salvar alimento.", reason: "food_question_request" },
+    { pattern: /\?$|\b(tem muita caloria|quantas calorias|vale a pena|é bom|e bom|faz mal|engorda)\b/, intent: "pergunta_sobre_alimento", outputType: "texto", reply: "Entendi sua pergunta sobre alimento. Vou tratar como consulta, sem salvar alimento.", reason: "food_question_request" },
   ];
 
   const found = patterns.find(entry => entry.pattern.test(normalized));
@@ -454,6 +493,7 @@ export function routeWhatsappMessageBeforeNutrition(input: RouteInput): Whatsapp
     ?? routeShortReply(input, normalized)
     ?? routeCalculation(input, normalized)
     ?? routeNumericAdjustmentCommand(input, normalized)
+    ?? routeHealthSafetyRequests(input, normalized)
     ?? routeNonFoodRequests(input, normalized)
     ?? parseLikelyFoodWithQuantity(input)
     ?? routeMealNarrative(input, normalized);
