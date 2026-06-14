@@ -3,6 +3,7 @@ import { convertFoodQuantityForRegistration, normalizeMeasurementUnit } from "..
 import type { MealDraftItem } from "../../nutritionEngine";
 import { createManualMeal, listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
+import { evaluateWhatsappAutonomyPolicy, type WhatsappAutonomyDecision } from "./autonomyPolicy";
 import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
@@ -271,6 +272,7 @@ function recordIntentAudit(input: {
   text: string;
   interpretation: WhatsappMessageInterpretation;
   result: WhatsappLlmIntentResult | null;
+  autonomyDecision?: WhatsappAutonomyDecision;
   fallbackReason?: string;
   errorCode?: string;
 }) {
@@ -291,6 +293,9 @@ function recordIntentAudit(input: {
     durationMs: input.interpretation.durationMs,
     modelName: input.interpretation.modelName,
     toolNames: input.result?.toolNames,
+    autonomyLevel: input.autonomyDecision?.level,
+    autonomyOutcome: input.autonomyDecision?.outcome,
+    autonomyReason: input.autonomyDecision?.reason,
     fallbackReason: input.fallbackReason ?? input.interpretation.fallbackReason,
     errorCode: input.errorCode ?? input.interpretation.errorCode,
   });
@@ -458,20 +463,50 @@ function buildHelpReply() {
   ].join("\n");
 }
 
-function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmIntentResult {
+function buildAutonomyReply(intent: WhatsappInterpretedIntent, autonomyDecision: WhatsappAutonomyDecision) {
+  if (intent.clarificationQuestion) {
+    return intent.clarificationQuestion;
+  }
+  if (autonomyDecision.outcome === "review") {
+    return "Essa acao precisa de revisao ou aceite explicito antes de eu aplicar. Confirme o que deseja fazer ou envie mais detalhes.";
+  }
+  if (autonomyDecision.outcome === "block") {
+    return "Nao consigo executar essa acao automaticamente com seguranca. Me envie mais detalhes ou revise a solicitacao.";
+  }
+  return "Preciso confirmar antes de continuar. Voce quer que eu aplique essa alteracao?";
+}
+
+function buildClarification(intent: WhatsappInterpretedIntent, autonomyDecision?: WhatsappAutonomyDecision): WhatsappLlmIntentResult {
   return {
     handled: true,
     action: "clarification_needed",
-    reply: intent.clarificationQuestion
-      ?? "Nao entendi com seguranca. Voce quer registrar alimento, corrigir uma refeicao ou consultar seus registros?",
+    reply: autonomyDecision
+      ? buildAutonomyReply(intent, autonomyDecision)
+      : intent.clarificationQuestion
+        ?? "Nao entendi com seguranca. Voce quer registrar alimento, corrigir uma refeicao ou consultar seus registros?",
     eventType: "whatsapp.llm_intent.clarification_needed",
-    detail: `Intencao ${intent.intent} exige esclarecimento antes de executar.`,
+    detail: autonomyDecision
+      ? `Autonomia ${autonomyDecision.level} para ${intent.intent}: ${autonomyDecision.reason}`
+      : `Intencao ${intent.intent} exige esclarecimento antes de executar.`,
     data: {
       intent: intent.intent,
       intentConfidence: intent.confidence,
       possibleIntents: intent.possibleIntents,
+      ...(autonomyDecision ? {
+        autonomyLevel: autonomyDecision.level,
+        autonomyOutcome: autonomyDecision.outcome,
+        autonomyReason: autonomyDecision.reason,
+      } : {}),
     },
   };
+}
+
+function autonomyFallbackReason(intent: WhatsappInterpretedIntent, decision: WhatsappAutonomyDecision) {
+  if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) return "low_confidence";
+  if (decision.outcome === "review") return "autonomy_requires_review";
+  if (decision.outcome === "block") return "autonomy_blocked";
+  if (decision.outcome === "clarify") return "autonomy_requires_confirmation";
+  return undefined;
 }
 
 export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLlmIntentInput): Promise<WhatsappLlmIntentResult | null> {
@@ -485,8 +520,8 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
   const intent = interpretation.intent;
 
-  const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string) => {
-    recordIntentAudit({ userId, text, interpretation, result, fallbackReason });
+  const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string, autonomyDecision?: WhatsappAutonomyDecision) => {
+    recordIntentAudit({ userId, text, interpretation, result, autonomyDecision, fallbackReason });
     return result;
   };
 
@@ -495,23 +530,26 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
       return finish(null, "nutrition_fallback");
     }
 
-    if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) {
-      return finish(buildClarification(intent), intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify ? "low_confidence" : undefined);
-    }
+    const autonomyDecision = evaluateWhatsappAutonomyPolicy({
+      intentName: intent.intent,
+      confidence: intent.confidence,
+      requiresConfirmation: intent.requiresConfirmation,
+      validationStatus: interpretation.validationStatus,
+    });
 
-    if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute && intent.intent !== "ambiguous") {
-      return finish(null, "low_confidence");
+    if (!autonomyDecision.canExecute) {
+      return finish(buildClarification(intent, autonomyDecision), autonomyFallbackReason(intent, autonomyDecision), autonomyDecision);
     }
 
     switch (intent.intent) {
       case "add_foods_to_meal":
-        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt));
+        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt), undefined, autonomyDecision);
       case "replace_food_in_meal":
-        return finish(await handleReplaceFoodInMeal(userId, intent));
+        return finish(await handleReplaceFoodInMeal(userId, intent), undefined, autonomyDecision);
       case "list_meal_records":
-        return finish(await handleListMeals(userId, receivedAt, intent, "list"));
+        return finish(await handleListMeals(userId, receivedAt, intent, "list"), undefined, autonomyDecision);
       case "daily_summary":
-        return finish(await handleListMeals(userId, receivedAt, intent, "summary"));
+        return finish(await handleListMeals(userId, receivedAt, intent, "summary"), undefined, autonomyDecision);
       case "open_records_link":
         return finish({
           handled: true,
@@ -519,7 +557,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
           reply: "Voce pode revisar seus registros na tela de refeicoes do app.",
           eventType: "whatsapp.llm_intent.open_records_link",
           detail: "Pedido estruturado para abrir registros respondido sem criar refeicao.",
-        });
+        }, undefined, autonomyDecision);
       case "help":
         return finish({
           handled: true,
@@ -527,12 +565,12 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
           reply: buildHelpReply(),
           eventType: "whatsapp.llm_intent.help",
           detail: "Ajuda de comandos enviada por intencao estruturada.",
-        });
+        }, undefined, autonomyDecision);
       case "ambiguous":
       case "unknown":
-        return finish(buildClarification(intent));
+        return finish(buildClarification(intent, autonomyDecision), autonomyFallbackReason(intent, autonomyDecision), autonomyDecision);
       default:
-        return finish(null, "unsupported_intent");
+        return finish(null, "unsupported_intent", autonomyDecision);
     }
   } catch (error) {
     recordIntentAudit({
