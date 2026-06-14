@@ -34,10 +34,12 @@ vi.mock("./foodAssistant", () => ({
   executeWhatsAppFoodAssistantIntent: executeWhatsAppFoodAssistantIntentMock,
 }));
 
+const { __resetWhatsappIdempotencyForTests } = await import("./idempotencyGuard");
 const { simulateWhatsappInbound } = await import("./service");
 
 describe("simulateWhatsappInbound", () => {
   beforeEach(() => {
+    __resetWhatsappIdempotencyForTests();
     getAdminWhatsAppTokenStatusMock.mockReset();
     getDbMock.mockReset();
     getUserWhatsappConnectionMock.mockReset();
@@ -150,5 +152,41 @@ describe("simulateWhatsappInbound", () => {
         action: "water_logged",
       })],
     }));
+  });
+
+  it("ignora retry tecnico com o mesmo messageId antes de persistir novamente", async () => {
+    await simulateWhatsappInbound(42, { text: "1 banana", messageId: "wamid.1" });
+    const result = await simulateWhatsappInbound(42, { text: "1 banana", messageId: "wamid.1" });
+
+    expect(processMealDraftMock).toHaveBeenCalledTimes(1);
+    expect(executeWhatsappLlmIntentMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "duplicate_message_ignored",
+      eventType: "whatsapp.idempotency.duplicate_ignored",
+      data: expect.objectContaining({ duplicateKind: "technical_retry" }),
+    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.idempotency.duplicate_ignored",
+      status: "warning",
+    }));
+  });
+
+  it("trata mensagem textual repetida em janela curta como possivel duplicidade", async () => {
+    await simulateWhatsappInbound(42, { text: "1 banana" });
+    const result = await simulateWhatsappInbound(42, { text: "  1   banana " });
+
+    expect(processMealDraftMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expect.objectContaining({
+      action: "duplicate_message_ignored",
+      data: expect.objectContaining({ duplicateKind: "short_window_text_duplicate" }),
+    }));
+  });
+
+  it("permite repeticao textual quando usuario confirma duplicidade intencional", async () => {
+    await simulateWhatsappInbound(42, { text: "1 banana" });
+    await simulateWhatsappInbound(42, { text: "1 banana", allowIntentionalDuplicate: true });
+
+    expect(processMealDraftMock).toHaveBeenCalledTimes(2);
   });
 });
