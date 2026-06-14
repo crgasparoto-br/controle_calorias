@@ -7,7 +7,7 @@ Interpretar mensagens naturais de texto do WhatsApp antes do fallback genérico 
 ## Fluxo
 
 ```text
-WhatsApp -> protecao de conteudo -> contexto seguro -> interpretador LLM -> schema Zod -> executor deterministico -> resposta contextual
+WhatsApp -> protecao de conteudo -> contexto seguro -> interpretador LLM -> schema Zod -> politica de autonomia -> executor deterministico -> resposta contextual
               | bloqueio seguro                             | falha/JSON invalido/payload invalido/baixa confianca
               v                                              v
        esclarecimento seguro                         classificador deterministico/fallback seguro
@@ -23,9 +23,10 @@ A ordem de decisão do runtime segue este contrato inicial da issue #429:
 4. Resolver intenções determinísticas de alta confiança quando o webhook já tiver contexto suficiente, como hidratação, ajustes de quantidade, relatório com contexto pendente e orientação alimentar.
 5. Acionar o interpretador estruturado com LLM apenas quando a regra determinística não for suficiente e o conteúdo for seguro para classificação.
 6. Validar o JSON retornado pelo schema Zod antes de qualquer executor de domínio.
-7. Executar somente ações suportadas pelo backend, com thresholds de confiança e confirmação.
-8. Em falha de LLM, timeout, JSON inválido, payload inválido, baixa confiança ou ação não suportada, retornar pergunta segura, fallback determinístico ou delegar ao fluxo nutricional apenas quando o texto tiver sinal claro de refeição.
-9. Registrar auditoria com estratégia, duração, modelo usado quando aplicável, fallback, ferramentas usadas e decisão final.
+7. Avaliar a política de autonomia por intenção, confiança, segurança e validação.
+8. Executar somente ações suportadas pelo backend, com thresholds de confiança, validação e confirmação.
+9. Em falha de LLM, timeout, JSON inválido, payload inválido, baixa confiança, autonomia insuficiente ou ação não suportada, retornar pergunta segura, fallback determinístico ou delegar ao fluxo nutricional apenas quando o texto tiver sinal claro de refeição.
+10. Registrar auditoria com estratégia, duração, modelo usado quando aplicável, fallback, ferramentas usadas, autonomia aplicada e decisão final.
 
 As estratégias registradas em auditoria são:
 
@@ -53,6 +54,29 @@ A taxonomia inicial cobre registro/correção/exclusão alimentar, resumos, rela
 
 O runtime atual ainda usa `intentSchema.ts` para preservar compatibilidade com o executor existente. Enquanto a #398 não migrar o roteador para consumir diretamente o contrato canônico, `buildCanonicalIntentOutputFromRuntime()` adapta a intenção runtime atual para o schema canônico e permite validar fixtures, auditoria e evolução de contrato sem trocar todo o fluxo de uma vez.
 
+## Política de autonomia
+
+A issue #436 é representada por `server/modules/whatsapp/autonomyPolicy.ts`. A política centraliza o nível permitido por intenção e evita que thresholds soltos decidam ações sensíveis.
+
+Níveis de autonomia:
+
+| Nível | Uso | Resultado operacional |
+|---|---|---|
+| `automatico` | ações simples, validadas e de baixo impacto | pode executar quando confiança e validação atingirem o mínimo |
+| `requer_confirmacao` | correções, exclusões, cálculos, sugestões e ações dependentes de contexto | pede confirmação ou esclarecimento antes de gravar |
+| `requer_revisao` | dados sensíveis, rótulos extraídos, saúde/dieta e sugestões profissionais | não executa automaticamente; exige revisão ou aceite explícito |
+| `bloqueado` | urgência de saúde, mensagem fora do domínio ou validação bloqueada | não executa e retorna resposta segura |
+
+Regras principais:
+
+- Registro alimentar simples (`add_foods_to_meal`, `adicionar_alimento`) pode executar automaticamente apenas com confiança mínima e validação válida.
+- Consulta, resumo, ajuda e link de registros são ações de leitura e podem responder diretamente com confiança menor.
+- Correção, troca, soma, cálculo e exclusão exigem confirmação explícita, mesmo quando a LLM estiver confiante.
+- Alteração de meta ou plano exige confirmação forte e proposta pendente válida; a política não permite aplicar esse tipo de mudança por texto livre.
+- Sugestões profissionais e perguntas médicas sensíveis entram em revisão/aceite explícito.
+- Validação inválida ou bloqueada sempre impede execução automática.
+- A auditoria registra `autonomyLevel`, `autonomyOutcome` e `autonomyReason` junto de confiança, estratégia, ferramentas e fallback.
+
 ## Contrato operacional de ferramentas
 
 A issue #438 é representada inicialmente por `server/modules/whatsapp/toolContracts.ts`. O executor não recebe ferramentas livres da LLM: ele só chama serviços internos depois que a intenção estruturada foi validada e a ferramenta foi autorizada para aquela intenção.
@@ -78,21 +102,21 @@ Regras do contrato:
 
 - `server/modules/whatsapp/promptInjectionGuard.ts`: inspeção de conteúdo não confiável, bloqueio seguro e delimitação do texto enviado à LLM.
 - `server/modules/whatsapp/canonicalIntentSchema.ts`: taxonomia canônica e schema versionado de saída estruturada para #411.
+- `server/modules/whatsapp/autonomyPolicy.ts`: matriz de autonomia por intenção, confiança, segurança e validação para #436.
 - `server/modules/whatsapp/toolContracts.ts`: catálogo de ferramentas, efeitos, intenções permitidas, validações exigidas e fallback operacional.
 - `server/modules/whatsapp/intentSchema.ts`: contrato runtime atual das intenções suportadas pelo executor existente.
 - `server/modules/whatsapp/intentContext.ts`: builder de contexto mínimo do usuário.
 - `server/modules/whatsapp/intentInterpreter.ts`: chamada LLM com saída JSON schema, estratégia operacional e classificador determinístico de fallback.
-- `server/modules/whatsapp/intentAuditLog.ts`: registro em memória das decisões estruturadas, incluindo estratégia, duração, modelo, ferramentas, fallback e erro.
-- `server/modules/whatsapp/llmIntentActions.ts`: executor seguro das intenções validadas, com autorização de ferramenta antes de leitura, escrita ou correção.
+- `server/modules/whatsapp/intentAuditLog.ts`: registro em memória das decisões estruturadas, incluindo estratégia, duração, modelo, ferramentas, autonomia, fallback e erro.
+- `server/modules/whatsapp/llmIntentActions.ts`: executor seguro das intenções validadas, com política de autonomia e autorização de ferramenta antes de leitura, escrita ou correção.
 - `server/modules/whatsapp/service.ts`: ponto de integração antes do interpretador legado e antes do fallback nutricional.
 
 ## Encaixe com as próximas issues da Fase 0
 
 - #398 deve migrar o roteador para produzir/consumir a taxonomia canônica em runtime antes do processamento nutricional.
-- #436 deve substituir thresholds soltos por níveis de autonomia por ação, risco e confiança.
 - #424 e #427 devem alimentar a etapa de normalização antes do roteador, preservando texto original, transcrição, mídia e linguagem informal.
 - #423 deve mover a idempotência de mensagem para uma proteção geral de webhook, não apenas casos pontuais.
-- #440 deve evoluir a auditoria em memória para observabilidade operacional persistente, com custo, latência por etapa, timeout e traces adequados à política de privacidade.
+- #440 deve evoluir a auditoria em memória para observabilidade operacional persistente, com custo, latência por etapa, timeout, autonomia e traces adequados à política de privacidade.
 
 ## Intenções runtime atuais
 
@@ -113,13 +137,13 @@ Regras do contrato:
 - O LLM nunca grava dados, chama serviços diretamente ou executa ações livres.
 - A saída do LLM precisa passar pelo schema antes de qualquer ação.
 - Conteúdo de texto, legenda, transcrição ou mídia é sempre conteúdo não confiável, nunca instrução de sistema.
-- Payload inválido, baixa confiança ou ambiguidade gera fallback seguro ou pergunta contextual.
+- Payload inválido, baixa confiança, ambiguidade ou autonomia insuficiente gera fallback seguro ou pergunta contextual.
 - A execução continua em serviços de domínio do backend.
 - O contexto enviado ao LLM deve ser mínimo e não deve incluir texto cru sensível desnecessário.
 - Mensagens de consulta, como `refeições registradas`, não devem cair no fallback de alimento incompleto.
-- Criação automática de refeição só acontece quando a intenção estruturada permitir `createIfMissing`.
-- Troca de alimento só acontece quando há correspondência segura com item da última refeição.
-- Falha de LLM, schema inválido, timeout ou provider indisponível não persiste alimento, meta, plano ou ação sensível automaticamente.
+- Criação automática de refeição só acontece quando a intenção estruturada permitir `createIfMissing` e a política de autonomia autorizar execução.
+- Troca de alimento só acontece quando houver confirmação explícita e correspondência segura com item da última refeição.
+- Falha de LLM, schema inválido, timeout, provider indisponível ou política de autonomia restritiva não persiste alimento, meta, plano ou ação sensível automaticamente.
 - Ferramentas internas só podem ser usadas por intenção compatível, com validação e auditoria.
 - Alterações futuras no contrato canônico devem preservar `schema_version` ou declarar uma nova versão/migração.
 
@@ -140,3 +164,4 @@ A PR #309 trata fallback nutricional estimado para alimentos por imagem. Essa l�
 - bloqueio de ferramenta incompatível com a intenção
 - auditoria das ferramentas usadas em consulta e criação de refeição
 - validação do schema canônico para mídia, datas, autonomia, ações e mensagens ambíguas
+- política de autonomia para registro simples, correção, remoção, meta e sugestão profissional
