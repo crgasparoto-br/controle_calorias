@@ -55,6 +55,14 @@ function parseNumber(value: string) {
   return Number(value.replace(",", "."));
 }
 
+function splitFoodNames(value: string) {
+  return value
+    .split(/\s*[,;]\s*|\s+e\s+/i)
+    .map(part => part.replace(/[.,;:!?]+$/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
 function buildBaseCanonical(input: RouteInput & {
   intent: WhatsappCanonicalIntentName;
   confidence: number;
@@ -308,13 +316,39 @@ function parseLikelyFoodWithQuantity(input: RouteInput): WhatsappPreNutritionRou
   };
 }
 
+function routeMealNarrative(input: RouteInput, normalized: string): WhatsappPreNutritionRouterDecision | null {
+  const mealVerbMatch = normalized.match(/\b(almocei|jantei|comi|lanchei|ceei|tomei|consumi)\b\s+(.+)$/);
+  if (!mealVerbMatch) return null;
+
+  const foodNames = splitFoodNames(mealVerbMatch[2]);
+  if (!foodNames.length) return null;
+
+  const runtimeIntent: WhatsappInterpretedIntent = {
+    intent: "add_foods_to_meal",
+    confidence: 0.7,
+    meal: null,
+    items: foodNames.map(foodName => ({ foodName, quantity: null, unit: null })),
+    requiresConfirmation: true,
+    clarificationQuestion: "Entendi os alimentos da refeição. Vou encaminhar para revisão nutricional antes de salvar.",
+    possibleIntents: [],
+    reason: "Narrativa de refeição detectada antes do fallback nutricional.",
+  };
+  return {
+    canonical: buildRuntimeCanonical(input, runtimeIntent),
+    shouldUseNutritionFallback: true,
+    response: null,
+    reason: "meal_narrative",
+  };
+}
+
 export function routeWhatsappMessageBeforeNutrition(input: RouteInput): WhatsappPreNutritionRouterDecision {
   const normalized = normalizeText(input.text);
 
   const ruleDecision = routeIsolatedNumber(input, normalized)
     ?? routeCalculation(input, normalized)
     ?? routeNonFoodRequests(input, normalized)
-    ?? parseLikelyFoodWithQuantity(input);
+    ?? parseLikelyFoodWithQuantity(input)
+    ?? routeMealNarrative(input, normalized);
   if (ruleDecision) return ruleDecision;
 
   const runtimeIntent = classifyWhatsappMessageDeterministically(input.text);
