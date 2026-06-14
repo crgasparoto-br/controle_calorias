@@ -74,7 +74,7 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env = originalEnv;
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 describe("ensureRuntimeSchemaCompatibility", () => {
