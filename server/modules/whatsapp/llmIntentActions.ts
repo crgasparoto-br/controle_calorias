@@ -317,6 +317,7 @@ async function handleAddFoodsToMeal(
   }
 
   const addedItems = intent.items.map(buildMealItem);
+  toolNames.push(authorizeToolUse(existingMeal ? "meal_update" : "meal_create", intent));
   const meal = existingMeal
     ? await updateMeal(userId, {
         mealId: existingMeal.id,
@@ -331,7 +332,6 @@ async function handleAddFoodsToMeal(
         notes: "Criada automaticamente pelo interpretador estruturado do WhatsApp.",
         items: addedItems,
       });
-  toolNames.push(authorizeToolUse(existingMeal ? "meal_update" : "meal_create", intent));
 
   return {
     handled: true,
