@@ -197,7 +197,15 @@ export function resolveWhatsappConversationContext(userId: number, input: { text
 
   if (active.kind === "selection") {
     const selectedNumber = parseOptionNumber(normalized, active.options.length);
-    if (selectedNumber == null) return null;
+    if (selectedNumber == null) {
+      if (!isContextualShortMessage(input.text)) return null;
+      return buildResult(active, {
+        action: "conversation_context_clarification_needed",
+        reply: `Escolha uma opção entre 1 e ${active.options.length}.`,
+        detail: "Mensagem curta não indicou uma opção válida para a seleção ativa.",
+        data: { optionCount: active.options.length },
+      });
+    }
     const selectedOption = active.options[selectedNumber - 1] ?? null;
     if (!selectedOption) {
       return buildResult(active, {
