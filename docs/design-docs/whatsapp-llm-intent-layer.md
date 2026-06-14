@@ -25,7 +25,7 @@ A ordem de decisão do runtime segue este contrato inicial da issue #429:
 6. Validar o JSON retornado pelo schema Zod antes de qualquer executor de domínio.
 7. Executar somente ações suportadas pelo backend, com thresholds de confiança e confirmação.
 8. Em falha de LLM, timeout, JSON inválido, payload inválido, baixa confiança ou ação não suportada, retornar pergunta segura, fallback determinístico ou delegar ao fluxo nutricional apenas quando o texto tiver sinal claro de refeição.
-9. Registrar auditoria com estratégia, duração, modelo usado quando aplicável, fallback e decisão final.
+9. Registrar auditoria com estratégia, duração, modelo usado quando aplicável, fallback, ferramentas usadas e decisão final.
 
 As estratégias registradas em auditoria são:
 
@@ -36,19 +36,40 @@ As estratégias registradas em auditoria são:
 - `llm_invalid_payload_fallback`: LLM respondeu JSON que não passou no schema, então o backend caiu para fallback determinístico.
 - `llm_error_fallback`: provider indisponível, timeout ou erro após retries, então o backend caiu para fallback determinístico.
 
+## Contrato operacional de ferramentas
+
+A issue #438 é representada inicialmente por `server/modules/whatsapp/toolContracts.ts`. O executor não recebe ferramentas livres da LLM: ele só chama serviços internos depois que a intenção estruturada foi validada e a ferramenta foi autorizada para aquela intenção.
+
+Ferramentas atuais:
+
+| Ferramenta | Efeito | Intenções permitidas | Fallback |
+|---|---|---|---|
+| `meal_history_read` | leitura | `add_foods_to_meal`, `replace_food_in_meal`, `list_meal_records`, `daily_summary` | esclarecimento |
+| `meal_create` | escrita | `add_foods_to_meal` | esclarecimento |
+| `meal_update` | correção | `add_foods_to_meal`, `replace_food_in_meal` | esclarecimento |
+| `nutrition_measurement_resolve` | validação | `add_foods_to_meal` | fallback nutricional |
+
+Regras do contrato:
+
+- Toda ferramenta exige intenção validada pelo schema antes de uso.
+- Ferramentas com efeito persistente exigem validação de backend e alvo resolvido antes de gravar.
+- Ferramenta incompatível com a intenção gera erro de contrato e não deve executar efeito persistente.
+- O audit log registra `toolNames` para permitir rastrear leitura, validação, escrita e correção usadas em cada decisão.
+- Falhas de ferramenta seguem fallback seguro: esclarecimento, não ação segura ou fallback nutricional controlado conforme contrato.
+
 ## Componentes
 
 - `server/modules/whatsapp/promptInjectionGuard.ts`: inspeção de conteúdo não confiável, bloqueio seguro e delimitação do texto enviado à LLM.
+- `server/modules/whatsapp/toolContracts.ts`: catálogo de ferramentas, efeitos, intenções permitidas, validações exigidas e fallback operacional.
 - `server/modules/whatsapp/intentSchema.ts`: contrato único das intenções suportadas.
 - `server/modules/whatsapp/intentContext.ts`: builder de contexto mínimo do usuário.
 - `server/modules/whatsapp/intentInterpreter.ts`: chamada LLM com saída JSON schema, estratégia operacional e classificador determinístico de fallback.
-- `server/modules/whatsapp/intentAuditLog.ts`: registro em memória das decisões estruturadas, incluindo estratégia, duração, modelo, fallback e erro.
-- `server/modules/whatsapp/llmIntentActions.ts`: executor seguro das intenções validadas.
+- `server/modules/whatsapp/intentAuditLog.ts`: registro em memória das decisões estruturadas, incluindo estratégia, duração, modelo, ferramentas, fallback e erro.
+- `server/modules/whatsapp/llmIntentActions.ts`: executor seguro das intenções validadas, com autorização de ferramenta antes de leitura, escrita ou correção.
 - `server/modules/whatsapp/service.ts`: ponto de integração antes do interpretador legado e antes do fallback nutricional.
 
 ## Encaixe com as próximas issues da Fase 0
 
-- #438 deve transformar o uso de ferramentas em catálogo explícito por escopo, efeito, validação, fallback e rastreabilidade.
 - #411 deve ampliar a taxonomia e o schema canônico para cobrir todas as intenções da épica sem duplicar classificação local.
 - #436 deve substituir thresholds soltos por níveis de autonomia por ação, risco e confiança.
 - #424 e #427 devem alimentar a etapa de normalização antes do roteador, preservando texto original, transcrição, mídia e linguagem informal.
@@ -81,6 +102,7 @@ As estratégias registradas em auditoria são:
 - Criação automática de refeição só acontece quando a intenção estruturada permitir `createIfMissing`.
 - Troca de alimento só acontece quando há correspondência segura com item da última refeição.
 - Falha de LLM, schema inválido, timeout ou provider indisponível não persiste alimento, meta, plano ou ação sensível automaticamente.
+- Ferramentas internas só podem ser usadas por intenção compatível, com validação e auditoria.
 
 ## Relação com PR #309
 
@@ -96,3 +118,5 @@ A PR #309 trata fallback nutricional estimado para alimentos por imagem. Essa l�
 - tentativa de ignorar instruções internas e revelar prompt do sistema
 - tentativa de acessar dados de outros usuários
 - fallback por JSON inválido, payload inválido e erro do provider
+- bloqueio de ferramenta incompatível com a intenção
+- auditoria das ferramentas usadas em consulta e criação de refeição
