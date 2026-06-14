@@ -18,6 +18,13 @@ type InterpretOptions = {
 };
 
 export type WhatsappIntentInterpretationSource = "llm" | "deterministic";
+export type WhatsappRuntimeProcessingStrategy =
+  | "security_guard_block"
+  | "deterministic_only"
+  | "llm_structured"
+  | "llm_invalid_json_fallback"
+  | "llm_invalid_payload_fallback"
+  | "llm_error_fallback";
 export type WhatsappIntentFallbackReason =
   | "disabled"
   | "api_error"
@@ -30,6 +37,9 @@ export type WhatsappMessageInterpretation = {
   intent: WhatsappInterpretedIntent;
   source: WhatsappIntentInterpretationSource;
   validationStatus: WhatsappIntentValidationStatus;
+  processingStrategy: WhatsappRuntimeProcessingStrategy;
+  durationMs: number;
+  modelName?: string;
   fallbackReason?: WhatsappIntentFallbackReason;
   errorCode?: string;
 };
@@ -246,6 +256,14 @@ function getWhatsappIntentRetries() {
   return Math.min(Math.floor(rawValue), MAX_LLM_RETRIES);
 }
 
+function getWhatsappIntentModelName() {
+  return process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? "gpt-4.1-mini";
+}
+
+function elapsedSince(startedAt: number) {
+  return Math.max(0, Date.now() - startedAt);
+}
+
 class WhatsappIntentTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`WhatsApp intent interpretation timed out after ${timeoutMs}ms`);
@@ -269,18 +287,26 @@ function deterministicInterpretation(
   text: string,
   fallbackReason: WhatsappIntentFallbackReason,
   validationStatus: WhatsappIntentValidationStatus,
-  errorCode?: string,
+  options: {
+    errorCode?: string;
+    processingStrategy?: WhatsappRuntimeProcessingStrategy;
+    startedAt: number;
+    modelName?: string;
+  },
 ): WhatsappMessageInterpretation {
   return {
     intent: classifyWhatsappMessageDeterministically(text),
     source: "deterministic",
     validationStatus,
+    processingStrategy: options.processingStrategy ?? "llm_error_fallback",
+    durationMs: elapsedSince(options.startedAt),
+    ...(options.modelName ? { modelName: options.modelName } : {}),
     fallbackReason,
-    ...(errorCode ? { errorCode } : {}),
+    ...(options.errorCode ? { errorCode: options.errorCode } : {}),
   };
 }
 
-function promptInjectionBlockedInterpretation(text: string): WhatsappMessageInterpretation | null {
+function promptInjectionBlockedInterpretation(text: string, startedAt: number): WhatsappMessageInterpretation | null {
   const guard = inspectWhatsAppUserContentForPromptInjection(text);
   if (!guard.suspicious) {
     return null;
@@ -290,6 +316,8 @@ function promptInjectionBlockedInterpretation(text: string): WhatsappMessageInte
     intent: buildPromptInjectionBlockedIntent(guard.reason ?? "Conteudo suspeito bloqueado antes da interpretacao por IA."),
     source: "deterministic",
     validationStatus: "skipped",
+    processingStrategy: "security_guard_block",
+    durationMs: elapsedSince(startedAt),
     fallbackReason: "prompt_injection_suspected",
     errorCode: "prompt_injection_suspected",
   };
@@ -300,24 +328,29 @@ export async function interpretWhatsappMessageWithDiagnostics(
   context: WhatsappIntentContext,
   options: InterpretOptions = {},
 ): Promise<WhatsappMessageInterpretation> {
-  const blocked = promptInjectionBlockedInterpretation(text);
+  const startedAt = Date.now();
+  const blocked = promptInjectionBlockedInterpretation(text, startedAt);
   if (blocked) {
     return blocked;
   }
 
   if (!isWhatsappLlmEnabled(options)) {
-    return deterministicInterpretation(text, "disabled", "skipped");
+    return deterministicInterpretation(text, "disabled", "skipped", {
+      startedAt,
+      processingStrategy: "deterministic_only",
+    });
   }
 
   const timeoutMs = getWhatsappIntentTimeoutMs();
   const maxRetries = getWhatsappIntentRetries();
+  const modelName = getWhatsappIntentModelName();
   let lastErrorCode = "api_error";
   let lastFallbackReason: WhatsappIntentFallbackReason = "api_error";
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
       const response = await withTimeout(getAiProvider().createTextResponse({
-        model: process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? "gpt-4.1-mini",
+        model: modelName,
         instructions: buildInstructions(context),
         input: [{ role: "user", content: [{ type: "input_text", text: wrapUntrustedWhatsAppContentForLlm(text) }] }],
         format: {
@@ -330,16 +363,29 @@ export async function interpretWhatsappMessageWithDiagnostics(
 
       const json = parseJson(response.outputText);
       if (!json.ok) {
-        return deterministicInterpretation(text, "invalid_json", "invalid_json", "invalid_json");
+        return deterministicInterpretation(text, "invalid_json", "invalid_json", {
+          startedAt,
+          modelName,
+          errorCode: "invalid_json",
+          processingStrategy: "llm_invalid_json_fallback",
+        });
       }
       const parsed = parseWhatsappInterpretedIntent(json.value);
       if (!parsed.success) {
-        return deterministicInterpretation(text, "invalid_payload", "invalid_payload", "invalid_payload");
+        return deterministicInterpretation(text, "invalid_payload", "invalid_payload", {
+          startedAt,
+          modelName,
+          errorCode: "invalid_payload",
+          processingStrategy: "llm_invalid_payload_fallback",
+        });
       }
       return {
         intent: parsed.data,
         source: "llm",
         validationStatus: "valid",
+        processingStrategy: "llm_structured",
+        durationMs: elapsedSince(startedAt),
+        modelName,
       };
     } catch (error) {
       const timedOut = error instanceof WhatsappIntentTimeoutError;
@@ -348,7 +394,12 @@ export async function interpretWhatsappMessageWithDiagnostics(
     }
   }
 
-  return deterministicInterpretation(text, lastFallbackReason, "skipped", lastErrorCode);
+  return deterministicInterpretation(text, lastFallbackReason, "skipped", {
+    startedAt,
+    modelName,
+    errorCode: lastErrorCode,
+    processingStrategy: "llm_error_fallback",
+  });
 }
 
 export async function interpretWhatsappMessage(
