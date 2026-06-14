@@ -53,7 +53,7 @@ function isAffirmative(normalized: string) {
 }
 
 function isNegativeOrCancel(normalized: string) {
-  return /^(nao|n|não|cancelar|cancela|negativo)$/.test(normalized);
+  return /^(nao|n|não|cancelar|cancela|negativo|nenhuma|nenhum)$/.test(normalized);
 }
 
 function pruneExpired(now: Date) {
