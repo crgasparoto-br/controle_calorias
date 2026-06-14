@@ -12,6 +12,11 @@ import {
   normalizeWhatsAppPhoneNumber,
 } from "../../whatsappConfig";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
+import {
+  getActiveWhatsappConversationContext,
+  registerWhatsappConversationContextFromResult,
+  resolveWhatsappConversationContext,
+} from "./conversationContext";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import { buildWhatsappDuplicateInboundResponse, checkWhatsappInboundIdempotency } from "./idempotencyGuard";
 import { executeWhatsappTextIntent } from "./intentActions";
@@ -130,6 +135,24 @@ function logDuplicateInbound(userId: number, duplicateResponse: ReturnType<typeo
   return duplicateResponse;
 }
 
+function registerConversationContext(userId: number, text: string, receivedAt: Date, result: { action: string; data?: Record<string, unknown> } | null | undefined) {
+  const pendingContext = registerWhatsappConversationContextFromResult(userId, {
+    text,
+    result,
+    receivedAt,
+  });
+  if (pendingContext) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.context.pending_created",
+      detail: `Pendência conversacional ${pendingContext.kind} criada para a próxima mensagem do WhatsApp.`,
+    });
+  }
+  return pendingContext;
+}
+
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const receivedAt = new Date();
   const trace = startWhatsappOperationalTrace({
@@ -219,6 +242,32 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       fallbackReason: idempotencyDecision.kind,
     });
     return logDuplicateInbound(userId, buildWhatsappDuplicateInboundResponse(idempotencyDecision));
+  }
+
+  const contextStartedAt = Date.now();
+  const contextResponse = resolveWhatsappConversationContext(userId, { text, receivedAt });
+  const activeContext = getActiveWhatsappConversationContext(userId, receivedAt);
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "conversation_context",
+    status: contextResponse ? "success" : activeContext ? "warning" : "skipped",
+    durationMs: elapsedSince(contextStartedAt),
+    intent: contextResponse?.action,
+    fallbackReason: contextResponse ? undefined : activeContext ? "context_active_not_consumed" : "no_active_context",
+    metadata: {
+      hasActiveContext: Boolean(activeContext),
+      contextKind: activeContext?.kind ?? null,
+    },
+  });
+  if (contextResponse) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: getWhatsAppIntentLogStatus(contextResponse.action),
+      eventType: contextResponse.eventType,
+      detail: contextResponse.detail,
+    });
+    recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "success", durationMs: 0 });
+    return contextResponse;
   }
 
   if (text) {
@@ -406,6 +455,19 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   });
   const recordAdjustmentInterpreted = await logAndReturnInterpretedIntent(userId, recordAdjustment);
   if (recordAdjustmentInterpreted) {
+    const pendingContext = registerConversationContext(userId, text, receivedAt, recordAdjustmentInterpreted);
+    if (pendingContext) {
+      recordWhatsappOperationalTraceStep(trace, {
+        stage: "conversation_context",
+        status: "success",
+        durationMs: 0,
+        intent: "context_registered",
+        metadata: {
+          contextKind: pendingContext.kind,
+          optionCount: pendingContext.options.length,
+        },
+      });
+    }
     recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "warning", durationMs: 0 });
     return recordAdjustmentInterpreted;
   }
@@ -436,6 +498,8 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     text,
     messageId: input.messageId,
     inputModality: normalizedInput.inputModality,
+    pendingContextId: activeContext?.id,
+    pendingContextKind: activeContext?.kind,
     actorId: userId,
     targetUserId: userId,
   });
