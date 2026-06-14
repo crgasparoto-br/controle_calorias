@@ -9,6 +9,7 @@ const processMealDraftMock = vi.fn();
 const executeWhatsappLlmIntentMock = vi.fn();
 const executeWhatsappTextIntentMock = vi.fn();
 const executeWhatsAppFoodAssistantIntentMock = vi.fn();
+const executeWhatsappRecordAdjustmentIntentMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getAdminWhatsAppTokenStatus: getAdminWhatsAppTokenStatusMock,
@@ -34,6 +35,10 @@ vi.mock("./foodAssistant", () => ({
   executeWhatsAppFoodAssistantIntent: executeWhatsAppFoodAssistantIntentMock,
 }));
 
+vi.mock("./recordAdjustmentIntent", () => ({
+  executeWhatsappRecordAdjustmentIntent: executeWhatsappRecordAdjustmentIntentMock,
+}));
+
 const { __resetWhatsappIdempotencyForTests } = await import("./idempotencyGuard");
 const { __resetWhatsappOperationalTracesForTests, listWhatsappOperationalTraces } = await import("./operationalTrace");
 const { simulateWhatsappInbound } = await import("./service");
@@ -51,10 +56,12 @@ describe("simulateWhatsappInbound", () => {
     executeWhatsappLlmIntentMock.mockReset();
     executeWhatsappTextIntentMock.mockReset();
     executeWhatsAppFoodAssistantIntentMock.mockReset();
+    executeWhatsappRecordAdjustmentIntentMock.mockReset();
     getDbMock.mockResolvedValue(null);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     executeWhatsappTextIntentMock.mockResolvedValue(null);
     executeWhatsAppFoodAssistantIntentMock.mockReturnValue(null);
+    executeWhatsappRecordAdjustmentIntentMock.mockResolvedValue(null);
     processMealDraftMock.mockResolvedValue({
       draftId: "draft-1",
       processed: {
@@ -208,6 +215,33 @@ describe("simulateWhatsappInbound", () => {
     expect(trace.steps.find(step => step.stage === "canonical_router")).toEqual(expect.objectContaining({
       status: "warning",
       intent: "somar_quantidade",
+    }));
+  });
+
+  it("interrompe processamento nutricional quando ajuste de registro exige confirmacao", async () => {
+    executeWhatsappRecordAdjustmentIntentMock.mockResolvedValueOnce({
+      handled: true,
+      action: "record_adjustment_confirmation_needed",
+      reply: "Confirme antes de eu remover: Frango de Almoço?",
+      eventType: "whatsapp.records.adjustment_confirmation_needed",
+      detail: "Remocao de alimento com alvo unico exige confirmacao antes de persistir.",
+    });
+
+    const result = await simulateWhatsappInbound(42, { text: "remove frango" });
+
+    expect(executeWhatsappRecordAdjustmentIntentMock).toHaveBeenCalledWith(42, {
+      text: "remove frango",
+      receivedAt: expect.any(Date),
+    });
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "record_adjustment_confirmation_needed",
+    }));
+    const [trace] = listWhatsappOperationalTraces({ userId: 42 });
+    expect(trace.steps.find(step => step.stage === "record_adjustment")).toEqual(expect.objectContaining({
+      status: "warning",
+      intent: "record_adjustment_confirmation_needed",
     }));
   });
 
