@@ -47,25 +47,31 @@ Situação atual:
 
 Configure estas variáveis no backend/runtime responsável pela API:
 
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `OPENAI_MODEL`
-- `OPENAI_TRANSCRIPTION_MODEL`
-- `WHATSAPP_PHONE_NUMBER`
-- `WHATSAPP_PHONE_NUMBER_ID`
-- `WHATSAPP_BUSINESS_ACCOUNT_ID`
-- `WHATSAPP_VERIFY_TOKEN`
-- `WHATSAPP_ACCESS_TOKEN`
-- `STRAVA_CLIENT_ID`
-- `STRAVA_CLIENT_SECRET`
-- `STRAVA_REDIRECT_URI`
-- `STRAVA_APP_REDIRECT_BASE_URL`
+### Obrigatórias em produção
+
+- `JWT_SECRET`: segredo usado para assinar sessões locais e derivar chaves de criptografia de segredos internos.
+
+Em `NODE_ENV=production`, o backend aborta o startup quando `JWT_SECRET` estiver ausente, vazio ou composto apenas por espaços. A mensagem informa o nome da variável inválida sem imprimir seu valor.
+
+Em desenvolvimento e teste, o startup pode continuar sem `JWT_SECRET`, mas rotinas que assinam sessão ou criptografam/decriptografam segredos falham explicitamente se tentarem operar sem esse segredo.
+
+### Opcionais por feature
+
+A ausência destas variáveis não derruba o backend por si só, mas deixa a feature correspondente indisponível, desabilitada ou usando fallback quando existir:
+
+| Feature | Variáveis | Comportamento quando ausentes |
+|---|---|---|
+| Persistência em banco | `DATABASE_URL` | Usa fallback em memória onde o domínio permitir. Dados não permanecem após restart. |
+| OpenAI | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL` | Fluxos que dependem do provider OpenAI ficam indisponíveis ou usam o provider configurado em `AI_PROVIDER` quando aplicável. |
+| Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
+| WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
+| Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL` | OAuth e sincronização automática do Strava ficam desabilitados. |
 
 `OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
 
 `OPENAI_IMAGE_MODEL` pode ser configurada no backend quando o fluxo visual auxiliar estiver habilitado, mas não é necessária para a autenticação nem para o login web.
+
+Durante o startup, o backend registra aviso para features opcionais sem configuração suficiente. Esses avisos não exibem valores de segredos.
 
 ## WhatsApp
 
