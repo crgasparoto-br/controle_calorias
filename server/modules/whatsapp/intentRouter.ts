@@ -464,6 +464,6 @@ export function routeWhatsappMessageBeforeNutrition(input: RouteInput): Whatsapp
       runtimeIntent.clarificationQuestion ?? "Não entendi com segurança. Você quer registrar alimento, corrigir uma refeição ou consultar seus registros?",
       "Mensagem bloqueada antes do parser nutricional por não ter sinal alimentar seguro.",
     ),
-  reason: "safe_non_food_or_ambiguous",
+    reason: "safe_non_food_or_ambiguous",
   };
 }
