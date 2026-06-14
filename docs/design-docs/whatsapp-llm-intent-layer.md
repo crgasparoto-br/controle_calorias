@@ -2,31 +2,32 @@
 
 ## Responsabilidade
 
-Interpretar mensagens naturais de texto do WhatsApp antes do fallback genérico de refeição, convertendo o texto em uma intenção estruturada, validada e executada de forma determinística pelo backend.
+Interpretar mensagens naturais do WhatsApp antes do fallback genérico de refeição, convertendo texto, áudio, imagem e legenda em uma entrada estruturada, validada e executada de forma determinística pelo backend.
 
 ## Fluxo
 
 ```text
-WhatsApp -> protecao de conteudo -> contexto seguro -> interpretador LLM -> schema Zod -> politica de autonomia -> executor deterministico -> resposta contextual
-              | bloqueio seguro                             | falha/JSON invalido/payload invalido/baixa confianca
-              v                                              v
-       esclarecimento seguro                         classificador deterministico/fallback seguro
+WhatsApp -> normalizacao multimodal -> protecao de conteudo -> contexto seguro -> interpretador LLM -> schema Zod -> politica de autonomia -> executor deterministico -> resposta contextual
+              | midia sem contexto       | bloqueio seguro                             | falha/JSON invalido/payload invalido/baixa confianca
+              v                           v                                              v
+       esclarecimento seguro       esclarecimento seguro                         classificador deterministico/fallback seguro
 ```
 
 ## Orquestração operacional
 
-A ordem de decisão do runtime segue este contrato inicial da issue #429:
+A ordem de decisão do runtime segue este contrato inicial da issue #429, evoluído pela #424:
 
 1. Receber a mensagem pelo webhook do WhatsApp.
-2. Aplicar proteções de entrada antes de enviar qualquer conteúdo para IA.
-3. Normalizar texto/unidades nos pontos já existentes do webhook e dos serviços de WhatsApp.
-4. Resolver intenções determinísticas de alta confiança quando o webhook já tiver contexto suficiente, como hidratação, ajustes de quantidade, relatório com contexto pendente e orientação alimentar.
-5. Acionar o interpretador estruturado com LLM apenas quando a regra determinística não for suficiente e o conteúdo for seguro para classificação.
-6. Validar o JSON retornado pelo schema Zod antes de qualquer executor de domínio.
-7. Avaliar a política de autonomia por intenção, confiança, segurança e validação.
-8. Executar somente ações suportadas pelo backend, com thresholds de confiança, validação e confirmação.
-9. Em falha de LLM, timeout, JSON inválido, payload inválido, baixa confiança, autonomia insuficiente ou ação não suportada, retornar pergunta segura, fallback determinístico ou delegar ao fluxo nutricional apenas quando o texto tiver sinal claro de refeição.
-10. Registrar auditoria com estratégia, duração, modelo usado quando aplicável, fallback, ferramentas usadas, autonomia aplicada e decisão final.
+2. Normalizar a entrada multimodal em texto roteável e metadados estruturados de mídia.
+3. Aplicar proteções de entrada antes de enviar qualquer conteúdo para IA.
+4. Normalizar texto/unidades nos pontos já existentes do webhook e dos serviços de WhatsApp.
+5. Resolver intenções determinísticas de alta confiança quando o webhook já tiver contexto suficiente, como hidratação, ajustes de quantidade, relatório com contexto pendente e orientação alimentar.
+6. Acionar o interpretador estruturado com LLM apenas quando a regra determinística não for suficiente e o conteúdo for seguro para classificação.
+7. Validar o JSON retornado pelo schema Zod antes de qualquer executor de domínio.
+8. Avaliar a política de autonomia por intenção, confiança, segurança e validação.
+9. Executar somente ações suportadas pelo backend, com thresholds de confiança, validação e confirmação.
+10. Em falha de LLM, timeout, JSON inválido, payload inválido, baixa confiança, autonomia insuficiente, mídia ambígua ou ação não suportada, retornar pergunta segura, fallback determinístico ou delegar ao fluxo nutricional apenas quando o texto tiver sinal claro de refeição.
+11. Registrar auditoria com estratégia, duração, modelo usado quando aplicável, fallback, ferramentas usadas, autonomia aplicada, mídia normalizada e decisão final.
 
 As estratégias registradas em auditoria são:
 
@@ -36,6 +37,30 @@ As estratégias registradas em auditoria são:
 - `llm_invalid_json_fallback`: LLM respondeu algo que não era JSON válido, então o backend caiu para fallback determinístico.
 - `llm_invalid_payload_fallback`: LLM respondeu JSON que não passou no schema, então o backend caiu para fallback determinístico.
 - `llm_error_fallback`: provider indisponível, timeout ou erro após retries, então o backend caiu para fallback determinístico.
+
+## Normalização multimodal
+
+A issue #424 é representada por `server/modules/whatsapp/multimodalNormalizer.ts`. Essa etapa roda antes do roteador e transforma texto, áudio, imagem e imagem com legenda em um contrato comum.
+
+Contrato normalizado:
+
+- `inputModality`: `texto`, `audio`, `imagem` ou `imagem_com_legenda`.
+- `originalText`: texto recebido diretamente, quando existir.
+- `normalizedText` e `routerText`: texto seguro para os roteadores atuais, com unidades normalizadas.
+- `transcribedText`: texto transcrito de áudio, quando existir.
+- `mediaContext`: `mediaId`, legenda, tipo de mídia, MIME type e confiança de extração.
+- `extraction`: extração realizada (`none`, `audio_transcription`, `image_classification`), confiança e fonte usada.
+- `needsClarification`: indica quando a mídia não tem contexto suficiente para roteamento seguro.
+
+Regras iniciais:
+
+- Texto puro segue para o roteador depois de normalizar unidades.
+- Áudio usa transcrição informada ou provider injetável; sem transcrição, pede esclarecimento.
+- Imagem com legenda usa a legenda como contexto de classificação.
+- Imagem de alimento e imagem de rótulo nutricional geram textos roteáveis diferentes.
+- Imagem ambígua, sem legenda ou sem descrição suficiente, pede esclarecimento e não gera registro inseguro.
+- Rótulo nutricional é encaminhado como intenção/contexto próprio para posterior extração rastreável de fonte específica; persistência final ainda depende de validação de backend e das próximas issues.
+- O simulador registra evento `whatsapp.multimodal.normalized`; a persistência operacional detalhada de traces, custo, latência e mídia fica para a #440.
 
 ## Schema canônico de intenções
 
@@ -100,6 +125,7 @@ Regras do contrato:
 
 ## Componentes
 
+- `server/modules/whatsapp/multimodalNormalizer.ts`: normalização de texto, áudio, imagem e legenda antes do roteador para #424.
 - `server/modules/whatsapp/promptInjectionGuard.ts`: inspeção de conteúdo não confiável, bloqueio seguro e delimitação do texto enviado à LLM.
 - `server/modules/whatsapp/canonicalIntentSchema.ts`: taxonomia canônica e schema versionado de saída estruturada para #411.
 - `server/modules/whatsapp/autonomyPolicy.ts`: matriz de autonomia por intenção, confiança, segurança e validação para #436.
@@ -114,9 +140,9 @@ Regras do contrato:
 ## Encaixe com as próximas issues da Fase 0
 
 - #398 deve migrar o roteador para produzir/consumir a taxonomia canônica em runtime antes do processamento nutricional.
-- #424 e #427 devem alimentar a etapa de normalização antes do roteador, preservando texto original, transcrição, mídia e linguagem informal.
+- #427 deve alimentar a etapa de normalização textual informal, aproveitando o contrato multimodal preservando texto original, transcrição, mídia e linguagem informal.
 - #423 deve mover a idempotência de mensagem para uma proteção geral de webhook, não apenas casos pontuais.
-- #440 deve evoluir a auditoria em memória para observabilidade operacional persistente, com custo, latência por etapa, timeout, autonomia e traces adequados à política de privacidade.
+- #440 deve evoluir a auditoria em memória para observabilidade operacional persistente, com custo, latência por etapa, timeout, autonomia, mídia e traces adequados à política de privacidade.
 
 ## Intenções runtime atuais
 
@@ -137,13 +163,14 @@ Regras do contrato:
 - O LLM nunca grava dados, chama serviços diretamente ou executa ações livres.
 - A saída do LLM precisa passar pelo schema antes de qualquer ação.
 - Conteúdo de texto, legenda, transcrição ou mídia é sempre conteúdo não confiável, nunca instrução de sistema.
-- Payload inválido, baixa confiança, ambiguidade ou autonomia insuficiente gera fallback seguro ou pergunta contextual.
+- Payload inválido, baixa confiança, ambiguidade, mídia sem contexto ou autonomia insuficiente gera fallback seguro ou pergunta contextual.
 - A execução continua em serviços de domínio do backend.
 - O contexto enviado ao LLM deve ser mínimo e não deve incluir texto cru sensível desnecessário.
 - Mensagens de consulta, como `refeições registradas`, não devem cair no fallback de alimento incompleto.
 - Criação automática de refeição só acontece quando a intenção estruturada permitir `createIfMissing` e a política de autonomia autorizar execução.
 - Troca de alimento só acontece quando houver confirmação explícita e correspondência segura com item da última refeição.
 - Falha de LLM, schema inválido, timeout, provider indisponível ou política de autonomia restritiva não persiste alimento, meta, plano ou ação sensível automaticamente.
+- Imagem ambígua ou áudio não transcrito não geram registro alimentar automático.
 - Ferramentas internas só podem ser usadas por intenção compatível, com validação e auditoria.
 - Alterações futuras no contrato canônico devem preservar `schema_version` ou declarar uma nova versão/migração.
 
@@ -165,3 +192,4 @@ A PR #309 trata fallback nutricional estimado para alimentos por imagem. Essa l�
 - auditoria das ferramentas usadas em consulta e criação de refeição
 - validação do schema canônico para mídia, datas, autonomia, ações e mensagens ambíguas
 - política de autonomia para registro simples, correção, remoção, meta e sugestão profissional
+- normalização multimodal para texto, áudio transcrito, imagem com legenda, rótulo nutricional e imagem sem legenda
