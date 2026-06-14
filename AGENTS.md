@@ -11,7 +11,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 5. Atualize docs geradas/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
 6. Siga o gate mínimo por tipo de mudança definido em `CONTRIBUTING.md`.
 7. Rode `pnpm agent:check` antes de propor merge quando a alteração tocar área sensível, documentação operacional ou instruções usadas por agentes.
-8. Certifique-se de que o banco de dados de teste está sincronizado com `pnpm db:migrate` quando a mudança depender de banco ou migration.
+8. Quando a mudança depender de banco, migration ou dados, aplique o fluxo do projeto com `pnpm db:push` quando necessário e valide integridade com `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
 
 ## Mapas rapidos
 
