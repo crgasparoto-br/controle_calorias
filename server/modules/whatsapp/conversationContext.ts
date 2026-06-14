@@ -1,10 +1,6 @@
-type WhatsappConversationContextKind = "selection" | "confirmation";
+import { parseWhatsappClarificationSelection, type WhatsappClarificationOption } from "./clarificationOptions";
 
-type WhatsappConversationContextOption = {
-  id: string;
-  label: string;
-  value?: unknown;
-};
+type WhatsappConversationContextKind = "selection" | "confirmation";
 
 type WhatsappConversationContext = {
   id: string;
@@ -13,7 +9,7 @@ type WhatsappConversationContext = {
   createdAt: string;
   expiresAt: string;
   originalText: string | null;
-  options: WhatsappConversationContextOption[];
+  options: WhatsappClarificationOption[];
   metadata?: Record<string, unknown>;
 };
 
@@ -60,29 +56,6 @@ function isNegativeOrCancel(normalized: string) {
   return /^(nao|n|não|cancelar|cancela|negativo)$/.test(normalized);
 }
 
-function parseOptionNumber(normalized: string, optionCount: number) {
-  const digitMatch = normalized.match(/^(?:opcao\s+|opção\s+)?(\d+)$/);
-  if (digitMatch) return Number(digitMatch[1]);
-
-  const ordinals = new Map<string, number>([
-    ["primeira", 1],
-    ["primeiro", 1],
-    ["segunda", 2],
-    ["segundo", 2],
-    ["terceira", 3],
-    ["terceiro", 3],
-    ["quarta", 4],
-    ["quarto", 4],
-    ["quinta", 5],
-    ["quinto", 5],
-  ]);
-  for (const [word, value] of ordinals) {
-    if (new RegExp(`^(?:a |o )?${word}(?: opcao)?$`).test(normalized)) return value;
-  }
-  if (/^(?:a |o )?ultima(?: opcao)?$/.test(normalized)) return optionCount;
-  return null;
-}
-
 function pruneExpired(now: Date) {
   const timestamp = now.getTime();
   for (let index = contexts.length - 1; index >= 0; index -= 1) {
@@ -108,6 +81,29 @@ function isContextualShortMessage(text: string) {
   );
 }
 
+function normalizeOptions(value: unknown, optionCount: number): WhatsappClarificationOption[] {
+  if (Array.isArray(value)) {
+    const options = value
+      .map((option, index) => {
+        if (!option || typeof option !== "object") return null;
+        const candidate = option as { id?: unknown; label?: unknown; value?: unknown };
+        if (typeof candidate.label !== "string" || !candidate.label.trim()) return null;
+        return {
+          id: typeof candidate.id === "string" && candidate.id.trim() ? candidate.id : String(index + 1),
+          label: candidate.label.trim(),
+          ...(candidate.value == null ? {} : { value: candidate.value }),
+        };
+      })
+      .filter((option): option is WhatsappClarificationOption => Boolean(option));
+    if (options.length) return options.slice(0, 10);
+  }
+
+  return Array.from({ length: Math.max(0, Math.min(10, optionCount)) }, (_, index) => ({
+    id: String(index + 1),
+    label: `Opção ${index + 1}`,
+  }));
+}
+
 function buildResult(context: WhatsappConversationContext, result: Omit<WhatsappContextResult, "handled" | "eventType" | "data"> & { data?: Record<string, unknown> }): WhatsappContextResult {
   return {
     handled: true,
@@ -126,7 +122,7 @@ export function createWhatsappConversationContext(input: {
   userId: number;
   kind: WhatsappConversationContextKind;
   originalText?: string | null;
-  options?: WhatsappConversationContextOption[];
+  options?: WhatsappClarificationOption[];
   metadata?: Record<string, unknown>;
   now?: Date;
   ttlMs?: number;
@@ -196,35 +192,43 @@ export function resolveWhatsappConversationContext(userId: number, input: { text
   }
 
   if (active.kind === "selection") {
-    const selectedNumber = parseOptionNumber(normalized, active.options.length);
-    if (selectedNumber == null) {
-      if (!isContextualShortMessage(input.text)) return null;
+    const selection = parseWhatsappClarificationSelection(input.text, active.options);
+    if (selection?.kind === "cancelled") {
+      removeContext(active.id);
       return buildResult(active, {
-        action: "conversation_context_clarification_needed",
-        reply: `Escolha uma opção entre 1 e ${active.options.length}.`,
-        detail: "Mensagem curta não indicou uma opção válida para a seleção ativa.",
-        data: { optionCount: active.options.length },
+        action: "conversation_context_cancelled",
+        reply: "Certo, cancelei essa seleção. Nada foi alterado.",
+        detail: "Seleção pendente cancelada pelo usuário.",
       });
     }
-    const selectedOption = active.options[selectedNumber - 1] ?? null;
-    if (!selectedOption) {
+    if (selection?.kind === "out_of_range") {
       return buildResult(active, {
         action: "conversation_context_clarification_needed",
-        reply: `Escolha uma opção entre 1 e ${active.options.length}.`,
+        reply: `Escolha uma opção entre 1 e ${active.options.length}, ou escreva cancelar.`,
         detail: "Usuário respondeu uma opção fora da faixa da pendência ativa.",
-        data: { selectedNumber, optionCount: active.options.length },
+        data: { selectedNumber: selection.selectedNumber, optionCount: selection.optionCount },
       });
     }
-    removeContext(active.id);
+    if (selection?.kind === "selected") {
+      removeContext(active.id);
+      return buildResult(active, {
+        action: "conversation_context_selection_received",
+        reply: `Recebi a opção ${selection.selectedNumber}: ${selection.option.label}. Vou usar essa escolha no contexto pendente.`,
+        detail: "Seleção de opção pendente recebida sem cair no parser nutricional.",
+        data: {
+          selectedNumber: selection.selectedNumber,
+          selectedOptionId: selection.option.id,
+          selectedOptionLabel: selection.option.label,
+          selectedOptionValue: selection.option.value ?? null,
+        },
+      });
+    }
+    if (!isContextualShortMessage(input.text)) return null;
     return buildResult(active, {
-      action: "conversation_context_selection_received",
-      reply: `Recebi a opção ${selectedNumber}: ${selectedOption.label}. Vou usar essa escolha no contexto pendente.`,
-      detail: "Seleção de opção pendente recebida sem cair no parser nutricional.",
-      data: {
-        selectedNumber,
-        selectedOptionId: selectedOption.id,
-        selectedOptionLabel: selectedOption.label,
-      },
+      action: "conversation_context_clarification_needed",
+      reply: `Escolha uma opção entre 1 e ${active.options.length}, ou escreva cancelar.`,
+      detail: "Mensagem curta não indicou uma opção válida para a seleção ativa.",
+      data: { optionCount: active.options.length },
     });
   }
 
@@ -248,10 +252,7 @@ export function registerWhatsappConversationContextFromResult(userId: number, in
 
   if (input.result.action.endsWith("_selection_needed")) {
     const optionCount = typeof input.result.data?.optionCount === "number" ? input.result.data.optionCount : 0;
-    const options = Array.from({ length: Math.max(0, Math.min(10, optionCount)) }, (_, index) => ({
-      id: String(index + 1),
-      label: `Opção ${index + 1}`,
-    }));
+    const options = normalizeOptions(input.result.data?.options, optionCount);
     if (!options.length) return null;
     return createWhatsappConversationContext({
       userId,
