@@ -25,23 +25,22 @@ export type WhatsappTimeReferenceResolution = {
   historyDetail: string;
 };
 
-const WEEKDAY_INDEX: Record<string, number> = {
-  segunda: 0,
-  "segunda feira": 0,
-  terca: 1,
-  "terca feira": 1,
-  terça: 1,
-  "terça feira": 1,
-  quarta: 2,
-  "quarta feira": 2,
-  quinta: 3,
-  "quinta feira": 3,
-  sexta: 4,
-  "sexta feira": 4,
-  sabado: 5,
-  sábado: 5,
-  domingo: 6,
+type WeekdayReference = {
+  expression: string;
+  weekdayIndex: number;
+  direction: "past" | "future" | null;
+  kind: "weekday";
 };
+
+const WEEKDAY_ALIASES: Array<{ pattern: string; index: number; label: string }> = [
+  { pattern: "segunda(?:\\s+feira)?", index: 0, label: "segunda" },
+  { pattern: "terca(?:\\s+feira)?|terça(?:\\s+feira)?", index: 1, label: "terça" },
+  { pattern: "quarta(?:\\s+feira)?", index: 2, label: "quarta" },
+  { pattern: "quinta(?:\\s+feira)?", index: 3, label: "quinta" },
+  { pattern: "sexta(?:\\s+feira)?", index: 4, label: "sexta" },
+  { pattern: "sabado|sábado", index: 5, label: "sábado" },
+  { pattern: "domingo", index: 6, label: "domingo" },
+];
 
 const MEAL_LABELS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bcaf[eé]\s*(?:da\s*)?manh[aã]\b/iu, label: "Café da manhã" },
@@ -106,20 +105,21 @@ function detectRelativeReference(normalized: string) {
   return null;
 }
 
-function detectWeekdayReference(normalized: string) {
-  for (const [weekday, index] of Object.entries(WEEKDAY_INDEX)) {
-    const escaped = weekday.replace(/ /g, "\\s+");
-    if (new RegExp(`\\b(?:sabado|sábado|domingo|segunda|segunda\\s+feira|terca|terça|terca\\s+feira|terça\\s+feira|quarta|quarta\\s+feira|quinta|quinta\\s+feira|sexta|sexta\\s+feira)\\s+passad[ao]\\b`).test(normalized)) {
-      const match = normalized.match(/\b(sabado|sábado|domingo|segunda(?:\s+feira)?|terca(?:\s+feira)?|terça(?:\s+feira)?|quarta(?:\s+feira)?|quinta(?:\s+feira)?|sexta(?:\s+feira)?)\s+passad[ao]\b/);
-      if (!match) return null;
-      const target = WEEKDAY_INDEX[match[1]];
-      return target == null ? null : { expression: `${match[1]} passado`, weekdayIndex: target, direction: "past" as const, kind: "weekday" as const };
+function detectWeekdayReference(normalized: string): WeekdayReference | null {
+  for (const weekday of WEEKDAY_ALIASES) {
+    const pastMatch = new RegExp(`\\b(${weekday.pattern})\\s+passad[ao]\\b`).exec(normalized);
+    if (pastMatch) {
+      return { expression: `${pastMatch[1]} passado`, weekdayIndex: weekday.index, direction: "past", kind: "weekday" };
     }
-    if (new RegExp(`\\b(?:proxim[ao]|pr[oó]xim[ao])\\s+${escaped}\\b`).test(normalized)) {
-      return { expression: `próximo ${weekday}`, weekdayIndex: index, direction: "future" as const, kind: "weekday" as const };
+
+    const futureMatch = new RegExp(`\\b(?:proxim[ao]|pr[oó]xim[ao])\\s+(${weekday.pattern})\\b`).exec(normalized);
+    if (futureMatch) {
+      return { expression: `próximo ${futureMatch[1]}`, weekdayIndex: weekday.index, direction: "future", kind: "weekday" };
     }
-    if (new RegExp(`\\b${escaped}\\b`).test(normalized)) {
-      return { expression: weekday, weekdayIndex: index, direction: null, kind: "weekday" as const };
+
+    const ambiguousMatch = new RegExp(`\\b(${weekday.pattern})\\b`).exec(normalized);
+    if (ambiguousMatch) {
+      return { expression: ambiguousMatch[1], weekdayIndex: weekday.index, direction: null, kind: "weekday" };
     }
   }
   return null;
@@ -132,6 +132,20 @@ function stripTemporalMarkers(text: string) {
     .replace(/\b(?:pr[oó]xim[ao]\s+)?(?:segunda(?:\s+feira)?|ter[cç]a(?:\s+feira)?|quarta(?:\s+feira)?|quinta(?:\s+feira)?|sexta(?:\s+feira)?|s[aá]bado|domingo)(?:\s+passad[ao])?\b/giu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function buildWhatsappTimeReferenceClarification(resolution: WhatsappTimeReferenceResolution) {
+  return {
+    handled: true,
+    action: "time_reference_clarification_needed",
+    reply: resolution.clarificationQuestion ?? "Preciso que você esclareça a data antes de alterar qualquer registro.",
+    eventType: "whatsapp.time_reference.clarification_needed",
+    detail: resolution.historyDetail,
+    data: {
+      timeReferenceAmbiguous: true,
+      mealLabel: resolution.mealReference?.mealLabel ?? null,
+    },
+  };
 }
 
 export function resolveWhatsappTimeReferencesForText(input: {
