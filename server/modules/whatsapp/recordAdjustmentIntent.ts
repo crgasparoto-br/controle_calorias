@@ -72,10 +72,11 @@ function detectAdjustmentIntent(text: string): AdjustmentIntent | null {
   const trimmed = text.trim();
   const normalized = normalizeText(trimmed);
 
+  if (/^(?:apaga|apagar|remove|remover|exclui|excluir)\s+(?:o\s+|a\s+)?(?:ultimo|ultima)$/.test(normalized)) {
+    return { kind: "remove_last_meal" };
+  }
+
   if (/^(?:corrige|corrigir|altera|alterar|ajusta|ajustar|troca|trocar|remove|remover|apaga|apagar|exclui|excluir)\s+(?:isso|esse|essa|ultimo|ultima)$/.test(normalized)) {
-    if (/^(?:apaga|apagar|remove|remover|exclui|excluir)\s+(?:o\s+)?(?:ultimo|ultima)$/.test(normalized)) {
-      return { kind: "remove_last_meal" };
-    }
     return { kind: "incomplete", reason: "missing_target" };
   }
 
