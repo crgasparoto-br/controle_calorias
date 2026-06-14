@@ -8,6 +8,7 @@ export const whatsappOperationalTraceStages = [
   "llm_router",
   "deterministic_intent",
   "food_assistant",
+  "canonical_router",
   "nutrition_persistence",
   "response",
 ] as const;
