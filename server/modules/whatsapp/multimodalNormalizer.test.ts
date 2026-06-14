@@ -15,6 +15,15 @@ describe("normalizeWhatsappMultimodalInput", () => {
     expect(normalized.extraction.performed).toBe("none");
   });
 
+  it("preserva quebras de linha para separacao de hidratacao e alimentos", async () => {
+    const normalized = await normalizeWhatsappMultimodalInput({
+      text: "3 bisnaguinhas panco\n300 ml água\n19 gramas de mel",
+    });
+
+    expect(normalized.originalText).toBe("3 bisnaguinhas panco\n300 ml água\n19 gramas de mel");
+    expect(normalized.routerText).toBe("3 bisnaguinhas panco\n300 ml água\n19 g de mel");
+  });
+
   it("normaliza erros de acento, abreviacoes e marca incompleta preservando texto original", async () => {
     const normalized = await normalizeWhatsappMultimodalInput({ text: "1 cafe lor e pao c queijo" });
 
