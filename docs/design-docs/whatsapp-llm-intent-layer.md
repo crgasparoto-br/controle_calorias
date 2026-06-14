@@ -7,29 +7,30 @@ Interpretar mensagens naturais do WhatsApp antes do fallback genérico de refei�
 ## Fluxo
 
 ```text
-WhatsApp -> normalizacao multimodal/informal -> idempotencia -> protecao de conteudo -> contexto seguro -> interpretador LLM -> schema Zod -> politica de autonomia -> executor deterministico -> resposta contextual
-              | midia/termo incerto          | duplicata    | bloqueio seguro                             | falha/JSON invalido/payload invalido/baixa confianca
-              v                              v             v                                              v
-       esclarecimento seguro          resposta segura  esclarecimento seguro                         classificador deterministico/fallback seguro
+WhatsApp -> normalizacao multimodal/informal -> idempotencia -> observabilidade -> protecao de conteudo -> contexto seguro -> interpretador LLM -> schema Zod -> politica de autonomia -> executor deterministico -> resposta contextual
+              | midia/termo incerto          | duplicata    | trace por etapa       | bloqueio seguro                             | falha/JSON invalido/payload invalido/baixa confianca
+              v                              v             v                       v                                              v
+       esclarecimento seguro          resposta segura  resumo operacional     esclarecimento seguro                         classificador deterministico/fallback seguro
 ```
 
 ## Orquestração operacional
 
-A ordem de decisão do runtime segue este contrato inicial da issue #429, evoluído pela #424, #427 e #423:
+A ordem de decisão do runtime segue este contrato inicial da issue #429, evoluído pela #424, #427, #423 e #440:
 
 1. Receber a mensagem pelo webhook do WhatsApp.
 2. Normalizar a entrada multimodal em texto roteável e metadados estruturados de mídia.
 3. Normalizar linguagem informal, abreviações, acentos, erros comuns, marcas incompletas e termos regionais antes do roteador.
 4. Aplicar guarda de idempotência para retries técnicos por identificador e repetição textual em janela curta.
-5. Aplicar proteções de entrada antes de enviar qualquer conteúdo para IA.
-6. Normalizar texto/unidades nos pontos já existentes do webhook e dos serviços de WhatsApp.
-7. Resolver intenções determinísticas de alta confiança quando o webhook já tiver contexto suficiente, como hidratação, ajustes de quantidade, relatório com contexto pendente e orientação alimentar.
-8. Acionar o interpretador estruturado com LLM apenas quando a regra determinística não for suficiente e o conteúdo for seguro para classificação.
-9. Validar o JSON retornado pelo schema Zod antes de qualquer executor de domínio.
-10. Avaliar a política de autonomia por intenção, confiança, segurança e validação.
-11. Executar somente ações suportadas pelo backend, com thresholds de confiança, validação e confirmação.
-12. Em falha de LLM, timeout, JSON inválido, payload inválido, baixa confiança, autonomia insuficiente, mídia ambígua, termo incerto, duplicidade ou ação não suportada, retornar pergunta segura, fallback determinístico ou delegar ao fluxo nutricional apenas quando o texto tiver sinal claro de refeição.
-13. Registrar auditoria com estratégia, duração, modelo usado quando aplicável, fallback, ferramentas usadas, autonomia aplicada, mídia normalizada, aliases candidatos, duplicidade evitada e decisão final.
+5. Iniciar trace operacional anonimizado para acompanhar as etapas do pipeline sem persistir texto bruto.
+6. Aplicar proteções de entrada antes de enviar qualquer conteúdo para IA.
+7. Normalizar texto/unidades nos pontos já existentes do webhook e dos serviços de WhatsApp.
+8. Resolver intenções determinísticas de alta confiança quando o webhook já tiver contexto suficiente, como hidratação, ajustes de quantidade, relatório com contexto pendente e orientação alimentar.
+9. Acionar o interpretador estruturado com LLM apenas quando a regra determinística não for suficiente e o conteúdo for seguro para classificação.
+10. Validar o JSON retornado pelo schema Zod antes de qualquer executor de domínio.
+11. Avaliar a política de autonomia por intenção, confiança, segurança e validação.
+12. Executar somente ações suportadas pelo backend, com thresholds de confiança, validação e confirmação.
+13. Em falha de LLM, timeout, JSON inválido, payload inválido, baixa confiança, autonomia insuficiente, mídia ambígua, termo incerto, duplicidade ou ação não suportada, retornar pergunta segura, fallback determinístico ou delegar ao fluxo nutricional apenas quando o texto tiver sinal claro de refeição.
+14. Registrar auditoria e observabilidade com estratégia, duração, modelo usado quando aplicável, custo estimado, fallback, erro, timeout, retry, ferramentas usadas, autonomia aplicada, mídia normalizada, aliases candidatos, duplicidade evitada e decisão final.
 
 As estratégias registradas em auditoria são:
 
@@ -63,7 +64,7 @@ Regras iniciais:
 - Imagem de alimento e imagem de rótulo nutricional geram textos roteáveis diferentes.
 - Imagem ambígua, sem legenda ou sem descrição suficiente, pede esclarecimento e não gera registro inseguro.
 - Rótulo nutricional é encaminhado como intenção/contexto próprio para posterior extração rastreável de fonte específica; persistência final ainda depende de validação de backend e das próximas issues.
-- O simulador registra evento `whatsapp.multimodal.normalized`; a persistência operacional detalhada de traces, custo, latência, aliases e mídia fica para a #440.
+- O simulador registra evento `whatsapp.multimodal.normalized` e o trace operacional registra modalidade, extração, aliases e necessidade de esclarecimento sem armazenar texto bruto.
 
 ## Normalização informal
 
@@ -97,11 +98,49 @@ Proteções iniciais:
 - Texto normalizado idêntico no mesmo usuário dentro de uma janela curta é tratado como possível duplicidade operacional.
 - `allowIntentionalDuplicate` permite que uma repetição declarada pelo usuário prossiga, preservando o caso de duas refeições iguais intencionais.
 - Duplicidade retorna `duplicate_message_ignored`, com resposta segura e evento `whatsapp.idempotency.duplicate_ignored`.
-- O simulador registra a duplicidade evitada em telemetria via `logInferenceEvent`.
+- O simulador registra a duplicidade evitada em telemetria via `logInferenceEvent` e no trace operacional.
 
 Limitação atual:
 
-- A guarda inicial usa memória de processo para manter o escopo pequeno e testável. Persistência durável por tabela/event store deve ser evoluída junto da observabilidade da #440 e do webhook real, sem mudar o contrato de decisão.
+- A guarda inicial usa memória de processo para manter o escopo pequeno e testável. Persistência durável por tabela/event store deve ser evoluída junto do webhook real, sem mudar o contrato de decisão.
+
+## Observabilidade operacional
+
+A issue #440 é representada por `server/modules/whatsapp/operationalTrace.ts` e integrada ao `simulateWhatsappInbound`.
+
+Objetivo:
+
+- permitir rastrear cada mensagem por etapas do pipeline;
+- medir latência, erro, timeout, fallback, retry e ferramenta indisponível;
+- registrar modelo, versão de schema/regra e estratégia operacional quando aplicável;
+- estimar custo por trace, etapa, intenção, modelo e período;
+- preservar privacidade usando hash da mensagem em vez de texto bruto.
+
+Etapas rastreadas:
+
+- `normalization`: modalidade, extração de mídia, aliases e necessidade de esclarecimento.
+- `idempotency`: decisão de retry técnico, duplicidade textual ou mensagem nova.
+- `professional_access`: verificação de vínculo profissional/paciente quando aplicável.
+- `water_food_split`: separação entre hidratação e alimento em mensagens compostas.
+- `llm_router`: chamada LLM, fallback, modelo, estratégia, ferramenta, custo estimado e intenção.
+- `deterministic_intent`: resolução por regras existentes de alta confiança.
+- `food_assistant`: assistente alimentar especializado.
+- `nutrition_persistence`: criação ou atualização de rascunho alimentar.
+- `response`: resposta final, esclarecimento seguro ou retorno de duplicidade.
+
+Contrato inicial:
+
+- `startWhatsappOperationalTrace()` cria um trace por mensagem com `traceId`, `userId`, canal, hash da mensagem, identificadores técnicos e modalidade.
+- `recordWhatsappOperationalTraceStep()` registra status, duração, modelo, schema, regra, estratégia, intenção, ferramentas, fallback, erro, retry, custo estimado e metadados seguros.
+- `listWhatsappOperationalTraces()` permite filtrar por usuário, etapa, status, intenção, modelo e presença de erro.
+- `summarizeWhatsappOperationalTraces()` agrega duração média, erros e custo por etapa.
+- Texto bruto, legenda, transcrição e descrição de imagem não entram no trace. O armazenamento usa hash SHA-256 normalizado para correlação sem expor conteúdo.
+
+Limitações atuais:
+
+- A implementação inicial mantém traces em memória de processo, com limite de retenção por quantidade, para validar contrato e testes sem criar migração prematura.
+- A estimativa de custo usa aproximação por caracteres/tokens e tabela simples por família de modelo; valores reais devem vir do provider quando a integração expuser uso tokenizado.
+- Dashboard, alertas e retenção durável devem ser evoluídos em camada persistente mantendo o mesmo contrato de etapas.
 
 ## Schema canônico de intenções
 
@@ -169,6 +208,7 @@ Regras do contrato:
 - `server/modules/whatsapp/multimodalNormalizer.ts`: normalização de texto, áudio, imagem e legenda antes do roteador para #424.
 - `server/modules/whatsapp/informalTextNormalizer.ts`: normalização de gírias, abreviações, erros comuns, marcas e termos regionais para #427.
 - `server/modules/whatsapp/idempotencyGuard.ts`: proteção contra retry técnico e duplicidade textual em janela curta para #423.
+- `server/modules/whatsapp/operationalTrace.ts`: trace operacional anonimizado, latência, status, fallback, custo estimado, ferramentas e resumo por etapa para #440.
 - `server/modules/whatsapp/promptInjectionGuard.ts`: inspeção de conteúdo não confiável, bloqueio seguro e delimitação do texto enviado à LLM.
 - `server/modules/whatsapp/canonicalIntentSchema.ts`: taxonomia canônica e schema versionado de saída estruturada para #411.
 - `server/modules/whatsapp/autonomyPolicy.ts`: matriz de autonomia por intenção, confiança, segurança e validação para #436.
@@ -183,7 +223,7 @@ Regras do contrato:
 ## Encaixe com as próximas issues da Fase 0
 
 - #398 deve migrar o roteador para produzir/consumir a taxonomia canônica em runtime antes do processamento nutricional.
-- #440 deve evoluir a auditoria em memória para observabilidade operacional persistente, com custo, latência por etapa, timeout, autonomia, mídia, aliases, idempotência e traces adequados à política de privacidade.
+- A observabilidade operacional da #440 já fornece o contrato inicial para acompanhar a migração da #398, ainda com armazenamento em memória até a definição de persistência durável.
 
 ## Intenções runtime atuais
 
@@ -215,6 +255,7 @@ Regras do contrato:
 - Texto idêntico em janela curta pede confirmação antes de novo registro, salvo duplicidade intencional declarada.
 - Imagem ambígua ou áudio não transcrito não geram registro alimentar automático.
 - Alias candidato não vira alias global sem revisão/auditoria.
+- Traces operacionais não armazenam texto bruto; usam hash e metadados seguros para correlação.
 - Ferramentas internas só podem ser usadas por intenção compatível, com validação e auditoria.
 - Alterações futuras no contrato canônico devem preservar `schema_version` ou declarar uma nova versão/migração.
 
@@ -239,3 +280,4 @@ A PR #309 trata fallback nutricional estimado para alimentos por imagem. Essa l�
 - normalização multimodal para texto, áudio transcrito, imagem com legenda, rótulo nutricional e imagem sem legenda
 - normalização informal para `1 cafe lor`, `pao c queijo`, `refri zero`, `miojo turma da monica`, `um tiquinho de azeite`, `pratao de macarrao` e `2 fatia pão integral`
 - idempotência para retry técnico, reenvio textual em janela curta e duplicidade intencional declarada
+- observabilidade operacional para hash sem texto bruto, etapas, latência, custo estimado, fallback, erro, timeout e ferramenta indisponível
