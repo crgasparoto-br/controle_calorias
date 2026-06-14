@@ -187,8 +187,35 @@ describe("whatsapp canonical intent schema", () => {
     expect(canonical.extracted_actions[0]).toEqual(expect.objectContaining({
       action_type: "adicionar_alimento",
       autonomy_level: "automatico",
+      needs_confirmation: false,
     }));
     expect(canonical.source_recommendation?.source_type).toBe("estimativa");
+  });
+
+  it("marca correcao runtime como confirmacao no contrato canonico", () => {
+    const canonical = buildCanonicalIntentOutputFromRuntime({
+      runtimeIntent: {
+        intent: "replace_food_in_meal",
+        confidence: 0.93,
+        items: [],
+        sourceFood: "banana da terra",
+        targetFood: "batata doce assada",
+        requiresConfirmation: false,
+        possibleIntents: [],
+        reason: "Correção de alimento detectada por padrão textual seguro.",
+      },
+      originalText: "Não é banana da terra e sim batata doce assada",
+    });
+
+    expect(canonical.intent).toBe("trocar_alimento");
+    expect(canonical.autonomy_level).toBe("requer_confirmacao");
+    expect(canonical.needs_confirmation).toBe(true);
+    expect(canonical.extracted_actions[0]).toEqual(expect.objectContaining({
+      action_type: "trocar_alimento",
+      autonomy_level: "requer_confirmacao",
+      needs_confirmation: true,
+      validation_status: "bloqueada",
+    }));
   });
 
   it("representa mensagem ambigua sem acao executavel", () => {
