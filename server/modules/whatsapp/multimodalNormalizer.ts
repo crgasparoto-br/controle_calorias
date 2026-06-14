@@ -69,10 +69,6 @@ function normalizeRouterText(value?: string | null) {
   };
 }
 
-function emptyInformalNormalization() {
-  return normalizeWhatsappInformalText(null);
-}
-
 function detectLabelText(value: string) {
   return /\b(rotulo|r[oó]tulo|tabela nutricional|informacao nutricional|informa[cç][aã]o nutricional|por[cç][aã]o|valor energ[eé]tico|calorias|carboidratos|prote[ií]nas|gorduras?)\b/i.test(value);
 }
