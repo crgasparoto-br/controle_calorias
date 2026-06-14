@@ -99,7 +99,7 @@ function buildMultimodalClarification(normalized: Awaited<ReturnType<typeof norm
   return {
     handled: true,
     action: "multimodal_clarification_needed",
-    reply: normalized.clarificationQuestion ?? "Preciso de mais contexto para entender essa mídia com segurança.",
+    reply: normalized.clarificationQuestion ?? "Preciso de mais contexto para entender essa mensagem com segurança.",
     eventType: "whatsapp.multimodal.clarification_needed",
     detail: normalized.historyDetail,
     data: {
@@ -126,6 +126,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
 
   const text = normalizedInput.routerText ?? undefined;
+  if (!text) {
+    return buildMultimodalClarification({
+      ...normalizedInput,
+      needsClarification: true,
+      clarificationQuestion: "Me envie um texto, áudio ou imagem com contexto para eu registrar ou consultar sua alimentação.",
+      historyDetail: "Entrada vazia recebida antes do roteador do WhatsApp.",
+    });
+  }
 
   if (text) {
     const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
