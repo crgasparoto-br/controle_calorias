@@ -1,4 +1,5 @@
 import { listMeals } from "../meals/service";
+import { buildWhatsappClarificationPrompt, type WhatsappClarificationOption } from "./clarificationOptions";
 
 type WhatsappRecordAdjustmentInput = {
   text?: string | null;
@@ -144,17 +145,30 @@ function buildNoRecentMealResponse(intent: AdjustmentIntent): WhatsappRecordAdju
 }
 
 function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof findItemCandidates>, kind: AdjustmentIntent["kind"]): WhatsappRecordAdjustmentResult {
-  const options = candidates.slice(0, 5).map((candidate, index) => `${index + 1}. ${getItemName(candidate.item)} em ${candidate.meal.mealLabel} (${formatMealDate(candidate.meal.occurredAt)})`);
+  const options: WhatsappClarificationOption[] = candidates.slice(0, 5).map((candidate, index) => ({
+    id: `${candidate.meal.id}:${candidate.itemIndex}`,
+    label: `${getItemName(candidate.item)} em ${candidate.meal.mealLabel} (${formatMealDate(candidate.meal.occurredAt)})`,
+    value: {
+      mealId: candidate.meal.id,
+      mealLabel: candidate.meal.mealLabel,
+      itemIndex: candidate.itemIndex,
+      itemName: getItemName(candidate.item),
+    },
+  }));
   return {
     handled: true,
     action: "record_adjustment_selection_needed",
-    reply: [`Encontrei mais de um item possivel para "${targetFood}". Qual deles devo usar?`, ...options].join("\n"),
+    reply: buildWhatsappClarificationPrompt({
+      question: `Encontrei mais de um item possivel para "${targetFood}". Qual deles devo usar?`,
+      options,
+    }),
     eventType: "whatsapp.records.adjustment_selection_needed",
     detail: "Comando de ajuste encontrou multiplos alvos possiveis e abriu selecao segura.",
     data: {
       adjustmentKind: kind,
       targetFood,
-      optionCount: Math.min(candidates.length, 5),
+      optionCount: options.length,
+      options,
     },
   };
 }
