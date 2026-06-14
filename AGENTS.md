@@ -9,8 +9,9 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 3. Leia o design tecnico afetado em `docs/design-docs/` quando a mudanca tocar backend, banco, IA, WhatsApp, privacidade ou persistencia.
 4. Implemente a menor mudanca coerente com a arquitetura atual.
 5. Atualize docs geradas/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
-6. Rode `pnpm agent:check` antes de propor merge.
-7. Certifique-se de que o banco de dados de teste está sincronizado com `pnpm db:migrate`.
+6. Siga o gate mínimo por tipo de mudança definido em `CONTRIBUTING.md`.
+7. Rode `pnpm agent:check` antes de propor merge quando a alteração tocar área sensível, documentação operacional ou instruções usadas por agentes.
+8. Quando a mudança depender de banco, migration ou dados, aplique o fluxo do projeto com `pnpm db:push` quando necessário e valide integridade com `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
 
 ## Mapas rapidos
 
@@ -40,4 +41,4 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 pnpm agent:check
 ```
 
-Esse comando combina TypeScript, testes, checks de arquitetura e checks de documentacao. Se ele falhar, corrija a causa antes de abrir PR.
+Esse comando combina TypeScript, testes, checks de arquitetura e checks de documentacao. Ele é obrigatório para áreas sensíveis e para mudanças que alterem documentação operacional usada por agentes. Para os demais tipos de mudança, use o gate mínimo por tipo descrito em `CONTRIBUTING.md` e registre na PR os comandos executados, validações manuais e limitações de ambiente.
