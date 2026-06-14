@@ -1,5 +1,6 @@
 import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import type { WhatsappInputModality } from "./canonicalIntentSchema";
+import { normalizeWhatsappInformalText, type WhatsappInformalNormalizationResult } from "./informalTextNormalizer";
 
 export const whatsappMediaKinds = ["alimento", "rotulo_nutricional", "ambigua", "nao_relacionada"] as const;
 export type WhatsappMediaKind = typeof whatsappMediaKinds[number];
@@ -32,6 +33,7 @@ export type WhatsappNormalizedMultimodalInput = {
   normalizedText: string | null;
   transcribedText: string | null;
   routerText: string | null;
+  informalNormalization: WhatsappInformalNormalizationResult;
   mediaContext: {
     mediaId: string | null;
     caption: string | null;
@@ -56,8 +58,19 @@ function cleanText(value?: string | null) {
 }
 
 function normalizeRouterText(value?: string | null) {
-  const cleaned = cleanText(value);
-  return cleaned ? normalizeTextMeasurementUnits(cleaned) : null;
+  const informalNormalization = normalizeWhatsappInformalText(cleanText(value));
+  const normalizedText = informalNormalization.normalizedText ? normalizeTextMeasurementUnits(informalNormalization.normalizedText) : null;
+  return {
+    normalizedText,
+    informalNormalization: {
+      ...informalNormalization,
+      normalizedText,
+    },
+  };
+}
+
+function emptyInformalNormalization() {
+  return normalizeWhatsappInformalText(null);
 }
 
 function detectLabelText(value: string) {
@@ -105,18 +118,21 @@ export async function normalizeWhatsappMultimodalInput(
   const originalText = cleanText(input.text);
   const textOnly = !input.media;
   if (textOnly) {
-    const normalizedText = normalizeRouterText(originalText);
+    const router = normalizeRouterText(originalText);
     return {
       inputModality: "texto",
       originalText,
-      normalizedText,
+      normalizedText: router.normalizedText,
       transcribedText: null,
-      routerText: normalizedText,
+      routerText: router.normalizedText,
+      informalNormalization: router.informalNormalization,
       mediaContext: null,
       extraction: { performed: "none", confidence: null, source: originalText ? "text" : "none" },
-      needsClarification: false,
-      clarificationQuestion: null,
-      historyDetail: "Entrada de texto normalizada antes do roteador do WhatsApp.",
+      needsClarification: router.informalNormalization.needsClarification,
+      clarificationQuestion: router.informalNormalization.clarificationQuestion,
+      historyDetail: router.informalNormalization.matches.length
+        ? "Entrada de texto e linguagem informal normalizadas antes do roteador do WhatsApp."
+        : "Entrada de texto normalizada antes do roteador do WhatsApp.",
     };
   }
 
@@ -126,19 +142,20 @@ export async function normalizeWhatsappMultimodalInput(
     const providedTranscription = cleanText(media.transcription);
     const providerTranscription = providedTranscription ? null : await providers.transcribeAudio?.(media);
     const transcribedText = providedTranscription ?? cleanText(providerTranscription?.text);
-    const routerText = normalizeRouterText([originalText, transcribedText].filter(Boolean).join(". "));
-    const needsClarification = !routerText;
+    const router = normalizeRouterText([originalText, transcribedText].filter(Boolean).join(". "));
+    const needsClarification = !router.normalizedText || router.informalNormalization.needsClarification;
 
     return {
       inputModality: "audio",
       originalText,
-      normalizedText: routerText,
+      normalizedText: router.normalizedText,
       transcribedText,
-      routerText,
+      routerText: router.normalizedText,
+      informalNormalization: router.informalNormalization,
       mediaContext: {
         mediaId: media.mediaId ?? null,
         caption: null,
-        mediaKind: needsClarification ? "ambigua" : null,
+        mediaKind: !router.normalizedText ? "ambigua" : null,
         mimeType: media.mimeType ?? null,
         extractionConfidence: providedTranscription ? 0.9 : providerTranscription?.confidence ?? null,
       },
@@ -148,10 +165,14 @@ export async function normalizeWhatsappMultimodalInput(
         source: providedTranscription ? "provided_transcription" : providerTranscription ? "provider" : "none",
       },
       needsClarification,
-      clarificationQuestion: needsClarification ? "Não consegui transcrever o áudio com segurança. Pode enviar a refeição em texto?" : null,
-      historyDetail: needsClarification
+      clarificationQuestion: !router.normalizedText
+        ? "Não consegui transcrever o áudio com segurança. Pode enviar a refeição em texto?"
+        : router.informalNormalization.clarificationQuestion,
+      historyDetail: !router.normalizedText
         ? "Áudio recebido, mas sem transcrição suficiente para roteamento seguro."
-        : "Áudio transcrito e normalizado antes do roteador do WhatsApp.",
+        : router.informalNormalization.matches.length
+          ? "Áudio transcrito e linguagem informal normalizada antes do roteador do WhatsApp."
+          : "Áudio transcrito e normalizado antes do roteador do WhatsApp.",
     };
   }
 
@@ -160,15 +181,16 @@ export async function normalizeWhatsappMultimodalInput(
   const imageDescription = providedDescription ?? cleanText(providerDescription?.description);
   const classificationText = [caption, imageDescription, originalText].filter(Boolean).join(". ") || null;
   const classification = classifyImage(classificationText);
-  const routerText = buildImageRouterText(classification.mediaKind, caption ?? originalText, imageDescription);
-  const needsClarification = classification.mediaKind === "ambigua";
+  const router = buildImageRouterText(classification.mediaKind, caption ?? originalText, imageDescription);
+  const needsClarification = classification.mediaKind === "ambigua" || router.informalNormalization.needsClarification;
 
   return {
     inputModality: mediaInputModality(input),
     originalText,
-    normalizedText: routerText,
+    normalizedText: router.normalizedText,
     transcribedText: null,
-    routerText,
+    routerText: router.normalizedText,
+    informalNormalization: router.informalNormalization,
     mediaContext: {
       mediaId: media.mediaId ?? null,
       caption: caption ?? originalText,
@@ -182,11 +204,15 @@ export async function normalizeWhatsappMultimodalInput(
       source: caption ? "caption" : providedDescription ? "provided_image_description" : providerDescription ? "provider" : "none",
     },
     needsClarification,
-    clarificationQuestion: needsClarification ? "Recebi a imagem, mas preciso de uma legenda dizendo se é alimento ou rótulo nutricional." : null,
+    clarificationQuestion: classification.mediaKind === "ambigua"
+      ? "Recebi a imagem, mas preciso de uma legenda dizendo se é alimento ou rótulo nutricional."
+      : router.informalNormalization.clarificationQuestion,
     historyDetail: classification.mediaKind === "rotulo_nutricional"
       ? "Imagem classificada como rótulo nutricional antes do roteador do WhatsApp."
       : classification.mediaKind === "alimento"
-        ? "Imagem classificada como alimento antes do roteador do WhatsApp."
+        ? router.informalNormalization.matches.length
+          ? "Imagem classificada como alimento e linguagem informal normalizada antes do roteador do WhatsApp."
+          : "Imagem classificada como alimento antes do roteador do WhatsApp."
         : "Imagem recebida sem contexto alimentar suficiente para roteamento seguro.",
   };
 }
