@@ -35,11 +35,13 @@ vi.mock("./foodAssistant", () => ({
 }));
 
 const { __resetWhatsappIdempotencyForTests } = await import("./idempotencyGuard");
+const { __resetWhatsappOperationalTracesForTests, listWhatsappOperationalTraces } = await import("./operationalTrace");
 const { simulateWhatsappInbound } = await import("./service");
 
 describe("simulateWhatsappInbound", () => {
   beforeEach(() => {
     __resetWhatsappIdempotencyForTests();
+    __resetWhatsappOperationalTracesForTests();
     getAdminWhatsAppTokenStatusMock.mockReset();
     getDbMock.mockReset();
     getUserWhatsappConnectionMock.mockReset();
@@ -114,6 +116,28 @@ describe("simulateWhatsappInbound", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "water_logged",
+    }));
+
+    const [trace] = listWhatsappOperationalTraces({ userId: 42 });
+    expect(trace.messageHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(trace)).not.toContain("300mo");
+    expect(trace.steps.map(step => step.stage)).toEqual(expect.arrayContaining([
+      "normalization",
+      "idempotency",
+      "llm_router",
+      "deterministic_intent",
+      "response",
+    ]));
+    expect(trace.steps.find(step => step.stage === "normalization")).toEqual(expect.objectContaining({
+      status: "success",
+      ruleVersion: "whatsapp-normalization-v1",
+    }));
+    expect(trace.steps.find(step => step.stage === "llm_router")).toEqual(expect.objectContaining({
+      status: "fallback",
+    }));
+    expect(trace.steps.find(step => step.stage === "deterministic_intent")).toEqual(expect.objectContaining({
+      status: "success",
+      intent: "water_logged",
     }));
   });
 
