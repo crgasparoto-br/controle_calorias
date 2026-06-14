@@ -77,6 +77,8 @@ describe("executeWhatsappLlmIntent", () => {
       modelName: "gpt-4.1-mini",
       fallbackReason: "low_confidence",
       toolNames: undefined,
+      autonomyLevel: "requer_confirmacao",
+      autonomyOutcome: "clarify",
     }));
   });
 
@@ -124,6 +126,8 @@ describe("executeWhatsappLlmIntent", () => {
       action: "llm_intent_list_meal_records",
       replyKind: "executed",
       toolNames: ["meal_history_read"],
+      autonomyLevel: "automatico",
+      autonomyOutcome: "execute",
     }));
   });
 
@@ -153,6 +157,44 @@ describe("executeWhatsappLlmIntent", () => {
     expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       action: "llm_intent_add_foods_to_meal",
       toolNames: ["nutrition_measurement_resolve", "meal_history_read", "meal_create"],
+      autonomyLevel: "automatico",
+      autonomyOutcome: "execute",
+    }));
+  });
+
+  it("exige confirmacao antes de executar correcao de alimento", async () => {
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      processingStrategy: "llm_structured",
+      durationMs: 16,
+      intent: interpretedIntent({
+        intent: "replace_food_in_meal",
+        confidence: 0.93,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        sourceFood: "banana da terra",
+        targetFood: "batata doce assada",
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, { text: "Não é banana da terra e sim batata doce assada" });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      data: expect.objectContaining({
+        autonomyLevel: "requer_confirmacao",
+        autonomyOutcome: "clarify",
+      }),
+    }));
+    expect(listMealsMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "clarification_needed",
+      replyKind: "clarification",
+      fallbackReason: "autonomy_requires_confirmation",
+      autonomyLevel: "requer_confirmacao",
+      autonomyOutcome: "clarify",
     }));
   });
 });
