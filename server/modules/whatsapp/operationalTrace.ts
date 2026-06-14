@@ -7,6 +7,7 @@ export const whatsappOperationalTraceStages = [
   "water_food_split",
   "llm_router",
   "deterministic_intent",
+  "record_adjustment",
   "food_assistant",
   "canonical_router",
   "nutrition_persistence",
