@@ -93,10 +93,18 @@ describe("executeWhatsappRecordAdjustmentIntent", () => {
     expect(result).toEqual(expect.objectContaining({
       action: "record_adjustment_selection_needed",
       eventType: "whatsapp.records.adjustment_selection_needed",
-      data: expect.objectContaining({ adjustmentKind: "remove_item", optionCount: 2 }),
+      data: expect.objectContaining({
+        adjustmentKind: "remove_item",
+        optionCount: 2,
+        options: expect.arrayContaining([
+          expect.objectContaining({ id: "10:0", label: expect.stringContaining("Frango grelhado") }),
+          expect.objectContaining({ id: "10:1", label: expect.stringContaining("Frango desfiado") }),
+        ]),
+      }),
     }));
     expect(result?.reply).toContain("1. Frango grelhado");
     expect(result?.reply).toContain("2. Frango desfiado");
+    expect(result?.reply).toContain("Responda com o número");
   });
 
   it("nao aplica ajuste quando nao existe refeicao recente segura", async () => {
