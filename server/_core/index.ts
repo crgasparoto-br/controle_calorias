@@ -12,7 +12,7 @@ import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/stra
 import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdempotencyWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
-import { ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
+import { RuntimeSchemaCompatibilityError, ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -40,10 +40,15 @@ async function startServer() {
   const server = createServer(app);
   try {
     const schemaCompatibility = await ensureRuntimeSchemaCompatibility();
-    if (schemaCompatibility.added.length) {
+    if (schemaCompatibility.added.length || schemaCompatibility.updated.length) {
       console.log("[Database] Runtime schema compatibility applied:", schemaCompatibility);
     }
   } catch (error) {
+    if (error instanceof RuntimeSchemaCompatibilityError) {
+      console.error("[Database] Runtime schema compatibility failed:", error.message);
+      throw error;
+    }
+
     console.warn("[Database] Runtime schema compatibility skipped:", error);
   }
 
