@@ -178,6 +178,38 @@ describe("simulateWhatsappInbound", () => {
     }));
   });
 
+  it("bloqueia numero isolado antes do fallback nutricional quando nao ha contexto pendente", async () => {
+    const result = await simulateWhatsappInbound(42, { text: "2" });
+
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "router_clarification_needed",
+      eventType: "whatsapp.router.clarification_needed",
+    }));
+    const [trace] = listWhatsappOperationalTraces({ userId: 42 });
+    expect(trace.steps.find(step => step.stage === "canonical_router")).toEqual(expect.objectContaining({
+      status: "warning",
+      intent: "mensagem_ambigua",
+      schemaVersion: "whatsapp-intent-schema/v1",
+    }));
+  });
+
+  it("mantem alimento valido no fallback nutricional depois do roteador canonico", async () => {
+    const result = await simulateWhatsappInbound(42, { text: "100g de arroz" });
+
+    expect(processMealDraftMock).toHaveBeenCalledWith(42, {
+      source: "whatsapp",
+      text: "100 g de arroz",
+    });
+    expect(result).toEqual(expect.objectContaining({ draftId: "draft-1" }));
+    const [trace] = listWhatsappOperationalTraces({ userId: 42 });
+    expect(trace.steps.find(step => step.stage === "canonical_router")).toEqual(expect.objectContaining({
+      status: "success",
+      intent: "adicionar_alimento",
+    }));
+  });
+
   it("ignora retry tecnico com o mesmo messageId antes de persistir novamente", async () => {
     await simulateWhatsappInbound(42, { text: "1 banana", messageId: "wamid.1" });
     const result = await simulateWhatsappInbound(42, { text: "1 banana", messageId: "wamid.1" });
