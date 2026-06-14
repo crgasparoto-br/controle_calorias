@@ -16,6 +16,20 @@ describe("routeWhatsappMessageBeforeNutrition", () => {
     })]);
   });
 
+  it("preserva registro alimentar simples com quantidade sem unidade", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "1 banana" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(true);
+    expect(decision.response).toBeNull();
+    expect(decision.reason).toBe("likely_food_with_simple_quantity");
+    expect(decision.canonical.intent).toBe("adicionar_alimento");
+    expect(decision.canonical.extracted_items).toEqual([expect.objectContaining({
+      name: "banana",
+      quantity: 1,
+      unit: null,
+    })]);
+  });
+
   it("bloqueia numero isolado sem contexto antes do parser nutricional", () => {
     const decision = routeWhatsappMessageBeforeNutrition({ text: "2" });
 
