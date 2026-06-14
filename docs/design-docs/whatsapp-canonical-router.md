@@ -6,6 +6,8 @@ A issue #398 introduz uma etapa de roteamento antes do fallback nutricional. O o
 
 A issue #408 amplia esse contrato para contas, números isolados, respostas curtas e comandos numéricos de ajuste.
 
+A issue #418 amplia a separação entre registro alimentar e pedidos de análise, relatório, gráfico, sugestão, histórico e perguntas.
+
 ## Contrato inicial
 
 O roteador é representado por `server/modules/whatsapp/intentRouter.ts`.
@@ -28,7 +30,8 @@ No `simulateWhatsappInbound`, o roteador roda depois de:
 5. correção textual água -> alimento;
 6. roteador LLM estruturado;
 7. intenções determinísticas existentes;
-8. assistente alimentar.
+8. guard de ajustes de registros;
+9. assistente alimentar.
 
 Ele roda imediatamente antes de `processMealDraft`. Assim, preserva os fluxos já suportados e bloqueia apenas o último fallback genérico quando não há sinal alimentar seguro.
 
@@ -42,7 +45,12 @@ Ele roda imediatamente antes de `processMealDraft`. Assim, preserva os fluxos j�
 - conta com unidade, como `110 - 30 g`, vira `calcular_quantidade` e não salva alimento automaticamente.
 - comandos numéricos sem alvo seguro, como `somar 30g`, `era 150g` ou `excluir 2`, não criam alimento nem alteram registro automaticamente.
 - comandos numéricos com contexto pendente são roteados para a intenção canônica adequada antes de qualquer alteração.
-- pedidos de resumo, gráfico, relatório, sugestão e perguntas de meta/evolução são bloqueados antes do parser alimentar.
+- pedidos de gráfico viram `gerar_grafico` com tipo de saída `grafico`.
+- pedidos de relatório viram `gerar_relatorio` com tipo de saída `relatorio`.
+- pedidos de resumo do dia ou período viram `resumo_dia` ou `resumo_periodo`.
+- pedidos de sugestão viram `sugestao_refeicao` ou `sugestao_alimento`.
+- consultas como `o que eu comi hoje?` viram `consulta_historico`.
+- perguntas sobre meta, evolução, qualidade alimentar ou alimento viram intenções de pergunta, sem registro alimentar.
 - texto ambíguo sem alimento claro pede esclarecimento.
 
 ## Observabilidade
