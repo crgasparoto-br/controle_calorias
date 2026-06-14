@@ -8,7 +8,7 @@ import { createContext } from "./context";
 import { validateRuntimeEnv } from "./env";
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
-import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/service";
+import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/stravaScheduler";
 import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdempotencyWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
