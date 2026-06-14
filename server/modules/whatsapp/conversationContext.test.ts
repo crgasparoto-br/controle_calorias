@@ -38,6 +38,34 @@ describe("conversationContext", () => {
     expect(getActiveWhatsappConversationContext(42, new Date("2026-06-14T12:01:00.000Z"))).toBeNull();
   });
 
+  it("consome selecao por texto da opcao", () => {
+    createWhatsappConversationContext({
+      userId: 42,
+      kind: "selection",
+      originalText: "remove arroz",
+      options: [
+        { id: "meal-1", label: "Arroz no almoço" },
+        { id: "meal-2", label: "Arroz no jantar" },
+      ],
+      now: new Date("2026-06-14T12:00:00.000Z"),
+    });
+
+    const result = resolveWhatsappConversationContext(42, {
+      text: "arroz no jantar",
+      receivedAt: new Date("2026-06-14T12:01:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "conversation_context_selection_received",
+      data: expect.objectContaining({
+        selectedNumber: 2,
+        selectedOptionId: "meal-2",
+        selectedOptionLabel: "Arroz no jantar",
+      }),
+    }));
+    expect(getActiveWhatsappConversationContext(42, new Date("2026-06-14T12:01:00.000Z"))).toBeNull();
+  });
+
   it("mantem selecao pendente ate receber uma opcao valida", () => {
     createWhatsappConversationContext({
       userId: 42,
@@ -76,6 +104,30 @@ describe("conversationContext", () => {
       data: expect.objectContaining({ selectedNumber: 2 }),
     }));
     expect(getActiveWhatsappConversationContext(42, new Date("2026-06-14T12:03:00.000Z"))).toBeNull();
+  });
+
+  it("cancela selecao pendente com nenhuma", () => {
+    createWhatsappConversationContext({
+      userId: 42,
+      kind: "selection",
+      originalText: "remove arroz",
+      options: [
+        { id: "meal-1", label: "Arroz no almoço" },
+        { id: "meal-2", label: "Arroz no jantar" },
+      ],
+      now: new Date("2026-06-14T12:00:00.000Z"),
+    });
+
+    const result = resolveWhatsappConversationContext(42, {
+      text: "nenhuma",
+      receivedAt: new Date("2026-06-14T12:01:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "conversation_context_cancelled",
+      reply: expect.stringContaining("Nada foi alterado"),
+    }));
+    expect(getActiveWhatsappConversationContext(42, new Date("2026-06-14T12:01:00.000Z"))).toBeNull();
   });
 
   it("cancela confirmacao pendente com resposta negativa curta", () => {
