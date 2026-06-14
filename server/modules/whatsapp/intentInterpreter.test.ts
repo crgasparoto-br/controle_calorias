@@ -114,6 +114,9 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
 
     expect(result.source).toBe("llm");
     expect(result.validationStatus).toBe("valid");
+    expect(result.processingStrategy).toBe("llm_structured");
+    expect(result.modelName).toBe("gpt-4.1-mini");
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(result.intent.intent).toBe("list_meal_records");
   });
 
@@ -145,6 +148,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     expect(createTextResponseMock).not.toHaveBeenCalled();
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("skipped");
+    expect(result.processingStrategy).toBe("security_guard_block");
     expect(result.fallbackReason).toBe("prompt_injection_suspected");
     expect(result.errorCode).toBe("prompt_injection_suspected");
     expect(result.intent.intent).toBe("unknown");
@@ -160,6 +164,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     );
 
     expect(createTextResponseMock).not.toHaveBeenCalled();
+    expect(result.processingStrategy).toBe("security_guard_block");
     expect(result.fallbackReason).toBe("prompt_injection_suspected");
     expect(result.intent.reason).toContain("dados fora do escopo autorizado");
   });
@@ -172,6 +177,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     expect(createTextResponseMock).not.toHaveBeenCalled();
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("skipped");
+    expect(result.processingStrategy).toBe("deterministic_only");
     expect(result.fallbackReason).toBe("disabled");
   });
 
@@ -182,6 +188,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
 
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("invalid_json");
+    expect(result.processingStrategy).toBe("llm_invalid_json_fallback");
     expect(result.fallbackReason).toBe("invalid_json");
   });
 
@@ -192,6 +199,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
 
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("invalid_payload");
+    expect(result.processingStrategy).toBe("llm_invalid_payload_fallback");
     expect(result.fallbackReason).toBe("invalid_payload");
   });
 
@@ -202,6 +210,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
 
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
     expect(result.source).toBe("deterministic");
+    expect(result.processingStrategy).toBe("llm_error_fallback");
     expect(result.fallbackReason).toBe("api_error");
     expect(result.errorCode).toBe("api_error");
   });
@@ -213,6 +222,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
 
     expect(result.source).toBe("llm");
     expect(result.validationStatus).toBe("valid");
+    expect(result.processingStrategy).toBe("llm_structured");
     expect(result.intent.confidence).toBe(0.42);
   });
 });
