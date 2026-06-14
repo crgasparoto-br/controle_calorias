@@ -36,6 +36,23 @@ As estratégias registradas em auditoria são:
 - `llm_invalid_payload_fallback`: LLM respondeu JSON que não passou no schema, então o backend caiu para fallback determinístico.
 - `llm_error_fallback`: provider indisponível, timeout ou erro após retries, então o backend caiu para fallback determinístico.
 
+## Schema canônico de intenções
+
+A issue #411 é representada por `server/modules/whatsapp/canonicalIntentSchema.ts`. Esse contrato define a taxonomia ampla em português e a saída estruturada versionada `whatsapp-intent-schema/v1`.
+
+O schema canônico cobre:
+
+- identificadores e modalidade de entrada: `message_id`, `input_modality`, texto original, texto normalizado, transcrição e contexto de mídia;
+- intenção, confiança, segurança e autonomia: `intent`, `confidence`, `safety_level`, `autonomy_level` e `autonomy_reason`;
+- ator e alvo: `actor_type`, `actor_id`, `target_user_id`, `professional_id`;
+- pendências e contexto: confirmação, contexto pendente, proposta pendente, período solicitado e fuso do usuário;
+- entidades e ações: itens extraídos, ações ordenadas, cálculos e recomendação de fonte;
+- esclarecimento e auditoria: opções de esclarecimento, estratégia de processamento, avisos e motivo de ambiguidade.
+
+A taxonomia inicial cobre registro/correção/exclusão alimentar, resumos, relatórios, gráficos, sugestões, perguntas de saúde, mídia, interação profissional-paciente, confirmações, seleção de opção, pendências, mensagens ambíguas e mensagens não relacionadas.
+
+O runtime atual ainda usa `intentSchema.ts` para preservar compatibilidade com o executor existente. Enquanto a #398 não migrar o roteador para consumir diretamente o contrato canônico, `buildCanonicalIntentOutputFromRuntime()` adapta a intenção runtime atual para o schema canônico e permite validar fixtures, auditoria e evolução de contrato sem trocar todo o fluxo de uma vez.
+
 ## Contrato operacional de ferramentas
 
 A issue #438 é representada inicialmente por `server/modules/whatsapp/toolContracts.ts`. O executor não recebe ferramentas livres da LLM: ele só chama serviços internos depois que a intenção estruturada foi validada e a ferramenta foi autorizada para aquela intenção.
@@ -60,8 +77,9 @@ Regras do contrato:
 ## Componentes
 
 - `server/modules/whatsapp/promptInjectionGuard.ts`: inspeção de conteúdo não confiável, bloqueio seguro e delimitação do texto enviado à LLM.
+- `server/modules/whatsapp/canonicalIntentSchema.ts`: taxonomia canônica e schema versionado de saída estruturada para #411.
 - `server/modules/whatsapp/toolContracts.ts`: catálogo de ferramentas, efeitos, intenções permitidas, validações exigidas e fallback operacional.
-- `server/modules/whatsapp/intentSchema.ts`: contrato único das intenções suportadas.
+- `server/modules/whatsapp/intentSchema.ts`: contrato runtime atual das intenções suportadas pelo executor existente.
 - `server/modules/whatsapp/intentContext.ts`: builder de contexto mínimo do usuário.
 - `server/modules/whatsapp/intentInterpreter.ts`: chamada LLM com saída JSON schema, estratégia operacional e classificador determinístico de fallback.
 - `server/modules/whatsapp/intentAuditLog.ts`: registro em memória das decisões estruturadas, incluindo estratégia, duração, modelo, ferramentas, fallback e erro.
@@ -70,13 +88,13 @@ Regras do contrato:
 
 ## Encaixe com as próximas issues da Fase 0
 
-- #411 deve ampliar a taxonomia e o schema canônico para cobrir todas as intenções da épica sem duplicar classificação local.
+- #398 deve migrar o roteador para produzir/consumir a taxonomia canônica em runtime antes do processamento nutricional.
 - #436 deve substituir thresholds soltos por níveis de autonomia por ação, risco e confiança.
 - #424 e #427 devem alimentar a etapa de normalização antes do roteador, preservando texto original, transcrição, mídia e linguagem informal.
 - #423 deve mover a idempotência de mensagem para uma proteção geral de webhook, não apenas casos pontuais.
 - #440 deve evoluir a auditoria em memória para observabilidade operacional persistente, com custo, latência por etapa, timeout e traces adequados à política de privacidade.
 
-## Intenções iniciais
+## Intenções runtime atuais
 
 - `add_foods_to_meal`
 - `replace_food_in_meal`
@@ -103,6 +121,7 @@ Regras do contrato:
 - Troca de alimento só acontece quando há correspondência segura com item da última refeição.
 - Falha de LLM, schema inválido, timeout ou provider indisponível não persiste alimento, meta, plano ou ação sensível automaticamente.
 - Ferramentas internas só podem ser usadas por intenção compatível, com validação e auditoria.
+- Alterações futuras no contrato canônico devem preservar `schema_version` ou declarar uma nova versão/migração.
 
 ## Relação com PR #309
 
@@ -120,3 +139,4 @@ A PR #309 trata fallback nutricional estimado para alimentos por imagem. Essa l�
 - fallback por JSON inválido, payload inválido e erro do provider
 - bloqueio de ferramenta incompatível com a intenção
 - auditoria das ferramentas usadas em consulta e criação de refeição
+- validação do schema canônico para mídia, datas, autonomia, ações e mensagens ambíguas
