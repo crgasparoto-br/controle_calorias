@@ -161,7 +161,7 @@ export async function normalizeWhatsappMultimodalInput(
   const classificationText = [caption, imageDescription, originalText].filter(Boolean).join(". ") || null;
   const classification = classifyImage(classificationText);
   const routerText = buildImageRouterText(classification.mediaKind, caption ?? originalText, imageDescription);
-  const needsClarification = classification.mediaKind === "ambigua" && !routerText;
+  const needsClarification = classification.mediaKind === "ambigua";
 
   return {
     inputModality: mediaInputModality(input),
