@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 export const whatsappOperationalTraceStages = [
   "normalization",
   "idempotency",
+  "conversation_context",
   "professional_access",
   "water_food_split",
   "llm_router",
@@ -185,7 +186,7 @@ export function summarizeWhatsappOperationalTraces(filter: ListWhatsappOperation
   return {
     traceCount: selected.length,
     totalDurationMs: selected.reduce((total, trace) => total + trace.totalDurationMs, 0),
-    totalEstimatedCostUsd: Number(selected.reduce((total, trace) => total + trace.totalEstimatedCostUsd, 0).toFixed(8)),
+    totalEstimatedCostUsd: Number(selected.reduce((total, trace) => trace.totalEstimatedCostUsd + total, 0).toFixed(8)),
     byStage: Object.fromEntries([...byStage.entries()].map(([stage, value]) => [stage, {
       count: value.count,
       avgDurationMs: value.count ? Math.round(value.totalDurationMs / value.count) : 0,
