@@ -276,6 +276,9 @@ function recordIntentAudit(input: {
     validationStatus: input.interpretation.validationStatus,
     action: resultAction,
     replyKind,
+    processingStrategy: input.interpretation.processingStrategy,
+    durationMs: input.interpretation.durationMs,
+    modelName: input.interpretation.modelName,
     fallbackReason: input.fallbackReason ?? input.interpretation.fallbackReason,
     errorCode: input.errorCode ?? input.interpretation.errorCode,
   });
