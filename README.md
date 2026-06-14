@@ -91,6 +91,14 @@ A sincronização lê apenas as atividades dos últimos 2 meses da API do Strava
 
 Tokens de acesso e refresh do Strava continuam restritos ao backend, são armazenados criptografados e não são expostos ao frontend.
 
+## Compatibilidade de schema em runtime
+
+O backend chama `ensureRuntimeSchemaCompatibility()` durante o startup para proteger ambientes locais ou de teste que ainda tenham bases antigas. A rotina cobre apenas compatibilidade conhecida e idempotente: colunas esperadas em `users`, `nutritionGoals`, `foodCatalog`, `mealItems` e `userProfiles`, a tabela `whatsapp_onboarding_leads` e o formato de `nutritionGoals.weekday` como `NOT NULL DEFAULT -1`.
+
+Em `NODE_ENV=production`, essa rotina opera somente em modo de verificação. Ela não executa `ALTER TABLE`, `CREATE TABLE`, `UPDATE` ou qualquer ajuste estrutural amplo. Se encontrar coluna, tabela ou formato pendente, o startup falha com uma mensagem orientando executar as migrations versionadas do Drizzle antes de iniciar o servidor.
+
+Em desenvolvimento e teste, a rotina pode aplicar esses reparos idempotentes para destravar bancos locais legados. Mudanças estruturais permanentes continuam pertencendo ao `drizzle/schema.ts` e ao fluxo de migration (`pnpm db:push` ou pipeline equivalente). Em uma base já atualizada, a validação de startup deve retornar sem itens `added`, `updated` ou `pending`.
+
 ## Qualidade e gates
 
 Comandos esperados para mudanças neste repositório:
@@ -109,6 +117,7 @@ pnpm agent:check
 Resumo do rollout:
 
 - configurar `JWT_SECRET` e `DATABASE_URL` somente no backend;
+- executar as migrations do Drizzle antes do deploy quando houver alteração de schema;
 - configurar OpenAI apenas no backend do Render ou runtime equivalente;
 - manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
 - configurar as credenciais do Strava apenas no backend;
