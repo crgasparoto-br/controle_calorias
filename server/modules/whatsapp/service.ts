@@ -13,6 +13,7 @@ import {
 } from "../../whatsappConfig";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
+import { buildWhatsappDuplicateInboundResponse, checkWhatsappInboundIdempotency } from "./idempotencyGuard";
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
@@ -111,7 +112,19 @@ function buildMultimodalClarification(normalized: Awaited<ReturnType<typeof norm
   };
 }
 
+function logDuplicateInbound(userId: number, duplicateResponse: ReturnType<typeof buildWhatsappDuplicateInboundResponse>) {
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: "warning",
+    eventType: duplicateResponse.eventType,
+    detail: duplicateResponse.detail,
+  });
+  return duplicateResponse;
+}
+
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
+  const receivedAt = new Date();
   const normalizedInput = await normalizeWhatsappMultimodalInput(input);
   logInferenceEvent({
     userId,
@@ -135,6 +148,18 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     });
   }
 
+  const idempotencyDecision = checkWhatsappInboundIdempotency({
+    userId,
+    text,
+    messageId: input.messageId,
+    eventId: input.eventId,
+    receivedAt,
+    allowIntentionalDuplicate: input.allowIntentionalDuplicate,
+  });
+  if (idempotencyDecision.duplicate) {
+    return logDuplicateInbound(userId, buildWhatsappDuplicateInboundResponse(idempotencyDecision));
+  }
+
   if (text) {
     const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
     if (professionalAccessResponse) {
@@ -155,7 +180,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     for (const waterLine of waterFoodSplit.waterLines) {
       const interpretedWater = await executeWhatsappTextIntent(userId, {
         text: waterLine.text,
-        receivedAt: new Date(),
+        receivedAt,
       });
       if (!interpretedWater) {
         throw new Error(`Não foi possível registrar a hidratação informada em "${waterLine.text}".`);
@@ -217,7 +242,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
 
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
     text,
-    receivedAt: new Date(),
+    receivedAt,
   }));
   if (llmInterpreted) {
     return llmInterpreted;
@@ -225,7 +250,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
 
   const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
     text,
-    receivedAt: new Date(),
+    receivedAt,
   }));
   if (interpreted) {
     return interpreted;
