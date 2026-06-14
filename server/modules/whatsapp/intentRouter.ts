@@ -285,6 +285,7 @@ function routeNumericAdjustmentCommand(input: RouteInput, normalized: string): W
   const removeMatch = normalized.match(/^(?:excluir|exclui|remover|remove|apagar|apaga|deletar|deleta)\s+(\d+(?:[,.]\d+)?)(?:\s+(.+))?$/);
   const correctionMatch = normalized.match(/^(?:corrigir|corrige|ajustar|ajusta|alterar|altera|era)\s+(\d+(?:[,.]\d+)?)\s*(g|kg|ml|l|gramas?|litros?)?$/);
   if (!addMatch && !removeMatch && !correctionMatch) return null;
+  if (addMatch?.[3] && /^(?:adicionar|adicione|adiciona)\b/.test(normalized)) return null;
 
   if (input.pendingContextId) {
     const intent: WhatsappCanonicalIntentName = removeMatch ? "excluir_alimento" : correctionMatch ? "corrigir_alimento" : "somar_quantidade";
