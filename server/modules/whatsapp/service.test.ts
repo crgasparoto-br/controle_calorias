@@ -39,12 +39,14 @@ vi.mock("./recordAdjustmentIntent", () => ({
   executeWhatsappRecordAdjustmentIntent: executeWhatsappRecordAdjustmentIntentMock,
 }));
 
+const { __resetWhatsappConversationContextsForTests, listWhatsappConversationContextsForTests } = await import("./conversationContext");
 const { __resetWhatsappIdempotencyForTests } = await import("./idempotencyGuard");
 const { __resetWhatsappOperationalTracesForTests, listWhatsappOperationalTraces } = await import("./operationalTrace");
 const { simulateWhatsappInbound } = await import("./service");
 
 describe("simulateWhatsappInbound", () => {
   beforeEach(() => {
+    __resetWhatsappConversationContextsForTests();
     __resetWhatsappIdempotencyForTests();
     __resetWhatsappOperationalTracesForTests();
     getAdminWhatsAppTokenStatusMock.mockReset();
@@ -243,6 +245,66 @@ describe("simulateWhatsappInbound", () => {
       status: "warning",
       intent: "record_adjustment_confirmation_needed",
     }));
+  });
+
+  it("consome resposta numerica de uma selecao pendente sem processar alimento", async () => {
+    executeWhatsappRecordAdjustmentIntentMock.mockResolvedValueOnce({
+      handled: true,
+      action: "record_adjustment_selection_needed",
+      reply: "Encontrei mais de um item possível.\n1. Arroz no almoço\n2. Arroz no jantar",
+      eventType: "whatsapp.records.adjustment_selection_needed",
+      detail: "Comando de ajuste encontrou multiplos alvos possiveis e abriu selecao segura.",
+      data: {
+        adjustmentKind: "remove_item",
+        targetFood: "arroz",
+        optionCount: 2,
+      },
+    });
+
+    const first = await simulateWhatsappInbound(42, { text: "remove arroz" });
+    const second = await simulateWhatsappInbound(42, { text: "2" });
+
+    expect(first).toEqual(expect.objectContaining({
+      action: "record_adjustment_selection_needed",
+    }));
+    expect(second).toEqual(expect.objectContaining({
+      action: "conversation_context_selection_received",
+      data: expect.objectContaining({ selectedNumber: 2 }),
+    }));
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(executeWhatsappLlmIntentMock).toHaveBeenCalledTimes(1);
+    expect(listWhatsappConversationContextsForTests()).toHaveLength(0);
+
+    const traces = listWhatsappOperationalTraces({ userId: 42 });
+    expect(traces[1].steps.find(step => step.stage === "conversation_context")).toEqual(expect.objectContaining({
+      status: "success",
+      intent: "conversation_context_selection_received",
+    }));
+  });
+
+  it("cancela confirmacao pendente sem alterar registro", async () => {
+    executeWhatsappRecordAdjustmentIntentMock.mockResolvedValueOnce({
+      handled: true,
+      action: "record_adjustment_confirmation_needed",
+      reply: "Confirme antes de eu remover: Arroz do almoço?",
+      eventType: "whatsapp.records.adjustment_confirmation_needed",
+      detail: "Remocao de alimento com alvo unico exige confirmacao antes de persistir.",
+      data: {
+        adjustmentKind: "remove_item",
+        mealId: 10,
+        itemName: "Arroz",
+      },
+    });
+
+    await simulateWhatsappInbound(42, { text: "remove arroz" });
+    const result = await simulateWhatsappInbound(42, { text: "não" });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "conversation_context_cancelled",
+      reply: expect.stringContaining("Nada foi alterado"),
+    }));
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(listWhatsappConversationContextsForTests()).toHaveLength(0);
   });
 
   it("mantem alimento valido no fallback nutricional depois do roteador canonico", async () => {
