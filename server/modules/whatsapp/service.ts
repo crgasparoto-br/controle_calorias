@@ -17,6 +17,7 @@ import { buildWhatsappDuplicateInboundResponse, checkWhatsappInboundIdempotency 
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
+import { routeWhatsappMessageBeforeNutrition } from "./intentRouter";
 import { normalizeWhatsappMultimodalInput } from "./multimodalNormalizer";
 import { recordWhatsappOperationalTraceStep, startWhatsappOperationalTrace } from "./operationalTrace";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
@@ -409,6 +410,40 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       detail: assistant.detail,
     });
     return assistant;
+  }
+
+  const routerStartedAt = Date.now();
+  const routerDecision = routeWhatsappMessageBeforeNutrition({
+    text,
+    messageId: input.messageId,
+    inputModality: normalizedInput.inputModality,
+    actorId: userId,
+    targetUserId: userId,
+  });
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "canonical_router",
+    status: routerDecision.shouldUseNutritionFallback ? "success" : "warning",
+    durationMs: elapsedSince(routerStartedAt),
+    schemaVersion: routerDecision.canonical.schema_version,
+    processingStrategy: routerDecision.canonical.processing_strategy ?? undefined,
+    intent: routerDecision.canonical.intent,
+    fallbackReason: routerDecision.reason,
+    metadata: {
+      shouldUseNutritionFallback: routerDecision.shouldUseNutritionFallback,
+      needsConfirmation: routerDecision.canonical.needs_confirmation,
+      confidence: routerDecision.canonical.confidence,
+    },
+  });
+  if (!routerDecision.shouldUseNutritionFallback && routerDecision.response) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: routerDecision.response.eventType,
+      detail: routerDecision.response.detail,
+    });
+    recordWhatsappOperationalTraceStep(trace, { stage: "response", status: "warning", durationMs: 0, fallbackReason: routerDecision.reason });
+    return routerDecision.response;
   }
 
   const mealStartedAt = Date.now();
