@@ -53,20 +53,44 @@ type WhatsappMultimodalNormalizerProviders = {
 };
 
 function cleanText(value?: string | null) {
-  const trimmed = value?.replace(/\s+/g, " ").trim();
+  const trimmed = value
+    ?.replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(line => line.replace(/[ \t\f\v]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   return trimmed || null;
 }
 
+function uniqueValues(values: string[]) {
+  return [...new Set(values.map(value => value.trim()).filter(Boolean))];
+}
+
 function normalizeRouterText(value?: string | null) {
-  const informalNormalization = normalizeWhatsappInformalText(cleanText(value));
-  const normalizedText = informalNormalization.normalizedText ? normalizeTextMeasurementUnits(informalNormalization.normalizedText) : null;
-  return {
+  const cleaned = cleanText(value);
+  if (!cleaned) {
+    const informalNormalization = normalizeWhatsappInformalText(null);
+    return { normalizedText: null, informalNormalization };
+  }
+
+  const lineResults = cleaned.split("\n").map(line => normalizeWhatsappInformalText(line));
+  const normalizedText = lineResults
+    .map(result => result.normalizedText ? normalizeTextMeasurementUnits(result.normalizedText) : null)
+    .filter((line): line is string => Boolean(line))
+    .join("\n") || null;
+
+  const informalNormalization: WhatsappInformalNormalizationResult = {
+    originalText: cleaned,
     normalizedText,
-    informalNormalization: {
-      ...informalNormalization,
-      normalizedText,
-    },
+    matches: lineResults.flatMap(result => result.matches),
+    uncertainTerms: uniqueValues(lineResults.flatMap(result => result.uncertainTerms)),
+    needsClarification: lineResults.some(result => result.needsClarification),
+    clarificationQuestion: lineResults.find(result => result.clarificationQuestion)?.clarificationQuestion ?? null,
+    candidateAliases: lineResults.flatMap(result => result.candidateAliases),
   };
+
+  return { normalizedText, informalNormalization };
 }
 
 function detectLabelText(value: string) {
