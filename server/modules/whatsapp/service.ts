@@ -11,12 +11,12 @@ import {
   getWhatsAppChannelConfig,
   normalizeWhatsAppPhoneNumber,
 } from "../../whatsappConfig";
-import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
+import { normalizeWhatsappMultimodalInput } from "./multimodalNormalizer";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
@@ -95,8 +95,37 @@ async function logAndReturnInterpretedIntent(
   return interpreted;
 }
 
+function buildMultimodalClarification(normalized: Awaited<ReturnType<typeof normalizeWhatsappMultimodalInput>>) {
+  return {
+    handled: true,
+    action: "multimodal_clarification_needed",
+    reply: normalized.clarificationQuestion ?? "Preciso de mais contexto para entender essa mídia com segurança.",
+    eventType: "whatsapp.multimodal.clarification_needed",
+    detail: normalized.historyDetail,
+    data: {
+      inputModality: normalized.inputModality,
+      mediaKind: normalized.mediaContext?.mediaKind ?? null,
+      extractionPerformed: normalized.extraction.performed,
+      extractionConfidence: normalized.extraction.confidence,
+    },
+  };
+}
+
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
-  const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
+  const normalizedInput = await normalizeWhatsappMultimodalInput(input);
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: normalizedInput.needsClarification ? "warning" : "success",
+    eventType: "whatsapp.multimodal.normalized",
+    detail: normalizedInput.historyDetail,
+  });
+
+  if (normalizedInput.needsClarification) {
+    return buildMultimodalClarification(normalizedInput);
+  }
+
+  const text = normalizedInput.routerText ?? undefined;
 
   if (text) {
     const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
