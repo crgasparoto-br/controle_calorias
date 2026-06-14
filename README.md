@@ -101,7 +101,9 @@ Em desenvolvimento e teste, a rotina pode aplicar esses reparos idempotentes par
 
 ## Qualidade e gates
 
-Comandos esperados para mudanças neste repositório:
+A política completa de validação antes de PR/merge fica em `CONTRIBUTING.md`. Use a tabela desse guia para escolher o gate mínimo por tipo de mudança.
+
+Resumo dos comandos disponíveis neste repositório:
 
 ```bash
 pnpm check
@@ -110,7 +112,10 @@ pnpm architecture:check
 pnpm docs:check
 pnpm build
 pnpm agent:check
+pnpm db:check-integrity
 ```
+
+Mudanças em áreas sensíveis, como autenticação, segredos, banco, WhatsApp, OpenAI, Strava ou fluxo nutricional, exigem `pnpm agent:check` e `pnpm build`, além de validação manual específica quando houver integração externa ou fluxo de usuário afetado.
 
 ## Rollout
 
