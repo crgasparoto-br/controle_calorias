@@ -54,6 +54,7 @@ export const whatsappCanonicalIntentNameSchema = z.enum(whatsappCanonicalIntentN
 export type WhatsappCanonicalIntentName = z.infer<typeof whatsappCanonicalIntentNameSchema>;
 
 export const whatsappInputModalitySchema = z.enum(["texto", "audio", "imagem", "imagem_com_legenda"]);
+export type WhatsappInputModality = z.infer<typeof whatsappInputModalitySchema>;
 export const whatsappSafetyLevelSchema = z.enum(["normal", "sensivel", "risco_saude", "bloqueado"]);
 export const whatsappAutonomyLevelSchema = z.enum(["automatico", "requer_confirmacao", "requer_revisao", "bloqueado"]);
 export const whatsappActorTypeSchema = z.enum(["usuario", "paciente", "profissional", "sistema", "desconhecido"]);
@@ -197,7 +198,7 @@ export function buildCanonicalIntentOutputFromRuntime(input: {
   messageId?: string | null;
   originalText?: string | null;
   normalizedText?: string | null;
-  inputModality?: z.infer<typeof whatsappInputModalitySchema>;
+  inputModality?: WhatsappInputModality;
   processingStrategy?: string | null;
   userTimezone?: string | null;
   actorId?: string | number | null;
