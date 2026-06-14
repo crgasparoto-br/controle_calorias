@@ -223,6 +223,43 @@ describe("routeWhatsappMessageBeforeNutrition", () => {
     expect(decision.canonical.intent).toBe("pergunta_sobre_qualidade_alimentar");
   });
 
+  it("roteia diabetes como pergunta medica sensivel sem registrar alimento", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "sou diabético, posso comer isso?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("sensitive_medical_safe_response");
+    expect(decision.canonical.intent).toBe("pergunta_medica_sensivel");
+    expect(decision.canonical.safety_level).toBe("sensivel");
+    expect(decision.response?.reply).toContain("avaliação profissional");
+  });
+
+  it("roteia jejum como pergunta de saude e dieta", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "posso fazer jejum?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("diet_health_safe_response");
+    expect(decision.canonical.intent).toBe("pergunta_saude_dieta");
+    expect(decision.canonical.safety_level).toBe("sensivel");
+  });
+
+  it("roteia suplemento como pergunta de saude e dieta", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "esse suplemento é bom?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("diet_health_safe_response");
+    expect(decision.canonical.intent).toBe("pergunta_saude_dieta");
+  });
+
+  it("roteia sintoma grave como possivel urgencia de saude", () => {
+    const decision = routeWhatsappMessageBeforeNutrition({ text: "minha pressão está alta, o que faço?" });
+
+    expect(decision.shouldUseNutritionFallback).toBe(false);
+    expect(decision.reason).toBe("health_urgency_safe_response");
+    expect(decision.canonical.intent).toBe("possivel_urgencia_saude");
+    expect(decision.canonical.safety_level).toBe("risco_saude");
+    expect(decision.response?.reply).toContain("atendimento imediato");
+  });
+
   it("roteia pergunta sobre alimento sem criar registro", () => {
     const decision = routeWhatsappMessageBeforeNutrition({ text: "banana tem muita caloria?" });
 
