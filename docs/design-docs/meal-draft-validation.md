@@ -12,6 +12,7 @@ A issue #412 exige que interpretacoes estruturadas da IA sejam validadas no back
 - Permitir itens legitimamente zero caloria, como agua, cafe sem acucar e refrigerante zero.
 - Validar confianca minima do item.
 - Exigir `nutritionSource` rastreavel nos itens gerados pelo motor nutricional.
+- Preencher fonte estimada rastreavel para rascunhos legados que ainda nao carreguem `nutritionSource`.
 - Exigir que estimativas estejam marcadas com `reviewRequired` antes de virarem rascunho persistido.
 - Registrar evento `meal_draft.validation_blocked` quando a validacao bloqueia o rascunho.
 
@@ -34,7 +35,7 @@ A validacao vive em `server/modules/meals/draftValidation.ts` e expõe:
 - `validateMealDraftForPersistence`, que retorna `valid` e lista de issues;
 - `assertMealDraftValidForPersistence`, que lança `MealDraftValidationError` quando o rascunho nao pode ser persistido.
 
-O serviço `processMealDraft` chama essa validacao depois de normalizar/deduplicar os itens e antes de `createPendingMealInference`.
+O serviço `processMealDraft` normaliza/deduplica os itens, preenche `nutritionSource` estimada para itens legados sem esse campo e chama a validacao antes de `createPendingMealInference`.
 
 ## Regras atuais
 
@@ -45,7 +46,7 @@ O rascunho e bloqueado quando:
 - quantidade, porcao ou gramas sao invalidos;
 - calorias/macros nao sao numeros validos ou sao negativos;
 - confianca do item fica abaixo de `0.25`;
-- falta fonte nutricional rastreavel;
+- falta fonte nutricional rastreavel apos normalizacao;
 - confianca da fonte nutricional fica abaixo de `0.25`;
 - a fonte e estimada, mas nao esta marcada para revisao.
 
