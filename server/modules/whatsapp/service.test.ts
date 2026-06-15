@@ -5,6 +5,7 @@ const getDbMock = vi.fn();
 const getUserWhatsappConnectionMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const upsertUserWhatsappConnectionMock = vi.fn();
+const listMealsMock = vi.fn();
 const processMealDraftMock = vi.fn();
 const executeWhatsappLlmIntentMock = vi.fn();
 const executeWhatsappTextIntentMock = vi.fn();
@@ -19,6 +20,7 @@ vi.mock("../../db", () => ({
 }));
 
 vi.mock("../meals/service", () => ({
+  listMeals: listMealsMock,
   processMealDraft: processMealDraftMock,
 }));
 
@@ -36,6 +38,28 @@ vi.mock("./foodAssistant", () => ({
 
 const { simulateWhatsappInbound } = await import("./service");
 
+function recentMeal() {
+  return {
+    id: 10,
+    mealLabel: "Almoço",
+    occurredAt: "2026-06-14T14:00:00.000Z",
+    notes: null,
+    items: [{
+      foodName: "Arroz branco",
+      canonicalName: "Arroz branco",
+      portionText: "100 g",
+      servings: 1,
+      estimatedGrams: 100,
+      calories: 130,
+      protein: 2.7,
+      carbs: 28,
+      fat: 0.3,
+      confidence: 0.9,
+      source: "catalog",
+    }],
+  };
+}
+
 describe("simulateWhatsappInbound", () => {
   beforeEach(() => {
     getAdminWhatsAppTokenStatusMock.mockReset();
@@ -43,11 +67,13 @@ describe("simulateWhatsappInbound", () => {
     getUserWhatsappConnectionMock.mockReset();
     logInferenceEventMock.mockReset();
     upsertUserWhatsappConnectionMock.mockReset();
+    listMealsMock.mockReset();
     processMealDraftMock.mockReset();
     executeWhatsappLlmIntentMock.mockReset();
     executeWhatsappTextIntentMock.mockReset();
     executeWhatsAppFoodAssistantIntentMock.mockReset();
     getDbMock.mockResolvedValue(null);
+    listMealsMock.mockResolvedValue([]);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     executeWhatsappTextIntentMock.mockResolvedValue(null);
     executeWhatsAppFoodAssistantIntentMock.mockReturnValue(null);
@@ -162,6 +188,28 @@ describe("simulateWhatsappInbound", () => {
       handled: true,
       action: "router_safe_response",
       reply: expect.stringContaining("em qual item"),
+    }));
+  });
+
+  it("roteia ajuste de registro para confirmacao sem criar nova refeicao", async () => {
+    listMealsMock.mockResolvedValue([recentMeal()]);
+
+    const result = await simulateWhatsappInbound(42, {
+      text: "troca arroz branco por arroz integral",
+      receivedAt: new Date("2026-06-14T15:00:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "record_adjustment_confirmation_needed",
+      reply: expect.stringContaining("trocar Arroz branco por arroz integral"),
+    }));
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      origin: "whatsapp",
+      eventType: "whatsapp.records.adjustment_confirmation_needed",
     }));
   });
 });
