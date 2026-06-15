@@ -3,6 +3,8 @@ export type NutritionSourceType =
   | "curated_catalog"
   | "official_database"
   | "internal_catalog"
+  | "trusted_retailer"
+  | "community_database"
   | "similar_product"
   | "generic_estimate"
   | "llm_estimate";
@@ -13,6 +15,8 @@ export type NutritionSourceSelectionReason =
   | "exact_brand_variation_match"
   | "brand_match_without_exact_variation"
   | "curated_or_official_unbranded_match"
+  | "trusted_retailer_source_requires_review"
+  | "community_source_requires_review"
   | "generic_fallback_used"
   | "estimated_fallback_used"
   | "critical_variation_mismatch_rejected"
@@ -61,6 +65,8 @@ const SOURCE_TYPE_WEIGHT: Record<NutritionSourceType, number> = {
   curated_catalog: 88,
   official_database: 84,
   internal_catalog: 72,
+  trusted_retailer: 66,
+  community_database: 44,
   similar_product: 58,
   generic_estimate: 36,
   llm_estimate: 28,
@@ -153,9 +159,24 @@ function classifySelection(query: NutritionSourceQuery, candidate: NutritionSour
   const brandMatched = hasBrandMatch(query, candidate);
   const nameMatched = hasNameMatch(query, candidate);
 
-  if (brandRequested && brandMatched && nameMatched && ["manufacturer_label", "curated_catalog"].includes(candidate.sourceType)) {
+  if (
+    brandRequested
+    && brandMatched
+    && nameMatched
+    && ["manufacturer_label", "curated_catalog", "official_database"].includes(candidate.sourceType)
+  ) {
     reasons.push("exact_brand_variation_match");
     return { quality: "exact", reasons };
+  }
+
+  if (brandRequested && brandMatched && candidate.sourceType === "trusted_retailer") {
+    reasons.push("trusted_retailer_source_requires_review");
+    return { quality: "similar", reasons };
+  }
+
+  if (candidate.sourceType === "community_database") {
+    reasons.push("community_source_requires_review");
+    return { quality: "needs_review", reasons };
   }
 
   if (brandRequested && brandMatched) {
