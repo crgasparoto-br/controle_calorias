@@ -6,7 +6,7 @@ export type WhatsappMultiActionSegment = {
 
 const MAX_MULTI_ACTION_SEGMENTS = 6;
 const ACTION_LEAD_PATTERN = String.raw`(?:n[aã]o\s+(?:e|é|era)|troca(?:r)?|substitui(?:r)?|corrige(?:ir)?|ajusta(?:r)?|remove(?:r)?|apaga(?:r)?|exclui(?:r)?|tira(?:r)?|adiciona(?:r)?|inclui(?:r)?|lan[cç]a(?:r)?|registra(?:r)?|coloca(?:r)?|bota(?:r)?|soma(?:r)?|desfaz(?:er)?)`;
-const ACTION_SEPARATOR_PATTERN = new RegExp(`\\s*,\\s*(?=${ACTION_LEAD_PATTERN}\\b)|\\s+e\\s+(?:depois\\s+)?(?=${ACTION_LEAD_PATTERN}\\b)|\\s*;\\s*`, "giu");
+const ACTION_SEPARATOR_PATTERN = new RegExp(`\\s*,\\s*(?=${ACTION_LEAD_PATTERN}(?:\\s|$))|\\s+e\\s+(?:depois\\s+)?(?=${ACTION_LEAD_PATTERN}(?:\\s|$))|\\s*;\\s*`, "giu");
 
 function normalizeText(value: string) {
   return value
