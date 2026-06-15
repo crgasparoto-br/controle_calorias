@@ -5,6 +5,11 @@ import { getCatalogCache } from "./catalogRuntime";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import { findTacoFood } from "./tacoLookup";
+import {
+  selectCatalogNutritionSource,
+  selectEstimatedNutritionSource,
+  type NutritionSourceMetadata,
+} from "./nutritionSourceMetadata";
 import { calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 
@@ -44,6 +49,7 @@ export type MealDraftItem = {
   fat: number;
   confidence: number;
   source: "catalog" | "hybrid" | "heuristic";
+  nutritionSource: NutritionSourceMetadata;
 };
 
 export type MealProcessingInput = {
@@ -242,6 +248,25 @@ const DEFAULT_MEAL_LABEL_BY_TIME = [
   { mealLabel: "Ceia", startTime: "23:00", endTime: "04:59" },
 ] as const;
 
+const KNOWN_NUTRITION_BRANDS = [
+  "coca cola",
+  "molico",
+  "nestle",
+  "panco",
+  "polenghi",
+  "wickbold",
+];
+
+const CRITICAL_NUTRITION_VARIATIONS = [
+  "zero",
+  "sem acucar",
+  "diet",
+  "light",
+  "integral",
+  "desnatado",
+  "tradicional",
+];
+
 const GENERIC_ESTIMATED_FOOD_REFERENCE: CatalogFood = {
   slug: "generic-food-estimate",
   name: "Alimento estimado",
@@ -287,6 +312,25 @@ function normalizeText(value: string) {
 
 function normalizeForMatching(value: string) {
   return ` ${normalizeText(value).replace(/-/g, " ").replace(/\s+/g, " ")} `;
+}
+
+function inferNutritionBrand(value: string) {
+  const normalized = normalizeText(value).replace(/-/g, " ").replace(/\s+/g, " ");
+  return KNOWN_NUTRITION_BRANDS.find(brand => normalized.includes(brand)) ?? null;
+}
+
+function inferNutritionVariation(value: string) {
+  const normalized = normalizeText(value).replace(/-/g, " ").replace(/\s+/g, " ");
+  return CRITICAL_NUTRITION_VARIATIONS.find(variation => normalized.includes(variation)) ?? null;
+}
+
+function buildNutritionSourceQuery(foodName: string, unit: string) {
+  return {
+    foodName,
+    brandName: inferNutritionBrand(foodName),
+    variation: inferNutritionVariation(foodName),
+    unit,
+  };
 }
 
 function sourceMentionsFood(sourceText: string, foodName: string) {
@@ -575,6 +619,10 @@ function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftIte
     fat: roundNutritionValue(food.fat * factor),
     confidence: clampConfidence(llmItem.confidence),
     source: "catalog",
+    nutritionSource: selectCatalogNutritionSource({
+      query: buildNutritionSourceQuery(llmItem.foodName, unit),
+      food,
+    }),
   };
 }
 
@@ -603,6 +651,11 @@ function buildHybridItem(llmItem: LlmItem): MealDraftItem {
     fat: roundNutritionValue(llmItem.estimatedMacros.fat),
     confidence: clampConfidence(llmItem.confidence),
     source: "hybrid",
+    nutritionSource: selectEstimatedNutritionSource({
+      query: buildNutritionSourceQuery(llmItem.foodName, unit),
+      foodName: llmItem.foodName,
+      sourceType: "llm_estimate",
+    }),
   };
 }
 
@@ -651,6 +704,11 @@ function buildEstimatedNutritionFallbackItem(llmItem: LlmItem, similarFood?: Cat
   return {
     ...item,
     source: "heuristic",
+    nutritionSource: selectEstimatedNutritionSource({
+      query: buildNutritionSourceQuery(llmItem.foodName, item.unit),
+      foodName: reference.name,
+      sourceType: "generic_estimate",
+    }),
   };
 }
 
@@ -722,6 +780,11 @@ function buildHeuristicItem(foodName: string): MealDraftItem {
     fat: roundNutritionValue(5 * factor),
     confidence: parsed.estimatedGrams ? 0.45 : 0.35,
     source: "heuristic",
+    nutritionSource: selectEstimatedNutritionSource({
+      query: buildNutritionSourceQuery(parsed.foodName, unit),
+      foodName: parsed.foodName,
+      sourceType: "generic_estimate",
+    }),
   };
 }
 
