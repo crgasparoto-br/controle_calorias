@@ -191,6 +191,24 @@ describe("simulateWhatsappInbound", () => {
     }));
   });
 
+  it("responde sugestao sem acionar LLM, texto ou parser nutricional", async () => {
+    const result = await simulateWhatsappInbound(42, {
+      text: "sugira um jantar leve",
+    });
+
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "router_safe_response",
+      data: expect.objectContaining({
+        canonicalIntent: "sugestao_refeicao",
+        shouldAllowNutritionFallback: false,
+      }),
+    }));
+  });
+
   it("roteia ajuste de registro para confirmacao sem criar nova refeicao", async () => {
     listMealsMock.mockResolvedValue([recentMeal()]);
 
