@@ -8,7 +8,8 @@ import { buildWhatsappAiToolTrace, runWhatsappAiTool, type WhatsappAiToolTrace }
 import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
-import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappInterpretedIntent } from "./intentSchema";
+import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
+import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const HEURISTIC_NUTRITION_PER_100G = {
@@ -17,6 +18,7 @@ const HEURISTIC_NUTRITION_PER_100G = {
   carbs: 15,
   fat: 5,
 };
+const PERSISTENT_INTENTS = ["add_foods_to_meal", "replace_food_in_meal", "edit_food_quantity"] as const satisfies readonly WhatsappIntentName[];
 
 type WhatsappLlmIntentResult = {
   handled: true;
@@ -286,6 +288,30 @@ function buildClarificationToolTrace(intent: WhatsappInterpretedIntent): Whatsap
       possibleIntentCount: intent.possibleIntents.length,
     },
   });
+}
+
+function buildBackendValidationClarification(
+  intent: WhatsappInterpretedIntent,
+  validation: WhatsappBackendValidationResult,
+): WhatsappLlmIntentResult {
+  const firstIssue = validation.issues[0];
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: firstIssue?.message
+      ?? "Preciso confirmar alguns detalhes antes de salvar essa informacao com seguranca.",
+    eventType: "whatsapp.llm_intent.clarification_needed",
+    detail: "Validacao de backend bloqueou acao persistente antes de chamar ferramentas.",
+    data: {
+      intent: intent.intent,
+      intentConfidence: intent.confidence,
+      validationStatus: validation.status,
+      errorCode: validation.errorCode ?? null,
+      autonomyOutcome: validation.autonomyDecision?.outcome ?? null,
+      issueCodes: validation.issues.map(issue => issue.code),
+    },
+    toolTrace: [buildClarificationToolTrace(intent)],
+  };
 }
 
 function recordIntentAudit(input: {
@@ -575,6 +601,10 @@ function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmInten
   };
 }
 
+function isPersistentIntent(intentName: WhatsappIntentName) {
+  return PERSISTENT_INTENTS.includes(intentName as (typeof PERSISTENT_INTENTS)[number]);
+}
+
 export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLlmIntentInput): Promise<WhatsappLlmIntentResult | null> {
   const text = input.text?.trim();
   if (!text) {
@@ -587,8 +617,8 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
   const intent = interpretation.intent;
 
-  const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string) => {
-    recordIntentAudit({ userId, text, interpretation, result, fallbackReason });
+  const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string, errorCode?: string) => {
+    recordIntentAudit({ userId, text, interpretation, result, fallbackReason, errorCode });
     return result;
   };
 
@@ -603,6 +633,20 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
 
     if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute && intent.intent !== "ambiguous") {
       return finish(null, "low_confidence");
+    }
+
+    if (isPersistentIntent(intent.intent)) {
+      const validation = validateWhatsappRuntimeIntentForPersistence({
+        intent,
+        validationStatus: interpretation.validationStatus,
+      });
+      if (!validation.valid) {
+        return finish(
+          buildBackendValidationClarification(intent, validation),
+          validation.fallbackReason,
+          validation.errorCode,
+        );
+      }
     }
 
     switch (intent.intent) {
