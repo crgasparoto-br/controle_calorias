@@ -12,6 +12,7 @@ A issue #405, subissue da #404, define como escolher a melhor fonte nutricional 
 - Permitir fallback estimado quando nao houver fonte especifica segura.
 - Retornar qualidade, confianca, origem, versao, data de revisao, indicacao de estimativa e motivos da decisao.
 - Adaptar itens do catalogo estatico e estimativas internas para o contrato do seletor.
+- Anexar `nutritionSource` aos itens gerados pelo motor nutricional, mantendo o campo legado `source`.
 
 ## Hierarquia inicial
 
@@ -34,7 +35,7 @@ O modulo `server/nutritionSourceMetadata.ts` cria candidatos rastreaveis a parti
 - itens de catalogo, tratados como `curated_catalog` quando parecem produto de marca conhecido ou `internal_catalog` quando sao genericos;
 - estimativas internas, tratadas como `generic_estimate` ou `llm_estimate`.
 
-A saida adiciona `selectedAt`, mantendo a decisao pronta para ser anexada futuramente ao `MealDraftItem` e depois persistida pelo fluxo de confirmacao.
+A saida adiciona `selectedAt` e fica anexada em cada `MealDraftItem` pelo campo `nutritionSource`.
 
 ## Variacoes criticas
 
@@ -64,8 +65,8 @@ A selecao retorna:
 - `reasons`: motivos objetivos da decisao;
 - `source`: tipo, nome, versao e data de revisao da fonte.
 
-## Caminho de integracao
+## Estado de integracao
 
-A proxima etapa deve anexar `NutritionSourceMetadata` ao fluxo de montagem do rascunho alimentar, hoje concentrado em `server/nutritionEngine.ts`, mantendo o campo legado `source` para compatibilidade.
+O motor nutricional (`server/nutritionEngine.ts`) agora retorna `nutritionSource` em itens de catalogo, itens hibridos da IA e fallbacks heuristicos. O campo legado `source` continua existindo para compatibilidade com consumidores atuais.
 
-Depois disso, #412 deve garantir que esses metadados sejam persistidos junto ao registro confirmado, e #435 podera comparar estimativas antigas com fontes confirmadas posteriormente.
+A proxima etapa de #405/#412 deve persistir esses metadados junto ao registro confirmado. Depois disso, #435 podera comparar estimativas antigas com fontes confirmadas posteriormente.
