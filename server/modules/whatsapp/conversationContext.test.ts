@@ -19,6 +19,7 @@ describe("whatsapp conversation context", () => {
       data: expect.objectContaining({
         contextUsed: false,
         pendingConsumed: false,
+        decision: "missing_context",
       }),
     }));
   });
@@ -45,10 +46,68 @@ describe("whatsapp conversation context", () => {
       data: expect.objectContaining({
         contextUsed: true,
         pendingConsumed: true,
+        clarificationQuestion: "Qual item?",
+        userResponse: "a primeira opcao",
+        decision: "option_selected",
         selectedOption: expect.objectContaining({ id: "10:0" }),
         nextPendingContext: expect.objectContaining({ kind: "confirmation" }),
       }),
     }));
+  });
+
+  it("resolve selecao por numero em confirmacao", () => {
+    registerWhatsappConversationPendingContext(42, {
+      action: "record_adjustment_selection_needed",
+      reply: "Qual item?",
+      data: {
+        options: [
+          { id: "10:0", label: "Frango grelhado", value: { mealId: 10, itemIndex: 0 } },
+          { id: "10:1", label: "Frango desfiado", value: { mealId: 10, itemIndex: 1 } },
+        ],
+      },
+    }, { text: "remove frango", receivedAt: new Date("2026-06-14T15:00:00.000Z") });
+
+    const result = resolveWhatsappConversationContext(42, {
+      text: "opção 2",
+      receivedAt: new Date("2026-06-14T15:01:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "conversation_context_option_selected",
+      data: expect.objectContaining({
+        selectedOption: expect.objectContaining({ id: "10:1" }),
+        decision: "option_selected",
+      }),
+    }));
+  });
+
+  it("encerra selecao ativa quando usuario responde nenhuma", () => {
+    registerWhatsappConversationPendingContext(42, {
+      action: "record_adjustment_selection_needed",
+      reply: "Qual item?",
+      data: {
+        options: [
+          { id: "10:0", label: "Frango grelhado", value: { mealId: 10, itemIndex: 0 } },
+          { id: "10:1", label: "Frango desfiado", value: { mealId: 10, itemIndex: 1 } },
+        ],
+      },
+    }, { text: "remove frango", receivedAt: new Date("2026-06-14T15:00:00.000Z") });
+
+    const result = resolveWhatsappConversationContext(42, {
+      text: "nenhuma",
+      receivedAt: new Date("2026-06-14T15:01:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "conversation_context_cancelled",
+      data: expect.objectContaining({
+        contextUsed: true,
+        pendingConsumed: true,
+        decision: "none_selected",
+        userResponse: "nenhuma",
+      }),
+    }));
+    expect(getWhatsappConversationPendingContext(42)).toBeNull();
   });
 
   it("consome confirmacao ativa sem fallback alimentar", () => {
@@ -68,6 +127,7 @@ describe("whatsapp conversation context", () => {
       data: expect.objectContaining({
         contextUsed: true,
         pendingConsumed: true,
+        decision: "confirmed",
         target: expect.objectContaining({ mealId: 10 }),
       }),
     }));
@@ -95,6 +155,7 @@ describe("whatsapp conversation context", () => {
       data: expect.objectContaining({
         contextUsed: false,
         pendingExpired: true,
+        decision: "expired",
       }),
     }));
   });
