@@ -3,6 +3,16 @@ import type { WhatsappIntentName, WhatsappInterpretedIntent } from "./intentSche
 
 export type WhatsappIntentValidationStatus = "valid" | "invalid_json" | "invalid_payload" | "skipped";
 
+export type WhatsappIntentProcessingStrategy = "deterministic" | "llm_structured" | "safe_fallback";
+
+export type WhatsappIntentOperationalTrace = {
+  strategy: WhatsappIntentProcessingStrategy;
+  modelName: string | null;
+  latencyMs: number;
+  estimatedCostUnits: number;
+  fallbackReason?: string;
+};
+
 export type WhatsappIntentAuditLogEntry = {
   id: number;
   createdAt: string;
@@ -22,6 +32,7 @@ export type WhatsappIntentAuditLogEntry = {
     requiresConfirmation: boolean;
     possibleIntents: WhatsappIntentName[];
   };
+  operationalTrace: WhatsappIntentOperationalTrace;
   validationStatus: WhatsappIntentValidationStatus;
   action: string;
   replyKind: "executed" | "clarification" | "fallback" | "none";
@@ -37,6 +48,7 @@ type RecordWhatsappIntentAuditLogInput = {
   validationStatus: WhatsappIntentValidationStatus;
   action: string;
   replyKind: WhatsappIntentAuditLogEntry["replyKind"];
+  operationalTrace?: Partial<WhatsappIntentOperationalTrace>;
   fallbackReason?: string;
   errorCode?: string;
   createdAt?: Date;
@@ -47,6 +59,7 @@ type ListWhatsappIntentAuditLogsFilter = {
   hasError?: boolean;
   lowConfidence?: boolean;
   fallbackReason?: string;
+  strategy?: WhatsappIntentProcessingStrategy;
 };
 
 const MAX_AUDIT_LOG_ENTRIES = 500;
@@ -71,6 +84,18 @@ function buildPayloadSummary(intent: WhatsappInterpretedIntent): WhatsappIntentA
   };
 }
 
+function buildOperationalTrace(input: RecordWhatsappIntentAuditLogInput): WhatsappIntentOperationalTrace {
+  return {
+    strategy: input.operationalTrace?.strategy ?? "deterministic",
+    modelName: input.operationalTrace?.modelName ?? null,
+    latencyMs: Math.max(0, Math.round(input.operationalTrace?.latencyMs ?? 0)),
+    estimatedCostUnits: Math.max(0, Number(input.operationalTrace?.estimatedCostUnits ?? 0)),
+    ...(input.operationalTrace?.fallbackReason || input.fallbackReason
+      ? { fallbackReason: input.operationalTrace?.fallbackReason ?? input.fallbackReason }
+      : {}),
+  };
+}
+
 export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLogInput) {
   const entry: WhatsappIntentAuditLogEntry = {
     id: nextEntryId,
@@ -82,6 +107,7 @@ export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLog
     intent: input.intent.intent,
     confidence: input.intent.confidence,
     payloadSummary: buildPayloadSummary(input.intent),
+    operationalTrace: buildOperationalTrace(input),
     validationStatus: input.validationStatus,
     action: input.action,
     replyKind: input.replyKind,
@@ -106,6 +132,7 @@ export function listWhatsappIntentAuditLogs(filter: ListWhatsappIntentAuditLogsF
     }
     if (filter.lowConfidence && entry.confidence >= LOW_CONFIDENCE_THRESHOLD) return false;
     if (filter.fallbackReason && entry.fallbackReason !== filter.fallbackReason) return false;
+    if (filter.strategy && entry.operationalTrace.strategy !== filter.strategy) return false;
     return true;
   });
 }
