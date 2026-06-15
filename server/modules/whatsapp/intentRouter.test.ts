@@ -128,15 +128,25 @@ describe("evaluateWhatsappIntentRoute", () => {
     expect(route.data.pendingContextKind).toBe("selection");
   });
 
-  it("roteia resumo e relatorio para fluxo proprio sem fallback alimentar", () => {
-    expect(evaluateWhatsappIntentRoute({ text: "resuma meu dia" })).toEqual(expect.objectContaining({
+  it("roteia resumo do dia para fluxo de consulta sem fallback alimentar", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "resuma meu dia" });
+
+    expect(route).toEqual(expect.objectContaining({
       action: "continue_pipeline",
-      canonicalIntent: "resumo_periodo",
+      canonicalIntent: "resumo_dia",
       shouldAllowNutritionFallback: false,
     }));
+  });
+
+  it("responde relatorio e resumo de periodo com fallback seguro sem parser nutricional", () => {
     expect(evaluateWhatsappIntentRoute({ text: "relatório da semana" })).toEqual(expect.objectContaining({
-      action: "continue_pipeline",
+      action: "safe_non_food_response",
       canonicalIntent: "gerar_relatorio",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(evaluateWhatsappIntentRoute({ text: "resumo do mês" })).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "resumo_periodo",
       shouldAllowNutritionFallback: false,
     }));
   });
@@ -151,12 +161,43 @@ describe("evaluateWhatsappIntentRoute", () => {
     }));
   });
 
-  it("roteia sugestao para fluxo proprio sem fallback alimentar", () => {
-    const route = evaluateWhatsappIntentRoute({ text: "me sugira um lanche da tarde" });
+  it("roteia consulta de historico para fluxo proprio sem fallback alimentar", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "o que eu comi hoje?" });
 
     expect(route).toEqual(expect.objectContaining({
       action: "continue_pipeline",
+      canonicalIntent: "consulta_historico",
+      shouldAllowNutritionFallback: false,
+    }));
+  });
+
+  it("responde sugestao de refeicao e alimento sem registrar comida", () => {
+    expect(evaluateWhatsappIntentRoute({ text: "me sugira um jantar leve" })).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
       canonicalIntent: "sugestao_refeicao",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(evaluateWhatsappIntentRoute({ text: "sugira um ingrediente para o lanche" })).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "sugestao_alimento",
+      shouldAllowNutritionFallback: false,
+    }));
+  });
+
+  it("classifica perguntas sobre meta, evolucao e qualidade alimentar", () => {
+    expect(evaluateWhatsappIntentRoute({ text: "como estou em relação à meta?" })).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "pergunta_sobre_meta",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(evaluateWhatsappIntentRoute({ text: "como está minha evolução?" })).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "pergunta_sobre_evolucao",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(evaluateWhatsappIntentRoute({ text: "a qualidade da minha alimentação está boa?" })).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "pergunta_sobre_qualidade_alimentar",
       shouldAllowNutritionFallback: false,
     }));
   });
@@ -169,6 +210,17 @@ describe("evaluateWhatsappIntentRoute", () => {
       canonicalIntent: "pergunta_sobre_alimento",
       shouldAllowNutritionFallback: false,
     }));
+  });
+
+  it("pede esclarecimento quando registro e analise aparecem juntos", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "adicione 100g de arroz e gere um relatório" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "safe_clarification",
+      canonicalIntent: "mensagem_ambigua",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.data.possibleIntents).toEqual(expect.arrayContaining(["registrar_alimento", "gerar_relatorio"]));
   });
 
   it("pede esclarecimento para mensagem ambigua", () => {
