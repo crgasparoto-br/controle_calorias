@@ -1,4 +1,9 @@
 import { listMeals } from "../meals/service";
+import {
+  buildWhatsappClarificationOptionsData,
+  buildWhatsappClarificationPrompt,
+  type WhatsappClarificationOption,
+} from "./clarificationOptions";
 
 type WhatsappRecordAdjustmentInput = {
   text?: string | null;
@@ -19,12 +24,6 @@ type WhatsappRecordAdjustmentResult = {
 
 type ExistingMeal = Awaited<ReturnType<typeof listMeals>>[number];
 type ExistingMealItem = NonNullable<ExistingMeal["items"]>[number];
-
-type ClarificationOption = {
-  id: string;
-  label: string;
-  value: Record<string, unknown>;
-};
 
 type AdjustmentIntent =
   | { kind: "quantity"; quantity: number; unit: string }
@@ -62,16 +61,6 @@ function formatMealDate(value: ExistingMeal["occurredAt"]) {
 
 function getItemName(item: ExistingMealItem) {
   return item.foodName || item.canonicalName || "item";
-}
-
-function buildOptionsPrompt(question: string, options: ClarificationOption[]) {
-  return [
-    question,
-    "",
-    ...options.map((option, index) => `${index + 1}. ${option.label}`),
-    "",
-    "Responda com o número da opção.",
-  ].join("\n");
 }
 
 function getRecentMeals(meals: ExistingMeal[], receivedAt: Date) {
@@ -160,10 +149,11 @@ function buildNoRecentMealResponse(intent: AdjustmentIntent): WhatsappRecordAdju
 }
 
 function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof findItemCandidates>, kind: AdjustmentIntent["kind"]): WhatsappRecordAdjustmentResult {
-  const options: ClarificationOption[] = candidates.slice(0, 5).map((candidate, index) => ({
+  const options: WhatsappClarificationOption[] = candidates.slice(0, 5).map((candidate) => ({
     id: `${candidate.meal.id}:${candidate.itemIndex}`,
     label: `${getItemName(candidate.item)} em ${candidate.meal.mealLabel} (${formatMealDate(candidate.meal.occurredAt)})`,
     value: {
+      adjustmentKind: kind,
       mealId: candidate.meal.id,
       mealLabel: candidate.meal.mealLabel,
       itemIndex: candidate.itemIndex,
@@ -173,14 +163,17 @@ function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof 
   return {
     handled: true,
     action: "record_adjustment_selection_needed",
-    reply: buildOptionsPrompt(`Encontrei mais de um item possivel para "${targetFood}". Qual deles devo usar?`, options),
+    reply: buildWhatsappClarificationPrompt({
+      question: `Encontrei mais de um item possível para "${targetFood}". Qual deles devo usar?`,
+      options,
+    }),
     eventType: "whatsapp.records.adjustment_selection_needed",
     detail: "Comando de ajuste encontrou multiplos alvos possiveis e abriu selecao segura.",
     data: {
       adjustmentKind: kind,
       targetFood,
-      optionCount: options.length,
-      options,
+      clarificationQuestion: `Encontrei mais de um item possível para "${targetFood}". Qual deles devo usar?`,
+      ...buildWhatsappClarificationOptionsData(options),
     },
   };
 }
