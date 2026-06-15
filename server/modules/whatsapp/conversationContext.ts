@@ -84,15 +84,16 @@ function isContextualShortMessage(text: string) {
 function normalizeOptions(value: unknown, optionCount: number): WhatsappClarificationOption[] {
   if (Array.isArray(value)) {
     const options = value
-      .map((option, index) => {
+      .map((option, index): WhatsappClarificationOption | null => {
         if (!option || typeof option !== "object") return null;
         const candidate = option as { id?: unknown; label?: unknown; value?: unknown };
         if (typeof candidate.label !== "string" || !candidate.label.trim()) return null;
-        return {
+        const normalizedOption: WhatsappClarificationOption = {
           id: typeof candidate.id === "string" && candidate.id.trim() ? candidate.id : String(index + 1),
           label: candidate.label.trim(),
           ...(candidate.value == null ? {} : { value: candidate.value }),
         };
+        return normalizedOption;
       })
       .filter((option): option is WhatsappClarificationOption => Boolean(option));
     if (options.length) return options.slice(0, 10);
@@ -259,10 +260,9 @@ export function registerWhatsappConversationContextFromResult(userId: number, in
       kind: "selection",
       originalText: input.text,
       options,
-      now: input.receivedAt,
       metadata: {
-        sourceAction: input.result.action,
-        adjustmentKind: input.result.data?.adjustmentKind ?? null,
+        action: input.result.action,
+        receivedAt: (input.receivedAt ?? new Date()).toISOString(),
       },
     });
   }
@@ -272,23 +272,14 @@ export function registerWhatsappConversationContextFromResult(userId: number, in
       userId,
       kind: "confirmation",
       originalText: input.text,
-      options: [
-        { id: "confirm", label: "Confirmar" },
-        { id: "cancel", label: "Cancelar" },
-      ],
-      now: input.receivedAt,
       metadata: {
-        sourceAction: input.result.action,
-        adjustmentKind: input.result.data?.adjustmentKind ?? null,
+        action: input.result.action,
+        receivedAt: (input.receivedAt ?? new Date()).toISOString(),
       },
     });
   }
 
   return null;
-}
-
-export function listWhatsappConversationContextsForTests() {
-  return [...contexts];
 }
 
 export function __resetWhatsappConversationContextsForTests() {
