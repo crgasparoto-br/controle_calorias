@@ -64,6 +64,10 @@ function isAffirmative(text: string) {
   return /^(?:s|sim|ok|confirmo|confirmar|pode|pode sim|isso|certo)$/.test(text);
 }
 
+function isNone(text: string) {
+  return /^(?:0|nenhuma|nenhum|nenhuma dessas|nenhum desses|nao e nenhuma|não é nenhuma|nao e nenhum|não é nenhum)$/.test(text);
+}
+
 function isNegative(text: string) {
   return /^(?:n|nao|não|negativo|cancela|cancelar|nao confirma|não confirma)$/.test(text);
 }
@@ -73,6 +77,7 @@ function isCancel(text: string) {
 }
 
 function parseSelectionIndex(text: string) {
+  if (isNone(text)) return -1;
   const numberMatch = text.match(/^(?:opcao\s*)?(\d+)$/);
   if (numberMatch) return Number(numberMatch[1]) - 1;
   if (/^(?:a\s+)?primeira(?:\s+opcao)?$/.test(text)) return 0;
@@ -86,7 +91,8 @@ function isShortContextReply(text: string) {
     || parseSelectionIndex(text) !== null
     || isAffirmative(text)
     || isNegative(text)
-    || isCancel(text);
+    || isCancel(text)
+    || isNone(text);
 }
 
 function buildContextResult(input: {
@@ -117,6 +123,20 @@ function getPending(userId: number, receivedAt?: Date) {
     return "expired" as const;
   }
   return pending;
+}
+
+function buildPendingAuditData(pending: WhatsappConversationPendingContext, text: string) {
+  return {
+    pendingId: pending.id,
+    pendingKind: pending.kind,
+    clarificationQuestion: pending.sourceMessage,
+    presentedOptions: pending.options.map((option, index) => ({
+      index: index + 1,
+      id: option.id,
+      label: option.label,
+    })),
+    userResponse: text,
+  };
 }
 
 export function clearWhatsappConversationContext(userId?: number) {
@@ -170,7 +190,7 @@ export function registerWhatsappConversationPendingContext(
     kind,
     userId,
     sourceAction: source.action,
-    sourceMessage: input.text?.trim() || source.reply,
+    sourceMessage: source.reply || input.text?.trim() || source.action,
     createdAt,
     expiresAt: createdAt + ttlMs,
     options,
@@ -194,7 +214,7 @@ export function resolveWhatsappConversationContext(
       action: "conversation_context_clarification_needed",
       reply: "A pendência anterior expirou. Envie novamente o item, a opção ou o ajuste completo para eu continuar com segurança.",
       detail: "Mensagem dependente de contexto chegou depois da expiracao da pendencia.",
-      data: { contextUsed: false, pendingExpired: true },
+      data: { contextUsed: false, pendingExpired: true, userResponse: text, decision: "expired" },
     });
   }
 
@@ -204,7 +224,7 @@ export function resolveWhatsappConversationContext(
       action: "conversation_context_clarification_needed",
       reply: "Não encontrei uma pendência ativa para essa resposta. Envie o alimento, ajuste ou opção completa.",
       detail: "Mensagem curta ou referencial sem contexto ativo foi bloqueada antes do fallback alimentar.",
-      data: { contextUsed: false, pendingConsumed: false },
+      data: { contextUsed: false, pendingConsumed: false, userResponse: text, decision: "missing_context" },
     });
   }
 
@@ -214,18 +234,43 @@ export function resolveWhatsappConversationContext(
       action: "conversation_context_cancelled",
       reply: "Pendência cancelada. Não alterei nenhum registro.",
       detail: "Usuario cancelou pendencia conversacional ativa.",
-      data: { contextUsed: true, pendingConsumed: true, pendingId: pending.id, pendingKind: pending.kind },
+      data: {
+        contextUsed: true,
+        pendingConsumed: true,
+        ...buildPendingAuditData(pending, text),
+        decision: "cancelled",
+      },
     });
   }
 
   if (pending.kind === "selection") {
     const optionIndex = parseSelectionIndex(text);
+    if (optionIndex === -1 || isNone(text)) {
+      pendingByUser.delete(userId);
+      return buildContextResult({
+        action: "conversation_context_cancelled",
+        reply: "Tudo bem, não alterei nenhum registro. Envie o ajuste completo se quiser tentar de outro jeito.",
+        detail: "Usuario indicou que nenhuma opcao apresentada resolvia a pendencia.",
+        data: {
+          contextUsed: true,
+          pendingConsumed: true,
+          ...buildPendingAuditData(pending, text),
+          decision: "none_selected",
+        },
+      });
+    }
+
     if (optionIndex === null) {
       return buildContextResult({
         action: "conversation_context_clarification_needed",
-        reply: "Tenho uma lista pendente. Responda com o número da opção ou envie 'cancela'.",
+        reply: "Tenho uma lista pendente. Responda com o número da opção, 'nenhuma' ou 'cancela'.",
         detail: "Pendencia de selecao recebeu resposta sem opcao valida.",
-        data: { contextUsed: true, pendingConsumed: false, pendingId: pending.id, pendingKind: pending.kind },
+        data: {
+          contextUsed: true,
+          pendingConsumed: false,
+          ...buildPendingAuditData(pending, text),
+          decision: "invalid_selection_response",
+        },
       });
     }
 
@@ -233,9 +278,15 @@ export function resolveWhatsappConversationContext(
     if (!option) {
       return buildContextResult({
         action: "conversation_context_clarification_needed",
-        reply: `Essa opção não está na lista. Responda de 1 a ${pending.options.length}, ou envie 'cancela'.`,
+        reply: `Essa opção não está na lista. Responda de 1 a ${pending.options.length}, envie 'nenhuma' ou envie 'cancela'.`,
         detail: "Pendencia de selecao recebeu indice fora das opcoes validas.",
-        data: { contextUsed: true, pendingConsumed: false, pendingId: pending.id, pendingKind: pending.kind, optionIndex: optionIndex + 1 },
+        data: {
+          contextUsed: true,
+          pendingConsumed: false,
+          ...buildPendingAuditData(pending, text),
+          optionIndex: optionIndex + 1,
+          decision: "invalid_selection_index",
+        },
       });
     }
 
@@ -247,8 +298,8 @@ export function resolveWhatsappConversationContext(
       data: {
         contextUsed: true,
         pendingConsumed: true,
-        pendingId: pending.id,
-        pendingKind: pending.kind,
+        ...buildPendingAuditData(pending, text),
+        decision: "option_selected",
         selectedOption: option,
         nextPendingContext: {
           kind: "confirmation",
@@ -265,17 +316,29 @@ export function resolveWhatsappConversationContext(
         action: "conversation_context_confirmation_accepted",
         reply: "Confirmação recebida. Mantive a ação em modo seguro; a alteração definitiva será aplicada quando o fluxo de execução de pendências estiver disponível.",
         detail: "Confirmacao de pendencia conversacional consumida sem acionar fallback alimentar.",
-        data: { contextUsed: true, pendingConsumed: true, pendingId: pending.id, pendingKind: pending.kind, target: pending.target },
+        data: {
+          contextUsed: true,
+          pendingConsumed: true,
+          ...buildPendingAuditData(pending, text),
+          decision: "confirmed",
+          target: pending.target,
+        },
       });
     }
 
-    if (isNegative(text)) {
+    if (isNegative(text) || isNone(text)) {
       pendingByUser.delete(userId);
       return buildContextResult({
         action: "conversation_context_confirmation_rejected",
         reply: "Tudo bem, não alterei nenhum registro.",
         detail: "Usuario rejeitou pendencia conversacional ativa.",
-        data: { contextUsed: true, pendingConsumed: true, pendingId: pending.id, pendingKind: pending.kind, target: pending.target },
+        data: {
+          contextUsed: true,
+          pendingConsumed: true,
+          ...buildPendingAuditData(pending, text),
+          decision: "rejected",
+          target: pending.target,
+        },
       });
     }
 
@@ -283,7 +346,12 @@ export function resolveWhatsappConversationContext(
       action: "conversation_context_clarification_needed",
       reply: "Tenho uma confirmação pendente. Responda com 'sim', 'não' ou 'cancela'.",
       detail: "Pendencia de confirmacao recebeu resposta sem confirmacao valida.",
-      data: { contextUsed: true, pendingConsumed: false, pendingId: pending.id, pendingKind: pending.kind },
+      data: {
+        contextUsed: true,
+        pendingConsumed: false,
+        ...buildPendingAuditData(pending, text),
+        decision: "invalid_confirmation_response",
+      },
     });
   }
 
