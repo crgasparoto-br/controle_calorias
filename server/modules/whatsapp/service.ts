@@ -22,6 +22,7 @@ import { buildWhatsappDuplicateInboundResponse, checkWhatsappInboundIdempotency 
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
+import { detectWhatsappMultiActionSegments, type WhatsappMultiActionSegment } from "./multiAction";
 import { routeWhatsappMessageBeforeNutrition } from "./intentRouter";
 import { normalizeWhatsappMultimodalInput } from "./multimodalNormalizer";
 import { recordWhatsappOperationalTraceStep, startWhatsappOperationalTrace } from "./operationalTrace";
@@ -152,6 +153,231 @@ function registerConversationContext(userId: number, text: string, receivedAt: D
     });
   }
   return pendingContext;
+}
+
+type WhatsappPipelineLikeResult = {
+  action?: unknown;
+  reply?: unknown;
+  eventType?: unknown;
+  detail?: unknown;
+  data?: unknown;
+  draftId?: unknown;
+};
+
+type WhatsappMultiActionItemResult = {
+  index: number;
+  text: string;
+  action: string;
+  status: "success" | "warning";
+  reply: string;
+  eventType: string;
+  detail: string;
+  data: Record<string, unknown> | null;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function summarizeActionResult(segment: WhatsappMultiActionSegment, result: unknown): WhatsappMultiActionItemResult {
+  const candidate = (isRecord(result) ? result : {}) as WhatsappPipelineLikeResult;
+  const action = typeof candidate.action === "string" ? candidate.action : "meal_logged";
+  const eventType = typeof candidate.eventType === "string" ? candidate.eventType : "whatsapp.multi_action.meal_logged";
+  const detail = typeof candidate.detail === "string" ? candidate.detail : "Trecho de multi-ação encaminhado para processamento nutricional.";
+  const data = isRecord(candidate.data) ? candidate.data : null;
+  const status = /(?:clarification|confirmation|selection)_needed$/.test(action) || action === "router_clarification_needed" ? "warning" : "success";
+  const reply = typeof candidate.reply === "string" && candidate.reply.trim()
+    ? candidate.reply.trim()
+    : action === "meal_logged"
+      ? "Encaminhei este item para revisão da refeição."
+      : "Ação interpretada com segurança.";
+
+  return {
+    index: segment.index,
+    text: segment.text,
+    action,
+    status,
+    reply,
+    eventType,
+    detail,
+    data,
+  };
+}
+
+function shouldOpenConversationContextForMultiAction(action: string) {
+  return action.endsWith("_selection_needed") || action.endsWith("_confirmation_needed");
+}
+
+function buildMultiActionReply(results: WhatsappMultiActionItemResult[], pendingContextCount: number) {
+  const lines = results.map(result => {
+    if (result.action === "meal_logged") {
+      return `${result.index}. ${result.text}: encaminhei para revisão da refeição.`;
+    }
+    if (result.action.endsWith("_confirmation_needed")) {
+      return `${result.index}. ${result.text}: precisa de confirmação antes de alterar.`;
+    }
+    if (result.action.endsWith("_selection_needed")) {
+      return `${result.index}. ${result.text}: preciso que você escolha uma opção.`;
+    }
+    if (result.status === "warning") {
+      return `${result.index}. ${result.text}: preciso de mais uma informação.`;
+    }
+    return `${result.index}. ${result.text}: concluído.`;
+  });
+
+  const suffix = pendingContextCount > 1
+    ? "\n\nAlgumas ações precisam de confirmação ou escolha. Envie cada confirmação separadamente para eu não alterar o alvo errado."
+    : "";
+  return [`Processei ${results.length} ações da sua mensagem:`, ...lines].join("\n") + suffix;
+}
+
+async function processWhatsappMultiActionSegments(input: {
+  userId: number;
+  text: string;
+  receivedAt: Date;
+  segments: WhatsappMultiActionSegment[];
+  trace: ReturnType<typeof startWhatsappOperationalTrace>;
+  originalInput: SimulateWhatsappInboundInput;
+  normalizedInput: Awaited<ReturnType<typeof normalizeWhatsappMultimodalInput>>;
+  activeContext: ReturnType<typeof getActiveWhatsappConversationContext>;
+}) {
+  const results: WhatsappMultiActionItemResult[] = [];
+  const contextCandidates: { text: string; result: WhatsappMultiActionItemResult }[] = [];
+
+  for (const segment of input.segments) {
+    const recordAdjustmentStartedAt = Date.now();
+    const recordAdjustment = await executeWhatsappRecordAdjustmentIntent(input.userId, {
+      text: segment.text,
+      receivedAt: input.receivedAt,
+    });
+    recordWhatsappOperationalTraceStep(input.trace, {
+      stage: "record_adjustment",
+      status: recordAdjustment ? "warning" : "fallback",
+      durationMs: elapsedSince(recordAdjustmentStartedAt),
+      intent: recordAdjustment?.action,
+      fallbackReason: recordAdjustment ? "multi_action_record_adjustment" : "record_adjustment_not_handled",
+      metadata: {
+        multiActionIndex: segment.index,
+      },
+    });
+
+    if (recordAdjustment) {
+      logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: getWhatsAppIntentLogStatus(recordAdjustment.action),
+        eventType: recordAdjustment.eventType,
+        detail: recordAdjustment.detail,
+      });
+      const summarized = summarizeActionResult(segment, recordAdjustment);
+      results.push(summarized);
+      if (shouldOpenConversationContextForMultiAction(summarized.action)) {
+        contextCandidates.push({ text: segment.text, result: summarized });
+      }
+      continue;
+    }
+
+    const routerStartedAt = Date.now();
+    const routerDecision = routeWhatsappMessageBeforeNutrition({
+      text: segment.text,
+      messageId: input.originalInput.messageId,
+      inputModality: input.normalizedInput.inputModality,
+      pendingContextId: input.activeContext?.id,
+      pendingContextKind: input.activeContext?.kind,
+      actorId: input.userId,
+      targetUserId: input.userId,
+    });
+    recordWhatsappOperationalTraceStep(input.trace, {
+      stage: "canonical_router",
+      status: routerDecision.shouldUseNutritionFallback ? "success" : "warning",
+      durationMs: elapsedSince(routerStartedAt),
+      schemaVersion: routerDecision.canonical.schema_version,
+      processingStrategy: routerDecision.canonical.processing_strategy ?? undefined,
+      intent: routerDecision.canonical.intent,
+      fallbackReason: routerDecision.reason,
+      metadata: {
+        multiActionIndex: segment.index,
+        shouldUseNutritionFallback: routerDecision.shouldUseNutritionFallback,
+        needsConfirmation: routerDecision.canonical.needs_confirmation,
+        confidence: routerDecision.canonical.confidence,
+      },
+    });
+
+    if (!routerDecision.shouldUseNutritionFallback && routerDecision.response) {
+      logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: routerDecision.response.eventType,
+        detail: routerDecision.response.detail,
+      });
+      results.push(summarizeActionResult(segment, routerDecision.response));
+      continue;
+    }
+
+    const mealStartedAt = Date.now();
+    const meal = await processMealDraft(input.userId, { source: "whatsapp", text: segment.text });
+    recordWhatsappOperationalTraceStep(input.trace, {
+      stage: "nutrition_persistence",
+      status: "success",
+      durationMs: elapsedSince(mealStartedAt),
+      toolNames: ["meal_create"],
+      metadata: {
+        multiActionIndex: segment.index,
+      },
+    });
+    results.push(summarizeActionResult(segment, meal));
+  }
+
+  let pendingContext = null;
+  if (contextCandidates.length === 1) {
+    pendingContext = registerConversationContext(input.userId, contextCandidates[0].text, input.receivedAt, contextCandidates[0].result);
+    if (pendingContext) {
+      recordWhatsappOperationalTraceStep(input.trace, {
+        stage: "conversation_context",
+        status: "success",
+        durationMs: 0,
+        intent: "context_registered",
+        metadata: {
+          contextKind: pendingContext.kind,
+          optionCount: pendingContext.options.length,
+        },
+      });
+    }
+  }
+
+  const warningCount = results.filter(result => result.status === "warning").length;
+  const response = {
+    handled: true,
+    action: "multi_action_processed",
+    reply: buildMultiActionReply(results, contextCandidates.length),
+    eventType: "whatsapp.multi_action.processed",
+    detail: `Mensagem do WhatsApp decomposta em ${results.length} ações; ${warningCount} exigem confirmação, escolha ou esclarecimento.`,
+    data: {
+      actionCount: results.length,
+      warningCount,
+      pendingContextCount: contextCandidates.length,
+      pendingContextRegistered: Boolean(pendingContext),
+      actions: results.map(result => ({
+        index: result.index,
+        text: result.text,
+        action: result.action,
+        status: result.status,
+        eventType: result.eventType,
+        detail: result.detail,
+        data: result.data,
+      })),
+    },
+  };
+
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "whatsapp",
+    status: warningCount ? "warning" : "success",
+    eventType: response.eventType,
+    detail: response.detail,
+  });
+  return response;
 }
 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
@@ -333,6 +559,38 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       eventType: "whatsapp.time_reference.resolved",
       detail: timeReference.historyDetail,
     });
+  }
+
+  const multiActionStartedAt = Date.now();
+  const multiActionSegments = detectWhatsappMultiActionSegments(text);
+  recordWhatsappOperationalTraceStep(trace, {
+    stage: "multi_action",
+    status: multiActionSegments ? "success" : "skipped",
+    durationMs: elapsedSince(multiActionStartedAt),
+    ruleVersion: "whatsapp-multi-action-v1",
+    fallbackReason: multiActionSegments ? undefined : "single_action_message",
+    metadata: {
+      actionCount: multiActionSegments?.length ?? 1,
+    },
+  });
+  if (multiActionSegments) {
+    const multiActionResult = await processWhatsappMultiActionSegments({
+      userId,
+      text,
+      receivedAt,
+      segments: multiActionSegments,
+      trace,
+      originalInput: input,
+      normalizedInput,
+      activeContext,
+    });
+    recordWhatsappOperationalTraceStep(trace, {
+      stage: "response",
+      status: multiActionResult.data.warningCount ? "warning" : "success",
+      durationMs: 0,
+      fallbackReason: multiActionResult.data.warningCount ? "multi_action_partial_confirmation" : undefined,
+    });
+    return multiActionResult;
   }
 
   const waterFoodStartedAt = Date.now();
