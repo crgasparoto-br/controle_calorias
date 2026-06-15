@@ -13,7 +13,7 @@ function buildItem(overrides: Partial<MealDraftItem> = {}): MealDraftItem {
     estimatedGrams: 350,
     calories: 0,
     protein: 0,
-    carbs: 0.1,
+    carbs: 0,
     fat: 0,
     confidence: 0.82,
     source: "catalog",
@@ -42,7 +42,7 @@ function buildItem(overrides: Partial<MealDraftItem> = {}): MealDraftItem {
 }
 
 describe("validateMealDraftForPersistence", () => {
-  it("aceita item estruturado com fonte nutricional rastreavel", () => {
+  it("aceita item estruturado com fonte nutricional rastreavel mesmo quando macros sao zero", () => {
     const validation = validateMealDraftForPersistence({ items: [buildItem()] });
 
     expect(validation).toEqual({
@@ -55,6 +55,8 @@ describe("validateMealDraftForPersistence", () => {
     const validation = validateMealDraftForPersistence({
       items: [buildItem({
         source: "heuristic",
+        calories: 150,
+        carbs: 15,
         nutritionSource: {
           candidate: {
             id: "generic_estimate:item",
@@ -109,7 +111,7 @@ describe("validateMealDraftForPersistence", () => {
     const validation = validateMealDraftForPersistence({
       items: [buildItem({
         nutritionSource: {
-          ...buildItem().nutritionSource,
+          ...buildItem().nutritionSource!,
           quality: "estimated",
           isEstimate: true,
           reviewRequired: false,
