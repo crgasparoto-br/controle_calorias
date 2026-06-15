@@ -40,6 +40,7 @@ const SHORT_CONFIRMATION = /^(?:s|sim|nao|não|ok|certo|confirmo|cancelar|cancel
 const ISOLATED_NUMBER = /^\d+(?:[,.]\d+)?$/;
 const OPTION_SELECTION = /^(?:opcao\s*)?\d+$/;
 const MATH_WITH_UNIT = /^\s*\d+(?:[,.]\d+)?(?:\s*[+\-*/]\s*\d+(?:[,.]\d+)?)+\s*(?:g|gr|gramas?|kg|mg|ml|l|litros?)\s*$/i;
+const QUESTION_WORDS = /\b(?:por que|porque|como|qual|quais|posso|devo|vale a pena|faz mal|faz bem)\b/;
 
 function normalizeText(value?: string | null) {
   return value
@@ -159,6 +160,10 @@ function isLikelyFoodMessage(text: string) {
   return QUANTITY_WITH_UNIT.test(text) || FOOD_REGISTRATION_WORDS.test(text) || FOOD_OR_MEAL_WORDS.test(text);
 }
 
+function isQuestionWithoutRegistrationSignal(text: string) {
+  return QUESTION_WORDS.test(text) && !QUANTITY_WITH_UNIT.test(text) && !FOOD_REGISTRATION_WORDS.test(text);
+}
+
 export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteInput): WhatsappIntentRouteDecision {
   const text = normalizeText(input.text);
   if (!text) {
@@ -254,7 +259,7 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
     });
   }
 
-  if (/\b(?:por que|porque|como|qual|quais|posso|devo|vale a pena|faz mal|faz bem)\b/.test(text) && !isLikelyFoodMessage(text)) {
+  if (isQuestionWithoutRegistrationSignal(text)) {
     return safeNonFood({
       canonicalIntent: /\b(?:dor|remedio|remédio|doenca|doença|sintoma|emergencia|emergência|pressao|pressão)\b/.test(text)
         ? "pergunta_saude_dieta"
