@@ -14,6 +14,10 @@ import {
 import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
+import {
+  buildWhatsappDuplicateInboundResult,
+  evaluateWhatsappInboundIdempotency,
+} from "./inboundIdempotencyGuard";
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
@@ -97,6 +101,25 @@ async function logAndReturnInterpretedIntent(
 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
+  const receivedAt = input.receivedAt ?? new Date();
+  const idempotencyDecision = evaluateWhatsappInboundIdempotency({
+    userId,
+    messageId: input.messageId,
+    text,
+    receivedAt,
+  });
+
+  if (!idempotencyDecision.shouldProcess) {
+    const duplicateResult = buildWhatsappDuplicateInboundResult(idempotencyDecision);
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: duplicateResult.eventType,
+      detail: duplicateResult.detail,
+    });
+    return duplicateResult;
+  }
 
   if (text) {
     const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
@@ -118,7 +141,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     for (const waterLine of waterFoodSplit.waterLines) {
       const interpretedWater = await executeWhatsappTextIntent(userId, {
         text: waterLine.text,
-        receivedAt: new Date(),
+        receivedAt,
       });
       if (!interpretedWater) {
         throw new Error(`Não foi possível registrar a hidratação informada em "${waterLine.text}".`);
@@ -180,7 +203,8 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
 
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
     text,
-    receivedAt: new Date(),
+    receivedAt,
+    messageId: input.messageId,
   }));
   if (llmInterpreted) {
     return llmInterpreted;
@@ -188,7 +212,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
 
   const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
     text,
-    receivedAt: new Date(),
+    receivedAt,
   }));
   if (interpreted) {
     return interpreted;
