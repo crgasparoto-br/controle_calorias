@@ -33,6 +33,14 @@ type EvaluateWhatsappIntentRouteInput = {
   pendingContextKind?: WhatsappPendingContextKind | null;
 };
 
+type NumericAdjustmentCommand = {
+  canonicalIntent: Extract<CanonicalWhatsappIntentName, "adicionar_alimento" | "somar_quantidade" | "corrigir_alimento" | "excluir_alimento">;
+  kind: "add" | "sum" | "correction" | "removal";
+  value: string;
+  unit: string | null;
+  target: string | null;
+};
+
 const FOOD_REGISTRATION_WORDS = /\b(?:comi|almocei|jantei|lanchei|ceei|tomei|bebi|registre|registrar|adicionar|adicione|inclua|incluir)\b/;
 const FOOD_OR_MEAL_WORDS = /\b(?:arroz|feijao|feijao|banana|frango|carne|ovo|ovos|pao|cafe|leite|iogurte|aveia|salada|macarrao|batata|refeicao|almoco|jantar|lanche|ceia|agua|hidratacao)\b/;
 const QUANTITY_WITH_UNIT = /\b\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|mg|ml|l|litros?|un|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?|porcao)\b/;
@@ -41,6 +49,8 @@ const ISOLATED_NUMBER = /^\d+(?:[,.]\d+)?$/;
 const OPTION_SELECTION = /^(?:opcao\s*)?\d+$/;
 const MATH_WITH_UNIT = /^\s*\d+(?:[,.]\d+)?(?:\s*[+\-*/]\s*\d+(?:[,.]\d+)?)+\s*(?:g|gr|gramas?|kg|mg|ml|l|litros?)\s*$/i;
 const QUESTION_WORDS = /\b(?:por que|porque|como|qual|quais|posso|devo|vale a pena|faz mal|faz bem)\b/;
+const NUMERIC_ADJUSTMENT_WITH_UNIT = /^\s*(somar|soma|some|adicionar|adicione|adiciona|acrescentar|acrescente|aumentar|aumente|corrigir|corrija|ajustar|ajuste|alterar|altere)\s+(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|mg|ml|l|litros?|un|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?|porcao)\b(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
+const NUMERIC_REMOVAL_COMMAND = /^\s*(excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete)\s+(\d+(?:[,.]\d+)?)(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
 
 function normalizeText(value?: string | null) {
   return value
@@ -126,6 +136,28 @@ function continuePipeline(input: {
   });
 }
 
+function routePendingContext(input: {
+  pendingContextKind: WhatsappPendingContextKind;
+  canonicalIntent: CanonicalWhatsappIntentName;
+  confidence: number;
+  reason: string;
+  possibleIntents?: CanonicalWhatsappIntentName[];
+}) {
+  return routeDecision({
+    action: "route_to_pending_context",
+    canonicalIntent: input.canonicalIntent,
+    confidence: input.confidence,
+    shouldAllowNutritionFallback: false,
+    reason: input.reason,
+    reply: null,
+    data: {
+      pendingContextKind: input.pendingContextKind,
+      calculation: null,
+      possibleIntents: input.possibleIntents ?? [],
+    },
+  });
+}
+
 function parseMathWithUnit(text: string) {
   const match = text.match(/^\s*((?:\d+(?:[,.]\d+)?\s*[+\-*/]\s*)+\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|mg|ml|l|litros?)\s*$/i);
   if (!match) return null;
@@ -156,6 +188,79 @@ function parseMathWithUnit(text: string) {
   };
 }
 
+function parseNumericAdjustmentCommand(text: string): NumericAdjustmentCommand | null {
+  const removal = text.match(NUMERIC_REMOVAL_COMMAND);
+  if (removal) {
+    return {
+      canonicalIntent: "excluir_alimento",
+      kind: "removal",
+      value: removal[2],
+      unit: null,
+      target: removal[3]?.trim() || null,
+    };
+  }
+
+  const adjustment = text.match(NUMERIC_ADJUSTMENT_WITH_UNIT);
+  if (!adjustment) return null;
+
+  const verb = adjustment[1];
+  const target = adjustment[4]?.trim() || null;
+  if (/^(adicionar|adicione|adiciona)$/.test(verb) && target && FOOD_OR_MEAL_WORDS.test(target)) {
+    return null;
+  }
+
+  const isCorrection = /^(corrigir|corrija|ajustar|ajuste|alterar|altere)$/.test(verb);
+  const isExplicitAdd = /^(adicionar|adicione|adiciona)$/.test(verb);
+
+  return {
+    canonicalIntent: isCorrection ? "corrigir_alimento" : isExplicitAdd ? "adicionar_alimento" : "somar_quantidade",
+    kind: isCorrection ? "correction" : isExplicitAdd ? "add" : "sum",
+    value: adjustment[2],
+    unit: adjustment[3],
+    target,
+  };
+}
+
+function routeNumericAdjustmentCommand(input: {
+  command: NumericAdjustmentCommand;
+  pendingContextKind?: WhatsappPendingContextKind | null;
+}): WhatsappIntentRouteDecision {
+  if (input.pendingContextKind) {
+    return routePendingContext({
+      pendingContextKind: input.pendingContextKind,
+      canonicalIntent: input.command.canonicalIntent,
+      confidence: 0.86,
+      reason: "Comando numerico roteado para contexto pendente antes do fallback alimentar.",
+      possibleIntents: [input.command.canonicalIntent, "selecionar_opcao"],
+    });
+  }
+
+  if (input.command.target) {
+    return continuePipeline({
+      canonicalIntent: input.command.canonicalIntent,
+      confidence: 0.78,
+      shouldAllowNutritionFallback: false,
+      reason: "Comando numerico com alvo textual deve ser tratado por fluxo proprio antes do fallback alimentar.",
+      possibleIntents: [input.command.canonicalIntent, "selecionar_opcao"],
+    });
+  }
+
+  const replyByKind: Record<NumericAdjustmentCommand["kind"], string> = {
+    add: "Entendi que você quer adicionar uma quantidade, mas preciso saber o alimento. Envie, por exemplo: adicionar 30g de arroz.",
+    sum: "Entendi que você quer somar uma quantidade, mas preciso saber em qual item ou refeição devo aplicar esse ajuste.",
+    correction: "Entendi que você quer corrigir uma quantidade, mas preciso saber qual item ou refeição devo alterar.",
+    removal: "Entendi que você quer remover uma opção, mas preciso de uma lista ativa ou do item completo para fazer isso com segurança.",
+  };
+
+  return safeClarification({
+    canonicalIntent: input.command.canonicalIntent,
+    confidence: 0.84,
+    reason: "Comando numerico sem contexto ou alvo seguro nao deve virar alimento generico.",
+    reply: replyByKind[input.command.kind],
+    possibleIntents: [input.command.canonicalIntent, "selecionar_opcao", "mensagem_ambigua"],
+  });
+}
+
 function isLikelyFoodMessage(text: string) {
   return QUANTITY_WITH_UNIT.test(text) || FOOD_REGISTRATION_WORDS.test(text) || FOOD_OR_MEAL_WORDS.test(text);
 }
@@ -176,8 +281,8 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
   }
 
   if (input.pendingContextKind && (SHORT_CONFIRMATION.test(text) || OPTION_SELECTION.test(text))) {
-    return routeDecision({
-      action: "route_to_pending_context",
+    return routePendingContext({
+      pendingContextKind: input.pendingContextKind,
       canonicalIntent: input.pendingContextKind === "selection"
         ? "selecionar_opcao"
         : input.pendingContextKind === "confirmation"
@@ -186,14 +291,7 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
             ? "paciente_aceita_sugestao"
             : "adicionar_alimento",
       confidence: 0.88,
-      shouldAllowNutritionFallback: false,
       reason: "Resposta curta roteada para contexto pendente antes de qualquer fallback nutricional.",
-      reply: null,
-      data: {
-        pendingContextKind: input.pendingContextKind,
-        calculation: null,
-        possibleIntents: [],
-      },
     });
   }
 
@@ -227,6 +325,14 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
         ? `Calculei ${calculation.expression} ${calculation.unit}: ${calculation.result} ${calculation.unit}. Se quiser registrar essa quantidade, envie junto com o alimento.`
         : "Entendi uma conta com unidade, mas não consegui calcular com segurança. Envie a quantidade final junto com o alimento.",
       calculation,
+    });
+  }
+
+  const numericAdjustmentCommand = parseNumericAdjustmentCommand(text);
+  if (numericAdjustmentCommand) {
+    return routeNumericAdjustmentCommand({
+      command: numericAdjustmentCommand,
+      pendingContextKind: input.pendingContextKind,
     });
   }
 
