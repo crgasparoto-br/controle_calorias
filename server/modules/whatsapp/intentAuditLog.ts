@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { WhatsappAiToolId, WhatsappAiToolTrace } from "./aiToolContract";
 import type { WhatsappIntentName, WhatsappInterpretedIntent } from "./intentSchema";
 
 export type WhatsappIntentValidationStatus = "valid" | "invalid_json" | "invalid_payload" | "skipped";
@@ -33,6 +34,7 @@ export type WhatsappIntentAuditLogEntry = {
     possibleIntents: WhatsappIntentName[];
   };
   operationalTrace: WhatsappIntentOperationalTrace;
+  toolTrace: WhatsappAiToolTrace[];
   validationStatus: WhatsappIntentValidationStatus;
   action: string;
   replyKind: "executed" | "clarification" | "fallback" | "none";
@@ -49,6 +51,7 @@ type RecordWhatsappIntentAuditLogInput = {
   action: string;
   replyKind: WhatsappIntentAuditLogEntry["replyKind"];
   operationalTrace?: Partial<WhatsappIntentOperationalTrace>;
+  toolTrace?: WhatsappAiToolTrace[];
   fallbackReason?: string;
   errorCode?: string;
   createdAt?: Date;
@@ -60,6 +63,7 @@ type ListWhatsappIntentAuditLogsFilter = {
   lowConfidence?: boolean;
   fallbackReason?: string;
   strategy?: WhatsappIntentProcessingStrategy;
+  toolId?: WhatsappAiToolId;
 };
 
 const MAX_AUDIT_LOG_ENTRIES = 500;
@@ -108,6 +112,7 @@ export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLog
     confidence: input.intent.confidence,
     payloadSummary: buildPayloadSummary(input.intent),
     operationalTrace: buildOperationalTrace(input),
+    toolTrace: input.toolTrace ?? [],
     validationStatus: input.validationStatus,
     action: input.action,
     replyKind: input.replyKind,
@@ -133,6 +138,7 @@ export function listWhatsappIntentAuditLogs(filter: ListWhatsappIntentAuditLogsF
     if (filter.lowConfidence && entry.confidence >= LOW_CONFIDENCE_THRESHOLD) return false;
     if (filter.fallbackReason && entry.fallbackReason !== filter.fallbackReason) return false;
     if (filter.strategy && entry.operationalTrace.strategy !== filter.strategy) return false;
+    if (filter.toolId && !entry.toolTrace.some(trace => trace.toolId === filter.toolId)) return false;
     return true;
   });
 }
