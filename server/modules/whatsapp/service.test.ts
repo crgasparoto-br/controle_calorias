@@ -243,13 +243,15 @@ describe("simulateWhatsappInbound", () => {
   it("mantem contexto de confirmacao em conversa de 2 turnos", async () => {
     listMealsMock.mockResolvedValue([recentMeal()]);
 
-    const first = await simulateWhatsappInbound(42, {
+    const first = await simulateWhatsappInbound(420, {
       text: "era 150g",
       receivedAt: new Date("2026-06-14T15:00:00.000Z"),
+      messageId: "ctx-2-1",
     });
-    const second = await simulateWhatsappInbound(42, {
+    const second = await simulateWhatsappInbound(420, {
       text: "sim",
       receivedAt: new Date("2026-06-14T15:01:00.000Z"),
+      messageId: "ctx-2-2",
     });
 
     expect(first).toEqual(expect.objectContaining({ action: "record_adjustment_confirmation_needed" }));
@@ -266,17 +268,20 @@ describe("simulateWhatsappInbound", () => {
   it("mantem selecao e confirmacao em conversa de 3 turnos", async () => {
     listMealsMock.mockResolvedValue([recentMealWithChickenOptions()]);
 
-    const first = await simulateWhatsappInbound(42, {
+    const first = await simulateWhatsappInbound(421, {
       text: "remove frango",
       receivedAt: new Date("2026-06-14T15:00:00.000Z"),
+      messageId: "ctx-3-1",
     });
-    const second = await simulateWhatsappInbound(42, {
+    const second = await simulateWhatsappInbound(421, {
       text: "1",
       receivedAt: new Date("2026-06-14T15:01:00.000Z"),
+      messageId: "ctx-3-2",
     });
-    const third = await simulateWhatsappInbound(42, {
+    const third = await simulateWhatsappInbound(421, {
       text: "sim",
       receivedAt: new Date("2026-06-14T15:02:00.000Z"),
+      messageId: "ctx-3-3",
     });
 
     expect(first).toEqual(expect.objectContaining({ action: "record_adjustment_selection_needed" }));
@@ -293,21 +298,25 @@ describe("simulateWhatsappInbound", () => {
   it("mantem pendencia apos opcao invalida e permite cancelar em conversa de 4 turnos", async () => {
     listMealsMock.mockResolvedValue([recentMealWithChickenOptions()]);
 
-    const first = await simulateWhatsappInbound(42, {
+    const first = await simulateWhatsappInbound(422, {
       text: "remove frango",
       receivedAt: new Date("2026-06-14T15:00:00.000Z"),
+      messageId: "ctx-4-1",
     });
-    const second = await simulateWhatsappInbound(42, {
+    const second = await simulateWhatsappInbound(422, {
       text: "3",
       receivedAt: new Date("2026-06-14T15:01:00.000Z"),
+      messageId: "ctx-4-2",
     });
-    const third = await simulateWhatsappInbound(42, {
+    const third = await simulateWhatsappInbound(422, {
       text: "a segunda opção",
       receivedAt: new Date("2026-06-14T15:02:00.000Z"),
+      messageId: "ctx-4-3",
     });
-    const fourth = await simulateWhatsappInbound(42, {
+    const fourth = await simulateWhatsappInbound(422, {
       text: "cancela",
       receivedAt: new Date("2026-06-14T15:03:00.000Z"),
+      messageId: "ctx-4-4",
     });
 
     expect(first).toEqual(expect.objectContaining({ action: "record_adjustment_selection_needed" }));
