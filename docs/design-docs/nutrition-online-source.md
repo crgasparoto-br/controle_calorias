@@ -2,17 +2,26 @@
 
 ## Contexto
 
-A issue #407 pede que produtos industrializados com marca tentem obter uma tabela nutricional especifica e rastreavel antes de cair em alimento generico ou estimativa. Esta entrega cria a primeira fatia do contrato: decidir quando vale buscar uma fonte online e avaliar se um candidato encontrado pode ser usado, precisa de revisao ou deve cair em fallback seguro.
+A issue #407 pede que produtos industrializados com marca tentem obter uma tabela nutricional especifica e rastreavel antes de cair em alimento generico ou estimativa. Esta entrega cria o contrato inicial: decidir quando vale buscar uma fonte online, avaliar se um candidato encontrado pode ser usado, aplicar candidatos aceitos ao rascunho nutricional e cair em fallback seguro quando necessario.
 
 A busca externa efetiva ainda nao e executada nesta fatia. O objetivo aqui e impedir que uma futura integracao com conectores online salve dados fracos como fonte exata.
 
-## Modulo
+## Modulos
 
 O modulo `server/nutritionOnlineSource.ts` define:
 
 - `shouldRequestOnlineNutritionSource`: identifica produto com marca, variacao critica ou embalagem/unidade especifica;
 - `evaluateOnlineNutritionSourceCandidate`: avalia um candidato retornado por fonte online permitida;
 - `selectOnlineNutritionSourceCandidate`: escolhe primeiro uma fonte aceita, depois uma fonte revisavel, ou fallback seguro.
+
+O modulo `server/nutritionOnlineSourceIntegration.ts` aplica candidatos aceitos a itens ja inferidos:
+
+- substitui nome canonico pela fonte especifica;
+- recalcula calorias e macros pela quantidade do item quando a porcao e segura;
+- anexa `nutritionSource` com origem, tipo, versao, confianca e `selectedAt`;
+- preserva o item original quando a fonte exige revisao, tem variacao conflitante ou nao permite conversao segura.
+
+O motor `server/nutritionEngine.ts` aceita `onlineNutritionSourceCandidates` como entrada opcional. Quando a lista nao e enviada, o comportamento existente permanece inalterado.
 
 ## Fontes permitidas
 
@@ -69,4 +78,4 @@ Se nao houver candidatos, se todos forem rejeitados, ou se a busca online nao fo
 
 ## Estado de integracao
 
-Esta fatia ainda nao chama internet nem conector externo. A proxima fatia deve implementar um provedor controlado que retorne `OnlineNutritionSourceCandidate[]` para este avaliador, respeitando limites de latencia, cache e allowlist.
+Esta fatia ainda nao chama internet nem conector externo. A proxima fatia deve implementar um provedor controlado que retorne `OnlineNutritionSourceCandidate[]` para o motor, respeitando limites de latencia, cache e allowlist.
