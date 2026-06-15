@@ -1,6 +1,7 @@
 import { getAiProvider } from "../../_core/aiProvider";
 import {
   parseWhatsappInterpretedIntent,
+  WHATSAPP_INTENT_CONFIDENCE,
   type WhatsappIntentFoodItem,
   type WhatsappInterpretedIntent,
   whatsappIntentJsonSchema,
@@ -196,6 +197,13 @@ export function classifyWhatsappMessageDeterministically(text: string): Whatsapp
   };
 }
 
+function canUseDeterministicIntentBeforeLlm(intent: WhatsappInterpretedIntent) {
+  return intent.intent !== "ambiguous"
+    && intent.intent !== "unknown"
+    && !intent.requiresConfirmation
+    && intent.confidence >= WHATSAPP_INTENT_CONFIDENCE.execute;
+}
+
 function parseJson(value: string) {
   try {
     return { ok: true as const, value: JSON.parse(value) as unknown };
@@ -331,6 +339,16 @@ export async function interpretWhatsappMessageWithDiagnostics(
   const startedAt = Date.now();
   const guarded = securityGuardInterpretation(text, startedAt);
   if (guarded) return guarded;
+
+  const deterministicIntent = classifyWhatsappMessageDeterministically(text);
+  if (canUseDeterministicIntentBeforeLlm(deterministicIntent)) {
+    return {
+      intent: deterministicIntent,
+      source: "deterministic",
+      validationStatus: "skipped",
+      operationalTrace: buildOperationalTrace({ startedAt, strategy: "deterministic" }),
+    };
+  }
 
   if (!isWhatsappLlmEnabled(options)) {
     return deterministicInterpretation(
