@@ -218,7 +218,7 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
       canonicalIntent: "calcular_quantidade",
       confidence: 0.9,
       reason: "Conta matemática com unidade detectada antes do registro alimentar.",
-      reply: calculation?.result !== null
+      reply: calculation && calculation.result !== null
         ? `Calculei ${calculation.expression} ${calculation.unit}: ${calculation.result} ${calculation.unit}. Se quiser registrar essa quantidade, envie junto com o alimento.`
         : "Entendi uma conta com unidade, mas não consegui calcular com segurança. Envie a quantidade final junto com o alimento.",
       calculation,
