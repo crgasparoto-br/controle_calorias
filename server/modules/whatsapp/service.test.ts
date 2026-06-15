@@ -151,4 +151,17 @@ describe("simulateWhatsappInbound", () => {
       })],
     }));
   });
+
+  it("bloqueia ajuste numerico sem contexto antes do fallback nutricional", async () => {
+    const result = await simulateWhatsappInbound(42, {
+      text: "somar 30g",
+    });
+
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "router_safe_response",
+      reply: expect.stringContaining("em qual item"),
+    }));
+  });
 });
