@@ -41,10 +41,6 @@ function isNonNegativeFinite(value: number | undefined | null) {
   return Number.isFinite(value) && Number(value) >= 0;
 }
 
-function hasAnyNutrition(item: MealDraftItem) {
-  return item.calories > 0 || item.protein > 0 || item.carbs > 0 || item.fat > 0;
-}
-
 function validateItem(item: MealDraftItem, itemIndex: number): MealDraftValidationIssue[] {
   const issues: MealDraftValidationIssue[] = [];
 
@@ -80,11 +76,11 @@ function validateItem(item: MealDraftItem, itemIndex: number): MealDraftValidati
     });
   }
 
-  if (![item.calories, item.protein, item.carbs, item.fat].every(isNonNegativeFinite) || !hasAnyNutrition(item)) {
+  if (![item.calories, item.protein, item.carbs, item.fat].every(isNonNegativeFinite)) {
     issues.push({
       code: "invalid_nutrition_values",
       itemIndex,
-      message: "O item precisa ter calorias ou macronutrientes válidos antes de salvar.",
+      message: "O item precisa ter calorias e macronutrientes numéricos antes de salvar.",
     });
   }
 
