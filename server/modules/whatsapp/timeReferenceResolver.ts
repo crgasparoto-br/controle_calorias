@@ -27,6 +27,7 @@ export type WhatsappTimeReferenceResolution = {
 
 type WeekdayReference = {
   expression: string;
+  clarificationExpression: string;
   weekdayIndex: number;
   direction: "past" | "future" | null;
   kind: "weekday";
@@ -114,17 +115,35 @@ function detectWeekdayReference(normalized: string): WeekdayReference | null {
   for (const weekday of WEEKDAY_ALIASES) {
     const pastMatch = new RegExp(`\\b(${weekday.pattern})\\s+passad[ao]\\b`).exec(normalized);
     if (pastMatch) {
-      return { expression: `${weekday.label} passado`, weekdayIndex: weekday.index, direction: "past", kind: "weekday" };
+      return {
+        expression: `${pastMatch[1]} passado`,
+        clarificationExpression: `${weekday.label} passado`,
+        weekdayIndex: weekday.index,
+        direction: "past",
+        kind: "weekday",
+      };
     }
 
     const futureMatch = new RegExp(`\\b(?:proxim[ao]|pr[oó]xim[ao])\\s+(${weekday.pattern})\\b`).exec(normalized);
     if (futureMatch) {
-      return { expression: `próximo ${weekday.label}`, weekdayIndex: weekday.index, direction: "future", kind: "weekday" };
+      return {
+        expression: `proximo ${futureMatch[1]}`,
+        clarificationExpression: `próximo ${weekday.label}`,
+        weekdayIndex: weekday.index,
+        direction: "future",
+        kind: "weekday",
+      };
     }
 
     const ambiguousMatch = new RegExp(`\\b(${weekday.pattern})\\b`).exec(normalized);
     if (ambiguousMatch) {
-      return { expression: weekday.label, weekdayIndex: weekday.index, direction: null, kind: "weekday" };
+      return {
+        expression: ambiguousMatch[1],
+        clarificationExpression: weekday.label,
+        weekdayIndex: weekday.index,
+        direction: null,
+        kind: "weekday",
+      };
     }
   }
   return null;
@@ -170,12 +189,13 @@ export function resolveWhatsappTimeReferencesForText(input: {
   const weekday = detectWeekdayReference(normalized);
 
   if (weekday && weekday.direction === null) {
+    const clarificationExpression = weekday.clarificationExpression;
     return {
       text: originalText,
       changed: false,
       ambiguous: true,
       mealReference,
-      clarificationQuestion: `Quando você diz ${weekday.expression}, quer dizer ${weekday.expression} passado ou próximo ${weekday.expression}?`,
+      clarificationQuestion: `Quando você diz ${clarificationExpression}, quer dizer ${clarificationExpression} passado ou próximo ${clarificationExpression}?`,
       historyDetail: `Referência temporal ambígua "${weekday.expression}" detectada com fuso ${timezone}.`,
     };
   }
