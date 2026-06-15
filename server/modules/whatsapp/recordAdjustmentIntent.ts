@@ -8,6 +8,7 @@ import {
 type WhatsappRecordAdjustmentInput = {
   text?: string | null;
   receivedAt?: Date;
+  userTimezone?: string | null;
 };
 
 type WhatsappRecordAdjustmentResult = {
@@ -33,6 +34,7 @@ type AdjustmentIntent =
   | { kind: "incomplete"; reason: string };
 
 const RECENT_ADJUSTMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const FALLBACK_TIMEZONE = "America/Sao_Paulo";
 
 function normalizeText(value: string) {
   return value
@@ -49,13 +51,25 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value);
 }
 
-function formatMealDate(value: ExistingMeal["occurredAt"]) {
+function resolveDisplayTimezone(timezone?: string | null) {
+  try {
+    if (timezone) {
+      new Intl.DateTimeFormat("pt-BR", { timeZone: timezone }).format(new Date());
+      return timezone;
+    }
+  } catch {
+    return FALLBACK_TIMEZONE;
+  }
+  return FALLBACK_TIMEZONE;
+}
+
+function formatMealDate(value: ExistingMeal["occurredAt"], timezone?: string | null) {
   return new Date(value).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
+    timeZone: resolveDisplayTimezone(timezone),
   });
 }
 
@@ -148,16 +162,17 @@ function buildNoRecentMealResponse(intent: AdjustmentIntent): WhatsappRecordAdju
   };
 }
 
-function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof findItemCandidates>, kind: AdjustmentIntent["kind"]): WhatsappRecordAdjustmentResult {
+function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof findItemCandidates>, kind: AdjustmentIntent["kind"], timezone?: string | null): WhatsappRecordAdjustmentResult {
   const options: WhatsappClarificationOption[] = candidates.slice(0, 5).map((candidate) => ({
     id: `${candidate.meal.id}:${candidate.itemIndex}`,
-    label: `${getItemName(candidate.item)} em ${candidate.meal.mealLabel} (${formatMealDate(candidate.meal.occurredAt)})`,
+    label: `${getItemName(candidate.item)} em ${candidate.meal.mealLabel} (${formatMealDate(candidate.meal.occurredAt, timezone)})`,
     value: {
       adjustmentKind: kind,
       mealId: candidate.meal.id,
       mealLabel: candidate.meal.mealLabel,
       itemIndex: candidate.itemIndex,
       itemName: getItemName(candidate.item),
+      userTimezone: resolveDisplayTimezone(timezone),
     },
   }));
   return {
@@ -172,6 +187,7 @@ function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof 
     data: {
       adjustmentKind: kind,
       targetFood,
+      userTimezone: resolveDisplayTimezone(timezone),
       clarificationQuestion: `Encontrei mais de um item possível para "${targetFood}". Qual deles devo usar?`,
       ...buildWhatsappClarificationOptionsData(options),
     },
@@ -189,11 +205,11 @@ function buildMissingTargetResponse(intent: AdjustmentIntent): WhatsappRecordAdj
   };
 }
 
-function buildQuantityConfirmation(meal: ExistingMeal, item: ExistingMealItem, quantity: number, unit: string): WhatsappRecordAdjustmentResult {
+function buildQuantityConfirmation(meal: ExistingMeal, item: ExistingMealItem, quantity: number, unit: string, timezone?: string | null): WhatsappRecordAdjustmentResult {
   return {
     handled: true,
     action: "record_adjustment_confirmation_needed",
-    reply: `Confirme antes de eu alterar: ajustar ${getItemName(item)} em ${meal.mealLabel} (${formatMealDate(meal.occurredAt)}) para ${formatNumber(quantity)} ${unit}?`,
+    reply: `Confirme antes de eu alterar: ajustar ${getItemName(item)} em ${meal.mealLabel} (${formatMealDate(meal.occurredAt, timezone)}) para ${formatNumber(quantity)} ${unit}?`,
     eventType: "whatsapp.records.adjustment_confirmation_needed",
     detail: "Correcao de quantidade com alvo unico exige confirmacao antes de persistir.",
     data: {
@@ -203,15 +219,16 @@ function buildQuantityConfirmation(meal: ExistingMeal, item: ExistingMealItem, q
       itemName: getItemName(item),
       quantity,
       unit,
+      userTimezone: resolveDisplayTimezone(timezone),
     },
   };
 }
 
-function buildReplaceConfirmation(meal: ExistingMeal, item: ExistingMealItem, targetFood: string): WhatsappRecordAdjustmentResult {
+function buildReplaceConfirmation(meal: ExistingMeal, item: ExistingMealItem, targetFood: string, timezone?: string | null): WhatsappRecordAdjustmentResult {
   return {
     handled: true,
     action: "record_adjustment_confirmation_needed",
-    reply: `Confirme antes de eu alterar: trocar ${getItemName(item)} por ${targetFood} em ${meal.mealLabel} (${formatMealDate(meal.occurredAt)})?`,
+    reply: `Confirme antes de eu alterar: trocar ${getItemName(item)} por ${targetFood} em ${meal.mealLabel} (${formatMealDate(meal.occurredAt, timezone)})?`,
     eventType: "whatsapp.records.adjustment_confirmation_needed",
     detail: "Troca de alimento com alvo unico exige confirmacao antes de persistir.",
     data: {
@@ -220,15 +237,16 @@ function buildReplaceConfirmation(meal: ExistingMeal, item: ExistingMealItem, ta
       mealLabel: meal.mealLabel,
       sourceFood: getItemName(item),
       targetFood,
+      userTimezone: resolveDisplayTimezone(timezone),
     },
   };
 }
 
-function buildRemoveItemConfirmation(meal: ExistingMeal, item: ExistingMealItem): WhatsappRecordAdjustmentResult {
+function buildRemoveItemConfirmation(meal: ExistingMeal, item: ExistingMealItem, timezone?: string | null): WhatsappRecordAdjustmentResult {
   return {
     handled: true,
     action: "record_adjustment_confirmation_needed",
-    reply: `Confirme antes de eu remover: ${getItemName(item)} de ${meal.mealLabel} (${formatMealDate(meal.occurredAt)})?`,
+    reply: `Confirme antes de eu remover: ${getItemName(item)} de ${meal.mealLabel} (${formatMealDate(meal.occurredAt, timezone)})?`,
     eventType: "whatsapp.records.adjustment_confirmation_needed",
     detail: "Remocao de alimento com alvo unico exige confirmacao antes de persistir.",
     data: {
@@ -236,15 +254,16 @@ function buildRemoveItemConfirmation(meal: ExistingMeal, item: ExistingMealItem)
       mealId: meal.id,
       mealLabel: meal.mealLabel,
       itemName: getItemName(item),
+      userTimezone: resolveDisplayTimezone(timezone),
     },
   };
 }
 
-function buildRemoveMealConfirmation(meal: ExistingMeal): WhatsappRecordAdjustmentResult {
+function buildRemoveMealConfirmation(meal: ExistingMeal, timezone?: string | null): WhatsappRecordAdjustmentResult {
   return {
     handled: true,
     action: "record_adjustment_confirmation_needed",
-    reply: `Confirme antes de eu remover a ultima refeicao: ${meal.mealLabel} de ${formatMealDate(meal.occurredAt)} com ${(meal.items ?? []).length} item(ns).`,
+    reply: `Confirme antes de eu remover a ultima refeicao: ${meal.mealLabel} de ${formatMealDate(meal.occurredAt, timezone)} com ${(meal.items ?? []).length} item(ns).`,
     eventType: "whatsapp.records.adjustment_confirmation_needed",
     detail: "Remocao de ultima refeicao exige confirmacao antes de persistir.",
     data: {
@@ -252,6 +271,7 @@ function buildRemoveMealConfirmation(meal: ExistingMeal): WhatsappRecordAdjustme
       mealId: meal.id,
       mealLabel: meal.mealLabel,
       itemCount: (meal.items ?? []).length,
+      userTimezone: resolveDisplayTimezone(timezone),
     },
   };
 }
@@ -272,17 +292,17 @@ export async function executeWhatsappRecordAdjustmentIntent(
   if (!recentMeals.length) return buildNoRecentMealResponse(intent);
 
   if (intent.kind === "remove_last_meal") {
-    return buildRemoveMealConfirmation(recentMeals[0]);
+    return buildRemoveMealConfirmation(recentMeals[0], input.userTimezone);
   }
 
   if (intent.kind === "quantity") {
     const latestMeal = recentMeals[0];
     const latestItems = latestMeal.items ?? [];
     if (latestItems.length === 1) {
-      return buildQuantityConfirmation(latestMeal, latestItems[0], intent.quantity, intent.unit);
+      return buildQuantityConfirmation(latestMeal, latestItems[0], intent.quantity, intent.unit, input.userTimezone);
     }
     if (latestItems.length > 1) {
-      return buildOptionsResponse("quantidade informada", latestItems.map((item, itemIndex) => ({ meal: latestMeal, item, itemIndex, score: 1 })), intent.kind);
+      return buildOptionsResponse("quantidade informada", latestItems.map((item, itemIndex) => ({ meal: latestMeal, item, itemIndex, score: 1 })), intent.kind, input.userTimezone);
     }
     return buildMissingTargetResponse(intent);
   }
@@ -291,12 +311,12 @@ export async function executeWhatsappRecordAdjustmentIntent(
   const candidates = findItemCandidates(recentMeals, targetFood);
   if (!candidates.length) return buildMissingTargetResponse(intent);
   if (candidates.length > 1 && candidates[0].score === candidates[1].score) {
-    return buildOptionsResponse(targetFood, candidates, intent.kind);
+    return buildOptionsResponse(targetFood, candidates, intent.kind, input.userTimezone);
   }
 
   const selected = candidates[0];
   if (intent.kind === "replace_item") {
-    return buildReplaceConfirmation(selected.meal, selected.item, intent.targetFood);
+    return buildReplaceConfirmation(selected.meal, selected.item, intent.targetFood, input.userTimezone);
   }
-  return buildRemoveItemConfirmation(selected.meal, selected.item);
+  return buildRemoveItemConfirmation(selected.meal, selected.item, input.userTimezone);
 }
