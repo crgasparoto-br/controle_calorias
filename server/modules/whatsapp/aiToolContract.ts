@@ -53,9 +53,9 @@ type RunToolInput = BuildToolTraceInput & {
   timeoutMs?: number;
 };
 
-const READ_INTENTS: WhatsappIntentName[] = ["list_meal_records", "daily_summary", "replace_food_in_meal"];
 const WRITE_INTENTS: WhatsappIntentName[] = ["add_foods_to_meal"];
 const CORRECTION_INTENTS: WhatsappIntentName[] = ["replace_food_in_meal", "edit_food_quantity"];
+const READ_INTENTS: WhatsappIntentName[] = ["list_meal_records", "daily_summary", ...WRITE_INTENTS, ...CORRECTION_INTENTS];
 const NON_PERSISTENT_INTENTS: WhatsappIntentName[] = ["ambiguous", "unknown", "help", "open_records_link"];
 
 const TOOL_CATALOG: Record<WhatsappAiToolId, WhatsappAiToolContract> = {
@@ -63,7 +63,7 @@ const TOOL_CATALOG: Record<WhatsappAiToolId, WhatsappAiToolContract> = {
     id: "whatsapp_context_build",
     version: "whatsapp-ai-tool/v1",
     kind: "read",
-    allowedIntents: [...READ_INTENTS, ...WRITE_INTENTS, ...CORRECTION_INTENTS, "add_water", "add_exercise", ...NON_PERSISTENT_INTENTS],
+    allowedIntents: [...READ_INTENTS, "add_water", "add_exercise", ...NON_PERSISTENT_INTENTS],
     persistentEffect: false,
     requiresBackendValidation: false,
     requiresIdempotencyKey: false,
@@ -80,7 +80,7 @@ const TOOL_CATALOG: Record<WhatsappAiToolId, WhatsappAiToolContract> = {
     requiresBackendValidation: false,
     requiresIdempotencyKey: false,
     parameterPolicy: ["userId", "dateWindow", "mealLabel opcional"],
-    preconditions: ["Intenção compatível com consulta ou correção contextual."],
+    preconditions: ["Intenção compatível com consulta, escrita ou correção contextual."],
     postconditions: ["Registros existentes são apenas consultados."],
   },
   meal_item_nutrition_simulate: {
