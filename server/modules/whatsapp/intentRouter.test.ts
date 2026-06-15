@@ -202,6 +202,62 @@ describe("evaluateWhatsappIntentRoute", () => {
     }));
   });
 
+  it("classifica diabetes como pergunta medica sensivel sem registro alimentar", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "sou diabético, posso comer arroz?" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "pergunta_medica_sensivel",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.reply).toContain("não vou diagnosticar");
+  });
+
+  it("classifica jejum e suplemento como pergunta de saude e dieta limitada", () => {
+    expect(evaluateWhatsappIntentRoute({ text: "posso fazer jejum?" })).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "pergunta_saude_dieta",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(evaluateWhatsappIntentRoute({ text: "esse suplemento é bom?" })).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "pergunta_saude_dieta",
+      shouldAllowNutritionFallback: false,
+    }));
+  });
+
+  it("orienta atendimento em sintoma grave ou risco", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "minha pressão está alta, o que faço?" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "possivel_urgencia_saude",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.reply).toContain("Procure um serviço de urgência");
+  });
+
+  it("limita pedido de corte calorico sem prescricao individual", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "quantas calorias devo cortar?" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "pergunta_saude_dieta",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.reply).toContain("não vou prescrever");
+  });
+
+  it("mantem pergunta alimentar simples fora de saude sensivel", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "banana tem muita caloria?" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "safe_non_food_response",
+      canonicalIntent: "pergunta_sobre_alimento",
+      shouldAllowNutritionFallback: false,
+    }));
+  });
+
   it("bloqueia pergunta sem alimento registravel", () => {
     const route = evaluateWhatsappIntentRoute({ text: "qual melhor horario para jantar?" });
 
