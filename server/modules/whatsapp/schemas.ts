@@ -9,6 +9,7 @@ export const simulateWhatsappInboundSchema = z.object({
   text: z.string().optional(),
   messageId: z.string().min(1).max(255).optional(),
   receivedAt: z.coerce.date().optional(),
+  userTimezone: z.string().trim().min(1).max(80).optional(),
   pendingContextKind: z.enum(["selection", "quantity", "confirmation", "professional_decision"]).optional(),
 });
 
