@@ -38,8 +38,6 @@ const WEEKDAYS: Record<string, number> = {
   "segunda feira": 1,
   terca: 2,
   "terca feira": 2,
-  terça: 2,
-  "terça feira": 2,
   quarta: 3,
   "quarta feira": 3,
   quinta: 4,
@@ -47,17 +45,16 @@ const WEEKDAYS: Record<string, number> = {
   sexta: 5,
   "sexta feira": 5,
   sabado: 6,
-  sábado: 6,
 };
 
 const MEAL_SLOT_PATTERNS: Array<[RegExp, string]> = [
-  [/\b(?:cafe da manha|café da manhã|cafe|café)\b/i, "cafe_da_manha"],
-  [/\b(?:almoco|almoço)\b/i, "almoco"],
-  [/\bjantar\b/i, "jantar"],
-  [/\bceia\b/i, "ceia"],
-  [/\blanche\b/i, "lanche"],
-  [/\bpre treino|pré treino|pre\-treino|pré\-treino\b/i, "pre_treino"],
-  [/\bpos treino|pós treino|pos\-treino|pós\-treino\b/i, "pos_treino"],
+  [/\b(?:cafe da manha|cafe)\b/, "cafe_da_manha"],
+  [/\balmoco\b/, "almoco"],
+  [/\bjantar\b/, "jantar"],
+  [/\bceia\b/, "ceia"],
+  [/\blanche\b/, "lanche"],
+  [/\b(?:pre treino|pre treino)\b/, "pre_treino"],
+  [/\b(?:pos treino|pos treino)\b/, "pos_treino"],
 ];
 
 function normalizeText(value: string) {
@@ -132,9 +129,9 @@ function resolveWeekdayDate(referenceDate: string, targetWeekday: number, direct
   return addLocalDays(referenceDate, delta);
 }
 
-function detectMealSlot(text: string) {
+function detectMealSlot(normalized: string) {
   for (const [pattern, slot] of MEAL_SLOT_PATTERNS) {
-    if (pattern.test(text)) return slot;
+    if (pattern.test(normalized)) return slot;
   }
   return null;
 }
@@ -176,7 +173,7 @@ export function resolveWhatsappTemporalContext(input: WhatsappTemporalInput): Wh
   const { userTimezone, timezoneSource } = resolveTimezone(input.userTimezone);
   const localParts = getLocalDateParts(input.receivedAt, userTimezone);
   const localReferenceDate = toIsoDate(localParts);
-  const mealSlot = detectMealSlot(text);
+  const mealSlot = detectMealSlot(normalized);
 
   const buildContext = (temporalExpression: string, resolvedDate: string, dateKind: WhatsappTemporalDateKind): WhatsappTemporalContext => ({
     temporalExpression,
@@ -217,10 +214,10 @@ export function resolveWhatsappTemporalContext(input: WhatsappTemporalInput): Wh
   const weekdayMatch = weekdayFromText(normalized);
   if (weekdayMatch) {
     const [weekdayLabel, weekday] = weekdayMatch;
-    if (new RegExp(`\\b(?:sabado|sábado|domingo|segunda(?: feira)?|terca(?: feira)?|terça(?: feira)?|quarta(?: feira)?|quinta(?: feira)?|sexta(?: feira)?) passado\\b`).test(normalized)) {
+    if (new RegExp(`\\b(?:sabado|domingo|segunda(?: feira)?|terca(?: feira)?|quarta(?: feira)?|quinta(?: feira)?|sexta(?: feira)?) passado\\b`).test(normalized)) {
       return { context: buildContext(`${weekdayLabel} passado`, resolveWeekdayDate(localReferenceDate, weekday, "past"), "weekday"), clarification: null };
     }
-    if (new RegExp(`\\b(?:proximo|próximo) (?:sabado|sábado|domingo|segunda(?: feira)?|terca(?: feira)?|terça(?: feira)?|quarta(?: feira)?|quinta(?: feira)?|sexta(?: feira)?)\\b`).test(normalized)) {
+    if (new RegExp(`\\bproximo (?:sabado|domingo|segunda(?: feira)?|terca(?: feira)?|quarta(?: feira)?|quinta(?: feira)?|sexta(?: feira)?)\\b`).test(normalized)) {
       return { context: buildContext(`proximo ${weekdayLabel}`, resolveWeekdayDate(localReferenceDate, weekday, "future"), "weekday"), clarification: null };
     }
     return {
