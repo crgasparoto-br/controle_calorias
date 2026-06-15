@@ -47,6 +47,12 @@ function roundNutritionValue(value: number) {
   return Math.round(value * 10) / 10;
 }
 
+function hasExactNutritionSource(item: MealDraftItem) {
+  return item.nutritionSource?.quality === "exact"
+    && item.nutritionSource.isEstimate === false
+    && item.nutritionSource.reviewRequired === false;
+}
+
 function inferItemVariation(item: MealDraftItem, candidate: OnlineNutritionSourceCandidate) {
   const itemText = normalizeText(`${item.foodName} ${item.canonicalName}`);
   const candidateVariation = normalizeText(candidate.variation);
@@ -56,7 +62,7 @@ function inferItemVariation(item: MealDraftItem, candidate: OnlineNutritionSourc
 
 function buildItemCandidateQuery(item: MealDraftItem, candidate: OnlineNutritionSourceCandidate) {
   return {
-    foodName: item.canonicalName || item.foodName,
+    foodName: item.foodName || item.canonicalName,
     brandName: candidate.brandName ?? null,
     variation: inferItemVariation(item, candidate),
     unit: item.unit,
@@ -113,6 +119,10 @@ export function applyOnlineNutritionSourcesToMealItems(
   }
 
   return items.map(item => {
+    if (hasExactNutritionSource(item)) {
+      return item;
+    }
+
     const evaluated = candidates
       .map(candidate => ({
         candidate,
