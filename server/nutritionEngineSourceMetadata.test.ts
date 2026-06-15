@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { OnlineNutritionSourceCandidate } from "./nutritionOnlineSource";
 
 const createTextResponseMock = vi.fn();
 
@@ -34,6 +35,63 @@ describe("nutritionEngine source metadata", () => {
         }),
       }),
     }));
+  });
+
+  it("usa candidato online aceito para substituir estimativa com fonte rastreavel", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const onlineCandidate: OnlineNutritionSourceCandidate = {
+      id: "coca-zero-manufacturer-label",
+      name: "Coca-Cola zero lata 350 ml",
+      brandName: "Coca-Cola",
+      variation: "zero",
+      originType: "manufacturer",
+      sourceName: "Coca-Cola Brasil",
+      sourceUrl: "https://www.coca-cola.com/br/pt/about-us/faq/coca-cola-zero",
+      sourceVersion: "2026-06",
+      queriedAt: "2026-06-15T12:00:00.000Z",
+      confidence: 0.97,
+      serving: {
+        quantity: 1,
+        unit: "lata",
+        text: "1 lata (350 ml)",
+      },
+      nutritionPerServing: {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+      },
+      aliases: ["coca zero lata", "coca-cola zero"],
+    };
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "2 Coca-Cola zero lata",
+      onlineNutritionSourceCandidates: [onlineCandidate],
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      canonicalName: "Coca-Cola zero lata 350 ml",
+      source: "catalog",
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      nutritionSource: expect.objectContaining({
+        selectedAt: "2026-06-15T12:00:00.000Z",
+        quality: "exact",
+        isEstimate: false,
+        reviewRequired: false,
+        source: expect.objectContaining({
+          type: "manufacturer_label",
+          name: "Coca-Cola Brasil",
+          version: "2026-06",
+        }),
+      }),
+    }));
+    expect(result.totals.calories).toBe(0);
   });
 
   it("marca estimativa da IA como fonte estimada quando usa macros inferidos", async () => {
