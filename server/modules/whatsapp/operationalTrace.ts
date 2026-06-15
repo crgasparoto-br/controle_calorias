@@ -6,6 +6,7 @@ export const whatsappOperationalTraceStages = [
   "conversation_context",
   "professional_access",
   "time_reference",
+  "multi_action",
   "water_food_split",
   "llm_router",
   "deterministic_intent",
