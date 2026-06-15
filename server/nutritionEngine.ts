@@ -49,7 +49,7 @@ export type MealDraftItem = {
   fat: number;
   confidence: number;
   source: "catalog" | "hybrid" | "heuristic";
-  nutritionSource: NutritionSourceMetadata;
+  nutritionSource?: NutritionSourceMetadata;
 };
 
 export type MealProcessingInput = {
