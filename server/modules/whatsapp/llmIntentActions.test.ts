@@ -234,6 +234,39 @@ describe("executeWhatsappLlmIntent", () => {
     }));
   });
 
+  it("bloqueia intencao alimentar invalida antes de consultar ou escrever refeicao", async () => {
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      operationalTrace: llmTrace,
+      intent: interpretedIntent({
+        intent: "add_foods_to_meal",
+        confidence: 0.91,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        meal: { label: "almoço", createIfMissing: true },
+        items: [{ foodName: "Arroz", quantity: null, unit: null }],
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, { text: "registre arroz no almoço" });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      reply: expect.stringContaining("quantidade clara"),
+    }));
+    expect(listMealsMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "clarification_needed",
+      replyKind: "clarification",
+      fallbackReason: "backend_validation_failed",
+      errorCode: "invalid_quantity",
+      toolTrace: [expect.objectContaining({ toolId: "clarification_request" })],
+    }));
+  });
+
   it("retorna fallback seguro quando ferramenta falha antes de escrever", async () => {
     listMealsMock.mockRejectedValue(new Error("DatabaseUnavailable"));
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
