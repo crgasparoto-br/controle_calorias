@@ -102,7 +102,10 @@ async function logAndReturnInterpretedIntent(
     return null;
   }
 
-  registerWhatsappConversationPendingContext(userId, interpreted, input);
+  registerWhatsappConversationPendingContext(userId, {
+    ...interpreted,
+    reply: interpreted.reply ?? interpreted.detail,
+  }, input);
   logInferenceEvent({
     userId,
     origin: "whatsapp",
