@@ -151,10 +151,10 @@ function buildClarification(input: {
   timezoneSource: "configured" | "fallback";
   localReferenceDate: string;
   reason: string;
-}) {
+}): WhatsappTemporalClarification {
   return {
     handled: true,
-    action: "temporal_context_clarification_needed" as const,
+    action: "temporal_context_clarification_needed",
     reply: "Preciso de uma data mais específica para continuar com segurança. Diga, por exemplo, 'sábado passado', 'próximo sábado', 'ontem' ou uma data completa.",
     eventType: "whatsapp.time.temporal_clarification_needed",
     detail: `Referencia temporal ambigua: ${input.reason}.`,
