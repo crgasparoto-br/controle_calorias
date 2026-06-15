@@ -172,6 +172,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return duplicateResult;
   }
 
+  const contextResult = await logAndReturnInterpretedIntent(userId, resolveWhatsappConversationContext(userId, {
+    text,
+    receivedAt,
+  }), { text, receivedAt });
+  if (contextResult) {
+    return contextResult;
+  }
+
   const temporalResolution = resolveWhatsappTemporalContext({
     text,
     receivedAt,
@@ -182,14 +190,6 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
   if (temporalResolution.context) {
     logTemporalResolution(userId, temporalResolution.context);
-  }
-
-  const contextResult = await logAndReturnInterpretedIntent(userId, resolveWhatsappConversationContext(userId, {
-    text,
-    receivedAt,
-  }), { text, receivedAt });
-  if (contextResult) {
-    return contextResult;
   }
 
   const route = evaluateWhatsappIntentRoute({
