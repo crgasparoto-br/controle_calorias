@@ -97,6 +97,8 @@ function runtimeIntentToCanonical(intentName: WhatsappIntentName): CanonicalWhat
       return "mensagem_ambigua";
     case "unknown":
       return "mensagem_nao_relacionada";
+    default:
+      return "mensagem_nao_relacionada";
   }
 }
 
