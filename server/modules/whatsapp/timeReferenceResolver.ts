@@ -42,14 +42,14 @@ const WEEKDAY_ALIASES: Array<{ pattern: string; index: number; label: string }> 
   { pattern: "domingo", index: 6, label: "domingo" },
 ];
 
-const MEAL_LABELS: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /\bcaf[eé]\s*(?:da\s*)?manh[aã]\b/iu, label: "Café da manhã" },
-  { pattern: /\b(?:almoco|almo[cç]o)\b/iu, label: "Almoço" },
-  { pattern: /\bjantar\b/iu, label: "Jantar" },
-  { pattern: /\bceia\b/iu, label: "Ceia" },
-  { pattern: /\blanche\b/iu, label: "Lanche" },
-  { pattern: /\bpr[eé]\s*treino\b/iu, label: "Pré-treino" },
-  { pattern: /\bp[oó]s\s*treino\b/iu, label: "Pós-treino" },
+const MEAL_LABELS: Array<{ normalizedPattern: RegExp; rawPattern: RegExp; label: string }> = [
+  { normalizedPattern: /\bcafe\s*(?:da\s*)?manha\b/u, rawPattern: /\bcaf[eé]\s*(?:da\s*)?manh[aã]\b/iu, label: "Café da manhã" },
+  { normalizedPattern: /\balmoco\b/u, rawPattern: /\b(?:almoco|almo[cç]o)\b/iu, label: "Almoço" },
+  { normalizedPattern: /\bjantar\b/u, rawPattern: /\bjantar\b/iu, label: "Jantar" },
+  { normalizedPattern: /\bceia\b/u, rawPattern: /\bceia\b/iu, label: "Ceia" },
+  { normalizedPattern: /\blanche\b/u, rawPattern: /\blanche\b/iu, label: "Lanche" },
+  { normalizedPattern: /\bpre\s*treino\b/u, rawPattern: /\bpr[eé]\s*treino\b/iu, label: "Pré-treino" },
+  { normalizedPattern: /\bpos\s*treino\b/u, rawPattern: /\bp[oó]s\s*treino\b/iu, label: "Pós-treino" },
 ];
 
 function normalizeText(value: string) {
@@ -87,11 +87,16 @@ function getWeekdayDate(referenceDate: Date, targetIndex: number, direction: "pa
   return addDays(referenceDate, diff);
 }
 
-function detectMealReference(text: string): WhatsappMealTimeReference | undefined {
+function detectMealReference(text: string, normalized: string): WhatsappMealTimeReference | undefined {
   for (const meal of MEAL_LABELS) {
-    const match = meal.pattern.exec(text);
-    if (match?.[0]) {
-      return { expression: match[0], mealLabel: meal.label };
+    const rawMatch = meal.rawPattern.exec(text);
+    if (rawMatch?.[0]) {
+      return { expression: rawMatch[0], mealLabel: meal.label };
+    }
+
+    const normalizedMatch = meal.normalizedPattern.exec(normalized);
+    if (normalizedMatch?.[0]) {
+      return { expression: normalizedMatch[0], mealLabel: meal.label };
     }
   }
   return undefined;
@@ -109,17 +114,17 @@ function detectWeekdayReference(normalized: string): WeekdayReference | null {
   for (const weekday of WEEKDAY_ALIASES) {
     const pastMatch = new RegExp(`\\b(${weekday.pattern})\\s+passad[ao]\\b`).exec(normalized);
     if (pastMatch) {
-      return { expression: `${pastMatch[1]} passado`, weekdayIndex: weekday.index, direction: "past", kind: "weekday" };
+      return { expression: `${weekday.label} passado`, weekdayIndex: weekday.index, direction: "past", kind: "weekday" };
     }
 
     const futureMatch = new RegExp(`\\b(?:proxim[ao]|pr[oó]xim[ao])\\s+(${weekday.pattern})\\b`).exec(normalized);
     if (futureMatch) {
-      return { expression: `próximo ${futureMatch[1]}`, weekdayIndex: weekday.index, direction: "future", kind: "weekday" };
+      return { expression: `próximo ${weekday.label}`, weekdayIndex: weekday.index, direction: "future", kind: "weekday" };
     }
 
     const ambiguousMatch = new RegExp(`\\b(${weekday.pattern})\\b`).exec(normalized);
     if (ambiguousMatch) {
-      return { expression: ambiguousMatch[1], weekdayIndex: weekday.index, direction: null, kind: "weekday" };
+      return { expression: weekday.label, weekdayIndex: weekday.index, direction: null, kind: "weekday" };
     }
   }
   return null;
@@ -160,7 +165,7 @@ export function resolveWhatsappTimeReferencesForText(input: {
   const receivedAt = input.receivedAt ?? new Date();
   const logicalToday = toLogicalDateInTimeZone(receivedAt, timezone);
   const normalized = normalizeText(originalText);
-  const mealReference = detectMealReference(originalText);
+  const mealReference = detectMealReference(originalText, normalized);
   const relative = detectRelativeReference(normalized);
   const weekday = detectWeekdayReference(normalized);
 
