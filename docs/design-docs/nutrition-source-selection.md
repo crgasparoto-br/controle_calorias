@@ -22,11 +22,15 @@ O modulo `server/nutritionSourceSelection.ts` pontua candidatos nesta ordem base
 2. `curated_catalog`
 3. `official_database`
 4. `internal_catalog`
-5. `similar_product`
-6. `generic_estimate`
-7. `llm_estimate`
+5. `trusted_retailer`
+6. `similar_product`
+7. `community_database`
+8. `generic_estimate`
+9. `llm_estimate`
 
 Essa pontuacao e ajustada por correspondencia de nome, marca, variacao, unidade e confianca informada pela fonte.
+
+Fontes `trusted_retailer` e `community_database` foram adicionadas como tipos rastreaveis para #407. Elas podem participar da comparacao, mas nao sao promovidas automaticamente a fonte exata: varejo confiavel requer revisao e fonte comunitaria sempre fica como `needs_review`.
 
 ## Adaptador de metadados
 
