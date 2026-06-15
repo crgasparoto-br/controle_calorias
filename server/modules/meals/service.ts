@@ -36,6 +36,7 @@ import {
   persistMealItemNutritionSnapshots,
   type MealItemWithNutritionSnapshot,
 } from "./nutritionSnapshot";
+import { assertMealDraftValidForPersistence, MealDraftValidationError } from "./draftValidation";
 
 export class MealDraftNotFoundError extends Error {
   constructor() {
@@ -293,6 +294,21 @@ export async function processMealDraft(userId: number, input: ProcessMealDraftIn
     audioUrl: resolvedAudio.audioUrl,
     habits: await getHabitSnapshots(userId),
   }));
+
+  try {
+    assertMealDraftValidForPersistence(processed);
+  } catch (error) {
+    if (error instanceof MealDraftValidationError) {
+      logInferenceEvent({
+        userId,
+        origin: input.source,
+        status: "warning",
+        eventType: "meal_draft.validation_blocked",
+        detail: `Rascunho alimentar bloqueado antes de salvar: ${error.issues.map(issue => issue.code).join(", ")}.`,
+      });
+    }
+    throw error;
+  }
 
   const draft = createPendingMealInference(
     userId,
