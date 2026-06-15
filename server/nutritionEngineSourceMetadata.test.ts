@@ -41,13 +41,13 @@ describe("nutritionEngine source metadata", () => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
     const onlineCandidate: OnlineNutritionSourceCandidate = {
-      id: "coca-zero-manufacturer-label",
-      name: "Coca-Cola zero lata 350 ml",
-      brandName: "Coca-Cola",
+      id: "fizzup-zero-manufacturer-label",
+      name: "FizzUp zero lata 350 ml",
+      brandName: "FizzUp",
       variation: "zero",
       originType: "manufacturer",
-      sourceName: "Coca-Cola Brasil",
-      sourceUrl: "https://www.coca-cola.com/br/pt/about-us/faq/coca-cola-zero",
+      sourceName: "FizzUp Brasil",
+      sourceUrl: "https://www.fizzup.example/produtos/fizzup-zero-lata",
       sourceVersion: "2026-06",
       queriedAt: "2026-06-15T12:00:00.000Z",
       confidence: 0.97,
@@ -62,18 +62,18 @@ describe("nutritionEngine source metadata", () => {
         carbs: 0,
         fat: 0,
       },
-      aliases: ["coca zero lata", "coca-cola zero"],
+      aliases: ["fizzup zero", "fizzup zero lata"],
     };
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
-      text: "2 Coca-Cola zero lata",
+      text: "FizzUp zero lata",
       onlineNutritionSourceCandidates: [onlineCandidate],
     });
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Coca-Cola zero lata 350 ml",
+      canonicalName: "FizzUp zero lata 350 ml",
       source: "catalog",
       calories: 0,
       protein: 0,
@@ -86,7 +86,7 @@ describe("nutritionEngine source metadata", () => {
         reviewRequired: false,
         source: expect.objectContaining({
           type: "manufacturer_label",
-          name: "Coca-Cola Brasil",
+          name: "FizzUp Brasil",
           version: "2026-06",
         }),
       }),
