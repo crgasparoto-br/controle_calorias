@@ -98,13 +98,17 @@ function hasNameMatch(query: NutritionSourceQuery, candidate: NutritionSourceCan
   return Boolean(queryName && (text.includes(queryName) || queryName.includes(normalizeText(candidate.name))));
 }
 
+function isEstimateCandidate(candidate: NutritionSourceCandidate) {
+  return candidate.sourceType === "generic_estimate" || candidate.sourceType === "llm_estimate";
+}
+
 function hasCompatibleVariation(query: NutritionSourceQuery, candidate: NutritionSourceCandidate) {
   const queryText = normalizeText(`${query.foodName} ${query.variation ?? ""}`);
   const candidateVariations = extractCriticalVariations(candidateText(candidate));
   const queryVariations = extractCriticalVariations(queryText);
 
   if (!queryVariations.length) return true;
-  if (!candidateVariations.length) return false;
+  if (!candidateVariations.length) return isEstimateCandidate(candidate);
   return queryVariations.every(variation => candidateVariations.includes(variation));
 }
 
@@ -164,7 +168,7 @@ function classifySelection(query: NutritionSourceQuery, candidate: NutritionSour
     return { quality: "exact", reasons };
   }
 
-  if (["generic_estimate", "llm_estimate"].includes(candidate.sourceType)) {
+  if (isEstimateCandidate(candidate)) {
     reasons.push("estimated_fallback_used");
     return { quality: "estimated", reasons };
   }
@@ -217,7 +221,7 @@ export function selectNutritionSource(
     ...classified.reasons,
     ...(unitCompatible ? [] : ["unit_or_portion_uncertain" as const]),
   ]));
-  const isEstimate = ["generic_estimate", "llm_estimate"].includes(selected.sourceType) || classified.quality === "estimated";
+  const isEstimate = isEstimateCandidate(selected) || classified.quality === "estimated";
   const reviewRequired = classified.quality !== "exact" || reasons.includes("unit_or_portion_uncertain");
 
   return {
