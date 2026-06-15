@@ -73,6 +73,61 @@ describe("evaluateWhatsappIntentRoute", () => {
     expect(route.reply).toContain("80 g");
   });
 
+  it("bloqueia soma numerica sem alvo ou contexto antes do fallback alimentar", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "somar 30g" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "safe_clarification",
+      canonicalIntent: "somar_quantidade",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.reply).toContain("em qual item ou refeição");
+  });
+
+  it("roteia ajuste numerico para contexto pendente quando disponivel", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "somar 30g", pendingContextKind: "quantity" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "route_to_pending_context",
+      canonicalIntent: "somar_quantidade",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.data.pendingContextKind).toBe("quantity");
+  });
+
+  it("bloqueia correcao numerica sem alvo ou contexto", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "corrigir 30g" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "safe_clarification",
+      canonicalIntent: "corrigir_alimento",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.reply).toContain("qual item ou refeição");
+  });
+
+  it("bloqueia remocao numerica sem lista ou contexto pendente", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "excluir 2" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "safe_clarification",
+      canonicalIntent: "excluir_alimento",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.reply).toContain("lista ativa");
+  });
+
+  it("roteia remocao numerica para contexto pendente quando disponivel", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "excluir 2", pendingContextKind: "selection" });
+
+    expect(route).toEqual(expect.objectContaining({
+      action: "route_to_pending_context",
+      canonicalIntent: "excluir_alimento",
+      shouldAllowNutritionFallback: false,
+    }));
+    expect(route.data.pendingContextKind).toBe("selection");
+  });
+
   it("roteia resumo e relatorio para fluxo proprio sem fallback alimentar", () => {
     expect(evaluateWhatsappIntentRoute({ text: "resuma meu dia" })).toEqual(expect.objectContaining({
       action: "continue_pipeline",
@@ -126,8 +181,8 @@ describe("evaluateWhatsappIntentRoute", () => {
     }));
   });
 
-  it("roteia comando de remocao sem fallback alimentar", () => {
-    const route = evaluateWhatsappIntentRoute({ text: "excluir 2" });
+  it("roteia comando de remocao textual sem fallback alimentar", () => {
+    const route = evaluateWhatsappIntentRoute({ text: "excluir o arroz" });
 
     expect(route).toEqual(expect.objectContaining({
       action: "continue_pipeline",
