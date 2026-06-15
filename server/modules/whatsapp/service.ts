@@ -13,6 +13,10 @@ import {
 } from "../../whatsappConfig";
 import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
+import {
+  registerWhatsappConversationPendingContext,
+  resolveWhatsappConversationContext,
+} from "./conversationContext";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import {
   buildWhatsappDuplicateInboundResult,
@@ -89,12 +93,16 @@ async function logAndReturnInterpretedIntent(
     action: string;
     eventType: string;
     detail: string;
+    reply?: string;
+    data?: Record<string, unknown>;
   } | null,
+  input?: { text?: string | null; receivedAt?: Date },
 ) {
   if (!interpreted) {
     return null;
   }
 
+  registerWhatsappConversationPendingContext(userId, interpreted, input);
   logInferenceEvent({
     userId,
     origin: "whatsapp",
@@ -137,6 +145,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       detail: duplicateResult.detail,
     });
     return duplicateResult;
+  }
+
+  const contextResult = await logAndReturnInterpretedIntent(userId, resolveWhatsappConversationContext(userId, {
+    text,
+    receivedAt,
+  }), { text, receivedAt });
+  if (contextResult) {
+    return contextResult;
   }
 
   const route = evaluateWhatsappIntentRoute({
@@ -230,7 +246,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   const recordAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappRecordAdjustmentIntent(userId, {
     text,
     receivedAt,
-  }));
+  }), { text, receivedAt });
   if (recordAdjustment) {
     return recordAdjustment;
   }
@@ -239,7 +255,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     text,
     receivedAt,
     messageId: input.messageId,
-  }));
+  }), { text, receivedAt });
   if (llmInterpreted) {
     return llmInterpreted;
   }
@@ -247,7 +263,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
     text,
     receivedAt,
-  }));
+  }), { text, receivedAt });
   if (interpreted) {
     return interpreted;
   }
