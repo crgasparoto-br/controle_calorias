@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { buildWhatsappAiToolTrace } from "./aiToolContract";
 import { __resetWhatsappIntentAuditLogsForTests, listWhatsappIntentAuditLogs, recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import type { WhatsappInterpretedIntent } from "./intentSchema";
 
@@ -40,6 +41,7 @@ describe("intentAuditLog", () => {
       latencyMs: 0,
       estimatedCostUnits: 0,
     });
+    expect(entry.toolTrace).toEqual([]);
   });
 
   it("registra rastro operacional de modelo, custo, latencia e fallback", () => {
@@ -68,6 +70,35 @@ describe("intentAuditLog", () => {
       estimatedCostUnits: 1,
       fallbackReason: "invalid_json",
     });
+  });
+
+  it("registra e filtra ferramentas usadas sem parametros sensiveis", () => {
+    const toolTrace = buildWhatsappAiToolTrace({
+      toolId: "meal_records_list",
+      intent: "list_meal_records",
+      outcome: "success",
+      parameterSummary: { dateWindow: "today", mealCount: 2 },
+    });
+
+    const entry = recordWhatsappIntentAuditLog({
+      userId: 42,
+      messageText: "refeições registradas com texto sensivel",
+      intent: buildIntent({ intent: "list_meal_records", confidence: 0.9, requiresConfirmation: false, possibleIntents: [] }),
+      validationStatus: "valid",
+      action: "llm_intent_list_meal_records",
+      replyKind: "executed",
+      toolTrace: [toolTrace],
+    });
+
+    expect(entry.toolTrace).toEqual([expect.objectContaining({
+      toolId: "meal_records_list",
+      version: "whatsapp-ai-tool/v1",
+      outcome: "success",
+      decision: "allowed",
+      parameterSummary: { dateWindow: "today", mealCount: 2 },
+    })]);
+    expect(JSON.stringify(entry.toolTrace)).not.toContain("texto sensivel");
+    expect(listWhatsappIntentAuditLogs({ toolId: "meal_records_list" })).toHaveLength(1);
   });
 
   it("filtra por intencao, erro, baixa confianca, motivo de fallback e estrategia", () => {
