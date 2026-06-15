@@ -20,6 +20,11 @@ import {
 } from "./inboundIdempotencyGuard";
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
+import {
+  buildWhatsappRouterResult,
+  evaluateWhatsappIntentRoute,
+  type WhatsappIntentRouteDecision,
+} from "./intentRouter";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
@@ -99,6 +104,18 @@ async function logAndReturnInterpretedIntent(
   return interpreted;
 }
 
+function logAndReturnRouterResult(userId: number, route: WhatsappIntentRouteDecision) {
+  const result = buildWhatsappRouterResult(route);
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: route.action === "safe_non_food_response" ? "success" : "warning",
+    eventType: result.eventType,
+    detail: result.detail,
+  });
+  return result;
+}
+
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
   const receivedAt = input.receivedAt ?? new Date();
@@ -119,6 +136,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       detail: duplicateResult.detail,
     });
     return duplicateResult;
+  }
+
+  const route = evaluateWhatsappIntentRoute({
+    text,
+    pendingContextKind: input.pendingContextKind,
+  });
+  if (route.action !== "continue_pipeline") {
+    return logAndReturnRouterResult(userId, route);
   }
 
   if (text) {
@@ -228,6 +253,10 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       detail: assistant.detail,
     });
     return assistant;
+  }
+
+  if (!route.shouldAllowNutritionFallback) {
+    return logAndReturnRouterResult(userId, route);
   }
 
   return processMealDraft(userId, { source: "whatsapp", text });
