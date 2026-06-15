@@ -31,9 +31,9 @@ describe("validateWhatsappRuntimeIntentForPersistence", () => {
       valid: true,
       status: "valid",
       issues: [],
-      fallbackReason: undefined,
-      errorCode: undefined,
     }));
+    expect(result).not.toHaveProperty("fallbackReason");
+    expect(result).not.toHaveProperty("errorCode");
     expect(result.autonomyDecision).toEqual(expect.objectContaining({
       outcome: "execute",
       intent: "adicionar_alimento",
