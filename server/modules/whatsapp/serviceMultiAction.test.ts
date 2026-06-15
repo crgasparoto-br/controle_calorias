@@ -161,12 +161,12 @@ describe("simulateWhatsappInbound multi-action", () => {
   });
 
   it("nao divide lista alimentar simples em multiplas acoes", async () => {
-    const result = await simulateWhatsappInbound(42, { text: "café, pão e leite" });
+    const result = await simulateWhatsappInbound(42, { text: "1 café, 1 pão e 200 ml leite" });
 
     expect(processMealDraftMock).toHaveBeenCalledTimes(1);
     expect(processMealDraftMock).toHaveBeenCalledWith(42, {
       source: "whatsapp",
-      text: "café, pão e leite",
+      text: "1 café, 1 pão e 200 ml leite",
     });
     expect(result).toEqual(expect.objectContaining({ draftId: "draft-1" }));
 
