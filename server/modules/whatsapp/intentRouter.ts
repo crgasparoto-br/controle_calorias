@@ -52,6 +52,10 @@ const QUESTION_WORDS = /\b(?:por que|porque|como|qual|quais|posso|devo|vale a pe
 const NUMERIC_ADJUSTMENT_WITH_UNIT = /^\s*(somar|soma|some|adicionar|adicione|adiciona|acrescentar|acrescente|aumentar|aumente|corrigir|corrija|ajustar|ajuste|alterar|altere)\s+(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|mg|ml|l|litros?|un|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?|porcao)\b(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
 const NUMERIC_REMOVAL_COMMAND = /^\s*(excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete)\s+(\d+(?:[,.]\d+)?)(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
 const ANALYSIS_REQUEST_WORDS = /\b(?:analise|analisar|avalie|avaliar|resuma|resumo|relatorio|historico|grafico|visualizacao|sugira|sugestao|meta|objetivo|evolucao|progresso|qualidade|consulta)\b/;
+const HEALTH_URGENCY_WORDS = /\b(?:passando mal|passei mal|desmaio|desmaiando|desmaiei|dor no peito|falta de ar|nao consigo respirar|pressao alta|pressao esta alta|pressao muito alta|hipoglicemia|convulsao|sangramento|emergencia|urgencia|socorro)\b/;
+const SENSITIVE_HEALTH_WORDS = /\b(?:diabetico|diabetes|hipertensao|pressao|gravida|gestante|renal|rim|figado|colesterol|triglicerides|remedio|medicamento|insulina|antidepressivo|ansiedade|depressao|transtorno alimentar|compulsao|anorexia|bulimia|alergia|intolerancia)\b/;
+const DIET_CARE_WORDS = /\b(?:jejum|dieta cetogenica|low carb|suplemento|creatina|whey|termogenico|calorias devo cortar|devo cortar calorias|quantas calorias devo cortar|posso fazer|posso tomar|posso comer)\b/;
+const PROFESSIONAL_OR_PRESCRIPTION_WORDS = /\b(?:nutricionista|medico|profissional|prescrever|prescricao|receita|tratamento|plano terapeutico|conduta)\b/;
 
 function normalizeText(value?: string | null) {
   return value
@@ -278,6 +282,40 @@ function requestedPeriod(text: string) {
   return null;
 }
 
+function routeHealthSafetyRequest(text: string): WhatsappIntentRouteDecision | null {
+  if (HEALTH_URGENCY_WORDS.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "possivel_urgencia_saude",
+      confidence: 0.94,
+      reason: "Possivel urgencia de saude bloqueada antes de qualquer fluxo alimentar ou orientacao automatica.",
+      reply: "Isso pode exigir atendimento imediato. Procure um serviço de urgência ou um profissional de saúde agora. Não vou registrar alimento nem orientar conduta clínica por aqui.",
+      possibleIntents: ["possivel_urgencia_saude", "pergunta_medica_sensivel"],
+    });
+  }
+
+  if (SENSITIVE_HEALTH_WORDS.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "pergunta_medica_sensivel",
+      confidence: 0.88,
+      reason: "Pergunta medica sensivel deve receber limite seguro sem diagnostico, prescricao ou registro alimentar.",
+      reply: "Esse tema depende do seu histórico e de avaliação profissional. Posso ajudar a organizar seus registros, mas não vou diagnosticar, prescrever ou orientar conduta clínica pelo WhatsApp.",
+      possibleIntents: ["pergunta_medica_sensivel", "pergunta_saude_dieta"],
+    });
+  }
+
+  if (DIET_CARE_WORDS.test(text) || PROFESSIONAL_OR_PRESCRIPTION_WORDS.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "pergunta_saude_dieta",
+      confidence: 0.82,
+      reason: "Pergunta de dieta, suplemento ou orientacao profissional deve receber informacao limitada e segura.",
+      reply: "Posso dar apoio geral com seus registros, mas não vou prescrever jejum, suplemento, corte calórico ou plano individual pelo WhatsApp. Para uma decisão personalizada, fale com um profissional de saúde.",
+      possibleIntents: ["pergunta_saude_dieta", "pergunta_medica_sensivel"],
+    });
+  }
+
+  return null;
+}
+
 function routeAmbiguousFoodAnalysis(text: string) {
   if (!ANALYSIS_REQUEST_WORDS.test(text) || !FOOD_REGISTRATION_WORDS.test(text)) return null;
   return safeClarification({
@@ -448,6 +486,11 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
       command: numericAdjustmentCommand,
       pendingContextKind: input.pendingContextKind,
     });
+  }
+
+  const healthSafetyRoute = routeHealthSafetyRequest(text);
+  if (healthSafetyRoute) {
+    return healthSafetyRoute;
   }
 
   const analysisRoute = routeAnalysisRequest(text);
