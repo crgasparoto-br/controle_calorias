@@ -27,6 +27,20 @@ vi.mock("../meals/service", () => ({
 
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
 
+const llmTrace = {
+  strategy: "llm_structured" as const,
+  modelName: "gpt-4.1-mini",
+  latencyMs: 12,
+  estimatedCostUnits: 1,
+};
+
+const safeFallbackTrace = {
+  strategy: "safe_fallback" as const,
+  modelName: "gpt-4.1-mini",
+  latencyMs: 12,
+  estimatedCostUnits: 1,
+};
+
 function interpretedIntent(overrides: Record<string, unknown> = {}) {
   return {
     intent: "unknown",
@@ -55,6 +69,7 @@ describe("executeWhatsappLlmIntent", () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
       validationStatus: "valid",
+      operationalTrace: llmTrace,
       intent: interpretedIntent({ confidence: 0.42, clarificationQuestion: "Você quer registrar ou consultar?" }),
     });
 
@@ -70,6 +85,12 @@ describe("executeWhatsappLlmIntent", () => {
       action: "clarification_needed",
       replyKind: "clarification",
       fallbackReason: "low_confidence",
+      operationalTrace: expect.objectContaining({
+        strategy: "llm_structured",
+        modelName: "gpt-4.1-mini",
+        estimatedCostUnits: 1,
+        fallbackReason: "low_confidence",
+      }),
     }));
   });
 
@@ -79,6 +100,7 @@ describe("executeWhatsappLlmIntent", () => {
       validationStatus: "skipped",
       fallbackReason: "security_guard",
       errorCode: "system_override",
+      operationalTrace: { ...safeFallbackTrace, modelName: null, estimatedCostUnits: 0, fallbackReason: "security_guard" },
       intent: interpretedIntent({
         intent: "ambiguous",
         confidence: 0.05,
@@ -103,6 +125,12 @@ describe("executeWhatsappLlmIntent", () => {
       fallbackReason: "low_confidence",
       errorCode: "system_override",
       validationStatus: "skipped",
+      operationalTrace: expect.objectContaining({
+        strategy: "safe_fallback",
+        modelName: null,
+        estimatedCostUnits: 0,
+        fallbackReason: "low_confidence",
+      }),
     }));
   });
 
@@ -110,6 +138,7 @@ describe("executeWhatsappLlmIntent", () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
       validationStatus: "valid",
+      operationalTrace: llmTrace,
       intent: interpretedIntent({ intent: "unknown", confidence: 0.34 }),
     });
 
@@ -120,14 +149,19 @@ describe("executeWhatsappLlmIntent", () => {
       action: "fallback_to_nutrition",
       replyKind: "fallback",
       fallbackReason: "nutrition_fallback",
+      operationalTrace: expect.objectContaining({
+        strategy: "llm_structured",
+        fallbackReason: "nutrition_fallback",
+      }),
     }));
   });
 
   it("lista refeicoes do dia quando a intencao contextual for consulta", async () => {
     listMealsMock.mockResolvedValue([{ id: 10, mealLabel: "Almoço", occurredAt: "2026-06-12T15:00:00.000Z", items: [{ foodName: "Arroz", canonicalName: "Arroz", portionText: "100 g", servings: 1, estimatedGrams: 100, calories: 130, protein: 2.7, carbs: 28, fat: 0.3, confidence: 0.9, source: "catalog" }] }]);
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
-      source: "llm",
-      validationStatus: "valid",
+      source: "deterministic",
+      validationStatus: "skipped",
+      operationalTrace: { strategy: "deterministic", modelName: null, latencyMs: 0, estimatedCostUnits: 0 },
       intent: interpretedIntent({ intent: "list_meal_records", confidence: 0.91, requiresConfirmation: false, possibleIntents: [] }),
     });
 
@@ -139,5 +173,10 @@ describe("executeWhatsappLlmIntent", () => {
     }));
     expect(result?.reply).toContain("Refeicoes registradas hoje");
     expect(result?.reply).toContain("Almoço");
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "llm_intent_list_meal_records",
+      replyKind: "executed",
+      operationalTrace: expect.objectContaining({ strategy: "deterministic" }),
+    }));
   });
 });
