@@ -81,10 +81,8 @@ function parseSelectionIndex(text: string) {
   return null;
 }
 
-function isContextDependentText(text: string) {
-  return /^(?:isso|esse|essa|o ultimo|a ultima|ultimo|ultima|o mesmo|a mesma|a anterior|o anterior)$/.test(text)
-    || /^(?:troca|trocar|corrige|corrigir|coloca|somar|some|remove|remover|apaga|apagar)\b/.test(text)
-    || /^(?:na verdade|era|não|nao)\b/.test(text)
+function isShortContextReply(text: string) {
+  return /^(?:isso|esse|essa|este|esta|o ultimo|a ultima|ultimo|ultima|o mesmo|a mesma|a anterior|o anterior)$/.test(text)
     || parseSelectionIndex(text) !== null
     || isAffirmative(text)
     || isNegative(text)
@@ -191,7 +189,7 @@ export function resolveWhatsappConversationContext(
 
   const pending = getPending(userId, input.receivedAt);
   if (pending === "expired") {
-    if (!isContextDependentText(text)) return null;
+    if (!isShortContextReply(text)) return null;
     return buildContextResult({
       action: "conversation_context_clarification_needed",
       reply: "A pendência anterior expirou. Envie novamente o item, a opção ou o ajuste completo para eu continuar com segurança.",
@@ -201,7 +199,7 @@ export function resolveWhatsappConversationContext(
   }
 
   if (!pending) {
-    if (!isContextDependentText(text)) return null;
+    if (!isShortContextReply(text)) return null;
     return buildContextResult({
       action: "conversation_context_clarification_needed",
       reply: "Não encontrei uma pendência ativa para essa resposta. Envie o alimento, ajuste ou opção completa.",
