@@ -91,6 +91,11 @@ describe("executeWhatsappLlmIntent", () => {
         estimatedCostUnits: 1,
         fallbackReason: "low_confidence",
       }),
+      toolTrace: [expect.objectContaining({
+        toolId: "clarification_request",
+        kind: "review",
+        decision: "allowed",
+      })],
     }));
   });
 
@@ -131,6 +136,7 @@ describe("executeWhatsappLlmIntent", () => {
         estimatedCostUnits: 0,
         fallbackReason: "low_confidence",
       }),
+      toolTrace: [expect.objectContaining({ toolId: "clarification_request" })],
     }));
   });
 
@@ -153,6 +159,7 @@ describe("executeWhatsappLlmIntent", () => {
         strategy: "llm_structured",
         fallbackReason: "nutrition_fallback",
       }),
+      toolTrace: [],
     }));
   });
 
@@ -177,6 +184,88 @@ describe("executeWhatsappLlmIntent", () => {
       action: "llm_intent_list_meal_records",
       replyKind: "executed",
       operationalTrace: expect.objectContaining({ strategy: "deterministic" }),
+      toolTrace: [expect.objectContaining({
+        toolId: "meal_records_list",
+        kind: "read",
+        outcome: "success",
+        decision: "allowed",
+      })],
+    }));
+  });
+
+  it("registra escrita governada com simulacao, idempotencia e ferramenta persistente", async () => {
+    createManualMealMock.mockResolvedValue({ id: 11, mealLabel: "Almoço", occurredAt: "2026-06-12T15:00:00.000Z" });
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      operationalTrace: llmTrace,
+      intent: interpretedIntent({
+        intent: "add_foods_to_meal",
+        confidence: 0.91,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        meal: { label: "almoço", createIfMissing: true },
+        items: [{ foodName: "Arroz", quantity: 100, unit: "g" }],
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, {
+      text: "registre no almoço 100g de arroz",
+      receivedAt: new Date("2026-06-12T15:00:00.000Z"),
+      messageId: "wamid-1",
+    });
+
+    expect(result).toEqual(expect.objectContaining({ action: "llm_intent_add_foods_to_meal" }));
+    expect(createManualMealMock).toHaveBeenCalledTimes(1);
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "llm_intent_add_foods_to_meal",
+      replyKind: "executed",
+      toolTrace: expect.arrayContaining([
+        expect.objectContaining({ toolId: "meal_records_list", kind: "read", outcome: "success" }),
+        expect.objectContaining({ toolId: "meal_item_nutrition_simulate", kind: "simulation", outcome: "success" }),
+        expect.objectContaining({
+          toolId: "meal_record_create",
+          kind: "write",
+          outcome: "success",
+          decision: "allowed",
+          parameterSummary: expect.objectContaining({ itemCount: 1 }),
+        }),
+      ]),
+    }));
+  });
+
+  it("retorna fallback seguro quando ferramenta falha antes de escrever", async () => {
+    listMealsMock.mockRejectedValue(new Error("DatabaseUnavailable"));
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      operationalTrace: llmTrace,
+      intent: interpretedIntent({
+        intent: "add_foods_to_meal",
+        confidence: 0.91,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        meal: { label: "almoço", createIfMissing: true },
+        items: [{ foodName: "Arroz", quantity: 100, unit: "g" }],
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, { text: "registre no almoço 100g de arroz" });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      reply: expect.stringContaining("Nao consegui concluir"),
+    }));
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: "clarification_needed",
+      replyKind: "clarification",
+      toolTrace: [expect.objectContaining({
+        toolId: "meal_records_list",
+        outcome: "failure",
+        decision: "allowed",
+      })],
     }));
   });
 });
