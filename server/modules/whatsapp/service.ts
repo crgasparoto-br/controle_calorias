@@ -26,6 +26,7 @@ import {
   type WhatsappIntentRouteDecision,
 } from "./intentRouter";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
+import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
@@ -224,6 +225,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       });
       return processMealDraft(userId, { source: "whatsapp", text: toText });
     }
+  }
+
+  const recordAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappRecordAdjustmentIntent(userId, {
+    text,
+    receivedAt,
+  }));
+  if (recordAdjustment) {
+    return recordAdjustment;
   }
 
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
