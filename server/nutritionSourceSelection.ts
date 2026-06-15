@@ -115,7 +115,7 @@ function hasCompatibleVariation(query: NutritionSourceQuery, candidate: Nutritio
 function hasCompatibleUnit(query: NutritionSourceQuery, candidate: NutritionSourceCandidate) {
   const queryUnit = normalizeText(query.unit);
   const servingUnit = normalizeText(candidate.servingUnit);
-  return !queryUnit || !servingUnit || queryUnit === servingUnit;
+  return !queryUnit || queryUnit === "porcao" || !servingUnit || queryUnit === servingUnit;
 }
 
 function scoreCandidate(query: NutritionSourceQuery, candidate: NutritionSourceCandidate) {
