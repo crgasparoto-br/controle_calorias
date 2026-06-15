@@ -17,6 +17,7 @@ import {
   updateUserMeal,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
+import { selectEstimatedNutritionSource } from "../../nutritionSourceMetadata";
 import { storagePut } from "../../storage";
 import { transcribeAudio } from "../../_core/voiceTranscription";
 import {
@@ -194,9 +195,30 @@ function normalizeMealItemQuantityUnit<T extends MealDraftItem>(item: T): T & Me
   };
 }
 
+function ensureMealItemNutritionSource<T extends MealDraftItem & MealItemQuantityUnit>(item: T): T {
+  if (item.nutritionSource) {
+    return item;
+  }
+
+  const foodName = item.canonicalName || item.foodName;
+  return {
+    ...item,
+    nutritionSource: selectEstimatedNutritionSource({
+      query: {
+        foodName,
+        unit: item.unit,
+      },
+      foodName,
+      sourceType: item.source === "hybrid" ? "llm_estimate" : "generic_estimate",
+    }),
+  };
+}
+
 function ensureMealItems(items: Array<MealDraftItem>): Array<MealDraftItem & MealItemQuantityUnit> {
   return dedupeMealItemsByProductIdentity(
-    items.map(item => normalizeMealItemQuantityUnit(item)),
+    items
+      .map(item => normalizeMealItemQuantityUnit(item))
+      .map(item => ensureMealItemNutritionSource(item)),
   ) as Array<MealDraftItem & MealItemQuantityUnit>;
 }
 
