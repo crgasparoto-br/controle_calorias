@@ -93,11 +93,13 @@ describe("classifyWhatsappMessageDeterministically", () => {
 describe("interpretWhatsappMessageWithDiagnostics", () => {
   const originalEnabled = process.env.OPENAI_WHATSAPP_INTENT_ENABLED;
   const originalRetries = process.env.OPENAI_WHATSAPP_INTENT_RETRIES;
+  const originalModel = process.env.OPENAI_WHATSAPP_INTENT_MODEL;
 
   beforeEach(() => {
     createTextResponseMock.mockReset();
     delete process.env.OPENAI_WHATSAPP_INTENT_ENABLED;
     process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "1";
+    process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-4.1-mini";
   });
 
   afterEach(() => {
@@ -105,22 +107,45 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     else process.env.OPENAI_WHATSAPP_INTENT_ENABLED = originalEnabled;
     if (originalRetries === undefined) delete process.env.OPENAI_WHATSAPP_INTENT_RETRIES;
     else process.env.OPENAI_WHATSAPP_INTENT_RETRIES = originalRetries;
+    if (originalModel === undefined) delete process.env.OPENAI_WHATSAPP_INTENT_MODEL;
+    else process.env.OPENAI_WHATSAPP_INTENT_MODEL = originalModel;
+  });
+
+  it("usa regra deterministica segura antes de chamar LLM", async () => {
+    const result = await interpretWhatsappMessageWithDiagnostics("refeições registradas", context);
+
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+    expect(result.source).toBe("deterministic");
+    expect(result.validationStatus).toBe("skipped");
+    expect(result.intent.intent).toBe("list_meal_records");
+    expect(result.operationalTrace).toEqual(expect.objectContaining({
+      strategy: "deterministic",
+      modelName: null,
+      estimatedCostUnits: 0,
+    }));
+    expect(result.operationalTrace.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
   it("usa resposta LLM valida quando o provider retorna JSON estruturado", async () => {
     createTextResponseMock.mockResolvedValueOnce({ outputText: llmIntentJson() });
 
-    const result = await interpretWhatsappMessageWithDiagnostics("refeições registradas", context);
+    const result = await interpretWhatsappMessageWithDiagnostics("me mostra meus detalhes de alimentação por favor", context);
 
     expect(result.source).toBe("llm");
     expect(result.validationStatus).toBe("valid");
     expect(result.intent.intent).toBe("list_meal_records");
+    expect(result.operationalTrace).toEqual(expect.objectContaining({
+      strategy: "llm_structured",
+      modelName: "gpt-4.1-mini",
+      estimatedCostUnits: 1,
+    }));
+    expect(result.operationalTrace.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
   it("delimita o texto do usuario como conteudo nao confiavel antes de chamar o provider", async () => {
     createTextResponseMock.mockResolvedValueOnce({ outputText: llmIntentJson() });
 
-    await interpretWhatsappMessageWithDiagnostics("refeições registradas", context);
+    await interpretWhatsappMessageWithDiagnostics("me mostra meus detalhes de alimentação por favor", context);
 
     expect(createTextResponseMock).toHaveBeenCalledWith(expect.objectContaining({
       input: [expect.objectContaining({
@@ -130,7 +155,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
         })],
       })],
     }));
-    expect(createTextResponseMock.mock.calls[0][0].input[0].content[0].text).toContain("refeições registradas");
+    expect(createTextResponseMock.mock.calls[0][0].input[0].content[0].text).toContain("me mostra meus detalhes de alimentação por favor");
     expect(createTextResponseMock.mock.calls[0][0].instructions).toContain("conteudo nao confiavel");
   });
 
@@ -148,6 +173,12 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     expect(result.intent.intent).toBe("ambiguous");
     expect(result.intent.requiresConfirmation).toBe(true);
     expect(result.intent.clarificationQuestion).toContain("Não posso executar instruções");
+    expect(result.operationalTrace).toEqual(expect.objectContaining({
+      strategy: "safe_fallback",
+      modelName: null,
+      estimatedCostUnits: 0,
+      fallbackReason: "security_guard",
+    }));
   });
 
   it("bloqueia pedido para burlar validacao ou autonomia", async () => {
@@ -160,48 +191,73 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     expect(result.fallbackReason).toBe("security_guard");
     expect(result.errorCode).toBe("autonomy_or_validation_bypass");
     expect(result.intent.confidence).toBeLessThan(0.1);
+    expect(result.operationalTrace.strategy).toBe("safe_fallback");
   });
 
   it("desliga LLM por ambiente e usa classificacao deterministica", async () => {
     process.env.OPENAI_WHATSAPP_INTENT_ENABLED = "false";
 
-    const result = await interpretWhatsappMessageWithDiagnostics("refeições registradas", context);
+    const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
 
     expect(createTextResponseMock).not.toHaveBeenCalled();
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("skipped");
     expect(result.fallbackReason).toBe("disabled");
+    expect(result.operationalTrace).toEqual(expect.objectContaining({
+      strategy: "deterministic",
+      modelName: null,
+      estimatedCostUnits: 0,
+      fallbackReason: "disabled",
+    }));
   });
 
   it("cai para deterministico quando o LLM retorna JSON invalido", async () => {
     createTextResponseMock.mockResolvedValueOnce({ outputText: "nao-json" });
 
-    const result = await interpretWhatsappMessageWithDiagnostics("refeições registradas", context);
+    const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
 
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("invalid_json");
     expect(result.fallbackReason).toBe("invalid_json");
+    expect(result.operationalTrace).toEqual(expect.objectContaining({
+      strategy: "safe_fallback",
+      modelName: "gpt-4.1-mini",
+      estimatedCostUnits: 1,
+      fallbackReason: "invalid_json",
+    }));
   });
 
   it("cai para deterministico quando o payload LLM nao valida", async () => {
     createTextResponseMock.mockResolvedValueOnce({ outputText: llmIntentJson({ confidence: 1.2 }) });
 
-    const result = await interpretWhatsappMessageWithDiagnostics("refeições registradas", context);
+    const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
 
     expect(result.source).toBe("deterministic");
     expect(result.validationStatus).toBe("invalid_payload");
     expect(result.fallbackReason).toBe("invalid_payload");
+    expect(result.operationalTrace).toEqual(expect.objectContaining({
+      strategy: "safe_fallback",
+      modelName: "gpt-4.1-mini",
+      estimatedCostUnits: 1,
+      fallbackReason: "invalid_payload",
+    }));
   });
 
   it("retenta falha do provider antes de cair para deterministico", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
 
-    const result = await interpretWhatsappMessageWithDiagnostics("refeições registradas", context);
+    const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
 
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
     expect(result.source).toBe("deterministic");
     expect(result.fallbackReason).toBe("api_error");
     expect(result.errorCode).toBe("api_error");
+    expect(result.operationalTrace).toEqual(expect.objectContaining({
+      strategy: "safe_fallback",
+      modelName: "gpt-4.1-mini",
+      estimatedCostUnits: 2,
+      fallbackReason: "api_error",
+    }));
   });
 
   it("mantem baixa confianca retornada pelo LLM para decisao do executor", async () => {
@@ -212,5 +268,6 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     expect(result.source).toBe("llm");
     expect(result.validationStatus).toBe("valid");
     expect(result.intent.confidence).toBe(0.42);
+    expect(result.operationalTrace.strategy).toBe("llm_structured");
   });
 });
