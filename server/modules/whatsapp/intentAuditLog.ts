@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { WhatsappAiToolId, WhatsappAiToolTrace } from "./aiToolContract";
 import type { WhatsappIntentName, WhatsappInterpretedIntent } from "./intentSchema";
+import { recordWhatsappPipelineTrace, type WhatsappPipelineTraceSpan } from "./operationalObservability";
 
 export type WhatsappIntentValidationStatus = "valid" | "invalid_json" | "invalid_payload" | "skipped";
 
@@ -100,6 +101,102 @@ function buildOperationalTrace(input: RecordWhatsappIntentAuditLogInput): Whatsa
   };
 }
 
+function buildValidationSpan(entry: WhatsappIntentAuditLogEntry): WhatsappPipelineTraceSpan {
+  const failed = entry.validationStatus === "invalid_json" || entry.validationStatus === "invalid_payload";
+  return {
+    stage: "validation",
+    outcome: entry.validationStatus === "skipped" ? "skipped" : failed ? "failure" : "success",
+    latencyMs: 0,
+    estimatedCostUnits: 0,
+    retryCount: 0,
+    modelName: null,
+    version: "whatsapp-intent-output/v1",
+    toolId: null,
+    ...(failed ? { errorCode: entry.validationStatus } : {}),
+  };
+}
+
+function buildLlmOutcome(entry: WhatsappIntentAuditLogEntry): WhatsappPipelineTraceSpan["outcome"] {
+  if (entry.operationalTrace.fallbackReason === "timeout") return "timeout";
+  if (entry.validationStatus === "invalid_json" || entry.validationStatus === "invalid_payload") return "failure";
+  if (entry.errorCode && entry.operationalTrace.strategy === "safe_fallback") return "failure";
+  if (entry.operationalTrace.fallbackReason) return "fallback";
+  return "success";
+}
+
+function buildPipelineSpans(entry: WhatsappIntentAuditLogEntry): WhatsappPipelineTraceSpan[] {
+  const spans: WhatsappPipelineTraceSpan[] = [{
+    stage: "router",
+    outcome: entry.operationalTrace.strategy === "safe_fallback" ? "fallback" : "success",
+    latencyMs: entry.operationalTrace.modelName ? 0 : entry.operationalTrace.latencyMs,
+    estimatedCostUnits: 0,
+    retryCount: 0,
+    modelName: null,
+    version: entry.contextVersion,
+    toolId: null,
+    ...(entry.operationalTrace.fallbackReason ? { fallbackReason: entry.operationalTrace.fallbackReason } : {}),
+  }];
+
+  if (entry.operationalTrace.modelName) {
+    spans.push({
+      stage: "llm",
+      outcome: buildLlmOutcome(entry),
+      latencyMs: entry.operationalTrace.latencyMs,
+      estimatedCostUnits: entry.operationalTrace.estimatedCostUnits,
+      retryCount: Math.max(0, Math.round(entry.operationalTrace.estimatedCostUnits) - 1),
+      modelName: entry.operationalTrace.modelName,
+      version: "whatsapp-llm-intent/v1",
+      toolId: null,
+      ...(entry.errorCode ? { errorCode: entry.errorCode } : {}),
+      ...(entry.operationalTrace.fallbackReason ? { fallbackReason: entry.operationalTrace.fallbackReason } : {}),
+    });
+  }
+
+  spans.push(buildValidationSpan(entry));
+
+  for (const trace of entry.toolTrace) {
+    const toolSpan: WhatsappPipelineTraceSpan = {
+      stage: "tools",
+      outcome: trace.outcome,
+      latencyMs: 0,
+      estimatedCostUnits: 0,
+      retryCount: 0,
+      modelName: null,
+      version: trace.version,
+      toolId: trace.toolId,
+      ...(trace.failureReason ? { errorCode: trace.failureReason } : {}),
+    };
+    spans.push(toolSpan);
+
+    if (trace.kind === "write" || trace.kind === "correction" || trace.kind === "removal") {
+      spans.push({
+        ...toolSpan,
+        stage: "persistence",
+      });
+    }
+  }
+
+  return spans;
+}
+
+function recordOperationalPipelineTrace(entry: WhatsappIntentAuditLogEntry) {
+  recordWhatsappPipelineTrace({
+    traceId: `intent-audit-${entry.id}`,
+    userId: entry.userId,
+    channel: entry.channel,
+    messageHash: entry.messageHash,
+    createdAt: new Date(entry.createdAt),
+    intent: entry.intent,
+    contextVersion: entry.contextVersion,
+    schemaVersion: "whatsapp-intent-output/v1",
+    promptVersion: "whatsapp-prompt/v1",
+    ruleVersion: entry.contextVersion,
+    strategy: entry.operationalTrace.strategy,
+    modelName: entry.operationalTrace.modelName,
+    spans: buildPipelineSpans(entry),
+  });
+}
+
 export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLogInput) {
   const entry: WhatsappIntentAuditLogEntry = {
     id: nextEntryId,
@@ -122,6 +219,7 @@ export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLog
 
   nextEntryId += 1;
   entries.push(entry);
+  recordOperationalPipelineTrace(entry);
   if (entries.length > MAX_AUDIT_LOG_ENTRIES) {
     entries.splice(0, entries.length - MAX_AUDIT_LOG_ENTRIES);
   }
