@@ -51,6 +51,7 @@ const MATH_WITH_UNIT = /^\s*\d+(?:[,.]\d+)?(?:\s*[+\-*/]\s*\d+(?:[,.]\d+)?)+\s*(
 const QUESTION_WORDS = /\b(?:por que|porque|como|qual|quais|posso|devo|vale a pena|faz mal|faz bem)\b/;
 const NUMERIC_ADJUSTMENT_WITH_UNIT = /^\s*(somar|soma|some|adicionar|adicione|adiciona|acrescentar|acrescente|aumentar|aumente|corrigir|corrija|ajustar|ajuste|alterar|altere)\s+(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|mg|ml|l|litros?|un|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?|porcao)\b(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
 const NUMERIC_REMOVAL_COMMAND = /^\s*(excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete)\s+(\d+(?:[,.]\d+)?)(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
+const ANALYSIS_REQUEST_WORDS = /\b(?:analise|analisar|avalie|avaliar|resuma|resumo|relatorio|historico|grafico|visualizacao|sugira|sugestao|meta|objetivo|evolucao|progresso|qualidade|consulta)\b/;
 
 function normalizeText(value?: string | null) {
   return value
@@ -269,6 +270,119 @@ function isQuestionWithoutRegistrationSignal(text: string) {
   return QUESTION_WORDS.test(text) && !QUANTITY_WITH_UNIT.test(text) && !FOOD_REGISTRATION_WORDS.test(text);
 }
 
+function requestedPeriod(text: string) {
+  if (/\b(?:hoje|dia|diario|diaria)\b/.test(text)) return "dia";
+  if (/\b(?:ontem)\b/.test(text)) return "dia";
+  if (/\b(?:semana|semanal|7 dias)\b/.test(text)) return "semana";
+  if (/\b(?:mes|mensal|30 dias)\b/.test(text)) return "mes";
+  return null;
+}
+
+function routeAmbiguousFoodAnalysis(text: string) {
+  if (!ANALYSIS_REQUEST_WORDS.test(text) || !FOOD_REGISTRATION_WORDS.test(text)) return null;
+  return safeClarification({
+    canonicalIntent: "mensagem_ambigua",
+    confidence: 0.73,
+    reason: "Mensagem combina registro alimentar com pedido de analise; precisa confirmar antes de salvar.",
+    reply: "Entendi registro e análise na mesma mensagem. Você quer salvar esse alimento, consultar seus dados ou fazer as duas ações em sequência?",
+    possibleIntents: ["registrar_alimento", "resumo_periodo", "gerar_relatorio", "mensagem_ambigua"],
+  });
+}
+
+function routeAnalysisRequest(text: string): WhatsappIntentRouteDecision | null {
+  const ambiguous = routeAmbiguousFoodAnalysis(text);
+  if (ambiguous) return ambiguous;
+
+  if (/\b(?:grafico|visualizacao|linha do tempo|curva)\b/.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "gerar_grafico",
+      confidence: 0.86,
+      reason: "Pedido de grafico/visualizacao nao deve cair no parser de alimentos.",
+      reply: "Ainda não gero gráfico direto por aqui. Você pode abrir os registros no app ou pedir um resumo do dia pelo WhatsApp.",
+    });
+  }
+
+  if (/\b(?:relatorio|pdf|documento|exportar)\b/.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "gerar_relatorio",
+      confidence: 0.86,
+      reason: "Pedido de relatorio deve receber fallback seguro enquanto o relatorio final nao existir no WhatsApp.",
+      reply: "Ainda não monto relatório completo direto pelo WhatsApp. Posso ajudar com um resumo do dia ou você pode revisar os registros no app.",
+    });
+  }
+
+  if (/\b(?:historico|meus registros|registros alimentares|refeicoes registradas|o que registrei|o que eu comi)\b/.test(text)) {
+    return continuePipeline({
+      canonicalIntent: "consulta_historico",
+      confidence: 0.8,
+      shouldAllowNutritionFallback: false,
+      reason: "Consulta de historico deve usar fluxo de registros e nunca fallback alimentar.",
+      possibleIntents: ["consulta_historico", "resumo_dia"],
+    });
+  }
+
+  if (/\b(?:resumo|resuma|resumir|balanco|fechamento|total do dia|totais?|calorias de hoje|macros de hoje)\b/.test(text)) {
+    const period = requestedPeriod(text);
+    if (period === "semana" || period === "mes") {
+      return safeNonFood({
+        canonicalIntent: "resumo_periodo",
+        confidence: 0.84,
+        reason: "Resumo de periodo ainda nao tem executor final no WhatsApp e nao deve gerar alimento.",
+        reply: "Ainda não monto resumo de semana ou mês direto pelo WhatsApp. Posso mostrar o resumo de hoje ou você pode revisar o período no app.",
+        possibleIntents: ["resumo_periodo", "gerar_relatorio", "consulta_historico"],
+      });
+    }
+
+    return continuePipeline({
+      canonicalIntent: "resumo_dia",
+      confidence: 0.8,
+      shouldAllowNutritionFallback: false,
+      reason: "Resumo diario deve usar fluxo de consulta existente; periodo ausente usa hoje como padrao.",
+      possibleIntents: ["resumo_dia", "consulta_historico"],
+    });
+  }
+
+  if (/\b(?:sugira|sugerir|sugestao|o que comer|ideia de|opcao de lanche|opcao de refeicao|jantar leve|almoco leve)\b/.test(text)) {
+    const intent: CanonicalWhatsappIntentName = /\b(?:alimento|produto|ingrediente)\b/.test(text) ? "sugestao_alimento" : "sugestao_refeicao";
+    return safeNonFood({
+      canonicalIntent: intent,
+      confidence: 0.82,
+      reason: "Pedido de sugestao deve receber resposta segura sem registrar alimento.",
+      reply: "Ainda não monto sugestões personalizadas por aqui. Posso ajudar a registrar o que você comeu ou mostrar seu resumo do dia.",
+      possibleIntents: ["sugestao_refeicao", "sugestao_alimento"],
+    });
+  }
+
+  if (/\b(?:meta|objetivo|caloria alvo|deficit|superavit)\b/.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "pergunta_sobre_meta",
+      confidence: 0.82,
+      reason: "Pergunta sobre meta deve ser tratada como consulta, nao como alimento.",
+      reply: "Entendi sua pergunta sobre meta. Ainda não faço essa análise completa pelo WhatsApp; revise sua meta no app ou peça um resumo do dia.",
+    });
+  }
+
+  if (/\b(?:evolucao|progresso|resultado|estou indo bem|como estou)\b/.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "pergunta_sobre_evolucao",
+      confidence: 0.82,
+      reason: "Pergunta sobre evolucao deve ser tratada como consulta segura.",
+      reply: "Entendi sua pergunta sobre evolução. Ainda não faço essa análise completa pelo WhatsApp; você pode revisar seus registros no app.",
+    });
+  }
+
+  if (/\b(?:qualidade|ultraprocessado|ultra processado|saudavel|balanceado|bom ou ruim|melhorar alimentacao)\b/.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "pergunta_sobre_qualidade_alimentar",
+      confidence: 0.8,
+      reason: "Pergunta sobre qualidade alimentar deve ser consulta segura sem persistencia.",
+      reply: "Entendi sua pergunta sobre qualidade alimentar. Posso ajudar com registros e resumos, mas não vou salvar isso como alimento.",
+    });
+  }
+
+  return null;
+}
+
 export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteInput): WhatsappIntentRouteDecision {
   const text = normalizeText(input.text);
   if (!text) {
@@ -336,38 +450,14 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
     });
   }
 
-  if (/\b(?:grafico|grafico|gráfico|evolucao|evolução)\b/.test(text)) {
-    return safeNonFood({
-      canonicalIntent: "gerar_grafico",
-      confidence: 0.84,
-      reason: "Pedido de gráfico/evolução não deve cair no parser de alimentos.",
-      reply: "Ainda não gero gráfico direto por aqui. Posso ajudar com um resumo do dia ou você pode abrir os registros no app.",
-    });
-  }
-
-  if (/\b(?:resumo|resuma|relatorio|relatório|historico|histórico|calorias de hoje|semana|mes|mês)\b/.test(text)) {
-    return continuePipeline({
-      canonicalIntent: /\b(?:relatorio|relatório|historico|histórico)\b/.test(text) ? "gerar_relatorio" : "resumo_periodo",
-      confidence: 0.78,
-      shouldAllowNutritionFallback: false,
-      reason: "Pedido de resumo/relatório deve ser tratado por fluxo próprio antes do fallback alimentar.",
-      possibleIntents: ["resumo_dia", "resumo_periodo", "gerar_relatorio"],
-    });
-  }
-
-  if (/\b(?:sugira|sugestao|sugestão|o que comer|ideia de lanche|opcao de lanche|opção de lanche)\b/.test(text)) {
-    return continuePipeline({
-      canonicalIntent: "sugestao_refeicao",
-      confidence: 0.78,
-      shouldAllowNutritionFallback: false,
-      reason: "Pedido de sugestão deve ser roteado para resposta própria, não para registro de alimento.",
-      possibleIntents: ["sugestao_refeicao", "sugestao_alimento"],
-    });
+  const analysisRoute = routeAnalysisRequest(text);
+  if (analysisRoute) {
+    return analysisRoute;
   }
 
   if (isQuestionWithoutRegistrationSignal(text)) {
     return safeNonFood({
-      canonicalIntent: /\b(?:dor|remedio|remédio|doenca|doença|sintoma|emergencia|emergência|pressao|pressão)\b/.test(text)
+      canonicalIntent: /\b(?:dor|remedio|doenca|sintoma|emergencia|pressao)\b/.test(text)
         ? "pergunta_saude_dieta"
         : "pergunta_sobre_alimento",
       confidence: 0.74,
