@@ -240,6 +240,74 @@ describe("simulateWhatsappInbound", () => {
     }));
   });
 
+  it("resolve data relativa usando fuso do usuario antes do fallback nutricional", async () => {
+    const result = await simulateWhatsappInbound(4210, {
+      text: "jantar de ontem: arroz e frango",
+      receivedAt: new Date("2026-06-15T02:30:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+      messageId: "time-1",
+    });
+
+    expect(processMealDraftMock).toHaveBeenCalledWith(4210, {
+      source: "whatsapp",
+      text: "jantar de ontem: arroz e frango",
+    });
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 4210,
+      origin: "whatsapp",
+      eventType: "whatsapp.time.temporal_context_resolved",
+      detail: expect.stringContaining("2026-06-13"),
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      temporalContext: expect.objectContaining({
+        temporalExpression: "ontem",
+        resolvedDate: "2026-06-13",
+        mealSlot: "jantar",
+        userTimezone: "America/Sao_Paulo",
+      }),
+    }));
+  });
+
+  it("pede esclarecimento para dia da semana ambiguo antes de alterar dados", async () => {
+    const result = await simulateWhatsappInbound(4211, {
+      text: "almoço de sábado",
+      receivedAt: new Date("2026-06-15T12:00:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+      messageId: "time-2",
+    });
+
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "temporal_context_clarification_needed",
+      data: expect.objectContaining({
+        temporalExpression: "sabado",
+        ambiguityReason: "dia da semana sem passado ou proximo",
+      }),
+    }));
+  });
+
+  it("registra fallback de fuso quando usuario ainda nao tem timezone configurado", async () => {
+    const result = await simulateWhatsappInbound(4212, {
+      text: "café da manhã hoje cedo: banana",
+      receivedAt: new Date("2026-06-15T12:00:00.000Z"),
+      messageId: "time-3",
+    });
+
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 4212,
+      status: "warning",
+      eventType: "whatsapp.time.temporal_context_resolved",
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      temporalContext: expect.objectContaining({
+        resolvedDate: "2026-06-15",
+        mealSlot: "cafe_da_manha",
+        timezoneSource: "fallback",
+      }),
+    }));
+  });
+
   it("mantem contexto de confirmacao em conversa de 2 turnos", async () => {
     listMealsMock.mockResolvedValue([recentMeal()]);
 
