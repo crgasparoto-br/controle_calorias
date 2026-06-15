@@ -209,6 +209,25 @@ describe("simulateWhatsappInbound", () => {
     }));
   });
 
+  it("responde urgencia de saude sem acionar LLM, texto ou parser nutricional", async () => {
+    const result = await simulateWhatsappInbound(42, {
+      text: "estou passando mal e com falta de ar",
+    });
+
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "router_safe_response",
+      reply: expect.stringContaining("Procure um serviço de urgência"),
+      data: expect.objectContaining({
+        canonicalIntent: "possivel_urgencia_saude",
+        shouldAllowNutritionFallback: false,
+      }),
+    }));
+  });
+
   it("roteia ajuste de registro para confirmacao sem criar nova refeicao", async () => {
     listMealsMock.mockResolvedValue([recentMeal()]);
 
