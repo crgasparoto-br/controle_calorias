@@ -36,6 +36,7 @@ vi.mock("./foodAssistant", () => ({
   executeWhatsAppFoodAssistantIntent: executeWhatsAppFoodAssistantIntentMock,
 }));
 
+const { clearWhatsappConversationContext } = await import("./conversationContext");
 const { simulateWhatsappInbound } = await import("./service");
 
 function recentMeal() {
@@ -60,8 +61,19 @@ function recentMeal() {
   };
 }
 
+function recentMealWithChickenOptions() {
+  return {
+    ...recentMeal(),
+    items: [
+      { foodName: "Frango grelhado", canonicalName: "Frango grelhado", portionText: "100 g", servings: 1, estimatedGrams: 100, calories: 165, protein: 31, carbs: 0, fat: 3.6, confidence: 0.9, source: "catalog" },
+      { foodName: "Frango desfiado", canonicalName: "Frango desfiado", portionText: "80 g", servings: 0.8, estimatedGrams: 80, calories: 132, protein: 25, carbs: 0, fat: 2.9, confidence: 0.9, source: "catalog" },
+    ],
+  };
+}
+
 describe("simulateWhatsappInbound", () => {
   beforeEach(() => {
+    clearWhatsappConversationContext();
     getAdminWhatsAppTokenStatusMock.mockReset();
     getDbMock.mockReset();
     getUserWhatsappConnectionMock.mockReset();
@@ -226,6 +238,91 @@ describe("simulateWhatsappInbound", () => {
         shouldAllowNutritionFallback: false,
       }),
     }));
+  });
+
+  it("mantem contexto de confirmacao em conversa de 2 turnos", async () => {
+    listMealsMock.mockResolvedValue([recentMeal()]);
+
+    const first = await simulateWhatsappInbound(42, {
+      text: "era 150g",
+      receivedAt: new Date("2026-06-14T15:00:00.000Z"),
+    });
+    const second = await simulateWhatsappInbound(42, {
+      text: "sim",
+      receivedAt: new Date("2026-06-14T15:01:00.000Z"),
+    });
+
+    expect(first).toEqual(expect.objectContaining({ action: "record_adjustment_confirmation_needed" }));
+    expect(second).toEqual(expect.objectContaining({
+      action: "conversation_context_confirmation_accepted",
+      data: expect.objectContaining({
+        contextUsed: true,
+        pendingConsumed: true,
+      }),
+    }));
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("mantem selecao e confirmacao em conversa de 3 turnos", async () => {
+    listMealsMock.mockResolvedValue([recentMealWithChickenOptions()]);
+
+    const first = await simulateWhatsappInbound(42, {
+      text: "remove frango",
+      receivedAt: new Date("2026-06-14T15:00:00.000Z"),
+    });
+    const second = await simulateWhatsappInbound(42, {
+      text: "1",
+      receivedAt: new Date("2026-06-14T15:01:00.000Z"),
+    });
+    const third = await simulateWhatsappInbound(42, {
+      text: "sim",
+      receivedAt: new Date("2026-06-14T15:02:00.000Z"),
+    });
+
+    expect(first).toEqual(expect.objectContaining({ action: "record_adjustment_selection_needed" }));
+    expect(second).toEqual(expect.objectContaining({
+      action: "conversation_context_option_selected",
+      data: expect.objectContaining({
+        selectedOption: expect.objectContaining({ id: "10:0" }),
+      }),
+    }));
+    expect(third).toEqual(expect.objectContaining({ action: "conversation_context_confirmation_accepted" }));
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("mantem pendencia apos opcao invalida e permite cancelar em conversa de 4 turnos", async () => {
+    listMealsMock.mockResolvedValue([recentMealWithChickenOptions()]);
+
+    const first = await simulateWhatsappInbound(42, {
+      text: "remove frango",
+      receivedAt: new Date("2026-06-14T15:00:00.000Z"),
+    });
+    const second = await simulateWhatsappInbound(42, {
+      text: "3",
+      receivedAt: new Date("2026-06-14T15:01:00.000Z"),
+    });
+    const third = await simulateWhatsappInbound(42, {
+      text: "a segunda opção",
+      receivedAt: new Date("2026-06-14T15:02:00.000Z"),
+    });
+    const fourth = await simulateWhatsappInbound(42, {
+      text: "cancela",
+      receivedAt: new Date("2026-06-14T15:03:00.000Z"),
+    });
+
+    expect(first).toEqual(expect.objectContaining({ action: "record_adjustment_selection_needed" }));
+    expect(second).toEqual(expect.objectContaining({
+      action: "conversation_context_clarification_needed",
+      reply: expect.stringContaining("Essa opção não está na lista"),
+    }));
+    expect(third).toEqual(expect.objectContaining({
+      action: "conversation_context_option_selected",
+      data: expect.objectContaining({
+        selectedOption: expect.objectContaining({ id: "10:1" }),
+      }),
+    }));
+    expect(fourth).toEqual(expect.objectContaining({ action: "conversation_context_cancelled" }));
+    expect(processMealDraftMock).not.toHaveBeenCalled();
   });
 
   it("roteia ajuste de registro para confirmacao sem criar nova refeicao", async () => {
