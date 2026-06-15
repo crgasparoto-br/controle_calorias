@@ -77,7 +77,7 @@ describe("executeWhatsappRecordAdjustmentIntent", () => {
     expect(result?.reply).toContain("trocar Arroz branco por arroz integral");
   });
 
-  it("mostra opcoes quando remocao encontra mais de um alvo possivel", async () => {
+  it("mostra opcoes padronizadas quando remocao encontra mais de um alvo possivel", async () => {
     listMealsMock.mockResolvedValue([meal({
       items: [
         { foodName: "Frango grelhado", canonicalName: "Frango grelhado", portionText: "100 g", servings: 1, estimatedGrams: 100, calories: 165, protein: 31, carbs: 0, fat: 3.6, confidence: 0.9, source: "catalog" },
@@ -96,6 +96,8 @@ describe("executeWhatsappRecordAdjustmentIntent", () => {
       data: expect.objectContaining({
         adjustmentKind: "remove_item",
         optionCount: 2,
+        clarificationQuestion: expect.stringContaining("Qual deles devo usar?"),
+        acceptedResponses: expect.arrayContaining(["1", "opção 1", "a primeira", "nenhuma", "cancelar"]),
         options: expect.arrayContaining([
           expect.objectContaining({ id: "10:0", label: expect.stringContaining("Frango grelhado") }),
           expect.objectContaining({ id: "10:1", label: expect.stringContaining("Frango desfiado") }),
@@ -104,7 +106,10 @@ describe("executeWhatsappRecordAdjustmentIntent", () => {
     }));
     expect(result?.reply).toContain("1. Frango grelhado");
     expect(result?.reply).toContain("2. Frango desfiado");
-    expect(result?.reply).toContain("Responda com o número");
+    expect(result?.reply).toContain("0. Nenhuma dessas opções");
+    expect(result?.reply).toContain("opção 1");
+    expect(result?.reply).toContain("a primeira");
+    expect(result?.reply).toContain("nenhuma");
   });
 
   it("nao aplica ajuste quando nao existe refeicao recente segura", async () => {
