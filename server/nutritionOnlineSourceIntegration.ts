@@ -51,7 +51,7 @@ function inferItemVariation(item: MealDraftItem, candidate: OnlineNutritionSourc
   const itemText = normalizeText(`${item.foodName} ${item.canonicalName}`);
   const candidateVariation = normalizeText(candidate.variation);
   const criticalVariations = ["zero", "sem acucar", "diet", "light", "integral", "desnatado", "tradicional"];
-  return criticalVariations.find(variation => itemText.includes(variation)) ?? candidateVariation || null;
+  return criticalVariations.find(variation => itemText.includes(variation)) ?? (candidateVariation || null);
 }
 
 function buildItemCandidateQuery(item: MealDraftItem, candidate: OnlineNutritionSourceCandidate) {
