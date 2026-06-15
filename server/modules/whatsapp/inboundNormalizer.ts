@@ -1,5 +1,10 @@
 import type { CanonicalWhatsappIntentName } from "./canonicalIntentSchema";
 import {
+  normalizeWhatsappInformalLanguage,
+  type WhatsappInformalAlias,
+  type WhatsappInformalNormalizationResult,
+} from "./informalLanguageNormalizer";
+import {
   inspectWhatsAppUserContentSafety,
   type WhatsAppContentSafetyCheck,
   type WhatsAppUserContentModality,
@@ -21,6 +26,7 @@ export type WhatsappInboundNormalizationInput = {
   messageId?: string | null;
   text?: string | null;
   media?: WhatsappInboundMediaInput | null;
+  informalAliases?: WhatsappInformalAlias[];
 };
 
 export type WhatsappInboundMediaClassification =
@@ -43,6 +49,7 @@ export type NormalizedWhatsappInboundMessage = {
   normalizedText: string | null;
   routerText: string | null;
   transcribedText: string | null;
+  informalLanguage: WhatsappInformalNormalizationResult | null;
   mediaContext: {
     mediaId: string | null;
     mimeType: string | null;
@@ -194,18 +201,22 @@ export function normalizeWhatsappInboundMessage(input: WhatsappInboundNormalizat
   const extractedText = compactText(media?.extractedText);
   const originalText = compactText(input.text);
   const mediaDecision = classifyMedia(input);
-  const routerText = buildRouterText([
+  const originalRouterText = buildRouterText([
     originalText,
     caption ? `Legenda da imagem: ${caption}` : null,
     transcribedText ? `Transcricao do audio: ${transcribedText}` : null,
     extractedText ? `Texto extraido da midia: ${extractedText}` : null,
   ]);
-  const guardText = routerText ?? mediaDecision.clarificationQuestion ?? "";
+  const informalLanguage = normalizeWhatsappInformalLanguage(originalRouterText, {
+    aliases: input.informalAliases,
+  });
+  const routerText = informalLanguage?.normalizedText ?? originalRouterText;
+  const guardText = originalRouterText ?? mediaDecision.clarificationQuestion ?? "";
   const safetyCheck = inspectWhatsAppUserContentSafety(guardText, resolveGuardModality(inputModality));
   const blockedBySafety = !safetyCheck.safe;
   const response = blockedBySafety
     ? "blocked_by_safety"
-    : mediaDecision.requiresClarification
+    : mediaDecision.requiresClarification || Boolean(informalLanguage?.requiresClarification)
       ? "clarification_needed"
       : "ready_for_router";
 
@@ -216,6 +227,7 @@ export function normalizeWhatsappInboundMessage(input: WhatsappInboundNormalizat
     normalizedText: normalizeText(routerText),
     routerText,
     transcribedText,
+    informalLanguage,
     mediaContext: media && media.kind !== "none"
       ? {
           mediaId: compactText(media.mediaId),
@@ -229,10 +241,10 @@ export function normalizeWhatsappInboundMessage(input: WhatsappInboundNormalizat
     intentHint: mediaDecision.intentHint,
     sourceRecommendation: mediaDecision.sourceRecommendation,
     confidence: mediaDecision.confidence,
-    requiresClarification: mediaDecision.requiresClarification || blockedBySafety,
+    requiresClarification: mediaDecision.requiresClarification || Boolean(informalLanguage?.requiresClarification) || blockedBySafety,
     clarificationQuestion: blockedBySafety
       ? "Não posso executar instruções para alterar regras, permissões, validações ou acessar dados de outras pessoas."
-      : mediaDecision.clarificationQuestion,
+      : mediaDecision.clarificationQuestion ?? informalLanguage?.clarificationQuestion ?? null,
     safetyCheck,
     auditSummary: {
       mediaKind: media?.kind ?? "none",
