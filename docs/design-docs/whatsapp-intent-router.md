@@ -4,6 +4,8 @@
 
 A subissue #398 introduz uma camada explícita de roteamento antes do parser nutricional e do fallback de alimento. O objetivo é impedir que números soltos, contas, confirmações, pedidos de gráfico, perguntas e mensagens ambíguas gerem registros alimentares indevidos.
 
+A subissue #408 amplia essa proteção para contas e comandos numéricos de ajuste, garantindo que mensagens como `somar 30g` ou `excluir 2` não sejam tratadas como alimento genérico quando faltam alvo ou contexto pendente.
+
 O contrato fica em `server/modules/whatsapp/intentRouter.ts` e é chamado por `simulateWhatsappInbound` depois da idempotência e antes das ações persistentes.
 
 ## Decisão
@@ -23,7 +25,7 @@ O roteador produz uma decisão estruturada com:
 - `continue_pipeline`: segue para os fluxos existentes de LLM estruturada, intents determinísticas, assistente e, se permitido, fallback nutricional.
 - `safe_clarification`: pede esclarecimento e bloqueia fallback nutricional.
 - `safe_non_food_response`: responde com segurança para mensagens não alimentares e bloqueia fallback nutricional.
-- `route_to_pending_context`: reconhece resposta curta com contexto pendente e impede parser alimentar.
+- `route_to_pending_context`: reconhece resposta curta ou comando numérico com contexto pendente e impede parser alimentar.
 
 ## Proteções
 
@@ -32,10 +34,20 @@ O roteador bloqueia fallback alimentar para:
 - número isolado sem contexto;
 - confirmação curta sem contexto;
 - conta matemática com unidade;
+- comando numérico de soma, correção, adição sem alimento ou remoção sem lista/contexto;
 - gráfico/evolução ainda sem fluxo completo;
 - pergunta sem alimento registrável;
 - mensagem ambígua;
 - comandos de remoção, correção ou relatório que não forem tratados por fluxo próprio.
+
+## Regras numéricas da #408
+
+- `110 - 30 g` é calculado de forma determinística e retorna o resultado sem criar refeição.
+- `2` sem contexto pede esclarecimento e não aciona fallback alimentar.
+- `2` com `pendingContextKind` é roteado para o contexto pendente como seleção, confirmação ou quantidade.
+- `somar 30g`, `corrigir 30g` e `excluir 2` sem alvo/contexto pedem esclarecimento.
+- `somar 30g` ou `excluir 2` com contexto pendente usam `route_to_pending_context`.
+- `adicionar 30g de arroz` continua sendo registro alimentar válido, porque contém alvo alimentar explícito.
 
 ## Compatibilidade
 
@@ -60,6 +72,9 @@ Esta entrega não implementa o fluxo completo de remoção, gráficos, resposta 
 - número isolado com e sem contexto pendente;
 - confirmação curta sem contexto;
 - conta matemática com unidade;
+- soma, correção e remoção numérica com e sem contexto;
 - resumo, relatório, gráfico, sugestão e pergunta;
 - mensagem ambígua;
-- comando de remoção sem fallback alimentar.
+- comando de remoção textual sem fallback alimentar.
+
+`server/modules/whatsapp/service.test.ts` cobre a integração para impedir que ajuste numérico sem contexto chegue ao processamento de refeição.
