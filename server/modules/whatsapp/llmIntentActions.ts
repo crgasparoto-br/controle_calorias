@@ -269,6 +269,7 @@ function recordIntentAudit(input: {
     : input.result
       ? "executed"
       : "fallback";
+  const fallbackReason = input.fallbackReason ?? input.interpretation.fallbackReason;
   recordWhatsappIntentAuditLog({
     userId: input.userId,
     messageText: input.text,
@@ -276,7 +277,11 @@ function recordIntentAudit(input: {
     validationStatus: input.interpretation.validationStatus,
     action: resultAction,
     replyKind,
-    fallbackReason: input.fallbackReason ?? input.interpretation.fallbackReason,
+    operationalTrace: {
+      ...input.interpretation.operationalTrace,
+      ...(fallbackReason ? { fallbackReason } : {}),
+    },
+    fallbackReason,
     errorCode: input.errorCode ?? input.interpretation.errorCode,
   });
 }
