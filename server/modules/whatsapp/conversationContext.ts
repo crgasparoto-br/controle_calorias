@@ -282,6 +282,14 @@ export function registerWhatsappConversationContextFromResult(userId: number, in
   return null;
 }
 
+export function listWhatsappConversationContextsForTests() {
+  return contexts.map(context => ({
+    ...context,
+    options: context.options.map(option => ({ ...option })),
+    ...(context.metadata ? { metadata: { ...context.metadata } } : {}),
+  }));
+}
+
 export function __resetWhatsappConversationContextsForTests() {
   contexts.length = 0;
   nextContextId = 1;
