@@ -5,7 +5,7 @@ import {
   type WhatsappInterpretedIntent,
   whatsappIntentJsonSchema,
 } from "./intentSchema";
-import type { WhatsappIntentValidationStatus } from "./intentAuditLog";
+import type { WhatsappIntentOperationalTrace, WhatsappIntentValidationStatus } from "./intentAuditLog";
 import type { WhatsappIntentContext } from "./intentContext";
 import {
   buildSuspiciousWhatsAppContentReply,
@@ -26,6 +26,7 @@ export type WhatsappMessageInterpretation = {
   validationStatus: WhatsappIntentValidationStatus;
   fallbackReason?: WhatsappIntentFallbackReason;
   errorCode?: string;
+  operationalTrace: WhatsappIntentOperationalTrace;
 };
 
 const DEFAULT_LLM_TIMEOUT_MS = 8_000;
@@ -240,6 +241,26 @@ function getWhatsappIntentRetries() {
   return Math.min(Math.floor(rawValue), MAX_LLM_RETRIES);
 }
 
+function resolveWhatsappIntentModelName() {
+  return process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? "gpt-4.1-mini";
+}
+
+function buildOperationalTrace(input: {
+  startedAt: number;
+  strategy: WhatsappIntentOperationalTrace["strategy"];
+  modelName?: string | null;
+  estimatedCostUnits?: number;
+  fallbackReason?: WhatsappIntentFallbackReason;
+}): WhatsappIntentOperationalTrace {
+  return {
+    strategy: input.strategy,
+    modelName: input.modelName ?? null,
+    latencyMs: Date.now() - input.startedAt,
+    estimatedCostUnits: input.estimatedCostUnits ?? 0,
+    ...(input.fallbackReason ? { fallbackReason: input.fallbackReason } : {}),
+  };
+}
+
 class WhatsappIntentTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`WhatsApp intent interpretation timed out after ${timeoutMs}ms`);
@@ -263,7 +284,8 @@ function deterministicInterpretation(
   text: string,
   fallbackReason: WhatsappIntentFallbackReason,
   validationStatus: WhatsappIntentValidationStatus,
-  errorCode?: string,
+  errorCode: string | undefined,
+  trace: WhatsappIntentOperationalTrace,
 ): WhatsappMessageInterpretation {
   return {
     intent: classifyWhatsappMessageDeterministically(text),
@@ -271,10 +293,11 @@ function deterministicInterpretation(
     validationStatus,
     fallbackReason,
     ...(errorCode ? { errorCode } : {}),
+    operationalTrace: trace,
   };
 }
 
-function securityGuardInterpretation(text: string): WhatsappMessageInterpretation | null {
+function securityGuardInterpretation(text: string, startedAt: number): WhatsappMessageInterpretation | null {
   const safety = inspectWhatsAppUserContentSafety(text, "text");
   if (safety.safe) return null;
 
@@ -292,6 +315,11 @@ function securityGuardInterpretation(text: string): WhatsappMessageInterpretatio
     validationStatus: "skipped",
     fallbackReason: "security_guard",
     errorCode: safety.categories[0] ?? "security_guard",
+    operationalTrace: buildOperationalTrace({
+      startedAt,
+      strategy: "safe_fallback",
+      fallbackReason: "security_guard",
+    }),
   };
 }
 
@@ -300,22 +328,32 @@ export async function interpretWhatsappMessageWithDiagnostics(
   context: WhatsappIntentContext,
   options: InterpretOptions = {},
 ): Promise<WhatsappMessageInterpretation> {
-  const guarded = securityGuardInterpretation(text);
+  const startedAt = Date.now();
+  const guarded = securityGuardInterpretation(text, startedAt);
   if (guarded) return guarded;
 
   if (!isWhatsappLlmEnabled(options)) {
-    return deterministicInterpretation(text, "disabled", "skipped");
+    return deterministicInterpretation(
+      text,
+      "disabled",
+      "skipped",
+      undefined,
+      buildOperationalTrace({ startedAt, strategy: "deterministic", fallbackReason: "disabled" }),
+    );
   }
 
   const timeoutMs = getWhatsappIntentTimeoutMs();
   const maxRetries = getWhatsappIntentRetries();
+  const modelName = resolveWhatsappIntentModelName();
   let lastErrorCode = "api_error";
   let lastFallbackReason: WhatsappIntentFallbackReason = "api_error";
+  let attempts = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    attempts = attempt + 1;
     try {
       const response = await withTimeout(getAiProvider().createTextResponse({
-        model: process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? "gpt-4.1-mini",
+        model: modelName,
         instructions: buildInstructions(context),
         input: [{
           role: "user",
@@ -331,16 +369,46 @@ export async function interpretWhatsappMessageWithDiagnostics(
 
       const json = parseJson(response.outputText);
       if (!json.ok) {
-        return deterministicInterpretation(text, "invalid_json", "invalid_json", "invalid_json");
+        return deterministicInterpretation(
+          text,
+          "invalid_json",
+          "invalid_json",
+          "invalid_json",
+          buildOperationalTrace({
+            startedAt,
+            strategy: "safe_fallback",
+            modelName,
+            estimatedCostUnits: attempts,
+            fallbackReason: "invalid_json",
+          }),
+        );
       }
       const parsed = parseWhatsappInterpretedIntent(json.value);
       if (!parsed.success) {
-        return deterministicInterpretation(text, "invalid_payload", "invalid_payload", "invalid_payload");
+        return deterministicInterpretation(
+          text,
+          "invalid_payload",
+          "invalid_payload",
+          "invalid_payload",
+          buildOperationalTrace({
+            startedAt,
+            strategy: "safe_fallback",
+            modelName,
+            estimatedCostUnits: attempts,
+            fallbackReason: "invalid_payload",
+          }),
+        );
       }
       return {
         intent: parsed.data,
         source: "llm",
         validationStatus: "valid",
+        operationalTrace: buildOperationalTrace({
+          startedAt,
+          strategy: "llm_structured",
+          modelName,
+          estimatedCostUnits: attempts,
+        }),
       };
     } catch (error) {
       const timedOut = error instanceof WhatsappIntentTimeoutError;
@@ -349,7 +417,19 @@ export async function interpretWhatsappMessageWithDiagnostics(
     }
   }
 
-  return deterministicInterpretation(text, lastFallbackReason, "skipped", lastErrorCode);
+  return deterministicInterpretation(
+    text,
+    lastFallbackReason,
+    "skipped",
+    lastErrorCode,
+    buildOperationalTrace({
+      startedAt,
+      strategy: "safe_fallback",
+      modelName,
+      estimatedCostUnits: attempts,
+      fallbackReason: lastFallbackReason,
+    }),
+  );
 }
 
 export async function interpretWhatsappMessage(
