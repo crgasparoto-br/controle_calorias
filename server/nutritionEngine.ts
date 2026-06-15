@@ -5,6 +5,8 @@ import { getCatalogCache } from "./catalogRuntime";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import { findTacoFood } from "./tacoLookup";
+import { applyOnlineNutritionSourcesToMealItems } from "./nutritionOnlineSourceIntegration";
+import type { OnlineNutritionSourceCandidate } from "./nutritionOnlineSource";
 import {
   selectCatalogNutritionSource,
   selectEstimatedNutritionSource,
@@ -61,6 +63,7 @@ export type MealProcessingInput = {
   occurredAt?: Date | string | number;
   timeZone?: string;
   suggestedMealLabel?: string | null;
+  onlineNutritionSourceCandidates?: OnlineNutritionSourceCandidate[];
 };
 
 export type MealProcessingResult = {
@@ -999,7 +1002,10 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
         ),
       },
     ), sourceText);
-  const items = cleanMealItems(rawItems);
+  const items = applyOnlineNutritionSourcesToMealItems(
+    cleanMealItems(rawItems),
+    input.onlineNutritionSourceCandidates,
+  );
 
   if (!items.length) {
     throw new MealInferenceError();
