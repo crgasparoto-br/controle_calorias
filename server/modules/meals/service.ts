@@ -222,6 +222,15 @@ function ensureMealItems(items: Array<MealDraftItem>): Array<MealDraftItem & Mea
   ) as Array<MealDraftItem & MealItemQuantityUnit>;
 }
 
+function stripMealItemRuntimeMetadata<T extends MealDraftItem>(item: T): Omit<T, "nutritionSource"> {
+  const { nutritionSource: _nutritionSource, ...persistableItem } = item;
+  return persistableItem;
+}
+
+function stripMealItemsRuntimeMetadata<T extends MealDraftItem>(items: T[]): Array<Omit<T, "nutritionSource">> {
+  return items.map(stripMealItemRuntimeMetadata);
+}
+
 function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(processed: T): T {
   return {
     ...processed,
@@ -230,7 +239,8 @@ function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(processe
 }
 
 async function prepareMealItemsForSave(userId: number, items: Array<MealDraftItem>) {
-  return enrichMealItemsWithNutritionSnapshots(userId, ensureMealItems(items) as MealItemWithNutritionSnapshot[]);
+  const enriched = await enrichMealItemsWithNutritionSnapshots(userId, ensureMealItems(items) as MealItemWithNutritionSnapshot[]);
+  return stripMealItemsRuntimeMetadata(enriched) as MealItemWithNutritionSnapshot[];
 }
 
 export async function listMeals(userId: number) {
