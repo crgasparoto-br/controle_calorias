@@ -56,7 +56,7 @@ function inferItemVariation(item: MealDraftItem, candidate: OnlineNutritionSourc
 
 function buildItemCandidateQuery(item: MealDraftItem, candidate: OnlineNutritionSourceCandidate) {
   return {
-    foodName: item.foodName || item.canonicalName,
+    foodName: item.canonicalName || item.foodName,
     brandName: candidate.brandName ?? null,
     variation: inferItemVariation(item, candidate),
     unit: item.unit,
