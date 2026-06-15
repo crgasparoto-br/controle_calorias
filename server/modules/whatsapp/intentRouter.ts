@@ -49,6 +49,7 @@ const ISOLATED_NUMBER = /^\d+(?:[,.]\d+)?$/;
 const OPTION_SELECTION = /^(?:opcao\s*)?\d+$/;
 const MATH_WITH_UNIT = /^\s*\d+(?:[,.]\d+)?(?:\s*[+\-*/]\s*\d+(?:[,.]\d+)?)+\s*(?:g|gr|gramas?|kg|mg|ml|l|litros?)\s*$/i;
 const QUESTION_WORDS = /\b(?:por que|porque|como|qual|quais|posso|devo|vale a pena|faz mal|faz bem)\b/;
+const FOOD_QUESTION_WORDS = /\b(?:tem muita caloria|tem poucas calorias|quantas calorias|calorico|calorica|engorda|e bom|e ruim|vale a pena)\b/;
 const NUMERIC_ADJUSTMENT_WITH_UNIT = /^\s*(somar|soma|some|adicionar|adicione|adiciona|acrescentar|acrescente|aumentar|aumente|corrigir|corrija|ajustar|ajuste|alterar|altere)\s+(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|mg|ml|l|litros?|un|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?|porcao)\b(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
 const NUMERIC_REMOVAL_COMMAND = /^\s*(excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete)\s+(\d+(?:[,.]\d+)?)(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
 const ANALYSIS_REQUEST_WORDS = /\b(?:analise|analisar|avalie|avaliar|resuma|resumo|relatorio|historico|grafico|visualizacao|sugira|sugestao|meta|objetivo|evolucao|progresso|qualidade|consulta)\b/;
@@ -271,7 +272,7 @@ function isLikelyFoodMessage(text: string) {
 }
 
 function isQuestionWithoutRegistrationSignal(text: string) {
-  return QUESTION_WORDS.test(text) && !QUANTITY_WITH_UNIT.test(text) && !FOOD_REGISTRATION_WORDS.test(text);
+  return (QUESTION_WORDS.test(text) || FOOD_QUESTION_WORDS.test(text)) && !QUANTITY_WITH_UNIT.test(text) && !FOOD_REGISTRATION_WORDS.test(text);
 }
 
 function requestedPeriod(text: string) {
