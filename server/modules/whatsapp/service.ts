@@ -331,7 +331,11 @@ async function processWhatsappMultiActionSegments(input: {
 
   let pendingContext = null;
   if (contextCandidates.length === 1) {
-    pendingContext = registerConversationContext(input.userId, contextCandidates[0].text, input.receivedAt, contextCandidates[0].result);
+    const contextCandidate = contextCandidates[0].result;
+    pendingContext = registerConversationContext(input.userId, contextCandidates[0].text, input.receivedAt, {
+      action: contextCandidate.action,
+      ...(contextCandidate.data ? { data: contextCandidate.data } : {}),
+    });
     if (pendingContext) {
       recordWhatsappOperationalTraceStep(input.trace, {
         stage: "conversation_context",
