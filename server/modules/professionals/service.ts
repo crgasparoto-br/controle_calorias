@@ -34,7 +34,7 @@ type ProfessionalProfile = {
   updatedAt: number;
 };
 
-type ProfessionalPatientAccess = {
+export type ProfessionalPatientAccess = {
   id: string;
   professionalUserId: number;
   patientUserId: number;
@@ -131,6 +131,10 @@ const comments: ProfessionalComment[] = [];
 const goalSuggestions: GoalSuggestion[] = [];
 const mealSuggestions: MealSuggestion[] = [];
 const history: HistoryEvent[] = [];
+
+export function _forTestOnly_setAccessInMap(access: ProfessionalPatientAccess) {
+  accesses.set(access.id, access);
+}
 
 function pushHistory(event: Omit<HistoryEvent, "id" | "createdAt">) {
   history.push({ id: crypto.randomUUID(), createdAt: Date.now(), ...event });
@@ -332,6 +336,26 @@ async function loadPersistedAccesses(userId: number, preferenceKey: string) {
   const loadedAccesses = rows[0]?.preferenceValue ? parseStoredAccesses(userId, preferenceKey, rows[0].preferenceValue) : [];
   loadedAccesses.forEach(access => accesses.set(access.id, access));
   return loadedAccesses;
+}
+
+async function loadProfessionalAccessesForPatient(patientUserId: number): Promise<ProfessionalPatientAccess[]> {
+  const db = await getDb();
+  if (!db) {
+    return Array.from(accesses.values()).filter(a => a.patientUserId === patientUserId);
+  }
+
+  const rows = await db
+    .select()
+    .from(userPreferences)
+    .where(eq(userPreferences.preferenceKey, PROFESSIONAL_ACCESSES_PREFERENCE_KEY));
+
+  const found: ProfessionalPatientAccess[] = [];
+  for (const row of rows) {
+    if (!row.preferenceValue) continue;
+    const parsed = parseStoredAccesses(row.userId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY, row.preferenceValue);
+    found.push(...parsed.filter(a => a.patientUserId === patientUserId));
+  }
+  return found;
 }
 
 async function persistAccessesForUser(userId: number, preferenceKey: string, nextAccesses: ProfessionalPatientAccess[]) {
@@ -720,6 +744,7 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
     access.status !== "revoked",
   );
   if (existing) {
+    await persistAccessForBothSides(existing);
     return {
       ...publicAccess(existing),
       patient,
@@ -784,7 +809,18 @@ export async function listProfessionalAccesses(professionalUserId: number) {
 }
 
 export async function listPatientAccessRequests(patientUserId: number) {
-  const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
+  const [patientAccesses, professionalSideAccesses] = await Promise.all([
+    loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY),
+    loadProfessionalAccessesForPatient(patientUserId),
+  ]);
+
+  const patientAccessIds = new Set(patientAccesses.map(a => a.id));
+  const missing = professionalSideAccesses.filter(a => !patientAccessIds.has(a.id));
+  if (missing.length > 0) {
+    await Promise.all(missing.map(access => persistAccessForBothSides(access)));
+    missing.forEach(a => patientAccesses.push(a));
+  }
+
   const professionalProfiles = await Promise.all(patientAccesses.map(access => getProfessionalProfile(access.professionalUserId)));
   const professionalMap = new Map(
     professionalProfiles
