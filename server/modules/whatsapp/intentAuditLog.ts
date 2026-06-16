@@ -102,7 +102,9 @@ function buildOperationalTrace(input: RecordWhatsappIntentAuditLogInput): Whatsa
 }
 
 function buildValidationSpan(entry: WhatsappIntentAuditLogEntry): WhatsappPipelineTraceSpan {
-  const failed = entry.validationStatus === "invalid_json" || entry.validationStatus === "invalid_payload";
+  const schemaFailed = entry.validationStatus === "invalid_json" || entry.validationStatus === "invalid_payload";
+  const backendFailed = entry.fallbackReason === "backend_validation_failed" || Boolean(entry.errorCode && entry.validationStatus === "valid");
+  const failed = schemaFailed || backendFailed;
   return {
     stage: "validation",
     outcome: entry.validationStatus === "skipped" ? "skipped" : failed ? "failure" : "success",
@@ -112,7 +114,8 @@ function buildValidationSpan(entry: WhatsappIntentAuditLogEntry): WhatsappPipeli
     modelName: null,
     version: "whatsapp-intent-output/v1",
     toolId: null,
-    ...(failed ? { errorCode: entry.validationStatus } : {}),
+    ...(failed ? { errorCode: entry.errorCode ?? entry.validationStatus } : {}),
+    ...(backendFailed && entry.fallbackReason ? { fallbackReason: entry.fallbackReason } : {}),
   };
 }
 
