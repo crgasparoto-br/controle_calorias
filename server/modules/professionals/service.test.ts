@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  _forTestOnly_setAccessInMap,
   answerProfessionalPatientQuestion,
   approvePatientAccess,
   buildPhoneLookupCandidates,
@@ -10,6 +11,7 @@ import {
   suggestGoalAdjustment,
   suggestMealPlan,
   upsertProfessionalProfile,
+  type ProfessionalPatientAccess,
 } from "./service";
 
 function goalInput(calories = 1800) {
@@ -130,6 +132,74 @@ describe("professional access requests", () => {
     ]));
     await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: access.id, status: "approved" }),
+    ]));
+  });
+
+  it("exibe vínculo na aba Perfil quando cópia do lado do paciente está ausente (backfill assimétrico)", async () => {
+    const professionalUserId = 24140;
+    const patientUserId = 24141;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Fernanda Costa",
+      active: true,
+    });
+
+    const legacyAccess: ProfessionalPatientAccess = {
+      id: "legacy-access-24141",
+      professionalUserId,
+      patientUserId,
+      status: "pending",
+      reason: "Acompanhamento legado",
+      requestedAt: Date.now(),
+      approvedAt: null,
+      revokedAt: null,
+      rejectedAt: null,
+      respondedAt: null,
+      responseOrigin: null,
+      responseDecision: null,
+      authorizationMessageStatus: null,
+      authorizationMessageSentAt: null,
+      authorizationMessageError: null,
+    };
+    _forTestOnly_setAccessInMap(legacyAccess);
+
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: legacyAccess.id,
+        professionalUserId,
+        patientUserId,
+        status: "pending",
+        professional: expect.objectContaining({ displayName: "Fernanda Costa" }),
+      }),
+    ]));
+  });
+
+  it("reconcilia cópia do paciente ao reenviar solicitação de acesso existente", async () => {
+    const professionalUserId = 24150;
+    const patientUserId = 24151;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Rafael Mendes",
+      active: true,
+    });
+
+    const first = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Primeira solicitação",
+    });
+
+    const second = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Reenvio",
+    });
+
+    expect(second.id).toBe(first.id);
+
+    await expect(listPatientAccessRequests(patientUserId)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: first.id,
+        professionalUserId,
+        patientUserId,
+        status: "pending",
+      }),
     ]));
   });
 });
