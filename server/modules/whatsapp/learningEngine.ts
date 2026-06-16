@@ -127,6 +127,7 @@ export const WHATSAPP_LEARNING_ENGINE_POLICY = {
     privacy: "#432",
     memory: "#433",
     drift: "#434",
+    driftDetection: "#434",
     nutritionComparison: "#435",
     autonomy: "#436",
     injectionGuard: "#437",
@@ -189,8 +190,8 @@ function hasUnsafeGlobalCandidate(candidates: EngineLearningCandidate[] = []) {
 function qualityGateStatus(plan?: EnginePromotionPlan | null) {
   const decision = plan?.qualityGate?.decision;
   if (!decision) return component("qualityGates", "missing", "Promocao de aprendizado exige gate objetivo antes de ampliar comportamento global.");
-  if (decision === "reject") return component("qualityGates", "blocked", "Gate de qualidade rejeitou a candidata.", [`decision:${decision}`]);
-  if (decision === "manual_review") return component("qualityGates", "needs_review", "Gate de qualidade exige revisao humana antes de continuar.", [`decision:${decision}`]);
+  if (decision === "reject" || decision === "rollback") return component("qualityGates", "blocked", "Gate de qualidade rejeitou a candidata ou exigiu rollback.", [`decision:${decision}`]);
+  if (decision === "review") return component("qualityGates", "needs_review", "Gate de qualidade exige revisao humana antes de continuar.", [`decision:${decision}`]);
   return component("qualityGates", "ready", "Gate de qualidade aprovado para o estagio atual.", [`decision:${decision}`]);
 }
 
