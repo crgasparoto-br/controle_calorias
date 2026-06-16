@@ -628,11 +628,14 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
     }
 
     if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) {
-      return finish(buildClarification(intent), intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify ? "low_confidence" : undefined);
+      const clarificationFallbackReason = intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify
+        ? interpretation.fallbackReason ?? "low_confidence"
+        : interpretation.fallbackReason;
+      return finish(buildClarification(intent), clarificationFallbackReason);
     }
 
     if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute && intent.intent !== "ambiguous") {
-      return finish(null, "low_confidence");
+      return finish(null, interpretation.fallbackReason ?? "low_confidence");
     }
 
     if (isPersistentIntent(intent.intent)) {
@@ -688,9 +691,9 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
         });
       case "ambiguous":
       case "unknown":
-        return finish(buildClarification(intent));
+        return finish(buildClarification(intent), interpretation.fallbackReason);
       default:
-        return finish(null, "unsupported_intent");
+        return finish(null, interpretation.fallbackReason ?? "unsupported_intent");
     }
   } catch (error) {
     recordIntentAudit({
