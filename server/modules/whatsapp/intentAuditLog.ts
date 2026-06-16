@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { WhatsappAiToolId, WhatsappAiToolTrace } from "./aiToolContract";
 import type { WhatsappIntentName, WhatsappInterpretedIntent } from "./intentSchema";
+import { recordWhatsappMessageHistory } from "./messageHistory";
 import { recordWhatsappPipelineTrace, type WhatsappPipelineTraceSpan } from "./operationalObservability";
 
 export type WhatsappIntentValidationStatus = "valid" | "invalid_json" | "invalid_payload" | "skipped";
@@ -204,6 +205,24 @@ function recordOperationalPipelineTrace(entry: WhatsappIntentAuditLogEntry) {
   });
 }
 
+function recordStructuredMessageHistory(input: RecordWhatsappIntentAuditLogInput, entry: WhatsappIntentAuditLogEntry) {
+  recordWhatsappMessageHistory({
+    userId: entry.userId,
+    messageText: input.messageText,
+    createdAt: new Date(entry.createdAt),
+    receivedAt: input.createdAt,
+    processedAt: new Date(entry.createdAt),
+    intent: input.intent,
+    validationStatus: input.validationStatus,
+    operationalTrace: entry.operationalTrace,
+    toolTrace: entry.toolTrace,
+    action: entry.action,
+    replyKind: entry.replyKind,
+    fallbackReason: entry.fallbackReason,
+    errorCode: entry.errorCode,
+  });
+}
+
 export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLogInput) {
   const entry: WhatsappIntentAuditLogEntry = {
     id: nextEntryId,
@@ -227,6 +246,7 @@ export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLog
   nextEntryId += 1;
   entries.push(entry);
   recordOperationalPipelineTrace(entry);
+  recordStructuredMessageHistory(input, entry);
   if (entries.length > MAX_AUDIT_LOG_ENTRIES) {
     entries.splice(0, entries.length - MAX_AUDIT_LOG_ENTRIES);
   }
