@@ -4,12 +4,11 @@ import {
   containsDirectIdentifier,
   type AiLearningPrivacyRecord,
 } from "../aiLearningPrivacy";
-import type { WhatsappReviewQueueItem, WhatsappReviewDecisionResult } from "./reviewQueue";
+import type { WhatsappReviewDecisionResult, WhatsappReviewQueueItem } from "./reviewQueue";
 
 export const WHATSAPP_LEARNING_GOVERNANCE_VERSION = "whatsapp-learning-governance/v1";
 
 export type WhatsappLearningAutonomyLevel = "automatic" | "suggestion" | "review_required" | "blocked";
-
 export type WhatsappLearningAction =
   | "record_signal"
   | "create_hypothesis"
@@ -27,7 +26,6 @@ export type WhatsappLearningAction =
   | "rollback_learning_change"
   | "recalculate_historical_data"
   | "direct_llm_mutation";
-
 export type WhatsappLearningChangeKind =
   | "signal"
   | "hypothesis"
@@ -41,27 +39,15 @@ export type WhatsappLearningChangeKind =
   | "autonomy_policy"
   | "rollback"
   | "historical_recalculation";
-
 export type WhatsappLearningApprovalRole =
   | "administrator"
   | "nutrition_curator"
   | "authorized_professional"
   | "technical_reviewer"
   | "controlled_automation";
-
 export type WhatsappLearningApprovalPolicy = "none" | "single" | "double" | "restricted_automatic" | "blocked";
-
-export type WhatsappLearningCandidateStatus =
-  | "recorded"
-  | "suggested"
-  | "needs_review"
-  | "approved"
-  | "rejected"
-  | "promoted"
-  | "rolled_back";
-
+export type WhatsappLearningCandidateStatus = "recorded" | "suggested" | "needs_review" | "approved" | "rejected" | "promoted" | "rolled_back";
 export type WhatsappLearningRiskLevel = "low" | "medium" | "high" | "critical";
-
 export type WhatsappLearningAuditEventType =
   | "candidate_created"
   | "approval_recorded"
@@ -106,33 +92,10 @@ export type WhatsappLearningCandidate = {
   directGlobalPromotionAllowed: false;
   governanceVersion: typeof WHATSAPP_LEARNING_GOVERNANCE_VERSION;
   privacy: AiLearningPrivacyRecord;
-  approvals: Array<{
-    role: WhatsappLearningApprovalRole;
-    reviewer: string;
-    justification: string;
-    decidedAt: string;
-  }>;
-  rejection: {
-    role: WhatsappLearningApprovalRole;
-    reviewer: string;
-    justification: string;
-    decidedAt: string;
-  } | null;
-  promotion: {
-    promotedAt: string;
-    promotedBy: string;
-    role: WhatsappLearningApprovalRole;
-    version: string;
-    rollbackPlan: string;
-    metric: string;
-  } | null;
-  rollback: {
-    rolledBackAt: string;
-    rolledBackBy: string;
-    role: WhatsappLearningApprovalRole;
-    reason: string;
-    restoredVersion: string | null;
-  } | null;
+  approvals: Array<{ role: WhatsappLearningApprovalRole; reviewer: string; justification: string; decidedAt: string }>;
+  rejection: { role: WhatsappLearningApprovalRole; reviewer: string; justification: string; decidedAt: string } | null;
+  promotion: { promotedAt: string; promotedBy: string; role: WhatsappLearningApprovalRole; version: string; rollbackPlan: string; metric: string } | null;
+  rollback: { rolledBackAt: string; rolledBackBy: string; role: WhatsappLearningApprovalRole; reason: string; restoredVersion: string | null } | null;
 };
 
 export type WhatsappLearningAuditEvent = {
@@ -146,6 +109,12 @@ export type WhatsappLearningAuditEvent = {
   status: WhatsappLearningCandidateStatus | "blocked";
   justification: string;
   governanceVersion: typeof WHATSAPP_LEARNING_GOVERNANCE_VERSION;
+};
+
+export type WhatsappLearningGovernanceDecision = {
+  allowed: boolean;
+  reason: string;
+  policy: WhatsappLearningGovernanceMatrixEntry;
 };
 
 type RecordLearningCandidateInput = {
@@ -166,194 +135,28 @@ type RecordLearningCandidateInput = {
   createdAt?: Date;
 };
 
-export type WhatsappLearningGovernanceDecision = {
-  allowed: boolean;
-  reason: string;
-  policy: WhatsappLearningGovernanceMatrixEntry;
-};
-
 const candidates: WhatsappLearningCandidate[] = [];
 const auditEvents: WhatsappLearningAuditEvent[] = [];
 let nextCandidateId = 1;
 let nextAuditId = 1;
 
 export const WHATSAPP_LEARNING_GOVERNANCE_MATRIX: WhatsappLearningGovernanceMatrixEntry[] = [
-  {
-    action: "record_signal",
-    level: "automatic",
-    approvalPolicy: "none",
-    allowedRoles: ["controlled_automation"],
-    requiredEvidence: 0,
-    rollbackRequired: false,
-    versionRequired: false,
-    auditRequired: true,
-    description: "Registrar sinal operacional, feedback ou erro sem alterar comportamento global.",
-  },
-  {
-    action: "create_hypothesis",
-    level: "automatic",
-    approvalPolicy: "none",
-    allowedRoles: ["controlled_automation"],
-    requiredEvidence: 1,
-    rollbackRequired: false,
-    versionRequired: false,
-    auditRequired: true,
-    description: "Criar hipotese ou agrupamento para analise posterior.",
-  },
-  {
-    action: "group_recurring_error",
-    level: "automatic",
-    approvalPolicy: "none",
-    allowedRoles: ["controlled_automation"],
-    requiredEvidence: 1,
-    rollbackRequired: false,
-    versionRequired: false,
-    auditRequired: true,
-    description: "Agrupar erro recorrente ou divergencia para revisao.",
-  },
-  {
-    action: "suggest_regression_example",
-    level: "suggestion",
-    approvalPolicy: "single",
-    allowedRoles: ["technical_reviewer", "controlled_automation"],
-    requiredEvidence: 1,
-    rollbackRequired: false,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Sugerir fixture ou caso de teste sem promocao de regra ativa.",
-  },
-  {
-    action: "run_offline_simulation",
-    level: "automatic",
-    approvalPolicy: "none",
-    allowedRoles: ["controlled_automation", "technical_reviewer"],
-    requiredEvidence: 0,
-    rollbackRequired: false,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Rodar simulacao ou replay dry-run sem efeito em producao.",
-  },
-  {
-    action: "propose_global_rule",
-    level: "review_required",
-    approvalPolicy: "double",
-    allowedRoles: ["administrator", "technical_reviewer", "nutrition_curator"],
-    requiredEvidence: 2,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Propor regra global candidata separada de memoria individual e conhecimento aprovado.",
-  },
-  {
-    action: "propose_prompt_change",
-    level: "review_required",
-    approvalPolicy: "double",
-    allowedRoles: ["administrator", "technical_reviewer"],
-    requiredEvidence: 2,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Propor ajuste de prompt ativo sujeito a gate, revisao e rollback.",
-  },
-  {
-    action: "propose_schema_change",
-    level: "review_required",
-    approvalPolicy: "double",
-    allowedRoles: ["administrator", "technical_reviewer"],
-    requiredEvidence: 2,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Propor alteracao de schema ativo sujeita a revisao tecnica.",
-  },
-  {
-    action: "propose_threshold_change",
-    level: "review_required",
-    approvalPolicy: "single",
-    allowedRoles: ["administrator", "technical_reviewer"],
-    requiredEvidence: 2,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Propor alteracao de threshold com metrica esperada e reversao.",
-  },
-  {
-    action: "propose_curated_nutrition_source",
-    level: "review_required",
-    approvalPolicy: "single",
-    allowedRoles: ["nutrition_curator", "authorized_professional"],
-    requiredEvidence: 1,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Propor fonte nutricional curada sem ativa-la globalmente direto.",
-  },
-  {
-    action: "promote_global_rule",
-    level: "review_required",
-    approvalPolicy: "double",
-    allowedRoles: ["administrator", "technical_reviewer", "nutrition_curator"],
-    requiredEvidence: 2,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Promover regra global apenas com evidencia, versao, escopo, metrica, aprovacao e rollback.",
-  },
-  {
-    action: "activate_prompt_or_schema",
-    level: "review_required",
-    approvalPolicy: "double",
-    allowedRoles: ["administrator", "technical_reviewer"],
-    requiredEvidence: 2,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Ativar prompt ou schema somente por fluxo governado.",
-  },
-  {
-    action: "change_learning_autonomy",
-    level: "review_required",
-    approvalPolicy: "double",
-    allowedRoles: ["administrator", "technical_reviewer"],
-    requiredEvidence: 2,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Alterar politica de autonomia do aprendizado com aprovacao explicita.",
-  },
-  {
-    action: "rollback_learning_change",
-    level: "review_required",
-    approvalPolicy: "single",
-    allowedRoles: ["administrator", "technical_reviewer"],
-    requiredEvidence: 1,
-    rollbackRequired: false,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Executar rollback rastreavel de mudanca de aprendizado.",
-  },
-  {
-    action: "recalculate_historical_data",
-    level: "review_required",
-    approvalPolicy: "double",
-    allowedRoles: ["administrator", "technical_reviewer"],
-    requiredEvidence: 2,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Recalcular historico apenas com escopo, evidencia e plano de restauracao.",
-  },
-  {
-    action: "direct_llm_mutation",
-    level: "blocked",
-    approvalPolicy: "blocked",
-    allowedRoles: [],
-    requiredEvidence: Number.POSITIVE_INFINITY,
-    rollbackRequired: true,
-    versionRequired: true,
-    auditRequired: true,
-    description: "Bloqueia saida livre da LLM tentando alterar prompt, schema, regra global, memoria global ou autonomia.",
-  },
+  { action: "record_signal", level: "automatic", approvalPolicy: "none", allowedRoles: ["controlled_automation"], requiredEvidence: 0, rollbackRequired: false, versionRequired: false, auditRequired: true, description: "Registrar sinal operacional, feedback ou erro sem alterar comportamento global." },
+  { action: "create_hypothesis", level: "automatic", approvalPolicy: "none", allowedRoles: ["controlled_automation"], requiredEvidence: 1, rollbackRequired: false, versionRequired: false, auditRequired: true, description: "Criar hipotese ou agrupamento para analise posterior." },
+  { action: "group_recurring_error", level: "automatic", approvalPolicy: "none", allowedRoles: ["controlled_automation"], requiredEvidence: 1, rollbackRequired: false, versionRequired: false, auditRequired: true, description: "Agrupar erro recorrente ou divergencia para revisao." },
+  { action: "suggest_regression_example", level: "suggestion", approvalPolicy: "single", allowedRoles: ["technical_reviewer", "controlled_automation"], requiredEvidence: 1, rollbackRequired: false, versionRequired: true, auditRequired: true, description: "Sugerir fixture ou caso de teste sem promocao de regra ativa." },
+  { action: "run_offline_simulation", level: "automatic", approvalPolicy: "none", allowedRoles: ["controlled_automation", "technical_reviewer"], requiredEvidence: 0, rollbackRequired: false, versionRequired: true, auditRequired: true, description: "Rodar simulacao ou replay dry-run sem efeito em producao." },
+  { action: "propose_global_rule", level: "review_required", approvalPolicy: "double", allowedRoles: ["administrator", "technical_reviewer", "nutrition_curator"], requiredEvidence: 2, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Propor regra global candidata separada de memoria individual e conhecimento aprovado." },
+  { action: "propose_prompt_change", level: "review_required", approvalPolicy: "double", allowedRoles: ["administrator", "technical_reviewer"], requiredEvidence: 2, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Propor ajuste de prompt ativo sujeito a gate, revisao e rollback." },
+  { action: "propose_schema_change", level: "review_required", approvalPolicy: "double", allowedRoles: ["administrator", "technical_reviewer"], requiredEvidence: 2, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Propor alteracao de schema ativo sujeita a revisao tecnica." },
+  { action: "propose_threshold_change", level: "review_required", approvalPolicy: "single", allowedRoles: ["administrator", "technical_reviewer"], requiredEvidence: 2, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Propor alteracao de threshold com metrica esperada e reversao." },
+  { action: "propose_curated_nutrition_source", level: "review_required", approvalPolicy: "single", allowedRoles: ["nutrition_curator", "authorized_professional"], requiredEvidence: 1, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Propor fonte nutricional curada sem ativa-la globalmente direto." },
+  { action: "promote_global_rule", level: "review_required", approvalPolicy: "double", allowedRoles: ["administrator", "technical_reviewer", "nutrition_curator"], requiredEvidence: 2, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Promover regra global apenas com evidencia, versao, escopo, metrica, aprovacao e rollback." },
+  { action: "activate_prompt_or_schema", level: "review_required", approvalPolicy: "double", allowedRoles: ["administrator", "technical_reviewer"], requiredEvidence: 2, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Ativar prompt ou schema somente por fluxo governado." },
+  { action: "change_learning_autonomy", level: "review_required", approvalPolicy: "double", allowedRoles: ["administrator", "technical_reviewer"], requiredEvidence: 2, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Alterar politica de autonomia do aprendizado com aprovacao explicita." },
+  { action: "rollback_learning_change", level: "review_required", approvalPolicy: "single", allowedRoles: ["administrator", "technical_reviewer"], requiredEvidence: 1, rollbackRequired: false, versionRequired: true, auditRequired: true, description: "Executar rollback rastreavel de mudanca de aprendizado." },
+  { action: "recalculate_historical_data", level: "review_required", approvalPolicy: "double", allowedRoles: ["administrator", "technical_reviewer"], requiredEvidence: 2, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Recalcular historico apenas com escopo, evidencia e plano de restauracao." },
+  { action: "direct_llm_mutation", level: "blocked", approvalPolicy: "blocked", allowedRoles: [], requiredEvidence: Number.POSITIVE_INFINITY, rollbackRequired: true, versionRequired: true, auditRequired: true, description: "Bloqueia saida livre da LLM tentando alterar prompt, schema, regra global, memoria global ou autonomia." },
 ];
 
 export const WHATSAPP_LEARNING_GOVERNANCE_INTEGRATIONS = {
@@ -383,17 +186,11 @@ function getPolicy(action: WhatsappLearningAction) {
 function defaultStatus(policy: WhatsappLearningGovernanceMatrixEntry): WhatsappLearningCandidateStatus {
   if (policy.level === "automatic") return "recorded";
   if (policy.level === "suggestion") return "suggested";
-  return "needs_review";
+  return policy.level === "blocked" ? "rejected" : "needs_review";
 }
 
 function buildPrivacy(createdAt: string) {
-  return buildAiLearningPrivacyRecord({
-    kind: "candidate_rule",
-    purpose: "global_learning",
-    origin: "whatsapp-learning-governance",
-    createdAt,
-    scope: "global",
-  });
+  return buildAiLearningPrivacyRecord({ kind: "candidate_rule", purpose: "global_learning", origin: "whatsapp-learning-governance", createdAt, scope: "global" });
 }
 
 function recordAudit(input: Omit<WhatsappLearningAuditEvent, "id" | "createdAt" | "governanceVersion"> & { createdAt?: string }) {
@@ -414,7 +211,29 @@ function recordAudit(input: Omit<WhatsappLearningAuditEvent, "id" | "createdAt" 
   return event;
 }
 
-function hasRequiredPromotionMetadata(candidate: WhatsappLearningCandidate, policy: WhatsappLearningGovernanceMatrixEntry) {
+function requiredApprovals(policy: WhatsappLearningGovernanceMatrixEntry) {
+  if (policy.approvalPolicy === "none") return 0;
+  if (policy.approvalPolicy === "single" || policy.approvalPolicy === "restricted_automatic") return 1;
+  if (policy.approvalPolicy === "double") return 2;
+  return Number.POSITIVE_INFINITY;
+}
+
+function policyAllowsRole(policy: WhatsappLearningGovernanceMatrixEntry, role: WhatsappLearningApprovalRole) {
+  return policy.allowedRoles.includes(role);
+}
+
+function approvalCount(candidate: WhatsappLearningCandidate, policy: WhatsappLearningGovernanceMatrixEntry) {
+  const accepted = candidate.approvals.filter(approval => policyAllowsRole(policy, approval.role));
+  return policy.approvalPolicy === "double" ? new Set(accepted.map(approval => approval.role)).size : accepted.length;
+}
+
+function promotionPolicyFor(candidate: WhatsappLearningCandidate) {
+  if (candidate.action === "propose_prompt_change" || candidate.action === "propose_schema_change") return getPolicy("activate_prompt_or_schema");
+  if (candidate.action === "propose_global_rule") return getPolicy("promote_global_rule");
+  return getPolicy(candidate.action);
+}
+
+function missingPromotionMetadata(candidate: WhatsappLearningCandidate, policy: WhatsappLearningGovernanceMatrixEntry) {
   const missing: string[] = [];
   if (!candidate.origin.trim()) missing.push("origem");
   if (!candidate.scope) missing.push("escopo");
@@ -427,27 +246,9 @@ function hasRequiredPromotionMetadata(candidate: WhatsappLearningCandidate, poli
   return missing;
 }
 
-function approvalCount(candidate: WhatsappLearningCandidate, policy: WhatsappLearningGovernanceMatrixEntry) {
-  const accepted = candidate.approvals.filter(approval => policy.allowedRoles.includes(approval.role));
-  if (policy.approvalPolicy === "double") {
-    return new Set(accepted.map(approval => approval.role)).size;
-  }
-  return accepted.length;
-}
-
-function requiredApprovals(policy: WhatsappLearningGovernanceMatrixEntry) {
-  if (policy.approvalPolicy === "none") return 0;
-  if (policy.approvalPolicy === "single" || policy.approvalPolicy === "restricted_automatic") return 1;
-  if (policy.approvalPolicy === "double") return 2;
-  return Number.POSITIVE_INFINITY;
-}
-
-function policyAllowsRole(policy: WhatsappLearningGovernanceMatrixEntry, role: WhatsappLearningApprovalRole) {
-  return policy.allowedRoles.includes(role);
-}
-
 function payloadContainsIdentifier(payload: Record<string, unknown>) {
-  return containsDirectIdentifier(JSON.stringify(payload));
+  const { governanceFingerprint: _governanceFingerprint, ...auditablePayload } = payload;
+  return containsDirectIdentifier(JSON.stringify(auditablePayload));
 }
 
 export function getWhatsappLearningGovernancePolicy(action: WhatsappLearningAction) {
@@ -462,15 +263,13 @@ export function recordWhatsappLearningCandidate(input: RecordLearningCandidateIn
   const createdAt = toIso(input.createdAt);
   const policy = getPolicy(input.action);
   const payload = input.payload ?? {};
-  const sourceReviewQueueItemId = input.sourceReviewQueueItem?.id ?? null;
-  const sourceReviewDecision = input.sourceReviewQueueItem?.review.decision ?? null;
   const candidate: WhatsappLearningCandidate = {
     id: nextCandidateId,
     createdAt,
     updatedAt: createdAt,
     kind: input.kind,
     action: input.action,
-    status: policy.level === "blocked" ? "rejected" : defaultStatus(policy),
+    status: defaultStatus(policy),
     origin: input.origin,
     scope: input.scope,
     title: input.title,
@@ -481,12 +280,9 @@ export function recordWhatsappLearningCandidate(input: RecordLearningCandidateIn
     rollbackPlan: input.rollbackPlan ?? null,
     version: input.version ?? null,
     metric: input.metric ?? null,
-    payload: {
-      ...payload,
-      governanceFingerprint: hashValue(JSON.stringify({ title: input.title, origin: input.origin, payload })),
-    },
-    sourceReviewQueueItemId,
-    sourceReviewDecision,
+    payload: { ...payload, governanceFingerprint: hashValue(JSON.stringify({ title: input.title, origin: input.origin, payload })) },
+    sourceReviewQueueItemId: input.sourceReviewQueueItem?.id ?? null,
+    sourceReviewDecision: input.sourceReviewQueueItem?.review.decision ?? null,
     directGlobalPromotionAllowed: false,
     governanceVersion: WHATSAPP_LEARNING_GOVERNANCE_VERSION,
     privacy: buildPrivacy(createdAt),
@@ -498,16 +294,7 @@ export function recordWhatsappLearningCandidate(input: RecordLearningCandidateIn
 
   nextCandidateId += 1;
   candidates.push(candidate);
-  recordAudit({
-    createdAt,
-    type: "candidate_created",
-    candidateId: candidate.id,
-    actor: "system",
-    role: "system",
-    action: candidate.action,
-    status: candidate.status,
-    justification: policy.description,
-  });
+  recordAudit({ createdAt, type: "candidate_created", candidateId: candidate.id, actor: "system", role: "system", action: candidate.action, status: candidate.status, justification: policy.description });
   return candidate;
 }
 
@@ -527,11 +314,7 @@ export function recordWhatsappLearningCandidateFromReviewQueue(input: {
     scope: "global",
     title: input.title ?? input.item.title,
     rationale: input.rationale ?? input.item.reason,
-    evidence: [{
-      source: "review_queue",
-      reference: String(input.item.id),
-      summary: `${input.item.type}:${input.item.fingerprint}`,
-    }],
+    evidence: [{ source: "review_queue", reference: String(input.item.id), summary: `${input.item.type}:${input.item.fingerprint}` }],
     risk: input.item.impact === "critical" ? "critical" : input.item.impact === "high" ? "high" : "medium",
     expectedImpact: "Transformar item revisado em candidato controlado, sem promocao global direta.",
     rollbackPlan: "Remover candidato da versao futura e manter item original auditavel na fila de revisao.",
@@ -554,42 +337,17 @@ export function approveWhatsappLearningCandidate(input: {
   if (!candidate || candidate.status === "rejected" || candidate.status === "rolled_back") return null;
   const policy = getPolicy(candidate.action);
   const decidedAt = toIso(input.decidedAt);
-
   if (!policyAllowsRole(policy, input.role)) {
-    recordAudit({
-      createdAt: decidedAt,
-      type: "promotion_blocked",
-      candidateId: candidate.id,
-      actor: input.reviewer,
-      role: input.role,
-      action: candidate.action,
-      status: candidate.status,
-      justification: "Papel nao autorizado para aprovar esta mudanca de aprendizado.",
-    });
+    recordAudit({ createdAt: decidedAt, type: "promotion_blocked", candidateId: candidate.id, actor: input.reviewer, role: input.role, action: candidate.action, status: candidate.status, justification: "Papel nao autorizado para aprovar esta mudanca de aprendizado." });
     return null;
   }
 
-  const alreadyApproved = candidate.approvals.some(approval => approval.role === input.role && approval.reviewer === input.reviewer);
-  if (!alreadyApproved) {
-    candidate.approvals.push({
-      role: input.role,
-      reviewer: input.reviewer,
-      justification: input.justification,
-      decidedAt,
-    });
+  if (!candidate.approvals.some(approval => approval.role === input.role && approval.reviewer === input.reviewer)) {
+    candidate.approvals.push({ role: input.role, reviewer: input.reviewer, justification: input.justification, decidedAt });
   }
   candidate.status = approvalCount(candidate, policy) >= requiredApprovals(policy) ? "approved" : "needs_review";
   candidate.updatedAt = decidedAt;
-  recordAudit({
-    createdAt: decidedAt,
-    type: "approval_recorded",
-    candidateId: candidate.id,
-    actor: input.reviewer,
-    role: input.role,
-    action: candidate.action,
-    status: candidate.status,
-    justification: input.justification,
-  });
+  recordAudit({ createdAt: decidedAt, type: "approval_recorded", candidateId: candidate.id, actor: input.reviewer, role: input.role, action: candidate.action, status: candidate.status, justification: input.justification });
   return candidate;
 }
 
@@ -607,22 +365,8 @@ export function rejectWhatsappLearningCandidate(input: {
   if (!policyAllowsRole(policy, input.role)) return null;
   candidate.status = "rejected";
   candidate.updatedAt = decidedAt;
-  candidate.rejection = {
-    role: input.role,
-    reviewer: input.reviewer,
-    justification: input.justification,
-    decidedAt,
-  };
-  recordAudit({
-    createdAt: decidedAt,
-    type: "rejection_recorded",
-    candidateId: candidate.id,
-    actor: input.reviewer,
-    role: input.role,
-    action: candidate.action,
-    status: candidate.status,
-    justification: input.justification,
-  });
+  candidate.rejection = { role: input.role, reviewer: input.reviewer, justification: input.justification, decidedAt };
+  recordAudit({ createdAt: decidedAt, type: "rejection_recorded", candidateId: candidate.id, actor: input.reviewer, role: input.role, action: candidate.action, status: candidate.status, justification: input.justification });
   return candidate;
 }
 
@@ -630,37 +374,31 @@ export function evaluateWhatsappLearningPromotion(input: {
   candidateId: number;
   promotedBy?: string;
   role?: WhatsappLearningApprovalRole;
-}) : WhatsappLearningGovernanceDecision {
+}): WhatsappLearningGovernanceDecision {
   const candidate = candidates.find(item => item.id === input.candidateId);
-  if (!candidate) {
-    return { allowed: false, reason: "Candidato de aprendizado nao encontrado.", policy: getPolicy("direct_llm_mutation") };
-  }
-  const promotionPolicy = getPolicy(candidate.action === "propose_prompt_change" || candidate.action === "propose_schema_change"
-    ? "activate_prompt_or_schema"
-    : candidate.action === "propose_global_rule"
-      ? "promote_global_rule"
-      : candidate.action);
+  if (!candidate) return { allowed: false, reason: "Candidato de aprendizado nao encontrado.", policy: getPolicy("direct_llm_mutation") };
+  const policy = promotionPolicyFor(candidate);
 
-  if (promotionPolicy.level === "blocked" || candidate.action === "direct_llm_mutation") {
-    return { allowed: false, reason: "Mudanca direta por LLM e bloqueada pela governanca.", policy: promotionPolicy };
+  if (policy.level === "blocked" || candidate.action === "direct_llm_mutation") {
+    return { allowed: false, reason: "Mudanca direta por LLM e bloqueada pela governanca.", policy };
   }
-  if (candidate.status !== "approved" && requiredApprovals(promotionPolicy) > 0) {
-    return { allowed: false, reason: "Promocao exige aprovacao governada antes de ficar ativa.", policy: promotionPolicy };
+  if (candidate.status !== "approved" && requiredApprovals(policy) > 0) {
+    return { allowed: false, reason: "Promocao exige aprovacao governada antes de ficar ativa.", policy };
   }
-  if (input.role && !policyAllowsRole(promotionPolicy, input.role)) {
-    return { allowed: false, reason: "Papel sem permissao para promover esta mudanca.", policy: promotionPolicy };
+  if (input.role && !policyAllowsRole(policy, input.role)) {
+    return { allowed: false, reason: "Papel sem permissao para promover esta mudanca.", policy };
+  }
+  const missing = missingPromotionMetadata(candidate, policy);
+  if (missing.length > 0) {
+    return { allowed: false, reason: `Promocao sem ${missing.join(", ")}.`, policy };
+  }
+  if (approvalCount(candidate, policy) < requiredApprovals(policy)) {
+    return { allowed: false, reason: "Quantidade ou diversidade de aprovacoes insuficiente.", policy };
   }
   if (payloadContainsIdentifier(candidate.payload)) {
-    return { allowed: false, reason: "Payload contem identificador direto e nao pode virar conhecimento global.", policy: promotionPolicy };
+    return { allowed: false, reason: "Payload contem identificador direto e nao pode virar conhecimento global.", policy };
   }
-  const missing = hasRequiredPromotionMetadata(candidate, promotionPolicy);
-  if (missing.length > 0) {
-    return { allowed: false, reason: `Promocao sem ${missing.join(", ")}.`, policy: promotionPolicy };
-  }
-  if (approvalCount(candidate, promotionPolicy) < requiredApprovals(promotionPolicy)) {
-    return { allowed: false, reason: "Quantidade ou diversidade de aprovacoes insuficiente.", policy: promotionPolicy };
-  }
-  return { allowed: true, reason: "Mudanca atende a governanca de promocao.", policy: promotionPolicy };
+  return { allowed: true, reason: "Mudanca atende a governanca de promocao.", policy };
 }
 
 export function promoteWhatsappLearningCandidate(input: {
@@ -674,16 +412,7 @@ export function promoteWhatsappLearningCandidate(input: {
   const promotedAt = toIso(input.promotedAt);
   const decision = evaluateWhatsappLearningPromotion({ candidateId: input.candidateId, promotedBy: input.promotedBy, role: input.role });
   if (!decision.allowed) {
-    recordAudit({
-      createdAt: promotedAt,
-      type: "promotion_blocked",
-      candidateId: candidate.id,
-      actor: input.promotedBy,
-      role: input.role,
-      action: candidate.action,
-      status: candidate.status,
-      justification: decision.reason,
-    });
+    recordAudit({ createdAt: promotedAt, type: "promotion_blocked", candidateId: candidate.id, actor: input.promotedBy, role: input.role, action: candidate.action, status: candidate.status, justification: decision.reason });
     return null;
   }
 
@@ -697,16 +426,7 @@ export function promoteWhatsappLearningCandidate(input: {
     rollbackPlan: candidate.rollbackPlan ?? "Rollback nao informado.",
     metric: candidate.metric ?? "Metrica nao informada.",
   };
-  recordAudit({
-    createdAt: promotedAt,
-    type: "promotion_recorded",
-    candidateId: candidate.id,
-    actor: input.promotedBy,
-    role: input.role,
-    action: candidate.action,
-    status: candidate.status,
-    justification: decision.reason,
-  });
+  recordAudit({ createdAt: promotedAt, type: "promotion_recorded", candidateId: candidate.id, actor: input.promotedBy, role: input.role, action: candidate.action, status: candidate.status, justification: decision.reason });
   return candidate;
 }
 
@@ -725,23 +445,8 @@ export function rollbackWhatsappLearningCandidate(input: {
   const rolledBackAt = toIso(input.rolledBackAt);
   candidate.status = "rolled_back";
   candidate.updatedAt = rolledBackAt;
-  candidate.rollback = {
-    rolledBackAt,
-    rolledBackBy: input.rolledBackBy,
-    role: input.role,
-    reason: input.reason,
-    restoredVersion: input.restoredVersion ?? null,
-  };
-  recordAudit({
-    createdAt: rolledBackAt,
-    type: "rollback_recorded",
-    candidateId: candidate.id,
-    actor: input.rolledBackBy,
-    role: input.role,
-    action: candidate.action,
-    status: candidate.status,
-    justification: input.reason,
-  });
+  candidate.rollback = { rolledBackAt, rolledBackBy: input.rolledBackBy, role: input.role, reason: input.reason, restoredVersion: input.restoredVersion ?? null };
+  recordAudit({ createdAt: rolledBackAt, type: "rollback_recorded", candidateId: candidate.id, actor: input.rolledBackBy, role: input.role, action: candidate.action, status: candidate.status, justification: input.reason });
   return candidate;
 }
 
@@ -763,11 +468,7 @@ export function assertWhatsappDirectLearningMutationBlocked(input: {
     status: "blocked",
     justification: input.justification ? `${reason} ${input.justification}` : reason,
   });
-  return {
-    allowed: false,
-    reason,
-    policy: getPolicy("direct_llm_mutation"),
-  } satisfies WhatsappLearningGovernanceDecision;
+  return { allowed: false, reason, policy: getPolicy("direct_llm_mutation") } satisfies WhatsappLearningGovernanceDecision;
 }
 
 export function listWhatsappLearningCandidates(filter: Partial<Pick<WhatsappLearningCandidate, "status" | "kind" | "action" | "scope">> = {}) {
