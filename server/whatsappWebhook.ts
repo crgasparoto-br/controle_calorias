@@ -6,6 +6,12 @@ import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, create
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+import {
+  buildSuspiciousWhatsAppContentReply,
+  inspectWhatsAppUserContentSafety,
+  type WhatsAppContentSafetyCheck,
+  type WhatsAppUserContentModality,
+} from "./modules/whatsapp/promptInjectionGuard";
 import { buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
 import {
   buildMediaDataUrl,
@@ -158,6 +164,30 @@ function canonicalMealLabel(label: string) {
 
 function getTextBody(message: WhatsAppWebhookMessage) {
   return message.text?.body?.trim() || message.image?.caption?.trim() || "";
+}
+
+function getPreparedTextModality(message: WhatsAppWebhookMessage): WhatsAppUserContentModality {
+  if (message.image?.id && message.audio?.id) return "multimodal";
+  if (message.image?.id) return "image_caption";
+  if (message.audio?.id) return "multimodal";
+  return "text";
+}
+
+function inspectPreparedMessageSafety(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
+  const checks: WhatsAppContentSafetyCheck[] = [];
+  if (prepared.text?.trim()) {
+    checks.push(inspectWhatsAppUserContentSafety(prepared.text, getPreparedTextModality(message)));
+  }
+  if (prepared.transcript?.trim()) {
+    checks.push(inspectWhatsAppUserContentSafety(prepared.transcript, "audio_transcript"));
+  }
+  return checks.filter(check => !check.safe);
+}
+
+function buildSecurityGuardDetail(unsafeChecks: WhatsAppContentSafetyCheck[]) {
+  const categories = Array.from(new Set(unsafeChecks.flatMap(check => check.categories)));
+  const modalities = Array.from(new Set(unsafeChecks.map(check => check.modality)));
+  return `Conteudo bloqueado por seguranca antes da inferencia nutricional: ${categories.join(", ") || "security_guard"}; modalidades: ${modalities.join(", ") || "desconhecida"}.`;
 }
 
 function detectWhatsAppAction(message: WhatsAppWebhookMessage): WhatsAppAction | null {
@@ -798,6 +828,29 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       const prepared = await prepareMessageInput(message, sourcePhone);
+      const unsafeContent = inspectPreparedMessageSafety(message, prepared);
+      if (unsafeContent.length) {
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "warning",
+          eventType: "whatsapp.security_guard_blocked",
+          detail: buildSecurityGuardDetail(unsafeContent),
+        });
+
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildSuspiciousWhatsAppContentReply());
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
+        continue;
+      }
+
       if (canInterpretAudioTranscriptIntent(message, prepared)) {
         const interpreted = await executeWhatsappTextIntent(userId, {
           text: prepared.transcript,
