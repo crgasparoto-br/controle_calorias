@@ -164,32 +164,60 @@ function routePendingContext(input: {
   });
 }
 
+function evaluateArithmeticExpression(expression: string) {
+  const tokens = expression.match(/\d+(?:\.\d+)?|[+\-*/]/g);
+  if (!tokens?.length) return null;
+
+  const values: number[] = [];
+  const operators: string[] = [];
+  const precedence: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2 };
+  const applyOperator = () => {
+    const operator = operators.pop();
+    const right = values.pop();
+    const left = values.pop();
+    if (!operator || left === undefined || right === undefined) return false;
+    if (operator === "/" && right === 0) return false;
+    const result = operator === "+"
+      ? left + right
+      : operator === "-"
+        ? left - right
+        : operator === "*"
+          ? left * right
+          : left / right;
+    values.push(result);
+    return true;
+  };
+
+  for (const token of tokens) {
+    if (/^[+\-*/]$/.test(token)) {
+      while (operators.length && precedence[operators[operators.length - 1]] >= precedence[token]) {
+        if (!applyOperator()) return null;
+      }
+      operators.push(token);
+      continue;
+    }
+    const value = Number(token);
+    if (!Number.isFinite(value)) return null;
+    values.push(value);
+  }
+
+  while (operators.length) {
+    if (!applyOperator()) return null;
+  }
+
+  return values.length === 1 && Number.isFinite(values[0]) ? Number(values[0].toFixed(2)) : null;
+}
+
 function parseMathWithUnit(text: string) {
   const match = text.match(/^\s*((?:\d+(?:[,.]\d+)?\s*[+\-*/]\s*)+\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|mg|ml|l|litros?)\s*$/i);
   if (!match) return null;
   const expression = match[1].replace(/,/g, ".");
   if (!/^[\d.+\-*/\s]+$/.test(expression)) return null;
-  const result = expression
-    .split(/([+\-*/])/)
-    .map(part => part.trim())
-    .filter(Boolean)
-    .reduce<{ value: number | null; op: string | null }>((state, part) => {
-      if (["+", "-", "*", "/"].includes(part)) {
-        return { ...state, op: part };
-      }
-      const number = Number(part);
-      if (!Number.isFinite(number)) return { value: null, op: null };
-      if (state.value === null) return { value: number, op: null };
-      if (state.op === "+") return { value: state.value + number, op: null };
-      if (state.op === "-") return { value: state.value - number, op: null };
-      if (state.op === "*") return { value: state.value * number, op: null };
-      if (state.op === "/") return { value: number === 0 ? null : state.value / number, op: null };
-      return { value: null, op: null };
-    }, { value: null, op: null }).value;
+  const result = evaluateArithmeticExpression(expression);
 
   return {
     expression: match[1].trim(),
-    result: result === null ? null : Number(result.toFixed(2)),
+    result,
     unit: match[2],
   };
 }
@@ -245,8 +273,10 @@ function routeNumericAdjustmentCommand(input: {
     return continuePipeline({
       canonicalIntent: input.command.canonicalIntent,
       confidence: 0.78,
-      shouldAllowNutritionFallback: false,
-      reason: "Comando numerico com alvo textual deve ser tratado por fluxo proprio antes do fallback alimentar.",
+      shouldAllowNutritionFallback: input.command.kind === "add",
+      reason: input.command.kind === "add"
+        ? "Comando de adicao com quantidade e alimento deve poder seguir para registro alimentar mesmo fora do dicionario curto."
+        : "Comando numerico com alvo textual deve ser tratado por fluxo proprio antes do fallback alimentar.",
       possibleIntents: [input.command.canonicalIntent, "selecionar_opcao"],
     });
   }
@@ -272,7 +302,7 @@ function isLikelyFoodMessage(text: string) {
 }
 
 function isQuestionWithoutRegistrationSignal(text: string) {
-  return (QUESTION_WORDS.test(text) || FOOD_QUESTION_WORDS.test(text)) && !QUANTITY_WITH_UNIT.test(text) && !FOOD_REGISTRATION_WORDS.test(text);
+  return (QUESTION_WORDS.test(text) || FOOD_QUESTION_WORDS.test(text)) && !FOOD_REGISTRATION_WORDS.test(text);
 }
 
 function requestedPeriod(text: string) {
@@ -331,6 +361,25 @@ function routeAmbiguousFoodAnalysis(text: string) {
 function routeAnalysisRequest(text: string): WhatsappIntentRouteDecision | null {
   const ambiguous = routeAmbiguousFoodAnalysis(text);
   if (ambiguous) return ambiguous;
+
+  if ((QUESTION_WORDS.test(text) || FOOD_QUESTION_WORDS.test(text)) && !FOOD_REGISTRATION_WORDS.test(text)) {
+    return safeNonFood({
+      canonicalIntent: "pergunta_sobre_alimento",
+      confidence: QUANTITY_WITH_UNIT.test(text) ? 0.82 : 0.74,
+      reason: "Pergunta alimentar com ou sem quantidade nao deve criar refeicao por fallback.",
+      reply: "Entendi uma pergunta sobre alimento. Não vou registrar isso como refeição; para salvar, envie como registro com alimento e quantidade.",
+    });
+  }
+
+  if (/\b(?:analise|analisar|avalie|avaliar)\b/.test(text) && isLikelyFoodMessage(text)) {
+    return safeClarification({
+      canonicalIntent: "pergunta_sobre_qualidade_alimentar",
+      confidence: 0.8,
+      reason: "Pedido de analise com termos alimentares nao deve cair no fallback de registro.",
+      reply: "Entendi que você quer uma análise, não um registro automático. Quer apenas analisar ou também salvar essa refeição?",
+      possibleIntents: ["pergunta_sobre_qualidade_alimentar", "registrar_alimento", "mensagem_ambigua"],
+    });
+  }
 
   if (/\b(?:grafico|visualizacao|linha do tempo|curva)\b/.test(text)) {
     return safeNonFood({
