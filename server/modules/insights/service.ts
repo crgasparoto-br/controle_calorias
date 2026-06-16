@@ -133,18 +133,59 @@ type WeightEntryForTrend = {
   notes?: string | null;
 };
 
+function buildWeightTrendPoint(entry: WeightEntryForTrend, date = entry.date, notes = entry.notes ?? null) {
+  return {
+    id: entry.id,
+    date,
+    label: formatPeriodDateLabel(date),
+    weightKg: roundNutritionValue(entry.weightKg),
+    notes,
+  };
+}
+
 function buildWeightTrendForDates(entries: WeightEntryForTrend[] | undefined, dates: string[]) {
-  const dateSet = new Set(dates);
-  const points = (entries ?? [])
-    .filter(entry => dateSet.has(entry.date) && Number.isFinite(entry.weightKg))
-    .map(entry => ({
-      id: entry.id,
-      date: entry.date,
-      label: formatPeriodDateLabel(entry.date),
-      weightKg: roundNutritionValue(entry.weightKg),
-      notes: entry.notes ?? null,
-    }))
+  const startDate = dates[0];
+  const endDate = dates[dates.length - 1];
+  if (!startDate || !endDate) {
+    return {
+      points: [],
+      summary: {
+        hasData: false,
+        firstWeightKg: null,
+        lastWeightKg: null,
+        deltaKg: null,
+      },
+    };
+  }
+
+  const orderedEntries = (entries ?? [])
+    .filter(entry => entry.date && Number.isFinite(entry.weightKg))
+    .slice()
     .sort((first, second) => first.date.localeCompare(second.date));
+  const latestBeforeStart = orderedEntries.filter(entry => entry.date < startDate).at(-1);
+  const latestUpToEnd = orderedEntries.filter(entry => entry.date <= endDate).at(-1);
+  const inRangeEntries = orderedEntries.filter(entry => entry.date >= startDate && entry.date <= endDate);
+  const pointsByDate = new Map<string, ReturnType<typeof buildWeightTrendPoint>>();
+
+  if (latestBeforeStart && !inRangeEntries.some(entry => entry.date === startDate)) {
+    pointsByDate.set(
+      startDate,
+      buildWeightTrendPoint(latestBeforeStart, startDate, latestBeforeStart.notes ?? "Último peso registrado antes do período."),
+    );
+  }
+
+  for (const entry of inRangeEntries) {
+    pointsByDate.set(entry.date, buildWeightTrendPoint(entry));
+  }
+
+  if (pointsByDate.size === 1 && latestBeforeStart && latestUpToEnd?.date === latestBeforeStart.date && endDate !== startDate) {
+    pointsByDate.set(
+      endDate,
+      buildWeightTrendPoint(latestBeforeStart, endDate, latestBeforeStart.notes ?? "Peso mantido a partir do último registro histórico."),
+    );
+  }
+
+  const points = Array.from(pointsByDate.values()).sort((first, second) => first.date.localeCompare(second.date));
   const firstWeight = points[0];
   const lastWeight = points[points.length - 1];
 
