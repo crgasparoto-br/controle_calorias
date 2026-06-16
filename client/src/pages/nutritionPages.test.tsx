@@ -599,12 +599,12 @@ describe("nutrition pages", () => {
     expect(html).toContain("15.600 kcal");
   });
 
-  it("renderiza as configurações com perfil e refeições habituais sem blocos auxiliares", async () => {
+  it("renderiza as configurações com perfil, solicitações e refeições habituais", async () => {
     const { default: OnboardingPage } = await import("./OnboardingPage");
     const html = renderToString(React.createElement(OnboardingPage));
 
     expect(html).toContain("Configurações");
-    expect(html).toContain("Ajuste seu perfil sem se perder em blocos longos");
+    expect(html).toContain("Atualize seus dados, metas e acompanhamentos");
     expect(html).toContain("Nome");
     expect(html).toContain("Telefone");
     expect(html).toContain("E-mail");
@@ -615,6 +615,7 @@ describe("nutrition pages", () => {
     expect(html).toContain("Perfil");
     expect(html).toContain("Objetivos e rotina");
     expect(html).toContain("Refeições habituais");
+    expect(html).toContain("Solicitações de acesso");
     expect(html).toContain("Salvar configurações");
     expect(html).not.toContain("Campos essenciais ficam juntos para reduzir ida e volta pela página e facilitar pequenos ajustes futuros.");
     expect(html).not.toContain("Vínculo do WhatsApp");

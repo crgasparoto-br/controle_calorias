@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import PageIntro from "@/components/PageIntro";
 import DashboardLayout from "@/components/DashboardLayout";
-import ProfessionalProfileSettings from "@/components/ProfessionalProfileSettings";
+import ProfessionalProfileSettings, { PatientAccessRequestsCard } from "@/components/ProfessionalProfileSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -499,7 +499,7 @@ export default function OnboardingPage() {
       <IntroStat label="Perfil" value={form.name.trim() ? "preenchido" : "pendente"} helper={calculatedAgeYears === null ? "idade opcional" : `${calculatedAgeYears} anos`} />
       <IntroStat label="Objetivo" value={OBJECTIVE_OPTIONS.find(option => option.value === form.objective)?.label ?? "definido"} helper={ACTIVITY_OPTIONS.find(option => option.value === form.activityLevel)?.label ?? "rotina"} />
       <IntroStat label="Refeições" value={`${activeSchedules} ativas`} helper={`${mealSchedules.length} faixas configuradas`} />
-      <IntroStat label="Profissional" value={professionalProfileActive ? "ativo" : "inativo"} helper="módulo nutricionista" />
+      <IntroStat label="Profissional" value={professionalProfileActive ? "ativo" : "inativo"} helper="área profissional" />
     </div>
   );
 
@@ -508,7 +508,7 @@ export default function OnboardingPage() {
       <form className="mx-auto flex w-full max-w-7xl flex-col gap-6" onSubmit={handleSubmit}>
         <PageIntro
           eyebrow="Configurações"
-          title="Ajuste seu perfil sem se perder em blocos longos"
+          title="Atualize seus dados, metas e acompanhamentos"
           stats={completionStats}
           actions={
             <Button className="h-11 rounded-full px-5" disabled={isSavingProfile} type="submit">
@@ -582,6 +582,8 @@ export default function OnboardingPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <PatientAccessRequestsCard embedded />
 
             {hasWhatsappConnection || shouldAttachWhatsappPhone ? (
               <Card className="border-0 shadow-sm">

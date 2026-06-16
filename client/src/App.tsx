@@ -5,7 +5,6 @@ import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
-import ProfileAccessRequestsEmbed from "./components/ProfileAccessRequestsEmbed";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
@@ -87,7 +86,6 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <ProfileAccessRequestsEmbed />
           <ProfileWhatsappGreetingVisibility />
           <ProfessionalAnalyzeTabBridge />
           <ProfessionalGoalExceptionSuggestionsEmbed />

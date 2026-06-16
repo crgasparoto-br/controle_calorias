@@ -42,6 +42,22 @@ function formatAccessStatus(status: string) {
   return labels[status] ?? status;
 }
 
+function formatAuthorizationMessageStatus(status: string | null | undefined) {
+  const labels: Record<string, string> = {
+    sent: "Notificação enviada",
+    failed: "Notificação não entregue",
+    skipped: "Notificação não enviada",
+  };
+  return status ? labels[status] ?? status : "Notificação não concluída";
+}
+
+function getAuthorizationMessageStatusClass(status: string | null | undefined) {
+  if (status === "failed") return "border-destructive/30 bg-destructive/10 text-destructive";
+  if (status === "skipped") return "border-amber-200 bg-amber-50 text-amber-800";
+  if (status === "sent") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-muted bg-muted/20 text-muted-foreground";
+}
+
 function permissionsTitle(status: string) {
   if (status === "approved") return "Permissões concedidas";
   if (status === "revoked") return "Permissões revogadas";
@@ -226,8 +242,23 @@ export function PatientAccessRequestsCard({ embedded = false }: PatientAccessReq
             <div className="min-w-0 space-y-3">
               <div>
                 <p className="font-medium">{request.professional?.displayName ?? `Profissional #${request.professionalUserId}`}</p>
-                <p className="text-xs text-muted-foreground">Status: {formatAccessStatus(request.status)}</p>
-                <p className="text-xs text-muted-foreground">Solicitado em {new Date(request.requestedAt).toLocaleString("pt-BR")}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full border bg-muted/20 px-3 py-1 text-muted-foreground">
+                    Vínculo: {formatAccessStatus(request.status)}
+                  </span>
+                  <span className={`rounded-full border px-3 py-1 ${getAuthorizationMessageStatusClass(request.authorizationMessageStatus)}`}>
+                    {formatAuthorizationMessageStatus(request.authorizationMessageStatus)}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">Solicitado em {new Date(request.requestedAt).toLocaleString("pt-BR")}</p>
+                {request.authorizationMessageSentAt ? (
+                  <p className="text-xs text-muted-foreground">Notificação registrada em {new Date(request.authorizationMessageSentAt).toLocaleString("pt-BR")}</p>
+                ) : null}
+                {request.authorizationMessageError ? (
+                  <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                    {request.authorizationMessageError}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase text-muted-foreground">{permissionsTitle(request.status)}</p>
@@ -275,7 +306,7 @@ export function PatientAccessRequestsCard({ embedded = false }: PatientAccessReq
             Solicitações de acesso
           </h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Revise pedidos de acompanhamento e escolha quais profissionais podem acessar seus dados autorizados.
+            Revise pedidos de acompanhamento e acompanhe o status das notificações enviadas aos profissionais.
           </p>
         </div>
         {content}
@@ -291,7 +322,7 @@ export function PatientAccessRequestsCard({ embedded = false }: PatientAccessReq
           Solicitações recebidas
         </CardTitle>
         <CardDescription>
-          Revise pedidos de acompanhamento e escolha quais profissionais podem acessar seus dados autorizados.
+          Revise pedidos de acompanhamento e acompanhe o status das notificações enviadas aos profissionais.
         </CardDescription>
       </CardHeader>
       <CardContent>{content}</CardContent>
