@@ -142,15 +142,15 @@ describe("whatsapp ai drift detection", () => {
 
   it("segmenta degradacao por modalidade, intencao e conversa multi-turn", () => {
     const baselineAudio = snapshot({
-      id: "baseline-question-audio",
-      intent: "nutrition_question",
-      inputType: "audio",
+      id: "baseline-summary-audio",
+      intent: "daily_summary",
+      inputType: "audio_transcript",
       conversationMode: "multi_turn",
       metrics: { ...snapshot().metrics, action_accuracy_rate: 0.88 },
     });
     const currentAudio = snapshot({
       ...baselineAudio,
-      id: "current-question-audio",
+      id: "current-summary-audio",
       period: { from: "2026-06-08T00:00:00.000Z", to: "2026-06-14T23:59:59.000Z" },
       versions: versions({ modelName: "gpt-4.1-mini-2026-06" }),
       metrics: { ...baselineAudio.metrics, action_accuracy_rate: 0.78 },
@@ -161,7 +161,7 @@ describe("whatsapp ai drift detection", () => {
     expect(result.decision).toBe("review");
     expect(result.findings).toEqual([expect.objectContaining({
       metric: "action_accuracy_rate",
-      segment: { intent: "nutrition_question", inputType: "audio", conversationMode: "multi_turn" },
+      segment: { intent: "daily_summary", inputType: "audio_transcript", conversationMode: "multi_turn" },
     })]);
   });
 
