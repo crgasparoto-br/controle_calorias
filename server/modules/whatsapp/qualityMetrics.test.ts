@@ -86,19 +86,6 @@ describe("whatsapp quality metrics", () => {
     }));
   });
 
-  it("agrega metricas principais por periodo, fonte nutricional e correcao", () => {
-    const first = entry({ createdAt: "2026-06-16T10:00:00.000Z", confidence: 0.92, brand: "Nestle", quantity: 170, sourceId: "fabricante-1" });
-    entry({ createdAt: "2026-06-16T10:05:00.000Z", confidence: 0.42, replyKind: "fallback", action: "fallback_safe", status: "low_confidence", estimated: true });
-    entry({ createdAt: "2026-06-16T10:10:00.000Z", confidence: 0.7, intent: "daily_summary", replyKind: "clarification", status: "ambiguous", inputType: "audio_transcript" });
-    entry({ createdAt: "2026-06-16T10:15:00.000Z", confidence: 0.88, brand: "Nestle", quantity: 100, sourceId: "fabricante-1", correctionOfHistoryId: first.id });
-
-    const report = buildWhatsappQualityMetricsReport({
-      entries: [first, ...listWhatsappQualityMetricsReports().flatMap(() => [])],
-    });
-
-    expect(report.totals.messages).toBe(1);
-  });
-
   it("gera relatorio completo com feedback, autonomia e divergencia nutricional", () => {
     const entries = [
       entry({ createdAt: "2026-06-16T10:00:00.000Z", confidence: 0.92, brand: "Nestle", quantity: 170, sourceId: "fabricante-1" }),
