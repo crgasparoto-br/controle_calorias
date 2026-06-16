@@ -277,6 +277,7 @@ export function recordWhatsappUserFeedback(input: RecordWhatsappFeedbackInput) {
   const target = findTargetHistory(input.userId, input.targetHistoryId);
   const classified = classifyFeedback(input.text);
   const scopeDecision = inferScope({ ...classified, text: input.text, target });
+  const effectiveTarget = scopeDecision.scope === "blocked" ? null : target;
   const sanitized = sanitizeSampleForLearning({
     kind: "structured_decision",
     purpose: "individual_learning",
@@ -291,7 +292,7 @@ export function recordWhatsappUserFeedback(input: RecordWhatsappFeedbackInput) {
     scope: scopeDecision.scope,
     confidence: classified.confidence,
     text: sanitized.text ?? "",
-    targetHistoryId: target?.id ?? null,
+    targetHistoryId: effectiveTarget?.id ?? null,
   });
 
   const entry: WhatsappFeedbackEntry = {
@@ -306,9 +307,9 @@ export function recordWhatsappUserFeedback(input: RecordWhatsappFeedbackInput) {
     scope: scopeDecision.scope,
     status: scopeDecision.status,
     reason: scopeDecision.reason || classified.reason,
-    targetHistoryId: target?.id ?? input.targetHistoryId ?? null,
-    targetIntent: target?.intent ?? null,
-    targetAction: target?.action ?? null,
+    targetHistoryId: effectiveTarget?.id ?? (scopeDecision.scope === "blocked" ? null : input.targetHistoryId ?? null),
+    targetIntent: effectiveTarget?.intent ?? null,
+    targetAction: effectiveTarget?.action ?? null,
     generatedMemory,
     candidateGlobalKnowledge: {
       allowed: false,
