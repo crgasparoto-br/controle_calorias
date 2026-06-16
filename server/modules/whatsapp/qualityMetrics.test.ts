@@ -15,7 +15,7 @@ function intent(input: { confidence: number; intent?: "add_foods_to_meal" | "dai
     confidence: input.confidence,
     date: "2026-06-16",
     meal: { label: "Almoco", createIfMissing: false },
-    items: [{ foodName: "iogurte", quantity: input.quantity ?? 1, unit: "un", brand: input.brand ?? undefined }],
+    items: input.intent === "daily_summary" ? [] : [{ foodName: "iogurte", quantity: input.quantity ?? 1, unit: "un", brand: input.brand ?? undefined }],
     sourceFood: null,
     targetFood: null,
     quantity: input.quantity ? { value: input.quantity, unit: "g" } : null,
@@ -39,7 +39,10 @@ function entry(input: {
   estimated?: boolean | null;
   sourceId?: string | null;
   inputType?: WhatsappMessageHistoryEntry["inputType"];
+  includeNutritionSource?: boolean;
 }) {
+  const includeNutritionSource = input.includeNutritionSource ?? input.intent !== "daily_summary";
+  const estimated = input.estimated ?? !input.sourceId;
   return recordWhatsappMessageHistory({
     userId: 1,
     messageText: "mensagem de teste",
@@ -52,12 +55,12 @@ function entry(input: {
     action: input.action ?? "save_food",
     replyKind: input.replyKind ?? "executed",
     status: input.status,
-    nutritionSource: {
+    nutritionSource: includeNutritionSource ? {
       sourceId: input.sourceId ?? null,
       sourceType: input.sourceId ? "fabricante" : "estimativa",
-      confidence: input.estimated ? 0.5 : 0.9,
-      estimated: input.estimated ?? false,
-    },
+      confidence: estimated ? 0.5 : 0.9,
+      estimated,
+    } : null,
     persisted: { happened: input.action !== "fallback_safe", kind: input.action === "fallback_safe" ? "none" : "meal", ids: input.action === "fallback_safe" ? [] : [101] },
     correctionOfHistoryId: input.correctionOfHistoryId ?? null,
   });
@@ -154,24 +157,34 @@ describe("whatsapp quality metrics", () => {
     ];
 
     const report = buildWhatsappQualityMetricsReport({ entries });
-    const foodSegment = report.segments.find(segment => segment.intent === "add_foods_to_meal");
+    const specificFoodSegment = report.segments.find(segment => segment.intent === "add_foods_to_meal" && segment.version.nutritionSourceVersion === "fabricante");
+    const estimatedFoodSegment = report.segments.find(segment => segment.intent === "add_foods_to_meal" && segment.version.nutritionSourceVersion === "estimativa");
     const summarySegment = report.segments.find(segment => segment.intent === "daily_summary");
 
-    expect(foodSegment).toEqual(expect.objectContaining({
+    expect(specificFoodSegment).toEqual(expect.objectContaining({
       inputType: "text",
-      sampleSize: 2,
-      highConfidenceRate: 0.5,
-      lowConfidenceRate: 0.5,
-      fallbackSafeRate: 0.5,
-      brandRecognitionRate: 0.5,
-      estimatedNutritionRate: 0.5,
+      sampleSize: 1,
+      highConfidenceRate: 1,
+      lowConfidenceRate: 0,
+      fallbackSafeRate: 0,
+      brandRecognitionRate: 1,
+      specificNutritionSourceRate: 1,
+    }));
+    expect(estimatedFoodSegment).toEqual(expect.objectContaining({
+      inputType: "text",
+      sampleSize: 1,
+      highConfidenceRate: 0,
+      lowConfidenceRate: 1,
+      fallbackSafeRate: 1,
+      brandRecognitionRate: 0,
+      estimatedNutritionRate: 1,
     }));
     expect(summarySegment).toEqual(expect.objectContaining({ inputType: "audio_transcript", ambiguityRate: 1 }));
     expect(report.driftSnapshots).toEqual(expect.arrayContaining([
       expect.objectContaining({
         intent: "add_foods_to_meal",
-        sampleSize: 2,
-        metrics: expect.objectContaining({ low_confidence_rate: 0.5, fallback_rate: 0.5, brand_recognition_rate: 0.5 }),
+        sampleSize: 1,
+        metrics: expect.objectContaining({ low_confidence_rate: 1, fallback_rate: 1, brand_recognition_rate: 0 }),
       }),
     ]));
   });
