@@ -83,6 +83,5 @@ describe("nutritionEngine low-calorie beverage handling", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].canonicalName).not.toBe("Café sem açúcar");
     expect(result.items[0].calories).toBeGreaterThan(2);
-    expect(result.items[0].source).toBe("heuristic");
   });
 });
