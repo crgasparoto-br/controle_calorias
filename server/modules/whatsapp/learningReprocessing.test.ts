@@ -114,7 +114,7 @@ describe("whatsapp learning reprocessing", () => {
       oldVersion: "whatsapp-parser/v1",
       newVersion: "whatsapp-parser/v2",
       reason: "Parser muda acao sem perder intencao.",
-      examples: [example({ requiresReview: true })],
+      examples: [example({ requiresReview: true, expectedAction: "ask_confirmation" })],
       runExample: () => output({ action: "ask_confirmation", persisted: true, quality: "pass" }),
     });
 
@@ -138,7 +138,7 @@ describe("whatsapp learning reprocessing", () => {
         example({ id: "case-1", previousOutput: output({ quality: "fail", confidence: 0.4, calibratedConfidence: 0.38 }) }),
         example({ id: "case-2", previousOutput: output({ intent: "daily_summary", action: "daily_summary", persisted: false, entities: {}, quality: "pass" }), expectedIntent: "daily_summary", expectedAction: "daily_summary", expectedPersisted: false }),
       ],
-      runExample: current => current.id === "case-1" ? output({ quality: "pass", confidence: 0.78, calibratedConfidence: 0.76 }) : current.previousOutput,
+      runExample: current => current.id === "case-1" ? output({ quality: "pass", confidence: 0.5, calibratedConfidence: 0.45 }) : current.previousOutput,
     });
 
     expect(run.improvementCount).toBe(1);
