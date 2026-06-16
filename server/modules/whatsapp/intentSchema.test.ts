@@ -16,6 +16,29 @@ describe("whatsapp intent schema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("valida intencoes runtime do fluxo profissional-paciente", () => {
+    const suggestion = parseWhatsappInterpretedIntent({
+      intent: "profissional_sugere_meta",
+      confidence: 0.91,
+      items: [],
+      requiresConfirmation: true,
+      clarificationQuestion: "Aceitar, recusar ou pedir ajuste?",
+      possibleIntents: ["paciente_aceita_sugestao", "paciente_recusa_sugestao", "paciente_pede_ajuste_sugestao"],
+      reason: "Sugestao profissional exige pendencia e aceite do paciente.",
+    });
+    const confirmation = parseWhatsappInterpretedIntent({
+      intent: "confirmacao_sim_nao",
+      confidence: 0.82,
+      items: [],
+      requiresConfirmation: true,
+      clarificationQuestion: "Qual sugestao voce quer confirmar?",
+      possibleIntents: ["paciente_aceita_sugestao", "paciente_recusa_sugestao"],
+    });
+
+    expect(suggestion.success).toBe(true);
+    expect(confirmation.success).toBe(true);
+  });
+
   it("rejeita intencao fora do contrato", () => {
     const parsed = parseWhatsappInterpretedIntent({
       intent: "delete_everything",
