@@ -94,6 +94,9 @@ describe("whatsapp learning governance", () => {
       justification: "Gates de regressao previstos.",
       decidedAt: new Date("2026-06-16T13:05:00.000Z"),
     });
+
+    expect(approved?.status).toBe("approved");
+
     const promoted = promoteWhatsappLearningCandidate({
       candidateId: candidate.id,
       promotedBy: "admin",
@@ -101,7 +104,6 @@ describe("whatsapp learning governance", () => {
       promotedAt: new Date("2026-06-16T13:10:00.000Z"),
     });
 
-    expect(approved?.status).toBe("approved");
     expect(promoted).toEqual(expect.objectContaining({ status: "promoted" }));
     expect(promoted?.promotion).toEqual(expect.objectContaining({
       promotedAt: "2026-06-16T13:10:00.000Z",
