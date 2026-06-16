@@ -114,7 +114,7 @@ function buildValidationSpan(entry: WhatsappIntentAuditLogEntry): WhatsappPipeli
     modelName: null,
     version: "whatsapp-intent-output/v1",
     toolId: null,
-    ...(failed ? { errorCode: entry.errorCode ?? entry.validationStatus } : {}),
+    ...(failed ? { errorCode: schemaFailed ? entry.validationStatus : entry.errorCode ?? entry.validationStatus } : {}),
     ...(backendFailed && entry.fallbackReason ? { fallbackReason: entry.fallbackReason } : {}),
   };
 }
