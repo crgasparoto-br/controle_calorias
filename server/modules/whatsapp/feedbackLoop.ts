@@ -363,8 +363,9 @@ export function summarizeWhatsappFeedback(filter: ListWhatsappFeedbackFilter = {
   };
 
   for (const entry of feedback) {
-    summary.positive += entry.kind === "positive" ? 1 : 0;
-    summary.negative += entry.kind === "negative" ? 1 : 0;
+    const isOperationalFeedback = entry.status !== "blocked";
+    summary.positive += entry.kind === "positive" && isOperationalFeedback ? 1 : 0;
+    summary.negative += entry.kind === "negative" && isOperationalFeedback ? 1 : 0;
     summary.corrections += entry.kind === "correction" ? 1 : 0;
     summary.preferences += entry.kind === "preference" ? 1 : 0;
     summary.personalAliases += entry.kind === "personal_alias" ? 1 : 0;
@@ -375,7 +376,7 @@ export function summarizeWhatsappFeedback(filter: ListWhatsappFeedbackFilter = {
     if (entry.targetIntent) {
       const intentSummary = summary.byIntent[entry.targetIntent] ?? { total: 0, negative: 0, corrections: 0 };
       intentSummary.total += 1;
-      intentSummary.negative += entry.kind === "negative" ? 1 : 0;
+      intentSummary.negative += entry.kind === "negative" && isOperationalFeedback ? 1 : 0;
       intentSummary.corrections += entry.kind === "correction" ? 1 : 0;
       summary.byIntent[entry.targetIntent] = intentSummary;
     }
