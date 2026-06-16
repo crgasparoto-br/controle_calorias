@@ -18,6 +18,9 @@ export type CatalogFood = {
   protein: number;
   carbs: number;
   fat: number;
+  brandName?: string | null;
+  variants?: string[];
+  isBrandedProduct?: boolean;
 };
 
 export type HabitSnapshot = {
@@ -33,6 +36,7 @@ export type MealDraftItem = {
   portionQuantity?: number;
   foodName: string;
   canonicalName: string;
+  brand?: string | null;
   quantity: number;
   unit: string;
   portionText: string;
@@ -267,6 +271,20 @@ const BAKERY_BREAD_REFERENCE: CatalogFood = {
 };
 
 const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
+const KNOWN_BRANDS = [
+  "Nestlé",
+  "Nestle",
+  "Panco",
+  "Wickbold",
+  "Coca-Cola",
+  "Coca Cola",
+  "Molico",
+  "Polenghi",
+  "Danone",
+  "Italac",
+  "Piracanjuba",
+];
+const CRITICAL_VARIATION_TERMS = ["zero", "diet", "light", "integral", "desnatado", "sem acucar", "sem açúcar", "tradicional", "proteico"];
 
 export class MealInferenceError extends Error {
   constructor(message = "Não foi possível gerar um rascunho revisável para esta refeição agora.") {
@@ -287,6 +305,34 @@ function normalizeText(value: string) {
 
 function normalizeForMatching(value: string) {
   return ` ${normalizeText(value).replace(/-/g, " ").replace(/\s+/g, " ")} `;
+}
+
+function normalizedTokenIncludes(haystack: string, needle: string) {
+  const normalizedNeedle = normalizeForMatching(needle).trim();
+  return Boolean(normalizedNeedle) && haystack.includes(` ${normalizedNeedle} `);
+}
+
+function detectKnownBrand(value: string) {
+  const normalized = normalizeForMatching(value);
+  return KNOWN_BRANDS.find(brand => normalizedTokenIncludes(normalized, brand)) ?? null;
+}
+
+function detectCatalogBrand(food: CatalogFood, normalizedQuery: string) {
+  return food.brandName && normalizedTokenIncludes(normalizedQuery, food.brandName) ? food.brandName : null;
+}
+
+function detectCriticalVariations(value: string) {
+  const normalized = normalizeForMatching(value);
+  return CRITICAL_VARIATION_TERMS.filter(term => normalizedTokenIncludes(normalized, term));
+}
+
+function catalogHasVariation(food: CatalogFood, variation: string) {
+  const searchable = normalizeForMatching([
+    food.name,
+    ...food.aliases,
+    ...(food.variants ?? []),
+  ].join(" "));
+  return normalizedTokenIncludes(searchable, variation);
 }
 
 function sourceMentionsFood(sourceText: string, foodName: string) {
@@ -510,17 +556,73 @@ function resolveMealLabel(input: MealProcessingInput, sourceText: string) {
   return input.suggestedMealLabel?.trim() || inferMealLabelByTime(input.occurredAt, input.timeZone);
 }
 
+function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, normalizedRawQuery: string) {
+  const catalogBrand = detectCatalogBrand(food, normalizedRawQuery);
+  const mentionedBrand = catalogBrand ?? detectKnownBrand(normalizedRawQuery);
+  const queryVariations = detectCriticalVariations(normalizedRawQuery);
+  const queryMentionsFullAlias = (alias: string) => normalizedTokenIncludes(normalizedQuery, alias);
+  const queryText = normalizedQuery.trim();
+  let bestScore = 0;
+
+  for (const candidate of [food.name, ...food.aliases]) {
+    const alias = normalizeForMatching(candidate).trim();
+    if (!alias) continue;
+
+    if (queryText === alias) {
+      bestScore = Math.max(bestScore, 1000 + alias.length);
+      continue;
+    }
+
+    if (queryMentionsFullAlias(candidate)) {
+      bestScore = Math.max(bestScore, 700 + alias.length);
+      continue;
+    }
+
+    if (!food.isBrandedProduct && alias.includes(queryText)) {
+      bestScore = Math.max(bestScore, 350 + queryText.length);
+    }
+  }
+
+  if (!bestScore) return 0;
+
+  if (food.isBrandedProduct) {
+    if (food.brandName && catalogBrand) {
+      bestScore += 220;
+    } else if (food.brandName && mentionedBrand && mentionedBrand !== food.brandName) {
+      bestScore -= 300;
+    }
+  } else if (mentionedBrand) {
+    bestScore -= 80;
+  }
+
+  for (const variation of queryVariations) {
+    if (catalogHasVariation(food, variation)) {
+      bestScore += 70;
+    } else if (food.isBrandedProduct || mentionedBrand) {
+      bestScore -= 250;
+    }
+  }
+
+  return Math.max(bestScore, 0);
+}
+
 function findCatalogFood(foodName: string) {
-  const normalized = normalizeText(cleanFoodName(foodName));
-  const catalogSource = getCatalogCache();
-  return (
-    catalogSource.find(item =>
-      [item.name, ...item.aliases].some(alias => normalizeText(alias) === normalized),
-    ) ||
-    catalogSource.find(item =>
-      [item.name, ...item.aliases].some(alias => normalized.includes(normalizeText(alias)) || normalizeText(alias).includes(normalized)),
-    )
-  );
+  const normalized = normalizeForMatching(cleanFoodName(foodName));
+  const rawNormalized = normalizeForMatching(foodName);
+  const catalogSource = getCatalogCache() as CatalogFood[];
+
+  let bestFood: CatalogFood | undefined;
+  let bestScore = 0;
+
+  for (const item of catalogSource) {
+    const score = scoreCatalogFoodMatch(item, normalized, rawNormalized);
+    if (score > bestScore) {
+      bestScore = score;
+      bestFood = item;
+    }
+  }
+
+  return bestFood;
 }
 
 function clampConfidence(value: number) {
@@ -544,6 +646,10 @@ function parseQuantityUnitFromPortionText(portionText: string) {
   };
 }
 
+function inferItemBrand(food: CatalogFood, foodName: string) {
+  return food.brandName?.trim() || detectKnownBrand(foodName);
+}
+
 function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
   const estimatedGrams = llmItem.estimatedGrams > 0
@@ -560,10 +666,13 @@ function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftIte
     ? roundNutritionValue(llmQuantity)
     : quantityUnit.quantity;
   const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
+  const brand = inferItemBrand(food, llmItem.foodName);
+  const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
 
   return {
     foodName: llmItem.foodName,
     canonicalName: food.name,
+    brand,
     portionText,
     quantity,
     unit,
@@ -573,8 +682,8 @@ function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftIte
     protein: roundNutritionValue(food.protein * factor),
     carbs: roundNutritionValue(food.carbs * factor),
     fat: roundNutritionValue(food.fat * factor),
-    confidence: clampConfidence(llmItem.confidence),
-    source: "catalog",
+    confidence: usedGenericForMentionedBrand ? Math.min(clampConfidence(llmItem.confidence), 0.62) : clampConfidence(llmItem.confidence),
+    source: usedGenericForMentionedBrand ? "heuristic" : "catalog",
   };
 }
 
@@ -592,6 +701,7 @@ function buildHybridItem(llmItem: LlmItem): MealDraftItem {
   return {
     foodName: llmItem.foodName,
     canonicalName: llmItem.foodName,
+    brand: detectKnownBrand(llmItem.foodName),
     portionText: llmItem.portionText,
     quantity,
     unit,
@@ -711,6 +821,7 @@ function buildHeuristicItem(foodName: string): MealDraftItem {
   return {
     foodName: parsed.foodName,
     canonicalName: parsed.foodName,
+    brand: detectKnownBrand(parsed.foodName),
     quantity,
     unit,
     portionText: parsed.portionText ?? "1 porção",
@@ -786,7 +897,7 @@ function cleanMealItems(items: MealDraftItem[]) {
       continue;
     }
 
-    const key = normalizeText(`${item.canonicalName || item.foodName} ${item.foodName}`);
+    const key = normalizeText(`${item.brand ?? ""} ${item.canonicalName || item.foodName} ${item.foodName}`);
     const current = deduplicated.get(key);
     if (!current || item.confidence > current.confidence) {
       deduplicated.set(key, item);
