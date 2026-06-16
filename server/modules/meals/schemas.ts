@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { nutritionSourceSchema } from "./nutritionSourceSelection";
+
 export const mealLabelSchema = z.string().trim().min(1).max(80);
 
 const mealIdsSchema = z
@@ -53,6 +55,7 @@ const mealItemBaseSchema = z.object({
   fat: z.number().min(0).max(1000),
   confidence: z.number().min(0).max(1),
   source: z.enum(["catalog", "hybrid", "heuristic"]),
+  nutritionSource: nutritionSourceSchema.optional(),
 });
 
 export const mealItemSchema = mealItemBaseSchema.transform(item => ({
