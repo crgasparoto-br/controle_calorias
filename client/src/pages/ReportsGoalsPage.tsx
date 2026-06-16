@@ -477,6 +477,7 @@ function WeightCard({ points, adherencePercent }: { points: WeightTrendPoint[]; 
   const summary = calculateWeightTrendSummary(points);
   const chartData = points.map(point => ({ date: point.date, label: point.label ?? point.date, weightKg: point.weightKg }));
   const badge = summary.trendDirection === "insufficient_data" ? "Tendência insuficiente" : summary.trendDirection === "stable" ? "Estável" : summary.trendDirection === "up" ? "Subiu" : "Caiu";
+  const hasEnoughPointsForChart = chartData.length > 1;
 
   return (
     <Card className="border-0 shadow-sm">
@@ -490,14 +491,16 @@ function WeightCard({ points, adherencePercent }: { points: WeightTrendPoint[]; 
               <StatusTile label="Variação" value={`${formatSignedMacro(summary.deltaKg)} kg`} hint={`${formatSignedMacro(summary.deltaPercent)}% no período`} />
               <StatusTile label="Aderência calórica" value={formatPercent(adherencePercent)} hint="Média do mesmo intervalo analisado." />
             </div>
-            {chartData.length > 1 ? (
+            {hasEnoughPointsForChart ? (
               <div className="h-[260px] rounded-2xl border bg-background p-4 shadow-sm">
                 <ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" /><YAxis domain={["dataMin - 1", "dataMax + 1"]} /><Tooltip formatter={value => `${formatMacro(Number(value))} kg`} labelFormatter={(label, payload) => payload?.[0]?.payload?.date ?? label} /><Legend /><Line type="linear" dataKey="weightKg" name="Peso" stroke="#16a34a" strokeWidth={3} dot /></LineChart></ResponsiveContainer>
               </div>
-            ) : null}
+            ) : (
+              <EmptyState>Registre pelo menos dois pesos no período para visualizar a curva de evolução. O registro atual já aparece nas métricas acima.</EmptyState>
+            )}
             <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">{summary.trendMessage} A aderência calórica média do período foi de {formatPercent(adherencePercent)}.</div>
           </>
-        ) : <EmptyState>Ainda não há registros de peso no período selecionado para relacionar evolução corporal e aderência calórica.</EmptyState>}
+        ) : <EmptyState>Ainda não há registros de peso no período selecionado. Registre seu peso para acompanhar a evolução junto da aderência calórica.</EmptyState>}
       </CardContent>
     </Card>
   );
