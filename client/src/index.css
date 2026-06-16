@@ -174,4 +174,10 @@
       max-width: 1280px; /* Standard content width */
     }
   }
+
+  @supports selector(:has(*)) {
+    [data-slot="card"]:has(a[href="/meals"]):has(a[href="/registrar"]) {
+      display: none;
+    }
+  }
 }
