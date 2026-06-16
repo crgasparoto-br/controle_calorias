@@ -78,6 +78,35 @@ describe("validateWhatsappRuntimeIntentForPersistence", () => {
     }));
   });
 
+  it("bloqueia confirmacao profissional tentando passar como persistencia alimentar", () => {
+    const result = validateWhatsappRuntimeIntentForPersistence({
+      intent: addFoodIntent({
+        intent: "paciente_aceita_sugestao",
+        confidence: 0.93,
+        meal: null,
+        items: [],
+        requiresConfirmation: true,
+        reason: "Aceite depende de pendencia profissional ativa.",
+      }),
+      validationStatus: "valid",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      valid: false,
+      status: "blocked",
+      errorCode: "unsupported_persistent_intent",
+      fallbackReason: "backend_validation_failed",
+    }));
+    expect(result.issues.map(issue => issue.code)).toEqual(expect.arrayContaining([
+      "unsupported_persistent_intent",
+      "autonomy_not_executable",
+    ]));
+    expect(result.autonomyDecision).toEqual(expect.objectContaining({
+      intent: "paciente_aceita_sugestao",
+      outcome: "confirm",
+    }));
+  });
+
   it("bloqueia interpretacao que nao foi validada como payload confiavel", () => {
     const result = validateWhatsappRuntimeIntentForPersistence({
       intent: addFoodIntent(),
