@@ -261,10 +261,11 @@ export function evaluateFoodClassificationForReview(
   const policy = { ...DEFAULT_POLICY, ...policyInput };
   const approvedSourceVersions = policyInput.approvedSourceVersions ?? {};
   const metadata = extractFoodClassificationMetadata(food);
-  const confidence = metadata.confidence;
+  const confidence = metadata.confidence ?? null;
   const usageCount = Number(food.userSignals?.usageCount ?? 0);
-  const caloriesKcalPer100g = Number.isFinite(food.caloriesKcalPer100g ?? NaN)
-    ? Number(food.caloriesKcalPer100g)
+  const rawCaloriesKcalPer100g = food.caloriesKcalPer100g;
+  const caloriesKcalPer100g = Number.isFinite(rawCaloriesKcalPer100g)
+    ? Number(rawCaloriesKcalPer100g)
     : null;
   const sourceSlug = food.source?.slug ?? metadata.origin ?? null;
   const expectedSourceVersion = sourceSlug ? approvedSourceVersions[sourceSlug] : undefined;
