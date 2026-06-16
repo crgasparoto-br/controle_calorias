@@ -14,6 +14,7 @@ import {
 import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import {
+  getWhatsappConversationPendingContext,
   registerWhatsappConversationPendingContext,
   resolveWhatsappConversationContext,
 } from "./conversationContext";
@@ -151,6 +152,25 @@ function logTemporalResolution(userId: number, context: NonNullable<ReturnType<t
   });
 }
 
+function normalizeContextReplyText(value?: string | null) {
+  return value
+    ?.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim() ?? "";
+}
+
+function isShortContextReply(value?: string | null) {
+  const text = normalizeContextReplyText(value);
+  return /^(?:s|sim|ok|confirmo|confirmar|pode|pode sim|isso|certo|n|nao|negativo|cancela|cancelar|nenhuma|nenhum|0|opcao\s*\d+|\d+)$/.test(text);
+}
+
+function shouldSkipTextIdempotencyForContextReply(userId: number, text?: string | null, receivedAt?: Date) {
+  return Boolean(getWhatsappConversationPendingContext(userId, receivedAt) && isShortContextReply(text));
+}
+
 async function handleProfessionalAccessDecision(userId: number, text?: string | null) {
   if (!text) return null;
   const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
@@ -169,11 +189,13 @@ async function handleProfessionalAccessDecision(userId: number, text?: string | 
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
   const receivedAt = input.receivedAt ?? new Date();
+  const skipTextDedupe = shouldSkipTextIdempotencyForContextReply(userId, text, receivedAt);
   const idempotencyDecision = evaluateWhatsappInboundIdempotency({
     userId,
     messageId: input.messageId,
     text,
     receivedAt,
+    duplicateWindowMs: skipTextDedupe ? 0 : undefined,
   });
 
   if (!idempotencyDecision.shouldProcess) {
