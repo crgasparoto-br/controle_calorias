@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { getGlobalFoodCatalogItem, recordGlobalFoodUsage } from "../foods/service";
 import { enrichMealItemsWithNutritionSnapshots } from "./nutritionSnapshot";
+import { NUTRITION_SOURCE_SELECTION_VERSION } from "./nutritionSourceSelection";
 
 vi.mock("../foods/service", () => ({
   getGlobalFoodCatalogItem: vi.fn(),
@@ -73,8 +74,54 @@ describe("meal item nutrition snapshots", () => {
       fat: 0.16,
       fiberG: 1.28,
       sodiumMg: 0.8,
+      nutritionSource: expect.objectContaining({
+        type: "curated_catalog",
+        origin: "curadoria-br-inicial",
+        sourceName: "Curadoria interna",
+        sourceVersion: "2026-06-06",
+        foodCode: "BR-COMMON-001",
+        confidence: 0.9,
+        isEstimated: false,
+        selectionVersion: NUTRITION_SOURCE_SELECTION_VERSION,
+      }),
     });
     expect(recordGlobalFoodUsage).toHaveBeenCalledWith(7, 10);
+  });
+
+  it("mantem a fonte nutricional selecionada dentro do snapshot persistivel", async () => {
+    vi.mocked(getGlobalFoodCatalogItem).mockResolvedValueOnce(catalogFood());
+
+    const [item] = await enrichMealItemsWithNutritionSnapshots(7, [baseItem]);
+    const snapshot = JSON.parse(item.foodSnapshotJson ?? "{}");
+
+    expect(snapshot.nutritionSource).toMatchObject({
+      type: "curated_catalog",
+      origin: "curadoria-br-inicial",
+      sourceName: "Curadoria interna",
+      sourceVersion: "2026-06-06",
+      foodCode: "BR-COMMON-001",
+      isEstimated: false,
+      selectionVersion: NUTRITION_SOURCE_SELECTION_VERSION,
+    });
+  });
+
+  it("marca item sem foodId como estimativa documentada para auditoria", async () => {
+    const [item] = await enrichMealItemsWithNutritionSnapshots(7, [{
+      ...baseItem,
+      foodId: undefined,
+      source: "heuristic" as const,
+      confidence: 0.42,
+    }]);
+
+    expect(item.foodSnapshotJson).toBeUndefined();
+    expect(item.nutritionSource).toEqual(expect.objectContaining({
+      type: "documented_estimate",
+      origin: "documented_estimate_rule",
+      confidence: 0.42,
+      isEstimated: true,
+      matchedBy: "heuristic_fallback",
+      selectionVersion: NUTRITION_SOURCE_SELECTION_VERSION,
+    }));
   });
 
   it("mantem o snapshot antigo mesmo que o catalogo retorne valores novos depois", async () => {
