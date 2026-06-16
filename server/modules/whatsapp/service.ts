@@ -151,6 +151,21 @@ function logTemporalResolution(userId: number, context: NonNullable<ReturnType<t
   });
 }
 
+async function handleProfessionalAccessDecision(userId: number, text?: string | null) {
+  if (!text) return null;
+  const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
+  if (!professionalAccessResponse) return null;
+
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
+    eventType: professionalAccessResponse.eventType,
+    detail: professionalAccessResponse.detail,
+  });
+  return professionalAccessResponse;
+}
+
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
   const receivedAt = input.receivedAt ?? new Date();
@@ -201,26 +216,17 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return multiAction;
   }
 
+  const professionalAccessResponse = await handleProfessionalAccessDecision(userId, text);
+  if (professionalAccessResponse) {
+    return professionalAccessResponse;
+  }
+
   const route = evaluateWhatsappIntentRoute({
     text,
     pendingContextKind: input.pendingContextKind,
   });
   if (route.action !== "continue_pipeline") {
     return logAndReturnRouterResult(userId, route);
-  }
-
-  if (text) {
-    const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
-    if (professionalAccessResponse) {
-      logInferenceEvent({
-        userId,
-        origin: "whatsapp",
-        status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
-        eventType: professionalAccessResponse.eventType,
-        detail: professionalAccessResponse.detail,
-      });
-      return professionalAccessResponse;
-    }
   }
 
   const waterFoodSplit = splitWhatsAppWaterAndFoodText(text);
