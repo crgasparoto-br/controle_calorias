@@ -28,8 +28,8 @@ export type NutritionSourceSelection = z.infer<typeof nutritionSourceSchema>;
 
 type CatalogFoodSource = {
   id?: number;
-  slug?: string;
-  name?: string;
+  slug?: string | null;
+  name?: string | null;
   version?: string | null;
   foodCode?: string | null;
 };
