@@ -7,7 +7,6 @@ import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { billingRouter } from "./modules/billing/router";
 import { webWhatsappGreetingSchema } from "./modules/onboarding/schemas";
 import { sendWebOnboardingWhatsappGreeting } from "./modules/onboarding/webGreetingService";
 import {
@@ -145,7 +144,6 @@ export const appRouter = router({
       }),
     }),
   }),
-  billing: billingRouter,
   nutrition: nutritionRouter,
   quickEdit: quickEditRouter,
 });
