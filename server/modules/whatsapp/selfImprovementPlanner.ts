@@ -181,12 +181,23 @@ function statusFor(kind: WhatsappImprovementBacklogKind, risk: WhatsappImproveme
 }
 
 function datasetCasesFor(signals: WhatsappImprovementSignal[]): WhatsappImprovementBacklogItem["suggestedDatasetCases"] {
-  return signals.flatMap(signal => {
-    if (signal.kind === "false_positive_food") return [{ target: "negative" as const, reason: "Falso positivo alimentar deve virar caso negativo de regressao.", sourceSignalId: signal.id }];
-    if (signal.kind === "ambiguity") return [{ target: "ambiguous" as const, reason: "Ambiguidade recorrente deve virar fixture de esclarecimento.", sourceSignalId: signal.id }];
-    if (signal.kind === "later_correction") return [{ target: "multi_turn" as const, reason: "Correcao posterior deve exercitar contexto entre turnos.", sourceSignalId: signal.id }];
-    return [{ target: "positive" as const, reason: "Sinal recorrente deve compor dataset positivo ou comparativo.", sourceSignalId: signal.id }];
-  });
+  const cases: WhatsappImprovementBacklogItem["suggestedDatasetCases"] = [];
+  for (const signal of signals) {
+    if (signal.kind === "false_positive_food") {
+      cases.push({ target: "negative", reason: "Falso positivo alimentar deve virar caso negativo de regressao.", sourceSignalId: signal.id });
+      continue;
+    }
+    if (signal.kind === "ambiguity") {
+      cases.push({ target: "ambiguous", reason: "Ambiguidade recorrente deve virar fixture de esclarecimento.", sourceSignalId: signal.id });
+      continue;
+    }
+    if (signal.kind === "later_correction") {
+      cases.push({ target: "multi_turn", reason: "Correcao posterior deve exercitar contexto entre turnos.", sourceSignalId: signal.id });
+      continue;
+    }
+    cases.push({ target: "positive", reason: "Sinal recorrente deve compor dataset positivo ou comparativo.", sourceSignalId: signal.id });
+  }
+  return cases;
 }
 
 function dependenciesFor(kind: WhatsappImprovementBacklogKind, risk: WhatsappImprovementRisk) {
