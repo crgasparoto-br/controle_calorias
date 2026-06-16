@@ -24,6 +24,7 @@ import {
 } from "./inboundIdempotencyGuard";
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
+import { executeWhatsappMultiActionIntent } from "./multiActionIntent";
 import {
   buildWhatsappRouterResult,
   evaluateWhatsappIntentRoute,
@@ -190,6 +191,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
   if (temporalResolution.context) {
     logTemporalResolution(userId, temporalResolution.context);
+  }
+
+  const multiAction = await logAndReturnInterpretedIntent(userId, executeWhatsappMultiActionIntent({
+    text,
+    temporalContext: temporalResolution.context,
+  }), { text, receivedAt });
+  if (multiAction) {
+    return multiAction;
   }
 
   const route = evaluateWhatsappIntentRoute({
