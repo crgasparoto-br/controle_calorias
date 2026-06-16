@@ -4,6 +4,10 @@ import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssis
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappLlmIntent } from "./modules/whatsapp/llmIntentActions";
 import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
+import {
+  buildSuspiciousWhatsAppContentReply,
+  inspectWhatsAppUserContentSafety,
+} from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
 import { listMeals } from "./modules/meals/service";
@@ -309,6 +313,21 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   if (!userId) return false;
 
   const text = getTextBody(message);
+  const safety = inspectWhatsAppUserContentSafety(text, "text");
+  if (!safety.safe) {
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      reply: buildSuspiciousWhatsAppContentReply(),
+      eventType: "whatsapp.security_guard_blocked",
+      detail: `Conteudo bloqueado por seguranca antes do roteamento textual: ${safety.categories.join(", ") || "security_guard"}.`,
+      status: "warning",
+    });
+    return true;
+  }
+
   if (looksLikeProfessionalAccessDecision(text)) {
     const { processProfessionalAccessWhatsappResponse } = await import("./modules/professionals/service");
     const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
