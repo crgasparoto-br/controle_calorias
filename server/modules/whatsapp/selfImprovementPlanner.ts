@@ -151,13 +151,13 @@ function groupKey(signal: WhatsappImprovementSignal) {
 
 function riskFor(signals: WhatsappImprovementSignal[]): WhatsappImprovementRisk {
   if (signals.some(signal => signal.suspectedDataPoisoning || signal.securityAssessment?.classification === "blocked")) return "critical";
-  if (signals.some(signal => signal.kind === "false_positive_food" || signal.kind === "nutrition_divergence" && signal.impact >= 0.8)) return "high";
+  if (signals.some(signal => signal.kind === "false_positive_food" || (signal.kind === "nutrition_divergence" && signal.impact >= 0.8))) return "high";
   if (signals.some(signal => signal.kind === "later_correction" || signal.kind === "negative_feedback" || signal.kind === "drift")) return "medium";
   return "low";
 }
 
 function effortFor(signals: WhatsappImprovementSignal[]): WhatsappImprovementEffort {
-  if (signals.some(signal => signal.estimatedEffort === "large" || signal.kind === "prompt_or_model_change")) return "large";
+  if (signals.some(signal => signal.estimatedEffort === "large")) return "large";
   if (signals.some(signal => signal.estimatedEffort === "medium" || signal.kind === "drift" || signal.kind === "nutrition_divergence")) return "medium";
   return "small";
 }
