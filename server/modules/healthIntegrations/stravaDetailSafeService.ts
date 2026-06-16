@@ -48,9 +48,15 @@ async function withStravaActivityDetailGuards<T>(operation: () => Promise<T>) {
 }
 
 export const healthIntegrationService: typeof baseHealthIntegrationService = {
-  getStatus: baseHealthIntegrationService.getStatus.bind(baseHealthIntegrationService),
-  connect: baseHealthIntegrationService.connect.bind(baseHealthIntegrationService),
-  disconnect: baseHealthIntegrationService.disconnect.bind(baseHealthIntegrationService),
+  getStatus(...args) {
+    return baseHealthIntegrationService.getStatus(...args);
+  },
+  connect(...args) {
+    return baseHealthIntegrationService.connect(...args);
+  },
+  disconnect(...args) {
+    return baseHealthIntegrationService.disconnect(...args);
+  },
   handleStravaCallback(input) {
     return withStravaActivityDetailGuards(() => baseHealthIntegrationService.handleStravaCallback(input));
   },
