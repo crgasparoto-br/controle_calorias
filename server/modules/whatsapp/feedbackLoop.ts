@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   buildAiLearningPrivacyRecord,
   sanitizeSampleForLearning,
@@ -5,7 +6,6 @@ import {
 } from "../aiLearningPrivacy";
 import type { WhatsappIntentName } from "./intentSchema";
 import {
-  linkWhatsappMessageHistory,
   listWhatsappMessageHistory,
   type WhatsappMessageHistoryEntry,
 } from "./messageHistory";
@@ -98,7 +98,6 @@ const entries: WhatsappFeedbackEntry[] = [];
 let nextFeedbackId = 1;
 
 function hashValue(value: string) {
-  const { createHash } = require("node:crypto") as typeof import("node:crypto");
   return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
 
@@ -135,8 +134,8 @@ function classifyFeedback(text: string): { kind: WhatsappFeedbackKind; confidenc
   if (/\b(?:perfeito|correto|certinho|acertou|boa|obrigado|valeu|funcionou)\b/.test(normalized)) {
     return { kind: "positive", confidence: 0.86, reason: "Feedback positivo explicito." };
   }
-  if (/\b(?:errado|incorreto|nao era|não era|nao foi|não foi|corrige|corrigir|troca|troque)\b/.test(normalized)) {
-    return { kind: "correction", confidence: 0.84, reason: "Feedback indica correcao ou erro em decisao anterior." };
+  if (/\b(?:nao era|não era|nao foi|não foi|corrige|corrigir|troca|troque|em vez de|no lugar de)\b/.test(normalized)) {
+    return { kind: "correction", confidence: 0.84, reason: "Feedback indica correcao acionavel sobre decisao anterior." };
   }
   if (/\b(?:sempre que eu falar|quando eu falar|pra mim|para mim|meu|minha)\b/.test(normalized) && /\b(?:quer dizer|significa|e|é|eh)\b/.test(normalized)) {
     return { kind: "personal_alias", confidence: 0.82, reason: "Feedback define alias ou interpretacao pessoal." };
@@ -147,7 +146,7 @@ function classifyFeedback(text: string): { kind: WhatsappFeedbackKind; confidenc
   if (/\b(?:nao me pergunte|não me pergunte|sempre registre|nunca registre|da proxima vez|da próxima vez)\b/.test(normalized)) {
     return { kind: "recurring_instruction", confidence: 0.76, reason: "Feedback pede comportamento recorrente futuro." };
   }
-  if (/\b(?:ruim|pessimo|péssimo|falhou|nao gostei|não gostei)\b/.test(normalized)) {
+  if (/\b(?:errado|incorreto|ruim|pessimo|péssimo|falhou|nao gostei|não gostei)\b/.test(normalized)) {
     return { kind: "negative", confidence: 0.74, reason: "Feedback negativo explicito." };
   }
 
@@ -323,13 +322,6 @@ export function recordWhatsappUserFeedback(input: RecordWhatsappFeedbackInput) {
 
   nextFeedbackId += 1;
   entries.push(entry);
-  if (target?.id) {
-    linkWhatsappMessageHistory({
-      sourceHistoryId: target.id,
-      action: classified.kind === "correction" ? "correction" : "feedback",
-      targetHistoryId: target.id,
-    });
-  }
   pruneFeedback();
   return entry;
 }
