@@ -100,6 +100,25 @@ function parseQuantity(value: string) {
   return {
     quantity: Number(match[1].replace(",", ".")),
     unit: match[2].toLowerCase(),
+    raw: match[0],
+  };
+}
+
+function parseQuantityPrefixedItems(value: string) {
+  const quantity = parseQuantity(value);
+  if (!quantity) {
+    return {
+      itemText: value,
+      quantity: undefined,
+      unit: undefined,
+    };
+  }
+
+  const itemText = cleanText(value.slice(quantity.raw.length));
+  return {
+    itemText,
+    quantity: quantity.quantity,
+    unit: quantity.unit,
   };
 }
 
@@ -109,7 +128,8 @@ function parseMealFoodListAction(text: string): ExtractedActionDraft | null {
     return null;
   }
 
-  const itemNames = splitItemList(match[2]);
+  const parsed = parseQuantityPrefixedItems(match[2]);
+  const itemNames = splitItemList(parsed.itemText || match[2]);
   if (!itemNames.length) {
     return null;
   }
@@ -119,12 +139,14 @@ function parseMealFoodListAction(text: string): ExtractedActionDraft | null {
     sourceText: text,
     itemName: itemNames.join(", "),
     itemNames,
+    quantity: itemNames.length === 1 ? parsed.quantity : undefined,
+    unit: itemNames.length === 1 ? parsed.unit : undefined,
     mealLabel: match[1],
   };
 }
 
 function parseReplaceAction(text: string): ExtractedActionDraft | null {
-  const match = text.match(/^(?:troca|trocar|substitui|substituir|não é|nao e|não era|nao era)\s+(.+?)\s+(?:por|é|e|era|e sim)\s+(.+)$/i);
+  const match = text.match(/^(?:troca|trocar|substitui|substituir|não é|nao e|não era|nao era)\s+(.+?)\s+(?:e\s+sim|por|é|era|e)\s+(.+)$/i);
   if (!match) {
     return null;
   }
@@ -181,12 +203,15 @@ function parseAddAction(text: string): ExtractedActionDraft | null {
     return null;
   }
 
-  const itemNames = splitItemList(match[1]);
+  const parsed = parseQuantityPrefixedItems(match[1]);
+  const itemNames = splitItemList(parsed.itemText || match[1]);
   return {
     actionType: "adicionar_alimento",
     sourceText: text,
     itemName: itemNames.join(", "),
     itemNames,
+    quantity: itemNames.length === 1 ? parsed.quantity : undefined,
+    unit: itemNames.length === 1 ? parsed.unit : undefined,
   };
 }
 
@@ -322,7 +347,7 @@ function validateAction(action: ExtractedActionDraft) {
 function formatAction(action: WhatsappMultiActionExtractedAction) {
   switch (action.actionType) {
     case "adicionar_alimento":
-      return `Adicionar ${action.itemName ?? "alimento"}${action.mealLabel ? ` em ${action.mealLabel}` : ""}`;
+      return `Adicionar ${action.quantity && action.unit ? `${action.quantity} ${action.unit} de ` : ""}${action.itemName ?? "alimento"}${action.mealLabel ? ` em ${action.mealLabel}` : ""}`;
     case "trocar_alimento":
       return `Trocar ${action.sourceFood ?? "item"} por ${action.targetFood ?? "novo item"}`;
     case "corrigir_alimento":
