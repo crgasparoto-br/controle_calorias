@@ -62,13 +62,70 @@ type TrendPoint = ReportTotals & {
   goalCalories: number;
 };
 
+type MacroKey = "protein" | "carbs" | "fat";
+
+type DailyMacroSource = {
+  date: string;
+  label: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  goalCalories: number;
+  adjustedGoalCalories?: number;
+  goalProtein?: number;
+  goalCarbs?: number;
+  goalFat?: number;
+};
+
+type WeightPoint = {
+  date: string;
+  weightKg: number | null;
+};
+
+type MacroMetric = {
+  key: "calories" | MacroKey;
+  title: string;
+  unit: "kcal" | "g";
+  planned: number;
+  realized: number;
+  percent: number;
+  difference: number;
+  plannedPerKgDay: number | null;
+  realizedPerKgDay: number | null;
+  weightDays: number;
+};
+
 const EMPTY_TOTALS: ReportTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+const MACRO_META: Array<{ key: MacroKey; title: string; goalKey: "goalProtein" | "goalCarbs" | "goalFat" }> = [
+  { key: "protein", title: "Proteínas", goalKey: "goalProtein" },
+  { key: "carbs", title: "Carboidratos", goalKey: "goalCarbs" },
+  { key: "fat", title: "Gorduras", goalKey: "goalFat" },
+];
 
 function formatMacro(value: number) {
   return formatNumberPtBr(value, {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
     maximumFractionDigits: 1,
   });
+}
+
+function formatPercent(value: number) {
+  return `${formatNumberPtBr(Math.round(value))}%`;
+}
+
+function formatMacroGrams(value: number) {
+  return `${formatMacro(value)} g`;
+}
+
+function formatSigned(value: number, unit: "kcal" | "g") {
+  const prefix = value > 0 ? "+" : "";
+  return unit === "kcal" ? `${prefix}${formatCalories(value)}` : `${prefix}${formatMacro(value)} g`;
+}
+
+function formatPerKgDay(value: number | null) {
+  if (value === null) return null;
+  return `${formatNumberPtBr(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} g/kg/dia`;
 }
 
 function progressPercent(value: number, goal: number) {
@@ -187,6 +244,107 @@ function averageValue(total: number, count: number) {
   return total / count;
 }
 
+function resolveWeightForDate(date: string, weights: WeightPoint[]) {
+  const usableWeights = weights
+    .filter(weight => weight.date && Number(weight.weightKg) > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const exact = usableWeights.find(weight => weight.date === date);
+  if (exact) return Number(exact.weightKg);
+
+  const previous = usableWeights.filter(weight => weight.date < date).at(-1);
+  return previous ? Number(previous.weightKg) : null;
+}
+
+function calculateMacroMetrics(days: DailyMacroSource[], weights: WeightPoint[]): MacroMetric[] {
+  const normalizedDays = days.filter(day => day.date);
+  const caloriesPlanned = normalizedDays.reduce((total, day) => total + (day.adjustedGoalCalories ?? day.goalCalories ?? 0), 0);
+  const caloriesRealized = normalizedDays.reduce((total, day) => total + (day.calories ?? 0), 0);
+
+  const metrics: MacroMetric[] = [
+    {
+      key: "calories",
+      title: "Calorias",
+      unit: "kcal",
+      planned: caloriesPlanned,
+      realized: caloriesRealized,
+      percent: progressPercent(caloriesRealized, caloriesPlanned),
+      difference: caloriesRealized - caloriesPlanned,
+      plannedPerKgDay: null,
+      realizedPerKgDay: null,
+      weightDays: 0,
+    },
+  ];
+
+  MACRO_META.forEach(macro => {
+    const planned = normalizedDays.reduce((total, day) => total + Number(day[macro.goalKey] ?? 0), 0);
+    const realized = normalizedDays.reduce((total, day) => total + Number(day[macro.key] ?? 0), 0);
+    const perKg = normalizedDays.reduce(
+      (acc, day) => {
+        const weightKg = resolveWeightForDate(day.date, weights);
+        if (!weightKg) return acc;
+        acc.planned += Number(day[macro.goalKey] ?? 0) / weightKg;
+        acc.realized += Number(day[macro.key] ?? 0) / weightKg;
+        acc.days += 1;
+        return acc;
+      },
+      { planned: 0, realized: 0, days: 0 },
+    );
+
+    metrics.push({
+      key: macro.key,
+      title: macro.title,
+      unit: "g",
+      planned,
+      realized,
+      percent: progressPercent(realized, planned),
+      difference: realized - planned,
+      plannedPerKgDay: perKg.days ? perKg.planned / perKg.days : null,
+      realizedPerKgDay: perKg.days ? perKg.realized / perKg.days : null,
+      weightDays: perKg.days,
+    });
+  });
+
+  return metrics;
+}
+
+function normalizeWeeklyDays(days: any[]): DailyMacroSource[] {
+  return days.map(day => ({
+    date: day.date,
+    label: day.label,
+    calories: Number(day.calories ?? 0),
+    protein: Number(day.protein ?? 0),
+    carbs: Number(day.carbs ?? 0),
+    fat: Number(day.fat ?? 0),
+    goalCalories: Number(day.goalCalories ?? 0),
+    adjustedGoalCalories: Number(day.adjustedGoalCalories ?? day.goalCalories ?? 0),
+    goalProtein: Number(day.goalProtein ?? 0),
+    goalCarbs: Number(day.goalCarbs ?? 0),
+    goalFat: Number(day.goalFat ?? 0),
+  }));
+}
+
+function normalizePeriodDays(days: any[], fallbackGoal: any): DailyMacroSource[] {
+  return days.map(day => ({
+    date: day.date,
+    label: day.label,
+    calories: Number(day.calories ?? 0),
+    protein: Number(day.protein ?? 0),
+    carbs: Number(day.carbs ?? 0),
+    fat: Number(day.fat ?? 0),
+    goalCalories: Number(day.goalCalories ?? fallbackGoal?.calories ?? 0),
+    adjustedGoalCalories: Number(day.adjustedGoalCalories ?? day.goalCalories ?? fallbackGoal?.calories ?? 0),
+    goalProtein: Number(day.goalProtein ?? fallbackGoal?.protein ?? 0),
+    goalCarbs: Number(day.goalCarbs ?? fallbackGoal?.carbs ?? 0),
+    goalFat: Number(day.goalFat ?? fallbackGoal?.fat ?? 0),
+  }));
+}
+
+function normalizeWeightPoints(value: any): WeightPoint[] {
+  return (value?.entries ?? value?.points ?? [])
+    .map((entry: any) => ({ date: entry.date, weightKg: Number(entry.weightKg ?? 0) || null }))
+    .filter((entry: WeightPoint) => entry.date);
+}
+
 function MonthComparisonCard({
   currentCalories,
   previousCalories,
@@ -220,6 +378,76 @@ function MonthComparisonCard({
             {formatCalories(delta)}
           </p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MacroMetricCard({ metric, showPerKg = false }: { metric: MacroMetric; showPerKg?: boolean }) {
+  const plannedValue = metric.unit === "kcal" ? formatCalories(metric.planned) : formatMacroGrams(metric.planned);
+  const realizedValue = metric.unit === "kcal" ? formatCalories(metric.realized) : formatMacroGrams(metric.realized);
+  const plannedPerKg = formatPerKgDay(metric.plannedPerKgDay);
+  const realizedPerKg = formatPerKgDay(metric.realizedPerKgDay);
+
+  return (
+    <Card className="border bg-muted/10 shadow-none">
+      <CardHeader className="space-y-2">
+        <CardTitle className="text-base">{metric.title}</CardTitle>
+        <CardDescription>{formatPercent(metric.percent)} realizado vs planejado</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Progress className="h-2" value={metric.percent} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <CompactMetric label="Planejado" value={plannedValue} />
+          <CompactMetric label="Realizado" value={realizedValue} />
+          <CompactMetric label="Diferença" value={formatSigned(metric.difference, metric.unit)} />
+        </div>
+        {showPerKg && metric.unit === "g" ? (
+          plannedPerKg && realizedPerKg ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <CompactMetric label="Planejado" value={plannedPerKg} />
+              <CompactMetric label="Realizado" value={realizedPerKg} />
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed bg-background/70 p-4 text-sm leading-6 text-muted-foreground">
+              Informe um peso para calcular g/kg/dia deste período.
+            </div>
+          )
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MacroAdherenceSection({ title, description, metrics }: { title: string; description: string; metrics: MacroMetric[] }) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CalendarDays className="h-5 w-5 text-primary" />
+          {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        {metrics.map(metric => <MacroMetricCard key={metric.key} metric={metric} />)}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlannedVsRealizedMacrosSection({ metrics }: { metrics: MacroMetric[] }) {
+  const macroMetrics = metrics.filter(metric => metric.unit === "g");
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle>Macronutrientes planejados vs realizados</CardTitle>
+        <CardDescription>
+          Totais do período e média ponderada por peso de referência em g/kg/dia.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 xl:grid-cols-3">
+        {macroMetrics.map(metric => <MacroMetricCard key={metric.key} metric={metric} showPerKg />)}
       </CardContent>
     </Card>
   );
@@ -295,13 +523,7 @@ function LocalTrendSection({
   );
 }
 
-function DailyDetailsSections({
-  groups,
-  userTimeZone,
-}: {
-  groups: DateGroupedRegisteredMealsViewModel[];
-  userTimeZone: string;
-}) {
+function DailyDetailsSections({ groups, userTimeZone }: { groups: DateGroupedRegisteredMealsViewModel[]; userTimeZone: string }) {
   if (!groups.length) {
     return (
       <div className="rounded-2xl border border-dashed bg-muted/10 p-6 text-sm text-muted-foreground">
@@ -335,17 +557,7 @@ function DailyDetailsSections({
   );
 }
 
-function AnalyticsHeader({
-  icon,
-  title,
-  scopeLabel,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  scopeLabel: string;
-  description: string;
-}) {
+function AnalyticsHeader({ icon, title, scopeLabel, description }: { icon: React.ReactNode; title: string; scopeLabel: string; description: string }) {
   return (
     <CardHeader className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -396,7 +608,7 @@ function WaterAnalyticsCard({
         <div className="rounded-3xl border bg-muted/20 p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <p className="text-sm font-medium tracking-tight">Aderência à meta de água</p>
-            <p className="text-sm text-muted-foreground">{formatNumberPtBr(Math.round(progressPercent(totalConsumedMl, totalGoalMl)))}%</p>
+            <p className="text-sm text-muted-foreground">{formatPercent(progressPercent(totalConsumedMl, totalGoalMl))}</p>
           </div>
           <Progress className="h-2" value={progressPercent(totalConsumedMl, totalGoalMl)} />
         </div>
@@ -482,10 +694,7 @@ export default function ReportsPage() {
   }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
 
   const weekOffset = React.useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
-  const reportBundle = trpc.nutrition.reports.bundle.useQuery(
-    { weekOffset },
-    { enabled: periodScope === "week" },
-  );
+  const reportBundle = trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: periodScope === "week" });
   const periodBundle = trpc.nutrition.reports.periodBundle.useQuery(
     { startDate: activeRange.start, endDate: activeRange.end },
     { enabled: periodScope !== "week" },
@@ -498,7 +707,7 @@ export default function ReportsPage() {
   );
 
   const periodMeals = React.useMemo(
-    () => (periodBundle.data?.mealsByDate ?? []).flatMap(group => group.items as StoredMeal[]),
+    () => (periodBundle.data?.mealsByDate ?? []).flatMap((group: any) => group.items as StoredMeal[]),
     [periodBundle.data?.mealsByDate],
   );
   const goalCalories = periodScope === "week"
@@ -507,9 +716,9 @@ export default function ReportsPage() {
   const localTotals = periodScope === "week"
     ? {
         calories: reportBundle.data?.progress.summary.totalCalories ?? 0,
-        protein: reportBundle.data?.weekly.reduce((total, day) => total + day.protein, 0) ?? 0,
-        carbs: reportBundle.data?.weekly.reduce((total, day) => total + day.carbs, 0) ?? 0,
-        fat: reportBundle.data?.weekly.reduce((total, day) => total + day.fat, 0) ?? 0,
+        protein: reportBundle.data?.weekly.reduce((total: number, day: any) => total + day.protein, 0) ?? 0,
+        carbs: reportBundle.data?.weekly.reduce((total: number, day: any) => total + day.carbs, 0) ?? 0,
+        fat: reportBundle.data?.weekly.reduce((total: number, day: any) => total + day.fat, 0) ?? 0,
       }
     : periodBundle.data?.totals ?? EMPTY_TOTALS;
   const localDayGroupsAsc = React.useMemo(
@@ -546,22 +755,29 @@ export default function ReportsPage() {
   };
   const macroTrend = toMacroTrend(caloricTrend);
   const mealGroupsByDate = React.useMemo(
-    () => detailedMealsByDate.map(group => ({
+    () => detailedMealsByDate.map((group: any) => ({
       date: group.date,
       groups: buildRegisteredMealGroups(group.items as StoredMeal[]),
     })),
     [detailedMealsByDate],
   );
 
-  const weeklyWaterTotal = caloricTrend.reduce((total, day) => total + (day.waterConsumedMl ?? 0), 0);
-  const weeklyWaterGoalTotal = caloricTrend.reduce((total, day) => total + (day.waterGoalMl ?? 0), 0);
-  const weeklyWaterGoalHitDays = caloricTrend.filter(day => (day.waterGoalMl ?? 0) > 0 && (day.waterConsumedMl ?? 0) >= (day.waterGoalMl ?? 0)).length;
-  const weeklyAverageWater = averageValue(weeklyWaterTotal, caloricTrend.length);
-  const lowestWaterDay = findExtreme(caloricTrend, day => day.waterConsumedMl ?? 0, "min");
+  const weeklyWeightPoints = normalizeWeightPoints(progress?.weight);
+  const periodWeightPoints = normalizeWeightPoints(periodBundle.data?.weightTrend);
+  const metricDays = periodScope === "week"
+    ? normalizeWeeklyDays(caloricTrend)
+    : normalizePeriodDays(periodBundle.data?.daily ?? [], periodBundle.data?.goal);
+  const macroMetrics = calculateMacroMetrics(metricDays, periodScope === "week" ? weeklyWeightPoints : periodWeightPoints);
 
-  const weeklyExerciseActiveDays = caloricTrend.filter(day => (day.exerciseCalories ?? 0) > 0).length;
+  const weeklyWaterTotal = caloricTrend.reduce((total: number, day: any) => total + (day.waterConsumedMl ?? 0), 0);
+  const weeklyWaterGoalTotal = caloricTrend.reduce((total: number, day: any) => total + (day.waterGoalMl ?? 0), 0);
+  const weeklyWaterGoalHitDays = caloricTrend.filter((day: any) => (day.waterGoalMl ?? 0) > 0 && (day.waterConsumedMl ?? 0) >= (day.waterGoalMl ?? 0)).length;
+  const weeklyAverageWater = averageValue(weeklyWaterTotal, caloricTrend.length);
+  const lowestWaterDay = findExtreme(caloricTrend, (day: any) => day.waterConsumedMl ?? 0, "min");
+
+  const weeklyExerciseActiveDays = caloricTrend.filter((day: any) => (day.exerciseCalories ?? 0) > 0).length;
   const weeklyAverageExercisePerActiveDay = weeklyExerciseActiveDays ? averageValue(progress?.summary.totalExerciseCalories ?? 0, weeklyExerciseActiveDays) : 0;
-  const highestExerciseDay = findExtreme(caloricTrend, day => day.exerciseCalories ?? 0, "max");
+  const highestExerciseDay = findExtreme(caloricTrend, (day: any) => day.exerciseCalories ?? 0, "max");
 
   const hydrationReading = !caloricTrend.length
     ? "Ainda não há dados suficientes para interpretar a hidratação da semana."
@@ -595,9 +811,9 @@ export default function ReportsPage() {
   const introStats = (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <SummaryPill label="Calorias" value={formatCalories(localTotals.calories)} />
-      <SummaryPill label="Proteínas" value={formatMacro(localTotals.protein)} />
-      <SummaryPill label="Dias com dados" value={String(localDayGroupsAsc.length)} />
-      <SummaryPill label="Média diária" value={formatCalories(localAverageCalories)} />
+      <SummaryPill label="Proteínas" value={formatMacroGrams(localTotals.protein)} />
+      <SummaryPill label="Carboidratos" value={formatMacroGrams(localTotals.carbs)} />
+      <SummaryPill label="Gorduras" value={formatMacroGrams(localTotals.fat)} />
       <SummaryPill label="Intervalo" value={`${longestRangeDays} dias`} />
     </div>
   );
@@ -635,29 +851,12 @@ export default function ReportsPage() {
               <HighlightCard title="Refeições" value={String(periodMeals.length)} description="Quantidade de refeições encontradas na data ativa." />
             </div>
 
-            <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarDays className="h-5 w-5 text-primary" />
-                  Leitura do dia
-                </CardTitle>
-                <CardDescription>Um resumo objetivo para responder como o dia está em relação à meta atual.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="rounded-2xl border bg-muted/20 p-4">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium tracking-tight">Aderência calórica</p>
-                    <p className="text-sm text-muted-foreground">{formatNumberPtBr(Math.round(progressPercent(localTotals.calories, goalCalories)))}%</p>
-                  </div>
-                  <Progress className="h-2" value={progressPercent(localTotals.calories, goalCalories)} />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <StatusTile label="Proteínas" value={`${formatMacro(localTotals.protein)} g`} />
-                  <StatusTile label="Carboidratos" value={`${formatMacro(localTotals.carbs)} g`} />
-                  <StatusTile label="Gorduras" value={`${formatMacro(localTotals.fat)} g`} />
-                </div>
-              </CardContent>
-            </Card>
+            <MacroAdherenceSection
+              title="Aderência diária às metas"
+              description="Calorias e macronutrientes usam a mesma lógica: planejado, realizado, aderência e diferença."
+              metrics={macroMetrics}
+            />
+            <PlannedVsRealizedMacrosSection metrics={macroMetrics} />
 
             <Card className="border-0 shadow-sm">
               <CardHeader>
@@ -693,9 +892,16 @@ export default function ReportsPage() {
                 <div className="grid gap-4 lg:grid-cols-4">
                   <HighlightCard title="Média semanal" value={formatCalories(progress.summary.averageCalories)} description="Média diária no período selecionado." />
                   <HighlightCard title="Total da semana" value={formatCalories(progress.summary.totalCalories)} description={`Meta semanal: ${formatCalories(progress.summary.totalGoalCalories)}.`} />
-                  <HighlightCard title="Proteína média" value={`${formatMacro(progress.summary.averageProtein)} g`} description="Média diária de proteína registrada." />
+                  <HighlightCard title="Macros realizados" value={formatMacroGrams(localTotals.protein + localTotals.carbs + localTotals.fat)} description="Soma de proteínas, carboidratos e gorduras no período." />
                   <HighlightCard title="Calorias líquidas" value={formatCalories(progress.summary.totalNetCalories)} description={`Exercícios registrados: ${formatCalories(progress.summary.totalExerciseCalories)}.`} />
                 </div>
+
+                <MacroAdherenceSection
+                  title="Aderência semanal às metas"
+                  description="Proteínas, carboidratos e gorduras agora têm cálculos próprios, com a mesma leitura aplicada às calorias."
+                  metrics={macroMetrics}
+                />
+                <PlannedVsRealizedMacrosSection metrics={macroMetrics} />
 
                 <Card className="border-0 shadow-sm">
                   <CardHeader>
@@ -784,7 +990,7 @@ export default function ReportsPage() {
                           <Legend />
                           <Bar dataKey="goalCalories" name="Meta" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
                           <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
-                            {caloricTrend.map(day => (
+                            {caloricTrend.map((day: any) => (
                               <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />
                             ))}
                           </Bar>
@@ -810,7 +1016,7 @@ export default function ReportsPage() {
                       </div>
                       {weeklyInsights?.insights.length ? (
                         <div className="space-y-3">
-                          {weeklyInsights.insights.slice(0, 3).map(insight => (
+                          {weeklyInsights.insights.slice(0, 3).map((insight: any) => (
                             <div key={insight.title} className="rounded-2xl border bg-muted/10 p-4">
                               <p className="text-sm font-semibold tracking-tight">{insight.title}</p>
                               <p className="mt-2 text-sm leading-6 text-muted-foreground">{insight.description}</p>
@@ -858,7 +1064,7 @@ export default function ReportsPage() {
                   <CardContent>
                     {mealGroupsByDate.length ? (
                       <div className="space-y-4">
-                        {mealGroupsByDate.map(group => (
+                        {mealGroupsByDate.map((group: any) => (
                           <details key={group.date} className="group rounded-3xl border bg-muted/10 p-4">
                             <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               <div>
@@ -895,6 +1101,13 @@ export default function ReportsPage() {
               <HighlightCard title="Dias acima da meta" value={String(daysAboveGoal)} description="Comparação usando a meta atual como referência visual." />
               <HighlightCard title="Maior dia" value={highestDay ? highestDay.label : "-"} description={highestDay ? formatCalories(highestDay.calories) : "Sem dados suficientes."} />
             </div>
+
+            <MacroAdherenceSection
+              title={periodScope === "month" ? "Aderência mensal às metas" : "Aderência do período às metas"}
+              description="Calorias e macronutrientes usam metas e consumo próprios para o intervalo ativo."
+              metrics={macroMetrics}
+            />
+            <PlannedVsRealizedMacrosSection metrics={macroMetrics} />
 
             {periodScope === "month" ? (
               <MonthComparisonCard
