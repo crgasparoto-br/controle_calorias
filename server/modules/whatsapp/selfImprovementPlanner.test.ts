@@ -62,7 +62,7 @@ describe("whatsapp self improvement planner", () => {
     expect(plan.backlog).toHaveLength(1);
     expect(plan.backlog[0]).toEqual(expect.objectContaining({
       kind: "global_candidate",
-      status: "needs_review",
+      status: "suggested",
       frequency: 2,
       expectedMetric: "later_correction_rate",
       directPromotionAllowed: false,
