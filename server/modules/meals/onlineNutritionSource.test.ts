@@ -141,9 +141,9 @@ describe("online nutrition source lookup", () => {
 
     expect(result).toEqual(expect.objectContaining({
       status: "similar",
-      normalizedNutrition: undefined,
       reason: expect.stringContaining("porcao"),
     }));
+    expect(result).not.toHaveProperty("normalizedNutrition");
   });
 
   it("bloqueia fonte fora da allowlist", () => {
