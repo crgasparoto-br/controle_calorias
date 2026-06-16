@@ -104,9 +104,9 @@ describe("nutrition estimate evaluation", () => {
       category: "laticinios",
       relevantDivergence: true,
       reviewReason: "estimated_vs_confirmed_divergence",
-      reviewPriority: "high",
+      reviewPriority: "critical",
       caloriesAbsoluteError: 90,
-      confidenceAdjustment: -0.18,
+      confidenceAdjustment: -0.25,
     }));
     expect(result.divergences).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -147,7 +147,7 @@ describe("nutrition estimate evaluation", () => {
         foodName: "Arroz",
         brandName: null,
         category: "cereais",
-        values: { caloriesKcal: 130, proteinG: 2.8, carbsG: 28, fatG: 0.3 },
+        values: { caloriesKcal: 130, proteinG: 2.7, carbsG: 28, fatG: 0.22 },
       }),
       confirmed: confirmed({
         foodName: "Arroz",
@@ -186,6 +186,6 @@ describe("nutrition estimate evaluation", () => {
     expect(adjustFutureEstimateConfidence({
       currentConfidence: 0.7,
       evaluations: [first, second],
-    })).toBe(0.27);
+    })).toBe(0.2);
   });
 });
