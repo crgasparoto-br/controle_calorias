@@ -101,6 +101,10 @@ function buildOperationalTrace(input: RecordWhatsappIntentAuditLogInput): Whatsa
   };
 }
 
+function hasFailedToolTrace(entry: WhatsappIntentAuditLogEntry) {
+  return entry.toolTrace.some(trace => trace.outcome === "failure" || trace.outcome === "timeout");
+}
+
 function buildValidationSpan(entry: WhatsappIntentAuditLogEntry): WhatsappPipelineTraceSpan {
   const schemaFailed = entry.validationStatus === "invalid_json" || entry.validationStatus === "invalid_payload";
   const backendFailed = entry.fallbackReason === "backend_validation_failed" || Boolean(entry.errorCode && entry.validationStatus === "valid");
@@ -233,7 +237,12 @@ export function listWhatsappIntentAuditLogs(filter: ListWhatsappIntentAuditLogsF
   return entries.filter(entry => {
     if (filter.intent && entry.intent !== filter.intent) return false;
     if (typeof filter.hasError === "boolean") {
-      const hasError = Boolean(entry.errorCode || entry.validationStatus === "invalid_json" || entry.validationStatus === "invalid_payload");
+      const hasError = Boolean(
+        entry.errorCode
+        || entry.validationStatus === "invalid_json"
+        || entry.validationStatus === "invalid_payload"
+        || hasFailedToolTrace(entry),
+      );
       if (hasError !== filter.hasError) return false;
     }
     if (filter.lowConfidence && entry.confidence >= LOW_CONFIDENCE_THRESHOLD) return false;
