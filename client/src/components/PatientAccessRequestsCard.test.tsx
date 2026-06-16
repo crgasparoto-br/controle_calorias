@@ -110,18 +110,19 @@ describe("PatientAccessRequestsCard", () => {
     const html = renderToString(React.createElement(PatientAccessRequestsCard, { embedded: true }));
 
     expect(html).toContain("Solicitações de acesso");
+    expect(html).toContain("Vínculo:");
     expect(html).toContain("Marina Souza");
-    expect(html).toContain("Vínculo: Pendente");
+    expect(html).toContain("Pendente");
     expect(html).toContain("Notificação não entregue");
     expect(html).toContain("Meta retornou 500");
     expect(html).toContain("Camila Pereira");
-    expect(html).toContain("Vínculo: Aprovado");
+    expect(html).toContain("Aprovado");
     expect(html).toContain("Notificação enviada");
     expect(html).toContain("Beatriz Lima");
-    expect(html).toContain("Vínculo: Recusado");
+    expect(html).toContain("Recusado");
     expect(html).toContain("Notificação não enviada");
     expect(html).toContain("Rafa Costa");
-    expect(html).toContain("Vínculo: Revogado");
+    expect(html).toContain("Revogado");
     expect(html).toContain("Notificação não concluída");
   });
 });
