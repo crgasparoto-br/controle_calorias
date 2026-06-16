@@ -43,6 +43,7 @@ describe("whatsapp review queue", () => {
       messageText: "banana talvez",
       createdAt: new Date("2026-06-16T12:00:00.000Z"),
       intent: buildIntent({ intent: "ambiguous", confidence: 0.32 }),
+      status: "ambiguous",
       validationStatus: "valid",
       action: "ask_clarification",
       replyKind: "clarification",
