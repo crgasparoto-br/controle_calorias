@@ -345,7 +345,7 @@ export async function interpretWhatsappMessageWithDiagnostics(
     return {
       intent: deterministicIntent,
       source: "deterministic",
-      validationStatus: "skipped",
+      validationStatus: "valid",
       operationalTrace: buildOperationalTrace({ startedAt, strategy: "deterministic" }),
     };
   }
