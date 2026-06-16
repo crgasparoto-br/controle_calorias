@@ -150,14 +150,14 @@ function evaluateAdvance(input: { plan: WhatsappPromotionPlan; targetStage: Extr
   if (input.targetStage === "broad" && input.plan.stage !== "canary") {
     return { allowed: false, decision: "review_required", reason: "Promocao ampla exige canary previo em escopo controlado.", targetStage: input.plan.stage, requiredMetrics: [...WHATSAPP_GRADUAL_PROMOTION_POLICY.requiredMetrics], policyVersion: WHATSAPP_GRADUAL_PROMOTION_VERSION };
   }
+  if (input.targetStage !== "shadow" && hasBadShadowComparisons(input.plan)) {
+    return { allowed: false, decision: "review_required", reason: "Comparacoes em sombra indicam piora ou revisao pendente.", targetStage: input.plan.stage, requiredMetrics: [...WHATSAPP_GRADUAL_PROMOTION_POLICY.requiredMetrics], policyVersion: WHATSAPP_GRADUAL_PROMOTION_VERSION };
+  }
   if (!gateAllows(input.targetStage, gate)) {
     return { allowed: false, decision: gate?.decision === "rollback" ? "rollback_required" : "rejected", reason: "Quality gates nao permitem avancar a candidata para este estagio.", targetStage: input.plan.stage, requiredMetrics: [...WHATSAPP_GRADUAL_PROMOTION_POLICY.requiredMetrics], policyVersion: WHATSAPP_GRADUAL_PROMOTION_VERSION };
   }
   if (!reprocessingAllows(input.targetStage, reprocessing)) {
     return { allowed: false, decision: "rejected", reason: "Reprocessamento encontrou regressao ou impacto alto demais para o estagio solicitado.", targetStage: input.plan.stage, requiredMetrics: [...WHATSAPP_GRADUAL_PROMOTION_POLICY.requiredMetrics], policyVersion: WHATSAPP_GRADUAL_PROMOTION_VERSION };
-  }
-  if (input.targetStage !== "shadow" && hasBadShadowComparisons(input.plan)) {
-    return { allowed: false, decision: "review_required", reason: "Comparacoes em sombra indicam piora ou revisao pendente.", targetStage: input.plan.stage, requiredMetrics: [...WHATSAPP_GRADUAL_PROMOTION_POLICY.requiredMetrics], policyVersion: WHATSAPP_GRADUAL_PROMOTION_VERSION };
   }
   const decision = input.targetStage === "shadow" ? "shadow_started" : input.targetStage === "canary" ? "canary_started" : "promoted";
   return { allowed: true, decision, reason: "Candidata atende aos criterios objetivos do estagio solicitado.", targetStage: input.targetStage, requiredMetrics: [...WHATSAPP_GRADUAL_PROMOTION_POLICY.requiredMetrics], policyVersion: WHATSAPP_GRADUAL_PROMOTION_VERSION };
