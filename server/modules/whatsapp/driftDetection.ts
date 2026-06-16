@@ -158,7 +158,8 @@ function severityFor(delta: number, rule: DriftRule): WhatsappDriftSeverity | nu
 }
 
 function actionFor(severity: WhatsappDriftSeverity, metric: WhatsappDriftMetricName, hasPromotion: boolean): WhatsappDriftAction {
-  if (severity === "critical" && hasPromotion && WHATSAPP_DRIFT_DETECTION_POLICY.promotionBlockingMetrics.includes(metric)) return "block_promotion";
+  const promotionBlockingMetrics = WHATSAPP_DRIFT_DETECTION_POLICY.promotionBlockingMetrics as readonly WhatsappDriftMetricName[];
+  if (severity === "critical" && hasPromotion && promotionBlockingMetrics.includes(metric)) return "block_promotion";
   if (severity === "critical") return "send_to_review";
   if (severity === "review") return "send_to_review";
   if (severity === "watch") return "alert";
