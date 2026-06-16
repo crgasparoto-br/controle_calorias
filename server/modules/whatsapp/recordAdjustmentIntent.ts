@@ -162,18 +162,37 @@ function buildNoRecentMealResponse(intent: AdjustmentIntent): WhatsappRecordAdju
   };
 }
 
-function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof findItemCandidates>, kind: AdjustmentIntent["kind"], timezone?: string | null): WhatsappRecordAdjustmentResult {
+function buildAdjustmentOptionValue(input: {
+  intent: AdjustmentIntent;
+  meal: ExistingMeal;
+  item: ExistingMealItem;
+  itemIndex: number;
+  timezone?: string | null;
+}) {
+  return {
+    adjustmentKind: input.intent.kind,
+    mealId: input.meal.id,
+    mealLabel: input.meal.mealLabel,
+    itemIndex: input.itemIndex,
+    itemName: getItemName(input.item),
+    ...(input.intent.kind === "quantity" ? { quantity: input.intent.quantity, unit: input.intent.unit } : {}),
+    ...(input.intent.kind === "replace_item" ? { sourceFood: input.intent.sourceFood, targetFood: input.intent.targetFood } : {}),
+    ...(input.intent.kind === "remove_item" ? { targetFood: input.intent.targetFood } : {}),
+    userTimezone: resolveDisplayTimezone(input.timezone),
+  };
+}
+
+function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof findItemCandidates>, intent: AdjustmentIntent, timezone?: string | null): WhatsappRecordAdjustmentResult {
   const options: WhatsappClarificationOption[] = candidates.slice(0, 5).map((candidate) => ({
     id: `${candidate.meal.id}:${candidate.itemIndex}`,
     label: `${getItemName(candidate.item)} em ${candidate.meal.mealLabel} (${formatMealDate(candidate.meal.occurredAt, timezone)})`,
-    value: {
-      adjustmentKind: kind,
-      mealId: candidate.meal.id,
-      mealLabel: candidate.meal.mealLabel,
+    value: buildAdjustmentOptionValue({
+      intent,
+      meal: candidate.meal,
+      item: candidate.item,
       itemIndex: candidate.itemIndex,
-      itemName: getItemName(candidate.item),
-      userTimezone: resolveDisplayTimezone(timezone),
-    },
+      timezone,
+    }),
   }));
   return {
     handled: true,
@@ -185,8 +204,10 @@ function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof 
     eventType: "whatsapp.records.adjustment_selection_needed",
     detail: "Comando de ajuste encontrou multiplos alvos possiveis e abriu selecao segura.",
     data: {
-      adjustmentKind: kind,
+      adjustmentKind: intent.kind,
       targetFood,
+      ...(intent.kind === "quantity" ? { quantity: intent.quantity, unit: intent.unit } : {}),
+      ...(intent.kind === "replace_item" ? { sourceFood: intent.sourceFood, replacementTargetFood: intent.targetFood } : {}),
       userTimezone: resolveDisplayTimezone(timezone),
       clarificationQuestion: `Encontrei mais de um item possível para "${targetFood}". Qual deles devo usar?`,
       ...buildWhatsappClarificationOptionsData(options),
@@ -302,7 +323,7 @@ export async function executeWhatsappRecordAdjustmentIntent(
       return buildQuantityConfirmation(latestMeal, latestItems[0], intent.quantity, intent.unit, input.userTimezone);
     }
     if (latestItems.length > 1) {
-      return buildOptionsResponse("quantidade informada", latestItems.map((item, itemIndex) => ({ meal: latestMeal, item, itemIndex, score: 1 })), intent.kind, input.userTimezone);
+      return buildOptionsResponse("quantidade informada", latestItems.map((item, itemIndex) => ({ meal: latestMeal, item, itemIndex, score: 1 })), intent, input.userTimezone);
     }
     return buildMissingTargetResponse(intent);
   }
@@ -311,7 +332,7 @@ export async function executeWhatsappRecordAdjustmentIntent(
   const candidates = findItemCandidates(recentMeals, targetFood);
   if (!candidates.length) return buildMissingTargetResponse(intent);
   if (candidates.length > 1 && candidates[0].score === candidates[1].score) {
-    return buildOptionsResponse(targetFood, candidates, intent.kind, input.userTimezone);
+    return buildOptionsResponse(targetFood, candidates, intent, input.userTimezone);
   }
 
   const selected = candidates[0];
