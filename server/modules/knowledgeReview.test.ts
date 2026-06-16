@@ -145,10 +145,14 @@ describe("knowledge review", () => {
   });
 
   it("mantem auditoria de decisao antiga usando versao ja substituida", () => {
-    const snapshot = buildKnowledgeUseAuditSnapshot(item({
-      status: "replaced",
-      replacedById: "rule:portion:v2",
-    }));
+    const { previous } = replaceReviewableKnowledgeItem({
+      current: item(),
+      replacement: item({ id: "rule:portion:v2", version: "v2" }),
+      decidedAt: "2026-06-16T12:00:00.000Z",
+      decidedBy: "curator:2",
+      reason: "Nova regra validada com menor erro.",
+    });
+    const snapshot = buildKnowledgeUseAuditSnapshot(previous);
 
     expect(snapshot).toEqual({
       itemId: "rule:portion:v1",
