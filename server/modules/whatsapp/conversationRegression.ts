@@ -63,6 +63,10 @@ export type WhatsappConversationRegressionActual = {
 
 export const WHATSAPP_CONVERSATION_REGRESSION_VERSION = "whatsapp-conversation-regression/v1";
 
+function cloneValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 function regressionCase(input: {
   id: string;
   text: string;
@@ -517,9 +521,9 @@ export function buildExpectedWhatsappConversationActual(testCase: WhatsappConver
     turns: testCase.turns.map(turn => ({
       turnId: turn.id,
       output: buildExpectedWhatsappRegressionActual(turn.expectedCase),
-      pendingBefore: turn.expectedPendingBefore,
-      pendingAfter: turn.expectedPendingAfter,
+      pendingBefore: cloneValue(turn.expectedPendingBefore),
+      pendingAfter: cloneValue(turn.expectedPendingAfter),
     })),
-    finalState: testCase.expectedFinalState,
+    finalState: cloneValue(testCase.expectedFinalState),
   };
 }
