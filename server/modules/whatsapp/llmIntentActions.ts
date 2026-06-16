@@ -1,12 +1,15 @@
+import { createHash } from "node:crypto";
 import { roundNutritionValue } from "../../../shared/mealTotals";
 import { convertFoodQuantityForRegistration, normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { createManualMeal, listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
+import { buildWhatsappAiToolTrace, runWhatsappAiTool, type WhatsappAiToolTrace } from "./aiToolContract";
 import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
-import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappInterpretedIntent } from "./intentSchema";
+import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
+import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const HEURISTIC_NUTRITION_PER_100G = {
@@ -15,6 +18,7 @@ const HEURISTIC_NUTRITION_PER_100G = {
   carbs: 15,
   fat: 5,
 };
+const PERSISTENT_INTENTS = ["add_foods_to_meal", "replace_food_in_meal", "edit_food_quantity"] as const satisfies readonly WhatsappIntentName[];
 
 type WhatsappLlmIntentResult = {
   handled: true;
@@ -30,11 +34,13 @@ type WhatsappLlmIntentResult = {
   eventType: string;
   detail: string;
   data?: Record<string, unknown>;
+  toolTrace?: WhatsappAiToolTrace[];
 };
 
 type WhatsappLlmIntentInput = {
   text?: string | null;
   receivedAt?: Date;
+  messageId?: string | null;
 };
 
 type ExistingMeal = {
@@ -255,6 +261,59 @@ function shouldLetNutritionFallbackHandle(text: string, intent: WhatsappInterpre
   return intent.intent === "unknown" && hasLikelyMealRegistrationSignal(text);
 }
 
+function buildIdempotencyKey(userId: number, text: string, receivedAt: Date, messageId?: string | null) {
+  const source = messageId?.trim() || `${userId}:${receivedAt.toISOString()}:${normalizeText(text)}`;
+  return createHash("sha256").update(source).digest("hex");
+}
+
+function buildToolFallbackResult(toolTrace: WhatsappAiToolTrace[], detail: string): WhatsappLlmIntentResult {
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: "Nao consegui concluir essa acao com seguranca agora. Tente novamente em instantes ou envie mais detalhes.",
+    eventType: "whatsapp.llm_intent.clarification_needed",
+    detail,
+    toolTrace,
+  };
+}
+
+function buildClarificationToolTrace(intent: WhatsappInterpretedIntent): WhatsappAiToolTrace {
+  return buildWhatsappAiToolTrace({
+    toolId: "clarification_request",
+    intent: intent.intent,
+    outcome: "success",
+    parameterSummary: {
+      intent: intent.intent,
+      confidence: Number(intent.confidence.toFixed(2)),
+      possibleIntentCount: intent.possibleIntents.length,
+    },
+  });
+}
+
+function buildBackendValidationClarification(
+  intent: WhatsappInterpretedIntent,
+  validation: WhatsappBackendValidationResult,
+): WhatsappLlmIntentResult {
+  const firstIssue = validation.issues[0];
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: firstIssue?.message
+      ?? "Preciso confirmar alguns detalhes antes de salvar essa informacao com seguranca.",
+    eventType: "whatsapp.llm_intent.clarification_needed",
+    detail: "Validacao de backend bloqueou acao persistente antes de chamar ferramentas.",
+    data: {
+      intent: intent.intent,
+      intentConfidence: intent.confidence,
+      validationStatus: validation.status,
+      errorCode: validation.errorCode ?? null,
+      autonomyOutcome: validation.autonomyDecision?.outcome ?? null,
+      issueCodes: validation.issues.map(issue => issue.code),
+    },
+    toolTrace: [buildClarificationToolTrace(intent)],
+  };
+}
+
 function recordIntentAudit(input: {
   userId: number;
   text: string;
@@ -269,6 +328,7 @@ function recordIntentAudit(input: {
     : input.result
       ? "executed"
       : "fallback";
+  const fallbackReason = input.fallbackReason ?? input.interpretation.fallbackReason;
   recordWhatsappIntentAuditLog({
     userId: input.userId,
     messageText: input.text,
@@ -276,7 +336,12 @@ function recordIntentAudit(input: {
     validationStatus: input.interpretation.validationStatus,
     action: resultAction,
     replyKind,
-    fallbackReason: input.fallbackReason ?? input.interpretation.fallbackReason,
+    operationalTrace: {
+      ...input.interpretation.operationalTrace,
+      ...(fallbackReason ? { fallbackReason } : {}),
+    },
+    toolTrace: input.result?.toolTrace ?? [],
+    fallbackReason,
     errorCode: input.errorCode ?? input.interpretation.errorCode,
   });
 }
@@ -285,34 +350,78 @@ async function handleAddFoodsToMeal(
   userId: number,
   intent: WhatsappInterpretedIntent,
   receivedAt: Date,
+  idempotencyKey: string,
 ): Promise<WhatsappLlmIntentResult | null> {
   if (!intent.meal?.label || !intent.items.length) {
     return null;
   }
+  const toolTrace: WhatsappAiToolTrace[] = [];
   const targetDate = resolveIntentDate(intent, receivedAt);
   const mealLabel = normalizeMealLabel(intent.meal.label);
-  const meals = await listMeals(userId);
+  const mealsResult = await runWhatsappAiTool({
+    toolId: "meal_records_list",
+    intent: "add_foods_to_meal",
+    outcome: "success",
+    parameterSummary: { dateWindow: intent.date ?? "received_day", mealLabel },
+  }, () => listMeals(userId));
+  toolTrace.push(mealsResult.trace);
+  if (!mealsResult.result) {
+    return buildToolFallbackResult(toolTrace, "Falha ao consultar refeicoes antes de escrita.");
+  }
+
+  const meals = mealsResult.result;
   const existingMeal = findMealByLabel(meals, mealLabel, targetDate, { allowCrossDayFallback: !intent.date });
   if (!existingMeal && !intent.meal.createIfMissing) {
     return null;
   }
 
   const addedItems = intent.items.map(buildMealItem);
-  const meal = existingMeal
-    ? await updateMeal(userId, {
+  toolTrace.push(buildWhatsappAiToolTrace({
+    toolId: "meal_item_nutrition_simulate",
+    intent: "add_foods_to_meal",
+    backendValidated: true,
+    outcome: "success",
+    parameterSummary: {
+      itemCount: addedItems.length,
+      hasQuantity: intent.items.every(item => Boolean(item.quantity)),
+      hasUnit: intent.items.every(item => Boolean(item.unit)),
+    },
+  }));
+
+  const mealResult = existingMeal
+    ? await runWhatsappAiTool({
+        toolId: "meal_record_update",
+        intent: "add_foods_to_meal",
+        backendValidated: true,
+        idempotencyKey,
+        outcome: "success",
+        parameterSummary: { mealId: existingMeal.id, itemCount: addedItems.length },
+      }, () => updateMeal(userId, {
         mealId: existingMeal.id,
         mealLabel: existingMeal.mealLabel,
         occurredAt: new Date(existingMeal.occurredAt).toISOString(),
         notes: existingMeal.notes,
         items: [...(existingMeal.items ?? []), ...addedItems] as MealItemInput[],
-      })
-    : await createManualMeal(userId, {
+      }))
+    : await runWhatsappAiTool({
+        toolId: "meal_record_create",
+        intent: "add_foods_to_meal",
+        backendValidated: true,
+        idempotencyKey,
+        outcome: "success",
+        parameterSummary: { mealLabel, itemCount: addedItems.length, occurredAt: targetDate.toISOString() },
+      }, () => createManualMeal(userId, {
         mealLabel,
         occurredAt: targetDate.toISOString(),
         notes: "Criada automaticamente pelo interpretador estruturado do WhatsApp.",
         items: addedItems,
-      });
+      }));
+  toolTrace.push(mealResult.trace);
+  if (!mealResult.result) {
+    return buildToolFallbackResult(toolTrace, "Falha ao persistir refeicao validada.");
+  }
 
+  const meal = mealResult.result;
   return {
     handled: true,
     action: "llm_intent_add_foods_to_meal",
@@ -328,14 +437,27 @@ async function handleAddFoodsToMeal(
       itemCount: addedItems.length,
       intentConfidence: intent.confidence,
     },
+    toolTrace,
   };
 }
 
-async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpretedIntent): Promise<WhatsappLlmIntentResult | null> {
+async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpretedIntent, idempotencyKey: string): Promise<WhatsappLlmIntentResult | null> {
   if (!intent.sourceFood || !intent.targetFood) {
     return null;
   }
-  const latestMeal = (await listMeals(userId))[0];
+  const toolTrace: WhatsappAiToolTrace[] = [];
+  const mealsResult = await runWhatsappAiTool({
+    toolId: "meal_records_list",
+    intent: "replace_food_in_meal",
+    outcome: "success",
+    parameterSummary: { dateWindow: "latest", sourceFoodProvided: true },
+  }, () => listMeals(userId));
+  toolTrace.push(mealsResult.trace);
+  if (!mealsResult.result) {
+    return buildToolFallbackResult(toolTrace, "Falha ao consultar refeicao recente antes de correcao.");
+  }
+
+  const latestMeal = mealsResult.result[0];
   if (!latestMeal?.items?.length) {
     return {
       handled: true,
@@ -343,6 +465,7 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
       reply: "Nao encontrei uma refeicao recente para corrigir. Me diga qual alimento devo trocar.",
       eventType: "whatsapp.llm_intent.clarification_needed",
       detail: "Intencao estruturada de troca sem refeicao recente.",
+      toolTrace: [...toolTrace, buildClarificationToolTrace(intent)],
     };
   }
 
@@ -358,21 +481,40 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
       detail: target === "ambiguous"
         ? "Intencao estruturada de troca com correspondencia ambigua."
         : "Intencao estruturada de troca sem item compativel.",
+      toolTrace: [...toolTrace, buildClarificationToolTrace(intent)],
     };
   }
 
   const nextItems = latestItems.map((item, index) => index === target.index
     ? replaceMealItemFood(item, intent.targetFood!)
     : item);
-  const updatedMeal = await updateMeal(userId, {
+  toolTrace.push(buildWhatsappAiToolTrace({
+    toolId: "meal_item_nutrition_simulate",
+    intent: "replace_food_in_meal",
+    backendValidated: true,
+    outcome: "success",
+    parameterSummary: { itemCount: 1, hasQuantity: true, hasUnit: true },
+  }));
+  const updatedMealResult = await runWhatsappAiTool({
+    toolId: "meal_record_update",
+    intent: "replace_food_in_meal",
+    backendValidated: true,
+    idempotencyKey,
+    outcome: "success",
+    parameterSummary: { mealId: latestMeal.id, itemCount: nextItems.length },
+  }, () => updateMeal(userId, {
     mealId: latestMeal.id,
     mealLabel: latestMeal.mealLabel,
     occurredAt: new Date(latestMeal.occurredAt).toISOString(),
     notes: latestMeal.notes,
     items: nextItems,
-  });
-  const replacedItem = nextItems[target.index];
+  }));
+  toolTrace.push(updatedMealResult.trace);
+  if (!updatedMealResult.result) {
+    return buildToolFallbackResult(toolTrace, "Falha ao persistir correcao validada.");
+  }
 
+  const replacedItem = nextItems[target.index];
   return {
     handled: true,
     action: "llm_intent_replace_food_in_meal",
@@ -380,17 +522,28 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
     eventType: "whatsapp.llm_intent.replace_food_in_meal",
     detail: "Alimento substituido por intencao estruturada validada.",
     data: {
-      mealId: updatedMeal.id,
+      mealId: updatedMealResult.result.id,
       previousFoodName: target.item.foodName,
       nextFoodName: intent.targetFood,
       intentConfidence: intent.confidence,
     },
+    toolTrace,
   };
 }
 
-async function handleListMeals(userId: number, receivedAt: Date, mode: "list" | "summary" = "list"): Promise<WhatsappLlmIntentResult> {
-  const meals = await listMeals(userId);
-  const filteredMeals = meals.filter(meal => isMealInsideDay(meal, receivedAt));
+async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent, receivedAt: Date, mode: "list" | "summary" = "list"): Promise<WhatsappLlmIntentResult> {
+  const mealsResult = await runWhatsappAiTool({
+    toolId: "meal_records_list",
+    intent: intent.intent,
+    outcome: "success",
+    parameterSummary: { dateWindow: "received_day", mode },
+  }, () => listMeals(userId));
+  const toolTrace = [mealsResult.trace];
+  if (!mealsResult.result) {
+    return buildToolFallbackResult(toolTrace, "Falha ao consultar refeicoes para resposta contextual.");
+  }
+
+  const filteredMeals = mealsResult.result.filter(meal => isMealInsideDay(meal, receivedAt));
   if (!filteredMeals.length) {
     return {
       handled: true,
@@ -399,6 +552,7 @@ async function handleListMeals(userId: number, receivedAt: Date, mode: "list" | 
       eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
       detail: "Consulta estruturada de refeicoes sem registros encontrados.",
       data: { mealCount: 0 },
+      toolTrace,
     };
   }
 
@@ -414,6 +568,7 @@ async function handleListMeals(userId: number, receivedAt: Date, mode: "list" | 
     eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
     detail: "Consulta estruturada de refeicoes respondida pelo WhatsApp.",
     data: { mealCount: filteredMeals.length },
+    toolTrace,
   };
 }
 
@@ -442,7 +597,12 @@ function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmInten
       intentConfidence: intent.confidence,
       possibleIntents: intent.possibleIntents,
     },
+    toolTrace: [buildClarificationToolTrace(intent)],
   };
+}
+
+function isPersistentIntent(intentName: WhatsappIntentName) {
+  return PERSISTENT_INTENTS.includes(intentName as (typeof PERSISTENT_INTENTS)[number]);
 }
 
 export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLlmIntentInput): Promise<WhatsappLlmIntentResult | null> {
@@ -452,12 +612,13 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   }
 
   const receivedAt = input.receivedAt ?? new Date();
+  const idempotencyKey = buildIdempotencyKey(userId, text, receivedAt, input.messageId);
   const context = await buildWhatsappIntentContext(userId, { receivedAt });
   const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
   const intent = interpretation.intent;
 
-  const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string) => {
-    recordIntentAudit({ userId, text, interpretation, result, fallbackReason });
+  const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string, errorCode?: string) => {
+    recordIntentAudit({ userId, text, interpretation, result, fallbackReason, errorCode });
     return result;
   };
 
@@ -467,22 +628,39 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
     }
 
     if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) {
-      return finish(buildClarification(intent), intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify ? "low_confidence" : undefined);
+      const clarificationFallbackReason = intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify
+        ? interpretation.fallbackReason ?? "low_confidence"
+        : interpretation.fallbackReason;
+      return finish(buildClarification(intent), clarificationFallbackReason);
     }
 
     if (intent.confidence < WHATSAPP_INTENT_CONFIDENCE.execute && intent.intent !== "ambiguous") {
-      return finish(null, "low_confidence");
+      return finish(null, interpretation.fallbackReason ?? "low_confidence");
+    }
+
+    if (isPersistentIntent(intent.intent)) {
+      const validation = validateWhatsappRuntimeIntentForPersistence({
+        intent,
+        validationStatus: interpretation.validationStatus,
+      });
+      if (!validation.valid) {
+        return finish(
+          buildBackendValidationClarification(intent, validation),
+          validation.fallbackReason,
+          validation.errorCode,
+        );
+      }
     }
 
     switch (intent.intent) {
       case "add_foods_to_meal":
-        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt));
+        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt, idempotencyKey));
       case "replace_food_in_meal":
-        return finish(await handleReplaceFoodInMeal(userId, intent));
+        return finish(await handleReplaceFoodInMeal(userId, intent, idempotencyKey));
       case "list_meal_records":
-        return finish(await handleListMeals(userId, receivedAt, "list"));
+        return finish(await handleListMeals(userId, intent, receivedAt, "list"));
       case "daily_summary":
-        return finish(await handleListMeals(userId, receivedAt, "summary"));
+        return finish(await handleListMeals(userId, intent, receivedAt, "summary"));
       case "open_records_link":
         return finish({
           handled: true,
@@ -490,6 +668,12 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
           reply: "Voce pode revisar seus registros na tela de refeicoes do app.",
           eventType: "whatsapp.llm_intent.open_records_link",
           detail: "Pedido estruturado para abrir registros respondido sem criar refeicao.",
+          toolTrace: [buildWhatsappAiToolTrace({
+            toolId: "records_link_suggest",
+            intent: "open_records_link",
+            outcome: "success",
+            parameterSummary: { destination: "meal_records" },
+          })],
         });
       case "help":
         return finish({
@@ -498,22 +682,28 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
           reply: buildHelpReply(),
           eventType: "whatsapp.llm_intent.help",
           detail: "Ajuda de comandos enviada por intencao estruturada.",
+          toolTrace: [buildWhatsappAiToolTrace({
+            toolId: "records_link_suggest",
+            intent: "help",
+            outcome: "success",
+            parameterSummary: { destination: "help" },
+          })],
         });
       case "ambiguous":
       case "unknown":
-        return finish(buildClarification(intent));
+        return finish(buildClarification(intent), interpretation.fallbackReason);
       default:
-        return finish(null, "unsupported_intent");
+        return finish(null, interpretation.fallbackReason ?? "unsupported_intent");
     }
   } catch (error) {
     recordIntentAudit({
       userId,
       text,
       interpretation,
-      result: null,
+      result: buildToolFallbackResult([], "Erro inesperado no executor de ferramentas."),
       fallbackReason: "executor_error",
       errorCode: error instanceof Error ? error.name : "executor_error",
     });
-    throw error;
+    return buildToolFallbackResult([], "Erro inesperado no executor de ferramentas.");
   }
 }

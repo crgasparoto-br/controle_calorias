@@ -13,10 +13,27 @@ import {
 } from "../../whatsappConfig";
 import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
+import {
+  getWhatsappConversationPendingContext,
+  registerWhatsappConversationPendingContext,
+  resolveWhatsappConversationContext,
+} from "./conversationContext";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
+import {
+  buildWhatsappDuplicateInboundResult,
+  evaluateWhatsappInboundIdempotency,
+} from "./inboundIdempotencyGuard";
 import { executeWhatsappTextIntent } from "./intentActions";
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
+import { executeWhatsappMultiActionIntent } from "./multiActionIntent";
+import {
+  buildWhatsappRouterResult,
+  evaluateWhatsappIntentRoute,
+  type WhatsappIntentRouteDecision,
+} from "./intentRouter";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
+import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
+import { resolveWhatsappTemporalContext } from "./temporalContext";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
 export class OfficialWhatsappNumberError extends Error {
@@ -79,12 +96,19 @@ async function logAndReturnInterpretedIntent(
     action: string;
     eventType: string;
     detail: string;
+    reply?: string;
+    data?: Record<string, unknown>;
   } | null,
+  input?: { text?: string | null; receivedAt?: Date },
 ) {
   if (!interpreted) {
     return null;
   }
 
+  registerWhatsappConversationPendingContext(userId, {
+    ...interpreted,
+    reply: interpreted.reply ?? interpreted.detail,
+  }, input);
   logInferenceEvent({
     userId,
     origin: "whatsapp",
@@ -95,21 +119,136 @@ async function logAndReturnInterpretedIntent(
   return interpreted;
 }
 
+function logAndReturnRouterResult(userId: number, route: WhatsappIntentRouteDecision) {
+  const result = buildWhatsappRouterResult(route);
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: route.action === "safe_non_food_response" ? "success" : "warning",
+    eventType: result.eventType,
+    detail: result.detail,
+  });
+  return result;
+}
+
+function logAndReturnTemporalClarification(userId: number, clarification: NonNullable<ReturnType<typeof resolveWhatsappTemporalContext>["clarification"]>) {
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: "warning",
+    eventType: clarification.eventType,
+    detail: clarification.detail,
+  });
+  return clarification;
+}
+
+function logTemporalResolution(userId: number, context: NonNullable<ReturnType<typeof resolveWhatsappTemporalContext>["context"]>) {
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: context.timezoneSource === "fallback" ? "warning" : "success",
+    eventType: "whatsapp.time.temporal_context_resolved",
+    detail: `Referencia temporal "${context.temporalExpression}" resolvida para ${context.resolvedDate} usando ${context.userTimezone}.`,
+  });
+}
+
+function normalizeContextReplyText(value?: string | null) {
+  return value
+    ?.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim() ?? "";
+}
+
+function isShortContextReply(value?: string | null) {
+  const text = normalizeContextReplyText(value);
+  return /^(?:s|sim|ok|confirmo|confirmar|pode|pode sim|isso|certo|n|nao|negativo|cancela|cancelar|nenhuma|nenhum|0|opcao\s*\d+|\d+)$/.test(text);
+}
+
+function shouldSkipTextIdempotencyForContextReply(userId: number, text?: string | null, receivedAt?: Date) {
+  return Boolean(getWhatsappConversationPendingContext(userId, receivedAt) && isShortContextReply(text));
+}
+
+async function handleProfessionalAccessDecision(userId: number, text?: string | null) {
+  if (!text) return null;
+  const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
+  if (!professionalAccessResponse) return null;
+
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
+    eventType: professionalAccessResponse.eventType,
+    detail: professionalAccessResponse.detail,
+  });
+  return professionalAccessResponse;
+}
+
 export async function simulateWhatsappInbound(userId: number, input: SimulateWhatsappInboundInput) {
   const text = input.text ? normalizeTextMeasurementUnits(input.text) : input.text;
+  const receivedAt = input.receivedAt ?? new Date();
+  const skipTextDedupe = shouldSkipTextIdempotencyForContextReply(userId, text, receivedAt);
+  const idempotencyDecision = evaluateWhatsappInboundIdempotency({
+    userId,
+    messageId: input.messageId,
+    text,
+    receivedAt,
+    duplicateWindowMs: skipTextDedupe ? 0 : undefined,
+  });
 
-  if (text) {
-    const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
-    if (professionalAccessResponse) {
-      logInferenceEvent({
-        userId,
-        origin: "whatsapp",
-        status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
-        eventType: professionalAccessResponse.eventType,
-        detail: professionalAccessResponse.detail,
-      });
-      return professionalAccessResponse;
-    }
+  if (!idempotencyDecision.shouldProcess) {
+    const duplicateResult = buildWhatsappDuplicateInboundResult(idempotencyDecision);
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: duplicateResult.eventType,
+      detail: duplicateResult.detail,
+    });
+    return duplicateResult;
+  }
+
+  const contextResult = await logAndReturnInterpretedIntent(userId, resolveWhatsappConversationContext(userId, {
+    text,
+    receivedAt,
+  }), { text, receivedAt });
+  if (contextResult) {
+    return contextResult;
+  }
+
+  const temporalResolution = resolveWhatsappTemporalContext({
+    text,
+    receivedAt,
+    userTimezone: input.userTimezone,
+  });
+  if (temporalResolution.clarification) {
+    return logAndReturnTemporalClarification(userId, temporalResolution.clarification);
+  }
+  if (temporalResolution.context) {
+    logTemporalResolution(userId, temporalResolution.context);
+  }
+
+  const multiAction = await logAndReturnInterpretedIntent(userId, executeWhatsappMultiActionIntent({
+    text,
+    temporalContext: temporalResolution.context,
+  }), { text, receivedAt });
+  if (multiAction) {
+    return multiAction;
+  }
+
+  const professionalAccessResponse = await handleProfessionalAccessDecision(userId, text);
+  if (professionalAccessResponse) {
+    return professionalAccessResponse;
+  }
+
+  const route = evaluateWhatsappIntentRoute({
+    text,
+    pendingContextKind: input.pendingContextKind,
+  });
+  if (route.action !== "continue_pipeline") {
+    return logAndReturnRouterResult(userId, route);
   }
 
   const waterFoodSplit = splitWhatsAppWaterAndFoodText(text);
@@ -118,7 +257,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     for (const waterLine of waterFoodSplit.waterLines) {
       const interpretedWater = await executeWhatsappTextIntent(userId, {
         text: waterLine.text,
-        receivedAt: new Date(),
+        receivedAt,
       });
       if (!interpretedWater) {
         throw new Error(`Não foi possível registrar a hidratação informada em "${waterLine.text}".`);
@@ -156,6 +295,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       data: {
         waterLogs: waterResults.map((result) => result.data),
         foodText: waterFoodSplit.foodText,
+        temporalContext: temporalResolution.context,
       },
       water: waterResults,
       meal,
@@ -178,20 +318,36 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     }
   }
 
+  const recordAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappRecordAdjustmentIntent(userId, {
+    text,
+    receivedAt,
+    userTimezone: temporalResolution.context?.userTimezone ?? input.userTimezone,
+  }), { text, receivedAt });
+  if (recordAdjustment) {
+    return temporalResolution.context
+      ? { ...recordAdjustment, data: { ...recordAdjustment.data, temporalContext: temporalResolution.context } }
+      : recordAdjustment;
+  }
+
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappLlmIntent(userId, {
     text,
-    receivedAt: new Date(),
-  }));
+    receivedAt,
+    messageId: input.messageId,
+  }), { text, receivedAt });
   if (llmInterpreted) {
-    return llmInterpreted;
+    return temporalResolution.context
+      ? { ...llmInterpreted, data: { ...llmInterpreted.data, temporalContext: temporalResolution.context } }
+      : llmInterpreted;
   }
 
   const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
     text,
-    receivedAt: new Date(),
-  }));
+    receivedAt,
+  }), { text, receivedAt });
   if (interpreted) {
-    return interpreted;
+    return temporalResolution.context
+      ? { ...interpreted, data: { ...interpreted.data, temporalContext: temporalResolution.context } }
+      : interpreted;
   }
 
   const assistant = executeWhatsAppFoodAssistantIntent(text);
@@ -203,8 +359,17 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       eventType: assistant.eventType,
       detail: assistant.detail,
     });
-    return assistant;
+    return temporalResolution.context
+      ? { ...assistant, data: { ...assistant.data, temporalContext: temporalResolution.context } }
+      : assistant;
   }
 
-  return processMealDraft(userId, { source: "whatsapp", text });
+  if (!route.shouldAllowNutritionFallback) {
+    return logAndReturnRouterResult(userId, route);
+  }
+
+  const meal = await processMealDraft(userId, { source: "whatsapp", text });
+  return temporalResolution.context
+    ? { ...meal, temporalContext: temporalResolution.context }
+    : meal;
 }

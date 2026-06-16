@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { buildWhatsappAiToolTrace } from "./aiToolContract";
 import { __resetWhatsappIntentAuditLogsForTests, listWhatsappIntentAuditLogs, recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import type { WhatsappInterpretedIntent } from "./intentSchema";
 
@@ -34,9 +35,73 @@ describe("intentAuditLog", () => {
       itemCount: 0,
       requiresConfirmation: false,
     }));
+    expect(entry.operationalTrace).toEqual({
+      strategy: "deterministic",
+      modelName: null,
+      latencyMs: 0,
+      estimatedCostUnits: 0,
+    });
+    expect(entry.toolTrace).toEqual([]);
   });
 
-  it("filtra por intencao, erro, baixa confianca e motivo de fallback", () => {
+  it("registra rastro operacional de modelo, custo, latencia e fallback", () => {
+    const entry = recordWhatsappIntentAuditLog({
+      userId: 42,
+      messageText: "registro",
+      intent: buildIntent({ intent: "ambiguous", confidence: 0.41 }),
+      validationStatus: "invalid_json",
+      action: "clarification_needed",
+      replyKind: "clarification",
+      operationalTrace: {
+        strategy: "safe_fallback",
+        modelName: "gpt-4.1-mini",
+        latencyMs: 12.6,
+        estimatedCostUnits: 1,
+        fallbackReason: "invalid_json",
+      },
+      fallbackReason: "invalid_json",
+      errorCode: "invalid_json",
+    });
+
+    expect(entry.operationalTrace).toEqual({
+      strategy: "safe_fallback",
+      modelName: "gpt-4.1-mini",
+      latencyMs: 13,
+      estimatedCostUnits: 1,
+      fallbackReason: "invalid_json",
+    });
+  });
+
+  it("registra e filtra ferramentas usadas sem parametros sensiveis", () => {
+    const toolTrace = buildWhatsappAiToolTrace({
+      toolId: "meal_records_list",
+      intent: "list_meal_records",
+      outcome: "success",
+      parameterSummary: { dateWindow: "today", mealCount: 2 },
+    });
+
+    const entry = recordWhatsappIntentAuditLog({
+      userId: 42,
+      messageText: "refeições registradas com texto sensivel",
+      intent: buildIntent({ intent: "list_meal_records", confidence: 0.9, requiresConfirmation: false, possibleIntents: [] }),
+      validationStatus: "valid",
+      action: "llm_intent_list_meal_records",
+      replyKind: "executed",
+      toolTrace: [toolTrace],
+    });
+
+    expect(entry.toolTrace).toEqual([expect.objectContaining({
+      toolId: "meal_records_list",
+      version: "whatsapp-ai-tool/v1",
+      outcome: "success",
+      decision: "allowed",
+      parameterSummary: { dateWindow: "today", mealCount: 2 },
+    })]);
+    expect(JSON.stringify(entry.toolTrace)).not.toContain("texto sensivel");
+    expect(listWhatsappIntentAuditLogs({ toolId: "meal_records_list" })).toHaveLength(1);
+  });
+
+  it("filtra por intencao, erro, baixa confianca, motivo de fallback e estrategia", () => {
     recordWhatsappIntentAuditLog({
       userId: 42,
       messageText: "refeições registradas",
@@ -44,6 +109,7 @@ describe("intentAuditLog", () => {
       validationStatus: "valid",
       action: "llm_intent_list_meal_records",
       replyKind: "executed",
+      operationalTrace: { strategy: "deterministic" },
     });
     recordWhatsappIntentAuditLog({
       userId: 42,
@@ -52,6 +118,12 @@ describe("intentAuditLog", () => {
       validationStatus: "invalid_json",
       action: "clarification_needed",
       replyKind: "clarification",
+      operationalTrace: {
+        strategy: "safe_fallback",
+        modelName: "gpt-4.1-mini",
+        estimatedCostUnits: 1,
+        fallbackReason: "invalid_json",
+      },
       fallbackReason: "invalid_json",
       errorCode: "invalid_json",
     });
@@ -60,5 +132,7 @@ describe("intentAuditLog", () => {
     expect(listWhatsappIntentAuditLogs({ hasError: true })).toHaveLength(1);
     expect(listWhatsappIntentAuditLogs({ lowConfidence: true })).toHaveLength(1);
     expect(listWhatsappIntentAuditLogs({ fallbackReason: "invalid_json" })).toHaveLength(1);
+    expect(listWhatsappIntentAuditLogs({ strategy: "deterministic" })).toHaveLength(1);
+    expect(listWhatsappIntentAuditLogs({ strategy: "safe_fallback" })).toHaveLength(1);
   });
 });

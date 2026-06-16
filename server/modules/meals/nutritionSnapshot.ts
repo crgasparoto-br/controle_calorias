@@ -3,6 +3,10 @@ import { sql, type SQL } from "drizzle-orm";
 import { getDb } from "../../db";
 import { convertFoodPortionToGrams, getGlobalFoodCatalogItem, recordGlobalFoodUsage } from "../foods/service";
 import type { MealItemInput } from "./schemas";
+import {
+  deriveNutritionSourceForMealItem,
+  type NutritionSourceSelection,
+} from "./nutritionSourceSelection";
 
 type SqlExecutor = {
   execute: (query: SQL) => Promise<unknown>;
@@ -23,6 +27,7 @@ export type MealItemWithNutritionSnapshot = MealItemInput & {
   fiberG?: number | null;
   sodiumMg?: number | null;
   foodSnapshotJson?: string;
+  nutritionSource?: NutritionSourceSelection;
 };
 
 function roundNutrition(value: number | null | undefined) {
@@ -47,9 +52,10 @@ async function resolveMealItemGrams(userId: number, item: MealItemInput): Promis
 function buildSnapshot(params: {
   food: Awaited<ReturnType<typeof getGlobalFoodCatalogItem>>;
   grams: number;
+  nutritionSource: NutritionSourceSelection;
   portion?: Awaited<ReturnType<typeof convertFoodPortionToGrams>>;
 }) {
-  const { food, grams, portion } = params;
+  const { food, grams, portion, nutritionSource } = params;
   const factor = grams / 100;
   const nutrients = food.nutrientsPer100g;
 
@@ -74,6 +80,7 @@ function buildSnapshot(params: {
       status: food.status,
       mergedIntoFoodId: food.mergedIntoFoodId,
       source: food.source,
+      nutritionSource,
       portion: portion
         ? {
             id: portion.portionId,
@@ -96,18 +103,25 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
 
   for (const item of items) {
     if (!item.foodId) {
-      enriched.push(item);
+      enriched.push({
+        ...item,
+        nutritionSource: deriveNutritionSourceForMealItem(item),
+      });
       continue;
     }
 
     const { grams, portion } = await resolveMealItemGrams(userId, item);
     if (grams <= 0) {
-      enriched.push(item);
+      enriched.push({
+        ...item,
+        nutritionSource: deriveNutritionSourceForMealItem(item),
+      });
       continue;
     }
 
     const food = await getGlobalFoodCatalogItem(userId, item.foodId);
-    const { calculated, snapshot } = buildSnapshot({ food, grams, portion });
+    const nutritionSource = deriveNutritionSourceForMealItem(item, food);
+    const { calculated, snapshot } = buildSnapshot({ food, grams, portion, nutritionSource });
     await recordGlobalFoodUsage(userId, food.id);
 
     enriched.push({
@@ -128,6 +142,7 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
       fiberG: calculated.fiberG,
       sodiumMg: calculated.sodiumMg,
       foodSnapshotJson: JSON.stringify(snapshot),
+      nutritionSource,
       source: "catalog",
     });
   }

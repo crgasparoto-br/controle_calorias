@@ -2,6 +2,10 @@ import { Request, Response } from "express";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, logInferenceEvent } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+import {
+  buildSuspiciousWhatsAppContentReply,
+  inspectWhatsAppUserContentSafety,
+} from "./modules/whatsapp/promptInjectionGuard";
 import { buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
 import {
   buildMediaDataUrl,
@@ -266,6 +270,24 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
         eventType: "whatsapp.media_storage_warning",
         detail: prepared.storageWarning,
       });
+    }
+
+    const captionSafety = inspectWhatsAppUserContentSafety(prepared.text, "image_caption");
+    if (!captionSafety.safe) {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.security_guard_blocked",
+        detail: `Conteudo bloqueado por seguranca antes da inferencia de imagem: ${captionSafety.categories.join(", ") || "security_guard"}.`,
+      });
+      await sendAnnotatedImageFallbackText({
+        userId,
+        sourcePhone,
+        reply: buildSuspiciousWhatsAppContentReply(),
+      });
+      markAnnotatedImageMessageHandled(message.id);
+      return true;
     }
 
     const processed = await processMealInput({
