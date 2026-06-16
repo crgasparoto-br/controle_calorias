@@ -379,7 +379,7 @@ describe("meals service characterization", () => {
       occurredAt: "2026-04-25T12:30:00.000Z",
       notes: "Confirmado manualmente",
       items: [
-        {
+        expect.objectContaining({
           foodName: "arroz",
           canonicalName: "Arroz branco cozido",
           portionText: "100 g",
@@ -393,7 +393,14 @@ describe("meals service characterization", () => {
           fat: 0.3,
           confidence: 1,
           source: "catalog",
-        },
+          nutritionSource: expect.objectContaining({
+            type: "documented_estimate",
+            origin: "documented_estimate_rule",
+            isEstimated: true,
+            matchedBy: "catalog_without_snapshot",
+            selectionVersion: "nutrition-source-selection-v1",
+          }),
+        }),
       ],
     });
     expect(result).toEqual({ id: 9001, mealLabel: "Almoco" });
