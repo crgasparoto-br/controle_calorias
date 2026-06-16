@@ -93,6 +93,32 @@ function runtimeIntentToCanonical(intentName: WhatsappIntentName): CanonicalWhat
     case "open_records_link":
     case "help":
       return "consulta_historico";
+    case "profissional_solicita_informacao":
+      return "profissional_solicita_informacao";
+    case "profissional_sugere_meta":
+      return "profissional_sugere_meta";
+    case "profissional_sugere_plano_alimentar":
+      return "profissional_sugere_plano_alimentar";
+    case "profissional_sugere_refeicao":
+      return "profissional_sugere_refeicao";
+    case "profissional_sugere_ajuste":
+      return "profissional_sugere_ajuste";
+    case "paciente_aceita_sugestao":
+      return "paciente_aceita_sugestao";
+    case "paciente_recusa_sugestao":
+      return "paciente_recusa_sugestao";
+    case "paciente_pede_ajuste_sugestao":
+      return "paciente_pede_ajuste_sugestao";
+    case "paciente_envia_mensagem_profissional":
+      return "paciente_envia_mensagem_profissional";
+    case "profissional_envia_mensagem_paciente":
+      return "profissional_envia_mensagem_paciente";
+    case "confirmar_alteracao_meta":
+      return "confirmar_alteracao_meta";
+    case "confirmar_alteracao_plano":
+      return "confirmar_alteracao_plano";
+    case "confirmacao_sim_nao":
+      return "confirmacao_sim_nao";
     case "ambiguous":
       return "mensagem_ambigua";
     case "unknown":
@@ -110,6 +136,11 @@ function isContextResolved(intent: WhatsappInterpretedIntent) {
       return hasText(intent.sourceFood) && hasText(intent.targetFood);
     case "edit_food_quantity":
       return hasText(intent.sourceFood) && hasQuantity(intent.quantity?.value) && hasText(intent.quantity?.unit);
+    case "paciente_aceita_sugestao":
+    case "paciente_recusa_sugestao":
+    case "paciente_pede_ajuste_sugestao":
+    case "confirmacao_sim_nao":
+      return false;
     default:
       return false;
   }
