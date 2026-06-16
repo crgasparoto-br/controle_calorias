@@ -1,4 +1,4 @@
-import { healthIntegrationService } from "./service";
+import { healthIntegrationService } from "./stravaDetailSafeService";
 
 const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 120;
 

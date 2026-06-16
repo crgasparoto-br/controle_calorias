@@ -65,7 +65,7 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 | OpenAI | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL` | Fluxos que dependem do provider OpenAI ficam indisponíveis ou usam o provider configurado em `AI_PROVIDER` quando aplicável. |
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
-| Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL` | OAuth e sincronização automática do Strava ficam desabilitados. |
+| Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth e sincronização automática do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |
 
 `OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
 
@@ -88,6 +88,8 @@ A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde e
 Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime, e tenta uma primeira sincronização das atividades recentes do atleta autenticado. Com `DATABASE_URL` configurado, o vínculo permanece disponível após restart do servidor; em ambiente sem banco, o vínculo continua apenas em memória para desenvolvimento.
 
 A sincronização lê apenas as atividades dos últimos 2 meses da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que sincronizações futuras atualizem o mesmo exercício em vez de duplicar o registro.
+
+`STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` controla quantas chamadas de detalhe `/activities/{id}` cada sincronização pode fazer para atividades cuja listagem não trouxe calorias válidas. O padrão `5` preserva cota. Configure `all` para tentar enriquecer todas as atividades elegíveis antes de qualquer estimativa local; nesse modo, limites 429 ou falhas temporárias no detalhe interrompem a sincronização para permitir nova tentativa sem salvar estimativas prematuras.
 
 Tokens de acesso e refresh do Strava continuam restritos ao backend, são armazenados criptografados e não são expostos ao frontend.
 

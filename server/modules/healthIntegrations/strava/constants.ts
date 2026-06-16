@@ -1,0 +1,113 @@
+export const STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize";
+export const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
+export const STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
+export const STRAVA_ACTIVITY_DETAIL_URL = "https://www.strava.com/api/v3/activities";
+export const STRAVA_SCOPES = "read,activity:read_all";
+export const STRAVA_ACTIVITY_NOTE_PREFIX = "Importado automaticamente do Strava";
+export const STRAVA_TOKEN_SECRET_PREFIX = "strava_oauth_user";
+export const STRAVA_BACKFILL_DAYS = 7;
+export const STRAVA_INCREMENTAL_OVERLAP_HOURS = 24;
+export const STRAVA_ACTIVITIES_PER_PAGE = 100;
+export const STRAVA_MAX_ACTIVITY_PAGES = 20;
+export const DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC = 5;
+export const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 120;
+export const DEFAULT_STRENGTH_ESTIMATION_WEIGHT_KG = 75;
+export const DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES = 15;
+
+export const STRAVA_ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  alpine_ski: "Esqui alpino",
+  backcountry_ski: "Esqui backcountry",
+  canoeing: "Canoagem",
+  crossfit: "Crossfit",
+  e_bike_ride: "Pedal com e-bike",
+  elliptical: "Eliptico",
+  golf: "Golfe",
+  gravel_ride: "Pedal gravel",
+  handcycle: "Handcycle",
+  high_intensity_interval_training: "HIIT",
+  hike: "Trilha",
+  ice_skate: "Patinacao no gelo",
+  inline_skate: "Patinacao",
+  kayaking: "Caiaque",
+  mountain_bike_ride: "Mountain bike",
+  nordic_ski: "Esqui nordico",
+  pickleball: "Pickleball",
+  pilates: "Pilates",
+  racquetball: "Racquetball",
+  ride: "Pedal",
+  rock_climbing: "Escalada",
+  roller_ski: "Esqui sobre rodas",
+  rowing: "Remo",
+  run: "Corrida",
+  sail: "Vela",
+  skateboard: "Skate",
+  snowboard: "Snowboard",
+  snowshoe: "Caminhada na neve",
+  soccer: "Futebol",
+  squash: "Squash",
+  stair_stepper: "Simulador de escada",
+  stand_up_paddling: "Stand up paddle",
+  surf: "Surf",
+  swim: "Natacao",
+  table_tennis: "Tenis de mesa",
+  tennis: "Tenis",
+  trail_run: "Corrida em trilha",
+  velomobile: "Velomobile",
+  virtual_ride: "Pedal virtual",
+  virtual_row: "Remo virtual",
+  virtual_run: "Corrida virtual",
+  walk: "Caminhada",
+  weight_training: "Musculacao",
+  wheelchair: "Cadeira de rodas",
+  workout: "Treino",
+  yoga: "Yoga",
+};
+
+export const STRAVA_ACTIVITY_CALORIES_PER_MINUTE: Record<string, number> = {
+  alpine_ski: 7,
+  backcountry_ski: 8,
+  canoeing: 5,
+  crossfit: 9,
+  e_bike_ride: 5,
+  elliptical: 7,
+  golf: 4,
+  gravel_ride: 8,
+  handcycle: 6,
+  high_intensity_interval_training: 9,
+  hike: 6,
+  ice_skate: 7,
+  inline_skate: 8,
+  kayaking: 5,
+  mountain_bike_ride: 9,
+  nordic_ski: 9,
+  pickleball: 6,
+  pilates: 4,
+  racquetball: 8,
+  ride: 8,
+  rock_climbing: 8,
+  roller_ski: 8,
+  rowing: 7,
+  run: 10,
+  sail: 3,
+  skateboard: 5,
+  snowboard: 6,
+  snowshoe: 7,
+  soccer: 8,
+  squash: 10,
+  stair_stepper: 8,
+  stand_up_paddling: 5,
+  surf: 4,
+  swim: 8,
+  table_tennis: 4,
+  tennis: 7,
+  trail_run: 11,
+  velomobile: 6,
+  virtual_ride: 8,
+  virtual_row: 7,
+  virtual_run: 10,
+  walk: 4,
+  weight_training: 5,
+  wheelchair: 4,
+  workout: 5,
+  yoga: 3,
+};

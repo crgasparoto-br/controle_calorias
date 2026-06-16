@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { healthIntegrationService } from "./modules/healthIntegrations/service";
+import { healthIntegrationService } from "./modules/healthIntegrations/stravaDetailSafeService";
 
 function getFrontendRedirectBaseUrl() {
   const configured = process.env.STRAVA_APP_REDIRECT_BASE_URL
