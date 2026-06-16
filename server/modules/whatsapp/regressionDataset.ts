@@ -303,6 +303,7 @@ function compareStringArray(expected: string[] | undefined, actual: string[] | u
 function compareQuantity(expected: WhatsappRegressionExpectedEntities["quantity"], actual: WhatsappInterpretedIntent["quantity"]) {
   if (expected === undefined) return true;
   if (expected === null) return actual === null || actual === undefined;
+  if (expected.unit === "unknown") return actual === null || actual === undefined || actual.value === expected.value;
   return actual?.value === expected.value && actual.unit === expected.unit;
 }
 
