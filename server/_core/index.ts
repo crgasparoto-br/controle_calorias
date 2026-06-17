@@ -5,7 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { validateRuntimeEnv } from "./env";
+import { ENV, validateRuntimeEnv } from "./env";
 import { PAYLOAD_LIMITS, RATE_LIMITS, createExpressRateLimit } from "./rateLimit";
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
@@ -68,6 +68,11 @@ async function startServer() {
   } catch (error) {
     if (error instanceof RuntimeSchemaCompatibilityError) {
       console.error("[Database] Runtime schema compatibility failed:", error.message);
+      throw error;
+    }
+
+    if (ENV.isProduction) {
+      console.error("[Database] Production database validation failed:", error);
       throw error;
     }
 
