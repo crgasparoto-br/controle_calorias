@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { exercises } from "../../drizzle/schema";
 
 type DbProvider = () => Promise<any | null>;
@@ -18,6 +18,7 @@ export type ExerciseRecord = {
 
 export type ExercisesRepository = {
   findByUserId(userId: number): Promise<ExerciseRecord[] | null>;
+  findByUserIdAndRange(userId: number, startAt: Date, endAt: Date): Promise<ExerciseRecord[] | null>;
   insert(exercise: ExerciseRecord): Promise<void>;
   update(exercise: ExerciseRecord): Promise<void>;
   delete(userId: number, exerciseId: number): Promise<void>;
@@ -41,6 +42,28 @@ export function createDrizzleExercisesRepository(deps: {
         }));
       } catch (error) {
         deps.onWarning("Exercise read skipped", error);
+        return null;
+      }
+    },
+
+    async findByUserIdAndRange(userId, startAt, endAt) {
+      const db = await deps.getDb();
+      if (!db) return null;
+
+      try {
+        const rows = await db
+          .select()
+          .from(exercises)
+          .where(and(eq(exercises.userId, userId), gte(exercises.occurredAt, startAt), lt(exercises.occurredAt, endAt)))
+          .orderBy(desc(exercises.occurredAt));
+        return rows.map((row: typeof exercises.$inferSelect) => ({
+          ...row,
+          occurredAt: new Date(row.occurredAt).getTime(),
+          createdAt: new Date(row.createdAt).getTime(),
+          updatedAt: new Date(row.updatedAt),
+        }));
+      } catch (error) {
+        deps.onWarning("Exercise range read skipped", error);
         return null;
       }
     },
