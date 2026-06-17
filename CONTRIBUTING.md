@@ -24,6 +24,20 @@ Este projeto usa um gate de validação antes de merge para reduzir regressões 
 - cálculo nutricional, refeições e fluxo alimentar;
 - billing ou assinaturas, quando existirem.
 
+## Gate obrigatório da `main`
+
+PRs contra `main` devem aguardar o status check obrigatório `Agent-first gate`. Esse é o nome do job definido em `.github/workflows/agent-check.yml` e deve ser o mesmo configurado em branch protection ou ruleset do GitHub.
+
+Para áreas sensíveis, a PR deve registrar:
+
+- status do check `Agent-first gate`;
+- comandos relevantes executados pelo workflow ou localmente;
+- se `pnpm db:check-integrity` foi executado ou pulado;
+- validação alternativa ou risco residual quando `DATABASE_URL` não estiver disponível;
+- status do preview/deploy Vercel, quando existir.
+
+Vercel preview/deploy é evidência complementar. Ele não substitui `pnpm check`, `pnpm test`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` nem o status check `Agent-first gate`.
+
 ## O que cada comando cobre
 
 | Comando | Quando usar | Observação |
@@ -34,6 +48,7 @@ Este projeto usa um gate de validação antes de merge para reduzir regressões 
 | `pnpm docs:check` | Mudanças em schema, tRPC, documentação gerada/manualizada ou instruções operacionais | Confirma que docs geradas continuam sincronizadas |
 | `pnpm build` | Mudanças que podem afetar empacotamento, frontend, backend de produção ou dependências | Deve passar antes de merge em PRs de produto |
 | `pnpm agent:check` | Gate completo para áreas sensíveis e mudanças operacionais usadas por agentes | Combina `pnpm check`, `pnpm test`, `pnpm architecture:check` e `pnpm docs:check` |
+| `pnpm exec tsx scripts/check-ci-gate-docs.ts` | Mudanças em workflow, guia de contribuição ou template de PR | Garante alinhamento entre documentação, template e workflow `Agent-first gate`; o CI executa como etapa `CI gate docs check` |
 | `pnpm db:check-integrity` | Mudanças de persistência ou dados quando houver `DATABASE_URL` disponível para validação | Se o ambiente não tiver banco configurado, registre isso na PR |
 
 Não documente nem exija comando novo como obrigatório sem adicioná-lo ao `package.json` ou explicar qual comando existente é equivalente.
@@ -44,7 +59,7 @@ A validação local deve ser registrada na PR com os comandos executados e o res
 
 Além dos comandos automatizados, use smoke tests manuais quando a mudança tocar fluxos de usuário ou integrações externas. Exemplos: login/logout para autenticação, envio e recebimento de webhook para WhatsApp, OAuth/callback para Strava, inferência de refeição para OpenAI ou cálculo de metas/refeições para o fluxo nutricional.
 
-O CI atual executa o workflow `Agent-first gate` em PRs e valida TypeScript, testes, arquitetura, documentação, build e `pnpm agent:check`. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` é condicionada à disponibilidade de `DATABASE_URL`; quando o CI pular esse passo, a PR deve informar se houve validação de banco em outro ambiente.
+O CI atual executa o workflow `Agent-first gate` em PRs e valida TypeScript, testes, arquitetura, documentação, build, `pnpm agent:check` e o alinhamento de documentação do próprio gate. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` é condicionada à disponibilidade de `DATABASE_URL`; quando o CI pular esse passo, a PR deve informar se houve validação de banco em outro ambiente.
 
 Se algum gate crítico deixar de existir no CI ou não cobrir um comando obrigatório, registre a lacuna na PR e abra uma issue separada para automatizar o check antes de tratar a automação como garantida.
 
