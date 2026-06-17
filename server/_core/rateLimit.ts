@@ -60,7 +60,7 @@ function getForwardedIp(req: Pick<Request, "headers">) {
 }
 
 export function getRequestRateLimitIdentity(req: Request) {
-  return getForwardedIp(req) || req.ip || req.socket.remoteAddress || "unknown";
+  return getForwardedIp(req) || req.ip || req.socket?.remoteAddress || "unknown";
 }
 
 function cleanupExpiredBuckets(now: number) {
