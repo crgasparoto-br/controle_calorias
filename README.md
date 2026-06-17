@@ -50,18 +50,26 @@ Configure estas variáveis no backend/runtime responsável pela API:
 ### Obrigatórias em produção
 
 - `JWT_SECRET`: segredo usado para assinar sessões locais e derivar chaves de criptografia de segredos internos.
+- `DATABASE_URL`: conexão MySQL/TiDB usada para persistir contas, metas, refeições, integrações e dados sensíveis do domínio.
 
-Em `NODE_ENV=production`, o backend aborta o startup quando `JWT_SECRET` estiver ausente, vazio ou composto apenas por espaços. A mensagem informa o nome da variável inválida sem imprimir seu valor.
+Em `NODE_ENV=production`, o backend aborta o startup quando `JWT_SECRET` ou `DATABASE_URL` estiver ausente, vazio ou composto apenas por espaços. A mensagem informa o nome da variável inválida sem imprimir seu valor.
 
-Em desenvolvimento e teste, o startup pode continuar sem `JWT_SECRET`, mas rotinas que assinam sessão ou criptografam/decriptografam segredos falham explicitamente se tentarem operar sem esse segredo.
+Em produção, a validação inicial do banco também precisa conseguir abrir a conexão configurada. Se `DATABASE_URL` estiver inválida, inacessível ou apontar para um banco indisponível, o backend não sobe em modo parcialmente funcional.
+
+Em desenvolvimento e teste, o startup pode continuar sem `JWT_SECRET` ou `DATABASE_URL`, mas rotinas que assinam sessão, criptografam/decriptografam segredos ou persistem dados falham explicitamente ou usam fallback em memória apenas quando o ambiente permitir.
+
+### Modo efêmero fora de produção
+
+Fallbacks em memória existem para testes e desenvolvimento local. Em `NODE_ENV=test`, eles ficam liberados automaticamente. Em desenvolvimento, defina `ALLOW_MEMORY_PERSISTENCE=true` apenas quando quiser rodar a aplicação de forma efêmera e ciente de que dados serão perdidos ao reiniciar.
+
+`ALLOW_MEMORY_PERSISTENCE=true` é ignorada em `NODE_ENV=production`; deploy real sempre exige banco persistente.
 
 ### Opcionais por feature
 
-A ausência destas variáveis não derruba o backend por si só, mas deixa a feature correspondente indisponível, desabilitada ou usando fallback quando existir:
+A ausência destas variáveis não derruba o backend por si só, mas deixa a feature correspondente indisponível ou desabilitada:
 
 | Feature | Variáveis | Comportamento quando ausentes |
 |---|---|---|
-| Persistência em banco | `DATABASE_URL` | Usa fallback em memória onde o domínio permitir. Dados não permanecem após restart. |
 | OpenAI | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL` | Fluxos que dependem do provider OpenAI ficam indisponíveis ou usam o provider configurado em `AI_PROVIDER` quando aplicável. |
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
@@ -91,7 +99,7 @@ A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde e
 
 `STRAVA_REDIRECT_URI` deve apontar para o callback público da API, por exemplo `https://api.seudominio.com/api/health-integrations/strava/callback`. `STRAVA_APP_REDIRECT_BASE_URL` deve apontar para o domínio do app web onde o usuário está logado, por exemplo `https://app.seudominio.com`. Depois de salvar o vínculo, o callback usa essa base para devolver o usuário ao frontend em `/health-integrations`.
 
-Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime, e tenta uma primeira sincronização das atividades recentes do atleta autenticado. Com `DATABASE_URL` configurado, o vínculo permanece disponível após restart do servidor; em ambiente sem banco, o vínculo continua apenas em memória para desenvolvimento.
+Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime, e tenta uma primeira sincronização das atividades recentes do atleta autenticado. Com `DATABASE_URL` configurado, o vínculo permanece disponível após restart do servidor; sem banco, esse vínculo só pode ser usado em modo efêmero fora de produção.
 
 A sincronização lê apenas as atividades dos últimos 2 meses da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que sincronizações futuras atualizem o mesmo exercício em vez de duplicar o registro.
 
@@ -131,6 +139,7 @@ Resumo do rollout:
 
 - configurar `JWT_SECRET` e `DATABASE_URL` somente no backend;
 - executar as migrations do Drizzle antes do deploy quando houver alteração de schema;
+- validar que `NODE_ENV=production` falha o startup sem `DATABASE_URL` ou com conexão de banco inválida;
 - configurar OpenAI apenas no backend do Render ou runtime equivalente;
 - manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
 - configurar as credenciais do Strava apenas no backend;
