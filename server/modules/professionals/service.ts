@@ -52,6 +52,12 @@ export type ProfessionalPatientAccess = {
   authorizationMessageError: string | null;
 };
 
+export type ProfessionalAccessReconciliationResult = {
+  patientUserId: number;
+  reconciledCount: number;
+  accessIds: string[];
+};
+
 type ProfessionalComment = {
   id: string;
   professionalUserId: number;
@@ -100,6 +106,7 @@ type HistoryEvent = {
     | "access_revoked"
     | "access_authorization_whatsapp_sent"
     | "access_authorization_whatsapp_failed"
+    | "access_reconciled"
     | "comment_created"
     | "goal_suggested"
     | "meal_suggested"
@@ -358,6 +365,20 @@ async function loadProfessionalAccessesForPatient(patientUserId: number): Promis
   return found;
 }
 
+async function loadPatientAccessRequestState(patientUserId: number) {
+  const [patientAccesses, professionalSideAccesses] = await Promise.all([
+    loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY),
+    loadProfessionalAccessesForPatient(patientUserId),
+  ]);
+
+  const patientAccessIds = new Set(patientAccesses.map(access => access.id));
+  const missing = professionalSideAccesses.filter(access => !patientAccessIds.has(access.id));
+  return {
+    patientAccesses: [...patientAccesses, ...missing],
+    missing,
+  };
+}
+
 async function persistAccessesForUser(userId: number, preferenceKey: string, nextAccesses: ProfessionalPatientAccess[]) {
   const db = await getDb();
   if (!db) return;
@@ -385,6 +406,36 @@ async function persistAccessForBothSides(access: ProfessionalPatientAccess) {
     persistAccessesForUser(access.professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY, mergeAccesses(professionalAccesses, access)),
     persistAccessesForUser(access.patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY, mergeAccesses(patientAccesses, access)),
   ]);
+}
+
+export async function reconcilePatientAccessRequests(patientUserId: number): Promise<ProfessionalAccessReconciliationResult> {
+  const { missing } = await loadPatientAccessRequestState(patientUserId);
+  if (missing.length === 0) {
+    return { patientUserId, reconciledCount: 0, accessIds: [] };
+  }
+
+  await Promise.all(missing.map(access => persistAccessForBothSides(access)));
+  missing.forEach(access => {
+    pushHistory({
+      actorUserId: patientUserId,
+      professionalUserId: access.professionalUserId,
+      patientUserId,
+      eventType: "access_reconciled",
+    });
+  });
+  logInferenceEvent({
+    userId: patientUserId,
+    origin: "admin",
+    status: "warning",
+    eventType: "professional.access.reconciled",
+    detail: `${missing.length} vínculo(s) profissional-paciente reconciliado(s) para a pessoa acompanhada #${patientUserId}.`,
+  });
+
+  return {
+    patientUserId,
+    reconciledCount: missing.length,
+    accessIds: missing.map(access => access.id),
+  };
 }
 
 async function parseStoredProfessionalProfile(userId: number, value: string): Promise<ProfessionalProfile | null> {
@@ -809,17 +860,7 @@ export async function listProfessionalAccesses(professionalUserId: number) {
 }
 
 export async function listPatientAccessRequests(patientUserId: number) {
-  const [patientAccesses, professionalSideAccesses] = await Promise.all([
-    loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY),
-    loadProfessionalAccessesForPatient(patientUserId),
-  ]);
-
-  const patientAccessIds = new Set(patientAccesses.map(a => a.id));
-  const missing = professionalSideAccesses.filter(a => !patientAccessIds.has(a.id));
-  if (missing.length > 0) {
-    await Promise.all(missing.map(access => persistAccessForBothSides(access)));
-    missing.forEach(a => patientAccesses.push(a));
-  }
+  const { patientAccesses } = await loadPatientAccessRequestState(patientUserId);
 
   const professionalProfiles = await Promise.all(patientAccesses.map(access => getProfessionalProfile(access.professionalUserId)));
   const professionalMap = new Map(
