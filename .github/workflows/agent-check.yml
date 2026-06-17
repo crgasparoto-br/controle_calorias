@@ -49,6 +49,9 @@ jobs:
       - name: Agent check
         run: pnpm agent:check
 
+      - name: CI gate docs check
+        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
+
       - name: Database integrity check
         if: ${{ env.DATABASE_URL != '' }}
         run: |
