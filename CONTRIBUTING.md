@@ -24,6 +24,20 @@ Este projeto usa um gate de validação antes de merge para reduzir regressões 
 - cálculo nutricional, refeições e fluxo alimentar;
 - billing ou assinaturas, quando existirem.
 
+## Gate obrigatório da `main`
+
+PRs contra `main` devem aguardar o status check obrigatório `Agent-first gate`. Esse é o nome do job definido em `.github/workflows/agent-check.yml` e deve ser o mesmo configurado em branch protection ou ruleset do GitHub.
+
+Para áreas sensíveis, a PR deve registrar:
+
+- status do check `Agent-first gate`;
+- comandos relevantes executados pelo workflow ou localmente;
+- se `pnpm db:check-integrity` foi executado ou pulado;
+- validação alternativa ou risco residual quando `DATABASE_URL` não estiver disponível;
+- status do preview/deploy Vercel, quando existir.
+
+Vercel preview/deploy é evidência complementar. Ele não substitui `pnpm check`, `pnpm test`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` nem o status check `Agent-first gate`.
+
 ## O que cada comando cobre
 
 | Comando | Quando usar | Observação |
@@ -33,7 +47,8 @@ Este projeto usa um gate de validação antes de merge para reduzir regressões 
 | `pnpm architecture:check` | Mudanças em camadas, módulos, imports ou organização de backend/frontend | Protege fronteiras arquiteturais do monólito |
 | `pnpm docs:check` | Mudanças em schema, tRPC, documentação gerada/manualizada ou instruções operacionais | Confirma que docs geradas continuam sincronizadas |
 | `pnpm build` | Mudanças que podem afetar empacotamento, frontend, backend de produção ou dependências | Deve passar antes de merge em PRs de produto |
-| `pnpm agent:check` | Gate completo para áreas sensíveis e mudanças operacionais usadas por agentes | Combina `pnpm check`, `pnpm test`, `pnpm architecture:check` e `pnpm docs:check` |
+| `pnpm agent:check` | Gate completo para áreas sensíveis e mudanças operacionais usadas por agentes | Combina `pnpm check`, `pnpm test`, `pnpm architecture:check`, `pnpm docs:check` e `pnpm ci:gate-docs:check` |
+| `pnpm ci:gate-docs:check` | Mudanças em workflow, guia de contribuição ou template de PR | Garante alinhamento entre documentação, template e workflow `Agent-first gate` |
 | `pnpm db:check-integrity` | Mudanças de persistência ou dados quando houver `DATABASE_URL` disponível para validação | Se o ambiente não tiver banco configurado, registre isso na PR |
 
 Não documente nem exija comando novo como obrigatório sem adicioná-lo ao `package.json` ou explicar qual comando existente é equivalente.
