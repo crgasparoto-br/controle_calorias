@@ -23,7 +23,7 @@ const ProfessionalPage = lazy(() => import("@/pages/ProfessionalReportsPage"));
 const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
-const ReportsPage = lazy(() => import("@/pages/ReportsGoalsPage"));
+const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
 const SyncedHealthDataPage = lazy(() => import("@/pages/SyncedHealthDataPage"));
 const WhatsappOnboardingPage = lazy(() => import("@/pages/WhatsappOnboardingPage"));
 
