@@ -73,6 +73,12 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 
 Durante o startup, o backend registra aviso para features opcionais sem configuração suficiente. Esses avisos não exibem valores de segredos.
 
+## Limites de API
+
+O backend usa limite conservador de payload para rotas comuns de API. O tRPC comum aceita até `1mb`; endpoints que recebem mídia explicitamente, como análise de foto e rascunho multimodal de refeição, usam limite dedicado de `50mb`. O webhook público do WhatsApp usa limite próprio de `5mb` para manter compatibilidade com eventos do canal sem aplicar esse tamanho às rotas comuns.
+
+Fluxos públicos sensíveis possuem rate limit por IP/origem com resposta 429 genérica e headers `X-RateLimit-*`/`Retry-After`, sem registrar credenciais, tokens ou payloads. A política cobre cadastro, login, onboarding público por token, quick edit público e webhook do WhatsApp.
+
 ## WhatsApp
 
 A integração usa um único número oficial da solução. O `WHATSAPP_PHONE_NUMBER_ID` identifica o canal de envio e recebimento; o telefone de origem do usuário final é salvo apenas como vínculo com o usuário autenticado.
@@ -135,5 +141,6 @@ Resumo do rollout:
 - validar que a sincronização do Strava importa apenas exercícios dos últimos 2 meses;
 - validar que o vínculo Strava continua conectado após restart do backend com banco ativo;
 - validar cadastro, login, logout e usuário atual;
+- validar limites de payload e rate limit dos endpoints públicos sensíveis;
 - validar web e WhatsApp com smoke tests;
 - monitorar apenas erros sanitizados, sem senha, hash, token ou cookie em logs.
