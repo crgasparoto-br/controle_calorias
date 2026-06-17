@@ -319,8 +319,8 @@ describe("extracted repositories persistence contracts", () => {
 
     await repository.purgeUserData(7);
 
-    const mutationOperations = db.operations.filter(operation => operation.op !== "select");
-    expect(mutationOperations.map(operation => operation.table)).toEqual([
+    const terminalMutations = db.operations.filter(operation => operation.op.endsWith(".where"));
+    expect(terminalMutations.map(operation => operation.table)).toEqual([
       mealItems,
       mealMedia,
       mealInferences,
@@ -344,7 +344,7 @@ describe("extracted repositories persistence contracts", () => {
       meals,
       users,
     ]);
-    expect(mutationOperations.filter(operation => operation.op === "update.set")).toEqual([
+    expect(db.operations.filter(operation => operation.op === "update.set")).toEqual([
       expect.objectContaining({ table: foodCatalog, payload: { createdByUserId: null } }),
       expect.objectContaining({ table: appSecrets, payload: { updatedByUserId: null } }),
     ]);
