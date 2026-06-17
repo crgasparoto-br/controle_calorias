@@ -44,6 +44,29 @@ shared/*                      -> tipos, cálculos e mensagens sem dependência d
 - Fluxos multimodais devem usar imagem e áudio inline para inferência e transcrição quando houver mídia anexada; upload para storage serve persistência e não pode ser pré-requisito para a IA consumir a mídia.
 - Dependências legadas remanescentes devem ficar documentadas e fora do fluxo principal de refeição.
 
+## Plano de extração de `server/db.ts`
+
+A extração de `server/db.ts` deve acontecer em PRs pequenos, cada um focado em um domínio principal e sem mudança funcional intencional. A assinatura pública exportada por `server/db.ts` deve ser preservada enquanto routers e serviços consumidores forem migrados gradualmente.
+
+Checklist recomendado:
+
+- [x] `admin/logs`: preparar serviço isolado para logs administrativos e inferências, mantendo sanitização de detalhes antes de gravar em memória ou banco.
+- [ ] `users/profile`: mover stores e funções de usuário, onboarding, perfil, preferências, restrições e peso inicial.
+- [ ] `meals`: mover inferências pendentes, refeições, mídia, favoritos de refeição, hábitos derivados e helpers de totais específicos do domínio.
+- [ ] `foods`: mover catálogo em memória, favoritos de alimentos, ranking, busca, criação e atualização de alimentos do usuário.
+- [ ] `water/exercises`: mover metas de água, logs de hidratação, exercícios e consultas por data.
+- [ ] `goals/gamification`: mover metas nutricionais, snapshots semanais de badges e cálculo de conquistas.
+- [ ] `privacy/account`: mover exportação de privacidade, exclusão de dados em memória e orquestração de purge por domínio.
+- [ ] Atualizar esta seção a cada PR concluído, incluindo qualquer fronteira nova validada por `pnpm architecture:check`.
+
+Regras para cada PR de extração:
+
+- tocar um domínio principal por vez;
+- preservar comportamento observável e formatos de retorno;
+- adicionar teste focado quando a extração mover sanitização, ordenação, fallback em memória ou persistência;
+- evitar misturar refatoração com correção funcional, mudança visual ou alteração de contrato de API;
+- manter `pnpm test`, `pnpm architecture:check` e `pnpm docs:check` verdes.
+
 ## Privacidade e dados sensíveis
 
 Dados de saúde e alimentação são sensíveis. Campos como `sourceText`, `transcript`, `mediaJson`, restrições alimentares, objetivos, peso, telefone, logs de inferência e tokens exigem cuidado extra.
