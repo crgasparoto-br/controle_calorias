@@ -43,7 +43,7 @@ for (const doc of [contributing, pullRequestTemplate, branchProtection]) {
   requireText(doc, "Vercel", "documentação de contribuição/PR/branch protection");
 }
 
-requireText(contributing, "Required status check", "CONTRIBUTING.md");
+requireText(contributing, "status check obrigatório", "CONTRIBUTING.md");
 requireText(branchProtection, "Required status check: `Agent-first gate`", ".github/branch-protection-main.md");
 requireText(pullRequestTemplate, "db:check-integrity", ".github/pull_request_template.md");
 
