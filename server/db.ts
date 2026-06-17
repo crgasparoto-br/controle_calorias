@@ -1,45 +1,28 @@
 import crypto from "node:crypto";
 import { createPool, type Pool } from "mysql2/promise";
-import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import {
-  appSecrets,
-  dailySummaries,
-  exercises,
-  foodFavorites,
-  habitMemories,
-  inferenceLogs,
-  InsertUser,
-  mealInferences,
-  mealFavorites,
-  mealItems,
-  mealMedia,
-  meals,
-  foodCatalog,
-  NutritionGoal,
-  userBadges,
-  userGamificationSettings,
-  userPreferences,
-  userProfiles,
-  userRestrictions,
-  User,
-  users,
-  waterGoals,
-  waterLogs,
-  WeightEntry,
-  weightEntries,
-  whatsappConnections,
-} from "../drizzle/schema";
+import { InsertUser, NutritionGoal, User, WeightEntry } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
 import { getDateKeyInTimeZone } from "../shared/timeZone";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
+import { createDrizzleAccountRepository } from "./repositories/accountRepository";
+import { createDrizzleAppSecretsRepository } from "./repositories/appSecretsRepository";
 import { createDrizzleExercisesRepository } from "./repositories/exercisesRepository";
+import { createDrizzleFoodCatalogRepository } from "./repositories/foodCatalogRepository";
+import { createDrizzleGamificationRepository } from "./repositories/gamificationRepository";
+import { createDrizzleHabitsRepository } from "./repositories/habitsRepository";
+import { createDrizzleLogsRepository } from "./repositories/logsRepository";
+import { createDrizzleMealsRepository } from "./repositories/mealsRepository";
 import { canUseMemoryPersistenceFallback } from "./repositories/memoryFallback";
 import { createDrizzleNutritionGoalsRepository } from "./repositories/nutritionGoalsRepository";
+import { createDrizzleUserProfileRepository } from "./repositories/userProfileRepository";
+import { createDrizzleUsersRepository } from "./repositories/usersRepository";
 import { createDrizzleWaterRepository } from "./repositories/waterRepository";
+import { createDrizzleWeightRepository } from "./repositories/weightRepository";
+import { createDrizzleWhatsAppRepository } from "./repositories/whatsappRepository";
 import type { OnboardingInput } from "./modules/onboarding/schemas";
 import { safeLogDetail } from "./privacy";
 import { fuzzyMatchesWords } from "./fuzzyTextMatch";
@@ -117,18 +100,7 @@ function decryptAppSecretValue(payload: string) {
 }
 
 async function getAppSecret(secretKey: string) {
-  const db = await getDb();
-  if (!db) {
-    return null;
-  }
-
-  try {
-    const rows = await db.select().from(appSecrets).where(eq(appSecrets.secretKey, secretKey)).limit(1);
-    return rows[0] ?? null;
-  } catch (error) {
-    console.warn("[Database] Failed to get app secret:", error);
-    return null;
-  }
+  return appSecretsRepository.findBySecretKey(secretKey);
 }
 
 export async function getWhatsAppAccessToken() {
@@ -213,23 +185,7 @@ export async function upsertAdminWhatsAppAccessToken(input: { value: string; upd
   }
 
   const encryptedValue = encryptAppSecretValue(normalizedValue);
-  const existing = await getAppSecret(WHATSAPP_ACCESS_TOKEN_SECRET_KEY);
-
-  if (existing) {
-    await db
-      .update(appSecrets)
-      .set({
-        valueEncrypted: encryptedValue,
-        updatedByUserId: input.updatedByUserId,
-      })
-      .where(eq(appSecrets.id, existing.id));
-  } else {
-    await db.insert(appSecrets).values({
-      secretKey: WHATSAPP_ACCESS_TOKEN_SECRET_KEY,
-      valueEncrypted: encryptedValue,
-      updatedByUserId: input.updatedByUserId,
-    });
-  }
+  await appSecretsRepository.upsert(WHATSAPP_ACCESS_TOKEN_SECRET_KEY, encryptedValue, input.updatedByUserId);
 
   process.env.WHATSAPP_ACCESS_TOKEN = normalizedValue;
   return getAdminWhatsAppTokenStatus();
@@ -289,11 +245,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     throw new Error("User openId is required for upsert");
   }
 
-  const db = await getDb();
-  if (!db) {
-    return;
-  }
-
   const values: InsertUser = {
     openId: user.openId,
   };
@@ -332,28 +283,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     updateSet.lastSignedIn = new Date();
   }
 
-  try {
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
-  } catch (error) {
-    console.warn("[Database] Failed to upsert user, continuing with auth only:", error);
-  }
+  await usersRepository.upsert(values, updateSet);
 }
 
 export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) {
-    return undefined;
-  }
-
-  try {
-    const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-    return result.length > 0 ? result[0] : undefined;
-  } catch (error) {
-    console.warn("[Database] Failed to get user by openId:", error);
-    return undefined;
-  }
+  return usersRepository.findByOpenId(openId);
 }
 
 export async function saveUserOnboardingProfile(userId: number, input: OnboardingInput) {
@@ -368,13 +302,7 @@ export async function saveUserOnboardingProfile(userId: number, input: Onboardin
     onboardingProfileStore.set(userId, profile);
   }
 
-  const db = await getDb();
-  if (!db) {
-    return profile;
-  }
-
   const profileValues = {
-    userId,
     displayName: input.name,
     birthDate: input.birthDate ?? null,
     ageYears: input.ageYears,
@@ -391,59 +319,18 @@ export async function saveUserOnboardingProfile(userId: number, input: Onboardin
   };
 
   try {
-    const existingProfile = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1);
-    if (existingProfile.length) {
-      await db.update(userProfiles).set(profileValues).where(eq(userProfiles.userId, userId));
-    } else {
-      await db.insert(userProfiles).values({
-        ...profileValues,
-        createdAt: now,
-      });
-    }
-
-    await db.insert(weightEntries).values({
-      userId,
-      weightKg: input.currentWeightKg,
-      measuredAt: now,
-      notes: "Peso informado no onboarding.",
-    });
+    await userProfileRepository.upsertProfile(userId, profileValues);
+    await weightRepository.insertEntry(userId, input.currentWeightKg, now, "Peso informado no onboarding.");
 
     const preferenceKeys = ["dietary_preferences", "eating_routine", "main_difficulty", "tracking_experience"];
-    await db
-      .delete(userPreferences)
-      .where(and(eq(userPreferences.userId, userId), inArray(userPreferences.preferenceKey, preferenceKeys)));
-    await db.insert(userPreferences).values([
-      {
-        userId,
-        preferenceKey: "dietary_preferences",
-        preferenceValue: JSON.stringify(input.dietaryPreferences),
-      },
-      {
-        userId,
-        preferenceKey: "eating_routine",
-        preferenceValue: input.eatingRoutine,
-      },
-      {
-        userId,
-        preferenceKey: "main_difficulty",
-        preferenceValue: input.mainDifficulty,
-      },
-      {
-        userId,
-        preferenceKey: "tracking_experience",
-        preferenceValue: input.trackingExperience,
-      },
+    await userProfileRepository.replacePreferences(userId, preferenceKeys, [
+      { preferenceKey: "dietary_preferences", preferenceValue: JSON.stringify(input.dietaryPreferences) },
+      { preferenceKey: "eating_routine", preferenceValue: input.eatingRoutine },
+      { preferenceKey: "main_difficulty", preferenceValue: input.mainDifficulty },
+      { preferenceKey: "tracking_experience", preferenceValue: input.trackingExperience },
     ]);
 
-    if (input.dietaryRestrictions.length) {
-      await db.insert(userRestrictions).values(input.dietaryRestrictions.map(label => ({
-        userId,
-        restrictionType: "other" as const,
-        label,
-        severity: "avoid" as const,
-        notes: "Informado no onboarding.",
-      })));
-    }
+    await userProfileRepository.insertRestrictions(userId, input.dietaryRestrictions);
   } catch (error) {
     logPersistenceWarning("Onboarding persistence skipped", error);
   }
@@ -484,28 +371,8 @@ export async function updateUserCurrentWeight(userId: number, input: {
     ]);
   }
 
-  const db = await getDb();
-  if (!db) {
-    return {
-      userId,
-      weightKg: input.weightKg,
-      measuredAt: input.measuredAt,
-      notes: input.notes ?? null,
-    };
-  }
-
-  const now = new Date();
-  await db.update(userProfiles).set({
-    currentWeightKg: input.weightKg,
-    updatedAt: now,
-  }).where(eq(userProfiles.userId, userId));
-
-  await db.insert(weightEntries).values({
-    userId,
-    weightKg: input.weightKg,
-    measuredAt: input.measuredAt,
-    notes: input.notes ?? "Peso atualizado pelo WhatsApp.",
-  });
+  await userProfileRepository.updateCurrentWeight(userId, input.weightKg);
+  await weightRepository.insertEntry(userId, input.weightKg, input.measuredAt, input.notes ?? "Peso atualizado pelo WhatsApp.");
 
   return {
     userId,
@@ -540,18 +407,18 @@ export async function getFoodAssistantProfile(userId: number) {
   }
 
   try {
-    const [profileRows, preferenceRows, restrictionRows] = await Promise.all([
-      db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
-      db.select().from(userPreferences).where(eq(userPreferences.userId, userId)),
-      db.select().from(userRestrictions).where(eq(userRestrictions.userId, userId)),
+    const [profile, preferenceRows, restrictionRows] = await Promise.all([
+      userProfileRepository.findProfileByUserId(userId),
+      userProfileRepository.findPreferencesByUserId(userId),
+      userProfileRepository.findRestrictionsByUserId(userId),
     ]);
     const preferenceMap = new Map(preferenceRows.map(row => [row.preferenceKey, row.preferenceValue]));
 
     return {
       preferences: parsePreferenceList(preferenceMap.get("dietary_preferences")),
       restrictions: restrictionRows.map(row => row.label).filter(Boolean),
-      eatingRoutine: profileRows[0]?.eatingRoutine ?? preferenceMap.get("eating_routine") ?? null,
-      objective: profileRows[0]?.nutritionObjective ?? null,
+      eatingRoutine: profile?.eatingRoutine ?? preferenceMap.get("eating_routine") ?? null,
+      objective: profile?.nutritionObjective ?? null,
     };
   } catch (error) {
     logPersistenceWarning("Food assistant profile read skipped", error);
@@ -572,19 +439,9 @@ export async function getUserWhatsappConnection(userId: number) {
     return rows.find(row => row.status === "active") ?? rows[0] ?? null;
   }
 
-  try {
-    const rows = await db
-      .select()
-      .from(whatsappConnections)
-      .where(eq(whatsappConnections.userId, userId))
-      .orderBy(desc(whatsappConnections.updatedAt));
-
-    const active = rows.find(row => row.status === "active") ?? rows[0];
-    return active ?? null;
-  } catch (error) {
-    console.warn("[Database] Failed to get WhatsApp connection:", error);
-    return null;
-  }
+  const rows = await whatsappRepository.findAllByUserId(userId);
+  const active = rows.find(row => row.status === "active") ?? rows[0];
+  return active ?? null;
 }
 
 export async function getUserIdByWhatsappPhone(phoneNumber: string) {
@@ -598,17 +455,8 @@ export async function getUserIdByWhatsappPhone(phoneNumber: string) {
     return whatsappConnectionStore.find(row => row.phoneNumber === normalizedPhoneNumber && row.status === "active")?.userId ?? null;
   }
 
-  try {
-    const rows = await db
-      .select()
-      .from(whatsappConnections)
-      .where(and(eq(whatsappConnections.phoneNumber, normalizedPhoneNumber), eq(whatsappConnections.status, "active")))
-      .limit(1);
-
-    return rows[0]?.userId ?? null;
-  } catch {
-    return null;
-  }
+  const rows = await whatsappRepository.findAllByPhoneNumber(normalizedPhoneNumber);
+  return rows.find(row => row.status === "active")?.userId ?? null;
 }
 
 export async function upsertUserWhatsappConnection(input: {
@@ -665,49 +513,33 @@ export async function upsertUserWhatsappConnection(input: {
     return saved;
   }
 
-  const conflictingRows = await db
-    .select()
-    .from(whatsappConnections)
-    .where(eq(whatsappConnections.phoneNumber, normalizedPhoneNumber));
+  const conflictingRows = await whatsappRepository.findAllByPhoneNumber(normalizedPhoneNumber);
 
   const activeConflict = conflictingRows.find(row => row.userId !== input.userId && row.status !== "disabled");
   if (activeConflict) {
     throw new Error("Este telefone de origem já está vinculado a outro usuário.");
   }
 
-  const userRows = await db
-    .select()
-    .from(whatsappConnections)
-    .where(eq(whatsappConnections.userId, input.userId))
-    .orderBy(desc(whatsappConnections.updatedAt));
+  const userRows = await whatsappRepository.findAllByUserId(input.userId);
 
   let connectionId = userRows[0]?.id;
 
   if (connectionId) {
-    await db
-      .update(whatsappConnections)
-      .set({
-        phoneNumber: normalizedPhoneNumber,
-        displayName: normalizedDisplayName,
-        status: "active",
-      })
-      .where(eq(whatsappConnections.id, connectionId));
-  } else {
-    const inserted = await db.insert(whatsappConnections).values({
-      userId: input.userId,
+    await whatsappRepository.update(connectionId, {
       phoneNumber: normalizedPhoneNumber,
       displayName: normalizedDisplayName,
       status: "active",
     });
-
-    connectionId = Number((inserted as { insertId?: number }).insertId ?? 0);
+  } else {
+    connectionId = await whatsappRepository.insert({
+      userId: input.userId,
+      phoneNumber: normalizedPhoneNumber,
+      displayName: normalizedDisplayName,
+    });
   }
 
   for (const row of userRows.slice(1)) {
-    await db
-      .update(whatsappConnections)
-      .set({ status: "disabled" })
-      .where(eq(whatsappConnections.id, row.id));
+    await whatsappRepository.disable(row.id);
   }
 
   const saved = await getUserWhatsappConnection(input.userId);
@@ -1269,8 +1101,7 @@ async function getGamificationEnabled(userId: number) {
   const db = await getDb();
   if (db) {
     try {
-      const rows = await db.select().from(userGamificationSettings).where(eq(userGamificationSettings.userId, userId)).limit(1);
-      const row = rows[0];
+      const row = await gamificationRepository.findSettingByUserId(userId);
       if (row) {
         const setting = { userId, enabled: row.enabled === 1, updatedAt: new Date(row.updatedAt).getTime() };
         gamificationSettingsStore.set(userId, setting);
@@ -1288,21 +1119,10 @@ export async function updateUserGamificationSettings(userId: number, enabled: bo
   const setting = { userId, enabled, updatedAt: Date.now() };
   gamificationSettingsStore.set(userId, setting);
 
-  const db = await getDb();
-  if (db) {
-    try {
-      await db.insert(userGamificationSettings).values({
-        userId,
-        enabled: enabled ? 1 : 0,
-      }).onDuplicateKeyUpdate({
-        set: {
-          enabled: enabled ? 1 : 0,
-          updatedAt: new Date(),
-        },
-      });
-    } catch (error) {
-      logPersistenceWarning("Gamification settings persistence skipped", error);
-    }
+  try {
+    await gamificationRepository.upsertSetting(userId, enabled);
+  } catch (error) {
+    logPersistenceWarning("Gamification settings persistence skipped", error);
   }
 
   return { enabled };
@@ -1312,7 +1132,7 @@ async function loadUserBadges(userId: number) {
   const db = await getDb();
   if (db) {
     try {
-      const rows = await db.select().from(userBadges).where(eq(userBadges.userId, userId)).orderBy(desc(userBadges.earnedAt));
+      const rows = await gamificationRepository.findBadgesByUserId(userId);
       const entries = rows.map(row => ({
         id: row.id,
         userId: row.userId,
@@ -1348,13 +1168,12 @@ async function awardUserBadge(userId: number, badgeCode: BadgeCode, weekStart: s
   const db = await getDb();
   if (db) {
     try {
-      const inserted = await db.insert(userBadges).values({
+      const insertedId = await gamificationRepository.insertBadge({
         userId,
         badgeCode,
         weekStart,
         metadataJson: JSON.stringify(metadata),
       });
-      const insertedId = Number((inserted as any)?.[0]?.insertId ?? (inserted as any)?.insertId ?? 0);
       if (insertedId) badge.id = insertedId;
     } catch (error) {
       logPersistenceWarning("User badge persistence skipped", error);
@@ -1443,6 +1262,47 @@ const waterRepository = createDrizzleWaterRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+const appSecretsRepository = createDrizzleAppSecretsRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const usersRepository = createDrizzleUsersRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const userProfileRepository = createDrizzleUserProfileRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const weightRepository = createDrizzleWeightRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const whatsappRepository = createDrizzleWhatsAppRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const gamificationRepository = createDrizzleGamificationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const foodCatalogRepository = createDrizzleFoodCatalogRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const mealsRepository = createDrizzleMealsRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const habitsRepository = createDrizzleHabitsRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const logsRepository = createDrizzleLogsRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const accountRepository = createDrizzleAccountRepository({ getDb });
 
 function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[] {
   if (!value) return fallback;
@@ -1515,15 +1375,9 @@ async function loadFavoriteFoodIdsFromDb(userId: number) {
   const db = await getDb();
   if (!db) return favoriteFoodStore.get(userId) ?? new Set<number>();
 
-  try {
-    const rows = await db.select().from(foodFavorites).where(eq(foodFavorites.userId, userId));
-    const ids = new Set(rows.map(row => row.foodCatalogId));
-    favoriteFoodStore.set(userId, ids);
-    return ids;
-  } catch (error) {
-    logPersistenceWarning("Food favorites read skipped", error);
-    return favoriteFoodStore.get(userId) ?? new Set<number>();
-  }
+  const ids = await foodCatalogRepository.findFavoriteIdsByUserId(userId);
+  favoriteFoodStore.set(userId, ids);
+  return ids;
 }
 
 async function loadRecentFoodUsageFromDb(userId: number) {
@@ -1531,14 +1385,11 @@ async function loadRecentFoodUsageFromDb(userId: number) {
   if (!db) return new Map<string, number>();
 
   try {
-    const mealRows = await db.select().from(meals).where(eq(meals.userId, userId));
+    const items = await mealsRepository.findItemsWithMealDates(userId);
     const usage = new Map<string, number>();
-    for (const meal of mealRows) {
-      const items = await db.select().from(mealItems).where(eq(mealItems.mealId, meal.id));
-      for (const item of items) {
-        const key = normalizeCatalogText(item.canonicalName || item.foodName);
-        usage.set(key, Math.max(usage.get(key) ?? 0, new Date(meal.occurredAt).getTime()));
-      }
+    for (const item of items) {
+      const key = normalizeCatalogText(item.canonicalName || item.foodName);
+      usage.set(key, Math.max(usage.get(key) ?? 0, item.occurredAt));
     }
     return usage;
   } catch (error) {
@@ -1555,7 +1406,7 @@ export async function searchFoods(userId: number, query = "", limit = 20) {
   if (db) {
     try {
       const [rows, usage] = await Promise.all([
-        db.select().from(foodCatalog),
+        foodCatalogRepository.findAll(),
         loadRecentFoodUsageFromDb(userId),
       ]);
 
@@ -1619,9 +1470,9 @@ export async function upsertFavoriteFood(userId: number, foodId: number, favorit
   if (db) {
     try {
       if (favorite) {
-        await db.insert(foodFavorites).values({ userId, foodCatalogId: foodId }).onDuplicateKeyUpdate({ set: { userId } });
+        await foodCatalogRepository.upsertFavorite(userId, foodId);
       } else {
-        await db.delete(foodFavorites).where(and(eq(foodFavorites.userId, userId), eq(foodFavorites.foodCatalogId, foodId)));
+        await foodCatalogRepository.deleteFavorite(userId, foodId);
       }
     } catch (error) {
       logPersistenceWarning("Food favorite write skipped", error);
@@ -1676,7 +1527,7 @@ export async function createUserFood(userId: number, input: FoodUpsertInput) {
   const db = await getDb();
   if (db) {
     try {
-      const inserted = await db.insert(foodCatalog).values({
+      const insertedId = await foodCatalogRepository.insert({
         slug: `${toSlug(`${input.brandName ?? ""} ${input.name}`)}-${userId}-${Date.now()}`,
         name: input.name,
         aliases: JSON.stringify([]),
@@ -1697,7 +1548,6 @@ export async function createUserFood(userId: number, input: FoodUpsertInput) {
         isUserCreated: 1,
         createdByUserId: userId,
       });
-      const insertedId = Number((inserted as any)?.[0]?.insertId ?? (inserted as any)?.insertId ?? 0);
       if (insertedId) food.id = insertedId;
     } catch (error) {
       logPersistenceWarning("Food creation persistence skipped", error);
@@ -1744,7 +1594,7 @@ export async function updateUserFood(userId: number, input: FoodUpsertInput & { 
   const db = await getDb();
   if (db) {
     try {
-      await db.update(foodCatalog).set({
+      await foodCatalogRepository.update(input.foodId, userId, {
         name: input.name,
         brandName: input.brandName ?? null,
         foodType: input.foodType,
@@ -1760,8 +1610,7 @@ export async function updateUserFood(userId: number, input: FoodUpsertInput & { 
         isFruit: input.isFruit ? 1 : 0,
         isVegetable: input.isVegetable ? 1 : 0,
         isUltraProcessed: input.isUltraProcessed ? 1 : 0,
-        updatedAt: new Date(),
-      }).where(and(eq(foodCatalog.id, input.foodId), eq(foodCatalog.createdByUserId, userId)));
+      });
     } catch (error) {
       logPersistenceWarning("Food update persistence skipped", error);
     }
@@ -1778,7 +1627,7 @@ async function resolveFoodCatalogIds(items: MealDraftItem[]) {
   }
 
   try {
-    const rows = await db.select().from(foodCatalog);
+    const rows = await foodCatalogRepository.findAll();
     const catalogIndex = new Map<string, number>();
 
     for (const row of rows) {
@@ -1815,38 +1664,18 @@ async function persistGoalToDb(goals: NutritionGoal[]) {
 }
 
 async function persistInferenceToDb(draft: PendingInference) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    await db.insert(mealInferences).values({
-      draftId: draft.draftId,
-      userId: draft.userId,
-      source: draft.source,
-      requestSummary: draft.processed.sourceText,
-      sourceText: draft.processed.sourceText,
-      transcript: draft.processed.transcript ?? null,
-      mediaJson: JSON.stringify(draft.media),
-      reasoning: draft.processed.reasoning,
-      confidence: draft.processed.confidence,
-      itemsJson: JSON.stringify(draft.processed.items),
-      totalsJson: JSON.stringify(draft.processed.totals),
-    });
-  } catch (error) {
-    try {
-      await db.insert(mealInferences).values({
-        userId: draft.userId,
-        source: draft.source,
-        requestSummary: draft.processed.sourceText,
-        reasoning: draft.processed.reasoning,
-        confidence: draft.processed.confidence,
-        itemsJson: JSON.stringify(draft.processed.items),
-        totalsJson: JSON.stringify(draft.processed.totals),
-      } as any);
-    } catch (legacyError) {
-      logPersistenceWarning("Inference persistence skipped", legacyError);
-    }
-  }
+  await mealsRepository.insertInference({
+    draftId: draft.draftId,
+    userId: draft.userId,
+    source: draft.source,
+    sourceText: draft.processed.sourceText,
+    transcript: draft.processed.transcript,
+    media: draft.media,
+    reasoning: draft.processed.reasoning,
+    confidence: draft.processed.confidence,
+    items: draft.processed.items,
+    totals: draft.processed.totals,
+  });
 }
 
 async function persistMealToDb(meal: SavedMeal) {
@@ -1854,55 +1683,28 @@ async function persistMealToDb(meal: SavedMeal) {
   if (!db) return;
 
   try {
-    const mealInsert = await db.insert(meals).values({
+    const insertedMealId = await mealsRepository.insertMeal({
       userId: meal.userId,
       source: meal.source,
       status: meal.status,
       mealLabel: meal.mealLabel,
-      notes: meal.notes ?? null,
-      sourceText: meal.sourceText || null,
-      transcript: meal.transcript ?? null,
+      notes: meal.notes,
+      sourceText: meal.sourceText,
+      transcript: meal.transcript,
       confidence: meal.confidence,
-      occurredAt: new Date(meal.occurredAt),
+      occurredAt: meal.occurredAt,
     });
 
-    const insertedMealId = Number((mealInsert as any)?.[0]?.insertId ?? (mealInsert as any)?.insertId ?? 0);
     const resolvedMealId = insertedMealId || meal.id;
     meal.id = resolvedMealId;
 
     if (meal.items.length) {
       const resolvedCatalogIds = await resolveFoodCatalogIds(meal.items);
-      await db.insert(mealItems).values(
-        meal.items.map(item => ({
-          mealId: resolvedMealId,
-          foodCatalogId: resolvedCatalogIds.get(item.canonicalName) ?? resolvedCatalogIds.get(item.foodName) ?? null,
-          foodName: item.foodName,
-          canonicalName: item.canonicalName,
-          portionText: item.portionText,
-          quantity: item.quantity,
-          unit: item.unit,
-          servings: item.servings,
-          estimatedGrams: item.estimatedGrams,
-          calories: item.calories,
-          protein: item.protein,
-          carbs: item.carbs,
-          fat: item.fat,
-          source: item.source,
-        })),
-      );
+      await mealsRepository.insertMealItems(resolvedMealId, meal.items, resolvedCatalogIds);
     }
 
     if (meal.media.length) {
-      await db.insert(mealMedia).values(
-        meal.media.map(media => ({
-          mealId: resolvedMealId,
-          mediaType: media.mediaType,
-          storageKey: media.storageKey,
-          storageUrl: media.storageUrl,
-          mimeType: media.mimeType,
-          originalFileName: media.originalFileName ?? null,
-        })),
-      );
+      await mealsRepository.insertMealMedia(resolvedMealId, meal.media);
     }
   } catch (error) {
     logPersistenceWarning("Meal persistence skipped", error);
@@ -1926,40 +1728,17 @@ async function updateMealInDb(meal: SavedMeal) {
   if (!db) return;
 
   try {
-    await db
-      .update(meals)
-      .set({
-        mealLabel: meal.mealLabel,
-        notes: meal.notes ?? null,
-        confidence: meal.confidence,
-        occurredAt: new Date(meal.occurredAt),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)));
+    await mealsRepository.updateMeal({
+      id: meal.id,
+      userId: meal.userId,
+      mealLabel: meal.mealLabel,
+      notes: meal.notes,
+      confidence: meal.confidence,
+      occurredAt: meal.occurredAt,
+    });
 
-    await db.delete(mealItems).where(eq(mealItems.mealId, meal.id));
-
-    if (meal.items.length) {
-      const resolvedCatalogIds = await resolveFoodCatalogIds(meal.items);
-      await db.insert(mealItems).values(
-        meal.items.map(item => ({
-          mealId: meal.id,
-          foodCatalogId: resolvedCatalogIds.get(item.canonicalName) ?? resolvedCatalogIds.get(item.foodName) ?? null,
-          foodName: item.foodName,
-          canonicalName: item.canonicalName,
-          portionText: item.portionText,
-          quantity: item.quantity,
-          unit: item.unit,
-          servings: item.servings,
-          estimatedGrams: item.estimatedGrams,
-          calories: item.calories,
-          protein: item.protein,
-          carbs: item.carbs,
-          fat: item.fat,
-          source: item.source,
-        })),
-      );
-    }
+    const resolvedCatalogIds = meal.items.length ? await resolveFoodCatalogIds(meal.items) : new Map<string, number>();
+    await mealsRepository.replaceMealItems(meal.id, meal.items, resolvedCatalogIds);
   } catch (error) {
     logPersistenceWarning("Meal update skipped", error);
   }
@@ -1970,9 +1749,7 @@ async function deleteMealFromDb(userId: number, mealId: number) {
   if (!db) return;
 
   try {
-    await db.delete(mealItems).where(eq(mealItems.mealId, mealId));
-    await db.delete(mealMedia).where(eq(mealMedia.mealId, mealId));
-    await db.delete(meals).where(and(eq(meals.userId, userId), eq(meals.id, mealId)));
+    await mealsRepository.deleteMeal(userId, mealId);
   } catch (error) {
     logPersistenceWarning("Meal deletion skipped", error);
   }
@@ -1991,41 +1768,17 @@ async function deleteWaterLogFromDb(userId: number, waterLogId: number) {
 }
 
 async function persistHabitsToDb(userId: number, habits: HabitMemoryState[]) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    for (const habit of habits) {
-      await db.insert(habitMemories).values({
-        userId,
-        foodName: habit.foodName,
-        typicalMealLabel: habit.typicalMealLabel ?? null,
-        preferredPortionGrams: habit.preferredPortionGrams,
-        notes: habit.notes ?? null,
-        occurrenceCount: habit.occurrenceCount,
-        lastSeenAt: new Date(habit.lastSeenAt),
-      });
-    }
-  } catch (error) {
-    logPersistenceWarning("Habit persistence skipped", error);
-  }
+  await habitsRepository.insertMany(userId, habits);
 }
 
 async function persistLogToDb(entry: AdminLogEntry) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    await db.insert(inferenceLogs).values({
-      userId: entry.userId ?? null,
-      origin: entry.origin,
-      status: entry.status,
-      eventType: entry.eventType,
-      detail: safeLogDetail(entry.detail),
-    });
-  } catch (error) {
-    logPersistenceWarning("Log persistence skipped", error);
-  }
+  await logsRepository.insert({
+    userId: entry.userId,
+    origin: entry.origin,
+    status: entry.status,
+    eventType: entry.eventType,
+    detail: safeLogDetail(entry.detail),
+  });
 }
 
 async function loadGoalFromDb(userId: number) {
@@ -2050,83 +1803,8 @@ function buildOccurredAtRange(date: string): Required<OccurredAtRange> {
 }
 
 async function loadMealsFromDb(userId: number, options: MealLoadOptions = {}) {
-  const db = await getDb();
-  if (!db) return null;
-
-  try {
-    const predicates = [
-      eq(meals.userId, userId),
-      eq(meals.status, "confirmed"),
-      ...(options.startAt ? [gte(meals.occurredAt, options.startAt)] : []),
-      ...(options.endAt ? [lt(meals.occurredAt, options.endAt)] : []),
-    ];
-    const mealRows = await db.select().from(meals).where(and(...predicates)).orderBy(desc(meals.occurredAt));
-    if (!mealRows.length) return [];
-
-    const mealIds = mealRows.map(row => row.id);
-    const includeMedia = options.includeMedia ?? true;
-    const [itemRows, mediaRows] = await Promise.all([
-      db.select().from(mealItems).where(inArray(mealItems.mealId, mealIds)),
-      includeMedia ? db.select().from(mealMedia).where(inArray(mealMedia.mealId, mealIds)) : Promise.resolve([]),
-    ]);
-
-    const itemsByMealId = new Map<number, MealDraftItem[]>();
-    for (const item of itemRows) {
-      const items = itemsByMealId.get(item.mealId) ?? [];
-      items.push({
-        foodName: item.foodName,
-        canonicalName: item.canonicalName,
-        portionText: item.portionText,
-        quantity: item.quantity,
-        unit: item.unit,
-        servings: item.servings,
-        estimatedGrams: item.estimatedGrams,
-        calories: item.calories,
-        protein: item.protein,
-        carbs: item.carbs,
-        fat: item.fat,
-        confidence: 0.9,
-        source: item.source,
-      });
-      itemsByMealId.set(item.mealId, items);
-    }
-
-    const mediaByMealId = new Map<number, SavedMedia[]>();
-    for (const media of mediaRows) {
-      const mediaItems = mediaByMealId.get(media.mealId) ?? [];
-      mediaItems.push({
-        id: media.id,
-        mediaType: media.mediaType,
-        storageKey: media.storageKey,
-        storageUrl: media.storageUrl,
-        mimeType: media.mimeType,
-        originalFileName: media.originalFileName ?? undefined,
-      });
-      mediaByMealId.set(media.mealId, mediaItems);
-    }
-
-    const builtMeals = mealRows.map(row => ({
-      id: row.id,
-      userId: row.userId,
-      source: row.source,
-      mealLabel: row.mealLabel,
-      status: "confirmed" as const,
-      occurredAt: new Date(row.occurredAt).getTime(),
-      notes: row.notes ?? undefined,
-      sourceText: row.sourceText ?? "",
-      transcript: row.transcript ?? undefined,
-      confidence: row.confidence,
-      items: itemsByMealId.get(row.id) ?? [],
-      media: mediaByMealId.get(row.id) ?? [],
-      createdAt: new Date(row.createdAt).getTime(),
-    } satisfies SavedMeal));
-
-    builtMeals.sort((a, b) => b.occurredAt - a.occurredAt);
-    return builtMeals;
-  } catch (error) {
-    logPersistenceWarning("Meal read skipped", error);
-    return null;
-  }
+  const dbMeals = await mealsRepository.findConfirmedByUserId(userId, options);
+  return dbMeals as SavedMeal[] | null;
 }
 
 async function loadExercisesFromDb(userId: number) {
@@ -2134,25 +1812,7 @@ async function loadExercisesFromDb(userId: number) {
 }
 
 async function loadExercisesFromDbByRange(userId: number, range: Required<OccurredAtRange>) {
-  const db = await getDb();
-  if (!db) return null;
-
-  try {
-    const rows = await db
-      .select()
-      .from(exercises)
-      .where(and(eq(exercises.userId, userId), gte(exercises.occurredAt, range.startAt), lt(exercises.occurredAt, range.endAt)))
-      .orderBy(desc(exercises.occurredAt));
-    return rows.map((row: typeof exercises.$inferSelect) => ({
-      ...row,
-      occurredAt: new Date(row.occurredAt).getTime(),
-      createdAt: new Date(row.createdAt).getTime(),
-      updatedAt: new Date(row.updatedAt),
-    }));
-  } catch (error) {
-    logPersistenceWarning("Exercise range read skipped", error);
-    return null;
-  }
+  return exercisesRepository.findByUserIdAndRange(userId, range.startAt, range.endAt);
 }
 
 async function loadWaterGoalFromDb(userId: number) {
@@ -2164,107 +1824,60 @@ async function loadWaterLogsFromDb(userId: number) {
 }
 
 async function loadWaterLogsFromDbByRange(userId: number, range: Required<OccurredAtRange>) {
-  const db = await getDb();
-  if (!db) return null;
-
-  try {
-    const rows = await db
-      .select()
-      .from(waterLogs)
-      .where(and(eq(waterLogs.userId, userId), gte(waterLogs.occurredAt, range.startAt), lt(waterLogs.occurredAt, range.endAt)))
-      .orderBy(desc(waterLogs.occurredAt));
-    return rows.map((row: typeof waterLogs.$inferSelect) => ({
-      ...row,
-      occurredAt: new Date(row.occurredAt).getTime(),
-      createdAt: new Date(row.createdAt).getTime(),
-      updatedAt: new Date(row.updatedAt),
-    }));
-  } catch (error) {
-    logPersistenceWarning("Water log range read skipped", error);
-    return null;
-  }
+  return waterRepository.findLogsByUserIdAndRange(userId, range.startAt, range.endAt);
 }
 
 async function loadWeightEntriesFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
-
-  try {
-    const rows = await db.select().from(weightEntries).where(eq(weightEntries.userId, userId));
-    return rows
-      .map(row => ({
-        ...row,
-        measuredAt: new Date(row.measuredAt),
-        createdAt: new Date(row.createdAt),
-        updatedAt: new Date(row.updatedAt),
-      }))
-      .sort((a, b) => b.measuredAt.getTime() - a.measuredAt.getTime());
-  } catch (error) {
-    logPersistenceWarning("Weight entries read skipped", error);
-    return null;
-  }
+  return weightRepository.findByUserId(userId);
 }
 
 async function loadHabitsFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
+  const rows = await habitsRepository.findRawByUserId(userId);
+  if (!rows) return null;
+  if (!rows.length) return [];
 
-  try {
-    const rows = await db.select().from(habitMemories).where(eq(habitMemories.userId, userId));
-    if (!rows.length) return [];
-
-    const aggregate = new Map<string, HabitMemoryState>();
-    for (const row of rows) {
-      const current = aggregate.get(row.foodName);
-      const lastSeenAt = new Date(row.lastSeenAt).getTime();
-      if (!current) {
-        aggregate.set(row.foodName, {
-          foodName: row.foodName,
-          typicalMealLabel: row.typicalMealLabel ?? undefined,
-          preferredPortionGrams: row.preferredPortionGrams,
-          notes: row.notes ?? undefined,
-          occurrenceCount: row.occurrenceCount,
-          lastSeenAt,
-        });
-        continue;
-      }
-
+  const aggregate = new Map<string, HabitMemoryState>();
+  for (const row of rows) {
+    const current = aggregate.get(row.foodName);
+    const lastSeenAt = new Date(row.lastSeenAt).getTime();
+    if (!current) {
       aggregate.set(row.foodName, {
         foodName: row.foodName,
-        typicalMealLabel: lastSeenAt >= current.lastSeenAt ? row.typicalMealLabel ?? current.typicalMealLabel : current.typicalMealLabel,
-        preferredPortionGrams: lastSeenAt >= current.lastSeenAt ? row.preferredPortionGrams : current.preferredPortionGrams,
-        notes: lastSeenAt >= current.lastSeenAt ? row.notes ?? current.notes : current.notes,
-        occurrenceCount: current.occurrenceCount + row.occurrenceCount,
-        lastSeenAt: Math.max(current.lastSeenAt, lastSeenAt),
+        typicalMealLabel: row.typicalMealLabel ?? undefined,
+        preferredPortionGrams: row.preferredPortionGrams,
+        notes: row.notes ?? undefined,
+        occurrenceCount: row.occurrenceCount,
+        lastSeenAt,
       });
+      continue;
     }
 
-    return Array.from(aggregate.values()).sort((a, b) => b.occurrenceCount - a.occurrenceCount || b.lastSeenAt - a.lastSeenAt);
-  } catch (error) {
-    logPersistenceWarning("Habit read skipped", error);
-    return null;
+    aggregate.set(row.foodName, {
+      foodName: row.foodName,
+      typicalMealLabel: lastSeenAt >= current.lastSeenAt ? row.typicalMealLabel ?? current.typicalMealLabel : current.typicalMealLabel,
+      preferredPortionGrams: lastSeenAt >= current.lastSeenAt ? row.preferredPortionGrams : current.preferredPortionGrams,
+      notes: lastSeenAt >= current.lastSeenAt ? row.notes ?? current.notes : current.notes,
+      occurrenceCount: current.occurrenceCount + row.occurrenceCount,
+      lastSeenAt: Math.max(current.lastSeenAt, lastSeenAt),
+    });
   }
+
+  return Array.from(aggregate.values()).sort((a, b) => b.occurrenceCount - a.occurrenceCount || b.lastSeenAt - a.lastSeenAt);
 }
 
 async function loadRecentLogsFromDb() {
-  const db = await getDb();
-  if (!db) return null;
+  const rows = await logsRepository.findRecent(20);
+  if (!rows) return null;
 
-  try {
-    const rows = await db.select().from(inferenceLogs).orderBy(desc(inferenceLogs.createdAt)).limit(20);
-    return rows.map(row => ({
-      id: String(row.id),
-      userId: row.userId ?? undefined,
-      origin: row.origin,
-      status: row.status,
-      eventType: row.eventType,
-      detail: row.detail,
-      createdAt: new Date(row.createdAt).getTime(),
-    } satisfies AdminLogEntry));
-  } catch (error) {
-    logPersistenceWarning("Log read skipped", error);
-    return null;
-  }
+  return rows.map(row => ({
+    id: String(row.id),
+    userId: row.userId ?? undefined,
+    origin: row.origin,
+    status: row.status,
+    eventType: row.eventType,
+    detail: row.detail,
+    createdAt: new Date(row.createdAt).getTime(),
+  } satisfies AdminLogEntry));
 }
 
 async function getStoredNutritionGoals(userId: number) {
@@ -2409,8 +2022,7 @@ export async function getPendingInferenceFromDb(draftId: string) {
   if (!db) return undefined;
 
   try {
-    const rows = await db.select().from(mealInferences).where(eq(mealInferences.draftId, draftId)).limit(1);
-    const row = rows[0];
+    const row = await mealsRepository.findInferenceByDraftId(draftId);
     if (!row) return undefined;
 
     const requestText = row.sourceText ?? row.requestSummary ?? "";
@@ -2655,7 +2267,7 @@ export async function listFavoriteMeals(userId: number) {
   const db = await getDb();
   if (db) {
     try {
-      const rows = await db.select().from(mealFavorites).where(eq(mealFavorites.userId, userId));
+      const rows = await mealsRepository.findFavoritesByUserId(userId);
       const favorites = rows.map(row => ({
         id: row.id,
         userId: row.userId,
@@ -2713,18 +2325,12 @@ export async function saveFavoriteMeal(input: {
   const db = await getDb();
   if (db) {
     try {
-      await db.insert(mealFavorites).values({
+      await mealsRepository.upsertFavorite({
         userId: input.userId,
         name: favorite.name,
         mealLabel: favorite.mealLabel,
-        notes: favorite.notes ?? null,
+        notes: favorite.notes,
         itemsJson: JSON.stringify(favorite.items),
-      }).onDuplicateKeyUpdate({
-        set: {
-          mealLabel: favorite.mealLabel,
-          notes: favorite.notes ?? null,
-          itemsJson: JSON.stringify(favorite.items),
-        },
       });
     } catch (error) {
       logPersistenceWarning("Meal favorite persistence skipped", error);
@@ -3381,10 +2987,9 @@ export async function getDashboardSnapshot(userId: number) {
 export async function getKnownUsers(): Promise<User[]> {
   const db = await getDb();
   if (db) {
-    try {
-      return await db.select().from(users).orderBy(desc(users.lastSignedIn)).limit(25);
-    } catch {
-      // continue with synthetic list
+    const recentUsers = await usersRepository.listRecent(25);
+    if (recentUsers) {
+      return recentUsers;
     }
   }
 
@@ -3410,15 +3015,15 @@ export async function getAdminSnapshot() {
 
   if (db) {
     try {
-      const [mealRows, recentLogs] = await Promise.all([
-        db.select().from(meals),
+      const [mealsCount, recentLogs] = await Promise.all([
+        mealsRepository.countConfirmed(),
         loadRecentLogsFromDb(),
       ]);
 
       return {
         usage: {
           usersCount: usersList.length,
-          mealsCount: mealRows.filter(row => row.status === "confirmed").length,
+          mealsCount,
           pendingInferences: inferenceStore.size,
           logsCount: recentLogs?.length ?? adminLogStore.length,
         },
@@ -3460,7 +3065,7 @@ export async function exportUserPrivacyData(userId: number) {
   const db = await getDb();
   const [profile, goals, mealsForUser, exercisesForUser, waterGoal, waterLogsForUser, weeklyProgress, whatsappConnection] =
     await Promise.all([
-      db ? db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1) : Promise.resolve([]),
+      db ? userProfileRepository.findProfileByUserId(userId) : Promise.resolve(undefined),
       getStoredNutritionGoals(userId),
       listUserMeals(userId),
       listUserExercises(userId),
@@ -3470,9 +3075,9 @@ export async function exportUserPrivacyData(userId: number) {
       getUserWhatsappConnection(userId),
     ]);
 
-  const dbUser = db ? await db.select().from(users).where(eq(users.id, userId)).limit(1) : [];
-  const dbPreferences = db ? await db.select().from(userPreferences).where(eq(userPreferences.userId, userId)) : [];
-  const dbRestrictions = db ? await db.select().from(userRestrictions).where(eq(userRestrictions.userId, userId)) : [];
+  const dbUser = db ? await usersRepository.findById(userId) : undefined;
+  const dbPreferences = db ? await userProfileRepository.findPreferencesByUserId(userId) : [];
+  const dbRestrictions = db ? await userProfileRepository.findRestrictionsByUserId(userId) : [];
 
   return {
     exportedAt: new Date().toISOString(),
@@ -3481,19 +3086,19 @@ export async function exportUserPrivacyData(userId: number) {
       scope: "Dados principais da conta, rotina alimentar, metas, peso, hidratação, exercícios, preferências e consentimentos ativos.",
       sensitiveDataNotice: "Este arquivo pode conter dados pessoais e dados sensíveis de saúde.",
     },
-    account: dbUser[0]
+    account: dbUser
       ? {
-          id: dbUser[0].id,
-          name: dbUser[0].name,
-          email: dbUser[0].email,
-          loginMethod: dbUser[0].loginMethod,
-          role: dbUser[0].role,
-          createdAt: dbUser[0].createdAt,
-          updatedAt: dbUser[0].updatedAt,
-          lastSignedIn: dbUser[0].lastSignedIn,
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          loginMethod: dbUser.loginMethod,
+          role: dbUser.role,
+          createdAt: dbUser.createdAt,
+          updatedAt: dbUser.updatedAt,
+          lastSignedIn: dbUser.lastSignedIn,
         }
       : { id: userId },
-    profile: profile[0] ?? onboardingProfileStore.get(userId) ?? null,
+    profile: profile ?? onboardingProfileStore.get(userId) ?? null,
     nutritionGoals: goals,
     meals: mealsForUser,
     favoriteMeals: favoriteMealStore.get(userId) ?? [],
@@ -3546,29 +3151,7 @@ function deleteUserMemoryData(userId: number) {
 export async function requestUserAccountDeletion(userId: number) {
   const db = await getDb();
   if (db) {
-    const mealIdsForUser = db.select({ id: meals.id }).from(meals).where(eq(meals.userId, userId));
-    await db.delete(mealItems).where(inArray(mealItems.mealId, mealIdsForUser));
-    await db.delete(mealMedia).where(inArray(mealMedia.mealId, mealIdsForUser));
-    await db.delete(mealInferences).where(eq(mealInferences.userId, userId));
-    await db.delete(inferenceLogs).where(eq(inferenceLogs.userId, userId));
-    await db.delete(foodFavorites).where(eq(foodFavorites.userId, userId));
-    await db.delete(mealFavorites).where(eq(mealFavorites.userId, userId));
-    await db.delete(habitMemories).where(eq(habitMemories.userId, userId));
-    await db.delete(dailySummaries).where(eq(dailySummaries.userId, userId));
-    await db.delete(exercises).where(eq(exercises.userId, userId));
-    await db.delete(waterLogs).where(eq(waterLogs.userId, userId));
-    await db.delete(waterGoals).where(eq(waterGoals.userId, userId));
-    await db.delete(weightEntries).where(eq(weightEntries.userId, userId));
-    await db.delete(userPreferences).where(eq(userPreferences.userId, userId));
-    await db.delete(userRestrictions).where(eq(userRestrictions.userId, userId));
-    await db.delete(userBadges).where(eq(userBadges.userId, userId));
-    await db.delete(userGamificationSettings).where(eq(userGamificationSettings.userId, userId));
-    await db.delete(whatsappConnections).where(eq(whatsappConnections.userId, userId));
-    await db.update(foodCatalog).set({ createdByUserId: null }).where(eq(foodCatalog.createdByUserId, userId));
-    await db.update(appSecrets).set({ updatedByUserId: null }).where(eq(appSecrets.updatedByUserId, userId));
-    await db.delete(userProfiles).where(eq(userProfiles.userId, userId));
-    await db.delete(meals).where(eq(meals.userId, userId));
-    await db.delete(users).where(eq(users.id, userId));
+    await accountRepository.purgeUserData(userId);
   }
 
   deleteUserMemoryData(userId);

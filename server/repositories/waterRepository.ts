@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { waterGoals, waterLogs } from "../../drizzle/schema";
 
 type DbProvider = () => Promise<any | null>;
@@ -25,6 +25,7 @@ export type WaterRepository = {
   findGoalByUserId(userId: number): Promise<WaterGoalRecord | null>;
   upsertGoal(goal: WaterGoalRecord): Promise<void>;
   findLogsByUserId(userId: number): Promise<WaterLogRecord[] | null>;
+  findLogsByUserIdAndRange(userId: number, startAt: Date, endAt: Date): Promise<WaterLogRecord[] | null>;
   insertLog(log: WaterLogRecord): Promise<void>;
   deleteLog(userId: number, waterLogId: number): Promise<void>;
 };
@@ -91,6 +92,28 @@ export function createDrizzleWaterRepository(deps: {
         }));
       } catch (error) {
         deps.onWarning("Water log read skipped", error);
+        return null;
+      }
+    },
+
+    async findLogsByUserIdAndRange(userId, startAt, endAt) {
+      const db = await deps.getDb();
+      if (!db) return null;
+
+      try {
+        const rows = await db
+          .select()
+          .from(waterLogs)
+          .where(and(eq(waterLogs.userId, userId), gte(waterLogs.occurredAt, startAt), lt(waterLogs.occurredAt, endAt)))
+          .orderBy(desc(waterLogs.occurredAt));
+        return rows.map((row: typeof waterLogs.$inferSelect) => ({
+          ...row,
+          occurredAt: new Date(row.occurredAt).getTime(),
+          createdAt: new Date(row.createdAt).getTime(),
+          updatedAt: new Date(row.updatedAt),
+        }));
+      } catch (error) {
+        deps.onWarning("Water log range read skipped", error);
         return null;
       }
     },
