@@ -51,8 +51,43 @@ jobs:
 
       - name: Database integrity check
         if: ${{ env.DATABASE_URL != '' }}
-        run: pnpm db:check-integrity
+        run: |
+          pnpm db:check-integrity
+          {
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo "- pnpm db:check-integrity"
+            echo ""
+            echo "Database integrity: executed with DATABASE_URL."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Database integrity check skipped
         if: ${{ env.DATABASE_URL == '' }}
-        run: echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
+        run: |
+          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
+          {
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo ""
+            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"
