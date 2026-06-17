@@ -156,20 +156,22 @@ describe("ReportsPage weight trend", () => {
     const html = renderToString(React.createElement(ReportsPage));
 
     expect(html).toContain("Evolução do peso e aderência");
-    expect(html).toContain("Ainda não há registros de peso no período selecionado");
+    expect(html).toContain("Ainda não há peso registrado para compor a leitura da semana");
   });
 
-  it("orienta o usuário quando existe apenas um registro de peso", async () => {
+  it("resume o peso quando existe apenas um registro", async () => {
     reportWeightEntries.current = [{ id: 1, date: "2026-06-15", label: "15 jun.", weightKg: 82, notes: null }];
 
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("Peso inicial");
-    expect(html).toContain("Registre pelo menos dois pesos no período para visualizar a curva de evolução");
+    expect(html).toContain("Inicial");
+    expect(html).toContain("Atual");
+    expect(html).toContain("Variação");
+    expect(html).toContain("Aderência calórica");
   });
 
-  it("renderiza o gráfico quando há múltiplos registros de peso", async () => {
+  it("resume a variação quando há múltiplos registros de peso", async () => {
     reportWeightEntries.current = [
       { id: 1, date: "2026-06-15", label: "15 jun.", weightKg: 82, notes: null },
       { id: 2, date: "2026-06-16", label: "16 jun.", weightKg: 81.5, notes: null },
@@ -178,7 +180,9 @@ describe("ReportsPage weight trend", () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("data-chart=\"weight-line\"");
-    expect(html).not.toContain("Registre pelo menos dois pesos no período para visualizar a curva de evolução");
+    expect(html).toContain("Inicial");
+    expect(html).toContain("Atual");
+    expect(html).toContain("Variação");
+    expect(html).not.toContain("Ainda não há peso registrado para compor a leitura da semana");
   });
 });
