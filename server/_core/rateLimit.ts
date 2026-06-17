@@ -104,15 +104,15 @@ export function consumeRateLimit(key: string, options: RateLimitOptions, now = D
   };
 }
 
-function setRateLimitHeaders(
-  target: { setHeader(name: string, value: string): void },
-  result: RateLimitResult
-) {
-  target.setHeader("X-RateLimit-Limit", String(result.limit));
-  target.setHeader("X-RateLimit-Remaining", String(result.remaining));
-  target.setHeader("X-RateLimit-Reset", String(Math.ceil(result.resetAt / 1000)));
+function setRateLimitHeaders(target: unknown, result: RateLimitResult) {
+  const setHeader = (target as { setHeader?: (name: string, value: string) => void })?.setHeader;
+  if (typeof setHeader !== "function") return;
+
+  setHeader.call(target, "X-RateLimit-Limit", String(result.limit));
+  setHeader.call(target, "X-RateLimit-Remaining", String(result.remaining));
+  setHeader.call(target, "X-RateLimit-Reset", String(Math.ceil(result.resetAt / 1000)));
   if (!result.allowed) {
-    target.setHeader("Retry-After", String(result.retryAfterSeconds));
+    setHeader.call(target, "Retry-After", String(result.retryAfterSeconds));
   }
 }
 
