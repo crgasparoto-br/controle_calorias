@@ -364,8 +364,8 @@ const overviewData = {
     adherence: 25,
   },
   weekly: [
-    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, waterConsumedMl: 900, waterGoalMl: 2500, quality: { proteinGrams: 150, fiberGrams: 22, waterMl: 900, fruitServings: 2, vegetableServings: 2, ultraProcessedServings: 0, mealCount: 2, regularityScore: 80 }, goalCalories: 2200, status: "within", calorieDelta: -100, netDelta: -400 },
-    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, waterConsumedMl: 1300, waterGoalMl: 2500, quality: { proteinGrams: 140, fiberGrams: 18, waterMl: 1300, fruitServings: 1, vegetableServings: 2, ultraProcessedServings: 1, mealCount: 2, regularityScore: 75 }, goalCalories: 2200, status: "below", calorieDelta: -300, netDelta: -520 },
+    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, waterConsumedMl: 900, waterGoalMl: 2500, quality: { proteinGrams: 150, fiberGrams: 22, waterMl: 900, fruitServings: 2, vegetableServings: 2, ultraProcessedServings: 0, mealCount: 2, regularityScore: 80 }, goalCalories: 2200, adjustedGoalCalories: 2200, goalProtein: 160, goalCarbs: 240, goalFat: 70, status: "within", calorieDelta: -100, netDelta: -400 },
+    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, waterConsumedMl: 1300, waterGoalMl: 2500, quality: { proteinGrams: 140, fiberGrams: 18, waterMl: 1300, fruitServings: 1, vegetableServings: 2, ultraProcessedServings: 1, mealCount: 2, regularityScore: 75 }, goalCalories: 2200, adjustedGoalCalories: 2200, goalProtein: 160, goalCarbs: 240, goalFat: 70, status: "below", calorieDelta: -300, netDelta: -520 },
   ],
   meals: [
     {
@@ -667,7 +667,13 @@ describe("nutrition pages", () => {
     expect(html).toContain("Distribuição de macronutrientes");
     expect(html).toContain("Refeições detalhadas");
     expect(html).toContain("Total da semana");
-    expect(html).toContain("Proteína média");
+    expect(html).toContain("Macros realizados");
+    expect(html).toContain("Aderência semanal às metas");
+    expect(html).toContain("Macronutrientes planejados vs realizados");
+    expect(html).toContain("Proteínas");
+    expect(html).toContain("Carboidratos");
+    expect(html).toContain("Gorduras");
+    expect(html).toContain("g/kg/dia");
     expect(html).toContain("Calorias líquidas");
   });
 
