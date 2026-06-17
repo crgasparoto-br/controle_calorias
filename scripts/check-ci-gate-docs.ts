@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 const workflow = readFileSync(".github/workflows/agent-check.yml", "utf8");
 const contributing = readFileSync("CONTRIBUTING.md", "utf8");
 const pullRequestTemplate = readFileSync(".github/pull_request_template.md", "utf8");
+const branchProtection = readFileSync(".github/branch-protection-main.md", "utf8");
 
 const failures: string[] = [];
 
@@ -36,13 +37,14 @@ requireText(workflow, "pnpm db:check-integrity", ".github/workflows/agent-check.
 requireText(workflow, "DATABASE_URL not available", ".github/workflows/agent-check.yml");
 requireText(workflow, "GITHUB_STEP_SUMMARY", ".github/workflows/agent-check.yml");
 
-for (const doc of [contributing, pullRequestTemplate]) {
-  requireText(doc, "Agent-first gate", "documentação de contribuição/PR");
-  requireText(doc, "DATABASE_URL", "documentação de contribuição/PR");
-  requireText(doc, "Vercel", "documentação de contribuição/PR");
+for (const doc of [contributing, pullRequestTemplate, branchProtection]) {
+  requireText(doc, "Agent-first gate", "documentação de contribuição/PR/branch protection");
+  requireText(doc, "DATABASE_URL", "documentação de contribuição/PR/branch protection");
+  requireText(doc, "Vercel", "documentação de contribuição/PR/branch protection");
 }
 
 requireText(contributing, "Required status check", "CONTRIBUTING.md");
+requireText(branchProtection, "Required status check: `Agent-first gate`", ".github/branch-protection-main.md");
 requireText(pullRequestTemplate, "db:check-integrity", ".github/pull_request_template.md");
 
 if (failures.length > 0) {
