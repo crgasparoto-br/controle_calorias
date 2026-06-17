@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { users, type User, type UserWithPasswordHash } from "../../drizzle/schema";
 import * as db from "../db";
+import { canUseMemoryPersistenceFallback } from "../repositories/memoryFallback";
 import { hashPassword, passwordHashNeedsUpgrade, verifyPassword } from "./passwords";
 
 type LocalUserWithPassword = UserWithPasswordHash;
@@ -22,6 +23,12 @@ function stripPasswordHash(user: LocalUserWithPassword): User {
 
 function buildLocalOpenId() {
   return `local:${crypto.randomUUID()}`;
+}
+
+function assertMemoryPersistenceFallbackAllowed() {
+  if (!canUseMemoryPersistenceFallback()) {
+    throw new Error("DATABASE_UNAVAILABLE");
+  }
 }
 
 function createMemoryUser(input: { name: string; email: string; passwordHash: string }): User {
@@ -86,6 +93,7 @@ export async function registerLocalUser(input: { name: string; email: string; pa
   const database = await db.getDb();
 
   if (!database) {
+    assertMemoryPersistenceFallbackAllowed();
     return createMemoryUser({ name: input.name.trim(), email: normalizedEmail, passwordHash });
   }
 
@@ -137,6 +145,7 @@ export async function authenticateLocalUser(input: { email: string; password: st
   const database = await db.getDb();
 
   if (!database) {
+    assertMemoryPersistenceFallbackAllowed();
     const memoryUserId = memoryUserIdsByEmail.get(normalizedEmail);
     const memoryUser = memoryUserId ? memoryUsersById.get(memoryUserId) : null;
     if (!memoryUser || !(await verifyPassword(input.password, memoryUser.passwordHash))) {
@@ -168,6 +177,7 @@ export async function getLocalUserById(userId: number) {
   const database = await db.getDb();
 
   if (!database) {
+    assertMemoryPersistenceFallbackAllowed();
     const memoryUser = memoryUsersById.get(userId);
     return memoryUser ? stripPasswordHash(memoryUser) : undefined;
   }
