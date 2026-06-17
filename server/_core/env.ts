@@ -4,14 +4,9 @@ type OptionalFeatureConfig = {
   disabledMessage: string;
 };
 
-const REQUIRED_PRODUCTION_ENV = ["JWT_SECRET"] as const;
+const REQUIRED_PRODUCTION_ENV = ["JWT_SECRET", "DATABASE_URL"] as const;
 
 const OPTIONAL_FEATURES: OptionalFeatureConfig[] = [
-  {
-    name: "Database persistence",
-    variables: ["DATABASE_URL"],
-    disabledMessage: "database persistence disabled; runtime will use in-memory fallbacks where supported",
-  },
   {
     name: "OpenAI provider",
     variables: ["OPENAI_API_KEY"],
