@@ -1,11 +1,12 @@
 import "dotenv/config";
-import express from "express";
+import express, { type RequestHandler } from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { validateRuntimeEnv } from "./env";
+import { PAYLOAD_LIMITS, RATE_LIMITS, createExpressRateLimit } from "./rateLimit";
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/stravaScheduler";
@@ -13,6 +14,27 @@ import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdemp
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
 import { RuntimeSchemaCompatibilityError, ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
+
+const MEDIA_TRPC_PATHS = [
+  "/api/trpc/nutrition.foodPhotoAnalysis.analyze",
+  "/api/trpc/nutrition.meals.processDraft",
+];
+
+function isMediaTrpcRequest(originalUrl: string) {
+  const pathname = originalUrl.split("?")[0] ?? "";
+  return MEDIA_TRPC_PATHS.some(path => pathname === path || pathname.startsWith(`${path}/`));
+}
+
+function skipForMediaTrpcRequests(parser: RequestHandler): RequestHandler {
+  return (req, res, next) => {
+    if (isMediaTrpcRequest(req.originalUrl)) {
+      next();
+      return;
+    }
+
+    parser(req, res, next);
+  };
+}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -59,16 +81,29 @@ async function startServer() {
     console.warn("[Nutrition] Food catalog sync skipped:", error);
   }
   startStravaAutoSyncScheduler();
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  const defaultJsonParser = express.json({ limit: PAYLOAD_LIMITS.defaultJson });
+  const defaultUrlencodedParser = express.urlencoded({ limit: PAYLOAD_LIMITS.defaultJson, extended: true });
+  const mediaJsonParser = express.json({ limit: PAYLOAD_LIMITS.mediaJson });
+  const webhookRateLimit = createExpressRateLimit(RATE_LIMITS.whatsappWebhook);
+
+  app.use(MEDIA_TRPC_PATHS, mediaJsonParser);
+  app.use("/api/trpc", skipForMediaTrpcRequests(defaultJsonParser));
+  app.use("/api/trpc", skipForMediaTrpcRequests(defaultUrlencodedParser));
+
   app.get("/api/health-integrations/strava/callback", (req, res) => {
     void handleStravaOAuthCallback(req, res);
   });
-  app.get("/api/whatsapp/webhook", verifyWhatsAppWebhook);
-  app.post("/api/whatsapp/webhook", (req, res) => {
-    void handleWhatsAppWebhookWithImageIdempotency(req, res);
-  });
+  app.get("/api/whatsapp/webhook", webhookRateLimit, verifyWhatsAppWebhook);
+  app.post(
+    "/api/whatsapp/webhook",
+    webhookRateLimit,
+    express.json({ limit: PAYLOAD_LIMITS.webhookJson }),
+    express.urlencoded({ limit: PAYLOAD_LIMITS.webhookJson, extended: true }),
+    (req, res) => {
+      void handleWhatsAppWebhookWithImageIdempotency(req, res);
+    }
+  );
   // tRPC API
   app.use(
     "/api/trpc",
