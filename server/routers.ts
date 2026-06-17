@@ -4,9 +4,10 @@ import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import type { TrpcContext } from "./_core/context";
 import { authenticateLocalUser, registerLocalUser } from "./_core/localAuth";
+import { RATE_LIMITS } from "./_core/rateLimit";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, rateLimitedPublicProcedure, router } from "./_core/trpc";
 import { webWhatsappGreetingSchema } from "./modules/onboarding/schemas";
 import { sendWebOnboardingWhatsappGreeting } from "./modules/onboarding/webGreetingService";
 import {
@@ -28,6 +29,8 @@ const registerSchema = z.object({
 });
 
 const loginSchema = registerSchema.pick({ email: true, password: true });
+const authPublicProcedure = rateLimitedPublicProcedure(RATE_LIMITS.auth);
+const onboardingPublicProcedure = rateLimitedPublicProcedure(RATE_LIMITS.publicOnboarding);
 
 function sanitizeUser<T extends Record<string, unknown>>(user: T): Omit<T, "passwordHash"> {
   const { passwordHash: _passwordHash, ...safeUser } = user as T & { passwordHash?: unknown };
@@ -70,7 +73,7 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(async opts => opts.ctx.user ? sessionUser(opts.ctx.user) : null),
-    register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
+    register: authPublicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
       try {
         const user = await registerLocalUser(input);
         await setSessionCookie(ctx, user);
@@ -82,7 +85,7 @@ export const appRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar a conta." });
       }
     }),
-    login: publicProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {
+    login: authPublicProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {
       try {
         const user = await authenticateLocalUser(input);
         await setSessionCookie(ctx, user);
@@ -117,7 +120,7 @@ export const appRouter = router({
       }
     }),
     whatsappOnboarding: router({
-      validate: publicProcedure.input(whatsappOnboardingTokenSchema).query(async ({ input }) => {
+      validate: onboardingPublicProcedure.input(whatsappOnboardingTokenSchema).query(async ({ input }) => {
         const lead = await getWhatsappOnboardingLeadByToken(input.token);
         if (!lead) {
           throw new TRPCError({
@@ -127,7 +130,7 @@ export const appRouter = router({
         }
         return lead;
       }),
-      complete: publicProcedure.input(whatsappOnboardingCompleteSchema).mutation(async ({ input, ctx }) => {
+      complete: onboardingPublicProcedure.input(whatsappOnboardingCompleteSchema).mutation(async ({ input, ctx }) => {
         try {
           const user = await completeWhatsappOnboarding(input);
           await setSessionCookie(ctx, user);
