@@ -42,7 +42,7 @@ import {
 import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Mail, ShieldAlert, UserPlus } from "lucide-react";
+import { Mail, ShieldAlert, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -81,10 +81,20 @@ const MACRO_META: Array<{ key: MacroKey; title: string; goalKey: "goalProtein" |
   { key: "carbs", title: "Carboidratos", goalKey: "goalCarbs" },
   { key: "fat", title: "Gorduras", goalKey: "goalFat" },
 ];
+const ACCESS_STATUS_LABELS: Record<string, string> = {
+  pending: "Aguardando autorização",
+  approved: "Autorizado",
+  rejected: "Recusado",
+  revoked: "Revogado",
+};
 
 function numberValue(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function accessStatusLabel(status: string) {
+  return ACCESS_STATUS_LABELS[status] ?? status;
 }
 
 function personLabel(access: PatientAccess) {
@@ -199,6 +209,7 @@ export default function ProfessionalReportsPage() {
   const weekOffset = React.useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
   const approvedAccesses = React.useMemo<PatientAccess[]>(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => access.status === "approved"), [accesses.data]);
   const pendingAccesses = React.useMemo(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => access.status === "pending"), [accesses.data]);
+  const nonApprovedAccesses = React.useMemo<PatientAccess[]>(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => access.status !== "approved"), [accesses.data]);
   const selectedAccess = approvedAccesses.find(access => access.patientUserId === selectedPatientId) ?? null;
   const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery({ patientId: selectedPatientId ?? 0, weekOffset }, { enabled: hasActiveProfile && Boolean(selectedPatientId) });
   const periodBundle = trpc.nutrition.professionals.patientPeriodBundle.useQuery({ patientId: selectedPatientId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: hasActiveProfile && Boolean(selectedPatientId) && periodScope !== "week" });
@@ -208,13 +219,30 @@ export default function ProfessionalReportsPage() {
     if (selectedPatientId && approvedAccesses.length && !approvedAccesses.some(access => access.patientUserId === selectedPatientId)) setSelectedPatientId(approvedAccesses[0].patientUserId);
   }, [approvedAccesses, selectedPatientId]);
 
+  const invalidateAccesses = async () => {
+    await Promise.all([
+      utils.auth.me.invalidate(),
+      utils.nutrition.professionals.profile.invalidate(),
+      utils.nutrition.professionals.myAccesses.invalidate(),
+    ]);
+  };
+
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async () => {
       toast.success("Solicitação enviada. A pessoa acompanhada precisa autorizar antes do acesso.");
       setPatientContact("");
-      await Promise.all([utils.auth.me.invalidate(), utils.nutrition.professionals.profile.invalidate(), utils.nutrition.professionals.myAccesses.invalidate()]);
+      await invalidateAccesses();
     },
     onError: error => toast.error(error.message || "Não foi possível solicitar acesso."),
+  });
+
+  const revokeAccess = trpc.nutrition.professionals.revokeAccess.useMutation({
+    onSuccess: async () => {
+      toast.success("Vínculo revogado.");
+      setSelectedPatientId(null);
+      await invalidateAccesses();
+    },
+    onError: error => toast.error(error.message || "Não foi possível revogar o vínculo."),
   });
 
   const dashboardMeals = React.useMemo<MealSummary[]>(() => (((dashboard.data as any)?.meals ?? []) as MealSummary[]), [dashboard.data]);
@@ -265,7 +293,63 @@ export default function ProfessionalReportsPage() {
 
         {activeTab === "vinculos" ? (
           <section role="tabpanel" data-state="active" data-value="vinculos" className="space-y-6">
-            <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Vínculos de acompanhamento</CardTitle><CardDescription>Escolha uma pessoa autorizada ou envie um novo convite.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 lg:grid-cols-[1fr_1.4fr_auto] lg:items-end"><label className="space-y-2"><Label>E-mail ou celular</Label><Input value={patientContact} onChange={event => setPatientContact(event.target.value.trimStart())} placeholder="pessoa@exemplo.com" /></label><label className="space-y-2"><Label>Motivo</Label><Textarea value={reason} onChange={event => setReason(event.target.value)} className="min-h-11 lg:min-h-11" /></label><Button className="h-11 rounded-full" disabled={requestAccess.isPending || !patientContact.trim()} onClick={() => requestAccess.mutate({ patientContact: patientContact.trim(), reason })}><Mail className="mr-2 h-4 w-4" /> Enviar convite</Button></div>{selectedAccess ? <div className="flex flex-col gap-3 rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{personLabel(selectedAccess)}</p><p>{selectedAccess.patient?.email || `ID interno #${selectedAccess.patientUserId}`}</p><p>{accessDateLabel(selectedAccess)}</p></div><Button type="button" variant="outline" className="w-fit rounded-full" onClick={() => setActiveTab("analise")}>Analisar</Button></div> : !accesses.isLoading ? <ReportEmptyState text={pendingAccesses.length ? "Há convites aguardando autorização, mas nenhuma pessoa liberou acesso ainda." : "Nenhuma pessoa autorizou acompanhamento até agora."} /> : null}</CardContent></Card>
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Vínculos de acompanhamento</CardTitle>
+                <CardDescription>Envie convites, acompanhe autorizações e veja quem já compartilhou dados com você.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-3 lg:grid-cols-[1fr_1.4fr_auto] lg:items-end">
+                  <label className="space-y-2">
+                    <Label>E-mail ou celular da pessoa</Label>
+                    <Input value={patientContact} onChange={event => setPatientContact(event.target.value.trimStart())} placeholder="pessoa@exemplo.com ou (11) 99999-9999" />
+                  </label>
+                  <label className="space-y-2">
+                    <Label>Motivo do acompanhamento</Label>
+                    <Textarea value={reason} onChange={event => setReason(event.target.value)} className="min-h-11 lg:min-h-11" />
+                  </label>
+                  <Button className="h-11 rounded-full" disabled={requestAccess.isPending || !patientContact.trim()} onClick={() => requestAccess.mutate({ patientContact: patientContact.trim(), reason })}>
+                    <Mail className="mr-2 h-4 w-4" /> Enviar convite
+                  </Button>
+                </div>
+
+                {accesses.isLoading ? <InlineStatusMessage text="Carregando vínculos de acompanhamento..." /> : null}
+                {accesses.isError ? <InlineErrorMessage text="Não foi possível carregar seus vínculos. Tente novamente em instantes." /> : null}
+
+                {!accesses.isLoading && !accesses.isError ? (
+                  <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                    <div className="space-y-3">
+                      <SectionHeading title="Pessoas acompanhadas" description="Somente vínculos autorizados liberam análise, metas, registros recentes e comentários." />
+                      {approvedAccesses.length ? approvedAccesses.map(access => (
+                        <AccessRow
+                          key={access.id}
+                          access={access}
+                          selected={access.patientUserId === selectedPatientId}
+                          revoking={revokeAccess.isPending}
+                          onSelect={() => {
+                            setSelectedPatientId(access.patientUserId);
+                            setActiveTab("analise");
+                          }}
+                          onRevoke={() => revokeAccess.mutate({ accessId: access.id })}
+                        />
+                      )) : <ReportEmptyState text="Nenhuma pessoa autorizou acompanhamento até agora." />}
+                    </div>
+                    <div className="space-y-3">
+                      <SectionHeading title="Convites e autorizações" description="A pessoa acompanhada controla a autorização dos próprios dados." />
+                      {nonApprovedAccesses.length ? nonApprovedAccesses.map(access => (
+                        <div key={access.id} className="rounded-2xl border bg-background p-4 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-medium">{personLabel(access)}</p>
+                            <span className="rounded-full border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">{accessStatusLabel(access.status)}</span>
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">{accessDateLabel(access)}</p>
+                        </div>
+                      )) : <ReportEmptyState text="Nenhum convite pendente ou encerrado." />}
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
           </section>
         ) : null}
 
@@ -321,6 +405,38 @@ export default function ProfessionalReportsPage() {
         ) : null}
       </div>
     </DashboardLayout>
+  );
+}
+
+function SectionHeading({ title, description }: { title: string; description: string }) {
+  return <div><h2 className="text-base font-semibold tracking-tight">{title}</h2><p className="text-sm leading-6 text-muted-foreground">{description}</p></div>;
+}
+
+function InlineStatusMessage({ text }: { text: string }) {
+  return <div className="rounded-2xl border bg-muted/20 p-6 text-sm text-muted-foreground">{text}</div>;
+}
+
+function InlineErrorMessage({ text }: { text: string }) {
+  return <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">{text}</div>;
+}
+
+function AccessRow({ access, selected, onSelect, onRevoke, revoking }: { access: PatientAccess; selected: boolean; onSelect: () => void; onRevoke: () => void; revoking: boolean }) {
+  return (
+    <div className={`rounded-2xl border bg-background p-4 ${selected ? "ring-2 ring-primary/30" : ""}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-medium">{personLabel(access)}</p>
+          <p className="text-xs text-muted-foreground">{access.patient?.email || `ID interno #${access.patientUserId}`}</p>
+          <p className="text-xs text-muted-foreground">{accessDateLabel(access)}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant={selected ? "default" : "outline"} className="rounded-full" onClick={onSelect}>Analisar</Button>
+          <Button variant="outline" className="rounded-full" onClick={onRevoke} disabled={revoking}>
+            <X className="mr-2 h-4 w-4" /> Revogar vínculo
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
