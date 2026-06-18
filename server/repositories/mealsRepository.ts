@@ -296,6 +296,7 @@ export function createDrizzleMealsRepository(deps: {
       } catch (error) {
         try {
           await db.insert(mealInferences).values({
+            draftId: draft.draftId,
             userId: draft.userId,
             source: draft.source,
             requestSummary: draft.sourceText,
