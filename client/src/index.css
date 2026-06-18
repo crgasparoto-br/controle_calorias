@@ -179,10 +179,5 @@
     [data-slot="card"]:has(a[href="/meals"]):has(a[href="/registrar"]) {
       display: none;
     }
-
-    [data-state="active"]:has(> [data-professional-goal-exception-suggestions-root]) > :nth-child(2),
-    [data-professional-goal-exception-suggestions-root] {
-      display: none;
-    }
   }
 }
