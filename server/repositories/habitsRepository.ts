@@ -19,13 +19,14 @@ export type HabitsRepository = {
 };
 
 const MYSQL_INT_MAX = 2_147_483_647;
+const HABIT_OCCURRENCE_COUNT_MAX = 365;
 
-function clampInt(value: number, fallback: number) {
+function clampInt(value: number, fallback: number, max = MYSQL_INT_MAX) {
   if (!Number.isFinite(value)) {
     return fallback;
   }
 
-  return Math.min(Math.max(Math.trunc(value), 0), MYSQL_INT_MAX);
+  return Math.min(Math.max(Math.trunc(value), 0), max);
 }
 
 function sanitizeText(value: string | null | undefined, maxLength?: number) {
@@ -55,7 +56,7 @@ function sanitizeHabit(habit: HabitMemoryState) {
     typicalMealLabel: sanitizeText(habit.typicalMealLabel, 80),
     preferredPortionGrams,
     notes: sanitizeText(habit.notes),
-    occurrenceCount: clampInt(habit.occurrenceCount, 1),
+    occurrenceCount: clampInt(habit.occurrenceCount, 1, HABIT_OCCURRENCE_COUNT_MAX),
     lastSeenAt,
   };
 }
@@ -85,12 +86,19 @@ function buildHabitSnapshot(userId: number, habits: HabitMemoryState[]) {
       typicalMealLabel: useLatestDetails ? sanitized.typicalMealLabel : existing.typicalMealLabel,
       preferredPortionGrams: useLatestDetails ? sanitized.preferredPortionGrams : existing.preferredPortionGrams,
       notes: useLatestDetails ? sanitized.notes : existing.notes,
-      occurrenceCount: clampInt(existing.occurrenceCount + sanitized.occurrenceCount, 1),
+      occurrenceCount: clampInt(existing.occurrenceCount + sanitized.occurrenceCount, 1, HABIT_OCCURRENCE_COUNT_MAX),
       lastSeenAt: useLatestDetails ? sanitized.lastSeenAt : existing.lastSeenAt,
     });
   }
 
   return Array.from(byFoodName.values());
+}
+
+function withSafeOccurrenceCount<Row extends { occurrenceCount: number }>(row: Row): Row {
+  return {
+    ...row,
+    occurrenceCount: clampInt(row.occurrenceCount, 1, HABIT_OCCURRENCE_COUNT_MAX),
+  };
 }
 
 export function createDrizzleHabitsRepository(deps: {
@@ -103,7 +111,8 @@ export function createDrizzleHabitsRepository(deps: {
       if (!db) return null;
 
       try {
-        return await db.select().from(habitMemories).where(eq(habitMemories.userId, userId));
+        const rows = await db.select().from(habitMemories).where(eq(habitMemories.userId, userId));
+        return rows.map(withSafeOccurrenceCount);
       } catch (error) {
         deps.onWarning("Habit read skipped", error);
         return null;
