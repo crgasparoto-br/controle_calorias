@@ -55,7 +55,7 @@ function hasGeneratedImagePayload(image: GenerateImageResponse) {
 }
 
 function isLocalFallbackCard(image: GenerateImageResponse) {
-  return /fallback local/i.test(image.detail ?? "");
+  return /fallback local|fallback de classificação|provider de imagem (?:não configurado|falhou)/i.test(image.detail ?? "");
 }
 
 export async function generateAnnotatedMealImage(
