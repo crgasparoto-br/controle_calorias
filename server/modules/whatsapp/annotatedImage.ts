@@ -1,5 +1,4 @@
 import { generateImage, type GenerateImageResponse } from "../../_core/imageGeneration";
-import { isOpenAiConfigured } from "../../_core/openaiClient";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
 function formatMacro(value: number) {
@@ -69,13 +68,6 @@ export async function generateAnnotatedMealImage(
   }
 
   if (sourceImage) {
-    if (!isOpenAiConfigured()) {
-      return {
-        skippedReason: "not_configured",
-        detail: "Provider de imagem não configurado; a foto original não foi anotada.",
-      };
-    }
-
     const editedImage = await generateImage({
       prompt: buildAnnotatedMealImagePrompt(processed),
       originalImages: [sourceImage],
