@@ -293,14 +293,16 @@ async function generateFallbackImage(prompt: string, skippedReason: GenerateImag
       storageKey: upload.key || storageKey,
       mimeType: "image/png",
       buffer: imageBuffer,
-      skippedReason,
       detail,
     };
   } catch (error) {
+    console.warn(
+      "[ImageGeneration] Local fallback image was created but storage upload failed; sending buffer when possible.",
+      error instanceof Error ? error.message : error,
+    );
     return {
       mimeType: "image/png",
       buffer: imageBuffer,
-      skippedReason,
       detail: error instanceof Error ? `${detail} Fallback local falhou: ${error.message}` : detail,
     };
   }
@@ -320,6 +322,7 @@ export async function generateImage(
   }
 
   if (!isOpenAiConfigured()) {
+    console.warn("[ImageGeneration] OpenAI image generation is not configured; using local fallback image.");
     return generateFallbackImage(prompt, "not_configured", "Provider de imagem não configurado; fallback local de classificação gerado.");
   }
 
@@ -347,6 +350,10 @@ export async function generateImage(
       buffer: imageBuffer,
     };
   } catch (error) {
+    console.warn(
+      "[ImageGeneration] OpenAI image generation failed; using local fallback image.",
+      error instanceof Error ? error.message : error,
+    );
     return generateFallbackImage(
       prompt,
       "provider_failed",

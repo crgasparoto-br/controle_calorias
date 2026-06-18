@@ -48,7 +48,8 @@ describe("generateImage fallback", () => {
     expect(result.url).toMatch(/^https:\/\/storage\.test\/generated\/meal-support\/fallback-/);
     expect(result.storageKey).toMatch(/^generated\/meal-support\/fallback-/);
     expect(result.mimeType).toBe("image/png");
-    expect(result.skippedReason).toBe("not_configured");
+    expect(result.skippedReason).toBeUndefined();
+    expect(result.detail).toContain("Provider de imagem não configurado");
     expect(storagePutMock).toHaveBeenCalledOnce();
     const [, buffer, mimeType] = storagePutMock.mock.calls[0];
     expect(mimeType).toBe("image/png");
