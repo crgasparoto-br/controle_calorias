@@ -50,6 +50,10 @@ export function buildMealCardsImagePrompt(processed: MealProcessingResult) {
   ].join("\n");
 }
 
+function isGeneratedFallbackImage(image: GenerateImageResponse) {
+  return Boolean(image.skippedReason);
+}
+
 export async function generateAnnotatedMealImage(
   processed: MealProcessingResult,
   imageAnalysisUrl?: string,
@@ -65,9 +69,14 @@ export async function generateAnnotatedMealImage(
       originalImages: [sourceImage],
     });
 
-    if (editedImage.url) {
+    if (!isGeneratedFallbackImage(editedImage) && (editedImage.url || editedImage.buffer)) {
       return editedImage;
     }
+
+    return {
+      skippedReason: editedImage.skippedReason || "provider_failed",
+      detail: editedImage.detail || "A anotação da foto original não gerou uma imagem válida.",
+    };
   }
 
   return generateImage({
