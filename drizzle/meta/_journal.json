@@ -36,6 +36,13 @@
       "when": 1781740800000,
       "tag": "0004_align_meal_inferences_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781744400000,
+      "tag": "0005_habit_memories_indexes",
+      "breakpoints": true
     }
   ]
 }
