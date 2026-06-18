@@ -300,12 +300,10 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     ]);
   });
 
-  it("envia a imagem anotada por upload quando o fallback local não tem URL pública", async () => {
+  it("envia por upload a imagem editada quando ela existe só em buffer", async () => {
     generateImageMock.mockResolvedValue({
-      buffer: Buffer.from("fallback-png"),
+      buffer: Buffer.from("edited-photo-png"),
       mimeType: "image/png",
-      skippedReason: "provider_failed",
-      detail: "storage indisponível",
     });
     const req = createImageWebhookRequest("image-with-buffer-annotation");
     const res = createResponse();
@@ -325,6 +323,32 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(sentTextMessages).not.toContain("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
     expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
       eventType: "whatsapp.annotated_image_skipped",
+    }));
+  });
+
+  it("não envia card de fallback como se fosse foto anotada", async () => {
+    generateImageMock.mockResolvedValue({
+      buffer: Buffer.from("fallback-card-png"),
+      mimeType: "image/png",
+      skippedReason: "provider_failed",
+      detail: "Provider de imagem falhou; fallback local de classificação gerado.",
+    });
+    const req = createImageWebhookRequest("image-with-fallback-card");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(uploadedMediaRequests).toBe(0);
+    expect(sentImageMessages).toEqual([]);
+    expect(sentTextMessages.at(-1)).toBe("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.annotated_image_skipped",
+      detail: expect.stringContaining("fallback local"),
     }));
   });
 
