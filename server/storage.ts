@@ -29,6 +29,18 @@ const R2_REQUIRED_ENV = [
 let r2Client: S3Client | null = null;
 let r2ClientAccountId: string | null = null;
 
+function assertAbsoluteHttpUrl(value: string, envName: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throw new Error("invalid protocol");
+    }
+    return value.replace(/\/+$/, "");
+  } catch {
+    throw new Error(`${envName} must be an absolute URL starting with https:// or http://`);
+  }
+}
+
 function getR2Config(): R2StorageConfig | null {
   const config = {
     accountId: ENV.r2AccountId,
@@ -51,7 +63,10 @@ function getR2Config(): R2StorageConfig | null {
     );
   }
 
-  return config;
+  return {
+    ...config,
+    publicBaseUrl: assertAbsoluteHttpUrl(config.publicBaseUrl, "R2_PUBLIC_BASE_URL"),
+  };
 }
 
 function getForgeStorageConfig(): ForgeStorageConfig {
@@ -64,7 +79,10 @@ function getForgeStorageConfig(): ForgeStorageConfig {
     );
   }
 
-  return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
+  return {
+    baseUrl: assertAbsoluteHttpUrl(baseUrl, "BUILT_IN_FORGE_API_URL"),
+    apiKey,
+  };
 }
 
 function getStorageConfig(): StorageConfig {
