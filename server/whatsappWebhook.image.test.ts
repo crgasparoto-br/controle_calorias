@@ -357,7 +357,11 @@ describe("whatsappWebhook image inbound", () => {
 
     const imageSendCall = findFetchCallByBody('"type":"image"');
     expect(imageSendCall).toBeFalsy();
-    expect(findFetchCallByBody("A refeição foi registrada, mas não consegui gerar a imagem anotada agora")).toBeTruthy();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.annotated_image_skipped",
+      status: "warning",
+      detail: expect.stringContaining("fallback local"),
+    }));
   });
 
   it("analisa e registra imagem mesmo quando o storage da mídia falha", async () => {
