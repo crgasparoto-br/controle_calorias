@@ -1,21 +1,96 @@
-// Preconfigured storage helpers for backend templates
-// Uses the Biz-provided storage proxy (Authorization: Bearer <token>)
+// Storage helpers for backend-generated media.
+// Uses Cloudflare R2 when R2_* variables are configured, otherwise falls back to
+// the Biz-provided Forge storage proxy for existing environments.
 
-import { ENV } from './_core/env';
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { ENV } from "./_core/env";
 
-type StorageConfig = { baseUrl: string; apiKey: string };
+type ForgeStorageConfig = { baseUrl: string; apiKey: string };
+type R2StorageConfig = {
+  accountId: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  publicBaseUrl: string;
+};
 
-function getStorageConfig(): StorageConfig {
+type StorageConfig =
+  | { provider: "r2"; config: R2StorageConfig }
+  | { provider: "forge"; config: ForgeStorageConfig };
+
+const R2_REQUIRED_ENV = [
+  "R2_ACCOUNT_ID",
+  "R2_BUCKET",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_PUBLIC_BASE_URL",
+] as const;
+
+let r2Client: S3Client | null = null;
+let r2ClientAccountId: string | null = null;
+
+function getR2Config(): R2StorageConfig | null {
+  const config = {
+    accountId: ENV.r2AccountId,
+    bucket: ENV.r2Bucket,
+    accessKeyId: ENV.r2AccessKeyId,
+    secretAccessKey: ENV.r2SecretAccessKey,
+    publicBaseUrl: ENV.r2PublicBaseUrl,
+  };
+  const values = Object.values(config);
+  const hasAnyR2Config = values.some(Boolean);
+
+  if (!hasAnyR2Config) {
+    return null;
+  }
+
+  const missing = R2_REQUIRED_ENV.filter((name) => !process.env[name]?.trim());
+  if (missing.length) {
+    throw new Error(
+      `R2 storage credentials missing: set ${missing.join(", ")}`,
+    );
+  }
+
+  return config;
+}
+
+function getForgeStorageConfig(): ForgeStorageConfig {
   const baseUrl = ENV.forgeApiUrl;
   const apiKey = ENV.forgeApiKey;
 
   if (!baseUrl || !apiKey) {
     throw new Error(
-      "Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
+      "Storage credentials missing: configure R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_PUBLIC_BASE_URL, or set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY",
     );
   }
 
   return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
+}
+
+function getStorageConfig(): StorageConfig {
+  const r2Config = getR2Config();
+  if (r2Config) {
+    return { provider: "r2", config: r2Config };
+  }
+
+  return { provider: "forge", config: getForgeStorageConfig() };
+}
+
+function getR2Client(config: R2StorageConfig) {
+  if (!r2Client || r2ClientAccountId !== config.accountId) {
+    r2Client = new S3Client({
+      region: "auto",
+      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+    });
+    r2ClientAccountId = config.accountId;
+  }
+
+  return r2Client;
 }
 
 function buildUploadUrl(baseUrl: string, relKey: string): URL {
@@ -27,11 +102,11 @@ function buildUploadUrl(baseUrl: string, relKey: string): URL {
 async function buildDownloadUrl(
   baseUrl: string,
   relKey: string,
-  apiKey: string
+  apiKey: string,
 ): Promise<string> {
   const downloadApiUrl = new URL(
     "v1/storage/downloadUrl",
-    ensureTrailingSlash(baseUrl)
+    ensureTrailingSlash(baseUrl),
   );
   downloadApiUrl.searchParams.set("path", normalizeKey(relKey));
   const response = await fetch(downloadApiUrl, {
@@ -57,10 +132,18 @@ function appendHashSuffix(relKey: string): string {
   return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
 }
 
+function buildR2PublicUrl(publicBaseUrl: string, key: string) {
+  const encodedKey = normalizeKey(key)
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return new URL(encodedKey, ensureTrailingSlash(publicBaseUrl)).toString();
+}
+
 function toFormData(
   data: Buffer | Uint8Array | string,
   contentType: string,
-  fileName: string
+  fileName: string,
 ): FormData {
   const blob =
     typeof data === "string"
@@ -75,36 +158,80 @@ function buildAuthHeaders(apiKey: string): HeadersInit {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
-export async function storagePut(
-  relKey: string,
+async function putToForgeStorage(
+  config: ForgeStorageConfig,
+  key: string,
   data: Buffer | Uint8Array | string,
-  contentType = "application/octet-stream"
-): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
-  const key = appendHashSuffix(normalizeKey(relKey));
-  const uploadUrl = buildUploadUrl(baseUrl, key);
+  contentType: string,
+) {
+  const uploadUrl = buildUploadUrl(config.baseUrl, key);
   const formData = toFormData(data, contentType, key.split("/").pop() ?? key);
   const response = await fetch(uploadUrl, {
     method: "POST",
-    headers: buildAuthHeaders(apiKey),
+    headers: buildAuthHeaders(config.apiKey),
     body: formData,
   });
 
   if (!response.ok) {
     const message = await response.text().catch(() => response.statusText);
     throw new Error(
-      `Storage upload failed (${response.status} ${response.statusText}): ${message}`
+      `Storage upload failed (${response.status} ${response.statusText}): ${message}`,
     );
   }
   const url = (await response.json()).url;
   return { key, url };
 }
 
-export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
-  const { baseUrl, apiKey } = getStorageConfig();
-  const key = normalizeKey(relKey);
+async function putToR2Storage(
+  config: R2StorageConfig,
+  key: string,
+  data: Buffer | Uint8Array | string,
+  contentType: string,
+) {
+  const client = getR2Client(config);
+  await client.send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: data,
+      ContentType: contentType,
+    }),
+  );
+
   return {
     key,
-    url: await buildDownloadUrl(baseUrl, key, apiKey),
+    url: buildR2PublicUrl(config.publicBaseUrl, key),
+  };
+}
+
+export async function storagePut(
+  relKey: string,
+  data: Buffer | Uint8Array | string,
+  contentType = "application/octet-stream",
+): Promise<{ key: string; url: string }> {
+  const storage = getStorageConfig();
+  const key = appendHashSuffix(normalizeKey(relKey));
+
+  if (storage.provider === "r2") {
+    return putToR2Storage(storage.config, key, data, contentType);
+  }
+
+  return putToForgeStorage(storage.config, key, data, contentType);
+}
+
+export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
+  const storage = getStorageConfig();
+  const key = normalizeKey(relKey);
+
+  if (storage.provider === "r2") {
+    return {
+      key,
+      url: buildR2PublicUrl(storage.config.publicBaseUrl, key),
+    };
+  }
+
+  return {
+    key,
+    url: await buildDownloadUrl(storage.config.baseUrl, key, storage.config.apiKey),
   };
 }
