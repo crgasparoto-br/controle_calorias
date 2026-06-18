@@ -30,6 +30,15 @@ import { handleWhatsAppWebhook } from "./whatsappWebhook";
 
 type SavedMedia = ReturnType<typeof buildSavedMedia>;
 
+type AnnotatedImageResult = {
+  url?: string;
+  storageKey?: string;
+  mimeType?: string;
+  buffer?: Buffer;
+  skippedReason?: string;
+  detail?: string;
+};
+
 type PreparedImageMessage = {
   text?: string;
   imageUrl?: string;
@@ -142,8 +151,12 @@ async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone:
   return prepared;
 }
 
-function buildAnnotatedImageMedia(annotatedImage: { url?: string; storageKey?: string; mimeType?: string }) {
-  if (!annotatedImage.url || !annotatedImage.storageKey) {
+function hasUsableAnnotatedImagePayload(annotatedImage: AnnotatedImageResult) {
+  return !annotatedImage.skippedReason && Boolean(annotatedImage.url || annotatedImage.buffer);
+}
+
+function buildAnnotatedImageMedia(annotatedImage: AnnotatedImageResult) {
+  if (!hasUsableAnnotatedImagePayload(annotatedImage) || !annotatedImage.url || !annotatedImage.storageKey) {
     return null;
   }
 
@@ -158,9 +171,17 @@ function buildAnnotatedImageMedia(annotatedImage: { url?: string; storageKey?: s
 
 async function sendAnnotatedImageToWhatsApp(input: {
   sourcePhone: string;
-  annotatedImage: { url?: string; buffer?: Buffer; mimeType?: string };
+  annotatedImage: AnnotatedImageResult;
 }) {
   const caption = "Imagem anotada com os alimentos identificados.";
+  if (!hasUsableAnnotatedImagePayload(input.annotatedImage)) {
+    return {
+      attempted: false,
+      ok: false,
+      detail: "Imagem anotada marcada como indisponível pelo gerador.",
+    };
+  }
+
   if (input.annotatedImage.url) {
     return {
       attempted: true,
@@ -339,7 +360,7 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
     const annotatedMedia = buildAnnotatedImageMedia(annotatedImage);
     if (annotatedMedia) {
       prepared.media.push(annotatedMedia);
-    } else if (annotatedImage.url) {
+    } else if (annotatedImage.url && !annotatedImage.skippedReason) {
       logInferenceEvent({
         userId,
         origin: "whatsapp",
