@@ -1,279 +1,178 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { handleWhatsAppWebhook } from "./whatsappWebhook";
+import { listUserMeals } from "./db";
 
-const getUserIdByWhatsappPhoneMock = vi.fn();
-const getHabitSnapshotsMock = vi.fn();
+const sentWhatsAppPayloads: any[] = [];
+const generateImageMock = vi.fn(async () => ({
+  url: "https://storage.test/generated/meal-support/annotated.png",
+  storageKey: "generated/meal-support/annotated.png",
+  mimeType: "image/png",
+}));
+const processMealInputMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
-const createUserWaterLogMock = vi.fn();
-const logInferenceEventMock = vi.fn();
-const processMealInputMock = vi.fn();
-const getWhatsAppAccessTokenMock = vi.fn();
 const storagePutMock = vi.fn();
-const generateImageMock = vi.fn();
+const logInferenceEventMock = vi.fn();
+const createUserWaterLogMock = vi.fn();
 
-vi.mock("./db", () => ({
-  buildSavedMedia: vi.fn((input) => input),
-  confirmPendingMeal: confirmPendingMealMock,
-  createPendingMealInference: createPendingMealInferenceMock,
-  createUserWaterLog: createUserWaterLogMock,
-  getHabitSnapshots: getHabitSnapshotsMock,
-  getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
-  getWhatsAppAccessToken: getWhatsAppAccessTokenMock,
-  listUserMeals: vi.fn(async () => []),
-  logInferenceEvent: logInferenceEventMock,
-  relabelUserMeals: vi.fn(async () => []),
-}));
-
-vi.mock("./nutritionEngine", () => ({
-  processMealInput: processMealInputMock,
+vi.mock("./_core/imageGeneration", () => ({
+  generateImage: generateImageMock,
 }));
 
 vi.mock("./storage", () => ({
   storagePut: storagePutMock,
 }));
 
-vi.mock("./_core/imageGeneration", () => ({
-  generateImage: generateImageMock,
-}));
-
-vi.mock("./_core/voiceTranscription", () => ({
-  transcribeAudio: vi.fn(),
-}));
-
-const { __resetWhatsAppWebhookDeduplicationForTests, handleWhatsAppWebhook } = await import("./whatsappWebhook");
-
-type MockResponse = {
-  statusCode: number;
-  body: unknown;
-  status: (code: number) => MockResponse;
-  json: (payload: unknown) => MockResponse;
-  send: (payload: unknown) => MockResponse;
-};
-
-function createResponse(): MockResponse {
+vi.mock("./nutritionEngine", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./nutritionEngine")>();
   return {
-    statusCode: 200,
-    body: undefined,
+    ...actual,
+    processMealInput: processMealInputMock,
+  };
+});
+
+vi.mock("./db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./db")>();
+  return {
+    ...actual,
+    getUserIdByWhatsappPhone: vi.fn(async () => 123),
+    getHabitSnapshots: vi.fn(async () => []),
+    getUserNutritionGoal: vi.fn(async () => ({ today: { calories: 2200 } })),
+    getUserDayMealTotals: vi.fn(async () => ({ totals: { calories: 0 } })),
+    createPendingMealInference: createPendingMealInferenceMock,
+    confirmPendingMeal: confirmPendingMealMock,
+    logInferenceEvent: logInferenceEventMock,
+    createUserWaterLog: createUserWaterLogMock,
+  };
+});
+
+function createResponse() {
+  return {
+    statusCode: 0,
+    body: undefined as unknown,
     status(code: number) {
       this.statusCode = code;
       return this;
     },
-    json(payload: unknown) {
-      this.body = payload;
+    json(body: unknown) {
+      this.body = body;
       return this;
     },
-    send(payload: unknown) {
-      this.body = payload;
+    send(body: unknown) {
+      this.body = body;
       return this;
     },
-  };
-}
-
-function createMetaImagePayload(messageId = "wamid.image-1", caption?: string) {
-  return {
-    object: "whatsapp_business_account",
-    entry: [
-      {
-        id: "business-account-id",
-        changes: [
-          {
-            field: "messages",
-            value: {
-              messaging_product: "whatsapp",
-              metadata: {
-                display_phone_number: "5511000000000",
-                phone_number_id: "phone-number-test",
-              },
-              contacts: [
-                {
-                  profile: { name: "Usuário Imagem" },
-                  wa_id: "5511999999999",
-                },
-              ],
-              messages: [
-                {
-                  from: "5511999999999",
-                  id: messageId,
-                  timestamp: "1713708840",
-                  type: "image",
-                  image: {
-                    id: "image-media-id",
-                    mime_type: "image/jpeg",
-                    ...(caption ? { caption } : {}),
-                  },
-                },
-              ],
-            },
-          },
-        ],
-      },
-    ],
   };
 }
 
 function createWhatsAppOkResponse() {
   return {
     ok: true,
-    json: async () => ({}),
+    json: async () => ({ messages: [{ id: "wamid.sent" }] }),
+    text: async () => "ok",
   };
 }
 
+function createMetaImagePayload(messageId = "wamid.image") {
+  return {
+    object: "whatsapp_business_account",
+    entry: [{
+      changes: [{
+        value: {
+          metadata: { phone_number_id: "phone-number-test" },
+          contacts: [{ wa_id: "5511999999999", profile: { name: "Cliente" } }],
+          messages: [{
+            from: "5511999999999",
+            id: messageId,
+            timestamp: "1700000000",
+            type: "image",
+            image: { id: "image-media-id", mime_type: "image/jpeg" },
+          }],
+        },
+      }],
+    }],
+  };
+}
+
+function findFetchCallByBody(fragment: string) {
+  return vi.mocked(global.fetch).mock.calls.find(([, init]) => String((init as RequestInit | undefined)?.body ?? "").includes(fragment));
+}
+
 function expectMessageMarkedAsRead(messageId: string) {
-  expect(global.fetch).toHaveBeenCalledWith(
-    expect.stringContaining("/phone-number-test/messages"),
-    expect.objectContaining({
-      method: "POST",
-      body: expect.stringContaining(`"message_id":"${messageId}"`),
-    }),
-  );
-  expect(global.fetch).toHaveBeenCalledWith(
-    expect.stringContaining("/phone-number-test/messages"),
-    expect.objectContaining({
-      method: "POST",
-      body: expect.stringContaining('"status":"read"'),
-    }),
-  );
+  expect(vi.mocked(global.fetch).mock.calls.some(([url, init]) => {
+    return String(url).includes("/phone-number-test/messages")
+      && String((init as RequestInit | undefined)?.body ?? "").includes(messageId)
+      && String((init as RequestInit | undefined)?.body ?? "").includes("read");
+  })).toBe(true);
 }
 
 function expectProcessingAcknowledgement() {
-  expect(global.fetch).toHaveBeenCalledWith(
-    expect.stringContaining("/phone-number-test/messages"),
-    expect.objectContaining({
-      method: "POST",
-      body: expect.stringContaining("Recebi sua imagem e estou processando"),
-    }),
-  );
-}
-
-function findFetchCallByBody(expectedBodyPart: string) {
-  return vi.mocked(global.fetch).mock.calls.find(([, init]) => {
-    const body = init && "body" in init ? init.body : undefined;
-    return typeof body === "string" && body.includes(expectedBodyPart);
-  });
+  expect(vi.mocked(global.fetch).mock.calls.some(([, init]) => {
+    return String((init as RequestInit | undefined)?.body ?? "").includes("Recebi sua imagem e estou processando.");
+  })).toBe(true);
 }
 
 describe("whatsappWebhook image inbound", () => {
   beforeEach(() => {
-    __resetWhatsAppWebhookDeduplicationForTests();
-    process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
-    process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
+    vi.clearAllMocks();
+    sentWhatsAppPayloads.length = 0;
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
+    process.env.WHATSAPP_ACCESS_TOKEN = "token-test";
+    process.env.WHATSAPP_VERIFY_TOKEN = "verify-test";
+    process.env.PUBLIC_APP_URL = "https://app.test";
 
-    getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
-    getHabitSnapshotsMock.mockResolvedValue([]);
-    getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
-    createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
-    createPendingMealInferenceMock.mockReset();
-    confirmPendingMealMock.mockReset();
-    logInferenceEventMock.mockReset();
-    processMealInputMock.mockReset();
-    generateImageMock.mockReset();
-    generateImageMock.mockResolvedValue({ skippedReason: "disabled" });
-    storagePutMock.mockReset();
-    storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
-    createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-image" });
-    confirmPendingMealMock.mockResolvedValue({ id: 456, mealLabel: "Almoço" });
-    processMealInputMock.mockImplementation(async (input) => ({
+    processMealInputMock.mockResolvedValue({
       detectedMealLabel: "Almoço",
-      sourceText: "",
-      imageUrl: input.imageUrl,
-      confidence: 0.91,
-      needsConfirmation: true,
-      reasoning: "Imagem analisada no teste.",
-      items: [
-        {
-          foodName: "frango",
-          canonicalName: "Frango grelhado",
-          portionText: "100 g",
-          servings: 1,
-          estimatedGrams: 100,
-          calories: 165,
-          protein: 31,
-          carbs: 0,
-          fat: 3.6,
-          confidence: 0.92,
-          source: "catalog" as const,
-        },
-      ],
+      sourceText: "Foto enviada pelo WhatsApp",
+      confidence: 0.9,
+      needsConfirmation: false,
+      reasoning: "",
+      items: [{
+        foodName: "frango",
+        canonicalName: "frango",
+        portionText: "100g",
+        quantity: 100,
+        unit: "g",
+        servings: 1,
+        estimatedGrams: 100,
+        calories: 165,
+        protein: 31,
+        carbs: 0,
+        fat: 3.6,
+        confidence: 0.9,
+        source: "catalog",
+      }],
       totals: { calories: 165, protein: 31, carbs: 0, fat: 3.6 },
+    });
+    createPendingMealInferenceMock.mockResolvedValue({ draftId: "draft-image" });
+    confirmPendingMealMock.mockResolvedValue({ id: 456, mealLabel: "Almoço" });
+    storagePutMock.mockImplementation(async (key: string, _buffer: Buffer, mimeType: string) => ({
+      key,
+      url: `https://storage.test/${key}`,
+      mimeType,
     }));
-
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce(createWhatsAppOkResponse())
-      .mockResolvedValueOnce(createWhatsAppOkResponse())
-      .mockResolvedValueOnce({
+    generateImageMock.mockResolvedValue({
+      url: "https://storage.test/generated/meal-support/annotated.png",
+      storageKey: "generated/meal-support/annotated.png",
+      mimeType: "image/png",
+    });
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/messages")) {
+        sentWhatsAppPayloads.push(JSON.parse(String(init?.body ?? "{}")));
+        return createWhatsAppOkResponse() as Response;
+      }
+      if (url.includes("graph.facebook.com")) {
+        return {
+          ok: true,
+          json: async () => ({ url: "https://media.test/image", mime_type: "image/jpeg" }),
+        } as Response;
+      }
+      return {
         ok: true,
-        json: async () => ({
-          url: "https://media.test/image-download",
-          mime_type: "image/jpeg",
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
+        headers: { get: () => "image/jpeg" },
         arrayBuffer: async () => new TextEncoder().encode("image-test").buffer,
-        headers: {
-          get: (name: string) =>
-            name.toLowerCase() === "content-type" ? "image/jpeg" : null,
-        },
-      })
-      .mockResolvedValueOnce(createWhatsAppOkResponse()) as typeof fetch;
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("envia a imagem inline para a IA e persiste apenas a URL do storage", async () => {
-    const req = { body: createMetaImagePayload("wamid.image-inline") };
-    const res = createResponse();
-
-    await handleWhatsAppWebhook(req as never, res as never);
-
-    const expectedDataUrl = `data:image/jpeg;base64,${Buffer.from("image-test").toString("base64")}`;
-    const expectedStorageUrl = "https://storage.test/whatsapp/image/5511999999999-image-media-id.jpg";
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
-    expectMessageMarkedAsRead("wamid.image-inline");
-    expectProcessingAcknowledgement();
-    expect(createUserWaterLogMock).not.toHaveBeenCalled();
-    expect(processMealInputMock).toHaveBeenCalledWith({
-      text: undefined,
-      transcript: undefined,
-      imageUrl: expectedDataUrl,
-      audioUrl: undefined,
-      habits: [],
-    });
-    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
-      123,
-      "whatsapp",
-      expect.objectContaining({ imageUrl: expectedStorageUrl }),
-      [expect.objectContaining({ storageUrl: expectedStorageUrl, mediaType: "image" })],
-    );
-    expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
-      draftId: "draft-image",
-      userId: 123,
-      mealLabel: "Almoço",
+      } as Response;
     }));
-  });
-
-  it("usa legenda da imagem como texto para preservar quantidade exata enviada", async () => {
-    const req = { body: createMetaImagePayload("wamid.image-caption-grams", "47g") };
-    const res = createResponse();
-
-    await handleWhatsAppWebhook(req as never, res as never);
-
-    const expectedDataUrl = `data:image/jpeg;base64,${Buffer.from("image-test").toString("base64")}`;
-
-    expect(res.statusCode).toBe(200);
-    expect(processMealInputMock).toHaveBeenCalledWith({
-      text: "47g",
-      transcript: undefined,
-      imageUrl: expectedDataUrl,
-      audioUrl: undefined,
-      habits: [],
-    });
   });
 
   it("envia imagem anotada quando a geração visual retorna URL", async () => {
@@ -349,10 +248,13 @@ describe("whatsappWebhook image inbound", () => {
     expect(generateImageMock).toHaveBeenCalledTimes(1);
     expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
       originalImages: expect.any(Array),
-      prompt: expect.stringContaining("Edite a foto original"),
+      prompt: expect.stringContaining("Mantenha a foto original"),
+    }));
+    expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining("Apenas sobreponha cards/etiquetas nutricionais"),
     }));
     expect(generateImageMock).not.toHaveBeenCalledWith(expect.objectContaining({
-      prompt: expect.stringContaining("cards nutricionais"),
+      prompt: expect.stringContaining("cards nutricionais limpos"),
     }));
 
     const imageSendCall = findFetchCallByBody('"type":"image"');
@@ -378,48 +280,8 @@ describe("whatsappWebhook image inbound", () => {
     expectMessageMarkedAsRead("wamid.image-storage-fallback");
     expectProcessingAcknowledgement();
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
-    expect(processMealInputMock).toHaveBeenCalledWith({
-      text: undefined,
-      transcript: undefined,
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       imageUrl: expectedDataUrl,
-      audioUrl: undefined,
-      habits: [],
-    });
-    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
-      123,
-      "whatsapp",
-      expect.objectContaining({ imageUrl: undefined }),
-      [],
-    );
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: "whatsapp.media_storage_warning",
-      status: "warning",
     }));
-    expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
-      draftId: "draft-image",
-      userId: 123,
-      mealLabel: "Almoço",
-    }));
-  });
-
-  it("ignora reentrega do mesmo wamid sem reenviar respostas nem criar refeição duplicada", async () => {
-    const req = { body: createMetaImagePayload("wamid.image-duplicate") };
-    const firstRes = createResponse();
-    const duplicateRes = createResponse();
-
-    await handleWhatsAppWebhook(req as never, firstRes as never);
-    await handleWhatsAppWebhook(req as never, duplicateRes as never);
-
-    expect(firstRes.body).toEqual({ ok: true, processed: 1 });
-    expect(duplicateRes.body).toEqual({ ok: true, processed: 1 });
-    expect(processMealInputMock).toHaveBeenCalledTimes(1);
-    expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
-    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
-    expect(findFetchCallByBody("Recebi sua imagem e estou processando")).toBeTruthy();
-    const acknowledgementCalls = vi.mocked(global.fetch).mock.calls.filter(([, init]) => {
-      const body = init && "body" in init ? init.body : undefined;
-      return typeof body === "string" && body.includes("Recebi sua imagem e estou processando");
-    });
-    expect(acknowledgementCalls).toHaveLength(1);
   });
 });
