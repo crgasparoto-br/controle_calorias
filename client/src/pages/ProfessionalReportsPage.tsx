@@ -42,7 +42,7 @@ import {
 import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Mail, ShieldAlert, UserPlus, X } from "lucide-react";
+import { Mail, MessageSquarePlus, ShieldAlert, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -74,6 +74,24 @@ type PatientAccess = {
 type MealSummary = { id: string | number; mealLabel?: string | null; occurredAt?: string | number | Date | null; totals?: { calories?: number | null } | null };
 type ProfessionalComment = { id?: string | number; comment?: string | null; createdAt?: string | number | Date | null };
 type NutritionGoal = { calories?: number | null; proteinGrams?: number | null; carbsGrams?: number | null; fatGrams?: number | null };
+type PatientAiAnswer = { answer: string; citedContext: string[]; caution?: string; educationalNotice: string; generatedAt: number };
+type GoalSuggestion = {
+  id: string | number;
+  status?: string | null;
+  rationale?: string | null;
+  createdAt?: string | number | Date | null;
+  goal?: { defaultGoal?: NutritionGoal; exceptions?: unknown[] } | null;
+};
+type MealSuggestion = {
+  id: string | number;
+  status?: string | null;
+  mealLabel?: string | null;
+  title?: string | null;
+  description?: string | null;
+  rationale?: string | null;
+  notes?: string | null;
+  createdAt?: string | number | Date | null;
+};
 
 const EMPTY_TOTALS: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const MACRO_META: Array<{ key: MacroKey; title: string; goalKey: "goalProtein" | "goalCarbs" | "goalFat" }> = [
@@ -97,6 +115,17 @@ function accessStatusLabel(status: string) {
   return ACCESS_STATUS_LABELS[status] ?? status;
 }
 
+function suggestionStatusLabel(status?: string | null) {
+  const labels: Record<string, string> = {
+    draft: "Rascunho",
+    sent: "Enviada",
+    accepted: "Aceita",
+    refused: "Recusada",
+    cancelled: "Cancelada",
+  };
+  return labels[status || ""] ?? status ?? "Registrada";
+}
+
 function personLabel(access: PatientAccess) {
   return access.patient?.name || access.patient?.email || `Pessoa #${access.patientUserId}`;
 }
@@ -105,6 +134,10 @@ function accessDateLabel(access: PatientAccess) {
   if (access.status === "approved" && access.approvedAt) return `Autorizado em ${new Date(access.approvedAt).toLocaleString("pt-BR")}`;
   if (access.status === "revoked" && access.revokedAt) return `Revogado em ${new Date(access.revokedAt).toLocaleString("pt-BR")}`;
   return `Solicitado em ${new Date(access.requestedAt).toLocaleString("pt-BR")}`;
+}
+
+function dateTimeLabel(value?: string | number | Date | null) {
+  return value ? new Date(value).toLocaleString("pt-BR") : "Sem data";
 }
 
 function normalizeDay(day: any, fallbackGoal?: any): ReportDay {
@@ -200,6 +233,11 @@ export default function ProfessionalReportsPage() {
   const [reason, setReason] = React.useState("Acompanhamento profissional com consentimento da pessoa acompanhada.");
   const [selectedPatientId, setSelectedPatientId] = React.useState<number | null>(null);
   const [activeTab, setActiveTab] = React.useState<ProfessionalTab>("analise");
+  const [comment, setComment] = React.useState("");
+  const [patientQuestion, setPatientQuestion] = React.useState("");
+  const [patientAnswer, setPatientAnswer] = React.useState<PatientAiAnswer | null>(null);
+  const [goalSuggestion, setGoalSuggestion] = React.useState({ calories: "", proteinGrams: "", carbsGrams: "", fatGrams: "", rationale: "" });
+  const [mealSuggestion, setMealSuggestion] = React.useState({ mealLabel: "Almoço", title: "", description: "", rationale: "", notes: "" });
   const [periodScope, setPeriodScope] = React.useState<PeriodScope>("week");
   const [selectedDay, setSelectedDay] = React.useState(() => toDateInputValue());
   const [selectedMonth, setSelectedMonth] = React.useState(() => toMonthInputValue(new Date(), userTimeZone));
@@ -219,19 +257,54 @@ export default function ProfessionalReportsPage() {
     if (selectedPatientId && approvedAccesses.length && !approvedAccesses.some(access => access.patientUserId === selectedPatientId)) setSelectedPatientId(approvedAccesses[0].patientUserId);
   }, [approvedAccesses, selectedPatientId]);
 
-  const invalidateAccesses = async () => {
+  const dashboardData = dashboard.data as any;
+  const nutritionGoal = dashboardData?.nutritionGoal as { defaultGoal?: NutritionGoal; exceptions?: unknown[] } | undefined;
+  const defaultNutritionGoal = nutritionGoal?.defaultGoal;
+  const goalSuggestions = ((dashboardData?.goalSuggestions ?? []) as GoalSuggestion[]);
+  const mealSuggestions = ((dashboardData?.mealSuggestions ?? []) as MealSuggestion[]);
+  const suggestedCalories = Number(goalSuggestion.calories);
+  const suggestedProtein = Number(goalSuggestion.proteinGrams);
+  const suggestedCarbs = Number(goalSuggestion.carbsGrams);
+  const suggestedFat = Number(goalSuggestion.fatGrams);
+  const canSuggestGoal = Boolean(selectedPatientId && goalSuggestion.rationale.trim() && suggestedCalories > 0 && suggestedProtein > 0 && suggestedCarbs > 0 && suggestedFat > 0);
+  const canSuggestMeal = Boolean(selectedPatientId && mealSuggestion.mealLabel.trim() && mealSuggestion.title.trim() && mealSuggestion.description.trim() && mealSuggestion.rationale.trim());
+  const canAskQuestion = Boolean(selectedPatientId && patientQuestion.trim().length >= 3);
+
+  React.useEffect(() => {
+    setPatientAnswer(null);
+    setPatientQuestion("");
+    setComment("");
+  }, [selectedPatientId]);
+
+  React.useEffect(() => {
+    if (!defaultNutritionGoal) {
+      setGoalSuggestion(previous => ({ ...previous, calories: "", proteinGrams: "", carbsGrams: "", fatGrams: "" }));
+      return;
+    }
+
+    setGoalSuggestion(previous => ({
+      ...previous,
+      calories: String(numberValue(defaultNutritionGoal.calories)),
+      proteinGrams: String(numberValue(defaultNutritionGoal.proteinGrams)),
+      carbsGrams: String(numberValue(defaultNutritionGoal.carbsGrams)),
+      fatGrams: String(numberValue(defaultNutritionGoal.fatGrams)),
+    }));
+  }, [defaultNutritionGoal?.calories, defaultNutritionGoal?.proteinGrams, defaultNutritionGoal?.carbsGrams, defaultNutritionGoal?.fatGrams, selectedPatientId]);
+
+  const invalidateProfessionalData = async () => {
     await Promise.all([
       utils.auth.me.invalidate(),
       utils.nutrition.professionals.profile.invalidate(),
       utils.nutrition.professionals.myAccesses.invalidate(),
     ]);
+    if (selectedPatientId) await utils.nutrition.professionals.patientDashboard.invalidate({ patientId: selectedPatientId });
   };
 
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
     onSuccess: async () => {
       toast.success("Solicitação enviada. A pessoa acompanhada precisa autorizar antes do acesso.");
       setPatientContact("");
-      await invalidateAccesses();
+      await invalidateProfessionalData();
     },
     onError: error => toast.error(error.message || "Não foi possível solicitar acesso."),
   });
@@ -240,24 +313,58 @@ export default function ProfessionalReportsPage() {
     onSuccess: async () => {
       toast.success("Vínculo revogado.");
       setSelectedPatientId(null);
-      await invalidateAccesses();
+      await invalidateProfessionalData();
     },
     onError: error => toast.error(error.message || "Não foi possível revogar o vínculo."),
   });
 
-  const dashboardMeals = React.useMemo<MealSummary[]>(() => (((dashboard.data as any)?.meals ?? []) as MealSummary[]), [dashboard.data]);
+  const addComment = trpc.nutrition.professionals.addComment.useMutation({
+    onSuccess: async () => {
+      toast.success("Comentário adicionado.");
+      setComment("");
+      await invalidateProfessionalData();
+    },
+    onError: error => toast.error(error.message || "Não foi possível comentar."),
+  });
+
+  const suggestGoal = trpc.nutrition.professionals.suggestGoalAdjustment.useMutation({
+    onSuccess: async () => {
+      toast.success("Sugestão de meta registrada para acompanhamento.");
+      setGoalSuggestion(previous => ({ ...previous, rationale: "" }));
+      await invalidateProfessionalData();
+    },
+    onError: error => toast.error(error.message || "Não foi possível sugerir a meta."),
+  });
+
+  const suggestMeal = trpc.nutrition.professionals.suggestMealPlan.useMutation({
+    onSuccess: async () => {
+      toast.success("Sugestão de refeição registrada para acompanhamento.");
+      setMealSuggestion(previous => ({ ...previous, title: "", description: "", rationale: "", notes: "" }));
+      await invalidateProfessionalData();
+    },
+    onError: error => toast.error(error.message || "Não foi possível sugerir a refeição."),
+  });
+
+  const askPatientQuestion = trpc.nutrition.professionals.askPatientQuestion.useMutation({
+    onSuccess: answer => {
+      setPatientAnswer(answer as PatientAiAnswer);
+      toast.success("Resposta gerada com contexto autorizado.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível responder a pergunta."),
+  });
+
+  const dashboardMeals = React.useMemo<MealSummary[]>(() => ((dashboardData?.meals ?? []) as MealSummary[]), [dashboardData]);
   const todayMeals = React.useMemo(() => {
     const todayKey = new Date().toLocaleDateString("pt-BR");
     return dashboardMeals.filter(meal => meal.occurredAt && new Date(meal.occurredAt).toLocaleDateString("pt-BR") === todayKey);
   }, [dashboardMeals]);
-  const dashboardComments = (((dashboard.data as any)?.comments ?? []) as ProfessionalComment[]);
-  const defaultNutritionGoal = (dashboard.data as any)?.nutritionGoal?.defaultGoal as NutritionGoal | undefined;
-  const weeklyDays = React.useMemo<ReportDay[]>(() => ((dashboard.data as any)?.weeklyReport ?? []).map((day: any) => normalizeDay(day)), [dashboard.data]);
+  const dashboardComments = (((dashboardData?.comments ?? []) as ProfessionalComment[]));
+  const weeklyDays = React.useMemo<ReportDay[]>(() => ((dashboardData?.weeklyReport ?? []).map((day: any) => normalizeDay(day))), [dashboardData]);
   const periodDays = React.useMemo<ReportDay[]>(() => ((periodBundle.data as any)?.daily ?? []).map((day: any) => normalizeDay(day, (periodBundle.data as any)?.goal)), [periodBundle.data]);
   const metricDays = periodScope === "week" ? weeklyDays : periodDays;
   const totals = metricDays.reduce<Totals>((acc, day) => ({ calories: acc.calories + day.calories, protein: acc.protein + day.protein, carbs: acc.carbs + day.carbs, fat: acc.fat + day.fat }), { ...EMPTY_TOTALS });
   const dayCount = metricDays.length || countDaysInRange(activeRange);
-  const weightPoints = periodScope === "week" ? normalizeWeightPoints((dashboard.data as any)?.weight, (dashboard.data as any)?.progress?.weight) : normalizeWeightPoints((periodBundle.data as any)?.weightTrend);
+  const weightPoints = periodScope === "week" ? normalizeWeightPoints(dashboardData?.weight, dashboardData?.progress?.weight) : normalizeWeightPoints((periodBundle.data as any)?.weightTrend);
   const macroMetrics = calculateMacroMetrics(metricDays, weightPoints);
   const trendDays = metricDays.map(toTrendDay);
   const waterConsumedMl = periodScope === "week" ? metricDays.reduce((total, day) => total + day.waterConsumedMl, 0) : numberValue((periodBundle.data as any)?.habitAnalytics?.water?.totalConsumedMl);
@@ -362,11 +469,13 @@ export default function ProfessionalReportsPage() {
             {activeError ? <ReportEmptyState text="Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." /> : null}
             {selectedPatientId && !activeLoading && !activeError ? (
               <Tabs defaultValue="resumo" className="space-y-4">
-                <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-5">
+                <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-7">
                   <TabsTrigger className="min-h-11 rounded-xl" value="resumo">Resumo</TabsTrigger>
                   <TabsTrigger className="min-h-11 rounded-xl" value="hoje">Hoje</TabsTrigger>
                   <TabsTrigger className="min-h-11 rounded-xl" value="relatorios">Relatórios</TabsTrigger>
                   <TabsTrigger className="min-h-11 rounded-xl" value="metas">Metas</TabsTrigger>
+                  <TabsTrigger className="min-h-11 rounded-xl" value="sugestoes">Sugestões</TabsTrigger>
+                  <TabsTrigger className="min-h-11 rounded-xl" value="ia">IA</TabsTrigger>
                   <TabsTrigger className="min-h-11 rounded-xl" value="comentarios">Comentários</TabsTrigger>
                 </TabsList>
 
@@ -393,11 +502,65 @@ export default function ProfessionalReportsPage() {
                   {defaultNutritionGoal ? <div className="grid gap-3 md:grid-cols-4"><Metric label="Meta calórica" value={formatCalories(numberValue(defaultNutritionGoal.calories))} /><Metric label="Meta proteína" value={formatMacroGrams(numberValue(defaultNutritionGoal.proteinGrams))} /><Metric label="Meta carboidratos" value={formatMacroGrams(numberValue(defaultNutritionGoal.carbsGrams))} /><Metric label="Meta gorduras" value={formatMacroGrams(numberValue(defaultNutritionGoal.fatGrams))} /></div> : <ReportEmptyState text="Nenhuma meta nutricional encontrada para esta pessoa." />}
                   <ReportPlannedVsRealizedMacrosSection metrics={macroMetrics} />
                   <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">Sugestões de ajuste de metas ficam registradas para acompanhamento, sem alterar automaticamente a meta ativa da pessoa acompanhada.</div>
+                  <SuggestionBox title="Sugerir ajuste de meta" description="Os campos começam com a meta atual para facilitar pequenos ajustes.">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <NumberField label="Calorias" min={800} value={goalSuggestion.calories} onChange={value => setGoalSuggestion(previous => ({ ...previous, calories: value }))} />
+                      <NumberField label="Proteína (g)" min={20} value={goalSuggestion.proteinGrams} onChange={value => setGoalSuggestion(previous => ({ ...previous, proteinGrams: value }))} />
+                      <NumberField label="Carboidratos (g)" min={20} value={goalSuggestion.carbsGrams} onChange={value => setGoalSuggestion(previous => ({ ...previous, carbsGrams: value }))} />
+                      <NumberField label="Gorduras (g)" min={10} value={goalSuggestion.fatGrams} onChange={value => setGoalSuggestion(previous => ({ ...previous, fatGrams: value }))} />
+                    </div>
+                    <TextAreaField label="Justificativa" value={goalSuggestion.rationale} onChange={value => setGoalSuggestion(previous => ({ ...previous, rationale: value }))} placeholder="Ex.: reduzir calorias mantendo proteína alta para preservar saciedade." />
+                    <Button className="mt-4 rounded-full" disabled={!canSuggestGoal || suggestGoal.isPending} onClick={() => selectedPatientId && suggestGoal.mutate({ patientId: selectedPatientId, rationale: goalSuggestion.rationale.trim(), status: "sent", goal: { defaultGoal: { calories: suggestedCalories, proteinGrams: suggestedProtein, carbsGrams: suggestedCarbs, fatGrams: suggestedFat }, exceptions: nutritionGoal?.exceptions ?? [] } })}>
+                      <MessageSquarePlus className="mr-2 h-4 w-4" /> Enviar sugestão
+                    </Button>
+                  </SuggestionBox>
+                  <ListSection title="Sugestões de meta registradas">
+                    {goalSuggestions.length ? goalSuggestions.map(suggestion => <GoalSuggestionRow key={suggestion.id} suggestion={suggestion} />) : <ReportEmptyState text="Nenhuma sugestão de meta registrada para esta pessoa." />}
+                  </ListSection>
                   <div data-professional-goal-exception-suggestions-root="true" />
                 </TabsContent>
 
+                <TabsContent value="sugestoes" className="space-y-4">
+                  <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">Sugestões de refeição ficam registradas para acompanhamento e não criam refeições automaticamente no diário da pessoa acompanhada.</div>
+                  <SuggestionBox title="Sugerir refeição ou plano alimentar" description="Descreva a proposta em linguagem prática para a pessoa revisar depois.">
+                    <div className="grid gap-3 md:grid-cols-[0.7fr_1.3fr]">
+                      <TextField label="Refeição" value={mealSuggestion.mealLabel} onChange={value => setMealSuggestion(previous => ({ ...previous, mealLabel: value }))} placeholder="Almoço" />
+                      <TextField label="Título" value={mealSuggestion.title} onChange={value => setMealSuggestion(previous => ({ ...previous, title: value }))} placeholder="Almoço rico em proteína" />
+                    </div>
+                    <TextAreaField label="Descrição da sugestão" value={mealSuggestion.description} onChange={value => setMealSuggestion(previous => ({ ...previous, description: value }))} placeholder="Ex.: arroz, feijão, frango grelhado, salada e uma fruta." />
+                    <TextAreaField label="Justificativa" value={mealSuggestion.rationale} onChange={value => setMealSuggestion(previous => ({ ...previous, rationale: value }))} placeholder="Ex.: melhorar saciedade no almoço mantendo a meta de proteína." />
+                    <TextAreaField label="Observações opcionais" value={mealSuggestion.notes} onChange={value => setMealSuggestion(previous => ({ ...previous, notes: value }))} placeholder="Ex.: trocar frango por ovos nos dias sem preparo." />
+                    <Button className="mt-4 rounded-full" disabled={!canSuggestMeal || suggestMeal.isPending} onClick={() => selectedPatientId && suggestMeal.mutate({ patientId: selectedPatientId, mealLabel: mealSuggestion.mealLabel.trim(), title: mealSuggestion.title.trim(), description: mealSuggestion.description.trim(), rationale: mealSuggestion.rationale.trim(), notes: mealSuggestion.notes.trim() || undefined, status: "sent" })}>
+                      <MessageSquarePlus className="mr-2 h-4 w-4" /> Enviar sugestão
+                    </Button>
+                  </SuggestionBox>
+                  <ListSection title="Sugestões de refeição registradas">
+                    {mealSuggestions.length ? mealSuggestions.map(suggestion => <MealSuggestionRow key={suggestion.id} suggestion={suggestion} />) : <ReportEmptyState text="Nenhuma sugestão de refeição registrada para esta pessoa." />}
+                  </ListSection>
+                </TabsContent>
+
+                <TabsContent value="ia" className="space-y-4">
+                  <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">Perguntas com IA usam apenas o contexto autorizado desta pessoa e retornam apoio educativo para análise profissional.</div>
+                  <SuggestionBox title="Perguntar sobre a pessoa acompanhada" description="Use perguntas objetivas sobre aderência, registros, metas ou tendências disponíveis.">
+                    <TextAreaField label="Pergunta" value={patientQuestion} onChange={setPatientQuestion} placeholder="Ex.: O que chama atenção na aderência desta semana?" />
+                    <Button className="mt-4 rounded-full" disabled={!canAskQuestion || askPatientQuestion.isPending} onClick={() => selectedPatientId && askPatientQuestion.mutate({ patientId: selectedPatientId, question: patientQuestion.trim() })}>
+                      <MessageSquarePlus className="mr-2 h-4 w-4" /> Perguntar
+                    </Button>
+                  </SuggestionBox>
+                  {patientAnswer ? <PatientAiAnswerCard answer={patientAnswer} /> : <ReportEmptyState text="Faça uma pergunta para gerar uma resposta com base no contexto autorizado." />}
+                </TabsContent>
+
                 <TabsContent value="comentarios" className="space-y-4">
-                  <Card className="border-0 shadow-sm"><CardHeader><CardTitle>Comentários profissionais</CardTitle><CardDescription>Anotações registradas para acompanhamento da pessoa selecionada.</CardDescription></CardHeader><CardContent className="space-y-3">{dashboardComments.length ? dashboardComments.map((comment, index) => <CommentRow key={comment.id ?? index} comment={comment} />) : <ReportEmptyState text="Nenhum comentário profissional registrado para esta pessoa." />}</CardContent></Card>
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader><CardTitle>Comentários profissionais</CardTitle><CardDescription>Anotações registradas para acompanhamento da pessoa selecionada.</CardDescription></CardHeader>
+                    <CardContent className="space-y-4">
+                      <Textarea value={comment} onChange={event => setComment(event.target.value)} placeholder="Adicionar comentário de acompanhamento" />
+                      <Button className="rounded-full" disabled={!selectedPatientId || !comment.trim() || addComment.isPending} onClick={() => selectedPatientId && addComment.mutate({ patientId: selectedPatientId, comment: comment.trim() })}>
+                        <MessageSquarePlus className="mr-2 h-4 w-4" /> Comentar
+                      </Button>
+                      <div className="space-y-3">{dashboardComments.length ? dashboardComments.map((item, index) => <CommentRow key={item.id ?? index} comment={item} />) : <ReportEmptyState text="Nenhum comentário profissional registrado para esta pessoa." />}</div>
+                    </CardContent>
+                  </Card>
                 </TabsContent>
               </Tabs>
             ) : null}
@@ -436,6 +599,60 @@ function AccessRow({ access, selected, onSelect, onRevoke, revoking }: { access:
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SuggestionBox({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return <div className="rounded-2xl border bg-background p-4"><div className="mb-4"><p className="font-medium">{title}</p><p className="text-sm text-muted-foreground">{description}</p></div>{children}</div>;
+}
+
+function ListSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className="space-y-2"><p className="font-medium">{title}</p>{children}</div>;
+}
+
+function TextField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return <label className="space-y-2"><Label>{label}</Label><Input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /></label>;
+}
+
+function NumberField({ label, value, min, onChange }: { label: string; value: string; min: number; onChange: (value: string) => void }) {
+  return <label className="space-y-2"><Label>{label}</Label><Input type="number" min={min} value={value} onChange={event => onChange(event.target.value)} /></label>;
+}
+
+function TextAreaField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return <label className="mt-3 block space-y-2"><Label>{label}</Label><Textarea value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /></label>;
+}
+
+function PatientAiAnswerCard({ answer }: { answer: PatientAiAnswer }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 text-sm leading-6">
+      <p className="font-medium">Resposta</p>
+      <p className="mt-2 text-muted-foreground">{answer.answer}</p>
+      {answer.citedContext.length ? <div className="mt-3"><p className="text-xs font-medium uppercase text-muted-foreground">Contexto usado</p><div className="mt-2 grid gap-2 md:grid-cols-3">{answer.citedContext.map(item => <span key={item} className="rounded-xl border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">{item}</span>)}</div></div> : null}
+      {answer.caution ? <p className="mt-3 text-xs text-muted-foreground">{answer.caution}</p> : null}
+      <p className="mt-3 text-xs text-muted-foreground">{answer.educationalNotice}</p>
+    </div>
+  );
+}
+
+function GoalSuggestionRow({ suggestion }: { suggestion: GoalSuggestion }) {
+  const goal = suggestion.goal?.defaultGoal;
+  return (
+    <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{suggestionStatusLabel(suggestion.status)}</span><span className="text-xs text-muted-foreground">{dateTimeLabel(suggestion.createdAt)}</span></div>
+      {goal ? <div className="mt-2 grid gap-2 text-muted-foreground md:grid-cols-4"><span>{formatCalories(numberValue(goal.calories))}</span><span>{formatMacroGrams(numberValue(goal.proteinGrams))} proteína</span><span>{formatMacroGrams(numberValue(goal.carbsGrams))} carboidratos</span><span>{formatMacroGrams(numberValue(goal.fatGrams))} gorduras</span></div> : null}
+      <p className="mt-2 text-muted-foreground">{suggestion.rationale || "Sugestão sem justificativa registrada."}</p>
+    </div>
+  );
+}
+
+function MealSuggestionRow({ suggestion }: { suggestion: MealSuggestion }) {
+  return (
+    <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{suggestion.mealLabel || "Refeição"} · {suggestion.title || "Sugestão"}</span><span className="text-xs text-muted-foreground">{suggestionStatusLabel(suggestion.status)} · {dateTimeLabel(suggestion.createdAt)}</span></div>
+      <p className="mt-2 text-muted-foreground">{suggestion.description || "Sem descrição."}</p>
+      <p className="mt-2 text-muted-foreground">Justificativa: {suggestion.rationale || "não informada"}</p>
+      {suggestion.notes ? <p className="mt-2 text-xs text-muted-foreground">Obs.: {suggestion.notes}</p> : null}
     </div>
   );
 }
