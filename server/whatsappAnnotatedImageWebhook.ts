@@ -24,7 +24,7 @@ import {
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
-import { processMealInput } from "./nutritionEngine";
+import { MealInferenceError, processMealInput, type MealProcessingResult } from "./nutritionEngine";
 import { storagePut } from "./storage";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
 
@@ -153,6 +153,85 @@ async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone:
   }
 
   return prepared;
+}
+
+function buildImageInferenceFallbackResult(input: {
+  text?: string;
+  imageAnalysisUrl?: string;
+  imageUrl?: string;
+  occurredAt: Date;
+}): MealProcessingResult {
+  const sourceText = input.text?.trim() || "Foto enviada pelo WhatsApp";
+  const item = {
+    foodName: "Refeição fotografada",
+    canonicalName: "Refeição fotografada",
+    quantity: 1,
+    unit: "porção",
+    portionText: "1 porção estimada",
+    servings: 1,
+    estimatedGrams: 100,
+    calories: 150,
+    protein: 6,
+    carbs: 15,
+    fat: 5,
+    confidence: 0.25,
+    source: "heuristic" as const,
+  };
+
+  return {
+    detectedMealLabel: "Refeição registrada",
+    sourceText,
+    imageUrl: input.imageAnalysisUrl || input.imageUrl,
+    confidence: 0.25,
+    needsConfirmation: true,
+    reasoning: "A análise visual não conseguiu montar um rascunho confiável; foi criado um item estimado para manter o registro e permitir correção posterior.",
+    items: [item],
+    totals: {
+      calories: item.calories,
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+    },
+  };
+}
+
+async function processImageMealInputWithFallback(input: {
+  userId: number;
+  prepared: PreparedImageMessage;
+  occurredAt: Date;
+}) {
+  try {
+    return await processMealInput({
+      text: input.prepared.text,
+      imageUrl: input.prepared.imageAnalysisUrl || input.prepared.imageUrl,
+      habits: await getHabitSnapshots(input.userId),
+      occurredAt: input.occurredAt,
+      timeZone: "America/Sao_Paulo",
+    });
+  } catch (error) {
+    if (!(error instanceof MealInferenceError)) {
+      throw error;
+    }
+
+    console.warn(
+      "[WhatsAppAnnotatedImage] Meal image inference returned no reliable items; using reviewable fallback item.",
+      error.message,
+    );
+    logInferenceEvent({
+      userId: input.userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.image_inference_fallback_used",
+      detail: "A imagem foi recebida, mas a IA não retornou itens confiáveis. Um item estimado foi criado para manter o registro revisável.",
+    });
+
+    return buildImageInferenceFallbackResult({
+      text: input.prepared.text,
+      imageAnalysisUrl: input.prepared.imageAnalysisUrl,
+      imageUrl: input.prepared.imageUrl,
+      occurredAt: input.occurredAt,
+    });
+  }
 }
 
 function hasUsableAnnotatedImagePayload(annotatedImage: AnnotatedImageResult) {
@@ -350,10 +429,11 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
       return true;
     }
 
-    const processed = await processMealInput({
-      text: prepared.text,
-      imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
-      habits: await getHabitSnapshots(userId),
+    const occurredAt = resolveWhatsAppMessageOccurredAt(message);
+    const processed = await processImageMealInputWithFallback({
+      userId,
+      prepared,
+      occurredAt,
     });
     const processedForPersistence = {
       ...processed,
@@ -374,7 +454,6 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
       });
     }
 
-    const occurredAt = resolveWhatsAppMessageOccurredAt(message);
     const draft = createPendingMealInference(userId, "whatsapp", processedForPersistence, prepared.media);
     const savedMeal = await confirmPendingMeal({
       draftId: draft.draftId,
