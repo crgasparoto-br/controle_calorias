@@ -13,3 +13,7 @@ CREATE UNIQUE INDEX `mealInferences_draftId_unique` ON `mealInferences` (`draftI
 CREATE INDEX `mealInferences_userId_idx` ON `mealInferences` (`userId`);
 --> statement-breakpoint
 CREATE INDEX `mealInferences_mealId_idx` ON `mealInferences` (`mealId`);
+--> statement-breakpoint
+CREATE INDEX `habitMemories_user_food_idx` ON `habitMemories` (`userId`, `foodName`);
+--> statement-breakpoint
+CREATE INDEX `habitMemories_user_lastSeen_idx` ON `habitMemories` (`userId`, `lastSeenAt`);
