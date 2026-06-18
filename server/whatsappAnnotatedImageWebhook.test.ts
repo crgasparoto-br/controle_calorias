@@ -65,7 +65,8 @@ type MockResponse = {
 };
 
 let sentTextMessages: string[];
-let sentImageMessages: Array<{ link: string; caption: string }>;
+let sentImageMessages: Array<{ link?: string; id?: string; caption: string }>;
+let uploadedMediaRequests: number;
 
 function createResponse(): MockResponse {
   return {
@@ -121,6 +122,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     vi.setSystemTime(new Date("2026-06-03T12:00:00.000Z"));
     sentTextMessages = [];
     sentImageMessages = [];
+    uploadedMediaRequests = 0;
     getUserIdByWhatsappPhoneMock.mockReset();
     logInferenceEventMock.mockReset();
     getHabitSnapshotsMock.mockReset();
@@ -197,14 +199,20 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
 
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.endsWith("/media")) {
+        uploadedMediaRequests += 1;
+        return { ok: true, json: async () => ({ id: "uploaded-annotated-media-id" }) } as Response;
+      }
+
       if (url.includes("/messages")) {
         const payload = init?.body ? JSON.parse(String(init.body)) : {};
         if (payload?.text?.body) {
           sentTextMessages.push(payload.text.body);
         }
-        if (payload?.image?.link) {
+        if (payload?.image?.link || payload?.image?.id) {
           sentImageMessages.push({
             link: payload.image.link,
+            id: payload.image.id,
             caption: payload.image.caption,
           });
         }
@@ -282,12 +290,42 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       "* Consumo: 1.620 kcal",
       "* Déficit: 580 kcal",
     ].join("\n"));
+    expect(uploadedMediaRequests).toBe(0);
     expect(sentImageMessages).toEqual([
       {
         link: "https://storage.test/generated/meal-support/annotated.png",
+        id: undefined,
         caption: "Imagem anotada com os alimentos identificados.",
       },
     ]);
+  });
+
+  it("envia a imagem anotada por upload quando o fallback local não tem URL pública", async () => {
+    generateImageMock.mockResolvedValue({
+      buffer: Buffer.from("fallback-png"),
+      mimeType: "image/png",
+      skippedReason: "provider_failed",
+      detail: "storage indisponível",
+    });
+    const req = createImageWebhookRequest("image-with-buffer-annotation");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(uploadedMediaRequests).toBe(1);
+    expect(sentImageMessages).toEqual([
+      {
+        link: undefined,
+        id: "uploaded-annotated-media-id",
+        caption: "Imagem anotada com os alimentos identificados.",
+      },
+    ]);
+    expect(sentTextMessages).not.toContain("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
+    expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.annotated_image_skipped",
+    }));
   });
 
   it("mantém o registro e avisa quando a imagem anotada não pode ser gerada", async () => {
@@ -319,6 +357,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       userId: 42,
       mealLabel: "Almoço",
     }));
+    expect(uploadedMediaRequests).toBe(0);
     expect(sentImageMessages).toEqual([]);
     expect(sentTextMessages.at(-1)).toBe("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({

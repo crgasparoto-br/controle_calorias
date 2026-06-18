@@ -131,6 +131,85 @@ export async function sendWhatsAppImageMessage(to: string, imageUrl: string, cap
   }
 }
 
+export async function sendWhatsAppImageBufferMessage(
+  to: string,
+  image: { buffer: Buffer; mimeType?: string; fileName?: string },
+  caption: string,
+) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de imagem.",
+    };
+  }
+
+  const mimeType = image.mimeType || "image/png";
+  const fileName = image.fileName || `whatsapp-annotated-meal.${extensionFromMimeType(mimeType)}`;
+
+  try {
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp");
+    form.append("file", new Blob([new Uint8Array(image.buffer)], { type: mimeType }), fileName);
+
+    const uploadResponse = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/media`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+      },
+      body: form,
+    });
+
+    if (!uploadResponse.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${uploadResponse.status} ${uploadResponse.statusText} no upload da imagem anotada.`,
+      };
+    }
+
+    const uploadPayload = await uploadResponse.json() as { id?: string };
+    if (!uploadPayload.id) {
+      return {
+        ok: false,
+        detail: "Meta não retornou ID da mídia no upload da imagem anotada.",
+      };
+    }
+
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "image",
+        image: {
+          id: uploadPayload.id,
+          caption,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da imagem anotada por upload.`,
+      };
+    }
+
+    return { ok: true, detail: "Imagem anotada enviada por upload com sucesso." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar imagem anotada do WhatsApp por upload.",
+    };
+  }
+}
+
 export async function markWhatsAppMessageAsRead(messageId?: string) {
   if (!messageId) {
     return { ok: true, detail: "Mensagem sem ID para marcar como lida." };
