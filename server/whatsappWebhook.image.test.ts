@@ -333,13 +333,11 @@ describe("whatsappWebhook image inbound", () => {
     expect(processMealInputMock).toHaveBeenCalled();
   });
 
-  it("envia imagem com cards quando a edição da foto original não retorna URL", async () => {
-    generateImageMock
-      .mockResolvedValueOnce({ skippedReason: "provider_failed" })
-      .mockResolvedValueOnce({
-        url: "https://storage.test/generated/meal-support/cards.png",
-        mimeType: "image/png",
-      });
+  it("não envia cards quando a edição da foto original não retorna imagem anotada", async () => {
+    generateImageMock.mockResolvedValueOnce({
+      skippedReason: "provider_failed",
+      detail: "Provider de imagem falhou; fallback local de classificação gerado.",
+    });
     vi.mocked(global.fetch).mockResolvedValueOnce(createWhatsAppOkResponse() as never);
 
     const req = { body: createMetaImagePayload("wamid.image-cards-fallback") };
@@ -348,19 +346,21 @@ describe("whatsappWebhook image inbound", () => {
     await handleWhatsAppWebhook(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
-    expect(generateImageMock).toHaveBeenCalledTimes(2);
-    expect(generateImageMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    expect(generateImageMock).toHaveBeenCalledTimes(1);
+    expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
       originalImages: expect.any(Array),
       prompt: expect.stringContaining("Edite a foto original"),
     }));
-    expect(generateImageMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    expect(generateImageMock).not.toHaveBeenCalledWith(expect.objectContaining({
       prompt: expect.stringContaining("cards nutricionais"),
     }));
 
     const imageSendCall = findFetchCallByBody('"type":"image"');
-    expect(imageSendCall).toBeTruthy();
-    expect(imageSendCall?.[1]).toEqual(expect.objectContaining({
-      body: expect.stringContaining("https://storage.test/generated/meal-support/cards.png"),
+    expect(imageSendCall).toBeFalsy();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "whatsapp.annotated_image_skipped",
+      status: "warning",
+      detail: expect.stringContaining("fallback local"),
     }));
   });
 
