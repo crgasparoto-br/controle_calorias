@@ -17,6 +17,7 @@ import {
   isWhatsAppMessageForConfiguredChannel,
   markWhatsAppMessageAsRead,
   resolveWhatsAppMessageOccurredAt,
+  sendWhatsAppImageBufferMessage,
   sendWhatsAppImageMessage,
   sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppTextMessage,
@@ -153,6 +154,40 @@ function buildAnnotatedImageMedia(annotatedImage: { url?: string; storageKey?: s
     mimeType: annotatedImage.mimeType || "image/png",
     originalFileName: "whatsapp-annotated-meal.png",
   });
+}
+
+async function sendAnnotatedImageToWhatsApp(input: {
+  sourcePhone: string;
+  annotatedImage: { url?: string; buffer?: Buffer; mimeType?: string };
+}) {
+  const caption = "Imagem anotada com os alimentos identificados.";
+  if (input.annotatedImage.url) {
+    return {
+      attempted: true,
+      ...(await sendWhatsAppImageMessage(input.sourcePhone, input.annotatedImage.url, caption)),
+    };
+  }
+
+  if (input.annotatedImage.buffer) {
+    return {
+      attempted: true,
+      ...(await sendWhatsAppImageBufferMessage(
+        input.sourcePhone,
+        {
+          buffer: input.annotatedImage.buffer,
+          mimeType: input.annotatedImage.mimeType || "image/png",
+          fileName: "whatsapp-annotated-meal.png",
+        },
+        caption,
+      )),
+    };
+  }
+
+  return {
+    attempted: false,
+    ok: false,
+    detail: "Imagem anotada não possui URL nem arquivo local para envio.",
+  };
 }
 
 function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Set<string>) {
@@ -352,13 +387,8 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
       });
     }
 
-    if (annotatedImage.url) {
-      const imageReplyResult = await sendWhatsAppImageMessage(
-        sourcePhone,
-        annotatedImage.url,
-        "Imagem anotada com os alimentos identificados.",
-      );
-
+    const imageReplyResult = await sendAnnotatedImageToWhatsApp({ sourcePhone, annotatedImage });
+    if (imageReplyResult.attempted) {
       if (!imageReplyResult.ok) {
         logInferenceEvent({
           userId,
@@ -379,7 +409,7 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.annotated_image_skipped",
-        detail: `Imagem anotada não enviada para ${sourcePhone}: ${annotatedImage.detail || annotatedImage.skippedReason || "geração sem URL"}.`,
+        detail: `Imagem anotada não enviada para ${sourcePhone}: ${annotatedImage.detail || annotatedImage.skippedReason || imageReplyResult.detail}.`,
       });
       await sendAnnotatedImageFallbackText({
         userId,
