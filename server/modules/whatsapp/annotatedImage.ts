@@ -1,5 +1,6 @@
 import { generateImage, type GenerateImageResponse } from "../../_core/imageGeneration";
 import type { MealProcessingResult } from "../../nutritionEngine";
+import { createLocalMealPhotoOverlay } from "./localMealPhotoOverlay";
 
 function formatMacro(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
@@ -69,6 +70,18 @@ export async function generateAnnotatedMealImage(
   }
 
   if (sourceImage) {
+    try {
+      return await createLocalMealPhotoOverlay({
+        image: sourceImage,
+        processed,
+      });
+    } catch (error) {
+      console.warn(
+        "[WhatsAppAnnotatedImage] Local overlay failed; falling back to image provider.",
+        error instanceof Error ? error.message : error,
+      );
+    }
+
     const editedImage = await generateImage({
       prompt: buildAnnotatedMealImagePrompt(processed),
       originalImages: [sourceImage],
