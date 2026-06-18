@@ -6,11 +6,29 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { SummaryPill } from "@/features/meals/components";
+import {
+  ReportCompactMetric,
+  ReportEmptyState,
+  ReportExerciseAnalyticsCard,
+  ReportHighlightCard,
+  type ReportMacroMetric,
+  ReportMacroAdherenceSection,
+  ReportPlannedVsRealizedMacrosSection,
+  ReportStatusTile,
+  ReportTrendSection,
+  type ReportTrendDay,
+  ReportWaterAnalyticsCard,
+  ReportWeightAdherenceCard,
+  averageValue,
+  formatMacro,
+  formatMacroGrams,
+  formatPercent,
+  progressPercent,
+} from "@/features/reports/ReportAnalyticsSections";
 import {
   countDaysInRange,
   formatRangeLabel,
@@ -22,10 +40,9 @@ import {
   type PeriodScope,
 } from "@/lib/dateRanges";
 import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
-import { formatCalories, formatCountPtBr, formatNumberPtBr } from "@/lib/numberFormat";
+import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { BarChart3, CalendarDays, Droplets, Dumbbell, Mail, Scale, ShieldAlert, UserPlus } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Mail, ShieldAlert, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -45,17 +62,6 @@ type ReportDay = Totals & {
   exerciseCalories: number;
 };
 type WeightPoint = { date: string; weightKg: number | null };
-type MacroMetric = {
-  key: "calories" | MacroKey;
-  title: string;
-  unit: "kcal" | "g";
-  planned: number;
-  realized: number;
-  percent: number;
-  difference: number;
-  plannedPerKgDay: number | null;
-  realizedPerKgDay: number | null;
-};
 type PatientAccess = {
   id: string;
   patientUserId: number;
@@ -80,39 +86,17 @@ function numberValue(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
-function formatMacro(value: number) {
-  return formatNumberPtBr(value, { minimumFractionDigits: Number.isInteger(value) ? 0 : 1, maximumFractionDigits: 1 });
-}
-function formatPercent(value: number) {
-  return `${formatNumberPtBr(Math.round(value))}%`;
-}
-function formatMacroGrams(value: number) {
-  return `${formatMacro(value)} g`;
-}
-function formatSigned(value: number, unit: "kcal" | "g") {
-  const prefix = value > 0 ? "+" : "";
-  return unit === "kcal" ? `${prefix}${formatCalories(value)}` : `${prefix}${formatMacro(value)} g`;
-}
-function formatPerKgDay(value: number | null) {
-  return value === null ? null : `${formatNumberPtBr(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} g/kg/dia`;
-}
-function progressPercent(value: number, goal: number) {
-  return goal ? Math.min(Math.max((value / goal) * 100, 0), 100) : 0;
-}
-function averageValue(total: number, count: number) {
-  return count ? total / count : 0;
-}
-function getCalorieBarColor(calories: number, goalCalories: number) {
-  return goalCalories > 0 && calories > goalCalories ? "#dc2626" : "#10b981";
-}
+
 function personLabel(access: PatientAccess) {
   return access.patient?.name || access.patient?.email || `Pessoa #${access.patientUserId}`;
 }
+
 function accessDateLabel(access: PatientAccess) {
   if (access.status === "approved" && access.approvedAt) return `Autorizado em ${new Date(access.approvedAt).toLocaleString("pt-BR")}`;
   if (access.status === "revoked" && access.revokedAt) return `Revogado em ${new Date(access.revokedAt).toLocaleString("pt-BR")}`;
   return `Solicitado em ${new Date(access.requestedAt).toLocaleString("pt-BR")}`;
 }
+
 function normalizeDay(day: any, fallbackGoal?: any): ReportDay {
   return {
     date: String(day.date ?? ""),
@@ -131,6 +115,7 @@ function normalizeDay(day: any, fallbackGoal?: any): ReportDay {
     exerciseCalories: numberValue(day.exerciseCalories),
   };
 }
+
 function normalizeWeightPoints(...sources: any[]): WeightPoint[] {
   for (const value of sources) {
     const entries = value?.entries ?? value?.points ?? value?.summary?.entries ?? [];
@@ -141,14 +126,17 @@ function normalizeWeightPoints(...sources: any[]): WeightPoint[] {
   }
   return [];
 }
+
 function resolveWeightForDate(date: string, weights: WeightPoint[]) {
   const usableWeights = weights.filter(weight => weight.date && Number(weight.weightKg) > 0).sort((a, b) => a.date.localeCompare(b.date));
   return Number((usableWeights.find(weight => weight.date === date) ?? usableWeights.filter(weight => weight.date < date).at(-1))?.weightKg) || null;
 }
-function calculateMacroMetrics(days: ReportDay[], weights: WeightPoint[]): MacroMetric[] {
+
+function calculateMacroMetrics(days: ReportDay[], weights: WeightPoint[]): ReportMacroMetric[] {
   const caloriesPlanned = days.reduce((total, day) => total + day.adjustedGoalCalories, 0);
   const caloriesRealized = days.reduce((total, day) => total + day.calories, 0);
-  const metrics: MacroMetric[] = [{ key: "calories", title: "Calorias", unit: "kcal", planned: caloriesPlanned, realized: caloriesRealized, percent: progressPercent(caloriesRealized, caloriesPlanned), difference: caloriesRealized - caloriesPlanned, plannedPerKgDay: null, realizedPerKgDay: null }];
+  const metrics: ReportMacroMetric[] = [{ key: "calories", title: "Calorias", unit: "kcal", planned: caloriesPlanned, realized: caloriesRealized, percent: progressPercent(caloriesRealized, caloriesPlanned), difference: caloriesRealized - caloriesPlanned, plannedPerKgDay: null, realizedPerKgDay: null }];
+
   MACRO_META.forEach(macro => {
     const planned = days.reduce((total, day) => total + day[macro.goalKey], 0);
     const realized = days.reduce((total, day) => total + day[macro.key], 0);
@@ -162,7 +150,33 @@ function calculateMacroMetrics(days: ReportDay[], weights: WeightPoint[]): Macro
     }, { planned: 0, realized: 0, days: 0 });
     metrics.push({ key: macro.key, title: macro.title, unit: "g", planned, realized, percent: progressPercent(realized, planned), difference: realized - planned, plannedPerKgDay: perKg.days ? perKg.planned / perKg.days : null, realizedPerKgDay: perKg.days ? perKg.realized / perKg.days : null });
   });
+
   return metrics;
+}
+
+function findExtreme<T>(items: T[], getValue: (item: T) => number, direction: "min" | "max") {
+  return items.reduce<T | null>((current, item) => {
+    if (!current) return item;
+    const nextValue = getValue(item);
+    const currentValue = getValue(current);
+    return direction === "max" ? (nextValue > currentValue ? item : current) : (nextValue < currentValue ? item : current);
+  }, null);
+}
+
+function toTrendDay(day: ReportDay): ReportTrendDay {
+  return { date: day.date, label: day.label, calories: day.calories, protein: day.protein, carbs: day.carbs, fat: day.fat, goalCalories: day.adjustedGoalCalories || day.goalCalories };
+}
+
+function buildWeightSummary(weights: WeightPoint[]) {
+  const usable = weights.filter(weight => Number(weight.weightKg) > 0).sort((a, b) => a.date.localeCompare(b.date));
+  const firstWeightKg = usable[0]?.weightKg ?? null;
+  const lastWeightKg = usable.at(-1)?.weightKg ?? null;
+  return {
+    hasData: usable.length > 0,
+    firstWeightKg,
+    lastWeightKg,
+    deltaKg: firstWeightKg != null && lastWeightKg != null ? lastWeightKg - firstWeightKg : null,
+  };
 }
 
 export default function ProfessionalReportsPage() {
@@ -186,7 +200,7 @@ export default function ProfessionalReportsPage() {
   const approvedAccesses = React.useMemo<PatientAccess[]>(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => access.status === "approved"), [accesses.data]);
   const pendingAccesses = React.useMemo(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => access.status === "pending"), [accesses.data]);
   const selectedAccess = approvedAccesses.find(access => access.patientUserId === selectedPatientId) ?? null;
-  const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery({ patientId: selectedPatientId ?? 0, weekOffset }, { enabled: hasActiveProfile && Boolean(selectedPatientId) && periodScope === "week" });
+  const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery({ patientId: selectedPatientId ?? 0, weekOffset }, { enabled: hasActiveProfile && Boolean(selectedPatientId) });
   const periodBundle = trpc.nutrition.professionals.patientPeriodBundle.useQuery({ patientId: selectedPatientId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: hasActiveProfile && Boolean(selectedPatientId) && periodScope !== "week" });
 
   React.useEffect(() => {
@@ -212,23 +226,28 @@ export default function ProfessionalReportsPage() {
   const defaultNutritionGoal = (dashboard.data as any)?.nutritionGoal?.defaultGoal as NutritionGoal | undefined;
   const weeklyDays = React.useMemo<ReportDay[]>(() => ((dashboard.data as any)?.weeklyReport ?? []).map((day: any) => normalizeDay(day)), [dashboard.data]);
   const periodDays = React.useMemo<ReportDay[]>(() => ((periodBundle.data as any)?.daily ?? []).map((day: any) => normalizeDay(day, (periodBundle.data as any)?.goal)), [periodBundle.data]);
-  const metricDays: ReportDay[] = periodScope === "week" ? weeklyDays : periodDays;
+  const metricDays = periodScope === "week" ? weeklyDays : periodDays;
   const totals = metricDays.reduce<Totals>((acc, day) => ({ calories: acc.calories + day.calories, protein: acc.protein + day.protein, carbs: acc.carbs + day.carbs, fat: acc.fat + day.fat }), { ...EMPTY_TOTALS });
   const dayCount = metricDays.length || countDaysInRange(activeRange);
-  const weightPoints = periodScope === "week"
-    ? normalizeWeightPoints((dashboard.data as any)?.weight, (dashboard.data as any)?.progress?.weight)
-    : normalizeWeightPoints((periodBundle.data as any)?.weightTrend);
+  const weightPoints = periodScope === "week" ? normalizeWeightPoints((dashboard.data as any)?.weight, (dashboard.data as any)?.progress?.weight) : normalizeWeightPoints((periodBundle.data as any)?.weightTrend);
   const macroMetrics = calculateMacroMetrics(metricDays, weightPoints);
+  const trendDays = metricDays.map(toTrendDay);
   const waterConsumedMl = periodScope === "week" ? metricDays.reduce((total, day) => total + day.waterConsumedMl, 0) : numberValue((periodBundle.data as any)?.habitAnalytics?.water?.totalConsumedMl);
   const waterGoalMl = periodScope === "week" ? metricDays.reduce((total, day) => total + day.waterGoalMl, 0) : numberValue((periodBundle.data as any)?.habitAnalytics?.water?.totalGoalMl);
   const waterHitDays = periodScope === "week" ? metricDays.filter(day => day.waterGoalMl > 0 && day.waterConsumedMl >= day.waterGoalMl).length : numberValue((periodBundle.data as any)?.habitAnalytics?.water?.goalHitDays);
+  const averageWater = averageValue(waterConsumedMl, Math.max(dayCount, 1));
+  const lowestWaterDay = findExtreme(metricDays, day => day.waterConsumedMl, "min");
   const exerciseActiveDays = periodScope === "week" ? metricDays.filter(day => day.exerciseCalories > 0).length : numberValue((periodBundle.data as any)?.habitAnalytics?.exercise?.activeDays);
   const exerciseCalories = periodScope === "week" ? metricDays.reduce((total, day) => total + day.exerciseCalories, 0) : numberValue((periodBundle.data as any)?.habitAnalytics?.exercise?.totalCalories);
-  const goalCalories = metricDays[0]?.adjustedGoalCalories ?? 0;
+  const highestExerciseDay = findExtreme(metricDays, day => day.exerciseCalories, "max");
+  const averageExercisePerActiveDay = exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0;
+  const goalCalories = metricDays[0]?.adjustedGoalCalories ?? metricDays[0]?.goalCalories ?? 0;
   const averageCalories = averageValue(totals.calories, Math.max(metricDays.length, 1));
   const activeLoading = periodScope === "week" ? dashboard.isLoading : periodBundle.isLoading;
   const activeError = periodScope === "week" ? dashboard.isError : periodBundle.isError;
   const adherence = macroMetrics[0]?.percent ?? 0;
+  const hydrationReading = !metricDays.length ? "Ainda não há dados suficientes para interpretar a hidratação do período." : waterHitDays > 0 ? `${waterHitDays} de ${dayCount} dias bateram a meta de água, o que já permite enxergar consistência no intervalo.` : "Nenhum dia bateu a meta de água neste intervalo, então vale revisar distribuição e frequência dos registros.";
+  const exerciseReading = !metricDays.length ? "Ainda não há dados suficientes para interpretar a atividade física do período." : exerciseActiveDays > 1 ? `Os exercícios ficaram distribuídos em ${exerciseActiveDays} dias, o que ajuda a evitar concentração excessiva em um único ponto do período.` : exerciseActiveDays === 1 ? "Toda a atividade física registrada ficou concentrada em um único dia do período." : "Nenhum exercício foi registrado neste intervalo.";
 
   if (!profile.isLoading && !hasActiveProfile) {
     return <DashboardLayout><div className="mx-auto max-w-3xl"><Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-primary" /> Perfil profissional necessário</CardTitle><CardDescription>Ative a área Profissional em Configurações para acompanhar pessoas autorizadas.</CardDescription></CardHeader><CardContent><Button className="rounded-full" onClick={() => setLocation("/settings")}>Ir para Configurações</Button></CardContent></Card></div></DashboardLayout>;
@@ -246,17 +265,17 @@ export default function ProfessionalReportsPage() {
 
         {activeTab === "vinculos" ? (
           <section role="tabpanel" data-state="active" data-value="vinculos" className="space-y-6">
-            <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Vínculos de acompanhamento</CardTitle><CardDescription>Escolha uma pessoa autorizada ou envie um novo convite.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 lg:grid-cols-[1fr_1.4fr_auto] lg:items-end"><label className="space-y-2"><Label>E-mail ou celular</Label><Input value={patientContact} onChange={event => setPatientContact(event.target.value.trimStart())} placeholder="pessoa@exemplo.com" /></label><label className="space-y-2"><Label>Motivo</Label><Textarea value={reason} onChange={event => setReason(event.target.value)} className="min-h-11 lg:min-h-11" /></label><Button className="h-11 rounded-full" disabled={requestAccess.isPending || !patientContact.trim()} onClick={() => requestAccess.mutate({ patientContact: patientContact.trim(), reason })}><Mail className="mr-2 h-4 w-4" /> Enviar convite</Button></div>{selectedAccess ? <div className="flex flex-col gap-3 rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{personLabel(selectedAccess)}</p><p>{selectedAccess.patient?.email || `ID interno #${selectedAccess.patientUserId}`}</p><p>{accessDateLabel(selectedAccess)}</p></div><Button type="button" variant="outline" className="w-fit rounded-full" onClick={() => setActiveTab("analise")}>Analisar</Button></div> : !accesses.isLoading ? <Empty text={pendingAccesses.length ? "Há convites aguardando autorização, mas nenhuma pessoa liberou acesso ainda." : "Nenhuma pessoa autorizou acompanhamento até agora."} /> : null}</CardContent></Card>
+            <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Vínculos de acompanhamento</CardTitle><CardDescription>Escolha uma pessoa autorizada ou envie um novo convite.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 lg:grid-cols-[1fr_1.4fr_auto] lg:items-end"><label className="space-y-2"><Label>E-mail ou celular</Label><Input value={patientContact} onChange={event => setPatientContact(event.target.value.trimStart())} placeholder="pessoa@exemplo.com" /></label><label className="space-y-2"><Label>Motivo</Label><Textarea value={reason} onChange={event => setReason(event.target.value)} className="min-h-11 lg:min-h-11" /></label><Button className="h-11 rounded-full" disabled={requestAccess.isPending || !patientContact.trim()} onClick={() => requestAccess.mutate({ patientContact: patientContact.trim(), reason })}><Mail className="mr-2 h-4 w-4" /> Enviar convite</Button></div>{selectedAccess ? <div className="flex flex-col gap-3 rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{personLabel(selectedAccess)}</p><p>{selectedAccess.patient?.email || `ID interno #${selectedAccess.patientUserId}`}</p><p>{accessDateLabel(selectedAccess)}</p></div><Button type="button" variant="outline" className="w-fit rounded-full" onClick={() => setActiveTab("analise")}>Analisar</Button></div> : !accesses.isLoading ? <ReportEmptyState text={pendingAccesses.length ? "Há convites aguardando autorização, mas nenhuma pessoa liberou acesso ainda." : "Nenhuma pessoa autorizou acompanhamento até agora."} /> : null}</CardContent></Card>
           </section>
         ) : null}
 
         {activeTab === "analise" ? (
           <section role="tabpanel" data-state="active" data-value="analise" className="space-y-6">
             <Card className="border-0 shadow-sm"><CardHeader><CardTitle>Análise por pessoa acompanhada</CardTitle><CardDescription>Selecione a pessoa e o intervalo antes de navegar por resumo, hoje, relatórios, metas e comentários.</CardDescription></CardHeader><CardContent><div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end"><label className="min-w-64 space-y-2 text-left"><Label>Pessoa acompanhada</Label><select className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={selectedPatientId ?? ""} onChange={event => setSelectedPatientId(event.target.value ? Number(event.target.value) : null)} disabled={!approvedAccesses.length}><option value="">Selecione uma pessoa</option>{approvedAccesses.map(access => <option key={access.id} value={access.patientUserId}>{personLabel(access)}</option>)}</select></label><PeriodScopeSelector scope={periodScope} onScopeChange={setPeriodScope} selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} selectedMonth={selectedMonth} onSelectedMonthChange={setSelectedMonth} rangeStart={rangeStart} onRangeStartChange={setRangeStart} rangeEnd={rangeEnd} onRangeEndChange={setRangeEnd} /></div></CardContent></Card>
-            {!selectedPatientId && !accesses.isLoading ? <Empty text="Escolha uma pessoa autorizada para revisar relatórios, metas e evolução no período selecionado." /> : null}
+            {!selectedPatientId && !accesses.isLoading ? <ReportEmptyState text="Escolha uma pessoa autorizada para revisar relatórios, metas e evolução no período selecionado." /> : null}
             {selectedAccess ? <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground"><p className="font-medium text-foreground">{personLabel(selectedAccess)}</p><p>{selectedAccess.patient?.email || `ID interno #${selectedAccess.patientUserId}`}</p><p>{accessDateLabel(selectedAccess)}</p></div> : null}
             {activeLoading ? <div className="grid gap-4 lg:grid-cols-4"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : null}
-            {activeError ? <Empty text="Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." /> : null}
+            {activeError ? <ReportEmptyState text="Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." /> : null}
             {selectedPatientId && !activeLoading && !activeError ? (
               <Tabs defaultValue="resumo" className="space-y-4">
                 <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl bg-muted/60 p-2 md:grid-cols-5">
@@ -268,31 +287,33 @@ export default function ProfessionalReportsPage() {
                 </TabsList>
 
                 <TabsContent value="resumo" className="space-y-4">
-                  <div className="grid gap-4 lg:grid-cols-4"><HighlightCard title={periodScope === "week" ? "Média semanal" : "Média do período"} value={formatCalories(averageCalories)} description="Média diária no intervalo selecionado." /><HighlightCard title="Total do período" value={formatCalories(totals.calories)} description={`Meta de referência: ${formatCalories(goalCalories)}.`} /><HighlightCard title="Macros realizados" value={formatMacroGrams(totals.protein + totals.carbs + totals.fat)} description="Soma de proteínas, carboidratos e gorduras no período." /><HighlightCard title="Exercícios" value={formatCalories(exerciseCalories)} description={`${exerciseActiveDays}/${dayCount} dias com atividade registrada.`} /></div>
+                  <div className="grid gap-4 lg:grid-cols-4"><ReportHighlightCard title={periodScope === "week" ? "Média semanal" : "Média do período"} value={formatCalories(averageCalories)} description="Média diária no intervalo selecionado." /><ReportHighlightCard title="Total do período" value={formatCalories(totals.calories)} description={`Meta de referência: ${formatCalories(goalCalories)}.`} /><ReportHighlightCard title="Macros realizados" value={formatMacroGrams(totals.protein + totals.carbs + totals.fat)} description="Soma de proteínas, carboidratos e gorduras no período." /><ReportHighlightCard title="Exercícios" value={formatCalories(exerciseCalories)} description={`${exerciseActiveDays}/${dayCount} dias com atividade registrada.`} /></div>
                   <Card className="border-0 shadow-sm"><CardHeader><CardTitle>Leitura rápida</CardTitle><CardDescription>Esta visão é da pessoa selecionada, separada da conta pessoal do profissional.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-4"><Metric label="Aderência calórica" value={formatPercent(adherence)} /><Metric label="Dias no intervalo" value={String(dayCount)} /><Metric label="Refeições recentes" value={String(dashboardMeals.length)} /><Metric label="Peso usado" value={weightPoints.length ? `${formatMacro(weightPoints.at(-1)?.weightKg ?? 0)} kg` : "Sem peso"} /></CardContent></Card>
                 </TabsContent>
 
                 <TabsContent value="hoje" className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-3"><Metric label="Refeições hoje" value={String(todayMeals.length)} /><Metric label="Calorias no período" value={formatCalories(totals.calories)} /><Metric label="Proteína no período" value={formatMacroGrams(totals.protein)} /></div>
-                  <Card className="border-0 shadow-sm"><CardHeader><CardTitle>Registros do dia</CardTitle><CardDescription>Refeições encontradas para hoje no dashboard profissional.</CardDescription></CardHeader><CardContent className="space-y-2">{todayMeals.length ? todayMeals.map(meal => <MealRow key={meal.id} meal={meal} />) : <Empty text="Nenhuma refeição registrada hoje para esta pessoa." />}</CardContent></Card>
+                  <Card className="border-0 shadow-sm"><CardHeader><CardTitle>Registros do dia</CardTitle><CardDescription>Refeições encontradas para hoje no dashboard profissional.</CardDescription></CardHeader><CardContent className="space-y-2">{todayMeals.length ? todayMeals.map(meal => <MealRow key={meal.id} meal={meal} />) : <ReportEmptyState text="Nenhuma refeição registrada hoje para esta pessoa." />}</CardContent></Card>
                 </TabsContent>
 
                 <TabsContent value="relatorios" className="space-y-6">
-                  <MacroAdherenceSection title={periodScope === "week" ? "Aderência semanal às metas" : "Aderência do período às metas"} metrics={macroMetrics} />
-                  <div className="grid gap-6 xl:grid-cols-2"><WaterCard totalConsumedMl={waterConsumedMl} totalGoalMl={waterGoalMl} goalHitDays={waterHitDays} totalDays={dayCount} /><ExerciseCard activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} /></div>
-                  <TrendSection days={metricDays} />
-                  <WeightAdherenceSection weights={weightPoints} adherencePercent={adherence} />
+                  <div className="grid gap-4 lg:grid-cols-4"><ReportHighlightCard title={periodScope === "week" ? "Média semanal" : "Média do período"} value={formatCalories(averageCalories)} description="Média diária no intervalo selecionado." /><ReportHighlightCard title="Consumo total" value={formatCalories(totals.calories)} description="Soma das calorias registradas no intervalo ativo." /><ReportHighlightCard title="Macros realizados" value={formatMacroGrams(totals.protein + totals.carbs + totals.fat)} description="Proteínas, carboidratos e gorduras realizados." /><ReportHighlightCard title="Calorias líquidas" value={formatCalories(totals.calories - exerciseCalories)} description={`Exercícios registrados: ${formatCalories(exerciseCalories)}.`} /></div>
+                  <ReportMacroAdherenceSection title={periodScope === "week" ? "Aderência semanal às metas" : "Aderência do período às metas"} description="Calorias e macronutrientes usam a mesma leitura visual da tela Relatórios, com dados adaptados da pessoa selecionada." metrics={macroMetrics} />
+                  <ReportPlannedVsRealizedMacrosSection metrics={macroMetrics} />
+                  <div className="grid gap-6 xl:grid-cols-2"><ReportWaterAnalyticsCard title={periodScope === "week" ? "Hidratação na semana" : "Hidratação no período"} scopeLabel={periodScope === "week" ? "Semanal" : "Período"} description="Esta leitura olha aderência à meta, média diária e o ponto mais fraco do intervalo." totalConsumedMl={waterConsumedMl} totalGoalMl={waterGoalMl} goalHitDays={waterHitDays} totalDays={dayCount} averageDailyMl={averageWater} lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} reading={hydrationReading} /><ReportExerciseAnalyticsCard title={periodScope === "week" ? "Atividade física na semana" : "Atividade física no período"} scopeLabel={periodScope === "week" ? "Semanal" : "Período"} description="Mostra frequência, distribuição e volume de gasto ao longo do intervalo selecionado." activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} detailLabel="Distribuição" detailValue={`${exerciseActiveDays}/${dayCount} dias`} averageCaloriesPerActiveDay={averageExercisePerActiveDay} highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} reading={exerciseReading} /></div>
+                  <ReportTrendSection title={periodScope === "week" ? "Calorias consumidas em relação à meta" : "Tendência diária do período"} description="Comparativo diário dentro do intervalo selecionado." days={trendDays} />
+                  <ReportWeightAdherenceCard summary={buildWeightSummary(weightPoints)} adherencePercent={adherence} />
                 </TabsContent>
 
                 <TabsContent value="metas" className="space-y-6">
-                  {defaultNutritionGoal ? <div className="grid gap-3 md:grid-cols-4"><Metric label="Meta calórica" value={formatCalories(numberValue(defaultNutritionGoal.calories))} /><Metric label="Meta proteína" value={formatMacroGrams(numberValue(defaultNutritionGoal.proteinGrams))} /><Metric label="Meta carboidratos" value={formatMacroGrams(numberValue(defaultNutritionGoal.carbsGrams))} /><Metric label="Meta gorduras" value={formatMacroGrams(numberValue(defaultNutritionGoal.fatGrams))} /></div> : <Empty text="Nenhuma meta nutricional encontrada para esta pessoa." />}
-                  <PlannedVsRealizedMacrosSection metrics={macroMetrics} />
+                  {defaultNutritionGoal ? <div className="grid gap-3 md:grid-cols-4"><Metric label="Meta calórica" value={formatCalories(numberValue(defaultNutritionGoal.calories))} /><Metric label="Meta proteína" value={formatMacroGrams(numberValue(defaultNutritionGoal.proteinGrams))} /><Metric label="Meta carboidratos" value={formatMacroGrams(numberValue(defaultNutritionGoal.carbsGrams))} /><Metric label="Meta gorduras" value={formatMacroGrams(numberValue(defaultNutritionGoal.fatGrams))} /></div> : <ReportEmptyState text="Nenhuma meta nutricional encontrada para esta pessoa." />}
+                  <ReportPlannedVsRealizedMacrosSection metrics={macroMetrics} />
                   <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">Sugestões de ajuste de metas ficam registradas para acompanhamento, sem alterar automaticamente a meta ativa da pessoa acompanhada.</div>
                   <div data-professional-goal-exception-suggestions-root="true" />
                 </TabsContent>
 
                 <TabsContent value="comentarios" className="space-y-4">
-                  <Card className="border-0 shadow-sm"><CardHeader><CardTitle>Comentários profissionais</CardTitle><CardDescription>Anotações registradas para acompanhamento da pessoa selecionada.</CardDescription></CardHeader><CardContent className="space-y-3">{dashboardComments.length ? dashboardComments.map((comment, index) => <CommentRow key={comment.id ?? index} comment={comment} />) : <Empty text="Nenhum comentário profissional registrado para esta pessoa." />}</CardContent></Card>
+                  <Card className="border-0 shadow-sm"><CardHeader><CardTitle>Comentários profissionais</CardTitle><CardDescription>Anotações registradas para acompanhamento da pessoa selecionada.</CardDescription></CardHeader><CardContent className="space-y-3">{dashboardComments.length ? dashboardComments.map((comment, index) => <CommentRow key={comment.id ?? index} comment={comment} />) : <ReportEmptyState text="Nenhum comentário profissional registrado para esta pessoa." />}</CardContent></Card>
                 </TabsContent>
               </Tabs>
             ) : null}
@@ -303,55 +324,14 @@ export default function ProfessionalReportsPage() {
   );
 }
 
-function MacroMetricCard({ metric, showPerKg = false }: { metric: MacroMetric; showPerKg?: boolean }) {
-  const plannedValue = metric.unit === "kcal" ? formatCalories(metric.planned) : formatMacroGrams(metric.planned);
-  const realizedValue = metric.unit === "kcal" ? formatCalories(metric.realized) : formatMacroGrams(metric.realized);
-  const plannedPerKg = formatPerKgDay(metric.plannedPerKgDay);
-  const realizedPerKg = formatPerKgDay(metric.realizedPerKgDay);
-  return <Card className="border bg-muted/10 shadow-none"><CardHeader><CardTitle className="text-base">{metric.title}</CardTitle><CardDescription>{formatPercent(metric.percent)} realizado vs planejado</CardDescription></CardHeader><CardContent className="space-y-4"><Progress className="h-2" value={metric.percent} /><div className="grid gap-3 sm:grid-cols-3"><CompactMetric label="Planejado" value={plannedValue} /><CompactMetric label="Realizado" value={realizedValue} /><CompactMetric label="Diferença" value={formatSigned(metric.difference, metric.unit)} /></div>{showPerKg && metric.unit === "g" ? plannedPerKg && realizedPerKg ? <div className="grid gap-3 sm:grid-cols-2"><CompactMetric label="Planejado" value={plannedPerKg} /><CompactMetric label="Realizado" value={realizedPerKg} /></div> : <Empty text="Informe um peso para calcular g/kg/dia deste período." /> : null}</CardContent></Card>;
-}
-function MacroAdherenceSection({ title, metrics }: { title: string; metrics: MacroMetric[] }) {
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /> {title}</CardTitle><CardDescription>Calorias, proteínas, carboidratos e gorduras seguem a mesma leitura da tela Reports.</CardDescription></CardHeader><CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">{metrics.map(metric => <MacroMetricCard key={metric.key} metric={metric} />)}</CardContent></Card>;
-}
-function PlannedVsRealizedMacrosSection({ metrics }: { metrics: MacroMetric[] }) {
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle>Macronutrientes planejados vs realizados</CardTitle><CardDescription>Totais do período e média por peso de referência em g/kg/dia.</CardDescription></CardHeader><CardContent className="grid gap-4 xl:grid-cols-3">{metrics.filter(metric => metric.unit === "g").map(metric => <MacroMetricCard key={metric.key} metric={metric} showPerKg />)}</CardContent></Card>;
-}
-function WaterCard({ totalConsumedMl, totalGoalMl, goalHitDays, totalDays }: { totalConsumedMl: number; totalGoalMl: number; goalHitDays: number; totalDays: number }) {
-  const adherence = progressPercent(totalConsumedMl, totalGoalMl);
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Droplets className="h-5 w-5 text-primary" /> Hidratação no período</CardTitle><CardDescription>Mesmo resumo de água usado em Reports.</CardDescription></CardHeader><CardContent className="space-y-4"><Progress className="h-2" value={adherence} /><div className="grid gap-3 sm:grid-cols-2"><StatusTile label="Meta do período" value={formatCountPtBr(Math.round(totalGoalMl), " ml")} /><StatusTile label="Consumo acumulado" value={formatCountPtBr(Math.round(totalConsumedMl), " ml")} /><StatusTile label="Meta batida" value={`${goalHitDays}/${totalDays} dias`} /><StatusTile label="Aderência" value={formatPercent(adherence)} /></div></CardContent></Card>;
-}
-function ExerciseCard({ activeDays, totalDays, totalCalories }: { activeDays: number; totalDays: number; totalCalories: number }) {
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Dumbbell className="h-5 w-5 text-primary" /> Atividade física no período</CardTitle><CardDescription>Mostra frequência e gasto estimado no intervalo selecionado.</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2"><CompactMetric label="Dias ativos" value={`${activeDays}/${totalDays}`} /><CompactMetric label="Gasto total" value={formatCalories(totalCalories)} /><StatusTile label="Distribuição" value={`${activeDays}/${totalDays} dias`} /><StatusTile label="Média por dia ativo" value={activeDays ? formatCalories(averageValue(totalCalories, activeDays)) : "0 kcal"} /></CardContent></Card>;
-}
-function TrendSection({ days }: { days: ReportDay[] }) {
-  if (!days.length) return <Empty text="Ainda não há dados suficientes no intervalo para desenhar a tendência." />;
-  return <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]"><Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5 text-primary" /> Calorias consumidas em relação à meta</CardTitle><CardDescription>Comparativo diário dentro do intervalo selecionado.</CardDescription></CardHeader><CardContent className="h-[360px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={days} barSize={28}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" /><YAxis /><Tooltip /><Legend /><Bar dataKey="adjustedGoalCalories" name="Meta" fill="#cbd5e1" radius={[8, 8, 0, 0]} /><Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>{days.map(day => <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.adjustedGoalCalories)} />)}</Bar></BarChart></ResponsiveContainer></CardContent></Card><Card className="border-0 shadow-sm"><CardHeader><CardTitle>Distribuição de macronutrientes</CardTitle><CardDescription>Evolução agregada de proteínas, carboidratos e gorduras.</CardDescription></CardHeader><CardContent className="h-[360px]"><ResponsiveContainer width="100%" height="100%"><LineChart data={days}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" /><YAxis /><Tooltip /><Legend /><Line type="monotone" dataKey="protein" name="Proteínas" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} /><Line type="monotone" dataKey="carbs" name="Carboidratos" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4 }} /><Line type="monotone" dataKey="fat" name="Gorduras" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} /></LineChart></ResponsiveContainer></CardContent></Card></div>;
-}
-function WeightAdherenceSection({ weights, adherencePercent }: { weights: WeightPoint[]; adherencePercent: number }) {
-  const usable = weights.filter(weight => Number(weight.weightKg) > 0).sort((a, b) => a.date.localeCompare(b.date));
-  const first = usable[0]?.weightKg ?? null;
-  const last = usable.at(-1)?.weightKg ?? null;
-  const delta = first != null && last != null ? last - first : null;
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> Evolução do peso e aderência</CardTitle><CardDescription>Relaciona o peso de referência usado no g/kg/dia com a aderência calórica do período.</CardDescription></CardHeader><CardContent>{usable.length ? <div className="grid gap-3 sm:grid-cols-4"><StatusTile label="Inicial" value={`${formatMacro(first ?? 0)} kg`} /><StatusTile label="Atual" value={`${formatMacro(last ?? 0)} kg`} /><StatusTile label="Variação" value={delta == null ? "-" : `${delta > 0 ? "+" : ""}${formatMacro(delta)} kg`} /><StatusTile label="Aderência calórica" value={formatPercent(adherencePercent)} /></div> : <Empty text="Ainda não há peso registrado para compor a leitura do período." />}</CardContent></Card>;
-}
-function HighlightCard({ title, value, description }: { title: string; value: string; description: string }) {
-  return <Card className="border-0 shadow-sm"><CardContent className="p-5"><p className="text-sm text-muted-foreground">{title}</p><p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p><p className="mt-2 text-sm text-muted-foreground">{description}</p></CardContent></Card>;
-}
-function StatusTile({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p></div>;
-}
-function CompactMetric({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-2xl border bg-muted/10 px-4 py-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold tracking-tight">{value}</p></div>;
-}
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold tracking-tight">{value}</p></div>;
 }
+
 function MealRow({ meal }: { meal: MealSummary }) {
   return <div className="rounded-xl border bg-background p-3 text-sm"><div className="flex justify-between gap-3"><span className="font-medium">{meal.mealLabel || "Refeição"}</span><span>{formatCalories(numberValue(meal.totals?.calories))}</span></div><p className="text-xs text-muted-foreground">{meal.occurredAt ? new Date(meal.occurredAt).toLocaleString("pt-BR") : "Sem horário"}</p></div>;
 }
+
 function CommentRow({ comment }: { comment: ProfessionalComment }) {
   return <div className="rounded-xl border bg-muted/20 p-3 text-sm"><p>{comment.comment || "Comentário sem texto."}</p>{comment.createdAt ? <p className="mt-2 text-xs text-muted-foreground">{new Date(comment.createdAt).toLocaleString("pt-BR")}</p> : null}</div>;
-}
-function Empty({ text }: { text: string }) {
-  return <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">{text}</div>;
 }
