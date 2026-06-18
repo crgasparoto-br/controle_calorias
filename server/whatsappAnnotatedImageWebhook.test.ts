@@ -326,7 +326,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
   });
 
-  it("não envia card de fallback como se fosse foto anotada", async () => {
+  it("envia card de fallback quando há imagem auxiliar em buffer", async () => {
     generateImageMock.mockResolvedValue({
       buffer: Buffer.from("fallback-card-png"),
       mimeType: "image/png",
@@ -340,15 +340,17 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(uploadedMediaRequests).toBe(0);
-    expect(sentImageMessages).toEqual([]);
-    expect(sentTextMessages.at(-1)).toBe("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 42,
-      origin: "whatsapp",
-      status: "warning",
+    expect(uploadedMediaRequests).toBe(1);
+    expect(sentImageMessages).toEqual([
+      {
+        link: undefined,
+        id: "uploaded-annotated-media-id",
+        caption: "Imagem anotada com os alimentos identificados.",
+      },
+    ]);
+    expect(sentTextMessages).not.toContain("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
+    expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
       eventType: "whatsapp.annotated_image_skipped",
-      detail: expect.stringContaining("fallback local"),
     }));
   });
 
