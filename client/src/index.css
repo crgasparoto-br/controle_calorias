@@ -179,5 +179,9 @@
     [data-slot="card"]:has(a[href="/meals"]):has(a[href="/registrar"]) {
       display: none;
     }
+
+    section[role="tabpanel"] > .rounded-2xl.border.bg-muted\/20.p-4.text-sm.leading-6.text-muted-foreground:has(> .font-medium.text-foreground) {
+      display: none;
+    }
   }
 }
