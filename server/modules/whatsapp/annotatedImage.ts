@@ -50,8 +50,8 @@ export function buildMealCardsImagePrompt(processed: MealProcessingResult) {
   ].join("\n");
 }
 
-function isGeneratedFallbackImage(image: GenerateImageResponse) {
-  return Boolean(image.skippedReason);
+function hasGeneratedImagePayload(image: GenerateImageResponse) {
+  return Boolean(image.url || image.buffer);
 }
 
 export async function generateAnnotatedMealImage(
@@ -69,7 +69,7 @@ export async function generateAnnotatedMealImage(
       originalImages: [sourceImage],
     });
 
-    if (!isGeneratedFallbackImage(editedImage) && (editedImage.url || editedImage.buffer)) {
+    if (hasGeneratedImagePayload(editedImage)) {
       return editedImage;
     }
 
