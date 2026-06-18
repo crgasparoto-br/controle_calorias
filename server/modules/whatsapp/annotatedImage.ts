@@ -1,4 +1,5 @@
 import { generateImage, type GenerateImageResponse } from "../../_core/imageGeneration";
+import { isOpenAiConfigured } from "../../_core/openaiClient";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
 function formatMacro(value: number) {
@@ -55,7 +56,7 @@ function hasGeneratedImagePayload(image: GenerateImageResponse) {
 }
 
 function isLocalFallbackCard(image: GenerateImageResponse) {
-  return /fallback local/i.test(image.detail ?? "");
+  return /fallback local|fallback de classificação|provider de imagem (?:não configurado|falhou)/i.test(image.detail ?? "");
 }
 
 export async function generateAnnotatedMealImage(
@@ -68,6 +69,13 @@ export async function generateAnnotatedMealImage(
   }
 
   if (sourceImage) {
+    if (!isOpenAiConfigured()) {
+      return {
+        skippedReason: "not_configured",
+        detail: "Provider de imagem não configurado; a foto original não foi anotada.",
+      };
+    }
+
     const editedImage = await generateImage({
       prompt: buildAnnotatedMealImagePrompt(processed),
       originalImages: [sourceImage],
