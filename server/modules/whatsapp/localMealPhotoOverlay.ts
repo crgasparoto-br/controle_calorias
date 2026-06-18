@@ -17,7 +17,16 @@ export type LocalMealPhotoOverlayResult = {
   detail: string;
 };
 
-type SharpModule = typeof import("sharp");
+type SharpFactory = (input: Buffer, options?: Record<string, unknown>) => {
+  rotate: () => SharpPipeline;
+};
+
+type SharpPipeline = {
+  metadata: () => Promise<{ width?: number; height?: number }>;
+  composite: (input: Array<{ input: Buffer; top: number; left: number }>) => SharpPipeline;
+  png: (options?: Record<string, unknown>) => SharpPipeline;
+  toBuffer: () => Promise<Buffer>;
+};
 
 type OverlayCard = {
   title: string;
@@ -92,8 +101,12 @@ function buildOverlaySvg(processed: MealProcessingResult, width: number, height:
     </svg>`, "utf8");
 }
 
-async function loadSharp(): Promise<SharpModule["default"]> {
-  const mod = await import("sharp");
+async function loadSharp(): Promise<SharpFactory> {
+  const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<{ default?: SharpFactory }>;
+  const mod = await dynamicImport("sharp");
+  if (!mod.default) {
+    throw new Error("sharp module did not expose a default export");
+  }
   return mod.default;
 }
 
