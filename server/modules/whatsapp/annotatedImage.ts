@@ -24,11 +24,12 @@ export function buildAnnotatedMealImagePrompt(processed: MealProcessingResult) {
     .join("\n");
 
   return [
-    "Edite a foto original da refeição adicionando legendas visuais sobre os alimentos identificados, no estilo de análise nutricional da imagem de referência.",
-    "Use etiquetas verdes translúcidas com texto grande e linhas discretas apontando para cada alimento quando fizer sentido.",
-    "Cada legenda deve mostrar nome do alimento, calorias e macronutrientes no formato P/C/G em gramas.",
-    "Mantenha a foto realista, preserve o prato original e não adicione alimentos novos.",
-    "Use texto em português do Brasil, grande e legível em celular.",
+    "Mantenha a foto original da refeição como base visual principal e preserve o prato, os alimentos, a iluminação, as cores, o enquadramento e o fundo.",
+    "Não recrie, não redesenhe, não substitua e não adicione alimentos. Não transforme a foto em ilustração, renderização, montagem ou imagem nova.",
+    "Apenas sobreponha cards/etiquetas nutricionais em português do Brasil sobre a foto original, como uma camada visual de anotação.",
+    "Use cards verdes translúcidos, legíveis em celular, com cantos discretos e linhas finas apontando para cada alimento quando fizer sentido.",
+    "Cada card deve mostrar nome do alimento, calorias e macronutrientes no formato P/C/G em gramas.",
+    "Posicione os cards sem esconder excessivamente os alimentos; priorize leitura clara e preservação da foto real.",
     `Itens detectados:\n${labels || "Alimentos identificados na refeição."}`,
   ].join("\n");
 }
