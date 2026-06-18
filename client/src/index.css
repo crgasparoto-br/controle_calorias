@@ -214,11 +214,13 @@
     }
 
     section[role="tabpanel"] > [data-slot="card"]:has(select) [data-slot="card-content"] > .flex {
-      justify-content: flex-start;
+      justify-content: flex-start !important;
+      align-items: flex-start !important;
     }
 
     section[role="tabpanel"] > [data-slot="card"]:has(select) label:has(select) {
       width: min(100%, 24rem);
+      margin-right: auto;
     }
   }
 }
