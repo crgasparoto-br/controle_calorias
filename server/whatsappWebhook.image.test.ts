@@ -349,10 +349,13 @@ describe("whatsappWebhook image inbound", () => {
     expect(generateImageMock).toHaveBeenCalledTimes(1);
     expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
       originalImages: expect.any(Array),
-      prompt: expect.stringContaining("Edite a foto original"),
+      prompt: expect.stringContaining("Mantenha a foto original"),
+    }));
+    expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining("Apenas sobreponha cards/etiquetas nutricionais"),
     }));
     expect(generateImageMock).not.toHaveBeenCalledWith(expect.objectContaining({
-      prompt: expect.stringContaining("cards nutricionais"),
+      prompt: expect.stringContaining("cards nutricionais limpos"),
     }));
 
     const imageSendCall = findFetchCallByBody('"type":"image"');
