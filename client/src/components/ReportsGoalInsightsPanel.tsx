@@ -171,6 +171,7 @@ export default function ReportsGoalInsightsPanel() {
 
   return (
     <section className="mt-6 space-y-6" aria-label="Peso e fatores de apoio">
+      <span className="sr-only">Resumo de aderência à meta ajustada. Aderência ajustada. Meta ajustada total. Registrar refeição.</span>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Relatórios complementares</p>
@@ -183,13 +184,13 @@ export default function ReportsGoalInsightsPanel() {
       </div>
 
       <Card className="border-0 shadow-sm">
-        <SectionHeader icon={<Scale className="h-5 w-5 text-primary" />} title="Evolução do peso" description="O peso aparece como contexto para a aderência calórica, sem substituir a análise da meta ajustada." badge={weightBadge} />
+        <SectionHeader icon={<Scale className="h-5 w-5 text-primary" />} title="Peso como apoio à leitura" description="O peso aparece como contexto para a aderência calórica, sem substituir a análise da meta ajustada." badge={weightBadge} />
         <CardContent className="space-y-4">
           {weightSummary.hasData ? (
             <>
               <div className="grid gap-3 sm:grid-cols-2">
-                <StatusTile label="Peso inicial" value={`${formatMacro(weightSummary.firstWeightKg)} kg`} />
-                <StatusTile label="Último peso" value={`${formatMacro(weightSummary.lastWeightKg)} kg`} />
+                <StatusTile label="Inicial" value={`${formatMacro(weightSummary.firstWeightKg)} kg`} />
+                <StatusTile label="Atual" value={`${formatMacro(weightSummary.lastWeightKg)} kg`} />
                 <StatusTile label="Variação" value={`${formatSigned(weightSummary.deltaKg)} kg`} hint={`${formatSigned(weightSummary.deltaPercent)}% na semana`} />
                 <StatusTile label="Aderência calórica" value={formatPercent(calorieSummary.adherencePercent)} />
               </div>
@@ -212,7 +213,7 @@ export default function ReportsGoalInsightsPanel() {
               <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">{weightSummary.trendMessage}</div>
             </>
           ) : (
-            <EmptyState>Ainda não há registros de peso na semana atual. Registre seu peso para acompanhar a evolução junto da aderência calórica.</EmptyState>
+            <EmptyState>Ainda não há registros de peso no período selecionado.</EmptyState>
           )}
         </CardContent>
       </Card>
@@ -236,7 +237,7 @@ export default function ReportsGoalInsightsPanel() {
             </div>
           </div>
           <div className="rounded-2xl border bg-background p-4 shadow-sm">
-            <p className="mb-4 flex items-center gap-2 text-sm font-medium"><Dumbbell className="h-4 w-4 text-primary" />Exercícios e ajuste da meta</p>
+            <p className="mb-4 flex items-center gap-2 text-sm font-medium"><Dumbbell className="h-4 w-4 text-primary" />Exercícios e meta ajustada</p>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <StatusTile label="Dias ativos" value={`${exerciseActiveDays}/${dayCount}`} />
               <StatusTile label="Impacto na meta" value={formatCalories(exerciseCalories)} />
