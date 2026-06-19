@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 
 const ANALYSIS_TAB_LABEL = "Análise por pessoa acompanhada";
+const ANALYSIS_TITLE = "Análise da pessoa acompanhada";
+const ANALYSIS_DESCRIPTION = "Escolha uma pessoa autorizada para revisar relatórios, metas, sugestões, IA e comentários. O período dos relatórios fica na aba Relatórios.";
 const ANALYZE_BUTTON_LABEL = "Analisar";
 const PERIOD_FILTER_LABELS = ["Dia", "Semana", "Mês", "Período"];
 const PERIOD_DETAIL_LABELS = ["Dia ativo", "Semana de referência", "Mês ativo", "Início"];
@@ -67,6 +69,32 @@ function movePeriodFilterIntoReportsTab() {
   reportsPanel.insertBefore(periodFilter, reportsPanel.firstChild);
 }
 
+function alignPatientSelectorAndCopy() {
+  const title = Array.from(document.querySelectorAll<HTMLElement>("h1, h2, h3, div")).find(element =>
+    elementText(element) === ANALYSIS_TAB_LABEL,
+  );
+
+  if (title) {
+    title.textContent = ANALYSIS_TITLE;
+    const description = title.parentElement?.querySelector<HTMLElement>("p");
+    if (description) description.textContent = ANALYSIS_DESCRIPTION;
+  }
+
+  const patientLabel = Array.from(document.querySelectorAll<HTMLElement>("label")).find(element =>
+    elementText(element).includes("Pessoa acompanhada") && element.querySelector("select"),
+  );
+  const selectorRow = patientLabel?.parentElement;
+  if (!selectorRow) return;
+
+  selectorRow.classList.remove("sm:justify-end");
+  selectorRow.classList.add("sm:justify-start");
+}
+
+function refreshAnalysisLayout() {
+  alignPatientSelectorAndCopy();
+  movePeriodFilterIntoReportsTab();
+}
+
 function findAnalyzeButton(target: EventTarget | null) {
   if (!(target instanceof Element)) return null;
   const button = target.closest<HTMLButtonElement>("button");
@@ -82,7 +110,7 @@ function openAnalysisTab() {
       tab?.click();
       tab?.focus({ preventScroll: true });
       findAnalysisPanel()?.scrollIntoView({ block: "start", behavior: "smooth" });
-      movePeriodFilterIntoReportsTab();
+      refreshAnalysisLayout();
     }, delay);
   });
 }
@@ -98,20 +126,20 @@ export default function ProfessionalAnalyzeTabBridge() {
       openAnalysisTab();
     };
 
-    const schedulePeriodFilterMove = () => window.setTimeout(movePeriodFilterIntoReportsTab, 0);
-    const observer = new MutationObserver(schedulePeriodFilterMove);
+    const scheduleLayoutRefresh = () => window.setTimeout(refreshAnalysisLayout, 0);
+    const observer = new MutationObserver(scheduleLayoutRefresh);
 
-    schedulePeriodFilterMove();
+    scheduleLayoutRefresh();
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener("click", handleClick, true);
-    document.addEventListener("click", schedulePeriodFilterMove, true);
-    document.addEventListener("change", schedulePeriodFilterMove, true);
+    document.addEventListener("click", scheduleLayoutRefresh, true);
+    document.addEventListener("change", scheduleLayoutRefresh, true);
 
     return () => {
       observer.disconnect();
       document.removeEventListener("click", handleClick, true);
-      document.removeEventListener("click", schedulePeriodFilterMove, true);
-      document.removeEventListener("change", schedulePeriodFilterMove, true);
+      document.removeEventListener("click", scheduleLayoutRefresh, true);
+      document.removeEventListener("change", scheduleLayoutRefresh, true);
     };
   }, [location]);
 
