@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 
 const ANALYSIS_TAB_LABEL = "Análise por pessoa acompanhada";
 const ANALYZE_BUTTON_LABEL = "Analisar";
-const REPORTS_TAB_LABEL = "Relatórios";
 const PERIOD_FILTER_LABELS = ["Dia", "Semana", "Mês", "Período"];
 
 function elementText(element: Element) {
@@ -33,7 +32,7 @@ function findReportsTabPanel() {
   return candidates
     .filter(element => {
       const text = elementText(element);
-      return text.includes(REPORTS_TAB_LABEL) && text.includes("Consumo total") && text.includes("Macros realizados");
+      return text.includes("Consumo total") && text.includes("Macros realizados") && text.includes("Aderência");
     })
     .sort((a, b) => elementText(a).length - elementText(b).length)[0] ?? null;
 }
