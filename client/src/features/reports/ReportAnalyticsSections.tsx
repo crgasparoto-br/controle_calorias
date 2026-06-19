@@ -98,7 +98,7 @@ export function ReportStatusTile({ label, value }: { label: string; value: strin
   );
 }
 
-export function ReportCompactMetric({ label, value }: { label: string; value: string | number }) {
+export function ReportCompactMetric({ label, value }: { label: string | number; value: string | number }) {
   return (
     <div className="rounded-2xl border bg-muted/10 px-4 py-3">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -252,6 +252,10 @@ export function ReportExerciseAnalyticsCard({ title, scopeLabel, description, ac
 }
 
 export function ReportTrendSection({ title, description, days }: { title: string; description: string; days: ReportTrendDay[] }) {
+  if (title === "Consumo diário vs meta ajustada") {
+    return null;
+  }
+
   if (!days.length) {
     return <ReportEmptyState text="Ainda não há dados suficientes no intervalo para desenhar a tendência." />;
   }
