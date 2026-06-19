@@ -267,7 +267,7 @@ export function PeriodScopeSelector({
   if (hideInsideProfessionalPatientFilter) {
     return (
       <>
-        <span ref={rootRef as React.Ref<HTMLSpanElement>} className="hidden" aria-hidden="true" />
+        <div ref={rootRef} className="hidden" aria-hidden="true" />
         {professionalReportsPortal ? createPortal(renderSelector(), professionalReportsPortal) : null}
       </>
     );
