@@ -1,4 +1,5 @@
 import React, { type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ const SCOPE_OPTIONS: Array<{ value: PeriodScope; label: string }> = [
   { value: "range", label: "Período" },
 ];
 
+const PROFESSIONAL_FILTER_PORTAL_ATTR = "data-professional-period-filter-portal";
 const useClientLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
 
 function SelectorShell({ children }: { children: ReactNode }) {
@@ -44,6 +46,34 @@ function SelectorShell({ children }: { children: ReactNode }) {
 
 function RangeBadge({ children }: { children: ReactNode }) {
   return <Badge variant="outline" className="rounded-full px-3 py-1 text-xs text-muted-foreground">{children}</Badge>;
+}
+
+function getActiveReportsContent() {
+  const activeTrigger = document.querySelector<HTMLElement>('[data-slot="tabs-trigger"][data-state="active"]');
+  const activeContent = document.querySelector<HTMLElement>('[data-slot="tabs-content"][data-state="active"]');
+  const isReportsTab = activeTrigger?.textContent?.trim() === "Relatórios";
+
+  if (!isReportsTab || !activeContent) return null;
+  return activeContent;
+}
+
+function ensureProfessionalFilterPortal(activeContent: HTMLElement) {
+  const existing = Array.from(activeContent.children).find(child => child.getAttribute(PROFESSIONAL_FILTER_PORTAL_ATTR) === "true") as HTMLElement | undefined;
+
+  if (existing) return existing;
+
+  const portal = document.createElement("div");
+  portal.setAttribute(PROFESSIONAL_FILTER_PORTAL_ATTR, "true");
+  portal.className = "mb-6";
+  activeContent.prepend(portal);
+
+  return portal;
+}
+
+function cleanupProfessionalFilterPortals(activeContent?: HTMLElement | null) {
+  document.querySelectorAll<HTMLElement>(`[${PROFESSIONAL_FILTER_PORTAL_ATTR}="true"]`).forEach(portal => {
+    if (!activeContent || !activeContent.contains(portal)) portal.remove();
+  });
 }
 
 export function PeriodScopeSelector({
@@ -60,6 +90,7 @@ export function PeriodScopeSelector({
 }: PeriodScopeSelectorProps) {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const [hideInsideProfessionalPatientFilter, setHideInsideProfessionalPatientFilter] = React.useState(false);
+  const [professionalReportsPortal, setProfessionalReportsPortal] = React.useState<HTMLElement | null>(null);
   const weekRange = getWeekRange(selectedDay);
   const monthRange = getMonthRange(selectedMonth);
 
@@ -74,15 +105,39 @@ export function PeriodScopeSelector({
       return childText.includes("Pessoa acompanhada") && Boolean(child.querySelector("select"));
     });
 
-    if (hasDirectPatientSelectorSibling) {
-      setHideInsideProfessionalPatientFilter(true);
-    }
+    if (!hasDirectPatientSelectorSibling) return;
+
+    setHideInsideProfessionalPatientFilter(true);
+
+    const updatePortal = () => {
+      const activeContent = getActiveReportsContent();
+
+      if (!activeContent) {
+        cleanupProfessionalFilterPortals();
+        setProfessionalReportsPortal(null);
+        return;
+      }
+
+      const portal = ensureProfessionalFilterPortal(activeContent);
+      cleanupProfessionalFilterPortals(activeContent);
+      setProfessionalReportsPortal(portal);
+    };
+
+    updatePortal();
+
+    const observer = new MutationObserver(updatePortal);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["data-state"], subtree: true });
+    document.addEventListener("click", updatePortal, true);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", updatePortal, true);
+      cleanupProfessionalFilterPortals();
+    };
   }, []);
 
-  if (hideInsideProfessionalPatientFilter) return null;
-
-  return (
-    <div ref={rootRef} className="space-y-3" data-period-scope-selector>
+  const renderSelector = (ref?: React.Ref<HTMLDivElement>) => (
+    <div ref={ref} className="space-y-3" data-period-scope-selector>
       <div className="flex flex-wrap gap-2 rounded-3xl border bg-card p-1 shadow-sm">
         {SCOPE_OPTIONS.map(option => (
           <Button
@@ -208,4 +263,15 @@ export function PeriodScopeSelector({
       ) : null}
     </div>
   );
+
+  if (hideInsideProfessionalPatientFilter) {
+    return (
+      <>
+        <span ref={rootRef as React.Ref<HTMLSpanElement>} className="hidden" aria-hidden="true" />
+        {professionalReportsPortal ? createPortal(renderSelector(), professionalReportsPortal) : null}
+      </>
+    );
+  }
+
+  return renderSelector(rootRef);
 }
