@@ -167,8 +167,17 @@ export default function ReportsGoalInsightsPanel() {
   const waterConsumedMl = weeklyDays.reduce((total, day) => total + Number(day.waterConsumedMl ?? 0), 0);
   const waterGoalMl = weeklyDays.reduce((total, day) => total + Number(day.waterGoalMl ?? 0), 0);
   const waterHitDays = weeklyDays.filter(day => Number(day.waterGoalMl ?? 0) > 0 && Number(day.waterConsumedMl ?? 0) >= Number(day.waterGoalMl ?? 0)).length;
+  const lowestWaterDay = weeklyDays.reduce<WeekReportDay | null>((lowest, day) => {
+    if (!lowest) return day;
+    return Number(day.waterConsumedMl ?? 0) < Number(lowest.waterConsumedMl ?? 0) ? day : lowest;
+  }, null);
   const exerciseActiveDays = weeklyDays.filter(day => Number(day.exerciseCalories ?? 0) > 0).length;
   const exerciseCalories = weeklyDays.reduce((total, day) => total + Number(day.exerciseCalories ?? 0), 0);
+  const highestExerciseDay = weeklyDays.reduce<WeekReportDay | null>((highest, day) => {
+    if (!highest) return day;
+    return Number(day.exerciseCalories ?? 0) > Number(highest.exerciseCalories ?? 0) ? day : highest;
+  }, null);
+  const averageExercisePerActiveDay = exerciseActiveDays ? exerciseCalories / exerciseActiveDays : 0;
   const daysWithExercise = trendData.filter(day => day.exerciseCalories > 0);
   const daysWithoutExercise = trendData.filter(day => day.exerciseCalories <= 0);
   const adjustedGoalWithExercise = averageTrendValue(daysWithExercise, day => day.goalCalories);
@@ -304,7 +313,7 @@ export default function ReportsGoalInsightsPanel() {
       </div>
 
       <Card className="border-0 shadow-sm">
-        <SectionHeader icon={<TrendingUp className="h-5 w-5 text-primary" />} title="Fatores de apoio da semana" description="Água e exercícios ajudam a explicar a meta ajustada e a consistência do período, mas ficam abaixo da análise principal." />
+        <SectionHeader icon={<TrendingUp className="h-5 w-5 text-primary" />} title="Fatores de apoio da semana" description="Água e exercícios ficam consolidados aqui para explicar a meta ajustada e a consistência do período sem repetir blocos na tela." />
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border bg-background p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -312,18 +321,22 @@ export default function ReportsGoalInsightsPanel() {
               <span className="text-sm text-muted-foreground">{formatPercent(progressPercent(waterConsumedMl, waterGoalMl))}</span>
             </div>
             <Progress className="h-2" value={progressPercent(waterConsumedMl, waterGoalMl)} />
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatusTile label="Meta da semana" value={formatCountPtBr(Math.round(waterGoalMl), " ml")} />
               <StatusTile label="Consumido" value={formatCountPtBr(Math.round(waterConsumedMl), " ml")} />
               <StatusTile label="Média diária" value={formatCountPtBr(Math.round(waterConsumedMl / dayCount), " ml")} />
               <StatusTile label="Aderência à água" value={formatPercent(progressPercent(waterConsumedMl, waterGoalMl))} />
               <StatusTile label="Meta batida" value={`${waterHitDays}/${dayCount} dias`} />
+              <StatusTile label="Menor dia" value={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(Math.round(Number(lowestWaterDay.waterConsumedMl ?? 0)), " ml")}` : "-"} />
             </div>
           </div>
           <div className="rounded-2xl border bg-background p-4 shadow-sm">
             <p className="mb-4 flex items-center gap-2 text-sm font-medium"><Dumbbell className="h-4 w-4 text-primary" />Exercícios e ajuste da meta</p>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <StatusTile label="Dias ativos" value={`${exerciseActiveDays}/${dayCount}`} />
-              <StatusTile label="Gasto estimado" value={formatCalories(exerciseCalories)} />
+              <StatusTile label="Impacto na meta" value={formatCalories(exerciseCalories)} />
+              <StatusTile label="Média por dia ativo" value={exerciseActiveDays ? formatCalories(averageExercisePerActiveDay) : "0 kcal"} />
+              <StatusTile label="Maior dia" value={highestExerciseDay && Number(highestExerciseDay.exerciseCalories ?? 0) > 0 ? `${highestExerciseDay.label} · ${formatCalories(Number(highestExerciseDay.exerciseCalories ?? 0))}` : "Sem exercício"} />
               <StatusTile label="Meta em dias ativos" value={adjustedGoalWithExercise == null ? "-" : formatCalories(adjustedGoalWithExercise)} />
               <StatusTile label="Meta sem exercício" value={adjustedGoalWithoutExercise == null ? "-" : formatCalories(adjustedGoalWithoutExercise)} />
               <StatusTile label="Aderência em dias ativos" value={adherenceWithExercise == null ? "-" : formatPercent(adherenceWithExercise)} />
