@@ -13,8 +13,8 @@ try {
   // Installed below without writing package-lock.json or package.json.
 }
 
-if (process.env.CI === "true") {
-  console.log(`[postinstall] sharp@${SHARP_VERSION} is optional for CI checks; skipping runtime install.`);
+if (process.env.CI === "true" || process.env.VERCEL === "1" || process.env.VERCEL === "true") {
+  console.log(`[postinstall] sharp@${SHARP_VERSION} is optional for this build; skipping runtime install.`);
   process.exit(0);
 }
 
