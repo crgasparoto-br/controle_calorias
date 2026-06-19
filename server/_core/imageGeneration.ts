@@ -283,7 +283,7 @@ function buildFallbackMealSummaryPng(prompt: string) {
   return encodePng(PNG_WIDTH, PNG_HEIGHT, rgba);
 }
 
-async function generateFallbackImage(prompt: string, skippedReason: GenerateImageSkipReason, detail: string): Promise<GenerateImageResponse> {
+async function generateFallbackImage(prompt: string, detail: string): Promise<GenerateImageResponse> {
   const imageBuffer = buildFallbackMealSummaryPng(prompt);
   try {
     const storageKey = `generated/meal-support/fallback-${Date.now()}.png`;
@@ -293,7 +293,6 @@ async function generateFallbackImage(prompt: string, skippedReason: GenerateImag
       storageKey: upload.key || storageKey,
       mimeType: "image/png",
       buffer: imageBuffer,
-      skippedReason,
       detail,
     };
   } catch (error) {
@@ -304,7 +303,6 @@ async function generateFallbackImage(prompt: string, skippedReason: GenerateImag
     return {
       mimeType: "image/png",
       buffer: imageBuffer,
-      skippedReason,
       detail: error instanceof Error ? `${detail} Fallback local falhou: ${error.message}` : detail,
     };
   }
@@ -325,7 +323,7 @@ export async function generateImage(
 
   if (!isOpenAiConfigured()) {
     console.warn("[ImageGeneration] OpenAI image generation is not configured; using local fallback image.");
-    return generateFallbackImage(prompt, "not_configured", "Provider de imagem não configurado; fallback local de classificação gerado.");
+    return generateFallbackImage(prompt, "Provider de imagem não configurado; fallback local de classificação gerado.");
   }
 
   try {
@@ -358,7 +356,6 @@ export async function generateImage(
     );
     return generateFallbackImage(
       prompt,
-      "provider_failed",
       error instanceof Error ? `Provider de imagem falhou: ${error.message}` : "Falha desconhecida no provider de imagem.",
     );
   }
