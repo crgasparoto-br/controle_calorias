@@ -155,8 +155,8 @@ describe("ReportsPage weight trend", () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("Evolução do peso e aderência");
-    expect(html).toContain("Ainda não há peso registrado para compor a leitura da semana");
+    expect(html).toContain("Peso como apoio à leitura");
+    expect(html).toContain("Ainda não há registros de peso no período selecionado.");
   });
 
   it("resume o peso quando existe apenas um registro", async () => {
@@ -183,6 +183,6 @@ describe("ReportsPage weight trend", () => {
     expect(html).toContain("Inicial");
     expect(html).toContain("Atual");
     expect(html).toContain("Variação");
-    expect(html).not.toContain("Ainda não há peso registrado para compor a leitura da semana");
+    expect(html).not.toContain("Ainda não há registros de peso no período selecionado.");
   });
 });
