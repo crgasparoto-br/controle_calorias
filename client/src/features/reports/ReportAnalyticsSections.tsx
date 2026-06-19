@@ -27,7 +27,7 @@ export type ReportTrendDay = {
   fat: number;
   /** Meta calórica principal do relatório. Deve representar a meta ajustada. */
   goalCalories: number;
-  /** Meta base antes de somar exercícios. Opcional para relatórios antigos. */
+  /** Meta original antes de somar exercícios. Opcional para relatórios antigos. */
   baseGoalCalories?: number;
   exerciseCalories?: number;
   calorieDelta?: number;
@@ -83,10 +83,6 @@ function formatSignedWeight(value: number) {
 function formatPerKgDay(value: number | null) {
   if (value === null) return null;
   return `${formatNumberPtBr(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} g/kg/dia`;
-}
-
-function hasDistinctBaseGoal(days: ReportTrendDay[]) {
-  return days.some(day => typeof day.baseGoalCalories === "number" && day.baseGoalCalories > 0 && day.baseGoalCalories !== day.goalCalories);
 }
 
 export function ReportStatusTile({ label, value }: { label: string; value: string | number }) {
@@ -260,7 +256,10 @@ export function ReportTrendSection({ title, description, days }: { title: string
     return <ReportEmptyState text="Ainda não há dados suficientes no intervalo para desenhar a tendência." />;
   }
 
-  const showBaseGoal = hasDistinctBaseGoal(days);
+  const chartData = days.map(day => ({
+    ...day,
+    originalGoalCalories: day.baseGoalCalories ?? day.goalCalories,
+  }));
 
   return (
     <Card className="border-0 shadow-sm">
@@ -270,20 +269,20 @@ export function ReportTrendSection({ title, description, days }: { title: string
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-2xl border bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">
-          A referência visual principal é sempre a <strong className="font-semibold text-foreground">meta ajustada</strong>. A meta base aparece no gráfico apenas quando houver exercícios alterando a meta do dia.
+          O gráfico mostra sempre as três referências: <strong className="font-semibold text-foreground">meta original</strong>, <strong className="font-semibold text-foreground">meta ajustada</strong> e consumo realizado. Quando não houver exercício no dia, as duas metas podem aparecer com a mesma altura.
         </div>
         <div className="h-[340px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={days} barSize={28}>
+            <BarChart data={chartData} barSize={28}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" />
               <YAxis />
               <Tooltip formatter={value => formatCalories(Number(value))} />
               <Legend />
-              {showBaseGoal ? <Bar dataKey="baseGoalCalories" name="Meta base" fill="#e2e8f0" radius={[8, 8, 0, 0]} /> : null}
+              <Bar dataKey="originalGoalCalories" name="Meta original" fill="#e2e8f0" radius={[8, 8, 0, 0]} />
               <Bar dataKey="goalCalories" name="Meta ajustada" fill="#94a3b8" radius={[8, 8, 0, 0]} />
               <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
-                {days.map(day => <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />)}
+                {chartData.map(day => <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
