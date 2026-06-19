@@ -270,7 +270,9 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
   if (storage.provider === "r2") {
     return {
       key,
-      url: buildR2PublicUrl(storage.config.publicBaseUrl, key),
+      url: key.startsWith("public/")
+        ? buildR2PublicUrl(storage.config.publicBaseUrl, key)
+        : buildR2InternalUrl(storage.config.bucket, key),
     };
   }
 
