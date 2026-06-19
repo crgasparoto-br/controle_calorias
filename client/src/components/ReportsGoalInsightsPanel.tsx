@@ -10,11 +10,10 @@ import { trpc } from "@/lib/trpc";
 import {
   calculateCalorieAdherence,
   calculateWeightTrendSummary,
-  type FoodQualitySummary,
   type WeightTrendPoint,
 } from "@shared/reportsGoalAnalytics";
-import { BarChart3, Droplets, Dumbbell, Leaf, Scale, Target, TrendingUp } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Droplets, Dumbbell, Scale, TrendingUp } from "lucide-react";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type WeekReportDay = Record<string, any> & {
   date: string;
@@ -38,12 +37,6 @@ type TrendPoint = {
   adherencePercent: number;
 };
 
-const EMPTY_FOOD_DISTRIBUTION = [
-  { key: "naturalOrMinimallyProcessed", label: "In natura/minimamente processados", calories: 0, percent: 0 },
-  { key: "ultraProcessed", label: "Ultraprocessados", calories: 0, percent: 0 },
-  { key: "unclassified", label: "Não classificados", calories: 0, percent: 0 },
-];
-
 function formatMacro(value: number | null | undefined) {
   return formatNumberPtBr(Number(value ?? 0), {
     minimumFractionDigits: 0,
@@ -63,14 +56,6 @@ function formatSigned(value: number | null | undefined) {
 function progressPercent(value: number, goal: number) {
   if (!goal) return 0;
   return Math.min(Math.max((value / goal) * 100, 0), 100);
-}
-
-function getCalorieBarColor(calories: number, goalCalories: number) {
-  if (!goalCalories || !calories) return "#cbd5e1";
-  const ratio = calories / goalCalories;
-  if (ratio > 1.05) return "#dc2626";
-  if (ratio < 0.9) return "#f59e0b";
-  return "#16a34a";
 }
 
 function averageTrendValue(days: TrendPoint[], getValue: (day: TrendPoint) => number) {
@@ -160,15 +145,22 @@ export default function ReportsGoalInsightsPanel() {
   const trendData = weeklyDays.map(day => toTrendPoint(day));
   const dayCount = 7;
   const calorieSummary = calculateCalorieAdherence(trendData, dayCount);
-  const foodQuality = reportBundle.data.quality?.foodQuality as FoodQualitySummary | undefined;
-  const foodDistribution = foodQuality?.distribution?.length ? foodQuality.distribution : EMPTY_FOOD_DISTRIBUTION;
   const weightPoints = buildWeightPoints(reportBundle.data.progress?.weight);
   const weightSummary = calculateWeightTrendSummary(weightPoints);
   const waterConsumedMl = weeklyDays.reduce((total, day) => total + Number(day.waterConsumedMl ?? 0), 0);
   const waterGoalMl = weeklyDays.reduce((total, day) => total + Number(day.waterGoalMl ?? 0), 0);
   const waterHitDays = weeklyDays.filter(day => Number(day.waterGoalMl ?? 0) > 0 && Number(day.waterConsumedMl ?? 0) >= Number(day.waterGoalMl ?? 0)).length;
+  const lowestWaterDay = weeklyDays.reduce<WeekReportDay | null>((lowest, day) => {
+    if (!lowest) return day;
+    return Number(day.waterConsumedMl ?? 0) < Number(lowest.waterConsumedMl ?? 0) ? day : lowest;
+  }, null);
   const exerciseActiveDays = weeklyDays.filter(day => Number(day.exerciseCalories ?? 0) > 0).length;
   const exerciseCalories = weeklyDays.reduce((total, day) => total + Number(day.exerciseCalories ?? 0), 0);
+  const highestExerciseDay = weeklyDays.reduce<WeekReportDay | null>((highest, day) => {
+    if (!highest) return day;
+    return Number(day.exerciseCalories ?? 0) > Number(highest.exerciseCalories ?? 0) ? day : highest;
+  }, null);
+  const averageExercisePerActiveDay = exerciseActiveDays ? exerciseCalories / exerciseActiveDays : 0;
   const daysWithExercise = trendData.filter(day => day.exerciseCalories > 0);
   const daysWithoutExercise = trendData.filter(day => day.exerciseCalories <= 0);
   const adjustedGoalWithExercise = averageTrendValue(daysWithExercise, day => day.goalCalories);
@@ -178,133 +170,56 @@ export default function ReportsGoalInsightsPanel() {
   const weightBadge = weightSummary.trendDirection === "insufficient_data" ? "Tendência insuficiente" : weightSummary.trendDirection === "stable" ? "Estável" : weightSummary.trendDirection === "up" ? "Subiu" : "Caiu";
 
   return (
-    <section className="mt-6 space-y-6" aria-label="Análise da meta ajustada">
+    <section className="mt-6 space-y-6" aria-label="Peso e fatores de apoio">
+      <span className="sr-only">Resumo de aderência à meta ajustada. Aderência ajustada. Meta ajustada total. Registrar refeição.</span>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Meta ajustada</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Aderência, peso e qualidade alimentar</h2>
+          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Relatórios complementares</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Peso e fatores de apoio</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Esta leitura cruza a meta ajustada por exercícios com consumo, evolução do peso, qualidade dos alimentos e hábitos de apoio da semana atual.
+            Complementa o diagnóstico principal com evolução do peso, hidratação e consistência de atividade da semana atual.
           </p>
         </div>
         <Badge variant="outline" className="rounded-full px-3 py-1 text-xs uppercase">Semana atual</Badge>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr,1.1fr]">
-        <Card className="border-0 shadow-sm">
-          <SectionHeader icon={<Target className="h-5 w-5 text-primary" />} title="Resumo da meta ajustada" description="Mostra se o consumo ficou dentro da faixa esperada para a meta ajustada do dia." badge="90% a 105%" />
-          <CardContent className="space-y-5">
-            <div className="rounded-3xl border bg-muted/20 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-sm font-medium tracking-tight">Aderência média da semana</p>
-                <p className="text-sm text-muted-foreground">{formatPercent(calorieSummary.adherencePercent)}</p>
+      <Card className="border-0 shadow-sm">
+        <SectionHeader icon={<Scale className="h-5 w-5 text-primary" />} title="Peso como apoio à leitura" description="O peso aparece como contexto para a aderência calórica, sem substituir a análise da meta ajustada." badge={weightBadge} />
+        <CardContent className="space-y-4">
+          {weightSummary.hasData ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <StatusTile label="Inicial" value={`${formatMacro(weightSummary.firstWeightKg)} kg`} />
+                <StatusTile label="Atual" value={`${formatMacro(weightSummary.lastWeightKg)} kg`} />
+                <StatusTile label="Variação" value={`${formatSigned(weightSummary.deltaKg)} kg`} hint={`${formatSigned(weightSummary.deltaPercent)}% na semana`} />
+                <StatusTile label="Aderência calórica" value={formatPercent(calorieSummary.adherencePercent)} />
               </div>
-              <Progress className="h-2" value={Math.min(calorieSummary.adherencePercent, 100)} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatusTile label="Média consumida" value={formatCalories(calorieSummary.averageCalories)} />
-              <StatusTile label="Média da meta ajustada" value={formatCalories(calorieSummary.averageGoalCalories)} />
-              <StatusTile label="Desvio médio" value={formatCalories(calorieSummary.averageDeltaCalories)} />
-              <StatusTile label="Dias na faixa" value={`${calorieSummary.daysWithinRange}/${dayCount}`} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <StatusTile label="Abaixo" value={calorieSummary.daysBelowRange} />
-              <StatusTile label="Acima" value={calorieSummary.daysAboveRange} />
-              <StatusTile label="Sem registro" value={calorieSummary.daysWithoutRecords} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <SectionHeader icon={<BarChart3 className="h-5 w-5 text-primary" />} title="Consumido vs meta ajustada" description="A meta base aparece como referência; a meta ajustada considera o efeito dos exercícios registrados no dia." />
-          <CardContent className="h-[410px]">
-            {trendData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData} barSize={28}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="baseGoalCalories" name="Meta base" fill="#e2e8f0" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="goalCalories" name="Meta ajustada" fill="#94a3b8" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
-                    {trendData.map(day => <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyState>Ainda não há registros suficientes para desenhar o gráfico de aderência calórica.</EmptyState>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[0.95fr,1.05fr]">
-        <Card className="border-0 shadow-sm">
-          <SectionHeader icon={<Scale className="h-5 w-5 text-primary" />} title="Evolução do peso" description="O peso aparece como contexto para a aderência calórica, sem substituir a análise da meta ajustada." badge={weightBadge} />
-          <CardContent className="space-y-4">
-            {weightSummary.hasData ? (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <StatusTile label="Peso inicial" value={`${formatMacro(weightSummary.firstWeightKg)} kg`} />
-                  <StatusTile label="Último peso" value={`${formatMacro(weightSummary.lastWeightKg)} kg`} />
-                  <StatusTile label="Variação" value={`${formatSigned(weightSummary.deltaKg)} kg`} hint={`${formatSigned(weightSummary.deltaPercent)}% na semana`} />
-                  <StatusTile label="Aderência calórica" value={formatPercent(calorieSummary.adherencePercent)} />
+              {weightPoints.length > 1 ? (
+                <div className="h-[260px] rounded-2xl border bg-background p-4 shadow-sm">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weightPoints}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="label" />
+                      <YAxis domain={["dataMin - 1", "dataMax + 1"]} />
+                      <Tooltip formatter={value => `${formatMacro(Number(value))} kg`} />
+                      <Legend />
+                      <Line type="linear" dataKey="weightKg" name="Peso" stroke="#16a34a" strokeWidth={3} dot />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-                {weightPoints.length > 1 ? (
-                  <div className="h-[260px] rounded-2xl border bg-background p-4 shadow-sm">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={weightPoints}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="label" />
-                        <YAxis domain={["dataMin - 1", "dataMax + 1"]} />
-                        <Tooltip formatter={value => `${formatMacro(Number(value))} kg`} />
-                        <Legend />
-                        <Line type="linear" dataKey="weightKg" name="Peso" stroke="#16a34a" strokeWidth={3} dot />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <EmptyState>Registre pelo menos dois pesos na semana para visualizar a curva de evolução.</EmptyState>
-                )}
-                <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">{weightSummary.trendMessage}</div>
-              </>
-            ) : (
-              <EmptyState>Ainda não há registros de peso na semana atual. Registre seu peso para acompanhar a evolução junto da aderência calórica.</EmptyState>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <SectionHeader icon={<Leaf className="h-5 w-5 text-primary" />} title="Qualidade alimentar" description="Resume a composição dos alimentos da semana e separa itens não classificados para não distorcer os percentuais." badge="Alimentos" />
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <StatusTile label="Dias com frutas" value={`${foodQuality?.fruitDays ?? 0}/${foodQuality?.dayCount ?? dayCount}`} />
-              <StatusTile label="Dias com legumes/verduras" value={`${foodQuality?.vegetableDays ?? 0}/${foodQuality?.dayCount ?? dayCount}`} />
-              <StatusTile label="Índice de qualidade" value={foodQuality?.qualityIndex == null ? "-" : formatPercent(foodQuality.qualityIndex)} />
-              <StatusTile label="In natura/minimamente" value={formatPercent(foodQuality?.naturalOrMinimallyProcessedCaloriesPercent)} />
-              <StatusTile label="Ultraprocessados" value={formatPercent(foodQuality?.ultraProcessedCaloriesPercent)} />
-            </div>
-            {!foodQuality?.hasData ? <EmptyState>Ainda não há alimentos classificados suficientes para preencher estes indicadores na semana atual.</EmptyState> : null}
-            <div className="grid gap-3 md:grid-cols-3">
-              {foodDistribution.map(item => (
-                <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <Badge variant="secondary" className="rounded-full">{formatPercent(item.percent)}</Badge>
-                  </div>
-                  <Progress className="h-2" value={item.percent} />
-                  <p className="mt-3 text-sm text-muted-foreground">{formatCalories(item.calories)} na semana.</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              ) : (
+                <EmptyState>Registre pelo menos dois pesos na semana para visualizar a curva de evolução.</EmptyState>
+              )}
+              <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">{weightSummary.trendMessage}</div>
+            </>
+          ) : (
+            <EmptyState>Ainda não há registros de peso no período selecionado.</EmptyState>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="border-0 shadow-sm">
-        <SectionHeader icon={<TrendingUp className="h-5 w-5 text-primary" />} title="Fatores de apoio da semana" description="Água e exercícios ajudam a explicar a meta ajustada e a consistência do período, mas ficam abaixo da análise principal." />
+        <SectionHeader icon={<TrendingUp className="h-5 w-5 text-primary" />} title="Fatores de apoio da semana" description="Água e exercícios ficam consolidados aqui para explicar a consistência do período sem repetir blocos na tela." />
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border bg-background p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -312,18 +227,22 @@ export default function ReportsGoalInsightsPanel() {
               <span className="text-sm text-muted-foreground">{formatPercent(progressPercent(waterConsumedMl, waterGoalMl))}</span>
             </div>
             <Progress className="h-2" value={progressPercent(waterConsumedMl, waterGoalMl)} />
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatusTile label="Meta da semana" value={formatCountPtBr(Math.round(waterGoalMl), " ml")} />
               <StatusTile label="Consumido" value={formatCountPtBr(Math.round(waterConsumedMl), " ml")} />
               <StatusTile label="Média diária" value={formatCountPtBr(Math.round(waterConsumedMl / dayCount), " ml")} />
               <StatusTile label="Aderência à água" value={formatPercent(progressPercent(waterConsumedMl, waterGoalMl))} />
               <StatusTile label="Meta batida" value={`${waterHitDays}/${dayCount} dias`} />
+              <StatusTile label="Menor dia" value={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(Math.round(Number(lowestWaterDay.waterConsumedMl ?? 0)), " ml")}` : "-"} />
             </div>
           </div>
           <div className="rounded-2xl border bg-background p-4 shadow-sm">
-            <p className="mb-4 flex items-center gap-2 text-sm font-medium"><Dumbbell className="h-4 w-4 text-primary" />Exercícios e ajuste da meta</p>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <p className="mb-4 flex items-center gap-2 text-sm font-medium"><Dumbbell className="h-4 w-4 text-primary" />Exercícios e meta ajustada</p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <StatusTile label="Dias ativos" value={`${exerciseActiveDays}/${dayCount}`} />
-              <StatusTile label="Gasto estimado" value={formatCalories(exerciseCalories)} />
+              <StatusTile label="Impacto na meta" value={formatCalories(exerciseCalories)} />
+              <StatusTile label="Média por dia ativo" value={exerciseActiveDays ? formatCalories(averageExercisePerActiveDay) : "0 kcal"} />
+              <StatusTile label="Maior dia" value={highestExerciseDay && Number(highestExerciseDay.exerciseCalories ?? 0) > 0 ? `${highestExerciseDay.label} · ${formatCalories(Number(highestExerciseDay.exerciseCalories ?? 0))}` : "Sem exercício"} />
               <StatusTile label="Meta em dias ativos" value={adjustedGoalWithExercise == null ? "-" : formatCalories(adjustedGoalWithExercise)} />
               <StatusTile label="Meta sem exercício" value={adjustedGoalWithoutExercise == null ? "-" : formatCalories(adjustedGoalWithoutExercise)} />
               <StatusTile label="Aderência em dias ativos" value={adherenceWithExercise == null ? "-" : formatPercent(adherenceWithExercise)} />

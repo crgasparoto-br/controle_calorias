@@ -650,31 +650,28 @@ describe("nutrition pages", () => {
     expect(html).toContain("45 min");
   });
 
-  it("renderiza a página de relatórios com resumo semanal, leitura de hidratação e atividade física", async () => {
+  it("renderiza a página de relatórios como diagnóstico orientado à meta ajustada", async () => {
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
 
-    expect(html).toContain("Evolução e aderência semanal");
-    expect(html).toContain("A semana continua sendo a leitura mais completa de consistência, saldo energético, hidratação e atividade física.");
+    expect(html).toContain("Diagnóstico nutricional do período");
+    expect(html).toContain("A semana está aderente à meta ajustada");
     expect(html).toContain("Semana de referência");
-    expect(html).toContain("Média semanal");
-    expect(html).toContain("Dias da semana");
-    expect(html).toContain("Evolução do peso");
-    expect(html).toContain("Hidratação na semana");
-    expect(html).toContain("Atividade física na semana");
-    expect(html).toContain("Aderência à meta de água");
-    expect(html).toContain("Qualidade e insights");
-    expect(html).toContain("Distribuição de macronutrientes");
-    expect(html).toContain("Refeições detalhadas");
-    expect(html).toContain("Total da semana");
-    expect(html).toContain("Macros realizados");
-    expect(html).toContain("Aderência semanal às metas");
+    expect(html).toContain("Aderência ajustada");
+    expect(html).toContain("Meta ajustada total");
+    expect(html).toContain("Saldo ajustado");
+    expect(html).toContain("Resumo de aderência à meta ajustada");
+    expect(html).toContain("Consumo diário vs meta ajustada");
+    expect(html).toContain("Qualidade alimentar");
     expect(html).toContain("Macronutrientes planejados vs realizados");
+    expect(html).toContain("Hidratação como contexto");
+    expect(html).toContain("Exercícios e meta ajustada");
+    expect(html).toContain("Peso como apoio à leitura");
+    expect(html).toContain("Detalhamento de dias e refeições");
     expect(html).toContain("Proteínas");
     expect(html).toContain("Carboidratos");
     expect(html).toContain("Gorduras");
-    expect(html).toContain("g/kg/dia");
-    expect(html).toContain("Calorias líquidas");
+    expect(html).toContain("Registrar refeição");
   });
 
   it("renderiza a página de canais com status do WhatsApp fixo e vínculo do contato", async () => {

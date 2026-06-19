@@ -1,9 +1,10 @@
+import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { formatCalories, formatCountPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { BarChart3, CalendarDays, Droplets, Dumbbell, Scale } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export type ReportMacroMetric = {
   key: "calories" | "protein" | "carbs" | "fat";
@@ -24,7 +25,13 @@ export type ReportTrendDay = {
   protein: number;
   carbs: number;
   fat: number;
+  /** Meta calórica principal do relatório. Deve representar a meta ajustada. */
   goalCalories: number;
+  /** Meta original antes de somar exercícios. Opcional para relatórios antigos. */
+  baseGoalCalories?: number;
+  exerciseCalories?: number;
+  calorieDelta?: number;
+  adherencePercent?: number;
 };
 
 export type ReportWeightSummary = {
@@ -56,7 +63,11 @@ export function averageValue(total: number, count: number) {
 }
 
 export function getCalorieBarColor(calories: number, goalCalories: number) {
-  return goalCalories > 0 && calories > goalCalories ? "#dc2626" : "#10b981";
+  if (!goalCalories || !calories) return "#cbd5e1";
+  const ratio = calories / goalCalories;
+  if (ratio > 1.05) return "#dc2626";
+  if (ratio < 0.9) return "#f59e0b";
+  return "#10b981";
 }
 
 function formatSigned(value: number, unit: "kcal" | "g") {
@@ -83,7 +94,7 @@ export function ReportStatusTile({ label, value }: { label: string; value: strin
   );
 }
 
-export function ReportCompactMetric({ label, value }: { label: string; value: string | number }) {
+export function ReportCompactMetric({ label, value }: { label: string | number; value: string | number }) {
   return (
     <div className="rounded-2xl border bg-muted/10 px-4 py-3">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -241,48 +252,39 @@ export function ReportTrendSection({ title, description, days }: { title: string
     return <ReportEmptyState text="Ainda não há dados suficientes no intervalo para desenhar a tendência." />;
   }
 
+  const chartData = days.map(day => ({
+    ...day,
+    originalGoalCalories: day.baseGoalCalories ?? day.goalCalories,
+  }));
+
   return (
-    <div className="space-y-6">
-      <Card className="border bg-muted/10 shadow-none">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5 text-primary" />{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent className="h-[320px]">
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5 text-primary" />{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-2xl border bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">
+          O gráfico mostra sempre as três referências: <strong className="font-semibold text-foreground">meta original</strong>, <strong className="font-semibold text-foreground">meta ajustada</strong> e consumo realizado. Quando não houver exercício no dia, as duas metas podem aparecer com a mesma altura.
+        </div>
+        <div className="h-[340px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={days} barSize={24}>
+            <BarChart data={chartData} barSize={28}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={value => formatCalories(Number(value))} />
               <Legend />
-              <Bar dataKey="goalCalories" name="Meta" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>{days.map(day => <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />)}</Bar>
+              <Bar dataKey="originalGoalCalories" name="Meta original" fill="#e2e8f0" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="goalCalories" name="Meta ajustada" fill="#94a3b8" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
+                {chartData.map(day => <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />)}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
-      <Card className="border bg-muted/10 shadow-none">
-        <CardHeader>
-          <CardTitle>Distribuição de macronutrientes</CardTitle>
-          <CardDescription>Proteínas, carboidratos e gorduras agregados por dia no intervalo ativo.</CardDescription>
-        </CardHeader>
-        <CardContent className="h-[320px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={days}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="protein" name="Proteínas" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="carbs" name="Carboidratos" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="fat" name="Gorduras" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

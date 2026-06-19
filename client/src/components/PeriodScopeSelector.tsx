@@ -1,4 +1,5 @@
 import React, { type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,12 +37,42 @@ const SCOPE_OPTIONS: Array<{ value: PeriodScope; label: string }> = [
   { value: "range", label: "Período" },
 ];
 
+const PROFESSIONAL_FILTER_PORTAL_ATTR = "data-professional-period-filter-portal";
+const useClientLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+
 function SelectorShell({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-end gap-3 rounded-3xl border bg-card p-3 shadow-sm">{children}</div>;
 }
 
 function RangeBadge({ children }: { children: ReactNode }) {
   return <Badge variant="outline" className="rounded-full px-3 py-1 text-xs text-muted-foreground">{children}</Badge>;
+}
+
+function getActiveReportsContent() {
+  const activeReportsTrigger = Array.from(document.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"][data-state="active"]')).find(trigger => trigger.textContent?.trim() === "Relatórios");
+  const tabsRoot = activeReportsTrigger?.closest<HTMLElement>('[data-slot="tabs"]');
+  const activeContent = tabsRoot?.querySelector<HTMLElement>('[data-slot="tabs-content"][data-state="active"]') ?? null;
+
+  return activeReportsTrigger && activeContent ? activeContent : null;
+}
+
+function ensureProfessionalFilterPortal(activeContent: HTMLElement) {
+  const existing = Array.from(activeContent.children).find(child => child.getAttribute(PROFESSIONAL_FILTER_PORTAL_ATTR) === "true") as HTMLElement | undefined;
+
+  if (existing) return existing;
+
+  const portal = document.createElement("div");
+  portal.setAttribute(PROFESSIONAL_FILTER_PORTAL_ATTR, "true");
+  portal.className = "mb-6";
+  activeContent.prepend(portal);
+
+  return portal;
+}
+
+function cleanupProfessionalFilterPortals(activeContent?: HTMLElement | null) {
+  document.querySelectorAll<HTMLElement>(`[${PROFESSIONAL_FILTER_PORTAL_ATTR}="true"]`).forEach(portal => {
+    if (!activeContent || !activeContent.contains(portal)) portal.remove();
+  });
 }
 
 export function PeriodScopeSelector({
@@ -56,11 +87,58 @@ export function PeriodScopeSelector({
   rangeEnd,
   onRangeEndChange,
 }: PeriodScopeSelectorProps) {
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const [hideInsideProfessionalPatientFilter, setHideInsideProfessionalPatientFilter] = React.useState(false);
+  const [professionalReportsPortal, setProfessionalReportsPortal] = React.useState<HTMLElement | null>(null);
   const weekRange = getWeekRange(selectedDay);
   const monthRange = getMonthRange(selectedMonth);
 
-  return (
-    <div className="space-y-3">
+  useClientLayoutEffect(() => {
+    const root = rootRef.current;
+    const parent = root?.parentElement;
+    if (!root || !parent) return;
+
+    const hasDirectPatientSelectorSibling = Array.from(parent.children).some(child => {
+      if (child === root) return false;
+      const childText = child.textContent ?? "";
+      return childText.includes("Pessoa acompanhada") && Boolean(child.querySelector("select"));
+    });
+
+    if (!hasDirectPatientSelectorSibling) return;
+
+    setHideInsideProfessionalPatientFilter(true);
+
+    const updatePortal = () => {
+      const activeContent = getActiveReportsContent();
+
+      if (!activeContent) {
+        cleanupProfessionalFilterPortals();
+        setProfessionalReportsPortal(null);
+        return;
+      }
+
+      const portal = ensureProfessionalFilterPortal(activeContent);
+      cleanupProfessionalFilterPortals(activeContent);
+      setProfessionalReportsPortal(portal);
+    };
+
+    updatePortal();
+    const animationFrame = window.requestAnimationFrame(updatePortal);
+    const timeout = window.setTimeout(updatePortal, 0);
+
+    const observer = new MutationObserver(updatePortal);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["data-state"], childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(timeout);
+      cleanupProfessionalFilterPortals();
+    };
+  }, []);
+
+  const renderSelector = (ref?: React.Ref<HTMLDivElement>) => (
+    <div ref={ref} className="space-y-3" data-period-scope-selector>
       <div className="flex flex-wrap gap-2 rounded-3xl border bg-card p-1 shadow-sm">
         {SCOPE_OPTIONS.map(option => (
           <Button
@@ -186,4 +264,15 @@ export function PeriodScopeSelector({
       ) : null}
     </div>
   );
+
+  if (hideInsideProfessionalPatientFilter) {
+    return (
+      <>
+        <div ref={rootRef} className="hidden" aria-hidden="true" />
+        {professionalReportsPortal ? createPortal(renderSelector(), professionalReportsPortal) : null}
+      </>
+    );
+  }
+
+  return renderSelector(rootRef);
 }
