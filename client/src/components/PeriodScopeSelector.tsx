@@ -36,6 +36,8 @@ const SCOPE_OPTIONS: Array<{ value: PeriodScope; label: string }> = [
   { value: "range", label: "Período" },
 ];
 
+const useClientLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+
 function SelectorShell({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-end gap-3 rounded-3xl border bg-card p-3 shadow-sm">{children}</div>;
 }
@@ -56,11 +58,27 @@ export function PeriodScopeSelector({
   rangeEnd,
   onRangeEndChange,
 }: PeriodScopeSelectorProps) {
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const [hideInsideProfessionalPatientFilter, setHideInsideProfessionalPatientFilter] = React.useState(false);
   const weekRange = getWeekRange(selectedDay);
   const monthRange = getMonthRange(selectedMonth);
 
+  useClientLayoutEffect(() => {
+    const parent = rootRef.current?.parentElement;
+    if (!parent) return;
+
+    const parentText = parent.textContent ?? "";
+    const hasAccompaniedPersonSelector = parentText.includes("Pessoa acompanhada") && Boolean(parent.querySelector("select"));
+
+    if (hasAccompaniedPersonSelector) {
+      setHideInsideProfessionalPatientFilter(true);
+    }
+  }, []);
+
+  if (hideInsideProfessionalPatientFilter) return null;
+
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3" data-period-scope-selector>
       <div className="flex flex-wrap gap-2 rounded-3xl border bg-card p-1 shadow-sm">
         {SCOPE_OPTIONS.map(option => (
           <Button
