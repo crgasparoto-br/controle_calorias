@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RegisteredMealGroups, SummaryPill } from "@/features/meals/components";
+import { RegisteredMealGroups } from "@/features/meals/components";
 import {
   type DateGroupedRegisteredMealsViewModel,
   buildDateGroupedMealGroups,
@@ -17,15 +17,12 @@ import type { StoredMeal } from "@/features/meals/types";
 import {
   ReportEmptyState,
   ReportExerciseAnalyticsCard,
-  ReportHighlightCard,
   ReportStatusTile,
   ReportTrendSection,
   ReportWaterAnalyticsCard,
   averageValue,
   formatMacro,
-  formatMacroGrams,
   formatPercent,
-  progressPercent,
   type ReportTrendDay,
 } from "@/features/reports/ReportAnalyticsSections";
 import {
@@ -45,13 +42,11 @@ import {
   calculateCalorieAdherence,
   calculateMacroAdherence,
   calculateMacroDaySummary,
-  calculateWeightTrendSummary,
   type FoodQualitySummary,
   type MacroGoalDay,
   type MacroTotals,
-  type WeightTrendPoint,
 } from "@shared/reportsGoalAnalytics";
-import { Activity, ArrowRight, CalendarDays, ChevronDown, Leaf, Scale, Target, UtensilsCrossed } from "lucide-react";
+import { Activity, ArrowRight, ChevronDown, Leaf, Target, UtensilsCrossed } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Link } from "wouter";
 
@@ -70,7 +65,6 @@ type ReportDay = Totals & {
   exerciseCalories: number;
 };
 type TrendDay = ReportTrendDay & { baseGoalCalories: number; exerciseCalories: number; calorieDelta: number; adherencePercent: number };
-type WeightBundle = { points?: WeightTrendPoint[]; entries?: WeightTrendPoint[]; summary?: { entries?: WeightTrendPoint[]; firstWeightKg?: number | null; lastWeightKg?: number | null; hasData?: boolean } };
 
 const EMPTY_TOTALS: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const EMPTY_QUALITY = { proteinGrams: 0, fiberGrams: 0, waterMl: 0, fruitServings: 0, vegetableServings: 0, ultraProcessedServings: 0, mealCount: 0, regularityScore: 0 };
@@ -151,21 +145,6 @@ function toTrendDay(day: ReportDay): TrendDay {
 
 function buildTrendFromMealGroups(groups: DateGroupedRegisteredMealsViewModel[], fallbackGoal: any): TrendDay[] {
   return groups.map(group => toTrendDay(normalizeDay({ date: group.date, label: formatChartDateLabel(group.date), ...group.totals }, fallbackGoal)));
-}
-
-function getWeightPoints(bundle?: WeightBundle | null): WeightTrendPoint[] {
-  const rawPoints = bundle?.entries ?? bundle?.points ?? bundle?.summary?.entries ?? [];
-  const points = rawPoints
-    .map(point => ({ date: String(point.date ?? ""), label: point.label, weightKg: numberValue(point.weightKg) }))
-    .filter(point => point.date && point.weightKg > 0)
-    .sort((a, b) => a.date.localeCompare(b.date));
-  if (points.length) return points;
-  const firstWeightKg = numberValue(bundle?.summary?.firstWeightKg);
-  const lastWeightKg = numberValue(bundle?.summary?.lastWeightKg);
-  if (!firstWeightKg) return [];
-  return lastWeightKg && lastWeightKg !== firstWeightKg
-    ? [{ date: "initial", label: "Inicial", weightKg: firstWeightKg }, { date: "last", label: "Atual", weightKg: lastWeightKg }]
-    : [{ date: "initial", label: "Registro", weightKg: firstWeightKg }];
 }
 
 function findExtreme<T>(items: T[], getValue: (item: T) => number, direction: "min" | "max") {
@@ -287,8 +266,8 @@ function CalorieAdherenceSection({ trendData, dayCount }: { trendData: TrendDay[
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-primary" />Resumo de aderência à meta ajustada</CardTitle>
-        <CardDescription>A meta base aparece apenas como contexto; saldos, faixas e percentuais usam a meta ajustada.</CardDescription>
+        <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-primary" />Indicadores da meta ajustada</CardTitle>
+        <CardDescription>Consolida consumo, meta ajustada, saldo, exercícios e dias fora ou dentro da faixa no período selecionado.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="rounded-3xl border bg-muted/20 p-4">
@@ -313,15 +292,6 @@ function CalorieAdherenceSection({ trendData, dayCount }: { trendData: TrendDay[
       </CardContent>
     </Card>
   );
-}
-
-function WeightSection({ points, adherencePercent }: { points: WeightTrendPoint[]; adherencePercent: number }) {
-  const summary = calculateWeightTrendSummary(points);
-  void adherencePercent;
-  void summary;
-  void Scale;
-
-  return null;
 }
 
 function DailyDetailsSections({ groups, userTimeZone }: { groups: DateGroupedRegisteredMealsViewModel[]; userTimeZone: string }) {
@@ -413,35 +383,17 @@ export default function ReportsPage() {
   const exerciseActiveDays = isWeek ? metricDays.filter(day => day.exerciseCalories > 0).length : numberValue((periodBundle.data as any)?.habitAnalytics?.exercise?.activeDays);
   const exerciseCalories = isWeek ? metricDays.reduce((total, day) => total + day.exerciseCalories, 0) : numberValue((periodBundle.data as any)?.habitAnalytics?.exercise?.totalCalories);
   const highestExerciseDay = findExtreme(metricDays, day => day.exerciseCalories, "max");
-  const weightPoints = getWeightPoints(isWeek ? reportBundle.data?.progress?.weight : (periodBundle.data as any)?.weightTrend);
-
-  const introStats = (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      <SummaryPill label="Aderência ajustada" value={formatPercent(adherence.adherencePercent)} />
-      <SummaryPill label="Consumido" value={formatCalories(adherence.totalCalories)} />
-      <SummaryPill label="Meta ajustada" value={formatCalories(adherence.totalGoalCalories)} />
-      <SummaryPill label="Saldo" value={formatCalories(adherence.totalCalories - adherence.totalGoalCalories)} />
-      <SummaryPill label="Intervalo" value={`${dayCount} dias`} />
-    </div>
-  );
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <PageIntro eyebrow="Relatórios" title="Diagnóstico nutricional do período" description={`${diagnosis} Intervalo ativo: ${formatRangeLabel(activeRange)}.`} stats={introStats} actions={<PeriodScopeSelector scope={periodScope} onScopeChange={setPeriodScope} selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} selectedMonth={selectedMonth} onSelectedMonthChange={setSelectedMonth} rangeStart={rangeStart} onRangeStartChange={setRangeStart} rangeEnd={rangeEnd} onRangeEndChange={setRangeEnd} />} />
+        <PageIntro eyebrow="Relatórios" title="Diagnóstico nutricional do período" description={`${diagnosis} Intervalo ativo: ${formatRangeLabel(activeRange)}.`} actions={<PeriodScopeSelector scope={periodScope} onScopeChange={setPeriodScope} selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} selectedMonth={selectedMonth} onSelectedMonthChange={setSelectedMonth} rangeStart={rangeStart} onRangeStartChange={setRangeStart} rangeEnd={rangeEnd} onRangeEndChange={setRangeEnd} />} />
 
         {activeLoading ? <div className="grid gap-4 lg:grid-cols-3"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : null}
         {activeError ? <ReportEmptyState text="Não foi possível carregar os relatórios agora. Tente novamente em instantes." /> : null}
 
         {!activeLoading && !activeError ? (
           <>
-            <div className="grid gap-4 lg:grid-cols-4">
-              <ReportHighlightCard title="Aderência à meta ajustada" value={formatPercent(adherence.adherencePercent)} description={`${adherence.daysWithinRange}/${dayCount} dias dentro da faixa de 90% a 105%.`} />
-              <ReportHighlightCard title="Consumo total" value={formatCalories(adherence.totalCalories)} description="Soma das calorias registradas no intervalo ativo." />
-              <ReportHighlightCard title="Meta ajustada total" value={formatCalories(adherence.totalGoalCalories)} description="Meta calórica depois de considerar exercícios registrados." />
-              <ReportHighlightCard title="Saldo ajustado" value={formatCalories(adherence.totalCalories - adherence.totalGoalCalories)} description="Diferença entre consumo e meta ajustada do período." />
-            </div>
-
             <CalorieAdherenceSection trendData={visibleTrendData} dayCount={dayCount} />
             <ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={visibleTrendData} />
             <FoodQualitySection quality={foodQuality} simpleQuality={simpleQuality} dayCount={dayCount} />
@@ -452,7 +404,6 @@ export default function ReportsPage() {
               <ReportExerciseAnalyticsCard title="Exercícios e meta ajustada" scopeLabel={isWeek ? "Semanal" : "Período"} description="Explica quanto os exercícios adicionaram à meta e como se distribuíram no período." activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} detailLabel="Impacto na meta" detailValue={formatCalories(exerciseCalories)} averageCaloriesPerActiveDay={exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0} highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} reading={exerciseActiveDays > 0 ? `Os exercícios apareceram em ${exerciseActiveDays} de ${dayCount} dias e foram incorporados à meta ajustada.` : "Nenhum exercício foi registrado neste intervalo."} />
             </div>
 
-            <WeightSection points={weightPoints} adherencePercent={adherence.adherencePercent} />
             <DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} />
           </>
         ) : null}
