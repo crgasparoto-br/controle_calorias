@@ -127,11 +127,9 @@ export function PeriodScopeSelector({
 
     const observer = new MutationObserver(updatePortal);
     observer.observe(document.body, { attributes: true, attributeFilter: ["data-state"], subtree: true });
-    document.addEventListener("click", updatePortal, true);
 
     return () => {
       observer.disconnect();
-      document.removeEventListener("click", updatePortal, true);
       cleanupProfessionalFilterPortals();
     };
   }, []);
