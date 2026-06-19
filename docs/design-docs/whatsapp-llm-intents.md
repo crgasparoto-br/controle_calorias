@@ -19,6 +19,12 @@ A camada de intents LLM interpreta mensagens textuais do WhatsApp que não foram
 4. Intents com baixa confiança ou confirmação obrigatória respondem pedindo esclarecimento.
 5. Mensagens comuns de refeição continuam no fallback nutricional para evitar que o LLM bloqueie registros válidos.
 
+## Sugestões de refeição
+
+Mensagens consultivas ou propositivas, como `sugira`, `proponha`, `monte`, `me indique`, `o que posso comer` ou `quero uma opção`, devem ser classificadas como `meal_suggestion` mesmo quando citarem alimentos, refeições ou horários. Essa intenção não é persistente: a resposta deve deixar claro que é uma sugestão e que nada foi registrado como consumo.
+
+Quando a mensagem puder ser tanto registro quanto sugestão, como `almoço com frango e arroz`, o sistema deve pedir confirmação antes de qualquer fallback nutricional ou escrita de refeição.
+
 ## Fallback seguro
 
 A camada contextual volta para a classificação determinística quando o LLM está desligado, falha, expira, retorna JSON inválido ou retorna payload incompatível. Esses casos não devem impedir o WhatsApp de continuar operacional.
@@ -42,4 +48,6 @@ A consulta permite filtrar por intenção, erro, baixa confiança e motivo de fa
 - Testar baixa confiança com resposta de esclarecimento.
 - Testar consulta contextual no webhook real antes do fallback nutricional.
 - Testar que mensagem comum de refeição continua sendo delegada ao fluxo nutricional.
+- Testar que pedidos de sugestão de refeição não criam refeição nem alimento consumido.
+- Testar que mensagens ambíguas entre sugestão e registro pedem confirmação antes do fallback nutricional.
 - Testar auditoria sem texto cru e com filtros por erro, baixa confiança, intenção e fallback.

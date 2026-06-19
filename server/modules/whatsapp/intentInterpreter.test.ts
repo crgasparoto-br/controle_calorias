@@ -65,6 +65,36 @@ describe("classifyWhatsappMessageDeterministically", () => {
     expect(intent.requiresConfirmation).toBe(false);
   });
 
+  it.each([
+    "me sugira uma refeição",
+    "proposta de refeição para o jantar",
+    "o que posso comer agora?",
+    "monte um almoço com poucas calorias",
+    "quero uma opção de café da manhã",
+    "sugira um jantar dentro da minha meta",
+    "me indique algo com frango para o almoço",
+  ])("prioriza pedido consultivo como sugestao de refeicao: %s", text => {
+    const intent = classifyWhatsappMessageDeterministically(text);
+
+    expect(intent).toEqual(expect.objectContaining({
+      intent: "meal_suggestion",
+      requiresConfirmation: false,
+    }));
+  });
+
+  it.each([
+    "almoço com frango e arroz",
+    "jantar com ovo",
+    "café da manhã com banana",
+  ])("pede confirmacao para mensagem alimentar ambigua: %s", text => {
+    const intent = classifyWhatsappMessageDeterministically(text);
+
+    expect(intent.intent).toBe("ambiguous");
+    expect(intent.requiresConfirmation).toBe(true);
+    expect(intent.clarificationQuestion).toBe("Você quer registrar essa refeição como consumida ou receber uma sugestão de refeição com esses alimentos?");
+    expect(intent.possibleIntents).toEqual(["add_foods_to_meal", "meal_suggestion"]);
+  });
+
   it("classifica refeicoes registradas como consulta", () => {
     const intent = classifyWhatsappMessageDeterministically("refeições registradas");
 
@@ -124,6 +154,15 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
       estimatedCostUnits: 0,
     }));
     expect(result.operationalTrace.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("usa regra deterministica de sugestao antes de chamar LLM", async () => {
+    const result = await interpretWhatsappMessageWithDiagnostics("monte um almoço com poucas calorias", context);
+
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+    expect(result.source).toBe("deterministic");
+    expect(result.validationStatus).toBe("valid");
+    expect(result.intent.intent).toBe("meal_suggestion");
   });
 
   it("usa resposta LLM valida quando o provider retorna JSON estruturado", async () => {

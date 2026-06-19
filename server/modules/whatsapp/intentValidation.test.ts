@@ -78,6 +78,24 @@ describe("validateWhatsappRuntimeIntentForPersistence", () => {
     }));
   });
 
+  it("bloqueia sugestao de refeicao tentando passar como persistencia", () => {
+    const result = validateWhatsappRuntimeIntentForPersistence({
+      intent: addFoodIntent({
+        intent: "meal_suggestion",
+        confidence: 0.93,
+        meal: { label: "jantar", createIfMissing: false },
+        items: [{ foodName: "frango", quantity: null, unit: null }],
+        requiresConfirmation: false,
+        reason: "Pedido de sugestao nao representa consumo realizado.",
+      }),
+      validationStatus: "valid",
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe("unsupported_persistent_intent");
+    expect(result.issues.map(issue => issue.code)).toContain("unsupported_persistent_intent");
+  });
+
   it("bloqueia confirmacao profissional tentando passar como persistencia alimentar", () => {
     const result = validateWhatsappRuntimeIntentForPersistence({
       intent: addFoodIntent({

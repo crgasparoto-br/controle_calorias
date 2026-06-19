@@ -6,6 +6,7 @@ export const whatsappIntentNames = [
   "edit_food_quantity",
   "list_meal_records",
   "daily_summary",
+  "meal_suggestion",
   "add_water",
   "add_exercise",
   "open_records_link",
