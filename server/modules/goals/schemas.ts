@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data de início no formato AAAA-MM-DD.");
+const goalExceptionDurationTypes = ["1_week", "2_weeks", "3_weeks", "always"] as const;
 
 export const goalTargetSchema = z.object({
   calories: z.number().int().min(800).max(8000),
@@ -12,7 +13,10 @@ export const goalTargetSchema = z.object({
 export const goalExceptionSchema = goalTargetSchema.extend({
   id: z.number().int().positive().optional(),
   weekday: z.number().int().min(0).max(6),
-  durationType: z.enum(["1_week", "2_weeks", "3_weeks", "always"]),
+  durationType: z.string().refine(
+    (durationType): durationType is (typeof goalExceptionDurationTypes)[number] => goalExceptionDurationTypes.includes(durationType as (typeof goalExceptionDurationTypes)[number]),
+    "Informe uma duração válida para a exceção de meta.",
+  ),
   startDate: dateKeySchema.optional(),
 });
 
