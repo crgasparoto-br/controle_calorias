@@ -18,6 +18,10 @@ type StorageConfig =
   | { provider: "r2"; config: R2StorageConfig }
   | { provider: "forge"; config: ForgeStorageConfig };
 
+type StoragePutOptions = {
+  publicRead?: boolean;
+};
+
 const R2_REQUIRED_ENV = [
   "R2_ACCOUNT_ID",
   "R2_BUCKET",
@@ -150,12 +154,28 @@ function appendHashSuffix(relKey: string): string {
   return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
 }
 
+function extensionFromKey(relKey: string) {
+  const lastSegment = normalizeKey(relKey).split("/").pop() ?? "";
+  const lastDot = lastSegment.lastIndexOf(".");
+  return lastDot > 0 ? lastSegment.slice(lastDot) : "";
+}
+
+function buildOpaqueR2Key(relKey: string, publicRead = false) {
+  const prefix = publicRead ? "public" : "private";
+  const extension = extensionFromKey(relKey);
+  return `${prefix}/media/${crypto.randomUUID()}${extension}`;
+}
+
 function buildR2PublicUrl(publicBaseUrl: string, key: string) {
   const encodedKey = normalizeKey(key)
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
   return new URL(encodedKey, ensureTrailingSlash(publicBaseUrl)).toString();
+}
+
+function buildR2InternalUrl(bucket: string, key: string) {
+  return `r2://${bucket}/${normalizeKey(key)}`;
 }
 
 function toFormData(
@@ -205,6 +225,7 @@ async function putToR2Storage(
   key: string,
   data: Buffer | Uint8Array | string,
   contentType: string,
+  options: StoragePutOptions,
 ) {
   const client = getR2Client(config);
   await client.send(
@@ -218,7 +239,9 @@ async function putToR2Storage(
 
   return {
     key,
-    url: buildR2PublicUrl(config.publicBaseUrl, key),
+    url: options.publicRead
+      ? buildR2PublicUrl(config.publicBaseUrl, key)
+      : buildR2InternalUrl(config.bucket, key),
   };
 }
 
@@ -226,14 +249,17 @@ export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
+  options: StoragePutOptions = {},
 ): Promise<{ key: string; url: string }> {
   const storage = getStorageConfig();
-  const key = appendHashSuffix(normalizeKey(relKey));
+  const normalizedKey = normalizeKey(relKey);
 
   if (storage.provider === "r2") {
-    return putToR2Storage(storage.config, key, data, contentType);
+    const key = buildOpaqueR2Key(normalizedKey, options.publicRead);
+    return putToR2Storage(storage.config, key, data, contentType, options);
   }
 
+  const key = appendHashSuffix(normalizedKey);
   return putToForgeStorage(storage.config, key, data, contentType);
 }
 
