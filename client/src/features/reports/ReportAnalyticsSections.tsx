@@ -256,10 +256,6 @@ export function ReportExerciseAnalyticsCard({ title, scopeLabel, description, ac
 }
 
 export function ReportTrendSection({ title, description, days }: { title: string; description: string; days: ReportTrendDay[] }) {
-  if (title === "Consumo diário vs meta ajustada") {
-    return null;
-  }
-
   if (!days.length) {
     return <ReportEmptyState text="Ainda não há dados suficientes no intervalo para desenhar a tendência." />;
   }
