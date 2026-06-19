@@ -84,7 +84,7 @@ describe("classifyWhatsappMessageDeterministically", () => {
 
   it.each([
     "almoço com frango e arroz",
-    "jantar leve com ovo",
+    "jantar com ovo",
     "café da manhã com banana",
   ])("pede confirmacao para mensagem alimentar ambigua: %s", text => {
     const intent = classifyWhatsappMessageDeterministically(text);
