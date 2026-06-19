@@ -3,7 +3,6 @@ import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import { PeriodScopeSelector } from "@/components/PeriodScopeSelector";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,9 +45,8 @@ import {
   type MacroGoalDay,
   type MacroTotals,
 } from "@shared/reportsGoalAnalytics";
-import { Activity, ArrowRight, ChevronDown, Leaf, Target, UtensilsCrossed } from "lucide-react";
+import { Activity, ChevronDown, Leaf, Target, UtensilsCrossed } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Link } from "wouter";
 
 type MealDateGroup = { date: string; items: StoredMeal[] };
 type Totals = { calories: number; protein: number; carbs: number; fat: number };
@@ -469,8 +467,6 @@ export default function ReportsPage() {
             <DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} />
           </>
         ) : null}
-
-        <Link href="/registrar"><Button className="rounded-full">Registrar refeição<ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
       </div>
     </DashboardLayout>
   );
