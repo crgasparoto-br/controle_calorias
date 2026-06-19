@@ -65,9 +65,17 @@ type ReportDay = Totals & {
   exerciseCalories: number;
 };
 type TrendDay = ReportTrendDay & { baseGoalCalories: number; exerciseCalories: number; calorieDelta: number; adherencePercent: number };
+type WeightPoint = { date: string; weightKg: number | null };
+type MacroGoalDayWithDate = MacroGoalDay & { date: string };
+type MacroGoalKey = "goalProtein" | "goalCarbs" | "goalFat";
 
 const EMPTY_TOTALS: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const EMPTY_QUALITY = { proteinGrams: 0, fiberGrams: 0, waterMl: 0, fruitServings: 0, vegetableServings: 0, ultraProcessedServings: 0, mealCount: 0, regularityScore: 0 };
+const MACRO_GOAL_KEYS: Record<keyof MacroTotals, MacroGoalKey> = {
+  protein: "goalProtein",
+  carbs: "goalCarbs",
+  fat: "goalFat",
+};
 
 function numberValue(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -80,6 +88,45 @@ function formatDateHeading(date: string) {
 
 function formatChartDateLabel(date: string) {
   return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+function formatPerKgDay(value: number | null) {
+  if (value === null) return "Sem peso para g/kg/dia";
+  return `${formatMacro(value)} g/kg/dia`;
+}
+
+function normalizeWeightPoints(value: any): WeightPoint[] {
+  return (value?.entries ?? value?.points ?? [])
+    .map((entry: any) => ({ date: String(entry.date ?? ""), weightKg: Number(entry.weightKg ?? 0) || null }))
+    .filter((entry: WeightPoint) => entry.date);
+}
+
+function resolveWeightForDate(date: string, weights: WeightPoint[]) {
+  const usableWeights = weights.filter(weight => weight.date && Number(weight.weightKg) > 0).sort((first, second) => first.date.localeCompare(second.date));
+  const exact = usableWeights.find(weight => weight.date === date);
+  if (exact) return Number(exact.weightKg);
+  const previous = usableWeights.filter(weight => weight.date < date).at(-1);
+  return previous ? Number(previous.weightKg) : null;
+}
+
+function calculateMacroPerKg(key: keyof MacroTotals, days: MacroGoalDayWithDate[], weights: WeightPoint[]) {
+  const goalKey = MACRO_GOAL_KEYS[key];
+  const perKg = days.reduce(
+    (acc, day) => {
+      const weightKg = resolveWeightForDate(day.date, weights);
+      if (!weightKg) return acc;
+      acc.planned += Number(day[goalKey] ?? 0) / weightKg;
+      acc.realized += Number(day[key] ?? 0) / weightKg;
+      acc.days += 1;
+      return acc;
+    },
+    { planned: 0, realized: 0, days: 0 },
+  );
+
+  return {
+    planned: perKg.days ? perKg.planned / perKg.days : null,
+    realized: perKg.days ? perKg.realized / perKg.days : null,
+  };
 }
 
 function sumMealTotals(meals: StoredMeal[]): Totals {
@@ -169,17 +216,31 @@ function buildMealsByDate(mealsByDate: MealDateGroup[], periodMeals: StoredMeal[
   return buildDateGroupedMealGroups(periodMeals, { timeZone: userTimeZone, sortDirection: "asc" });
 }
 
-function MacroDistributionSection({ consumed, planned, dailyMacros }: { consumed: MacroTotals; planned: MacroTotals; dailyMacros: MacroGoalDay[] }) {
+function MacroValueTile({ label, grams, perKg }: { label: string; grams: number; perKg: number | null }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{formatMacro(grams)} g</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{formatPerKgDay(perKg)}</p>
+    </div>
+  );
+}
+
+function MacroDistributionSection({ consumed, planned, dailyMacros, weightPoints }: { consumed: MacroTotals; planned: MacroTotals; dailyMacros: MacroGoalDayWithDate[]; weightPoints: WeightPoint[] }) {
   const analysis = calculateMacroAdherence(consumed, planned);
   const daySummary = calculateMacroDaySummary(dailyMacros);
   const hasMacroGoal = planned.protein > 0 || planned.carbs > 0 || planned.fat > 0;
   const chartData = analysis.items.map(item => ({ macro: item.label, planejado: item.plannedPercent, realizado: item.consumedPercent }));
+  const macroDetails = analysis.items.map(item => ({
+    item,
+    perKg: calculateMacroPerKg(item.key, dailyMacros, weightPoints),
+  }));
 
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Macronutrientes planejados vs realizados</CardTitle>
-        <CardDescription>Mostra gramas e distribuição percentual para avaliar a composição do período, não apenas o total de calorias.</CardDescription>
+        <CardDescription>Mostra gramas, g/kg/dia e distribuição percentual para avaliar a composição do período, não apenas o total de calorias.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {!hasMacroGoal ? <ReportEmptyState text="Configure metas de proteínas, carboidratos e gorduras para liberar a comparação percentual de macros." /> : (
@@ -203,12 +264,12 @@ function MacroDistributionSection({ consumed, planned, dailyMacros }: { consumed
               </ResponsiveContainer>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              {analysis.items.map(item => (
+              {macroDetails.map(({ item, perKg }) => (
                 <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm">
                   <p className="text-sm font-medium">{item.label}</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <ReportStatusTile label="Planejado" value={`${formatMacro(item.plannedGrams)} g`} />
-                    <ReportStatusTile label="Realizado" value={`${formatMacro(item.consumedGrams)} g`} />
+                    <MacroValueTile label="Planejado" grams={item.plannedGrams} perKg={perKg.planned} />
+                    <MacroValueTile label="Realizado" grams={item.consumedGrams} perKg={perKg.realized} />
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">Distribuição: {formatPercent(item.plannedPercent)} planejado vs {formatPercent(item.consumedPercent)} realizado.</p>
                 </div>
@@ -371,7 +432,8 @@ export default function ReportsPage() {
     carbs: metricDays.reduce((total, day) => total + day.goalCarbs, 0),
     fat: metricDays.reduce((total, day) => total + day.goalFat, 0),
   };
-  const dailyMacros: MacroGoalDay[] = metricDays.map(day => ({ protein: day.protein, carbs: day.carbs, fat: day.fat, goalProtein: day.goalProtein, goalCarbs: day.goalCarbs, goalFat: day.goalFat }));
+  const dailyMacros: MacroGoalDayWithDate[] = metricDays.map(day => ({ date: day.date, protein: day.protein, carbs: day.carbs, fat: day.fat, goalProtein: day.goalProtein, goalCarbs: day.goalCarbs, goalFat: day.goalFat }));
+  const macroWeightPoints = isWeek ? normalizeWeightPoints((reportBundle.data as any)?.progress?.weight) : normalizeWeightPoints((periodBundle.data as any)?.weightTrend ?? (periodBundle.data as any)?.progress?.weight);
 
   const weeklyQualityRaw = reportBundle.data?.quality ?? EMPTY_QUALITY;
   const simpleQuality = isWeek ? weeklyQualityRaw : (periodBundle.data as any)?.quality ?? EMPTY_QUALITY;
@@ -397,7 +459,7 @@ export default function ReportsPage() {
             <CalorieAdherenceSection trendData={visibleTrendData} dayCount={dayCount} />
             <ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={visibleTrendData} />
             <FoodQualitySection quality={foodQuality} simpleQuality={simpleQuality} dayCount={dayCount} />
-            <MacroDistributionSection consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} />
+            <MacroDistributionSection consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} weightPoints={macroWeightPoints} />
 
             <div className="grid gap-6 xl:grid-cols-2">
               <ReportWaterAnalyticsCard title="Hidratação como contexto" scopeLabel={isWeek ? "Semanal" : "Período"} description="Mostra consistência de água sem competir com o diagnóstico calórico." totalConsumedMl={waterConsumedMl} totalGoalMl={waterGoalMl} goalHitDays={waterHitDays} totalDays={dayCount} averageDailyMl={averageValue(waterConsumedMl, Math.max(dayCount, 1))} lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} reading={waterHitDays > 0 ? `${waterHitDays} de ${dayCount} dias bateram a meta de água.` : "Ainda não há dias com meta de água batida neste intervalo."} />
