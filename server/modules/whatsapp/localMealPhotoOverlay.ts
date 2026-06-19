@@ -125,7 +125,7 @@ export async function createLocalMealPhotoOverlay(input: LocalMealPhotoOverlayIn
 
   try {
     const storageKey = `generated/meal-support/local-overlay-${Date.now()}.png`;
-    const upload = await storagePut(storageKey, imageBuffer, "image/png");
+    const upload = await storagePut(storageKey, imageBuffer, "image/png", { publicRead: true });
     return {
       url: upload.url,
       storageKey: upload.key || storageKey,
