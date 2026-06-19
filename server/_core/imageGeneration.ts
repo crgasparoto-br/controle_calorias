@@ -287,12 +287,13 @@ async function generateFallbackImage(prompt: string, skippedReason: GenerateImag
   const imageBuffer = buildFallbackMealSummaryPng(prompt);
   try {
     const storageKey = `generated/meal-support/fallback-${Date.now()}.png`;
-    const upload = await storagePut(storageKey, imageBuffer, "image/png");
+    const upload = await storagePut(storageKey, imageBuffer, "image/png", { publicRead: true });
     return {
       url: upload.url,
       storageKey: upload.key || storageKey,
       mimeType: "image/png",
       buffer: imageBuffer,
+      skippedReason,
       detail,
     };
   } catch (error) {
@@ -303,6 +304,7 @@ async function generateFallbackImage(prompt: string, skippedReason: GenerateImag
     return {
       mimeType: "image/png",
       buffer: imageBuffer,
+      skippedReason,
       detail: error instanceof Error ? `${detail} Fallback local falhou: ${error.message}` : detail,
     };
   }
@@ -341,7 +343,7 @@ export async function generateImage(
 
     const imageBuffer = Buffer.from(generated.b64Json, "base64");
     const storageKey = `generated/meal-support/${Date.now()}.png`;
-    const upload = await storagePut(storageKey, imageBuffer, generated.mimeType);
+    const upload = await storagePut(storageKey, imageBuffer, generated.mimeType, { publicRead: true });
 
     return {
       url: upload.url,
