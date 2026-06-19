@@ -12,8 +12,8 @@ import {
   calculateWeightTrendSummary,
   type WeightTrendPoint,
 } from "@shared/reportsGoalAnalytics";
-import { BarChart3, Droplets, Dumbbell, Scale, Target, TrendingUp } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Droplets, Dumbbell, Scale, TrendingUp } from "lucide-react";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type WeekReportDay = Record<string, any> & {
   date: string;
@@ -56,14 +56,6 @@ function formatSigned(value: number | null | undefined) {
 function progressPercent(value: number, goal: number) {
   if (!goal) return 0;
   return Math.min(Math.max((value / goal) * 100, 0), 100);
-}
-
-function getCalorieBarColor(calories: number, goalCalories: number) {
-  if (!goalCalories || !calories) return "#cbd5e1";
-  const ratio = calories / goalCalories;
-  if (ratio > 1.05) return "#dc2626";
-  if (ratio < 0.9) return "#f59e0b";
-  return "#16a34a";
 }
 
 function averageTrendValue(days: TrendPoint[], getValue: (day: TrendPoint) => number) {
@@ -178,66 +170,16 @@ export default function ReportsGoalInsightsPanel() {
   const weightBadge = weightSummary.trendDirection === "insufficient_data" ? "Tendência insuficiente" : weightSummary.trendDirection === "stable" ? "Estável" : weightSummary.trendDirection === "up" ? "Subiu" : "Caiu";
 
   return (
-    <section className="mt-6 space-y-6" aria-label="Análise da meta ajustada">
+    <section className="mt-6 space-y-6" aria-label="Peso e fatores de apoio">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Meta ajustada</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Aderência, peso e fatores de apoio</h2>
+          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Relatórios complementares</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Peso e fatores de apoio</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Esta leitura cruza a meta ajustada por exercícios com consumo, evolução do peso, hidratação e consistência de atividade da semana atual.
+            Complementa o diagnóstico principal com evolução do peso, hidratação e consistência de atividade da semana atual.
           </p>
         </div>
         <Badge variant="outline" className="rounded-full px-3 py-1 text-xs uppercase">Semana atual</Badge>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[0.9fr,1.1fr]">
-        <Card className="border-0 shadow-sm">
-          <SectionHeader icon={<Target className="h-5 w-5 text-primary" />} title="Resumo da meta ajustada" description="Mostra se o consumo ficou dentro da faixa esperada para a meta ajustada do dia." badge="90% a 105%" />
-          <CardContent className="space-y-5">
-            <div className="rounded-3xl border bg-muted/20 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-sm font-medium tracking-tight">Aderência média da semana</p>
-                <p className="text-sm text-muted-foreground">{formatPercent(calorieSummary.adherencePercent)}</p>
-              </div>
-              <Progress className="h-2" value={Math.min(calorieSummary.adherencePercent, 100)} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatusTile label="Média consumida" value={formatCalories(calorieSummary.averageCalories)} />
-              <StatusTile label="Média da meta ajustada" value={formatCalories(calorieSummary.averageGoalCalories)} />
-              <StatusTile label="Desvio médio" value={formatCalories(calorieSummary.averageDeltaCalories)} />
-              <StatusTile label="Dias na faixa" value={`${calorieSummary.daysWithinRange}/${dayCount}`} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <StatusTile label="Abaixo" value={calorieSummary.daysBelowRange} />
-              <StatusTile label="Acima" value={calorieSummary.daysAboveRange} />
-              <StatusTile label="Sem registro" value={calorieSummary.daysWithoutRecords} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <SectionHeader icon={<BarChart3 className="h-5 w-5 text-primary" />} title="Consumido vs meta ajustada" description="A meta base aparece como referência; a meta ajustada considera o efeito dos exercícios registrados no dia." />
-          <CardContent className="h-[410px]">
-            {trendData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData} barSize={28}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="baseGoalCalories" name="Meta base" fill="#e2e8f0" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="goalCalories" name="Meta ajustada" fill="#94a3b8" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
-                    {trendData.map(day => <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyState>Ainda não há registros suficientes para desenhar o gráfico de aderência calórica.</EmptyState>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -276,7 +218,7 @@ export default function ReportsGoalInsightsPanel() {
       </Card>
 
       <Card className="border-0 shadow-sm">
-        <SectionHeader icon={<TrendingUp className="h-5 w-5 text-primary" />} title="Fatores de apoio da semana" description="Água e exercícios ficam consolidados aqui para explicar a meta ajustada e a consistência do período sem repetir blocos na tela." />
+        <SectionHeader icon={<TrendingUp className="h-5 w-5 text-primary" />} title="Fatores de apoio da semana" description="Água e exercícios ficam consolidados aqui para explicar a consistência do período sem repetir blocos na tela." />
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border bg-background p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
