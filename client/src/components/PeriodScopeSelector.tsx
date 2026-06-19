@@ -64,13 +64,17 @@ export function PeriodScopeSelector({
   const monthRange = getMonthRange(selectedMonth);
 
   useClientLayoutEffect(() => {
-    const parent = rootRef.current?.parentElement;
-    if (!parent) return;
+    const root = rootRef.current;
+    const parent = root?.parentElement;
+    if (!root || !parent) return;
 
-    const parentText = parent.textContent ?? "";
-    const hasAccompaniedPersonSelector = parentText.includes("Pessoa acompanhada") && Boolean(parent.querySelector("select"));
+    const hasDirectPatientSelectorSibling = Array.from(parent.children).some(child => {
+      if (child === root) return false;
+      const childText = child.textContent ?? "";
+      return childText.includes("Pessoa acompanhada") && Boolean(child.querySelector("select"));
+    });
 
-    if (hasAccompaniedPersonSelector) {
+    if (hasDirectPatientSelectorSibling) {
       setHideInsideProfessionalPatientFilter(true);
     }
   }, []);
