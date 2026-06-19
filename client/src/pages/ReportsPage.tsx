@@ -1,5 +1,6 @@
 import React from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import ReportsGoalInsightsPanel from "@/components/ReportsGoalInsightsPanel";
 import PageIntro from "@/components/PageIntro";
 import { PeriodScopeSelector } from "@/components/PeriodScopeSelector";
 import { Badge } from "@/components/ui/badge";
@@ -464,6 +465,7 @@ export default function ReportsPage() {
               <ReportExerciseAnalyticsCard title="Exercícios e meta ajustada" scopeLabel={isWeek ? "Semanal" : "Período"} description="Explica quanto os exercícios adicionaram à meta e como se distribuíram no período." activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} detailLabel="Impacto na meta" detailValue={formatCalories(exerciseCalories)} averageCaloriesPerActiveDay={exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0} highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} reading={exerciseActiveDays > 0 ? `Os exercícios apareceram em ${exerciseActiveDays} de ${dayCount} dias e foram incorporados à meta ajustada.` : "Nenhum exercício foi registrado neste intervalo."} />
             </div>
 
+            <ReportsGoalInsightsPanel />
             <DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} />
           </>
         ) : null}
