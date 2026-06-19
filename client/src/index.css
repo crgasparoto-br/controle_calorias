@@ -179,58 +179,5 @@
     [data-slot="card"]:has(a[href="/meals"]):has(a[href="/registrar"]) {
       display: none;
     }
-
-    section[role="tabpanel"] > .rounded-2xl.border.bg-muted\/20.p-4.text-sm.leading-6.text-muted-foreground:has(> .font-medium.text-foreground) {
-      display: none;
-    }
-
-    section[role="tabpanel"] > [data-slot="card"]:has(select) {
-      align-items: flex-start;
-      gap: 1rem;
-      border: 0;
-      box-shadow: 0 1px 2px oklch(0 0 0 / 6%);
-    }
-
-    section[role="tabpanel"] > [data-slot="card"]:has(select) [data-slot="card-header"] {
-      width: 100%;
-      gap: 0.5rem;
-      padding-bottom: 0;
-      text-align: left;
-    }
-
-    section[role="tabpanel"] > [data-slot="card"]:has(select) [data-slot="card-title"] {
-      font-size: 1.125rem;
-      line-height: 1.5rem;
-    }
-
-    section[role="tabpanel"] > [data-slot="card"]:has(select) [data-slot="card-description"] {
-      font-size: 0;
-      line-height: 0;
-    }
-
-    section[role="tabpanel"] > [data-slot="card"]:has(select) [data-slot="card-description"]::after {
-      content: "Escolha a pessoa acompanhada para revisar relatórios, metas, sugestões, IA e comentários. Os filtros de período ficam dentro da aba Relatórios.";
-      display: block;
-      max-width: 48rem;
-      font-size: 0.875rem;
-      line-height: 1.5rem;
-    }
-
-    section[role="tabpanel"] > [data-slot="card"]:has(select) [data-slot="card-content"] {
-      width: 100%;
-    }
-
-    section[role="tabpanel"] > [data-slot="card"]:has(select) [data-slot="card-content"] > .flex {
-      width: 100%;
-      justify-content: flex-start !important;
-      align-items: flex-start !important;
-      text-align: left;
-    }
-
-    section[role="tabpanel"] > [data-slot="card"]:has(select) label:has(select) {
-      width: min(100%, 24rem);
-      margin-left: 0 !important;
-      margin-right: auto !important;
-    }
   }
 }
