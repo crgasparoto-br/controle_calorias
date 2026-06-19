@@ -317,24 +317,11 @@ function CalorieAdherenceSection({ trendData, dayCount }: { trendData: TrendDay[
 
 function WeightSection({ points, adherencePercent }: { points: WeightTrendPoint[]; adherencePercent: number }) {
   const summary = calculateWeightTrendSummary(points);
-  return (
-    <Card className="border-0 shadow-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" />Peso como apoio à leitura</CardTitle>
-        <CardDescription>Relaciona registros de peso à aderência calórica do período, sem tirar conclusões clínicas isoladas.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {summary.hasData ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <ReportStatusTile label="Inicial" value={`${formatMacro(summary.firstWeightKg ?? 0)} kg`} />
-            <ReportStatusTile label="Atual" value={`${formatMacro(summary.lastWeightKg ?? 0)} kg`} />
-            <ReportStatusTile label="Variação" value={`${summary.deltaKg && summary.deltaKg > 0 ? "+" : ""}${formatMacro(summary.deltaKg ?? 0)} kg`} />
-            <ReportStatusTile label="Aderência calórica" value={formatPercent(adherencePercent)} />
-          </div>
-        ) : <ReportEmptyState text="Ainda não há registros de peso no período selecionado." />}
-      </CardContent>
-    </Card>
-  );
+  void adherencePercent;
+  void summary;
+  void Scale;
+
+  return null;
 }
 
 function DailyDetailsSections({ groups, userTimeZone }: { groups: DateGroupedRegisteredMealsViewModel[]; userTimeZone: string }) {
