@@ -48,7 +48,7 @@ function looksLikeAmbiguousMealDescription(normalized: string) {
     return false;
   }
 
-  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b\s+com\s+\S+/.test(normalized);
+  return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
 }
 
 function resolveMealContext(normalized: string): AssistantMealContext {
