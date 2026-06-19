@@ -39,7 +39,6 @@ import { useMemo } from "react";
 import { useLocation } from "wouter";
 import calorieControlIcon from "../../../imagens/premium_app_icon_for_a_smart_calorie_control_2.png";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
-import ReportsGoalInsightsPanel from "./ReportsGoalInsightsPanel";
 import { Button } from "./ui/button";
 
 function ProductIcon({ className = "h-11 w-11" }: { className?: string }) {
@@ -253,7 +252,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
         <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background to-muted/20 p-4 sm:p-6">
           {children}
-          {isReportsRoute ? <ReportsGoalInsightsPanel /> : null}
         </main>
       </SidebarInset>
     </>
