@@ -67,6 +67,7 @@ const MACRO_META: Array<{ key: MacroKey; title: string; goalKey: "goalProtein" |
   { key: "fat", title: "Gorduras", goalKey: "goalFat" },
 ];
 const ACCESS_STATUS_LABELS: Record<string, string> = { pending: "Aguardando autorização", approved: "Autorizado", rejected: "Recusado", revoked: "Revogado" };
+const HIDDEN_PROFESSIONAL_PATIENT_EMAILS = new Set(["marcia.maldonado@gmail.com"]);
 const GOAL_WEEKDAYS = [
   { weekday: 0, label: "Segunda-feira", shortLabel: "seg." },
   { weekday: 1, label: "Terça-feira", shortLabel: "ter." },
@@ -82,6 +83,7 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 function accessStatusLabel(status: string) { return ACCESS_STATUS_LABELS[status] ?? status; }
+function isHiddenProfessionalPatientAccess(access: PatientAccess) { return HIDDEN_PROFESSIONAL_PATIENT_EMAILS.has(access.patient?.email?.trim().toLowerCase() ?? ""); }
 function suggestionStatusLabel(status?: string | null) {
   const labels: Record<string, string> = { draft: "Rascunho", sent: "Enviada", accepted: "Aceita", refused: "Recusada", cancelled: "Cancelada" };
   return labels[status || ""] ?? status ?? "Registrada";
@@ -180,9 +182,10 @@ export default function ProfessionalReportsPage() {
   const [rangeEnd, setRangeEnd] = React.useState(() => toDateInputValue());
   const activeRange = React.useMemo(() => periodScope === "day" ? { start: selectedDay, end: selectedDay } : periodScope === "week" ? getWeekRange(selectedDay) : periodScope === "month" ? getMonthRange(selectedMonth) : normalizeDateRange(rangeStart, rangeEnd), [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
   const weekOffset = React.useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
-  const approvedAccesses = React.useMemo<PatientAccess[]>(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => access.status === "approved"), [accesses.data]);
-  const pendingAccesses = React.useMemo(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => access.status === "pending"), [accesses.data]);
-  const nonApprovedAccesses = React.useMemo<PatientAccess[]>(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => access.status !== "approved"), [accesses.data]);
+  const visibleAccesses = React.useMemo<PatientAccess[]>(() => ((accesses.data ?? []) as PatientAccess[]).filter(access => !isHiddenProfessionalPatientAccess(access)), [accesses.data]);
+  const approvedAccesses = React.useMemo<PatientAccess[]>(() => visibleAccesses.filter(access => access.status === "approved"), [visibleAccesses]);
+  const pendingAccesses = React.useMemo(() => visibleAccesses.filter(access => access.status === "pending"), [visibleAccesses]);
+  const nonApprovedAccesses = React.useMemo<PatientAccess[]>(() => visibleAccesses.filter(access => access.status !== "approved"), [visibleAccesses]);
   const selectedAccess = approvedAccesses.find(access => access.patientUserId === selectedPatientId) ?? null;
   const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery({ patientId: selectedPatientId ?? 0, weekOffset }, { enabled: hasActiveProfile && Boolean(selectedPatientId) });
   const periodBundle = trpc.nutrition.professionals.patientPeriodBundle.useQuery({ patientId: selectedPatientId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: hasActiveProfile && Boolean(selectedPatientId) && periodScope !== "week" });
