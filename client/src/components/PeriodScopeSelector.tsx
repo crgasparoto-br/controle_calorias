@@ -1,5 +1,4 @@
 import React, { type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,16 +44,6 @@ function RangeBadge({ children }: { children: ReactNode }) {
   return <Badge variant="outline" className="rounded-full px-3 py-1 text-xs text-muted-foreground">{children}</Badge>;
 }
 
-function findProfessionalReportsTabContent() {
-  if (typeof document === "undefined") return null;
-
-  const target = document.querySelector<HTMLElement>('[data-slot="tabs-content"][data-value="relatorios"]');
-  const analysisSection = target?.closest('section[role="tabpanel"]');
-  if (!target || !analysisSection?.textContent?.includes("Análise por pessoa acompanhada")) return null;
-
-  return target;
-}
-
 export function PeriodScopeSelector({
   scope,
   onScopeChange,
@@ -69,48 +58,8 @@ export function PeriodScopeSelector({
 }: PeriodScopeSelectorProps) {
   const weekRange = getWeekRange(selectedDay);
   const monthRange = getMonthRange(selectedMonth);
-  const [professionalReportsMount, setProfessionalReportsMount] = React.useState<HTMLElement | null>(null);
 
-  React.useEffect(() => {
-    let mount: HTMLDivElement | null = null;
-    let intervalId: number | null = null;
-    let timeoutId: number | null = null;
-
-    const mountInsideReportsTab = () => {
-      const target = findProfessionalReportsTabContent();
-      if (!target) return false;
-
-      mount = document.createElement("div");
-      mount.setAttribute("data-professional-report-period-filters", "true");
-      target.prepend(mount);
-      setProfessionalReportsMount(mount);
-      return true;
-    };
-
-    if (!mountInsideReportsTab()) {
-      intervalId = window.setInterval(() => {
-        if (mountInsideReportsTab() && intervalId != null) {
-          window.clearInterval(intervalId);
-          intervalId = null;
-        }
-      }, 100);
-      timeoutId = window.setTimeout(() => {
-        if (intervalId != null) {
-          window.clearInterval(intervalId);
-          intervalId = null;
-        }
-      }, 3000);
-    }
-
-    return () => {
-      if (intervalId != null) window.clearInterval(intervalId);
-      if (timeoutId != null) window.clearTimeout(timeoutId);
-      setProfessionalReportsMount(null);
-      mount?.remove();
-    };
-  }, []);
-
-  const selector = (
+  return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2 rounded-3xl border bg-card p-1 shadow-sm">
         {SCOPE_OPTIONS.map(option => (
@@ -237,6 +186,4 @@ export function PeriodScopeSelector({
       ) : null}
     </div>
   );
-
-  return professionalReportsMount ? createPortal(selector, professionalReportsMount) : selector;
 }
