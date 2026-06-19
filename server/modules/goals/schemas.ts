@@ -11,12 +11,9 @@ export const goalTargetSchema = z.object({
 });
 
 export const goalExceptionSchema = goalTargetSchema.extend({
-  id: z.number().int().positive().optional(),
+  id: z.union([z.number().int().positive(), z.string()]).optional(),
   weekday: z.number().int().min(0).max(6),
-  durationType: z.string().refine(
-    (durationType): durationType is (typeof goalExceptionDurationTypes)[number] => goalExceptionDurationTypes.includes(durationType as (typeof goalExceptionDurationTypes)[number]),
-    "Informe uma duração válida para a exceção de meta.",
-  ),
+  durationType: z.enum(goalExceptionDurationTypes, "Informe uma duração válida para a exceção de meta."),
   startDate: dateKeySchema.optional(),
 });
 
