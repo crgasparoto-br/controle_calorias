@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 const ANALYSIS_TAB_LABEL = "Análise por pessoa acompanhada";
 const ANALYZE_BUTTON_LABEL = "Analisar";
 const PERIOD_FILTER_LABELS = ["Dia", "Semana", "Mês", "Período"];
+const PERIOD_DETAIL_LABELS = ["Dia ativo", "Semana de referência", "Mês ativo", "Início"];
 
 function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -41,16 +42,19 @@ function findPeriodFilter() {
   const firstButton = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(button =>
     elementText(button) === PERIOD_FILTER_LABELS[0],
   );
-  let current = firstButton?.parentElement ?? null;
+  const buttonGroup = firstButton?.parentElement ?? null;
+  if (!buttonGroup || !PERIOD_FILTER_LABELS.every(label => hasButtonLabel(buttonGroup, label))) return null;
 
+  let current = buttonGroup.parentElement;
   while (current) {
-    if (PERIOD_FILTER_LABELS.every(label => hasButtonLabel(current!, label))) {
+    const text = elementText(current);
+    if (PERIOD_DETAIL_LABELS.some(label => text.includes(label))) {
       return current;
     }
     current = current.parentElement;
   }
 
-  return null;
+  return buttonGroup;
 }
 
 function movePeriodFilterIntoReportsTab() {
