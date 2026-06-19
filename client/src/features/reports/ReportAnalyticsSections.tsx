@@ -200,8 +200,6 @@ function AnalyticsReading({ children }: { children: React.ReactNode }) {
 }
 
 export function ReportWaterAnalyticsCard({ title, scopeLabel, description, totalConsumedMl, totalGoalMl, goalHitDays, totalDays, averageDailyMl, lowestDay, reading }: { title: string; scopeLabel: string; description: string; totalConsumedMl: number; totalGoalMl: number; goalHitDays: number; totalDays: number; averageDailyMl: number; lowestDay: string; reading: string }) {
-  if (title === "Hidratação como contexto") return null;
-
   return (
     <Card className="border-0 shadow-sm">
       <AnalyticsHeader icon={<Droplets className="h-5 w-5 text-primary" />} title={title} scopeLabel={scopeLabel} description={description} />
@@ -230,8 +228,6 @@ export function ReportWaterAnalyticsCard({ title, scopeLabel, description, total
 }
 
 export function ReportExerciseAnalyticsCard({ title, scopeLabel, description, activeDays, totalDays, totalCalories, detailLabel, detailValue, averageCaloriesPerActiveDay, highestDay, reading }: { title: string; scopeLabel: string; description: string; activeDays: number; totalDays: number; totalCalories: number; detailLabel: string; detailValue: string; averageCaloriesPerActiveDay: number; highestDay: string; reading: string }) {
-  if (title === "Exercícios e meta ajustada") return null;
-
   return (
     <Card className="border-0 shadow-sm">
       <AnalyticsHeader icon={<Dumbbell className="h-5 w-5 text-primary" />} title={title} scopeLabel={scopeLabel} description={description} />
