@@ -49,12 +49,11 @@ function RangeBadge({ children }: { children: ReactNode }) {
 }
 
 function getActiveReportsContent() {
-  const activeTrigger = document.querySelector<HTMLElement>('[data-slot="tabs-trigger"][data-state="active"]');
-  const activeContent = document.querySelector<HTMLElement>('[data-slot="tabs-content"][data-state="active"]');
-  const isReportsTab = activeTrigger?.textContent?.trim() === "Relatórios";
+  const activeReportsTrigger = Array.from(document.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"][data-state="active"]')).find(trigger => trigger.textContent?.trim() === "Relatórios");
+  const tabsRoot = activeReportsTrigger?.closest<HTMLElement>('[data-slot="tabs"]');
+  const activeContent = tabsRoot?.querySelector<HTMLElement>('[data-slot="tabs-content"][data-state="active"]') ?? null;
 
-  if (!isReportsTab || !activeContent) return null;
-  return activeContent;
+  return activeReportsTrigger && activeContent ? activeContent : null;
 }
 
 function ensureProfessionalFilterPortal(activeContent: HTMLElement) {
@@ -124,12 +123,16 @@ export function PeriodScopeSelector({
     };
 
     updatePortal();
+    const animationFrame = window.requestAnimationFrame(updatePortal);
+    const timeout = window.setTimeout(updatePortal, 0);
 
     const observer = new MutationObserver(updatePortal);
-    observer.observe(document.body, { attributes: true, attributeFilter: ["data-state"], subtree: true });
+    observer.observe(document.body, { attributes: true, attributeFilter: ["data-state"], childList: true, subtree: true });
 
     return () => {
       observer.disconnect();
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(timeout);
       cleanupProfessionalFilterPortals();
     };
   }, []);
