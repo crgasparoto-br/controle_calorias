@@ -16,6 +16,22 @@ describe("whatsapp intent schema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("valida pedido de sugestao de refeicao sem acao persistente", () => {
+    const parsed = parseWhatsappInterpretedIntent({
+      intent: "meal_suggestion",
+      confidence: 0.91,
+      meal: { label: "jantar", createIfMissing: false },
+      items: [{ foodName: "frango", quantity: null, unit: null }],
+      requiresConfirmation: false,
+      possibleIntents: [],
+      reason: "Usuario pediu uma proposta de refeicao, nao informou consumo realizado.",
+    });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.intent).toBe("meal_suggestion");
+    expect(parsed.success && parsed.data.meal?.createIfMissing).toBe(false);
+  });
+
   it("valida intencoes runtime do fluxo profissional-paciente", () => {
     const suggestion = parseWhatsappInterpretedIntent({
       intent: "profissional_sugere_meta",
