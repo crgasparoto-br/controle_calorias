@@ -13,6 +13,11 @@ try {
   // Installed below without writing package-lock.json or package.json.
 }
 
+if (process.env.CI === "true") {
+  console.log(`[postinstall] sharp@${SHARP_VERSION} is optional for CI checks; skipping runtime install.`);
+  process.exit(0);
+}
+
 console.log(`[postinstall] Installing sharp@${SHARP_VERSION} for local image overlays...`);
 execFileSync(
   "npm",
