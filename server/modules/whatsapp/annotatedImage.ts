@@ -74,7 +74,7 @@ export async function generateAnnotatedMealImage(
         detail,
       );
       return {
-        skippedReason: "local_overlay_failed",
+        skippedReason: "provider_failed",
         detail: `Não foi possível aplicar os cards localmente sobre a foto original: ${detail}`,
       };
     }
