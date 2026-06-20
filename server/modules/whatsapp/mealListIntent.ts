@@ -144,8 +144,8 @@ function parseMealLabel(normalized: string) {
   if (/\bcafe da manha\b/.test(normalized)) return "Café da manhã";
   if (/\balmoco\b/.test(normalized)) return "Almoço";
   if (/\bjantar\b|\bjanta\b/.test(normalized)) return "Jantar";
-  if (/\blanche da tarde\b/.test(normalized)) return "Lanche da tarde";
-  if (/\blanche\b/.test(normalized)) return "Lanche";
+  if (/\blanche da tarde\b/.test(normalized.replace(/lanche/g, "lanche"))) return "Lanche da tarde";
+  if (/\blanche\b/.test(normalized.replace(/lanche/g, "lanche"))) return "Lanche";
   if (/\bceia\b/.test(normalized)) return "Ceia";
   return null;
 }
