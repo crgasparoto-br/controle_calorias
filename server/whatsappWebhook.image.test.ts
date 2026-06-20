@@ -10,6 +10,7 @@ const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
 const storagePutMock = vi.fn();
 const generateImageMock = vi.fn();
+const createLocalMealPhotoOverlayMock = vi.fn();
 
 vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input) => input),
@@ -34,6 +35,10 @@ vi.mock("./storage", () => ({
 
 vi.mock("./_core/imageGeneration", () => ({
   generateImage: generateImageMock,
+}));
+
+vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
+  createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
 }));
 
 vi.mock("./_core/voiceTranscription", () => ({
@@ -169,6 +174,14 @@ describe("whatsappWebhook image inbound", () => {
     processMealInputMock.mockReset();
     generateImageMock.mockReset();
     generateImageMock.mockResolvedValue({ skippedReason: "disabled" });
+    createLocalMealPhotoOverlayMock.mockReset();
+    createLocalMealPhotoOverlayMock.mockResolvedValue({
+      url: "https://storage.test/generated/meal-support/annotated.png",
+      storageKey: "generated/meal-support/annotated.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("local-overlay-png"),
+      detail: "Overlay local aplicado sobre a foto original da refeição.",
+    });
     storagePutMock.mockReset();
     storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-image" });
@@ -276,12 +289,7 @@ describe("whatsappWebhook image inbound", () => {
     });
   });
 
-  it("envia imagem anotada quando a geração visual retorna URL", async () => {
-    generateImageMock.mockResolvedValue({
-      url: "https://storage.test/generated/meal-support/annotated.png",
-      storageKey: "generated/meal-support/annotated.png",
-      mimeType: "image/png",
-    });
+  it("envia imagem anotada quando o overlay local retorna URL", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(createWhatsAppOkResponse() as never);
 
     const req = { body: createMetaImagePayload("wamid.image-annotated") };
@@ -292,14 +300,15 @@ describe("whatsappWebhook image inbound", () => {
     const expectedB64 = Buffer.from("image-test").toString("base64");
 
     expect(res.statusCode).toBe(200);
-    expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
-      originalImages: [
-        expect.objectContaining({
-          mimeType: "image/jpeg",
-          b64Json: expectedB64,
-        }),
-      ],
-      prompt: expect.stringContaining("frango"),
+    expect(generateImageMock).not.toHaveBeenCalled();
+    expect(createLocalMealPhotoOverlayMock).toHaveBeenCalledWith(expect.objectContaining({
+      image: expect.objectContaining({
+        mimeType: "image/jpeg",
+        b64Json: expectedB64,
+      }),
+      processed: expect.objectContaining({
+        items: expect.arrayContaining([expect.objectContaining({ foodName: "frango" })]),
+      }),
     }));
 
     const imageSendCall = findFetchCallByBody('"type":"image"');
@@ -333,11 +342,8 @@ describe("whatsappWebhook image inbound", () => {
     expect(processMealInputMock).toHaveBeenCalled();
   });
 
-  it("não envia cards quando a edição da foto original não retorna imagem anotada", async () => {
-    generateImageMock.mockResolvedValueOnce({
-      skippedReason: "provider_failed",
-      detail: "Provider de imagem falhou; fallback local de classificação gerado.",
-    });
+  it("não envia imagem quando o overlay local falha", async () => {
+    createLocalMealPhotoOverlayMock.mockRejectedValueOnce(new Error("Provider de imagem falhou; fallback local de classificação gerado."));
     vi.mocked(global.fetch).mockResolvedValueOnce(createWhatsAppOkResponse() as never);
 
     const req = { body: createMetaImagePayload("wamid.image-cards-fallback") };
@@ -346,17 +352,8 @@ describe("whatsappWebhook image inbound", () => {
     await handleWhatsAppWebhook(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
-    expect(generateImageMock).toHaveBeenCalledTimes(1);
-    expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
-      originalImages: expect.any(Array),
-      prompt: expect.stringContaining("Mantenha a foto original"),
-    }));
-    expect(generateImageMock).toHaveBeenCalledWith(expect.objectContaining({
-      prompt: expect.stringContaining("Apenas sobreponha cards/etiquetas nutricionais"),
-    }));
-    expect(generateImageMock).not.toHaveBeenCalledWith(expect.objectContaining({
-      prompt: expect.stringContaining("cards nutricionais limpos"),
-    }));
+    expect(generateImageMock).not.toHaveBeenCalled();
+    expect(createLocalMealPhotoOverlayMock).toHaveBeenCalledTimes(1);
 
     const imageSendCall = findFetchCallByBody('"type":"image"');
     expect(imageSendCall).toBeFalsy();
