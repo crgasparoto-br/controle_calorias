@@ -49,6 +49,13 @@ const generateImageMock = vi.fn(async () => ({
   storageKey: "generated/meal-support/annotated.png",
   mimeType: "image/png",
 }));
+const createLocalMealPhotoOverlayMock = vi.fn(async () => ({
+  url: "https://storage.test/generated/meal-support/annotated.png",
+  storageKey: "generated/meal-support/annotated.png",
+  mimeType: "image/png",
+  buffer: Buffer.from("local-overlay-png"),
+  detail: "Overlay local aplicado sobre a foto original da refeição.",
+}));
 
 vi.mock("./nutritionEngine", async () => {
   const actual = await vi.importActual<typeof import("./nutritionEngine")>("./nutritionEngine");
@@ -60,6 +67,10 @@ vi.mock("./nutritionEngine", async () => {
 
 vi.mock("./_core/imageGeneration", () => ({
   generateImage: generateImageMock,
+}));
+
+vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
+  createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
 }));
 
 const { handleWhatsAppWebhook, verifyWhatsAppWebhook } = await import("./whatsappWebhook");
@@ -114,6 +125,14 @@ describe("whatsappWebhook", () => {
       url: "https://storage.test/generated/meal-support/annotated.png",
       storageKey: "generated/meal-support/annotated.png",
       mimeType: "image/png",
+    });
+    createLocalMealPhotoOverlayMock.mockReset();
+    createLocalMealPhotoOverlayMock.mockResolvedValue({
+      url: "https://storage.test/generated/meal-support/annotated.png",
+      storageKey: "generated/meal-support/annotated.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("local-overlay-png"),
+      detail: "Overlay local aplicado sobre a foto original da refeição.",
     });
     processMealInputMock.mockReset();
     processMealInputMock.mockResolvedValue({
