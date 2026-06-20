@@ -176,11 +176,8 @@ describe("whatsappWebhook image inbound", () => {
     generateImageMock.mockResolvedValue({ skippedReason: "disabled" });
     createLocalMealPhotoOverlayMock.mockReset();
     createLocalMealPhotoOverlayMock.mockResolvedValue({
-      url: "https://storage.test/generated/meal-support/annotated.png",
-      storageKey: "generated/meal-support/annotated.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("local-overlay-png"),
-      detail: "Overlay local aplicado sobre a foto original da refeição.",
+      skippedReason: "provider_failed",
+      detail: "Overlay local desabilitado neste teste.",
     });
     storagePutMock.mockReset();
     storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
@@ -290,6 +287,13 @@ describe("whatsappWebhook image inbound", () => {
   });
 
   it("envia imagem anotada quando o overlay local retorna URL", async () => {
+    createLocalMealPhotoOverlayMock.mockResolvedValueOnce({
+      url: "https://storage.test/generated/meal-support/annotated.png",
+      storageKey: "generated/meal-support/annotated.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("local-overlay-png"),
+      detail: "Overlay local aplicado sobre a foto original da refeição.",
+    });
     vi.mocked(global.fetch).mockResolvedValueOnce(createWhatsAppOkResponse() as never);
 
     const req = { body: createMetaImagePayload("wamid.image-annotated") };
