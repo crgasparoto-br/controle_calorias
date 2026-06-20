@@ -61,7 +61,7 @@ describe("generateAnnotatedMealImage", () => {
     expect(createLocalMealPhotoOverlayMock).toHaveBeenCalledTimes(1);
     expect(generateImageMock).not.toHaveBeenCalled();
     expect(result).toMatchObject({
-      skippedReason: "local_overlay_failed",
+      skippedReason: "provider_failed",
     });
     expect(result.detail).toContain("foto original");
   });
