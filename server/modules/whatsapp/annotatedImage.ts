@@ -56,10 +56,6 @@ function hasGeneratedImagePayload(image: GenerateImageResponse) {
   return Boolean(image.url || image.buffer);
 }
 
-function isLocalFallbackCard(image: GenerateImageResponse) {
-  return /fallback local|fallback de classificação|provider de imagem (?:não configurado|falhou)/i.test(image.detail ?? "");
-}
-
 export async function generateAnnotatedMealImage(
   processed: MealProcessingResult,
   imageAnalysisUrl?: string,
@@ -87,7 +83,7 @@ export async function generateAnnotatedMealImage(
       originalImages: [sourceImage],
     });
 
-    if (hasGeneratedImagePayload(editedImage) && !isLocalFallbackCard(editedImage)) {
+    if (hasGeneratedImagePayload(editedImage)) {
       return editedImage;
     }
 

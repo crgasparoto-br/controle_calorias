@@ -238,6 +238,25 @@ function hasUsableAnnotatedImagePayload(annotatedImage: AnnotatedImageResult) {
   return Boolean(annotatedImage.url || annotatedImage.buffer);
 }
 
+function getAnnotatedImageSource(annotatedImage: AnnotatedImageResult) {
+  const detail = annotatedImage.detail ?? "";
+  if (annotatedImage.skippedReason || /overlay local|fallback local|fallback de classificação|provider de imagem/i.test(detail)) {
+    return "fallback_local";
+  }
+
+  return "ai_edit";
+}
+
+function formatAnnotatedImagePayload(annotatedImage: AnnotatedImageResult) {
+  return [
+    `skippedReason=${annotatedImage.skippedReason || "none"}`,
+    `detail=${annotatedImage.detail || "none"}`,
+    `hasUrl=${Boolean(annotatedImage.url)}`,
+    `hasBuffer=${Boolean(annotatedImage.buffer)}`,
+    `hasStorageKey=${Boolean(annotatedImage.storageKey)}`,
+  ].join("; ");
+}
+
 function buildAnnotatedImageMedia(annotatedImage: AnnotatedImageResult) {
   if (!hasUsableAnnotatedImagePayload(annotatedImage) || !annotatedImage.url || !annotatedImage.storageKey) {
     return null;
@@ -250,6 +269,26 @@ function buildAnnotatedImageMedia(annotatedImage: AnnotatedImageResult) {
     mimeType: annotatedImage.mimeType || "image/png",
     originalFileName: "whatsapp-annotated-meal.png",
   });
+}
+
+async function sendAnnotatedImageBuffer(input: {
+  sourcePhone: string;
+  annotatedImage: AnnotatedImageResult;
+  caption: string;
+}) {
+  if (!input.annotatedImage.buffer) {
+    return null;
+  }
+
+  return sendWhatsAppImageBufferMessage(
+    input.sourcePhone,
+    {
+      buffer: input.annotatedImage.buffer,
+      mimeType: input.annotatedImage.mimeType || "image/png",
+      fileName: "whatsapp-annotated-meal.png",
+    },
+    input.caption,
+  );
 }
 
 async function sendAnnotatedImageToWhatsApp(input: {
@@ -266,24 +305,39 @@ async function sendAnnotatedImageToWhatsApp(input: {
   }
 
   if (input.annotatedImage.url) {
+    const urlResult = await sendWhatsAppImageMessage(input.sourcePhone, input.annotatedImage.url, caption);
+    if (urlResult.ok || !input.annotatedImage.buffer) {
+      return {
+        attempted: true,
+        ...urlResult,
+      };
+    }
+
+    const bufferResult = await sendAnnotatedImageBuffer({
+      sourcePhone: input.sourcePhone,
+      annotatedImage: input.annotatedImage,
+      caption,
+    });
+
     return {
       attempted: true,
-      ...(await sendWhatsAppImageMessage(input.sourcePhone, input.annotatedImage.url, caption)),
+      ok: Boolean(bufferResult?.ok),
+      detail: bufferResult?.ok
+        ? "Envio por URL falhou; imagem enviada por buffer local."
+        : `Envio por URL falhou: ${urlResult.detail}. Envio por buffer falhou: ${bufferResult?.detail || "buffer indisponível"}.`,
     };
   }
 
-  if (input.annotatedImage.buffer) {
+  const bufferResult = await sendAnnotatedImageBuffer({
+    sourcePhone: input.sourcePhone,
+    annotatedImage: input.annotatedImage,
+    caption,
+  });
+
+  if (bufferResult) {
     return {
       attempted: true,
-      ...(await sendWhatsAppImageBufferMessage(
-        input.sourcePhone,
-        {
-          buffer: input.annotatedImage.buffer,
-          mimeType: input.annotatedImage.mimeType || "image/png",
-          fileName: "whatsapp-annotated-meal.png",
-        },
-        caption,
-      )),
+      ...bufferResult,
     };
   }
 
@@ -491,12 +545,14 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
       });
     }
 
+    const imageSource = getAnnotatedImageSource(annotatedImage);
     const imageReplyResult = await sendAnnotatedImageToWhatsApp({ sourcePhone, annotatedImage });
     if (imageReplyResult.attempted) {
       if (!imageReplyResult.ok) {
         console.warn("[WhatsAppAnnotatedImage] Annotated image send failed.", {
           sourcePhone,
           detail: imageReplyResult.detail,
+          imageSource,
           hasUrl: Boolean(annotatedImage.url),
           hasBuffer: Boolean(annotatedImage.buffer),
           storageKey: annotatedImage.storageKey,
@@ -508,12 +564,20 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
           origin: "whatsapp",
           status: "warning",
           eventType: "whatsapp.annotated_image_reply_failed",
-          detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
+          detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}. origem=${imageSource}; ${formatAnnotatedImagePayload(annotatedImage)}`,
         });
         await sendAnnotatedImageFallbackText({
           userId,
           sourcePhone,
           reply: ANNOTATED_IMAGE_SEND_FAILED_REPLY,
+        });
+      } else {
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "success",
+          eventType: "whatsapp.annotated_image_sent",
+          detail: `Imagem anotada enviada para ${sourcePhone}. origem=${imageSource}; ${formatAnnotatedImagePayload(annotatedImage)}`,
         });
       }
     } else {
@@ -521,6 +585,7 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
       console.warn("[WhatsAppAnnotatedImage] Annotated image skipped before WhatsApp send.", {
         sourcePhone,
         detail: skipDetail,
+        imageSource,
         hasUrl: Boolean(annotatedImage.url),
         hasBuffer: Boolean(annotatedImage.buffer),
         storageKey: annotatedImage.storageKey,
@@ -532,7 +597,7 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.annotated_image_skipped",
-        detail: `Imagem anotada não enviada para ${sourcePhone}: ${skipDetail}.`,
+        detail: `Imagem anotada não enviada para ${sourcePhone}: ${skipDetail}. origem=${imageSource}; ${formatAnnotatedImagePayload(annotatedImage)}`,
       });
       await sendAnnotatedImageFallbackText({
         userId,

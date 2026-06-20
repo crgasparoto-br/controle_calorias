@@ -31,6 +31,10 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Atividades do Strava são importadas para exercícios para manter o diário do usuário atualizado sem sincronização manual.
 - Métricas detalhadas do Strava, incluindo frequência cardíaca, cadência, potência, equipamento, visibilidade e contadores sociais, devem ser exibidas apenas para o usuário autenticado e não devem aparecer em logs ou analytics.
 - O escopo `activity:read_all` deve ser usado apenas para permitir importação de atividades privadas ou Only Me quando o usuário reconectar e conceder esse acesso.
+- Mídias salvas no R2 devem usar chaves opacas, sem telefone, `userId`, `imageId` ou nome original no caminho do objeto.
+- URLs públicas do R2 devem ser usadas apenas para artefatos que precisam sair do backend, como a imagem anotada enviada pelo WhatsApp. Mídias originais e recebidas devem manter apenas referência interna, como `r2://...`, quando armazenadas pelo backend.
+- Se um bucket R2 tiver domínio público de leitura, trate a posse do caminho do objeto como acesso potencial à mídia. Não registre caminhos completos em logs desnecessários e configure lifecycle policy para limitar retenção.
+- A exclusão de conta remove os vínculos e linhas principais do produto. Objetos externos no R2 exigem rotina operacional ou lifecycle policy até existir deleção automatizada por chave.
 - Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
 
 ## Checklist para PRs sensíveis

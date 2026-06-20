@@ -1,6 +1,6 @@
 # Configuracao do Cloudflare R2 para imagens do WhatsApp
 
-Este projeto usa storage para salvar midias recebidas do WhatsApp e imagens auxiliares geradas para a resposta nutricional. Em producao, recomenda-se usar Cloudflare R2 com uma URL publica de leitura.
+Este projeto usa storage para salvar midias recebidas do WhatsApp e imagens auxiliares geradas para a resposta nutricional. Em producao, recomenda-se usar Cloudflare R2 com uma URL publica de leitura apenas para imagens que precisam ser baixadas pelo WhatsApp.
 
 ## 1. Criar o bucket no Cloudflare
 
@@ -19,7 +19,7 @@ Este projeto usa storage para salvar midias recebidas do WhatsApp e imagens auxi
 
 ## 3. Configurar acesso publico de leitura
 
-O WhatsApp precisa conseguir baixar a imagem por uma URL publica. Para producao, prefira um dominio proprio conectado ao bucket, por exemplo:
+O WhatsApp precisa conseguir baixar a imagem anotada ou a imagem auxiliar por uma URL publica. Para producao, prefira um dominio proprio conectado ao bucket, por exemplo:
 
 ```text
 https://media.seudominio.com
@@ -50,12 +50,33 @@ R2_PUBLIC_BASE_URL=https://media.seudominio.com
 
 Depois de salvar, faca redeploy do servico.
 
-## 5. Validacao manual
+## 5. Privacidade das URLs
+
+- O helper `storagePut(...)` so publica URL R2 quando o chamador pede `publicRead: true`.
+- As imagens geradas para resposta no WhatsApp usam `publicRead: true`, pois a Meta precisa buscar a midia por URL publica quando o envio nao usa buffer.
+- Fotos originais, imagens recebidas e outras midias salvas sem `publicRead` recebem uma URL interna `r2://...` no registro da aplicacao, nao a URL publica do bucket.
+- As chaves R2 sao opacas (`public/media/<uuid>` ou `private/media/<uuid>`) e nao carregam telefone, `userId`, `imageId` ou nomes enviados pelos chamadores.
+- Nao registre em logs a URL publica completa, telefone completo ou payload bruto de midia.
+- Se o bucket estiver exposto por dominio publico, trate qualquer objeto cujo caminho vaze como potencialmente acessivel. Por isso, mantenha chaves opacas e use URLs publicas somente nos artefatos que precisam sair para o WhatsApp.
+
+## 6. Retencao e exclusao
+
+As linhas de `mealMedia` sao removidas junto com os dados principais da conta no fluxo de exclusao. Objetos externos ja enviados para o R2 dependem de rotina operacional de limpeza do bucket ou de lifecycle policy no Cloudflare. Configure uma politica de expiracao compativel com a retencao desejada para:
+
+```text
+public/media/
+private/media/
+```
+
+Enquanto nao houver rotina automatica de delecao por chave, a exclusao da conta remove os vinculos do produto, mas nao garante a remocao imediata do objeto externo no R2.
+
+## 7. Validacao manual
 
 1. Envie uma nova foto pelo WhatsApp.
 2. Confirme que a refeicao foi registrada.
 3. Confirme que a imagem anotada ou imagem auxiliar foi enviada.
-4. Nos logs, procure por ausencia de erros como:
+4. Nos logs, confirme se o evento `whatsapp.annotated_image_sent` informa `origem=ai_edit` ou `origem=fallback_local`.
+5. Nos logs, procure por ausencia de erros como:
 
 ```text
 Storage credentials missing
@@ -64,12 +85,14 @@ Storage upload failed
 whatsapp.annotated_image_skipped
 ```
 
-5. No bucket R2, procure objetos em caminhos como:
+6. No bucket R2, procure objetos em caminhos opacos como:
 
 ```text
-whatsapp/image/
-generated/meal-support/
+public/media/
+private/media/
 ```
+
+7. Confirme que os objetos novos nao incluem telefone, `userId`, `imageId` ou nome original no caminho.
 
 ## Observacoes
 
