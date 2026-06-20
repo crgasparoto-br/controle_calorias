@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
 const generateImageMock = vi.fn();
@@ -44,6 +44,11 @@ const processedMeal: MealProcessingResult = {
 };
 
 describe("generateAnnotatedMealImage", () => {
+  beforeEach(() => {
+    generateImageMock.mockReset();
+    createLocalMealPhotoOverlayMock.mockReset();
+  });
+
   it("does not call the image generation provider when local overlay fails for an original meal photo", async () => {
     const { generateAnnotatedMealImage } = await import("./annotatedImage");
     createLocalMealPhotoOverlayMock.mockRejectedValueOnce(new Error("sharp unavailable"));
