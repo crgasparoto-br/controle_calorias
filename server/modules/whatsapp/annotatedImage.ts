@@ -52,10 +52,6 @@ export function buildMealCardsImagePrompt(processed: MealProcessingResult) {
   ].join("\n");
 }
 
-function hasGeneratedImagePayload(image: GenerateImageResponse) {
-  return Boolean(image.url || image.buffer);
-}
-
 export async function generateAnnotatedMealImage(
   processed: MealProcessingResult,
   imageAnalysisUrl?: string,
@@ -72,25 +68,16 @@ export async function generateAnnotatedMealImage(
         processed,
       });
     } catch (error) {
+      const detail = error instanceof Error ? error.message : "Erro desconhecido ao aplicar overlay local.";
       console.warn(
-        "[WhatsAppAnnotatedImage] Local overlay failed; falling back to image provider.",
-        error instanceof Error ? error.message : error,
+        "[WhatsAppAnnotatedImage] Local overlay failed; skipping generated-image fallback for original meal photo.",
+        detail,
       );
+      return {
+        skippedReason: "local_overlay_failed",
+        detail: `Não foi possível aplicar os cards localmente sobre a foto original: ${detail}`,
+      };
     }
-
-    const editedImage = await generateImage({
-      prompt: buildAnnotatedMealImagePrompt(processed),
-      originalImages: [sourceImage],
-    });
-
-    if (hasGeneratedImagePayload(editedImage)) {
-      return editedImage;
-    }
-
-    return {
-      skippedReason: editedImage.skippedReason || "provider_failed",
-      detail: editedImage.detail || "A anotação da foto original não gerou uma imagem válida.",
-    };
   }
 
   return generateImage({
