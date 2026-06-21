@@ -207,6 +207,10 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
+function isEmbedding(value: unknown): value is number[] {
+  return Array.isArray(value) && value.length > 0 && value.every(item => typeof item === "number" && Number.isFinite(item));
+}
+
 function safeJsonParse<T>(value: string): T | null {
   try {
     return JSON.parse(value) as T;
@@ -331,7 +335,9 @@ async function buildEmbeddingCache(): Promise<CatalogEmbeddingEntry[]> {
   const catalog = getCatalogCache() as CatalogFood[];
   const texts = catalog.map(buildCatalogText);
   const embeddings = await fetchEmbeddings(texts);
-  return catalog.map((food, i) => ({ food, embedding: embeddings[i] }));
+  return catalog
+    .map((food, i) => ({ food, embedding: embeddings[i] }))
+    .filter((entry): entry is CatalogEmbeddingEntry => isEmbedding(entry.embedding));
 }
 
 async function getEmbeddingCache(): Promise<CatalogEmbeddingEntry[]> {
@@ -351,6 +357,9 @@ async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood
   try {
     const cache = await getEmbeddingCache();
     const [queryEmbedding] = await fetchEmbeddings([foodName]);
+    if (!isEmbedding(queryEmbedding)) {
+      return null;
+    }
 
     let bestScore = -1;
     let bestFood: CatalogFood | null = null;
