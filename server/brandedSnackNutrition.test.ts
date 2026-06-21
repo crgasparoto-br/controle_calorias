@@ -91,35 +91,55 @@ describe("nutritionEngine branded snack photo nutrition", () => {
       carbs: 38,
       fat: 16,
     });
+    expect(createTextResponseMock).toHaveBeenCalledTimes(1);
   });
 
-  it("aplica fallback médio para chocolate embalado ainda não cadastrado", async () => {
-    createTextResponseMock.mockResolvedValue({
-      id: "resp_unknown_packaged_chocolate",
-      outputText: JSON.stringify({
-        mealLabel: "Lanche",
-        confidence: 0.8,
-        reasoning: "Embalagem de Trento visível, mas sem tabela nutricional legível.",
-        items: [
-          {
-            foodName: "Trento",
-            quantity: 1,
-            unit: "unidade",
-            portionText: "1 unidade",
-            servings: 1,
-            estimatedGrams: 0,
-            estimatedCalories: 100,
-            estimatedMacros: {
-              protein: 1,
-              carbs: 11,
-              fat: 5,
+  it("busca na internet a nutrição específica do produto embalado antes de usar fallback médio", async () => {
+    createTextResponseMock
+      .mockResolvedValueOnce({
+        id: "resp_unknown_packaged_chocolate",
+        outputText: JSON.stringify({
+          mealLabel: "Lanche",
+          confidence: 0.8,
+          reasoning: "Embalagem de Trento visível, mas sem tabela nutricional legível.",
+          items: [
+            {
+              foodName: "Trento",
+              quantity: 1,
+              unit: "unidade",
+              portionText: "1 unidade",
+              servings: 1,
+              estimatedGrams: 0,
+              estimatedCalories: 100,
+              estimatedMacros: {
+                protein: 1,
+                carbs: 11,
+                fat: 5,
+              },
+              confidence: 0.76,
             },
-            confidence: 0.76,
-          },
-        ],
-      }),
-      raw: { mocked: true },
-    });
+          ],
+        }),
+        raw: { mocked: true },
+      })
+      .mockResolvedValueOnce({
+        id: "resp_web_nutrition_lookup",
+        outputText: JSON.stringify({
+          found: true,
+          matchedProductName: "Trento Chocolate Branco Dark 32 g",
+          brandName: "Peccin",
+          servingLabel: "1 unidade 32 g",
+          gramsPerServing: 32,
+          calories: 128,
+          protein: 2.1,
+          carbs: 19,
+          fat: 5.2,
+          confidence: 0.86,
+          sourceUrl: "https://example.test/trento-nutrition",
+          evidence: "Fonte informa tabela nutricional por unidade de 32 g.",
+        }),
+        raw: { mocked: true },
+      });
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
@@ -131,7 +151,80 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Trento",
-      canonicalName: "Trento (estimativa de chocolate embalado)",
+      canonicalName: "Trento Chocolate Branco Dark 32 g",
+      brand: "Peccin",
+      calories: 128,
+      protein: 2.1,
+      carbs: 19,
+      fat: 5.2,
+      source: "catalog",
+    }));
+    expect(result.items[0].calories).not.toBe(100);
+    expect(result.items[0].calories).not.toBe(212);
+    expect(createTextResponseMock).toHaveBeenCalledTimes(2);
+    expect(createTextResponseMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      tools: [expect.objectContaining({ type: "web_search" })],
+    }));
+  });
+
+  it("aplica fallback médio só quando a busca web não encontra nutrição confiável", async () => {
+    createTextResponseMock
+      .mockResolvedValueOnce({
+        id: "resp_unknown_packaged_chocolate",
+        outputText: JSON.stringify({
+          mealLabel: "Lanche",
+          confidence: 0.8,
+          reasoning: "Embalagem de chocolate visível, mas sem tabela nutricional legível.",
+          items: [
+            {
+              foodName: "Chocolate artesanal sem marca",
+              quantity: 1,
+              unit: "unidade",
+              portionText: "1 unidade",
+              servings: 1,
+              estimatedGrams: 0,
+              estimatedCalories: 100,
+              estimatedMacros: {
+                protein: 1,
+                carbs: 11,
+                fat: 5,
+              },
+              confidence: 0.76,
+            },
+          ],
+        }),
+        raw: { mocked: true },
+      })
+      .mockResolvedValueOnce({
+        id: "resp_web_nutrition_lookup_empty",
+        outputText: JSON.stringify({
+          found: false,
+          matchedProductName: "",
+          brandName: "",
+          servingLabel: "",
+          gramsPerServing: 0,
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          confidence: 0.2,
+          sourceUrl: "",
+          evidence: "Nenhuma fonte específica confiável encontrada.",
+        }),
+        raw: { mocked: true },
+      });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,Zm90by1jaG9jb2xhdGU=",
+      occurredAt: "2026-06-20T16:10:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Chocolate artesanal sem marca",
+      canonicalName: "Chocolate artesanal sem marca (estimativa de chocolate embalado)",
       calories: 212,
       protein: 2.4,
       carbs: 23.2,
@@ -139,5 +232,6 @@ describe("nutritionEngine branded snack photo nutrition", () => {
       source: "catalog",
     }));
     expect(result.items[0].calories).not.toBe(100);
+    expect(createTextResponseMock).toHaveBeenCalledTimes(2);
   });
 });
