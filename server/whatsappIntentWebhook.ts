@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { getCatalogCache } from "./catalogRuntime";
 import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
+import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
+import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
 import { executeWhatsappLlmIntent } from "./modules/whatsapp/llmIntentActions";
 import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
 import {
@@ -379,10 +381,41 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
 
   const pendingContext = getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
+  const occurredAt = resolveWhatsAppMessageOccurredAt(message);
 
-  let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+  const mealListResult = await executeWhatsappMealListIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+  if (mealListResult) {
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      reply: mealListResult.reply,
+      eventType: mealListResult.eventType,
+      detail: mealListResult.detail,
+      status: mealListResult.action === "clarification_needed" ? "warning" : "success",
+    });
+    return true;
+  }
+
+  const contextualReplacementResult = await executeWhatsappContextualFoodReplacementIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+  if (contextualReplacementResult) {
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      reply: contextualReplacementResult.reply,
+      eventType: contextualReplacementResult.eventType,
+      detail: contextualReplacementResult.detail,
+      status: contextualReplacementResult.action === "clarification_needed" ? "warning" : "success",
+    });
+    return true;
+  }
+
+  let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (!result && shouldTryContextualLlmIntent(textForIntent)) {
-    result = await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+    result = await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   }
   result ??= executeWhatsAppFoodAssistantIntent(text);
 

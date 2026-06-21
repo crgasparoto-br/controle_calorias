@@ -9,6 +9,7 @@ const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const processMealInputMock = vi.fn();
 const generateImageMock = vi.fn();
+const createLocalMealPhotoOverlayMock = vi.fn();
 const storagePutMock = vi.fn();
 const fallbackWebhookMock = vi.fn();
 
@@ -49,6 +50,10 @@ vi.mock("./nutritionEngine", async () => {
 
 vi.mock("./_core/imageGeneration", () => ({
   generateImage: generateImageMock,
+}));
+
+vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
+  createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
 }));
 
 vi.mock("./whatsappWebhook", () => ({
@@ -132,6 +137,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     confirmPendingMealMock.mockReset();
     processMealInputMock.mockReset();
     generateImageMock.mockReset();
+    createLocalMealPhotoOverlayMock.mockReset();
     storagePutMock.mockReset();
     fallbackWebhookMock.mockReset();
 
@@ -185,10 +191,13 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
         fat: 0.3,
       },
     });
-    generateImageMock.mockResolvedValue({
+    generateImageMock.mockResolvedValue({ skippedReason: "disabled" });
+    createLocalMealPhotoOverlayMock.mockResolvedValue({
       url: "https://storage.test/generated/meal-support/annotated.png",
       storageKey: "generated/meal-support/annotated.png",
       mimeType: "image/png",
+      buffer: Buffer.from("local-overlay-png"),
+      detail: "Overlay local aplicado sobre a foto original da refeição.",
     });
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-1" });
     confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
@@ -247,7 +256,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       text: "meu almoço",
       imageUrl: expect.stringMatching(/^data:image\/jpeg;base64,/),
     }));
-    expect(generateImageMock).toHaveBeenCalledOnce();
+    expect(generateImageMock).not.toHaveBeenCalled();
+    expect(createLocalMealPhotoOverlayMock).toHaveBeenCalledOnce();
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       42,
       "whatsapp",
@@ -301,9 +311,10 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
   });
 
   it("envia por upload a imagem editada quando ela existe só em buffer", async () => {
-    generateImageMock.mockResolvedValue({
+    createLocalMealPhotoOverlayMock.mockResolvedValue({
       buffer: Buffer.from("edited-photo-png"),
       mimeType: "image/png",
+      detail: "Overlay local aplicado sobre a foto original da refeição.",
     });
     const req = createImageWebhookRequest("image-with-buffer-annotation");
     const res = createResponse();
@@ -327,7 +338,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
   });
 
   it("envia o card de fallback local quando houver buffer utilizável", async () => {
-    generateImageMock.mockResolvedValue({
+    createLocalMealPhotoOverlayMock.mockResolvedValue({
       buffer: Buffer.from("fallback-card-png"),
       mimeType: "image/png",
       skippedReason: "provider_failed",
@@ -365,10 +376,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
   });
 
   it("mantém o registro e avisa quando a imagem anotada não pode ser gerada", async () => {
-    generateImageMock.mockResolvedValue({
-      skippedReason: "provider_failed",
-      detail: "provedor indisponível",
-    });
+    createLocalMealPhotoOverlayMock.mockRejectedValue(new Error("provedor indisponível"));
     const req = createImageWebhookRequest("image-without-annotation");
     const res = createResponse();
 
