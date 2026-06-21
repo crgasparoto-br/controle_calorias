@@ -2,7 +2,7 @@
 // Uses Cloudflare R2 when R2_* variables are configured, otherwise falls back to
 // the Biz-provided Forge storage proxy for existing environments.
 
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { ENV } from "./_core/env";
 
 type ForgeStorageConfig = { baseUrl: string; apiKey: string };
@@ -245,6 +245,65 @@ async function putToR2Storage(
   };
 }
 
+async function bodyToBuffer(body: unknown) {
+  if (!body) {
+    return Buffer.alloc(0);
+  }
+
+  if (body instanceof Uint8Array) {
+    return Buffer.from(body);
+  }
+
+  const transformableBody = body as { transformToByteArray?: () => Promise<Uint8Array> };
+  if (typeof transformableBody.transformToByteArray === "function") {
+    return Buffer.from(await transformableBody.transformToByteArray());
+  }
+
+  const iterableBody = body as AsyncIterable<Uint8Array>;
+  if (typeof iterableBody[Symbol.asyncIterator] === "function") {
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of iterableBody) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks.map(chunk => Buffer.from(chunk)));
+  }
+
+  throw new Error("Unsupported storage object body type");
+}
+
+async function readFromR2Storage(config: R2StorageConfig, key: string) {
+  const response = await getR2Client(config).send(
+    new GetObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+    }),
+  );
+
+  return {
+    key,
+    data: await bodyToBuffer(response.Body),
+    contentType: response.ContentType ?? "application/octet-stream",
+  };
+}
+
+async function readFromForgeStorage(config: ForgeStorageConfig, key: string) {
+  const downloadUrl = await buildDownloadUrl(config.baseUrl, key, config.apiKey);
+  const response = await fetch(downloadUrl);
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => response.statusText);
+    throw new Error(
+      `Storage download failed (${response.status} ${response.statusText}): ${message}`,
+    );
+  }
+
+  return {
+    key,
+    data: Buffer.from(await response.arrayBuffer()),
+    contentType: response.headers.get("content-type") ?? "application/octet-stream",
+  };
+}
+
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
@@ -280,4 +339,15 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
     key,
     url: await buildDownloadUrl(storage.config.baseUrl, key, storage.config.apiKey),
   };
+}
+
+export async function storageRead(relKey: string): Promise<{ key: string; data: Buffer; contentType: string }> {
+  const storage = getStorageConfig();
+  const key = normalizeKey(relKey);
+
+  if (storage.provider === "r2") {
+    return readFromR2Storage(storage.config, key);
+  }
+
+  return readFromForgeStorage(storage.config, key);
 }
