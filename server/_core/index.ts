@@ -9,6 +9,7 @@ import { ENV, validateRuntimeEnv } from "./env";
 import { PAYLOAD_LIMITS, RATE_LIMITS, createExpressRateLimit } from "./rateLimit";
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
+import { handleMediaRequest } from "../mediaProxy";
 import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/stravaScheduler";
 import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdempotencyWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
@@ -96,6 +97,9 @@ async function startServer() {
   app.use("/api/trpc", skipForMediaTrpcRequests(defaultJsonParser));
   app.use("/api/trpc", skipForMediaTrpcRequests(defaultUrlencodedParser));
 
+  app.get("/api/media", (req, res) => {
+    void handleMediaRequest(req, res);
+  });
   app.get("/api/health-integrations/strava/callback", (req, res) => {
     void handleStravaOAuthCallback(req, res);
   });
