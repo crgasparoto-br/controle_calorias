@@ -43,7 +43,7 @@ export type AiProviderAudioTranscriptionSegment = {
   start: number;
   end: number;
   text: string;
-  tokens: number[];
+  tokens: string[];
   temperature: number;
   avg_logprob: number;
   compression_ratio: number;
@@ -191,7 +191,7 @@ export class OpenAiProvider implements AiProvider {
     }
 
     if (request.tools?.length) {
-      (payload as ResponseCreateParamsNonStreaming & { tools?: AiProviderTextTool[] }).tools = request.tools;
+      (payload as unknown as { tools?: AiProviderTextTool[] }).tools = request.tools;
     }
 
     const text = buildTextConfig(request.format);
