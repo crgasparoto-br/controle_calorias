@@ -80,6 +80,7 @@ async function uploadMedia(params: {
     `${params.userId}/${keyPrefix}/${Date.now()}.${extension}`,
     buffer,
     params.media.mimeType,
+    { publicRead: params.type === "image" },
   );
 
   return buildSavedMedia({
