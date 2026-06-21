@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 
 const { createTextResponseMock, embeddingsCreateMock } = vi.hoisted(() => ({
   createTextResponseMock: vi.fn(),
@@ -18,6 +19,10 @@ vi.mock("./_core/openaiClient", () => ({
       create: embeddingsCreateMock,
     },
   }),
+}));
+
+vi.mock("./catalogRuntime", () => ({
+  getCatalogCache: () => FOOD_CATALOG_REFERENCE,
 }));
 
 describe("nutritionEngine branded snack photo nutrition", () => {
