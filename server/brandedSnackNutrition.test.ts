@@ -92,4 +92,52 @@ describe("nutritionEngine branded snack photo nutrition", () => {
       fat: 16,
     });
   });
+
+  it("aplica fallback médio para chocolate embalado ainda não cadastrado", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_unknown_packaged_chocolate",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.8,
+        reasoning: "Embalagem de Trento visível, mas sem tabela nutricional legível.",
+        items: [
+          {
+            foodName: "Trento",
+            quantity: 1,
+            unit: "unidade",
+            portionText: "1 unidade",
+            servings: 1,
+            estimatedGrams: 0,
+            estimatedCalories: 100,
+            estimatedMacros: {
+              protein: 1,
+              carbs: 11,
+              fat: 5,
+            },
+            confidence: 0.76,
+          },
+        ],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,Zm90by10cmVudG8=",
+      occurredAt: "2026-06-20T16:10:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Trento",
+      canonicalName: "Trento (estimativa de chocolate embalado)",
+      calories: 212,
+      protein: 2.4,
+      carbs: 23.2,
+      fat: 12.4,
+      source: "catalog",
+    }));
+    expect(result.items[0].calories).not.toBe(100);
+  });
 });
