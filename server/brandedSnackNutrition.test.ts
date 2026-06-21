@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createTextResponseMock = vi.fn();
+const { createTextResponseMock, embeddingsCreateMock } = vi.hoisted(() => ({
+  createTextResponseMock: vi.fn(),
+  embeddingsCreateMock: vi.fn(),
+}));
 
 vi.mock("./_core/aiProvider", () => ({
   getAiProvider: () => ({
@@ -8,9 +11,20 @@ vi.mock("./_core/aiProvider", () => ({
   }),
 }));
 
+vi.mock("./_core/openaiClient", () => ({
+  isOpenAiConfigured: () => true,
+  createOpenAiClient: () => ({
+    embeddings: {
+      create: embeddingsCreateMock,
+    },
+  }),
+}));
+
 describe("nutritionEngine branded snack photo nutrition", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
+    embeddingsCreateMock.mockReset();
+    embeddingsCreateMock.mockResolvedValue({ data: [] });
   });
 
   it("corrige chutes genéricos da IA para doces industrializados reconhecidos por embalagem", async () => {
@@ -167,7 +181,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     }));
   });
 
-  it("aplica fallback médio só quando a busca web não encontra nutrição confiável", async () => {
+  it("aplica fallback médio só quando a busca web e a busca semântica não encontram nutrição confiável", async () => {
     createTextResponseMock
       .mockResolvedValueOnce({
         id: "resp_unknown_packaged_chocolate",
@@ -233,5 +247,6 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     }));
     expect(result.items[0].calories).not.toBe(100);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
+    expect(embeddingsCreateMock).toHaveBeenCalled();
   });
 });
