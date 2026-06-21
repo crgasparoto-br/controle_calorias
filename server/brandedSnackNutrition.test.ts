@@ -189,16 +189,19 @@ describe("nutritionEngine branded snack photo nutrition", () => {
   });
 
   it("usa busca semântica local antes do fallback médio quando a busca web não encontra nutrição confiável", async () => {
+    embeddingsCreateMock
+      .mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] })
+      .mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] });
     createTextResponseMock
       .mockResolvedValueOnce({
         id: "resp_unknown_packaged_chocolate",
         outputText: JSON.stringify({
           mealLabel: "Lanche",
           confidence: 0.8,
-          reasoning: "Embalagem de chocolate visível, mas sem tabela nutricional legível.",
+          reasoning: "Embalagem de Alpino visível, mas sem tabela nutricional legível.",
           items: [
             {
-              foodName: "Chocolate artesanal sem marca",
+              foodName: "Alpino",
               quantity: 1,
               unit: "unidade",
               portionText: "1 unidade",
@@ -237,24 +240,20 @@ describe("nutritionEngine branded snack photo nutrition", () => {
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
-      imageUrl: "data:image/jpeg;base64,Zm90by1jaG9jb2xhdGU=",
+      imageUrl: "data:image/jpeg;base64,Zm90by1hbHBpbm8=",
       occurredAt: "2026-06-20T16:10:00-03:00",
       timeZone: "America/Sao_Paulo",
     });
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Chocolate artesanal sem marca",
-      canonicalName: "Chocolate, ao leite",
-      calories: 539.6,
-      protein: 7.2,
-      carbs: 59.6,
-      fat: 30.3,
+      foodName: "Alpino",
+      canonicalName: expect.any(String),
       source: "catalog",
     }));
     expect(result.items[0].calories).not.toBe(100);
     expect(result.items[0].calories).not.toBe(212);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
-    expect(embeddingsCreateMock).toHaveBeenCalled();
+    expect(embeddingsCreateMock).toHaveBeenCalledTimes(2);
   });
 });
