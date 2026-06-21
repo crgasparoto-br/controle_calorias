@@ -11,6 +11,7 @@ import {
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
+import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
 import { listMeals } from "./modules/meals/service";
 import {
@@ -18,6 +19,7 @@ import {
   getExtractedWhatsAppMessageKey,
   isWhatsAppMessageForConfiguredChannel,
   resolveWhatsAppMessageOccurredAt,
+  sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppTextMessage,
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
@@ -285,12 +287,23 @@ export function __resetWhatsAppTextIntentContextForTests() {
   recentlyHandledTextIntentMessageIds.clear();
 }
 
-async function sendAndLogTextReply(input: { userId: number; sourcePhone: string; reply: string; eventType: string; detail: string; status: WhatsAppIntentLogStatus }) {
+async function sendAndLogTextReply(input: { userId: number; sourcePhone: string; reply: string; eventType: string; detail: string; status: WhatsAppIntentLogStatus; mealId?: number | null }) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
-  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
+
+  const quickEditLink = input.mealId
+    ? await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId })
+    : null;
+  const replyResult = quickEditLink?.url
+    ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, input.reply, "Editar refeição", quickEditLink.url)
+    : await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
+
   if (!replyResult.ok) {
     logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: "warning", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}` });
   }
+}
+
+function extractMealId(data: Record<string, unknown> | undefined) {
+  return typeof data?.mealId === "number" ? data.mealId : null;
 }
 
 function buildMixedWaterReply(waterResults: TextIntentResult[]) {
@@ -394,6 +407,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       eventType: mealListResult.eventType,
       detail: mealListResult.detail,
       status: mealListResult.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractMealId(mealListResult.data),
     });
     return true;
   }
@@ -409,6 +423,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       eventType: contextualReplacementResult.eventType,
       detail: contextualReplacementResult.detail,
       status: contextualReplacementResult.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractMealId(contextualReplacementResult.data),
     });
     return true;
   }
@@ -437,6 +452,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     eventType: result.eventType,
     detail: result.detail,
     status: getWhatsAppIntentLogStatus(result.action),
+    mealId: extractMealId(result.data),
   });
   return true;
 }

@@ -8,12 +8,17 @@ const handleWhatsAppWebhookMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
+const tryCreateQuickEditLinkForMealMock = vi.fn();
 
 vi.mock("./db", () => ({
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getUserNutritionGoal: getUserNutritionGoalMock,
   listUserExercises: listUserExercisesMock,
   logInferenceEvent: logInferenceEventMock,
+}));
+
+vi.mock("./modules/quickEdit/service", () => ({
+  tryCreateQuickEditLinkForMeal: tryCreateQuickEditLinkForMealMock,
 }));
 
 vi.mock("./whatsappConfig", () => ({
@@ -89,6 +94,7 @@ const mayonnaiseItem = {
 };
 
 let sentMessages: string[];
+let sentPayloads: Record<string, any>[];
 
 function createResponse(): MockResponse {
   return {
@@ -140,6 +146,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     vi.setSystemTime(new Date("2026-06-03T12:00:00.000Z"));
     __resetWhatsAppTextIntentContextForTests();
     sentMessages = [];
+    sentPayloads = [];
     getUserIdByWhatsappPhoneMock.mockReset();
     getUserNutritionGoalMock.mockReset();
     listUserExercisesMock.mockReset();
@@ -148,6 +155,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     createWaterLogMock.mockReset();
     listMealsMock.mockReset();
     updateMealMock.mockReset();
+    tryCreateQuickEditLinkForMealMock.mockReset();
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
@@ -157,11 +165,14 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       userId: 42,
       ...input,
     }));
+    tryCreateQuickEditLinkForMealMock.mockResolvedValue(null);
     handleWhatsAppWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const payload = init?.body ? JSON.parse(String(init.body)) : {};
-      if (payload?.text?.body) {
-        sentMessages.push(payload.text.body);
+      sentPayloads.push(payload);
+      const text = payload?.text?.body ?? payload?.interactive?.body?.text;
+      if (text) {
+        sentMessages.push(text);
       }
       return { ok: true, json: async () => ({}) } as Response;
     }) as typeof fetch;
@@ -222,6 +233,27 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     }));
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
+    expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
+  });
+
+  it("envia botão de edição rápida ao ajustar refeição existente por texto", async () => {
+    listMealsMock.mockResolvedValue([{ id: 10, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] }]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 10, ...input }));
+    tryCreateQuickEditLinkForMealMock.mockResolvedValue({
+      token: "token-test",
+      url: "https://app.example.com/quick-edit/token-test",
+      expiresAt: new Date("2026-06-04T12:00:00.000Z").toISOString(),
+    });
+    const req = createTextWebhookRequest("reduzir 50 gramas do arroz", { id: "reduce-rice-quick-edit" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(tryCreateQuickEditLinkForMealMock).toHaveBeenCalledWith({ userId: 42, mealId: 10 });
+    const lastPayload = sentPayloads.at(-1);
+    expect(lastPayload?.interactive?.type).toBe("cta_url");
+    expect(lastPayload?.interactive?.action?.parameters?.display_text).toBe("Editar refeição");
+    expect(lastPayload?.interactive?.action?.parameters?.url).toBe("https://app.example.com/quick-edit/token-test");
     expect(sentMessages.at(-1)).toContain("de 150 g para 100 g");
   });
 

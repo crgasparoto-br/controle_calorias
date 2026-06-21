@@ -102,8 +102,7 @@ function buildOverlaySvg(processed: MealProcessingResult, width: number, height:
 }
 
 async function loadSharp(): Promise<SharpFactory> {
-  const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<{ default?: SharpFactory }>;
-  const mod = await dynamicImport("sharp");
+  const mod = (await import("sharp")) as unknown as { default?: SharpFactory };
   if (!mod.default) {
     throw new Error("sharp module did not expose a default export");
   }
