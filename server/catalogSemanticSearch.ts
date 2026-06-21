@@ -49,7 +49,6 @@ const PACKAGED_CHOCOLATE_FALLBACK: CatalogFood = {
   protein: 2.4,
   carbs: 23.2,
   fat: 12.4,
-  isUltraProcessed: true,
 };
 
 const PACKAGED_COOKIE_FALLBACK: CatalogFood = {
@@ -67,7 +66,6 @@ const PACKAGED_COOKIE_FALLBACK: CatalogFood = {
   protein: 2,
   carbs: 21,
   fat: 5,
-  isUltraProcessed: true,
 };
 
 type CatalogEmbeddingEntry = {
