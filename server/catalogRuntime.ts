@@ -60,6 +60,12 @@ export async function refreshCatalogCache() {
       protein: row.protein,
       carbs: row.carbs,
       fat: row.fat,
+      fiber: row.fiber ?? undefined,
+      isFruit: Boolean(row.isFruit),
+      isVegetable: Boolean(row.isVegetable),
+      isUltraProcessed: Boolean(row.isUltraProcessed),
+      brandName: row.brandName,
+      isBrandedProduct: row.foodType === "branded",
     }));
 
     return catalogCache;

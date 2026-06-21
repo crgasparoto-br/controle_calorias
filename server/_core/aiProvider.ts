@@ -14,11 +14,14 @@ export type AiProviderResponseFormat =
       strict?: boolean;
     };
 
+export type AiProviderTextTool = Record<string, unknown>;
+
 export type AiProviderTextRequest = {
   model: string;
   instructions?: string;
   input: ResponseCreateParamsNonStreaming["input"];
   format?: AiProviderResponseFormat;
+  tools?: AiProviderTextTool[];
 };
 
 export type AiProviderTextResponse = {
@@ -185,6 +188,10 @@ export class OpenAiProvider implements AiProvider {
 
     if (request.instructions) {
       payload.instructions = request.instructions;
+    }
+
+    if (request.tools?.length) {
+      (payload as unknown as { tools?: AiProviderTextTool[] }).tools = request.tools;
     }
 
     const text = buildTextConfig(request.format);
