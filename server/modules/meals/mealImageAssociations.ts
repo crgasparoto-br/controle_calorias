@@ -12,6 +12,11 @@ type MealWithImage = {
   photoUrl?: string | null;
 };
 
+type DecoratedMealWithImage<T extends MealWithImage> = T & {
+  imageUrl?: string | null;
+  supportingImageUrl?: string | null;
+};
+
 const imageUrlsByMealId = new Map<number, string>();
 
 function parseInternalR2StorageKey(imageUrl?: string | null) {
@@ -61,7 +66,7 @@ export function resolveMealImageUrl(meal: MealWithImage) {
   );
 }
 
-export function decorateMealWithImageUrl<T extends MealWithImage>(meal: T): T & { imageUrl?: string; supportingImageUrl?: string } {
+export function decorateMealWithImageUrl<T extends MealWithImage>(meal: T): DecoratedMealWithImage<T> {
   const imageUrl = resolveMealImageUrl(meal);
   if (!imageUrl) {
     return meal;
