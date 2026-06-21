@@ -188,7 +188,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     }));
   });
 
-  it("aplica fallback médio só quando a busca web e a busca semântica não encontram nutrição confiável", async () => {
+  it("usa busca semântica local antes do fallback médio quando a busca web não encontra nutrição confiável", async () => {
     createTextResponseMock
       .mockResolvedValueOnce({
         id: "resp_unknown_packaged_chocolate",
@@ -245,14 +245,15 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Chocolate artesanal sem marca",
-      canonicalName: "Chocolate artesanal sem marca (estimativa de chocolate embalado)",
-      calories: 212,
-      protein: 2.4,
-      carbs: 23.2,
-      fat: 12.4,
+      canonicalName: "Chocolate, ao leite",
+      calories: 539.6,
+      protein: 7.2,
+      carbs: 59.6,
+      fat: 30.3,
       source: "catalog",
     }));
     expect(result.items[0].calories).not.toBe(100);
+    expect(result.items[0].calories).not.toBe(212);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
     expect(embeddingsCreateMock).toHaveBeenCalled();
   });
