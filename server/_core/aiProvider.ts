@@ -43,7 +43,7 @@ export type AiProviderAudioTranscriptionSegment = {
   start: number;
   end: number;
   text: string;
-  tokens: string[];
+  tokens: number[];
   temperature: number;
   avg_logprob: number;
   compression_ratio: number;
