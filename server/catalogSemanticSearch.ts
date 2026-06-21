@@ -7,16 +7,16 @@
  * Strategy:
  * 1. For likely packaged snacks, search the web for the specific product/brand
  *    nutrition facts before using any category average.
- * 2. If no reliable product nutrition is found, use deterministic packaged-snack
- *    fallbacks for common branded items whose exact SKU is not yet in the catalog.
- * 3. On first semantic use for other foods, generate embeddings for all catalog
- *    entries (name + aliases) and cache them in memory.
+ * 2. If no reliable product nutrition is found, try semantic matching against
+ *    the local catalog before falling back to a category average.
+ * 3. On first semantic use, generate embeddings for all catalog entries
+ *    (name + aliases) and cache them in memory.
  * 4. For each lookup, generate an embedding for the query food name and compute
  *    cosine similarity against all cached catalog embeddings.
  * 5. Return the best match only when its similarity score exceeds a conservative
  *    threshold (SIMILARITY_THRESHOLD), ensuring no false positives are introduced.
- * 6. If OpenAI is not configured or the call fails, the function returns null
- *    gracefully so the caller can fall back to the hybrid (AI-estimated) path.
+ * 6. If OpenAI is not configured or a call fails, the function degrades
+ *    gracefully so the meal can still be registered.
  *
  * Design constraints respected:
  * - The OpenAI SDK is used only inside `_core` or through helpers that live in
@@ -199,11 +199,11 @@ function buildPackagedSnackFallback(foodName: string, category: PackagedSnackCat
   };
 }
 
-function isPositiveNumber(value: unknown) {
+function isPositiveNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-function isNonNegativeNumber(value: unknown) {
+function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
@@ -343,21 +343,7 @@ async function getEmbeddingCache(): Promise<CatalogEmbeddingEntry[]> {
   return embeddingCache;
 }
 
-/**
- * Finds the best matching catalog food for a given food name using specific web
- * nutrition lookup, deterministic packaged-snack fallbacks or semantic
- * similarity. Returns null if no match exceeds the similarity threshold or if
- * the OpenAI API is unavailable.
- */
-export async function findCatalogFoodSemantic(
-  foodName: string,
-): Promise<CatalogFood | null> {
-  const packagedSnackCategory = detectPackagedSnackCategory(foodName);
-  if (packagedSnackCategory) {
-    return await findPackagedSnackByWebSearch(foodName, packagedSnackCategory)
-      ?? buildPackagedSnackFallback(foodName, packagedSnackCategory);
-  }
-
+async function findCatalogFoodByEmbedding(foodName: string): Promise<CatalogFood | null> {
   if (!isOpenAiConfigured()) {
     return null;
   }
@@ -380,13 +366,30 @@ export async function findCatalogFoodSemantic(
     if (bestScore >= SIMILARITY_THRESHOLD && bestFood) {
       return bestFood;
     }
-
-    return null;
   } catch {
     // Semantic search is a best-effort enhancement; failures must not block
     // the nutrition pipeline.
-    return null;
   }
+
+  return null;
+}
+
+/**
+ * Finds the best matching catalog food for a given food name using specific web
+ * nutrition lookup, semantic similarity or deterministic packaged-snack
+ * fallbacks. Returns null when no safe fallback is available.
+ */
+export async function findCatalogFoodSemantic(
+  foodName: string,
+): Promise<CatalogFood | null> {
+  const packagedSnackCategory = detectPackagedSnackCategory(foodName);
+  if (packagedSnackCategory) {
+    return await findPackagedSnackByWebSearch(foodName, packagedSnackCategory)
+      ?? await findCatalogFoodByEmbedding(foodName)
+      ?? buildPackagedSnackFallback(foodName, packagedSnackCategory);
+  }
+
+  return findCatalogFoodByEmbedding(foodName);
 }
 
 /**
