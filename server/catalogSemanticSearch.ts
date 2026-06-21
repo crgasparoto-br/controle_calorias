@@ -5,13 +5,15 @@
  * standard exact/substring text matching fails to find a catalog entry.
  *
  * Strategy:
- * 1. On first use, generate embeddings for all catalog entries (name + aliases)
- *    and cache them in memory.
- * 2. For each lookup, generate an embedding for the query food name and compute
+ * 1. Try deterministic packaged-snack fallbacks for common branded items whose
+ *    exact SKU is not yet in the catalog.
+ * 2. On first semantic use, generate embeddings for all catalog entries
+ *    (name + aliases) and cache them in memory.
+ * 3. For each lookup, generate an embedding for the query food name and compute
  *    cosine similarity against all cached catalog embeddings.
- * 3. Return the best match only when its similarity score exceeds a conservative
+ * 4. Return the best match only when its similarity score exceeds a conservative
  *    threshold (SIMILARITY_THRESHOLD), ensuring no false positives are introduced.
- * 4. If OpenAI is not configured or the call fails, the function returns null
+ * 5. If OpenAI is not configured or the call fails, the function returns null
  *    gracefully so the caller can fall back to the hybrid (AI-estimated) path.
  *
  * Design constraints respected:
@@ -31,6 +33,43 @@ import type { CatalogFood } from "./nutritionEngine";
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const SIMILARITY_THRESHOLD = 0.82;
 
+const PACKAGED_CHOCOLATE_FALLBACK: CatalogFood = {
+  slug: "packaged-chocolate-estimate",
+  name: "Chocolate embalado estimado",
+  aliases: [
+    "chocolate embalado",
+    "barra de chocolate",
+    "bombom",
+    "wafer coberto",
+    "wafer chocolate",
+  ],
+  servingLabel: "1 unidade",
+  gramsPerServing: 40,
+  calories: 212,
+  protein: 2.4,
+  carbs: 23.2,
+  fat: 12.4,
+  isUltraProcessed: true,
+};
+
+const PACKAGED_COOKIE_FALLBACK: CatalogFood = {
+  slug: "packaged-cookie-estimate",
+  name: "Biscoito doce embalado estimado",
+  aliases: [
+    "biscoito doce embalado",
+    "bolacha doce embalada",
+    "cookie embalado",
+    "biscoito recheado",
+  ],
+  servingLabel: "1 porção",
+  gramsPerServing: 30,
+  calories: 140,
+  protein: 2,
+  carbs: 21,
+  fat: 5,
+  isUltraProcessed: true,
+};
+
 type CatalogEmbeddingEntry = {
   food: CatalogFood;
   embedding: number[];
@@ -38,6 +77,66 @@ type CatalogEmbeddingEntry = {
 
 let embeddingCache: CatalogEmbeddingEntry[] | null = null;
 let cachedCatalogSize = 0;
+
+function normalizeText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasAnyTerm(normalizedText: string, terms: string[]) {
+  return terms.some(term => new RegExp(`\\b${term}\\b`, "i").test(normalizedText));
+}
+
+function findPackagedSnackFallback(foodName: string): CatalogFood | null {
+  const normalized = normalizeText(foodName);
+  if (!normalized) return null;
+
+  const chocolateTerms = [
+    "chocolate",
+    "bombom",
+    "wafer",
+    "kit kat",
+    "kitkat",
+    "smash",
+    "trento",
+    "prestigio",
+    "charge",
+    "chokito",
+    "suflair",
+    "alpino",
+    "bis",
+    "twix",
+    "snickers",
+    "talento",
+    "baton",
+    "kinder",
+    "ferrero",
+  ];
+  if (hasAnyTerm(normalized, chocolateTerms)) {
+    return {
+      ...PACKAGED_CHOCOLATE_FALLBACK,
+      name: `${foodName.trim()} (estimativa de chocolate embalado)`,
+      aliases: [foodName, ...PACKAGED_CHOCOLATE_FALLBACK.aliases],
+    };
+  }
+
+  const cookieTerms = ["biscoito", "bolacha", "cookie", "cookies", "recheado", "recheada"];
+  if (hasAnyTerm(normalized, cookieTerms)) {
+    return {
+      ...PACKAGED_COOKIE_FALLBACK,
+      name: `${foodName.trim()} (estimativa de biscoito doce embalado)`,
+      aliases: [foodName, ...PACKAGED_COOKIE_FALLBACK.aliases],
+    };
+  }
+
+  return null;
+}
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
@@ -93,6 +192,11 @@ async function getEmbeddingCache(): Promise<CatalogEmbeddingEntry[]> {
 export async function findCatalogFoodSemantic(
   foodName: string,
 ): Promise<CatalogFood | null> {
+  const packagedSnackFallback = findPackagedSnackFallback(foodName);
+  if (packagedSnackFallback) {
+    return packagedSnackFallback;
+  }
+
   if (!isOpenAiConfigured()) {
     return null;
   }
