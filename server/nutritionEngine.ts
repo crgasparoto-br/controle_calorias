@@ -1016,7 +1016,23 @@ function shouldConstrainAiItemsToText(input: MealProcessingInput, sourceText: st
 }
 
 function reasoningMentionsNutritionLabel(reasoning?: string) {
-  return reasoning ? /\b(tabela nutricional|informacao nutricional|informacoes nutricionais|r[oó]tulo|rotulo|label)\b/i.test(reasoning.normalize("NFD").replace(/[\u0300-\u036f]/g, "")) : false;
+  if (!reasoning) {
+    return false;
+  }
+
+  const normalized = reasoning
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (/\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\b[^.]{0,60}\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/.test(normalized)) {
+    return false;
+  }
+  if (/\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b[^.]{0,60}\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\b/.test(normalized)) {
+    return false;
+  }
+
+  return /\b(tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo|label)\b/i.test(normalized);
 }
 
 function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extractWithAi>>, sourceText: string) {
