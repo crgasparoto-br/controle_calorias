@@ -102,6 +102,32 @@ describe("classifyWhatsappMessageDeterministically", () => {
     expect(intent.confidence).toBeGreaterThan(0.8);
   });
 
+  it.each([
+    "Liste os alimentos",
+    "listar alimentos",
+    "alimentos de hoje",
+    "alimentos registrados hoje",
+  ])("classifica comando de alimentos como consulta: %s", text => {
+    const intent = classifyWhatsappMessageDeterministically(text);
+
+    expect(intent.intent).toBe("list_meal_records");
+    expect(intent.requiresConfirmation).toBe(false);
+    expect(intent.items).toEqual([]);
+  });
+
+  it("nao trata comando de listagem como alimento sem quantidade", () => {
+    const intent = classifyWhatsappMessageDeterministically("Liste os alimentos");
+
+    expect(intent.intent).not.toBe("add_foods_to_meal");
+  });
+
+  it("classifica pedido explicito de resumo como resumo diario", () => {
+    const intent = classifyWhatsappMessageDeterministically("quero um resumo");
+
+    expect(intent.intent).toBe("daily_summary");
+    expect(intent.requiresConfirmation).toBe(false);
+  });
+
   it("pede esclarecimento para texto curto ambiguo", () => {
     const intent = classifyWhatsappMessageDeterministically("registro");
 
