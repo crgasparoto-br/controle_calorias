@@ -190,7 +190,7 @@ function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoal
   const pctStr = input.balanceCalories >= 0 ? `(-${pct}%)` : `(+${pct}%)`;
 
   return [
-    "Meta do *resumo:*",
+    "*Resumo das Metas:*",
     `* Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
     ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal`] : []),
     `* Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
