@@ -122,6 +122,12 @@ function isLikelyBakeryBreadProduct(foodName: string) {
   return !/\bpao de queijo\b/.test(normalized);
 }
 
+function isLikelyCompositePreparation(foodName: string) {
+  const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  return wordCount >= 3 && /\b(com|rechead[ao]s?|recheio|cobertura|molho|calda)\b/.test(normalized);
+}
+
 function resolveEstimatedNutritionReference(
   item: LlmItem,
   similarFood?: CatalogFood,
@@ -182,8 +188,10 @@ export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceTe
 
 export function buildHeuristicItem(foodName: string): MealDraftItem {
   const parsed = parseFoodText(foodName);
-  const catalog = findCatalogFood(parsed.foodName)
-    ?? findTacoFood(parsed.foodName);
+  const allowCatalogFallback = !isLikelyCompositePreparation(parsed.foodName);
+  const catalog = allowCatalogFallback
+    ? findCatalogFood(parsed.foodName) ?? findTacoFood(parsed.foodName)
+    : null;
   const quantity = parsed.quantity ?? 1;
   const unit = parsed.unit ?? "porção";
   const estimatedGrams = parsed.estimatedGrams ?? 100;
