@@ -107,7 +107,7 @@ export default function QuickEditMealPage() {
       return;
     }
     if (!normalizedItems.length) {
-      toast.error("Mantenha pelo menos um alimento na refeição.");
+      toast.error("Adicione pelo menos um alimento antes de salvar a refeição.");
       return;
     }
 
@@ -190,17 +190,23 @@ export default function QuickEditMealPage() {
             </Button>
           </div>
 
-          {items.map((item, index) => (
-            <Card key={`${item.foodName}-${index}`} className="border shadow-sm">
-              <CardContent className="space-y-4 pt-6">
-                <MealItemEditor item={item} onChange={(key, value) => updateItem(index, key, value)} />
-                <Button type="button" variant="outline" className="w-full rounded-full text-destructive" onClick={() => removeItem(index)} disabled={items.length <= 1}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Remover alimento
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+          {items.length ? (
+            items.map((item, index) => (
+              <Card key={`${item.foodName}-${index}`} className="border shadow-sm">
+                <CardContent className="space-y-4 pt-6">
+                  <MealItemEditor item={item} onChange={(key, value) => updateItem(index, key, value)} />
+                  <Button type="button" variant="outline" className="w-full rounded-full text-destructive" onClick={() => removeItem(index)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Remover alimento
+                  </Button>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <div className="rounded-2xl border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+              Nenhum alimento nesta refeição. Adicione um alimento para salvar os ajustes.
+            </div>
+          )}
         </section>
 
         <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur">
