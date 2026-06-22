@@ -58,6 +58,10 @@ export default function QuickEditMealPage() {
     onSuccess: () => toast.success("Refeição atualizada com sucesso."),
     onError: error => toast.error(error.message || "Não foi possível salvar a edição."),
   });
+  const deleteMeal = trpc.quickEdit.deleteMeal.useMutation({
+    onSuccess: () => toast.success("Refeição removida com sucesso."),
+    onError: error => toast.error(error.message || "Não foi possível remover a refeição."),
+  });
 
   const [mealLabel, setMealLabel] = React.useState("");
   const [notes, setNotes] = React.useState("");
@@ -82,13 +86,21 @@ export default function QuickEditMealPage() {
         timeZone: userTimeZone,
       }).format(new Date(mealQuery.data.expiresAt))
     : null;
+  const isSavingOrRemoving = updateMeal.isPending || deleteMeal.isPending;
 
   const updateItem = <K extends keyof MealItemState>(index: number, key: K, value: MealItemState[K]) => {
     setItems(current => current.map((item, currentIndex) => currentIndex === index ? { ...item, [key]: value } : item));
   };
 
   const removeItem = (index: number) => {
+    if (items.length <= 1) {
+      deleteMeal.mutate({ token });
+      setItems([]);
+      return;
+    }
+
     setItems(current => current.filter((_item, currentIndex) => currentIndex !== index));
+    toast.info("Alimento removido. Salve os ajustes para confirmar.");
   };
 
   const handleSave = () => {
@@ -107,7 +119,7 @@ export default function QuickEditMealPage() {
       return;
     }
     if (!normalizedItems.length) {
-      toast.error("Mantenha pelo menos um alimento na refeição.");
+      toast.error("Adicione um alimento para salvar ajustes ou use Remover refeição.");
       return;
     }
 
@@ -184,28 +196,35 @@ export default function QuickEditMealPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold tracking-tight">Alimentos</h2>
-            <Button type="button" variant="outline" className="rounded-full" onClick={() => setItems(current => [...current, createEmptyQuickEditItem()])}>
+            <Button type="button" variant="outline" className="rounded-full" onClick={() => setItems(current => [...current, createEmptyQuickEditItem()])} disabled={deleteMeal.isSuccess}>
               <Plus className="mr-2 h-4 w-4" />
               Adicionar
             </Button>
           </div>
 
-          {items.map((item, index) => (
+          {items.length ? items.map((item, index) => (
             <Card key={`${item.foodName}-${index}`} className="border shadow-sm">
               <CardContent className="space-y-4 pt-6">
                 <MealItemEditor item={item} onChange={(key, value) => updateItem(index, key, value)} />
-                <Button type="button" variant="outline" className="w-full rounded-full text-destructive" onClick={() => removeItem(index)} disabled={items.length <= 1}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Remover alimento
+                <Button type="button" variant="outline" className="w-full rounded-full text-destructive" onClick={() => removeItem(index)} disabled={isSavingOrRemoving}>
+                  {deleteMeal.isPending && items.length <= 1 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  {items.length <= 1 ? "Remover refeição" : "Remover alimento"}
                 </Button>
               </CardContent>
             </Card>
-          ))}
+          )) : (
+            <Card className="border border-dashed shadow-sm">
+              <CardContent className="space-y-2 pt-6 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Nenhum alimento restante.</p>
+                <p>{deleteMeal.isSuccess ? "A refeição foi removida. Você já pode voltar ao WhatsApp." : "Adicione um alimento para manter a refeição."}</p>
+              </CardContent>
+            </Card>
+          )}
         </section>
 
         <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-2xl flex-col gap-2 sm:flex-row">
-            <Button type="button" className="rounded-full" onClick={handleSave} disabled={updateMeal.isPending}>
+            <Button type="button" className="rounded-full" onClick={handleSave} disabled={isSavingOrRemoving || !items.length || deleteMeal.isSuccess}>
               {updateMeal.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Salvar ajustes
             </Button>
@@ -222,6 +241,12 @@ export default function QuickEditMealPage() {
           <div className="flex items-center gap-2 rounded-2xl border bg-muted/20 p-4 text-sm" role="status" aria-live="polite">
             <CheckCircle2 className="h-4 w-4 text-primary" />
             Ajustes salvos. Você já pode voltar ao WhatsApp.
+          </div>
+        ) : null}
+        {deleteMeal.isSuccess ? (
+          <div className="flex items-center gap-2 rounded-2xl border bg-muted/20 p-4 text-sm" role="status" aria-live="polite">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            Refeição removida. Você já pode voltar ao WhatsApp.
           </div>
         ) : null}
       </div>
