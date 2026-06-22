@@ -580,14 +580,24 @@ export default function GoalsPage() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr),minmax(22rem,0.85fr)]">
           <div className="space-y-6">
             <Card className="border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <Goal className="h-5 w-5 text-primary" />
-                  Meta padrão
-                </CardTitle>
-                <CardDescription>
-                  Use esta meta como referência para os dias sem exceção. Preencha calorias e macronutrientes, informe a data de início e revise os avisos antes de salvar.
-                </CardDescription>
+              <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1.5">
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Goal className="h-5 w-5 text-primary" />
+                    Meta padrão
+                  </CardTitle>
+                  <CardDescription>
+                    Use esta meta como referência para os dias sem exceção. Preencha calorias e macronutrientes, informe a data de início e revise os avisos antes de salvar.
+                  </CardDescription>
+                </div>
+                <Button
+                  className="shrink-0 rounded-full"
+                  disabled={updateGoal.isPending}
+                  onClick={handleSave}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {updateGoal.isPending ? "Salvando..." : "Salvar metas"}
+                </Button>
               </CardHeader>
               <CardContent className="space-y-4">
                 <VersionStartField value={startDate} onChange={setStartDate} />
@@ -795,17 +805,6 @@ export default function GoalsPage() {
             <ExceptionVersionHistory versions={exceptionVersions} selectedExceptions={exceptions} />
           </div>
         </section>
-
-        <div className="flex justify-end">
-          <Button
-            className="rounded-full"
-            disabled={updateGoal.isPending}
-            onClick={handleSave}
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {updateGoal.isPending ? "Salvando..." : "Salvar metas"}
-          </Button>
-        </div>
       </div>
     </DashboardLayout>
   );
