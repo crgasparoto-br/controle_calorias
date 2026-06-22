@@ -17,6 +17,7 @@ const context: WhatsappIntentContext = {
   latestMeal: null,
   mealsToday: [],
   recentFoodNames: [],
+  contextualMemories: [],
   pendingClarification: null,
 };
 
@@ -128,6 +129,15 @@ describe("classifyWhatsappMessageDeterministically", () => {
     expect(intent.requiresConfirmation).toBe(false);
   });
 
+  it("nao trata alias curto sem memoria como alimento", () => {
+    const intent = classifyWhatsappMessageDeterministically("resuma");
+
+    expect(intent.intent).toBe("unknown");
+    expect(intent.items).toEqual([]);
+    expect(intent.possibleIntents).toEqual(["daily_summary"]);
+    expect(intent.requiresConfirmation).toBe(true);
+  });
+
   it("pede esclarecimento para texto curto ambiguo", () => {
     const intent = classifyWhatsappMessageDeterministically("registro");
 
@@ -180,6 +190,26 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
       estimatedCostUnits: 0,
     }));
     expect(result.operationalTrace.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("usa alias aprendido antes de chamar LLM", async () => {
+    const result = await interpretWhatsappMessageWithDiagnostics("resuma", {
+      ...context,
+      contextualMemories: [{
+        id: 1,
+        kind: "individual_alias",
+        scope: "individual",
+        key: "resuma",
+        value: "daily_summary",
+        confidence: 0.86,
+      }],
+    });
+
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+    expect(result.source).toBe("deterministic");
+    expect(result.validationStatus).toBe("valid");
+    expect(result.intent.intent).toBe("daily_summary");
+    expect(result.intent.requiresConfirmation).toBe(false);
   });
 
   it("usa regra deterministica de sugestao antes de chamar LLM", async () => {
