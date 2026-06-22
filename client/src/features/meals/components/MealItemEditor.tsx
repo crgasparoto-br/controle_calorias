@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { MEASUREMENT_UNIT_SUGGESTIONS, normalizeMeasurementUnit } from "@shared/measurementUnits";
 import { recalculateMealItemQuantityUnit } from "../mealFormState";
 import type { MealItemState } from "../types";
+import { parsePositiveQuantityInput } from "./quantityInput";
 
 type MealItemEditorProps = {
   item: MealItemState;
@@ -78,16 +79,6 @@ function formatQuantity(value: number) {
 
 function normalizeUnitInput(value: string) {
   return normalizeMeasurementUnit(value.replace(/^\d+(?:[,.]\d+)?\s*/u, ""));
-}
-
-export function parsePositiveQuantityInput(value: string) {
-  const normalized = value.trim().replace(",", ".");
-  if (!normalized) {
-    return null;
-  }
-
-  const quantity = Number(normalized);
-  return Number.isFinite(quantity) && quantity > 0 ? quantity : null;
 }
 
 export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
