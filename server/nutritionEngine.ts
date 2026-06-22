@@ -151,14 +151,15 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
   let rejectedAllAiItems = false;
   let rawItems: MealDraftItem[];
 
-  if (usedSourceTextFallback) {
+  if (usedSourceTextFallback || !extraction) {
     rawItems = fallbackFromText(sourceText);
   } else {
+    const confirmedExtraction = extraction;
     const inferenceItems = shouldConstrainAiItemsToText(input, sourceText)
-      ? filterAiItemsBySourceText(extraction.items, sourceText)
-      : extraction.items;
+      ? filterAiItemsBySourceText(confirmedExtraction.items, sourceText)
+      : confirmedExtraction.items;
 
-    if (sourceText && extraction.items.length > 0 && inferenceItems.length === 0) {
+    if (sourceText && confirmedExtraction.items.length > 0 && inferenceItems.length === 0) {
       rejectedAllAiItems = true;
       usedSourceTextFallback = true;
       rawItems = fallbackFromText(sourceText);
@@ -168,7 +169,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
         {
           preferInferredNutrition: Boolean(
             input.imageUrl
-            && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(extraction.reasoning))
+            && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(confirmedExtraction.reasoning))
           ),
         },
       ), sourceText);
