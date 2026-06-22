@@ -263,16 +263,22 @@ function summarizeExceptionVersions(rows: NutritionGoal[] | null) {
     .sort((first, second) => second.startDate.localeCompare(first.startDate) || first.weekday - second.weekday);
 }
 
-function findDefaultVersionOnStartDate(rows: NutritionGoal[], startDate: string) {
-  return rows.find(row => row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === startDate);
-}
+function findConflictingExceptionVersion(_rows: NutritionGoal[], versionRows: NutritionGoal[]) {
+  const seenVersions = new Set<string>();
 
-function findConflictingExceptionVersion(rows: NutritionGoal[], versionRows: NutritionGoal[]) {
-  return versionRows.find(version => version.ruleType === "exception" && rows.some(row => (
-    row.ruleType === "exception"
-    && row.weekday === version.weekday
-    && dateKeyFromDate(row.effectiveFrom) === dateKeyFromDate(version.effectiveFrom)
-  )));
+  return versionRows.find(version => {
+    if (version.ruleType !== "exception") {
+      return false;
+    }
+
+    const key = `${version.weekday}:${dateKeyFromDate(version.effectiveFrom)}`;
+    if (seenVersions.has(key)) {
+      return true;
+    }
+
+    seenVersions.add(key);
+    return false;
+  });
 }
 
 function isActiveOnDate(row: NutritionGoal, date: Date) {
@@ -448,11 +454,6 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
       exceptionVersions: [],
       safetyWarnings: savedAssessment.warnings,
     };
-  }
-
-  const defaultVersionOnStartDate = findDefaultVersionOnStartDate(rows, startDate);
-  if (defaultVersionOnStartDate && !hasSameGoalTargets(defaultVersionOnStartDate, input.defaultGoal)) {
-    throw new ConflictingNutritionGoalVersionError(startDate);
   }
 
   const versionRows = buildVersionRows(userId, input, startDate, rows);
