@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePositiveQuantityInput } from "./MealItemEditor";
+import { parsePositiveQuantityInput } from "./quantityInput";
 
 describe("parsePositiveQuantityInput", () => {
   it("keeps empty input invalid while the user is editing", () => {
