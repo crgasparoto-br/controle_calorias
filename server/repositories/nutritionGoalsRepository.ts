@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { NutritionGoal, nutritionGoals } from "../../drizzle/schema";
 
 type DbProvider = () => Promise<any | null>;
@@ -34,22 +34,68 @@ export function createDrizzleNutritionGoalsRepository(deps: {
     if (!db || !goals.length) return;
 
     try {
+      const goalsToInsert: NutritionGoal[] = [];
+
       for (const goal of goals) {
+        const now = new Date();
+        const goalDateKey = goal.effectiveFrom.toISOString().slice(0, 10);
+
         await db
           .update(nutritionGoals)
-          .set({ effectiveUntil: goal.effectiveFrom, updatedAt: new Date() })
+          .set({ effectiveUntil: goal.effectiveFrom, updatedAt: now })
           .where(
             and(
               eq(nutritionGoals.userId, userId),
               eq(nutritionGoals.ruleType, goal.ruleType),
               eq(nutritionGoals.weekday, goal.weekday),
-              lt(nutritionGoals.effectiveFrom, goal.effectiveFrom),
-              or(isNull(nutritionGoals.effectiveUntil), gt(nutritionGoals.effectiveUntil, goal.effectiveFrom)),
+              or(
+                and(
+                  lt(nutritionGoals.effectiveFrom, goal.effectiveFrom),
+                  or(isNull(nutritionGoals.effectiveUntil), gt(nutritionGoals.effectiveUntil, goal.effectiveFrom)),
+                ),
+                and(
+                  isNull(nutritionGoals.effectiveUntil),
+                  ne(nutritionGoals.effectiveFrom, goal.effectiveFrom),
+                  sql`DATE(${nutritionGoals.effectiveFrom}) = ${goalDateKey}`,
+                ),
+              ),
             ),
           );
+
+        const existingSameWindow = await db
+          .select()
+          .from(nutritionGoals)
+          .where(
+            and(
+              eq(nutritionGoals.userId, userId),
+              eq(nutritionGoals.ruleType, goal.ruleType),
+              eq(nutritionGoals.weekday, goal.weekday),
+              eq(nutritionGoals.effectiveFrom, goal.effectiveFrom),
+            ),
+          )
+          .limit(1);
+
+        if (existingSameWindow.length) {
+          await db
+            .update(nutritionGoals)
+            .set({
+              durationType: goal.durationType,
+              calories: goal.calories,
+              proteinGrams: goal.proteinGrams,
+              carbsGrams: goal.carbsGrams,
+              fatGrams: goal.fatGrams,
+              effectiveUntil: goal.effectiveUntil,
+              updatedAt: now,
+            })
+            .where(eq(nutritionGoals.id, existingSameWindow[0].id));
+        } else {
+          goalsToInsert.push(goal);
+        }
       }
 
-      await db.insert(nutritionGoals).values(toInsertValues(goals));
+      if (goalsToInsert.length) {
+        await db.insert(nutritionGoals).values(toInsertValues(goalsToInsert));
+      }
     } catch (error) {
       deps.onWarning("Goal persistence skipped", error);
     }
