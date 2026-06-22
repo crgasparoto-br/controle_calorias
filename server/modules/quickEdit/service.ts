@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { eq, lt } from "drizzle-orm";
 import { getDb, logInferenceEvent } from "../../db";
 import { quickEditTokens } from "../../../drizzle/schema";
-import { listMeals, updateMeal } from "../meals/service";
+import { listMeals, removeMeal, updateMeal } from "../meals/service";
 import type { UpdateMealInput } from "../meals/schemas";
 
 const QUICK_EDIT_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -242,6 +242,21 @@ export async function updateQuickEditMeal(token: string, input: Omit<UpdateMealI
     status: "success",
     eventType: "quick_edit.meal_updated",
     detail: "Refeição atualizada por link temporário de edição rápida.",
+  });
+
+  return meal;
+}
+
+export async function deleteQuickEditMeal(token: string) {
+  const row = await findQuickEditToken(token);
+  const meal = await removeMeal(row.userId, row.mealId);
+
+  logInferenceEvent({
+    userId: row.userId,
+    origin: "web",
+    status: "success",
+    eventType: "quick_edit.meal_removed",
+    detail: "Refeição removida por link temporário de edição rápida.",
   });
 
   return meal;
