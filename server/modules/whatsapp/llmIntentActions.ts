@@ -5,6 +5,7 @@ import type { MealDraftItem } from "../../nutritionEngine";
 import { createManualMeal, listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { buildWhatsappAiToolTrace, runWhatsappAiTool, type WhatsappAiToolTrace } from "./aiToolContract";
+import { learnWhatsappIntentAliasFromConfirmation } from "./intentAliasLearning";
 import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
@@ -629,6 +630,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   const context = await buildWhatsappIntentContext(userId, { receivedAt });
   const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
   const intent = interpretation.intent;
+  learnWhatsappIntentAliasFromConfirmation({ userId, text, intent, receivedAt });
 
   const finish = (result: WhatsappLlmIntentResult | null, fallbackReason?: string, errorCode?: string) => {
     recordIntentAudit({ userId, text, interpretation, result, fallbackReason, errorCode });
