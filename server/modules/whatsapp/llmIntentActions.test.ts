@@ -178,8 +178,9 @@ describe("executeWhatsappLlmIntent", () => {
       action: "llm_intent_list_meal_records",
       eventType: "whatsapp.llm_intent.list_meal_records",
     }));
-    expect(result?.reply).toContain("Refeicoes registradas hoje");
+    expect(result?.reply).toContain("Alimentos registrados hoje");
     expect(result?.reply).toContain("Almoço");
+    expect(result?.reply).toContain("100 g de Arroz");
     expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       action: "llm_intent_list_meal_records",
       replyKind: "executed",
