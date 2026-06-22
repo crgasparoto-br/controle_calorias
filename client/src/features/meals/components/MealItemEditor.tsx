@@ -80,6 +80,16 @@ function normalizeUnitInput(value: string) {
   return normalizeMeasurementUnit(value.replace(/^\d+(?:[,.]\d+)?\s*/u, ""));
 }
 
+export function parsePositiveQuantityInput(value: string) {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) {
+    return null;
+  }
+
+  const quantity = Number(normalized);
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : null;
+}
+
 export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
   const unitListId = React.useId();
   const quantity = item.quantity ?? parseQuantityFromPortionText(item.portionText) ?? item.servings;
@@ -93,10 +103,20 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
   );
   const selectedCatalogFood = catalogFoods.data?.find(food => food.id === item.foodId) as CatalogFood | undefined;
   const selectedPortion = selectedCatalogFood?.portions.find(portion => portion.id === item.portionId);
+  const [quantityInput, setQuantityInput] = React.useState(() => formatQuantity(quantity));
+  const [portionQuantityInput, setPortionQuantityInput] = React.useState(() => formatQuantity(item.portionQuantity ?? item.servings));
   const hasFoodSwap =
     item.foodName.trim().length > 0 &&
     item.canonicalName.trim().length > 0 &&
     item.foodName.trim().toLocaleLowerCase("pt-BR") !== item.canonicalName.trim().toLocaleLowerCase("pt-BR");
+
+  React.useEffect(() => {
+    setQuantityInput(formatQuantity(quantity));
+  }, [quantity]);
+
+  React.useEffect(() => {
+    setPortionQuantityInput(formatQuantity(item.portionQuantity ?? item.servings));
+  }, [item.portionQuantity, item.servings]);
 
   const applyCatalogNutrition = (food: CatalogFood, grams: number) => {
     const macros = calculateMacros(food, grams);
@@ -166,9 +186,29 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
     }
   };
 
+  const handleManualQuantityInputChange = (value: string) => {
+    setQuantityInput(value);
+    const nextQuantity = parsePositiveQuantityInput(value);
+    if (nextQuantity === null) {
+      return;
+    }
+
+    handleManualQuantityChange(nextQuantity);
+  };
+
   const handlePortionQuantityChange = (quantity: number) => {
     if (!selectedPortion) return;
     applyPortion(selectedPortion, quantity);
+  };
+
+  const handlePortionQuantityInputChange = (value: string) => {
+    setPortionQuantityInput(value);
+    const nextQuantity = parsePositiveQuantityInput(value);
+    if (nextQuantity === null) {
+      return;
+    }
+
+    handlePortionQuantityChange(nextQuantity);
   };
 
   return (
@@ -268,11 +308,10 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
               <div className="space-y-2">
                 <Label>Quantidade</Label>
                 <Input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={item.portionQuantity ?? item.servings}
-                  onChange={event => handlePortionQuantityChange(Number(event.target.value) || 1)}
+                  type="text"
+                  inputMode="decimal"
+                  value={portionQuantityInput}
+                  onChange={event => handlePortionQuantityInputChange(event.target.value)}
                 />
               </div>
               <div className="rounded-xl bg-background px-3 py-2 text-sm text-muted-foreground">
@@ -288,11 +327,10 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
         <div className="space-y-2">
           <Label>Quantidade</Label>
           <Input
-            type="number"
-            min="0.1"
-            step="0.1"
-            value={quantity}
-            onChange={event => handleManualQuantityChange(Number(event.target.value))}
+            type="text"
+            inputMode="decimal"
+            value={quantityInput}
+            onChange={event => handleManualQuantityInputChange(event.target.value)}
           />
           {equivalenceText ? <p className="text-xs text-muted-foreground">{equivalenceText}</p> : null}
         </div>
@@ -301,8 +339,8 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
           <Input
             list={unitListId}
             value={unit}
-            onChange={event => updateQuantityAndUnit(quantity, event.target.value)}
-            onBlur={event => updateQuantityAndUnit(quantity, event.target.value)}
+            onChange={event => updateQuantityAndUnit(parsePositiveQuantityInput(quantityInput) ?? quantity, event.target.value)}
+            onBlur={event => updateQuantityAndUnit(parsePositiveQuantityInput(quantityInput) ?? quantity, event.target.value)}
             placeholder="Ex.: g, ml, fatia, lata"
           />
           <datalist id={unitListId}>
