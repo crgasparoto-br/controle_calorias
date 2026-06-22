@@ -122,7 +122,17 @@ function isLikelyBakeryBreadProduct(foodName: string) {
   return !/\bpao de queijo\b/.test(normalized);
 }
 
+function isKnownZeroBeverage(foodName: string) {
+  const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
+  return /\bagua com gas\b/.test(normalized)
+    || /\b(cafe|cha)\b/.test(normalized) && /\bsem\b.*\bacucar\b/.test(normalized);
+}
+
 function isLikelyCompositePreparation(foodName: string) {
+  if (isKnownZeroBeverage(foodName)) {
+    return false;
+  }
+
   const normalized = normalizeText(cleanFoodName(foodName)).replace(/-/g, " ").replace(/\s+/g, " ");
   const wordCount = normalized.split(/\s+/).filter(Boolean).length;
   return wordCount >= 3 && /\b(com|rechead[ao]s?|recheio|cobertura|molho|calda)\b/.test(normalized);
