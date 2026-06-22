@@ -196,12 +196,13 @@ export async function tryCreateQuickEditLinkForMeal(input: { userId: number; mea
   try {
     return await createQuickEditLinkForMeal(input);
   } catch (error) {
+    const cause = error instanceof Error && error.cause instanceof Error ? ` Causa: ${error.cause.message}` : "";
     logInferenceEvent({
       userId: input.userId,
       origin: "whatsapp",
       status: "warning",
       eventType: "quick_edit.token_generation_failed",
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao gerar link de edição rápida.",
+      detail: (error instanceof Error ? error.message : "Falha desconhecida ao gerar link de edição rápida.") + cause,
     });
     return null;
   }

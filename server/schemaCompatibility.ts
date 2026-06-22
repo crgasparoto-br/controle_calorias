@@ -237,6 +237,54 @@ async function ensureWhatsappOnboardingLeadsTable(
   return { added: ["whatsapp_onboarding_leads"], pending: [] };
 }
 
+async function ensureQuickEditTokensTable(
+  connection: Connection,
+  mode: RuntimeSchemaCompatibilityMode
+): Promise<Pick<RuntimeSchemaCompatibilityResult, "added" | "pending">> {
+  if (await tableExists(connection, "quickEditTokens")) {
+    return { added: [], pending: [] };
+  }
+
+  if (mode === "verify") {
+    return {
+      added: [],
+      pending: [
+        createIssue(
+          "missing_table",
+          "quickEditTokens",
+          "Table quickEditTokens is required by the WhatsApp quick edit link flow."
+        ),
+      ],
+    };
+  }
+
+  await connection.execute(`
+    CREATE TABLE \`quickEditTokens\` (
+      \`id\` int AUTO_INCREMENT NOT NULL,
+      \`userId\` int NOT NULL,
+      \`mealId\` int NOT NULL,
+      \`tokenHash\` varchar(64) NOT NULL,
+      \`expiresAt\` timestamp NOT NULL,
+      \`usedAt\` timestamp NULL,
+      \`lastAccessedAt\` timestamp NULL,
+      \`createdAt\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      \`updatedAt\` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+      CONSTRAINT \`quickEditTokens_id\` PRIMARY KEY(\`id\`),
+      CONSTRAINT \`quickEditTokens_tokenHash_unique\` UNIQUE(\`tokenHash\`),
+      CONSTRAINT \`quickEditTokens_userId_users_id_fk\` FOREIGN KEY (\`userId\`) REFERENCES \`users\`(\`id\`) ON DELETE cascade,
+      CONSTRAINT \`quickEditTokens_mealId_meals_id_fk\` FOREIGN KEY (\`mealId\`) REFERENCES \`meals\`(\`id\`) ON DELETE cascade
+    );
+  `);
+  await connection.execute(
+    "CREATE INDEX `quickEditTokens_user_meal_idx` ON `quickEditTokens` (`userId`, `mealId`)"
+  );
+  await connection.execute(
+    "CREATE INDEX `quickEditTokens_expiresAt_idx` ON `quickEditTokens` (`expiresAt`)"
+  );
+
+  return { added: ["quickEditTokens"], pending: [] };
+}
+
 async function normalizeNutritionGoalsWeekday(
   connection: Connection,
   mode: RuntimeSchemaCompatibilityMode
@@ -323,6 +371,7 @@ export async function ensureRuntimeSchemaCompatibility(): Promise<RuntimeSchemaC
     mergeResult(result, await ensureColumns(connection, "mealItems", MEAL_ITEM_COLUMNS, mode));
     mergeResult(result, await ensureColumns(connection, "userProfiles", USER_PROFILE_COLUMNS, mode));
     mergeResult(result, await ensureWhatsappOnboardingLeadsTable(connection, mode));
+    mergeResult(result, await ensureQuickEditTokensTable(connection, mode));
     mergeResult(result, await normalizeNutritionGoalsWeekday(connection, mode));
 
     if (mode === "verify" && result.pending.length > 0) {

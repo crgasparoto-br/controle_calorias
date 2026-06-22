@@ -102,7 +102,7 @@ describe("ensureRuntimeSchemaCompatibility", () => {
   it("repairs known local schema gaps outside production", async () => {
     process.env.NODE_ENV = "development";
     mysqlMock.createConnectionMock({
-      missingTables: ["whatsapp_onboarding_leads"],
+      missingTables: ["whatsapp_onboarding_leads", "quickEditTokens"],
       missingColumns: ["users.passwordHash"],
       weekdayMetadata: { isNullable: "YES", columnDefault: null },
     });
@@ -110,11 +110,12 @@ describe("ensureRuntimeSchemaCompatibility", () => {
 
     const result = await ensureRuntimeSchemaCompatibility();
 
-    expect(result.added).toEqual(["users.passwordHash", "whatsapp_onboarding_leads"]);
+    expect(result.added).toEqual(["users.passwordHash", "whatsapp_onboarding_leads", "quickEditTokens"]);
     expect(result.updated).toEqual(["nutritionGoals.weekday"]);
     expect(result.pending).toEqual([]);
     expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/ALTER TABLE `users` ADD COLUMN/);
     expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/CREATE TABLE `whatsapp_onboarding_leads`/);
+    expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/CREATE TABLE `quickEditTokens`/);
     expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/UPDATE `nutritionGoals` SET `weekday` = -1/);
   });
 
