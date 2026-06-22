@@ -88,7 +88,8 @@ function startOfSaoPauloDay(date: Date) {
 
 function endOfSaoPauloDay(date: Date) {
   return new Date(startOfSaoPauloDay(date).getTime() + 86_400_000 - 1);
-}\n
+}
+
 function isMealInsideDay(meal: ExistingMeal, date: Date) {
   const occurredAt = new Date(meal.occurredAt).getTime();
   return occurredAt >= startOfSaoPauloDay(date).getTime() && occurredAt <= endOfSaoPauloDay(date).getTime();
