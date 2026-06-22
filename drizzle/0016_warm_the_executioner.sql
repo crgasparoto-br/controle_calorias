@@ -1,0 +1,3 @@
+-- Baseline migration: the target database already contains the schema
+-- represented by drizzle/meta/0016_snapshot.json. This no-op aligns Drizzle's
+-- migration history without replaying DDL for existing tables.
