@@ -535,11 +535,11 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
       ? await sendWhatsAppInteractiveUrlButtonMessage(sourcePhone, mealReplyText, "Editar refeição", quickEditLink.url)
       : await sendWhatsAppTextMessage(sourcePhone, mealReplyText);
 
-    if (!replyResult.ok) {
+    if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
       logInferenceEvent({
         userId,
         origin: "whatsapp",
-        status: "warning",
+        status: replyResult.ok ? "warning" : "error",
         eventType: "whatsapp.reply_failed",
         detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
       });

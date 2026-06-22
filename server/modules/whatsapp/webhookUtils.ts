@@ -352,6 +352,7 @@ export async function sendWhatsAppInteractiveUrlButtonMessage(
   } catch (error) {
     return {
       ok: false,
+      usedFallback: false,
       detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de mensagem interativa.",
     };
   }
@@ -382,6 +383,7 @@ export async function sendWhatsAppInteractiveUrlButtonMessage(
     });
 
     if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
       const fallback = await sendWhatsAppTextMessageWithConfig(
         config,
         to,
@@ -390,16 +392,18 @@ export async function sendWhatsAppInteractiveUrlButtonMessage(
       if (fallback.ok) {
         return {
           ok: true,
-          detail: `Mensagem interativa não foi aceita (${response.status} ${response.statusText}); fallback textual enviado com sucesso.`,
+          usedFallback: true,
+          detail: `Mensagem interativa não foi aceita (${response.status} ${response.statusText}: ${errorBody}); fallback textual enviado com sucesso.`,
         };
       }
       return {
         ok: false,
-        detail: `Meta retornou ${response.status} ${response.statusText} no envio da mensagem interativa. ${fallback.detail}`,
+        usedFallback: true,
+        detail: `Meta retornou ${response.status} ${response.statusText}: ${errorBody} no envio da mensagem interativa. ${fallback.detail}`,
       };
     }
 
-    return { ok: true, detail: "Mensagem interativa enviada com sucesso." };
+    return { ok: true, usedFallback: false, detail: "Mensagem interativa enviada com sucesso." };
   } catch (error) {
     try {
       const fallback = await sendWhatsAppTextMessageWithConfig(
@@ -410,16 +414,19 @@ export async function sendWhatsAppInteractiveUrlButtonMessage(
       if (fallback.ok) {
         return {
           ok: true,
-          detail: `Mensagem interativa falhou; fallback textual enviado com sucesso.`,
+          usedFallback: true,
+          detail: `Mensagem interativa falhou (${error instanceof Error ? error.message : String(error)}); fallback textual enviado com sucesso.`,
         };
       }
       return {
         ok: false,
+        usedFallback: true,
         detail: `${error instanceof Error ? error.message : "Falha desconhecida ao enviar mensagem interativa do WhatsApp."} ${fallback.detail}`,
       };
     } catch (fallbackError) {
       return {
         ok: false,
+        usedFallback: true,
         detail: fallbackError instanceof Error ? fallbackError.message : "Falha desconhecida ao enviar fallback textual do WhatsApp.",
       };
     }

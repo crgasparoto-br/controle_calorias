@@ -297,8 +297,8 @@ async function sendAndLogTextReply(input: { userId: number; sourcePhone: string;
     ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, input.reply, "Editar refeição", quickEditLink.url)
     : await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
 
-  if (!replyResult.ok) {
-    logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: "warning", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}` });
+  if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
+    logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: replyResult.ok ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}` });
   }
 }
 
