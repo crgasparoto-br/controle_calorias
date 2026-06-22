@@ -1,5 +1,6 @@
 import { listMeals } from "../meals/service";
 import type { MealDraftItem } from "../../nutritionEngine";
+import { retrieveWhatsappContextMemory, type WhatsappMemoryRetrievalContext } from "./contextMemory";
 
 const MAX_CONTEXT_MEALS = 6;
 const MAX_CONTEXT_ITEMS_PER_MEAL = 8;
@@ -13,6 +14,7 @@ export type WhatsappIntentContext = {
   latestMeal: WhatsappContextMeal | null;
   mealsToday: WhatsappContextMeal[];
   recentFoodNames: string[];
+  contextualMemories: WhatsappMemoryRetrievalContext["llmContext"];
   pendingClarification: {
     kind: string;
     originalIntent?: string;
@@ -83,6 +85,12 @@ export async function buildWhatsappIntentContext(
   const recentFoodNames = Array.from(new Set(
     compactMeals.flatMap(meal => meal.items.map(item => item.foodName).filter(Boolean)),
   )).slice(0, 20);
+  const memoryContext = retrieveWhatsappContextMemory({
+    userId,
+    text: null,
+    intent: null,
+    now: receivedAt,
+  });
 
   return {
     version: "whatsapp-intent-context/v1",
@@ -98,6 +106,7 @@ export async function buildWhatsappIntentContext(
     latestMeal: compactMeals[0] ?? null,
     mealsToday,
     recentFoodNames,
+    contextualMemories: memoryContext.llmContext,
     pendingClarification: options.pendingClarification ?? null,
   };
 }
