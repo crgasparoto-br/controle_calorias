@@ -10,7 +10,7 @@ import {
   hasUsableNutrition,
 } from "./mealItemBuilders";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
-import { extractExplicitQuantities, normalizeLlmItem } from "./mealTextParsing";
+import { extractExplicitQuantities, normalizeForMatching, normalizeLlmItem } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type {
   BuildItemsOptions,
@@ -71,6 +71,47 @@ function shouldConstrainAiItemsToText(input: MealProcessingInput, sourceText: st
   return Boolean(sourceText) && !input.imageUrl && !input.audioUrl;
 }
 
+function splitSourceFoodSegments(sourceText: string) {
+  return sourceText
+    .split(/\s*[;,]\s*|\s*\+\s*|\n+|\s+\be\s+/gi)
+    .map(segment => segment.trim())
+    .filter(Boolean);
+}
+
+function includesNormalizedPhrase(haystack: string, needle: string) {
+  const normalizedNeedle = normalizeForMatching(needle).trim();
+  if (!normalizedNeedle) return false;
+  return normalizeForMatching(haystack).includes(` ${normalizedNeedle} `);
+}
+
+function isLikelyPreparationIngredientReduction(sourceText: string, foodName: string) {
+  const normalizedFood = normalizeForMatching(foodName).trim();
+  if (!normalizedFood) return false;
+
+  return splitSourceFoodSegments(sourceText).some(segment => {
+    const normalizedSegment = normalizeForMatching(segment).trim();
+    if (!normalizedSegment || normalizedSegment === normalizedFood) return false;
+    if (!includesNormalizedPhrase(segment, foodName)) return false;
+
+    const connectorIndex = normalizedSegment.indexOf(" com ");
+    if (connectorIndex < 0) return false;
+
+    const beforeConnector = normalizedSegment.slice(0, connectorIndex).trim();
+    const afterConnector = normalizedSegment.slice(connectorIndex + " com ".length).trim();
+    return Boolean(beforeConnector)
+      && afterConnector.includes(normalizedFood)
+      && !beforeConnector.includes(normalizedFood);
+  });
+}
+
+function filterAiItemsBySourceText(items: LlmItem[], sourceText: string) {
+  return items.filter(item => {
+    const normalizedItem = normalizeLlmItem(item);
+    return sourceMentionsFood(sourceText, normalizedItem.foodName)
+      && !isLikelyPreparationIngredientReduction(sourceText, normalizedItem.foodName);
+  });
+}
+
 function reasoningMentionsNutritionLabel(reasoning?: string) {
   if (!reasoning) {
     return false;
@@ -106,19 +147,34 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     extraction = null;
   }
 
-  const rawItems = !extraction || shouldFallbackToSourceText(extraction, sourceText)
-    ? fallbackFromText(sourceText)
-    : applyExplicitSingleGramQuantity(await buildItemsFromInference(
-      shouldConstrainAiItemsToText(input, sourceText)
-        ? extraction.items.filter(item => sourceMentionsFood(sourceText, normalizeLlmItem(item).foodName))
-        : extraction.items,
-      {
-        preferInferredNutrition: Boolean(
-          input.imageUrl
-          && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(extraction.reasoning))
-        ),
-      },
-    ), sourceText);
+  let usedSourceTextFallback = !extraction || shouldFallbackToSourceText(extraction, sourceText);
+  let rejectedAllAiItems = false;
+  let rawItems: MealDraftItem[];
+
+  if (usedSourceTextFallback) {
+    rawItems = fallbackFromText(sourceText);
+  } else {
+    const inferenceItems = shouldConstrainAiItemsToText(input, sourceText)
+      ? filterAiItemsBySourceText(extraction.items, sourceText)
+      : extraction.items;
+
+    if (sourceText && extraction.items.length > 0 && inferenceItems.length === 0) {
+      rejectedAllAiItems = true;
+      usedSourceTextFallback = true;
+      rawItems = fallbackFromText(sourceText);
+    } else {
+      rawItems = applyExplicitSingleGramQuantity(await buildItemsFromInference(
+        inferenceItems,
+        {
+          preferInferredNutrition: Boolean(
+            input.imageUrl
+            && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(extraction.reasoning))
+          ),
+        },
+      ), sourceText);
+    }
+  }
+
   const items = cleanMealItems(rawItems);
 
   if (!items.length) {
@@ -126,9 +182,11 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
   }
 
   const totals = sumTotals(items);
-  const confidence = extraction && !shouldFallbackToSourceText(extraction, sourceText) ? clampConfidence(extraction.confidence) : items.length ? 0.45 : 0.2;
-  const reasoning = shouldFallbackToSourceText(extraction, sourceText)
-    ? "A análise visual não identificou itens com segurança; foi aplicada uma heurística a partir do texto informado pelo usuário. Recomenda-se confirmar a inferência antes de salvar."
+  const confidence = extraction && !usedSourceTextFallback ? clampConfidence(extraction.confidence) : items.length ? 0.45 : 0.2;
+  const reasoning = usedSourceTextFallback
+    ? rejectedAllAiItems
+      ? "A IA retornou itens incompatíveis com o texto informado; foi aplicada uma heurística a partir da descrição completa para preservar o alimento e sua preparação. Recomenda-se confirmar a inferência antes de salvar."
+      : "A análise visual não identificou itens com segurança; foi aplicada uma heurística a partir do texto informado pelo usuário. Recomenda-se confirmar a inferência antes de salvar."
     : extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
 
   return {
