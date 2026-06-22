@@ -251,6 +251,11 @@ function formatTotalsLine(totals: { calories: number; protein: number; carbs: nu
   return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
 }
 
+function formatMealItemLine(item: MealItemInput) {
+  const portionText = item.portionText?.trim() || "1 porção";
+  return `  - ${portionText} de ${item.foodName}: ${formatTotalsLine(item)}`;
+}
+
 function hasLikelyMealRegistrationSignal(text: string) {
   const normalized = normalizeText(text);
   return /\b(almocei|jantei|comi|lanchei|ceei|tomei|bebi|caf[eé]|almoco|jantar|lanche|refeicao)\b/.test(normalized)
@@ -556,15 +561,23 @@ async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent
     };
   }
 
-  const lines = filteredMeals.map(meal => {
-    const totals = sumMealItems((meal.items ?? []).map(toMealItemInput));
-    return `• ${meal.mealLabel}: ${formatTotalsLine(totals)}`;
+  const lines = filteredMeals.flatMap(meal => {
+    const items = (meal.items ?? []).map(toMealItemInput);
+    const totals = sumMealItems(items);
+    const header = `• ${meal.mealLabel}: ${formatTotalsLine(totals)}`;
+    if (mode === "summary") {
+      return [header];
+    }
+    if (!items.length) {
+      return [header, "  - Sem alimentos detalhados."];
+    }
+    return [header, ...items.map(formatMealItemLine)];
   });
 
   return {
     handled: true,
     action: mode === "list" ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
-    reply: [`Refeicoes registradas hoje:`, "", ...lines].join("\n"),
+    reply: [mode === "list" ? "Alimentos registrados hoje:" : "Refeicoes registradas hoje:", "", ...lines].join("\n"),
     eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
     detail: "Consulta estruturada de refeicoes respondida pelo WhatsApp.",
     data: { mealCount: filteredMeals.length },
