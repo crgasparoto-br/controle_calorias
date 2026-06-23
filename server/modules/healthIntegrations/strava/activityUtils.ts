@@ -85,7 +85,7 @@ export function getStravaCaloriesInfo(activity: StravaActivity) {
   if (typeof activity.calories === "number" && activity.calories > 0) {
     return {
       calories: Math.round(activity.calories),
-      source: "strava" as const,
+      source: activity.caloriesSource ?? "strava_summary" as const,
       estimated: false,
       estimatedWeightKg: null,
       estimatedMet: null,
