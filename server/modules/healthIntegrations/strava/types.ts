@@ -143,7 +143,7 @@ export type StravaExerciseImportSummary = {
 
 export type StravaAutoSyncSummary = {
   attempted: number;
-  succeeded: 0;
+  succeeded: number;
   failed: number;
   importedExercises: StravaExerciseImportSummary;
 };
