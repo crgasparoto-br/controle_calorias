@@ -19,6 +19,7 @@ vi.mock("@/components/PeriodScopeSelector", () => ({
 }));
 
 vi.mock("@/features/meals/components", () => ({
+  RegisteredMealGroups: ({ groups }: { groups: Array<{ mealLabel: string }> }) => React.createElement("div", null, groups.map(group => group.mealLabel).join(", ")),
   SummaryPill: ({ label, value }: { label: string; value: string }) => React.createElement("span", null, label, value),
 }));
 
@@ -80,6 +81,25 @@ const weeklyDays = [
   },
 ];
 
+const breakfastMeal = {
+  id: 1,
+  mealLabel: "Café da manhã",
+  occurredAt: new Date("2026-06-15T10:00:00.000Z").getTime(),
+  notes: null,
+  items: [
+    {
+      foodName: "Banana",
+      portionText: "1 unidade",
+      estimatedGrams: 100,
+      calories: 90,
+      protein: 1,
+      carbs: 23,
+      fat: 0,
+    },
+  ],
+  totals: { calories: 90, protein: 1, carbs: 23, fat: 0 },
+};
+
 function weightSummary() {
   const entries = reportWeightEntries.current;
   const first = entries[0];
@@ -127,7 +147,7 @@ vi.mock("@/lib/trpc", () => ({
                 weight: weightSummary(),
               },
               insights: { generatedAt: "2026-06-16T12:00:00Z", weekStart: "2026-06-15", weekEnd: "2026-06-21", insights: [] },
-              mealsByDate: [],
+              mealsByDate: [{ date: "2026-06-15", items: [breakfastMeal] }],
               quality: {
                 proteinGrams: 260,
                 fiberGrams: 0,
@@ -189,5 +209,14 @@ describe("ReportsPage weight trend", () => {
     expect(html).toContain("Atual");
     expect(html).toContain("Variação");
     expect(html).not.toContain("Ainda não há registros de peso no período selecionado.");
+  });
+
+  it("lista refeições no detalhamento de dias", async () => {
+    const { default: ReportsPage } = await import("./ReportsPage");
+    const html = renderToString(React.createElement(ReportsPage));
+
+    expect(html).toContain("Detalhamento de dias e refeições");
+    expect(html).toContain("1 refeições no dia");
+    expect(html).toContain("Café da manhã");
   });
 });
