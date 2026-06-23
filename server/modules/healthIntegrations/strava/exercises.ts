@@ -31,7 +31,6 @@ export function getStravaExerciseNote(activity: StravaActivity) {
     const label = metadata.estimatedCalories ? "Calorias estimadas" : "Calorias";
     fragments.push(`${label}: ${metadata.calories} kcal.`);
   }
-  if (metadata.caloriesSource) fragments.push(`Origem das calorias: ${metadata.caloriesSource}.`);
   if (metadata.totalElevationGainMeters) fragments.push(`Elevacao: ${Math.round(metadata.totalElevationGainMeters)} m.`);
   if (metadata.averageHeartRate) fragments.push(`FC media: ${Math.round(metadata.averageHeartRate)} bpm.`);
   if (metadata.averageSpeedMetersPerSecond) {
@@ -184,9 +183,9 @@ async function getStravaDetailAccessToken(userId: number, state: StravaDetailFet
   return state.accessToken;
 }
 
-function withStravaSummaryCaloriesSource(activity: StravaActivity): StravaActivity {
-  if (typeof activity.calories === "number" && activity.calories > 0 && !activity.caloriesSource) {
-    return { ...activity, caloriesSource: "strava_summary" };
+function withStravaSummaryCaloriesOrigin(activity: StravaActivity): StravaActivity {
+  if (typeof activity.calories === "number" && activity.calories > 0 && !activity.caloriesOrigin) {
+    return { ...activity, caloriesOrigin: "strava_summary" };
   }
 
   return activity;
@@ -198,7 +197,7 @@ function mergeStravaActivityDetail(activity: StravaActivity, detail: StravaActiv
     ...activity,
     ...detail,
     id: activity.id,
-    caloriesSource: detailHasCalories ? "strava_detail" as const : detail.caloriesSource,
+    caloriesOrigin: detailHasCalories ? "strava_detail" as const : detail.caloriesOrigin,
   } satisfies StravaActivity;
 }
 
@@ -224,7 +223,7 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
   }
 
   if (!shouldFetchStravaActivityDetail(activity)) {
-    return withStravaSummaryCaloriesSource(activity);
+    return withStravaSummaryCaloriesOrigin(activity);
   }
 
   if (state.blockedFallbackReason) {
@@ -341,7 +340,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
       activityId: activity.id,
       status: metadata.estimatedCalories ? "warning" : "success",
       eventType: "strava.import.calories_selected",
-      detail: `origem escolhida: ${metadata.caloriesSource ?? "sem_calorias"}; calorias: ${metadata.calories ?? 0} kcal.`,
+      detail: `origem escolhida: ${metadata.caloriesOrigin ?? "sem_calorias"}; calorias: ${metadata.calories ?? 0} kcal.`,
     });
 
     const externalReference = `strava:${activity.id}`;
@@ -357,7 +356,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         activityId: activity.id,
         status: "success",
         eventType: "strava.import.exercise_updated",
-        detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesSource ?? "sem_calorias"}.`,
+        detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
     } else {
       const created = await createExercise(userId, exerciseInput);
@@ -368,7 +367,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         activityId: activity.id,
         status: "success",
         eventType: "strava.import.exercise_created",
-        detail: `exercício criado com origem de calorias ${metadata.caloriesSource ?? "sem_calorias"}.`,
+        detail: `exercício criado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
       await sendStravaExerciseImportedWhatsAppMessage(userId, exerciseInput);
     }
