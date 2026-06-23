@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import ReportsExperience from "@/features/reports/ReportsExperience";
 import { useLocation } from "wouter";
 
@@ -11,8 +11,10 @@ const PERIOD_FILTER_LABELS = ["Dia", "Semana", "Mês", "Período"];
 const PERIOD_DETAIL_LABELS = ["Dia ativo", "Semana de referência", "Mês ativo", "Início"];
 const SHARED_REPORTS_MOUNT_ATTR = "data-shared-reports-experience";
 
-let sharedReportsRoot: Root | null = null;
-let sharedReportsMount: HTMLElement | null = null;
+type ReportsPortalState = {
+  mount: HTMLElement | null;
+  patientId: number | null;
+};
 
 function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -93,11 +95,10 @@ function hideLegacyReportsChildren(reportsPanel: HTMLElement, mount: HTMLElement
   });
 }
 
-function renderSharedReportsExperience() {
+function ensureSharedReportsMount() {
   const reportsPanel = findReportsTabPanel();
-  if (!reportsPanel) return;
+  if (!reportsPanel) return { mount: null, patientId: null };
 
-  const patientId = findSelectedPatientId();
   let mount = reportsPanel.querySelector<HTMLElement>(`[${SHARED_REPORTS_MOUNT_ATTR}]`);
   if (!mount) {
     mount = document.createElement("div");
@@ -106,20 +107,8 @@ function renderSharedReportsExperience() {
     reportsPanel.insertBefore(mount, reportsPanel.firstChild);
   }
 
-  if (sharedReportsMount !== mount) {
-    sharedReportsRoot?.unmount();
-    sharedReportsMount = mount;
-    sharedReportsRoot = createRoot(mount);
-  }
-
   hideLegacyReportsChildren(reportsPanel, mount);
-  sharedReportsRoot?.render(<ReportsExperience context="professional" subjectUserId={patientId} />);
-}
-
-function unmountSharedReportsExperience() {
-  sharedReportsRoot?.unmount();
-  sharedReportsRoot = null;
-  sharedReportsMount = null;
+  return { mount, patientId: findSelectedPatientId() };
 }
 
 function alignPatientSelectorAndCopy() {
@@ -146,7 +135,7 @@ function alignPatientSelectorAndCopy() {
 function refreshAnalysisLayout() {
   alignPatientSelectorAndCopy();
   movePeriodFilterIntoReportsTab();
-  renderSharedReportsExperience();
+  return ensureSharedReportsMount();
 }
 
 function findAnalyzeButton(target: EventTarget | null) {
@@ -156,7 +145,7 @@ function findAnalyzeButton(target: EventTarget | null) {
   return elementText(button) === ANALYZE_BUTTON_LABEL ? button : null;
 }
 
-function openAnalysisTab() {
+function openAnalysisTab(onRefresh: (state: ReportsPortalState) => void) {
   const attempts = [0, 50, 150, 300];
   attempts.forEach(delay => {
     window.setTimeout(() => {
@@ -164,26 +153,26 @@ function openAnalysisTab() {
       tab?.click();
       tab?.focus({ preventScroll: true });
       findAnalysisPanel()?.scrollIntoView({ block: "start", behavior: "smooth" });
-      refreshAnalysisLayout();
+      onRefresh(refreshAnalysisLayout());
     }, delay);
   });
 }
 
 export default function ProfessionalAnalyzeTabBridge() {
   const [location] = useLocation();
+  const [portalState, setPortalState] = useState<ReportsPortalState>({ mount: null, patientId: null });
 
   useEffect(() => {
     if (!location.startsWith("/professional")) {
-      unmountSharedReportsExperience();
+      setPortalState({ mount: null, patientId: null });
       return;
     }
 
+    const scheduleLayoutRefresh = () => window.setTimeout(() => setPortalState(refreshAnalysisLayout()), 0);
     const handleClick = (event: MouseEvent) => {
       if (!findAnalyzeButton(event.target)) return;
-      openAnalysisTab();
+      openAnalysisTab(setPortalState);
     };
-
-    const scheduleLayoutRefresh = () => window.setTimeout(refreshAnalysisLayout, 0);
     const observer = new MutationObserver(scheduleLayoutRefresh);
 
     scheduleLayoutRefresh();
@@ -197,9 +186,14 @@ export default function ProfessionalAnalyzeTabBridge() {
       document.removeEventListener("click", handleClick, true);
       document.removeEventListener("click", scheduleLayoutRefresh, true);
       document.removeEventListener("change", scheduleLayoutRefresh, true);
-      unmountSharedReportsExperience();
+      setPortalState({ mount: null, patientId: null });
     };
   }, [location]);
 
-  return null;
+  if (!location.startsWith("/professional") || !portalState.mount) return null;
+
+  return createPortal(
+    <ReportsExperience context="professional" subjectUserId={portalState.patientId} />,
+    portalState.mount,
+  );
 }
