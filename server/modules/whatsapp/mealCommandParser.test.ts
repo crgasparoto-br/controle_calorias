@@ -51,6 +51,21 @@ describe("parseMealCommandFromWhatsApp", () => {
   });
 
   it.each([
+    ["arroz integral", "Adicionar 200g - 50g de arroz integral ao almoço", 150],
+    ["frango grelhado", "Adicionar 180g - 30g de frango grelhado ao jantar", 150],
+    ["iogurte natural", "Adicionar 170g - 45g de iogurte natural ao lanche", 125],
+  ])("aplica a conta liquida para qualquer alimento: %s", (foodName, text, quantity) => {
+    const result = parseMealCommandFromWhatsApp(text, { referenceDate });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName,
+      quantity,
+      unit: "g",
+      missingFields: [],
+    }));
+  });
+
+  it.each([
     "Adicionar 160g-23g de maçã Fuji ao lanche",
     "Adicionar 160 g - 23 g maçã Fuji ao lanche",
     "Adicionar 160g - 23g de maçã Fuji ao lanche",
