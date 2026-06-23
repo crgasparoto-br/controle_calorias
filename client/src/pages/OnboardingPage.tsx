@@ -15,6 +15,7 @@ import { DEFAULT_APP_TIME_ZONE, USER_TIME_ZONE_OPTIONS } from "@shared/timeZone"
 import { Activity, ArrowRight, Clock3, MessageCircle, Plus, Save, Stethoscope, Target, Trash2, UserRound } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 const OBJECTIVE_OPTIONS = [
   { value: "emagrecer", label: "Emagrecer" },
@@ -35,6 +36,13 @@ const EXPERIENCE_OPTIONS = [
   { value: "beginner", label: "Estou começando" },
   { value: "intermediate", label: "Já acompanhei antes" },
   { value: "advanced", label: "Tenho bastante prática" },
+] as const;
+
+const SEX_OPTIONS = [
+  { value: "prefer_not_to_say", label: "Prefiro não informar" },
+  { value: "female", label: "Feminino" },
+  { value: "male", label: "Masculino" },
+  { value: "non_binary", label: "Não binário" },
 ] as const;
 
 const ROUTINE_OPTIONS = [
@@ -96,6 +104,7 @@ type MealScheduleState = {
 type FormState = {
   name: string;
   birthDate: string;
+  sex: typeof SEX_OPTIONS[number]["value"];
   heightCm: string;
   currentWeightKg: string;
   objective: typeof OBJECTIVE_OPTIONS[number]["value"];
@@ -111,6 +120,7 @@ type FormState = {
 const initialForm: FormState = {
   name: "",
   birthDate: "",
+  sex: "prefer_not_to_say",
   heightCm: "",
   currentWeightKg: "",
   objective: "melhorar_habitos",
@@ -132,6 +142,10 @@ function splitList(value: string) {
 
 function joinList(value: string[] | null | undefined) {
   return value?.join(", ") ?? "";
+}
+
+function normalizeListForComparison(value: string[]) {
+  return value.map(item => item.trim().toLowerCase()).filter(Boolean).sort().join("\n");
 }
 
 function parseOptionalDecimalInput(value: string) {
@@ -276,6 +290,8 @@ function formatPhoneNumber(value: string) {
 export default function OnboardingPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
+  const [location] = useLocation();
+  const isSettingsPage = location === "/settings";
   const [nameEdited, setNameEdited] = useState(false);
   const [savedProfileApplied, setSavedProfileApplied] = useState(false);
   const [schedulesApplied, setSchedulesApplied] = useState(false);
@@ -308,6 +324,7 @@ export default function OnboardingPage() {
     setForm({
       name: profile.name || userName,
       birthDate: profile.birthDate ?? "",
+      sex: (profile.sex as FormState["sex"] | undefined) ?? "prefer_not_to_say",
       heightCm: formatHeightInputFromCentimeters(profile.heightCm),
       currentWeightKg: formatWeightInput(profile.currentWeightKg),
       objective: profile.objective,
@@ -355,6 +372,7 @@ export default function OnboardingPage() {
   const parsed = useMemo(() => ({
     name: form.name.trim(),
     birthDate: form.birthDate,
+    sex: form.sex,
     heightCm: parseHeightInputToCentimeters(form.heightCm),
     currentWeightKg: parseOptionalDecimalInput(form.currentWeightKg),
     objective: form.objective,
@@ -381,6 +399,7 @@ export default function OnboardingPage() {
   const payload = useMemo(() => ({
     name: parsed.name || userName || OPTIONAL_ONBOARDING_FALLBACK.name,
     birthDate: parsed.birthDate || OPTIONAL_ONBOARDING_FALLBACK.birthDate,
+    sex: parsed.sex,
     heightCm: parsed.heightCm ?? OPTIONAL_ONBOARDING_FALLBACK.heightCm,
     currentWeightKg: parsed.currentWeightKg ?? OPTIONAL_ONBOARDING_FALLBACK.currentWeightKg,
     objective: parsed.objective,
@@ -392,6 +411,19 @@ export default function OnboardingPage() {
     mainDifficulty: parsed.mainDifficulty,
     timezone: parsed.timezone,
   }), [parsed, userName]);
+
+  const hasGoalRoutineChanges = useMemo(() => {
+    const profile = savedProfileQuery.data;
+    if (!profile) return false;
+
+    return profile.objective !== parsed.objective
+      || profile.activityLevel !== parsed.activityLevel
+      || profile.trackingExperience !== parsed.trackingExperience
+      || profile.eatingRoutine !== parsed.eatingRoutine
+      || profile.mainDifficulty !== parsed.mainDifficulty
+      || normalizeListForComparison(profile.dietaryPreferences ?? []) !== normalizeListForComparison(parsed.dietaryPreferences)
+      || normalizeListForComparison(profile.dietaryRestrictions ?? []) !== normalizeListForComparison(parsed.dietaryRestrictions);
+  }, [parsed, savedProfileQuery.data]);
 
   const sendWhatsappGreetingMutation = trpc.auth.sendWhatsappGreeting?.useMutation?.() ?? {
     isPending: false,
@@ -415,13 +447,15 @@ export default function OnboardingPage() {
   }
 
   const completeOnboarding = trpc.nutrition.onboarding.complete.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await Promise.all([
         utils.nutrition.onboarding.profile.invalidate(),
-        utils.nutrition.goals.get.invalidate(),
-        utils.nutrition.dashboard.overview.invalidate(),
-        utils.nutrition.dashboard.today.invalidate(),
-        utils.nutrition.reports.weekly.invalidate(),
+        ...(result.recalculatedGoals ? [
+          utils.nutrition.goals.get.invalidate(),
+          utils.nutrition.dashboard.overview.invalidate(),
+          utils.nutrition.dashboard.today.invalidate(),
+          utils.nutrition.reports.weekly.invalidate(),
+        ] : []),
       ]);
 
       if (shouldAttachWhatsappPhone) {
@@ -443,7 +477,13 @@ export default function OnboardingPage() {
         }
       }
 
-      toast.success("Perfil salvo com sucesso.");
+      if (isSettingsPage && result.recalculatedGoals) {
+        toast.success("Configurações salvas e metas recalculadas.");
+      } else if (isSettingsPage) {
+        toast.success("Configurações salvas sem alterar suas metas.");
+      } else {
+        toast.success("Perfil salvo com sucesso.");
+      }
     },
     onError: error => toast.error(error.message || "Não foi possível salvar as configurações."),
   });
@@ -465,16 +505,37 @@ export default function OnboardingPage() {
     setMealSchedules(current => current.map((schedule, currentIndex) => currentIndex === index ? { ...schedule, [field]: value } : schedule));
   }
 
-  function handleSaveProfile() {
+  function saveProfile(recalculateGoals: boolean) {
     if (validationMessage) {
       toast.error(validationMessage);
       return;
     }
-    completeOnboarding.mutate(payload);
+    completeOnboarding.mutate({ ...payload, recalculateGoals });
+  }
+
+  function confirmGoalRecalculation() {
+    if (typeof window === "undefined" || typeof window.confirm !== "function") {
+      toast.warning("Não consegui exibir a confirmação. As configurações serão salvas sem recalcular metas.");
+      return false;
+    }
+
+    return window.confirm("Essas alterações podem recalcular suas metas nutricionais. Deseja recalcular as metas agora?");
+  }
+
+  function handleSaveProfile() {
+    saveProfile(!isSettingsPage);
+  }
+
+  function handleSaveGoalsAndRoutine() {
+    saveProfile(isSettingsPage ? confirmGoalRecalculation() : true);
   }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (isSettingsPage && hasGoalRoutineChanges) {
+      handleSaveGoalsAndRoutine();
+      return;
+    }
     handleSaveProfile();
   }
 
@@ -569,6 +630,7 @@ export default function OnboardingPage() {
                   )}
                   <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
                   <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
+                  <SelectField label="Sexo" value={form.sex} options={SEX_OPTIONS} onChange={value => updateField("sex", value as FormState["sex"])} />
                   <ReadOnlyField label="Idade calculada" value={calculatedAgeYears === null ? "Preencha se quiser calcular" : `${calculatedAgeYears} anos`} />
                   <TextField label="Altura" suffix="m ou cm" inputMode="decimal" value={form.heightCm} onChange={value => updateField("heightCm", value)} optional placeholder="Ex.: 1,72 ou 172" />
                   <TextField label="Peso atual" suffix="kg" inputMode="decimal" value={form.currentWeightKg} onChange={value => updateField("currentWeightKg", value)} optional placeholder="Ex.: 72,5" />
@@ -640,7 +702,7 @@ export default function OnboardingPage() {
                   <TextAreaField label="Restrições alimentares" value={form.dietaryRestrictions} onChange={value => updateField("dietaryRestrictions", value)} placeholder="Ex.: lactose, glúten, amendoim" optional />
                 </div>
                 <div className="flex justify-end">
-                  <Button type="button" className="rounded-full" disabled={isSavingProfile} onClick={handleSaveProfile}>
+                  <Button type="button" className="rounded-full" disabled={isSavingProfile} onClick={handleSaveGoalsAndRoutine}>
                     <Save className="mr-2 h-4 w-4" />
                     {isSavingProfile ? "Salvando objetivos..." : "Salvar objetivos e rotina"}
                   </Button>
