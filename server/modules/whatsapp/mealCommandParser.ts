@@ -16,6 +16,14 @@ export type ParsedMealCommandItem = {
   unit: string | null;
   confidence: number;
   missingFields: string[];
+  quantityExpression?: {
+    leftQuantity: number;
+    rightQuantity: number;
+    operator: "-" | "+";
+    unit: string;
+    result: number;
+    raw: string;
+  };
 };
 
 export type ParsedMealCommand = {
@@ -39,6 +47,7 @@ export type MealCommandContext = {
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
+const DECIMAL_NUMBER_PATTERN = "\\d+(?:[,.]\\d+)?";
 
 const MEAL_TYPES = [
   "cafe da manha",
@@ -64,6 +73,29 @@ type ZonedParts = {
   minute: number;
   second: number;
 };
+
+type ParsedQuantity = {
+  quantity: number;
+  unit: string;
+  index: number;
+  raw: string;
+};
+
+type QuantityExpressionParseResult =
+  | {
+      kind: "valid";
+      quantity: number;
+      unit: string;
+      index: number;
+      raw: string;
+      expression: NonNullable<ParsedMealCommandItem["quantityExpression"]>;
+    }
+  | {
+      kind: "invalid";
+      index: number;
+      raw: string;
+      reason: "incompatible_units" | "missing_unit" | "non_positive_result";
+    };
 
 function emptyCommand(intent: MealCommandIntent, missingFields: string[] = []): ParsedMealCommand {
   return {
@@ -179,17 +211,74 @@ function normalizeUnit(unit: string) {
   return normalizeMeasurementUnit(unit.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 }
 
-function parseQuantity(value: string) {
-  const match = value.match(new RegExp(`(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
+function parseDecimalQuantity(value: string) {
+  return Number(value.replace(",", "."));
+}
+
+function parseQuantity(value: string): ParsedQuantity | null {
+  const match = value.match(new RegExp(`(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
   if (!match) {
     return null;
   }
 
   return {
-    quantity: Number(match[1].replace(",", ".")),
+    quantity: parseDecimalQuantity(match[1]),
     unit: normalizeUnit(match[2]),
     index: match.index ?? 0,
     raw: match[0],
+  };
+}
+
+function unitsAreCompatible(firstUnit: string, secondUnit: string) {
+  return normalizeUnit(firstUnit) === normalizeUnit(secondUnit);
+}
+
+function parseQuantityExpression(value: string): QuantityExpressionParseResult | null {
+  const expressionPattern = new RegExp(
+    `(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})?\\s*([-+])\\s*(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})?\\b`,
+    "i",
+  );
+  const match = value.match(expressionPattern);
+  if (!match) {
+    return null;
+  }
+
+  const leftQuantity = parseDecimalQuantity(match[1]);
+  const rightQuantity = parseDecimalQuantity(match[4]);
+  const leftUnit = match[2] ? normalizeUnit(match[2]) : null;
+  const rightUnit = match[5] ? normalizeUnit(match[5]) : null;
+  const raw = match[0];
+  const index = match.index ?? 0;
+  const unit = leftUnit ?? rightUnit;
+
+  if (!unit) {
+    return { kind: "invalid", index, raw, reason: "missing_unit" };
+  }
+  if (leftUnit && rightUnit && !unitsAreCompatible(leftUnit, rightUnit)) {
+    return { kind: "invalid", index, raw, reason: "incompatible_units" };
+  }
+
+  const result = match[3] === "-"
+    ? leftQuantity - rightQuantity
+    : leftQuantity + rightQuantity;
+  if (!Number.isFinite(result) || result <= 0) {
+    return { kind: "invalid", index, raw, reason: "non_positive_result" };
+  }
+
+  return {
+    kind: "valid",
+    quantity: Number(result.toFixed(3)),
+    unit,
+    index,
+    raw,
+    expression: {
+      leftQuantity,
+      rightQuantity,
+      operator: match[3] as "-" | "+",
+      unit,
+      result: Number(result.toFixed(3)),
+      raw,
+    },
   };
 }
 
@@ -214,7 +303,12 @@ function cleanFoodName(value: string) {
   );
 }
 
-function buildItem(foodNameInput: string, quantity: number | null, unit: string | null): ParsedMealCommandItem {
+function buildItem(
+  foodNameInput: string,
+  quantity: number | null,
+  unit: string | null,
+  quantityExpression?: ParsedMealCommandItem["quantityExpression"],
+): ParsedMealCommandItem {
   const rawFoodName = cleanFoodName(foodNameInput);
   const brand = detectBrand(rawFoodName);
   const foodName = removeBrand(rawFoodName, brand) || rawFoodName || null;
@@ -229,8 +323,9 @@ function buildItem(foodNameInput: string, quantity: number | null, unit: string 
     brand,
     quantity,
     unit,
-    confidence: missingFields.length ? 0.55 : brand ? 0.88 : 0.82,
+    confidence: missingFields.length ? 0.55 : brand ? 0.88 : quantityExpression ? 0.9 : 0.82,
     missingFields,
+    ...(quantityExpression ? { quantityExpression } : {}),
   };
 }
 
@@ -239,6 +334,24 @@ function splitItemParts(value: string) {
     .split(/\s*[;,]\s*|\s+\be\s+(?=\d)/i)
     .map(part => part.trim())
     .filter(Boolean);
+}
+
+function buildItemFromPart(part: string) {
+  const quantityExpression = parseQuantityExpression(part);
+  if (quantityExpression) {
+    const foodName = normalizeSpaces(`${part.slice(0, quantityExpression.index)} ${part.slice(quantityExpression.index + quantityExpression.raw.length)}`);
+    if (quantityExpression.kind === "valid") {
+      return buildItem(foodName, quantityExpression.quantity, quantityExpression.unit, quantityExpression.expression);
+    }
+    return buildItem(foodName, null, null);
+  }
+
+  const quantity = parseQuantity(part);
+  if (!quantity) {
+    return buildItem(part, null, null);
+  }
+  const foodName = normalizeSpaces(`${part.slice(0, quantity.index)} ${part.slice(quantity.index + quantity.raw.length)}`);
+  return buildItem(foodName, quantity.quantity, quantity.unit);
 }
 
 function parseAddItemsCommand(input: string, context: MealCommandContext): ParsedMealCommand | null {
@@ -254,14 +367,7 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
   const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)\\s+(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${mealPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*$`, "i"));
   const afterMealMatch = afterAction.match(new RegExp(`^(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${mealPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s+(.+)$`, "i"));
   const itemsText = beforeMealMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction;
-  const items = splitItemParts(itemsText).map(part => {
-    const quantity = parseQuantity(part);
-    if (!quantity) {
-      return buildItem(part, null, null);
-    }
-    const foodName = normalizeSpaces(`${part.slice(0, quantity.index)} ${part.slice(quantity.index + quantity.raw.length)}`);
-    return buildItem(foodName, quantity.quantity, quantity.unit);
-  });
+  const items = splitItemParts(itemsText).map(buildItemFromPart);
   const missingFields = [
     ...(mealType ? [] : ["mealType"]),
     ...(items.length ? [] : ["items"]),
@@ -278,14 +384,14 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
 }
 
 function parseQuantityReplacement(input: string): ParsedMealCommand | null {
-  const quantityPattern = `(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})`;
+  const quantityPattern = `(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})`;
   const swapMatch = input.match(new RegExp(`\\b(?:trocar|troque|troca|mudar|alterar|corrigir)\\b\\s+${quantityPattern}\\s+(?:por|para)\\s+${quantityPattern}\\b`, "i"));
   if (swapMatch) {
     return {
       ...emptyCommand("replace_quantity"),
-      previousQuantity: Number(swapMatch[1].replace(",", ".")),
+      previousQuantity: parseDecimalQuantity(swapMatch[1]),
       previousUnit: normalizeUnit(swapMatch[2]),
-      nextQuantity: Number(swapMatch[3].replace(",", ".")),
+      nextQuantity: parseDecimalQuantity(swapMatch[3]),
       nextUnit: normalizeUnit(swapMatch[4]),
       confidence: 0.84,
       missingFields: [],
@@ -296,9 +402,9 @@ function parseQuantityReplacement(input: string): ParsedMealCommand | null {
   if (notThenCorrectMatch) {
     return {
       ...emptyCommand("correct_quantity"),
-      previousQuantity: Number(notThenCorrectMatch[1].replace(",", ".")),
+      previousQuantity: parseDecimalQuantity(notThenCorrectMatch[1]),
       previousUnit: normalizeUnit(notThenCorrectMatch[2]),
-      nextQuantity: Number(notThenCorrectMatch[3].replace(",", ".")),
+      nextQuantity: parseDecimalQuantity(notThenCorrectMatch[3]),
       nextUnit: normalizeUnit(notThenCorrectMatch[4]),
       confidence: 0.84,
       missingFields: [],
@@ -309,9 +415,9 @@ function parseQuantityReplacement(input: string): ParsedMealCommand | null {
   if (correctThenNotMatch) {
     return {
       ...emptyCommand("correct_quantity"),
-      previousQuantity: Number(correctThenNotMatch[3].replace(",", ".")),
+      previousQuantity: parseDecimalQuantity(correctThenNotMatch[3]),
       previousUnit: normalizeUnit(correctThenNotMatch[4]),
-      nextQuantity: Number(correctThenNotMatch[1].replace(",", ".")),
+      nextQuantity: parseDecimalQuantity(correctThenNotMatch[1]),
       nextUnit: normalizeUnit(correctThenNotMatch[2]),
       confidence: 0.84,
       missingFields: [],
@@ -322,7 +428,7 @@ function parseQuantityReplacement(input: string): ParsedMealCommand | null {
 }
 
 function parseShortQuantityCorrection(input: string, context: MealCommandContext): ParsedMealCommand | null {
-  const match = input.match(new RegExp(`\\b(?:corrigir\\s+para|corrija\\s+para|ajustar\\s+para|ajuste\\s+para)\\s+(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
+  const match = input.match(new RegExp(`\\b(?:corrigir\\s+para|corrija\\s+para|ajustar\\s+para|ajuste\\s+para)\\s+(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
   if (!match) {
     return null;
   }
@@ -331,7 +437,7 @@ function parseShortQuantityCorrection(input: string, context: MealCommandContext
     ...emptyCommand("correct_quantity"),
     mealType: context.recentMealType ?? null,
     date: context.recentDate ?? context.referenceDate ?? null,
-    nextQuantity: Number(match[1].replace(",", ".")),
+    nextQuantity: parseDecimalQuantity(match[1]),
     nextUnit: normalizeUnit(match[2]),
     confidence: context.recentMealType || context.recentDate ? 0.74 : 0.66,
     missingFields: ["previousQuantity"],
