@@ -91,6 +91,50 @@ describe("executeWhatsappMealListIntent", () => {
     expect(result?.reply).toContain("Alimentos da última refeição (Jantar às 19:00):");
   });
 
+  it("lista comandos genéricos de alimentos agrupados por refeição do dia", async () => {
+    const result = await executeWhatsappMealListIntent(42, {
+      text: "Liste os alimentos",
+      receivedAt: new Date("2026-06-20T20:14:00-03:00"),
+    });
+
+    expect(result).toMatchObject({
+      action: "meal_foods_listed",
+      eventType: "whatsapp.intent.meal_foods_listed",
+      data: expect.objectContaining({ mealCount: 2, itemCount: 3 }),
+    });
+    expect(result?.reply).toContain("Alimentos registrados em 20/06/2026:");
+    expect(result?.reply).toContain("Almoço às 12:30:");
+    expect(result?.reply).toContain("100 g de arroz - 130 kcal");
+    expect(result?.reply).toContain("120 g de frango - 198 kcal");
+    expect(result?.reply).toContain("Café da manhã às 07:00:");
+    expect(result?.reply).toContain("100 g de pão - 140 kcal");
+    expect(result?.reply).not.toContain("sopa");
+    expect(result?.reply).toContain("Total do dia: 468 kcal");
+  });
+
+  it("trata 'o que comi hoje' como consulta de alimentos do dia", async () => {
+    const result = await executeWhatsappMealListIntent(42, {
+      text: "o que comi hoje",
+      receivedAt: new Date("2026-06-20T20:14:00-03:00"),
+    });
+
+    expect(result?.action).toBe("meal_foods_listed");
+    expect(result?.reply).toContain("Alimentos registrados em 20/06/2026:");
+    expect(result?.reply).toContain("arroz");
+    expect(result?.reply).toContain("pão");
+  });
+
+  it("retorna estado vazio para listagem genérica sem registros no dia", async () => {
+    const result = await executeWhatsappMealListIntent(42, {
+      text: "alimentos de hoje",
+      receivedAt: new Date("2026-06-21T20:14:00-03:00"),
+    });
+
+    expect(result?.action).toBe("meal_foods_listed");
+    expect(result?.reply).toBe("Não encontrei alimentos registrados em 21/06/2026.");
+    expect(result?.data).toEqual(expect.objectContaining({ mealCount: 0, itemCount: 0 }));
+  });
+
   it("pede esclarecimento quando não encontra a refeição solicitada", async () => {
     const result = await executeWhatsappMealListIntent(42, {
       text: "o que foi registrado no café da manhã de ontem?",
