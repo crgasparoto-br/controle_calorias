@@ -1,6 +1,7 @@
 import { getUserWhatsappConnection, logInferenceEvent } from "../../../db";
-import { requireWhatsAppSendConfig } from "../../../whatsappConfig";
 import { createExercise, listExercises, updateExercise } from "../../exercises/service";
+import { tryCreateQuickEditLinkForExercise } from "../../quickEdit/service";
+import { sendWhatsAppInteractiveUrlButtonMessage, sendWhatsAppTextMessage } from "../../whatsapp/webhookUtils";
 import {
   fetchStravaActivityDetail,
   getStravaMaxActivityDetailRequestsPerSync,
@@ -84,51 +85,29 @@ function buildStravaExerciseImportedWhatsAppMessage(input: {
   ].join("\n");
 }
 
-async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exercise: ReturnType<typeof toStravaExerciseInput>) {
+async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exerciseId: number, exercise: ReturnType<typeof toStravaExerciseInput>) {
   if (!exercise) return;
 
   try {
     const connection = await getUserWhatsappConnection(userId);
     if (!connection || connection.status !== "active") return;
 
-    const config = await requireWhatsAppSendConfig();
-    const response = await fetch(`https://graph.facebook.com/v20.0/${config.phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: connection.phoneNumber,
-        type: "interactive",
-        interactive: {
-          type: "button",
-          body: {
-            text: buildStravaExerciseImportedWhatsAppMessage(exercise),
-          },
-          action: {
-            buttons: [
-              {
-                type: "reply",
-                reply: {
-                  id: "daily_summary",
-                  title: "Ver resumo do dia",
-                },
-              },
-            ],
-          },
-        },
-      }),
-    });
+    const message = buildStravaExerciseImportedWhatsAppMessage(exercise);
+    const quickEditLink = await tryCreateQuickEditLinkForExercise({ userId, exerciseId });
+    const response = quickEditLink?.url
+      ? await sendWhatsAppInteractiveUrlButtonMessage(connection.phoneNumber, message, "Ver exercício", quickEditLink.url)
+      : await sendWhatsAppTextMessage(
+        connection.phoneNumber,
+        `${message}\n\nAbra o app para revisar ou editar este exercício importado.`,
+      );
 
-    if (!response.ok) {
+    if (!response.ok || "usedFallback" in response && response.usedFallback) {
       logInferenceEvent({
         userId,
         origin: "admin",
-        status: "warning",
+        status: response.ok ? "warning" : "error",
         eventType: "strava.whatsapp_import_notification_failed",
-        detail: `Falha ao enviar notificação de exercício Strava importado pelo WhatsApp: Meta retornou ${response.status} ${response.statusText}.`,
+        detail: `Falha ao enviar notificação de exercício Strava importado pelo WhatsApp: ${response.detail}`,
       });
     }
   } catch (error) {
@@ -358,6 +337,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_updated",
         detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
+      await sendStravaExerciseImportedWhatsAppMessage(userId, existing.id, exerciseInput);
     } else {
       const created = await createExercise(userId, exerciseInput);
       existingExercises.push(created);
@@ -369,7 +349,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_created",
         detail: `exercício criado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
-      await sendStravaExerciseImportedWhatsAppMessage(userId, exerciseInput);
+      await sendStravaExerciseImportedWhatsAppMessage(userId, created.id, exerciseInput);
     }
   }
 
