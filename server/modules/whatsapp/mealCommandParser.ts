@@ -331,7 +331,7 @@ function buildItem(
 
 function splitItemParts(value: string) {
   return value
-    .split(/\s*[;,]\s*|\s+\be\s+(?=\d)/i)
+    .split(/\s*[;]\s*|\s*(?<!\d),(?!\d)\s*|\s+\be\s+(?=\d)/i)
     .map(part => part.trim())
     .filter(Boolean);
 }
