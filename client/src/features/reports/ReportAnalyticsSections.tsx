@@ -1,10 +1,11 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { formatCalories, formatCountPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { BarChart3, CalendarDays, Droplets, Dumbbell, Scale } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+const ReportTrendChart = lazy(() => import("@/features/reports/ReportTrendChart"));
 
 export type ReportMacroMetric = {
   key: "calories" | "protein" | "carbs" | "fat";
@@ -62,14 +63,6 @@ export function averageValue(total: number, count: number) {
   return count ? total / count : 0;
 }
 
-export function getCalorieBarColor(calories: number, goalCalories: number) {
-  if (!goalCalories || !calories) return "#cbd5e1";
-  const ratio = calories / goalCalories;
-  if (ratio > 1.05) return "#dc2626";
-  if (ratio < 0.9) return "#f59e0b";
-  return "#10b981";
-}
-
 function formatSigned(value: number, unit: "kcal" | "g") {
   const prefix = value > 0 ? "+" : "";
   return unit === "kcal" ? `${prefix}${formatCalories(value)}` : `${prefix}${formatMacro(value)} g`;
@@ -83,6 +76,10 @@ function formatSignedWeight(value: number) {
 function formatPerKgDay(value: number | null) {
   if (value === null) return null;
   return `${formatNumberPtBr(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} g/kg/dia`;
+}
+
+function ChartFallback() {
+  return <div className="flex h-full items-center justify-center rounded-2xl bg-muted/20 text-sm text-muted-foreground">Carregando gráfico...</div>;
 }
 
 export function ReportStatusTile({ label, value }: { label: string; value: string | number }) {
@@ -268,20 +265,9 @@ export function ReportTrendSection({ title, description, days }: { title: string
           O gráfico mostra sempre as três referências: <strong className="font-semibold text-foreground">meta original</strong>, <strong className="font-semibold text-foreground">meta ajustada</strong> e consumo realizado. Quando não houver exercício no dia, as duas metas podem aparecer com a mesma altura.
         </div>
         <div className="h-[340px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barSize={28}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" />
-              <YAxis />
-              <Tooltip formatter={value => formatCalories(Number(value))} />
-              <Legend />
-              <Bar dataKey="originalGoalCalories" name="Meta original" fill="#e2e8f0" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="goalCalories" name="Meta ajustada" fill="#94a3b8" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="calories" name="Consumido" radius={[8, 8, 0, 0]}>
-                {chartData.map(day => <Cell key={day.date} fill={getCalorieBarColor(day.calories, day.goalCalories)} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <Suspense fallback={<ChartFallback />}>
+            <ReportTrendChart days={chartData} />
+          </Suspense>
         </div>
       </CardContent>
     </Card>
