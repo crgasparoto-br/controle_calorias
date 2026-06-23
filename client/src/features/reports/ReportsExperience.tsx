@@ -65,6 +65,7 @@ export type ReportsExperienceProps = {
 
 const EMPTY_TOTALS: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const EMPTY_QUALITY = { proteinGrams: 0, fiberGrams: 0, waterMl: 0, fruitServings: 0, vegetableServings: 0, ultraProcessedServings: 0, mealCount: 0, regularityScore: 0 };
+const EMPTY_QUERY_RESULT = { data: null, isLoading: false, isError: false };
 const MACRO_GOAL_KEYS: Record<keyof MacroTotals, MacroGoalKey> = { protein: "goalProtein", carbs: "goalCarbs", fat: "goalFat" };
 
 function numberValue(value: unknown) {
@@ -210,7 +211,8 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
 
   const selfBundle = trpc.nutrition.reports.periodBundle.useQuery({ startDate: activeRange.start, endDate: activeRange.end }, { enabled: !isProfessional });
-  const professionalBundle = trpc.nutrition.professionals.patientPeriodBundle.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) });
+  const professionalQuery = trpc.nutrition.professionals?.patientPeriodBundle;
+  const professionalBundle = professionalQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) }) ?? EMPTY_QUERY_RESULT;
   const activeBundle = isProfessional ? professionalBundle : selfBundle;
   const bundleData = activeBundle.data as any;
 
