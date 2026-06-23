@@ -294,18 +294,18 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
 
   const selfWeeklyBundle = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" }));
   const selfPeriodBundle = normalizeQueryResult(trpc.nutrition.reports.periodBundle.useQuery({ startDate: activeRange.start, endDate: activeRange.end }, { enabled: !isProfessional && periodScope !== "week" }));
-  const professionalDashboardQuery = trpc.nutrition.professionals?.patientDashboard;
   const professionalPeriodQuery = trpc.nutrition.professionals?.patientPeriodBundle;
-  const professionalWeeklyBundle = normalizeQueryResult(professionalDashboardQuery?.useQuery({ patientId: subjectUserId ?? 0, weekOffset }, { enabled: isProfessional && Boolean(subjectUserId) && periodScope === "week" }));
+  const professionalWeeklyBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) && periodScope === "week" }));
   const professionalPeriodBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) && periodScope !== "week" }));
   const isWeek = periodScope === "week";
+  const usesWeeklyShape = !isProfessional && isWeek;
   const activeBundle = isProfessional ? (isWeek ? professionalWeeklyBundle : professionalPeriodBundle) : (isWeek ? selfWeeklyBundle : selfPeriodBundle);
   const bundleData = activeBundle.data as any;
 
   const metricDays = React.useMemo(() => {
-    const rawDays = isWeek ? (bundleData?.weekly ?? bundleData?.weeklyReport ?? []) : (bundleData?.daily ?? []);
+    const rawDays = usesWeeklyShape ? (bundleData?.weekly ?? bundleData?.weeklyReport ?? []) : (bundleData?.daily ?? []);
     return (rawDays as any[]).map(day => normalizeDay(day, bundleData?.goal));
-  }, [bundleData, isWeek]);
+  }, [bundleData, usesWeeklyShape]);
   const dayCount = metricDays.length || countDaysInRange(activeRange);
   const trendData = metricDays.map(toTrendDay);
   const adherence = calculateCalorieAdherence(trendData, dayCount);
@@ -314,7 +314,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const consumedMacros: MacroTotals = { protein: totals.protein, carbs: totals.carbs, fat: totals.fat };
   const plannedMacros: MacroTotals = { protein: metricDays.reduce((total, day) => total + day.goalProtein, 0), carbs: metricDays.reduce((total, day) => total + day.goalCarbs, 0), fat: metricDays.reduce((total, day) => total + day.goalFat, 0) };
   const dailyMacros: MacroGoalDayWithDate[] = metricDays.map(day => ({ date: day.date, protein: day.protein, carbs: day.carbs, fat: day.fat, goalProtein: day.goalProtein, goalCarbs: day.goalCarbs, goalFat: day.goalFat }));
-  const supportWeight = isWeek ? (bundleData?.progress?.weight ?? bundleData?.weight) : (bundleData?.weightTrend ?? bundleData?.progress?.weight);
+  const supportWeight = usesWeeklyShape ? (bundleData?.progress?.weight ?? bundleData?.weight) : (bundleData?.weightTrend ?? bundleData?.progress?.weight);
   const weightPoints = normalizeWeightPoints(supportWeight);
   const simpleQuality = bundleData?.quality ?? EMPTY_QUALITY;
   const foodQuality = bundleData?.quality?.foodQuality as FoodQualitySummary | undefined;
