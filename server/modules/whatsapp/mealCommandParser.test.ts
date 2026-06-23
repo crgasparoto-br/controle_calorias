@@ -25,6 +25,88 @@ describe("parseMealCommandFromWhatsApp", () => {
     ]);
   });
 
+  it("calcula quantidade liquida com subtracao em gramas antes de montar o alimento", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar 160g - 23g de maça fugi ao lanche",
+      { referenceDate },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("lanche");
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        foodName: "maça fugi",
+        quantity: 137,
+        unit: "g",
+        missingFields: [],
+        quantityExpression: expect.objectContaining({
+          leftQuantity: 160,
+          rightQuantity: 23,
+          operator: "-",
+          unit: "g",
+          result: 137,
+        }),
+      }),
+    ]);
+  });
+
+  it.each([
+    "Adicionar 160g-23g de maçã Fuji ao lanche",
+    "Adicionar 160 g - 23 g maçã Fuji ao lanche",
+    "Adicionar 160g - 23g de maçã Fuji ao lanche",
+  ])("aceita variacao de espacamento na conta: %s", text => {
+    const result = parseMealCommandFromWhatsApp(text, { referenceDate });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "maçã Fuji",
+      quantity: 137,
+      unit: "g",
+    }));
+  });
+
+  it("infere unidade ausente quando a expressao tem uma unica unidade inequivoca", () => {
+    const result = parseMealCommandFromWhatsApp("Adicionar 110 - 30 g de banana ao lanche", { referenceDate });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "banana",
+      quantity: 80,
+      unit: "g",
+      missingFields: [],
+    }));
+  });
+
+  it("aceita virgula decimal quando o calculo e seguro", () => {
+    const result = parseMealCommandFromWhatsApp("Adicionar 160,5g - 20,5g de arroz ao jantar", { referenceDate });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "arroz",
+      quantity: 140,
+      unit: "g",
+    }));
+  });
+
+  it("nao calcula automaticamente quando as unidades sao incompativeis", () => {
+    const result = parseMealCommandFromWhatsApp("Adicionar 160g - 20ml de maçã ao lanche", { referenceDate });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "maçã",
+      quantity: null,
+      unit: null,
+      missingFields: ["quantity", "unit"],
+    }));
+  });
+
+  it("nao registra automaticamente quando o resultado e zero ou negativo", () => {
+    const result = parseMealCommandFromWhatsApp("Adicionar 160g - 200g de maçã ao lanche", { referenceDate });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "maçã",
+      quantity: null,
+      unit: null,
+      missingFields: ["quantity", "unit"],
+    }));
+  });
+
   it("normaliza unidade caseira sem manter quantidade no nome do alimento", () => {
     const result = parseMealCommandFromWhatsApp(
       "Adicionar 2 fatias pão ao café da manhã",
