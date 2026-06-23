@@ -29,7 +29,12 @@ vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    warning: vi.fn(),
   },
+}));
+
+vi.mock("wouter", () => ({
+  useLocation: () => ["/settings", vi.fn()] as const,
 }));
 
 const invalidateMock = vi.fn(async () => undefined);

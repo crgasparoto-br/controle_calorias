@@ -4,6 +4,7 @@ import { normalizeUserTimeZone } from "../../../shared/timeZone";
 import { getDb } from "../../db";
 
 const DEFAULT_ONBOARDING_PROFILE = {
+  sex: "prefer_not_to_say",
   objective: "melhorar_habitos",
   activityLevel: "moderate",
   trackingExperience: "beginner",
@@ -45,6 +46,7 @@ export async function getUserOnboardingProfile(userId: number) {
     name: profile.displayName ?? "",
     birthDate: profile.birthDate ?? "",
     ageYears: profile.ageYears ?? null,
+    sex: profile.sex ?? DEFAULT_ONBOARDING_PROFILE.sex,
     heightCm: profile.heightCm ?? null,
     currentWeightKg: profile.currentWeightKg ?? null,
     objective: profile.nutritionObjective ?? DEFAULT_ONBOARDING_PROFILE.objective,
