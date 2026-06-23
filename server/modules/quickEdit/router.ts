@@ -1,7 +1,19 @@
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, router } from "../../_core/trpc";
-import { getQuickEditExercise, getQuickEditMeal, QuickEditTokenError, updateQuickEditExercise, updateQuickEditMeal } from "./service";
-import { quickEditExerciseUpdateSchema, quickEditMealUpdateSchema, quickEditTokenSchema } from "./schemas";
+import {
+  deleteQuickEditMeal,
+  getQuickEditExercise,
+  getQuickEditMeal,
+  QuickEditTokenError,
+  updateQuickEditExercise,
+  updateQuickEditMeal,
+} from "./service";
+import {
+  quickEditExerciseUpdateSchema,
+  quickEditMealDeleteSchema,
+  quickEditMealUpdateSchema,
+  quickEditTokenSchema,
+} from "./schemas";
 
 function toPublicQuickEditError(error: unknown) {
   if (error instanceof QuickEditTokenError) {
@@ -25,6 +37,13 @@ export const quickEditRouter = router({
   updateMeal: publicProcedure.input(quickEditMealUpdateSchema).mutation(async ({ input }) => {
     try {
       return await updateQuickEditMeal(input.token, input.meal);
+    } catch (error) {
+      throw toPublicQuickEditError(error);
+    }
+  }),
+  deleteMeal: publicProcedure.input(quickEditMealDeleteSchema).mutation(async ({ input }) => {
+    try {
+      return await deleteQuickEditMeal(input.token);
     } catch (error) {
       throw toPublicQuickEditError(error);
     }
