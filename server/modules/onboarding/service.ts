@@ -26,6 +26,21 @@ async function getOnboardingCompletedAt(userId: number) {
   return rows[0]?.onboardingCompletedAt ?? null;
 }
 
+async function ensurePersistedProfile(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  const rows = await db
+    .select({ id: userProfiles.id })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, userId))
+    .limit(1);
+
+  if (!rows[0]) {
+    throw new Error("Não foi possível salvar o perfil. As metas não foram recalculadas.");
+  }
+}
+
 async function persistProfileTimeZone(userId: number, timezone: string) {
   const db = await getDb();
   if (!db) return;
@@ -74,6 +89,7 @@ export async function completeOnboarding(userId: number, input: OnboardingInput)
   await persistProfileTimeZone(userId, input.timezone);
   await persistProfileSex(userId, input.sex);
   await persistOnboardingBirthDate(userId, input);
+  await ensurePersistedProfile(userId);
 
   const calculation = shouldRecalculateGoals ? calculateOnboardingNutritionGoal(input) : null;
   const goal = calculation
