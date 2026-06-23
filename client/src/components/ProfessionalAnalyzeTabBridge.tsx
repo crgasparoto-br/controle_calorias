@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import ReportsExperience from "@/features/reports/ReportsExperience";
 import { useLocation } from "wouter";
 
 const ANALYSIS_TAB_LABEL = "Análise por pessoa acompanhada";
@@ -7,6 +9,10 @@ const ANALYSIS_DESCRIPTION = "Escolha uma pessoa autorizada para revisar relató
 const ANALYZE_BUTTON_LABEL = "Analisar";
 const PERIOD_FILTER_LABELS = ["Dia", "Semana", "Mês", "Período"];
 const PERIOD_DETAIL_LABELS = ["Dia ativo", "Semana de referência", "Mês ativo", "Início"];
+const SHARED_REPORTS_MOUNT_ATTR = "data-shared-reports-experience";
+
+let sharedReportsRoot: Root | null = null;
+let sharedReportsMount: HTMLElement | null = null;
 
 function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -69,6 +75,53 @@ function movePeriodFilterIntoReportsTab() {
   reportsPanel.insertBefore(periodFilter, reportsPanel.firstChild);
 }
 
+function findSelectedPatientId() {
+  const patientLabel = Array.from(document.querySelectorAll<HTMLElement>("label")).find(element =>
+    elementText(element).includes("Pessoa acompanhada") && element.querySelector("select"),
+  );
+  const value = patientLabel?.querySelector<HTMLSelectElement>("select")?.value;
+  const patientId = Number(value ?? 0);
+  return Number.isFinite(patientId) && patientId > 0 ? patientId : null;
+}
+
+function hideLegacyReportsChildren(reportsPanel: HTMLElement, mount: HTMLElement) {
+  Array.from(reportsPanel.children).forEach(child => {
+    if (child === mount) return;
+    const element = child as HTMLElement;
+    element.dataset.legacyReportsHidden = "true";
+    element.style.display = "none";
+  });
+}
+
+function renderSharedReportsExperience() {
+  const reportsPanel = findReportsTabPanel();
+  if (!reportsPanel) return;
+
+  const patientId = findSelectedPatientId();
+  let mount = reportsPanel.querySelector<HTMLElement>(`[${SHARED_REPORTS_MOUNT_ATTR}]`);
+  if (!mount) {
+    mount = document.createElement("div");
+    mount.setAttribute(SHARED_REPORTS_MOUNT_ATTR, "true");
+    mount.className = "space-y-6";
+    reportsPanel.insertBefore(mount, reportsPanel.firstChild);
+  }
+
+  if (sharedReportsMount !== mount) {
+    sharedReportsRoot?.unmount();
+    sharedReportsMount = mount;
+    sharedReportsRoot = createRoot(mount);
+  }
+
+  hideLegacyReportsChildren(reportsPanel, mount);
+  sharedReportsRoot?.render(<ReportsExperience context="professional" subjectUserId={patientId} />);
+}
+
+function unmountSharedReportsExperience() {
+  sharedReportsRoot?.unmount();
+  sharedReportsRoot = null;
+  sharedReportsMount = null;
+}
+
 function alignPatientSelectorAndCopy() {
   const title = Array.from(document.querySelectorAll<HTMLElement>("h1, h2, h3, div")).find(element =>
     elementText(element) === ANALYSIS_TAB_LABEL,
@@ -93,6 +146,7 @@ function alignPatientSelectorAndCopy() {
 function refreshAnalysisLayout() {
   alignPatientSelectorAndCopy();
   movePeriodFilterIntoReportsTab();
+  renderSharedReportsExperience();
 }
 
 function findAnalyzeButton(target: EventTarget | null) {
@@ -119,7 +173,10 @@ export default function ProfessionalAnalyzeTabBridge() {
   const [location] = useLocation();
 
   useEffect(() => {
-    if (!location.startsWith("/professional")) return;
+    if (!location.startsWith("/professional")) {
+      unmountSharedReportsExperience();
+      return;
+    }
 
     const handleClick = (event: MouseEvent) => {
       if (!findAnalyzeButton(event.target)) return;
@@ -140,6 +197,7 @@ export default function ProfessionalAnalyzeTabBridge() {
       document.removeEventListener("click", handleClick, true);
       document.removeEventListener("click", scheduleLayoutRefresh, true);
       document.removeEventListener("change", scheduleLayoutRefresh, true);
+      unmountSharedReportsExperience();
     };
   }, [location]);
 
