@@ -86,6 +86,7 @@ export function getStravaCaloriesInfo(activity: StravaActivity) {
     return {
       calories: Math.round(activity.calories),
       source: "strava" as const,
+      origin: activity.caloriesOrigin ?? "strava_summary" as const,
       estimated: false,
       estimatedWeightKg: null,
       estimatedMet: null,
@@ -100,6 +101,7 @@ export function getStravaCaloriesInfo(activity: StravaActivity) {
     return {
       calories: Math.round(activity.kilojoules * 0.239006),
       source: "kilojoules" as const,
+      origin: "kilojoules" as const,
       estimated: false,
       estimatedWeightKg: null,
       estimatedMet: null,
@@ -111,6 +113,7 @@ export function getStravaCaloriesInfo(activity: StravaActivity) {
     return {
       calories: estimated.calories,
       source: "estimated_strength" as const,
+      origin: "estimated_strength" as const,
       estimated: true,
       estimatedWeightKg: estimated.weightKg,
       estimatedMet: estimated.met,
@@ -122,6 +125,7 @@ export function getStravaCaloriesInfo(activity: StravaActivity) {
     return {
       calories: activityEstimate.calories,
       source: "estimated_activity" as const,
+      origin: "estimated_activity" as const,
       estimated: true,
       estimatedWeightKg: activityEstimate.weightKg,
       estimatedMet: activityEstimate.met,
@@ -131,6 +135,7 @@ export function getStravaCaloriesInfo(activity: StravaActivity) {
   return {
     calories: 0,
     source: null,
+    origin: null,
     estimated: false,
     estimatedWeightKg: null,
     estimatedMet: null,
@@ -164,6 +169,7 @@ export function getStravaActivityMetadata(activity: StravaActivity): StravaActiv
     elapsedTimeSeconds: getOptionalNumber(activity.elapsed_time),
     calories: caloriesInfo.calories || null,
     caloriesSource: caloriesInfo.source,
+    caloriesOrigin: caloriesInfo.origin,
     estimatedCalories: caloriesInfo.estimated,
     estimatedCaloriesWeightKg: caloriesInfo.estimatedWeightKg,
     estimatedCaloriesMet: caloriesInfo.estimatedMet,

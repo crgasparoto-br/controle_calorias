@@ -2,6 +2,11 @@ import { getUserWhatsappConnection, logInferenceEvent } from "../../../db";
 import { requireWhatsAppSendConfig } from "../../../whatsappConfig";
 import { createExercise, listExercises, updateExercise } from "../../exercises/service";
 import {
+  fetchStravaActivityDetail,
+  getStravaMaxActivityDetailRequestsPerSync,
+  shouldFetchStravaActivityDetail,
+} from "./activities";
+import {
   formatDistanceKm,
   formatPace,
   formatSpeedKmH,
@@ -11,6 +16,8 @@ import {
   getStravaCaloriesBurned,
 } from "./activityUtils";
 import { STRAVA_ACTIVITY_NOTE_PREFIX } from "./constants";
+import { ensureValidStravaToken } from "./oauth";
+import { StravaRateLimitError, setStravaUserCooldown } from "./rateLimit";
 import type { StravaActivity, StravaExerciseImportSummary } from "./types";
 
 export function getStravaExerciseNote(activity: StravaActivity) {
@@ -135,16 +142,206 @@ async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exercis
   }
 }
 
+function logStravaImportEvent(input: {
+  userId: number;
+  activityId: number;
+  status: "success" | "warning" | "error";
+  eventType: string;
+  detail: string;
+}) {
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "admin",
+    status: input.status,
+    eventType: input.eventType,
+    detail: `Atividade Strava ${input.activityId}: ${input.detail}`,
+  });
+}
+
+function getStravaActivityMinimumImportSkipReason(activity: StravaActivity) {
+  if (!Number.isFinite(activity.id)) return "id da atividade ausente ou inválido";
+  if (!activity.start_date) return "data de início ausente";
+
+  const durationMinutes = Math.max(Math.round((activity.moving_time ?? 0) / 60), 0);
+  if (durationMinutes < 1) return "duração menor que 1 minuto";
+
+  return null;
+}
+
+type StravaDetailFetchState = {
+  accessToken: string | null;
+  detailRequestLimit: number;
+  usedDetailRequests: number;
+  blockedFallbackReason: string | null;
+};
+
+async function getStravaDetailAccessToken(userId: number, state: StravaDetailFetchState) {
+  if (state.accessToken) return state.accessToken;
+
+  const token = await ensureValidStravaToken(userId);
+  state.accessToken = token.accessToken;
+  return state.accessToken;
+}
+
+function withStravaSummaryCaloriesOrigin(activity: StravaActivity): StravaActivity {
+  if (typeof activity.calories === "number" && activity.calories > 0 && !activity.caloriesOrigin) {
+    return { ...activity, caloriesOrigin: "strava_summary" };
+  }
+
+  return activity;
+}
+
+function mergeStravaActivityDetail(activity: StravaActivity, detail: StravaActivity) {
+  const detailHasCalories = typeof detail.calories === "number" && detail.calories > 0;
+  return {
+    ...activity,
+    ...detail,
+    id: activity.id,
+    caloriesOrigin: detailHasCalories ? "strava_detail" as const : detail.caloriesOrigin,
+  } satisfies StravaActivity;
+}
+
+async function resolveStravaActivityForImport(userId: number, activity: StravaActivity, state: StravaDetailFetchState) {
+  logStravaImportEvent({
+    userId,
+    activityId: activity.id,
+    status: "success",
+    eventType: "strava.import.activity_listed",
+    detail: "atividade recebida da listagem e avaliada para importação.",
+  });
+
+  const skipReason = getStravaActivityMinimumImportSkipReason(activity);
+  if (skipReason) {
+    logStravaImportEvent({
+      userId,
+      activityId: activity.id,
+      status: "warning",
+      eventType: "strava.import.activity_skipped",
+      detail: `detalhe não solicitado porque a atividade não tem dados mínimos: ${skipReason}.`,
+    });
+    return activity;
+  }
+
+  if (!shouldFetchStravaActivityDetail(activity)) {
+    return withStravaSummaryCaloriesOrigin(activity);
+  }
+
+  if (state.blockedFallbackReason) {
+    logStravaImportEvent({
+      userId,
+      activityId: activity.id,
+      status: "warning",
+      eventType: "strava.import.detail_skipped",
+      detail: `detalhe não solicitado por proteção ativa; usando fallback disponível. Motivo: ${state.blockedFallbackReason}.`,
+    });
+    return activity;
+  }
+
+  if (state.usedDetailRequests >= state.detailRequestLimit) {
+    logStravaImportEvent({
+      userId,
+      activityId: activity.id,
+      status: "warning",
+      eventType: "strava.import.detail_skipped",
+      detail: `limite de ${state.detailRequestLimit} detalhe(s) por sincronização atingido; usando fallback disponível.`,
+    });
+    return activity;
+  }
+
+  state.usedDetailRequests += 1;
+  logStravaImportEvent({
+    userId,
+    activityId: activity.id,
+    status: "success",
+    eventType: "strava.import.detail_requested",
+    detail: "detalhe solicitado usando o activity.id retornado pela listagem.",
+  });
+
+  try {
+    const accessToken = await getStravaDetailAccessToken(userId, state);
+    const detail = await fetchStravaActivityDetail(accessToken, activity.id);
+    if (!detail) {
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "warning",
+        eventType: "strava.import.detail_missing",
+        detail: "detalhe não retornou dados utilizáveis; usando fallback disponível.",
+      });
+      return activity;
+    }
+
+    const merged = mergeStravaActivityDetail(activity, detail);
+    logStravaImportEvent({
+      userId,
+      activityId: activity.id,
+      status: "success",
+      eventType: "strava.import.detail_received",
+      detail: typeof detail.calories === "number" && detail.calories > 0
+        ? "detalhe retornou calorias e terá prioridade sobre as demais fontes."
+        : "detalhe retornou sem calorias; próxima fonte disponível será usada.",
+    });
+    return merged;
+  } catch (error) {
+    if (error instanceof StravaRateLimitError) {
+      setStravaUserCooldown(userId, error.retryAfterMs);
+      state.blockedFallbackReason = "limite de requisições do Strava atingido";
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "warning",
+        eventType: "strava.import.detail_rate_limited",
+        detail: "Strava retornou 429; novas chamadas de detalhe foram bloqueadas e o fallback disponível será usado.",
+      });
+      return activity;
+    }
+
+    logStravaImportEvent({
+      userId,
+      activityId: activity.id,
+      status: "warning",
+      eventType: "strava.import.detail_failed",
+      detail: `falha recuperável ao buscar detalhe; usando fallback disponível. ${error instanceof Error ? error.message : "Erro desconhecido"}.`,
+    });
+    return activity;
+  }
+}
+
 export async function upsertStravaActivitiesAsExercises(userId: number, activities: StravaActivity[]): Promise<StravaExerciseImportSummary> {
   const existingExercises = await listExercises(userId);
   const summary: StravaExerciseImportSummary = { created: 0, updated: 0, skipped: 0 };
+  const detailState: StravaDetailFetchState = {
+    accessToken: null,
+    detailRequestLimit: getStravaMaxActivityDetailRequestsPerSync(),
+    usedDetailRequests: 0,
+    blockedFallbackReason: null,
+  };
 
   for (const activity of activities) {
-    const exerciseInput = toStravaExerciseInput(activity);
+    const resolvedActivity = await resolveStravaActivityForImport(userId, activity, detailState);
+    Object.assign(activity, resolvedActivity);
+
+    const exerciseInput = toStravaExerciseInput(resolvedActivity);
     if (!exerciseInput) {
       summary.skipped += 1;
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "warning",
+        eventType: "strava.import.exercise_skipped",
+        detail: "exercício não criado porque duração ou calorias ficaram abaixo do mínimo após os fallbacks.",
+      });
       continue;
     }
+
+    const metadata = getStravaActivityMetadata(resolvedActivity);
+    logStravaImportEvent({
+      userId,
+      activityId: activity.id,
+      status: metadata.estimatedCalories ? "warning" : "success",
+      eventType: "strava.import.calories_selected",
+      detail: `origem escolhida: ${metadata.caloriesOrigin ?? "sem_calorias"}; calorias: ${metadata.calories ?? 0} kcal.`,
+    });
 
     const externalReference = `strava:${activity.id}`;
     const existing = existingExercises.find(exercise => exercise.notes?.includes(externalReference));
@@ -154,10 +351,24 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         ...exerciseInput,
       });
       summary.updated += 1;
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "success",
+        eventType: "strava.import.exercise_updated",
+        detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
+      });
     } else {
       const created = await createExercise(userId, exerciseInput);
       existingExercises.push(created);
       summary.created += 1;
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "success",
+        eventType: "strava.import.exercise_created",
+        detail: `exercício criado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
+      });
       await sendStravaExerciseImportedWhatsAppMessage(userId, exerciseInput);
     }
   }

@@ -4,6 +4,7 @@ export type HealthConnectionStatus = "connected" | "disconnected" | "error" | "p
 export type HealthSetupStatus = "ready" | "missing_credentials" | "native_required" | "dev_only";
 export type IntegrationKind = "native" | "oauth" | "mock";
 export type StravaCaloriesSource = "strava" | "kilojoules" | "estimated_activity" | "estimated_strength" | null;
+export type StravaCaloriesOrigin = "strava_detail" | "strava_summary" | "kilojoules" | "estimated_activity" | "estimated_strength" | null;
 
 export type HealthConnection = {
   userId: number;
@@ -25,6 +26,7 @@ export type StravaActivityMetadata = {
   elapsedTimeSeconds: number | null;
   calories: number | null;
   caloriesSource: StravaCaloriesSource;
+  caloriesOrigin: StravaCaloriesOrigin;
   estimatedCalories: boolean;
   estimatedCaloriesWeightKg: number | null;
   estimatedCaloriesMet: number | null;
@@ -110,6 +112,7 @@ export type StravaActivity = {
   moving_time: number;
   elapsed_time?: number | null;
   calories?: number | null;
+  caloriesOrigin?: Extract<StravaCaloriesOrigin, "strava_detail" | "strava_summary">;
   kilojoules?: number | null;
   distance?: number | null;
   total_elevation_gain?: number | null;
