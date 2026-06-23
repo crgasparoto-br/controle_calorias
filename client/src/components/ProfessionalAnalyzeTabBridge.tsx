@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import ReportsExperience from "@/features/reports/ReportsExperience";
 import { useLocation } from "wouter";
+
+const ReportsExperience = lazy(() => import("@/features/reports/ReportsExperience"));
 
 const ANALYSIS_TAB_LABEL = "Análise por pessoa acompanhada";
 const ANALYSIS_TITLE = "Análise da pessoa acompanhada";
@@ -16,8 +17,14 @@ type ReportsPortalState = {
   patientId: number | null;
 };
 
+const EMPTY_PORTAL_STATE: ReportsPortalState = { mount: null, patientId: null };
+
 function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function isSamePortalState(first: ReportsPortalState, second: ReportsPortalState) {
+  return first.mount === second.mount && first.patientId === second.patientId;
 }
 
 function hasButtonLabel(container: Element, label: string) {
@@ -90,6 +97,7 @@ function hideLegacyReportsChildren(reportsPanel: HTMLElement, mount: HTMLElement
   Array.from(reportsPanel.children).forEach(child => {
     if (child === mount) return;
     const element = child as HTMLElement;
+    if (element.dataset.legacyReportsHidden === "true" && element.style.display === "none") return;
     element.dataset.legacyReportsHidden = "true";
     element.style.display = "none";
   });
@@ -97,7 +105,7 @@ function hideLegacyReportsChildren(reportsPanel: HTMLElement, mount: HTMLElement
 
 function ensureSharedReportsMount() {
   const reportsPanel = findReportsTabPanel();
-  if (!reportsPanel) return { mount: null, patientId: null };
+  if (!reportsPanel) return EMPTY_PORTAL_STATE;
 
   let mount = reportsPanel.querySelector<HTMLElement>(`[${SHARED_REPORTS_MOUNT_ATTR}]`);
   if (!mount) {
@@ -160,18 +168,29 @@ function openAnalysisTab(onRefresh: (state: ReportsPortalState) => void) {
 
 export default function ProfessionalAnalyzeTabBridge() {
   const [location] = useLocation();
-  const [portalState, setPortalState] = useState<ReportsPortalState>({ mount: null, patientId: null });
+  const [portalState, setPortalState] = useState<ReportsPortalState>(EMPTY_PORTAL_STATE);
+  const refreshScheduled = useRef(false);
 
   useEffect(() => {
     if (!location.startsWith("/professional")) {
-      setPortalState({ mount: null, patientId: null });
+      setPortalState(previous => isSamePortalState(previous, EMPTY_PORTAL_STATE) ? previous : EMPTY_PORTAL_STATE);
       return;
     }
 
-    const scheduleLayoutRefresh = () => window.setTimeout(() => setPortalState(refreshAnalysisLayout()), 0);
+    const applyPortalState = (next: ReportsPortalState) => {
+      setPortalState(previous => isSamePortalState(previous, next) ? previous : next);
+    };
+    const scheduleLayoutRefresh = () => {
+      if (refreshScheduled.current) return;
+      refreshScheduled.current = true;
+      window.requestAnimationFrame(() => {
+        refreshScheduled.current = false;
+        applyPortalState(refreshAnalysisLayout());
+      });
+    };
     const handleClick = (event: MouseEvent) => {
       if (!findAnalyzeButton(event.target)) return;
-      openAnalysisTab(setPortalState);
+      openAnalysisTab(applyPortalState);
     };
     const observer = new MutationObserver(scheduleLayoutRefresh);
 
@@ -186,14 +205,17 @@ export default function ProfessionalAnalyzeTabBridge() {
       document.removeEventListener("click", handleClick, true);
       document.removeEventListener("click", scheduleLayoutRefresh, true);
       document.removeEventListener("change", scheduleLayoutRefresh, true);
-      setPortalState({ mount: null, patientId: null });
+      refreshScheduled.current = false;
+      setPortalState(previous => isSamePortalState(previous, EMPTY_PORTAL_STATE) ? previous : EMPTY_PORTAL_STATE);
     };
   }, [location]);
 
   if (!location.startsWith("/professional") || !portalState.mount) return null;
 
   return createPortal(
-    <ReportsExperience context="professional" subjectUserId={portalState.patientId} />,
+    <Suspense fallback={null}>
+      <ReportsExperience context="professional" subjectUserId={portalState.patientId} />
+    </Suspense>,
     portalState.mount,
   );
 }
