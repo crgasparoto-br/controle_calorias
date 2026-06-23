@@ -125,7 +125,14 @@ describe("handleWhatsAppWebhookWithTextIntent delete guard", () => {
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     foodAssistantIntentMock.mockReturnValue(null);
     annotatedWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
-    listMealsMock.mockResolvedValue([]);
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        mealLabel: "Almoço",
+        occurredAt: "2026-06-23T15:00:00.000Z",
+        items: [{ foodName: "Arroz", portionText: "100 g" }],
+      },
+    ]);
     processProfessionalAccessWhatsappResponseMock.mockResolvedValue(null);
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const payload = init?.body ? JSON.parse(String(init.body)) : {};
@@ -149,9 +156,10 @@ describe("handleWhatsAppWebhookWithTextIntent delete guard", () => {
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       origin: "whatsapp",
       status: "warning",
-      eventType: "whatsapp.intent.delete_meal_clarification_needed",
+      eventType: "whatsapp.intent.delete_meal_confirmation_requested",
     }));
-    expect(sentMessages.at(-1)).toContain("não excluí nada automaticamente");
-    expect(sentMessages.at(-1)).toContain("Não registrei nenhum alimento novo");
+    expect(sentMessages.at(-1)).toContain("Responda SIM");
+    expect(sentMessages.at(-1)).toContain("Não excluí nada ainda");
+    expect(sentMessages.at(-1)).toContain("não registrei nenhum alimento novo");
   });
 });
