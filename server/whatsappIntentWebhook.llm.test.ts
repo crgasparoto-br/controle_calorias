@@ -162,14 +162,17 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     expect(sentMessages.at(-1)).toBe("Autorização confirmada.");
   });
 
-  it("responde intencao contextual do LLM antes do fallback nutricional", async () => {
-    executeWhatsappLlmIntentMock.mockResolvedValueOnce({
-      handled: true,
-      action: "llm_intent_list_meal_records",
-      reply: "Refeicoes registradas hoje:\n\n• Almoço: 130 kcal",
-      eventType: "whatsapp.llm_intent.list_meal_records",
-      detail: "Consulta estruturada de refeicoes respondida pelo WhatsApp.",
-    });
+  it("responde lista de refeições antes do LLM e do fallback nutricional", async () => {
+    listMealsMock.mockResolvedValueOnce([
+      {
+        id: 10,
+        mealLabel: "Almoço",
+        occurredAt: "2026-06-03T15:00:00.000Z",
+        items: [
+          { foodName: "Arroz", portionText: "100 g", calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
+        ],
+      },
+    ]);
     const req = createTextWebhookRequest("quais refeições eu registrei hoje?");
     const res = createResponse();
 
@@ -178,14 +181,50 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processProfessionalAccessWhatsappResponseMock).not.toHaveBeenCalled();
-    expect(executeWhatsappLlmIntentMock).toHaveBeenCalledWith(42, expect.objectContaining({ text: "quais refeições eu registrei hoje?" }));
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(foodAssistantIntentMock).not.toHaveBeenCalled();
     expect(annotatedWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       origin: "whatsapp",
       status: "success",
-      eventType: "whatsapp.llm_intent.list_meal_records",
+      eventType: "whatsapp.intent.meal_foods_listed",
     }));
-    expect(sentMessages.at(-1)).toContain("Refeicoes registradas hoje");
+    expect(sentMessages.at(-1)).toContain("Alimentos registrados");
+    expect(sentMessages.at(-1)).toContain("Almoço");
+    expect(sentMessages.at(-1)).toContain("Arroz");
+  });
+
+  it("normaliza comando curto de resumo antes do fallback nutricional", async () => {
+    executeWhatsappTextIntentMock.mockResolvedValueOnce({
+      handled: true,
+      action: "period_report",
+      reply: "Resumo de hoje enviado.",
+      eventType: "whatsapp.intent.period_report",
+      detail: "Resumo diário enviado pelo WhatsApp.",
+      data: {
+        start: "2026-06-03T03:00:00.000Z",
+        end: "2026-06-04T02:59:59.000Z",
+        periodLabel: "hoje",
+      },
+    });
+    const req = createTextWebhookRequest("Resuma");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, expect.objectContaining({ text: "Resumo hoje" }));
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(foodAssistantIntentMock).not.toHaveBeenCalled();
+    expect(annotatedWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.period_report",
+    }));
+    expect(sentMessages.at(-1)).toContain("Resumo de hoje");
   });
 
   it("mantem texto comum no fluxo nutricional sem chamar a camada LLM", async () => {

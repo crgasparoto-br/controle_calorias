@@ -119,7 +119,7 @@ function buildUnknownFoodReply(text: string) {
 
 function isBareDailySummaryRequest(text: string) {
   const normalized = normalizeText(text);
-  return normalized === "resumo" || normalized === "relatorio" || normalized === "balanco";
+  return normalized === "resuma" || normalized === "resumo" || normalized === "relatorio" || normalized === "balanco";
 }
 
 function shouldTryContextualLlmIntent(text: string) {
@@ -308,7 +308,7 @@ function extractMealId(data: Record<string, unknown> | undefined) {
 
 function buildMixedWaterReply(waterResults: TextIntentResult[]) {
   const waterLines = waterResults
-    .map((result) => typeof result.data?.amountMl === "number" ? `* ${formatNumber(result.data.amountMl)} ml de água` : null)
+    .map((result) => typeof result.data?.amountMl === "number" ? `* ${formatNumber(result.data?.amountMl)} ml de água` : null)
     .filter((line): line is string => Boolean(line));
 
   return [
