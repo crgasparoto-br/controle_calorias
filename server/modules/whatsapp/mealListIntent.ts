@@ -19,7 +19,7 @@ type ExistingMeal = {
 };
 
 type MealListIntent = {
-  kind: "latest" | "by_label";
+  kind: "latest" | "by_label" | "day";
   mealLabel?: string;
   referenceDate?: Date;
 };
@@ -150,11 +150,15 @@ function parseMealLabel(normalized: string) {
   return null;
 }
 
+function asksForFoodList(normalized: string) {
+  return /\b(o que comi hoje|alimentos de hoje|alimentos registrados|alimentos do dia|refeicoes registradas|registros dos alimentos)\b/.test(normalized)
+    || (/\b(listar|lista|liste|mostra|mostrar|mostre|quais|qual|ver|visualizar|exibir|o que)\b/.test(normalized)
+      && /\b(alimentos?|itens?|comidas?|registrad[oa]s?|refeicao|refeicoes|registros?)\b/.test(normalized));
+}
+
 function parseMealListIntent(text: string, receivedAt: Date): MealListIntent | null {
   const normalized = normalizeText(text);
-  const asksForFoodList = /\b(listar|lista|liste|mostra|mostrar|mostre|quais|qual|ver|visualizar|exibir|o que)\b/.test(normalized)
-    && /\b(alimentos?|itens?|comidas?|registrad[oa]s?|refeicao|refeicoes)\b/.test(normalized);
-  if (!asksForFoodList) {
+  if (!asksForFoodList(normalized)) {
     return null;
   }
 
@@ -162,15 +166,19 @@ function parseMealListIntent(text: string, receivedAt: Date): MealListIntent | n
     return { kind: "latest" };
   }
 
+  const referenceDate = resolveRelativeDate(normalized, receivedAt);
   const mealLabel = parseMealLabel(normalized);
-  if (!mealLabel) {
-    return null;
+  if (mealLabel) {
+    return {
+      kind: "by_label",
+      mealLabel,
+      referenceDate,
+    };
   }
 
   return {
-    kind: "by_label",
-    mealLabel,
-    referenceDate: resolveRelativeDate(normalized, receivedAt),
+    kind: "day",
+    referenceDate,
   };
 }
 
@@ -182,18 +190,34 @@ function mealLabelMatches(candidate: string, target: string) {
     || normalizedTarget.includes(normalizedCandidate);
 }
 
+function isMealInsideDay(meal: ExistingMeal, referenceDate: Date) {
+  const occurredAt = new Date(meal.occurredAt).getTime();
+  return occurredAt >= startOfZonedDay(referenceDate).getTime() && occurredAt <= endOfZonedDay(referenceDate).getTime();
+}
+
 function findMealByLabelAndDate(meals: ExistingMeal[], mealLabel: string, referenceDate: Date) {
-  const dayStart = startOfZonedDay(referenceDate).getTime();
-  const dayEnd = endOfZonedDay(referenceDate).getTime();
-  return meals.find(meal => {
-    const occurredAt = new Date(meal.occurredAt).getTime();
-    return mealLabelMatches(meal.mealLabel, mealLabel) && occurredAt >= dayStart && occurredAt <= dayEnd;
-  }) ?? null;
+  return meals.find(meal => mealLabelMatches(meal.mealLabel, mealLabel) && isMealInsideDay(meal, referenceDate)) ?? null;
 }
 
 function formatItemLine(item: MealDraftItem) {
   const portion = item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada");
   return `• ${portion} de ${item.foodName} - ${formatNumber(item.calories)} kcal | Prot. ${formatNumber(item.protein)} g | Carb. ${formatNumber(item.carbs)} g | Gord. ${formatNumber(item.fat)} g`;
+}
+
+function sumMealItems(items: MealDraftItem[]) {
+  return items.reduce(
+    (acc, item) => ({
+      calories: acc.calories + Number(item.calories || 0),
+      protein: acc.protein + Number(item.protein || 0),
+      carbs: acc.carbs + Number(item.carbs || 0),
+      fat: acc.fat + Number(item.fat || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+}
+
+function formatTotals(totals: ReturnType<typeof sumMealItems>) {
+  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
 }
 
 function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
@@ -207,22 +231,38 @@ function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
     return `${title}\n\nEncontrei a refeição, mas ela não tem alimentos registrados.`;
   }
 
-  const totals = items.reduce(
-    (acc, item) => ({
-      calories: acc.calories + Number(item.calories || 0),
-      protein: acc.protein + Number(item.protein || 0),
-      carbs: acc.carbs + Number(item.carbs || 0),
-      fat: acc.fat + Number(item.fat || 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-
   return [
     title,
     "",
     ...items.map(formatItemLine),
     "",
-    `Total: ${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`,
+    `Total: ${formatTotals(sumMealItems(items))}`,
+  ].join("\n");
+}
+
+function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date) {
+  const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate));
+  const dateLabel = formatReplyDate(referenceDate);
+  if (!mealsInDay.length) {
+    return `Não encontrei alimentos registrados em ${dateLabel}.`;
+  }
+
+  const lines = mealsInDay.flatMap((meal, index) => {
+    const items = meal.items ?? [];
+    const mealLines = [
+      `${meal.mealLabel} às ${formatReplyTime(new Date(meal.occurredAt))}:`,
+      ...(items.length ? items.map(formatItemLine) : ["• Sem alimentos detalhados." ]),
+    ];
+    return index === mealsInDay.length - 1 ? mealLines : [...mealLines, ""];
+  });
+  const allItems = mealsInDay.flatMap(meal => meal.items ?? []);
+
+  return [
+    `Alimentos registrados em ${dateLabel}:`,
+    "",
+    ...lines,
+    "",
+    `Total do dia: ${formatTotals(sumMealItems(allItems))}`,
   ].join("\n");
 }
 
@@ -235,6 +275,22 @@ export async function executeWhatsappMealListIntent(userId: number, input: { tex
   if (!intent) return null;
 
   const meals = await listMeals(userId);
+  if (intent.kind === "day") {
+    const referenceDate = intent.referenceDate ?? receivedAt;
+    const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate));
+    return {
+      action: "meal_foods_listed",
+      reply: formatDayMealListReply(meals, referenceDate),
+      eventType: "whatsapp.intent.meal_foods_listed",
+      detail: `Lista de alimentos enviada para ${formatReplyDate(referenceDate)} com ${mealsInDay.length} refeição(ões).`,
+      data: {
+        referenceDate: referenceDate.toISOString(),
+        mealCount: mealsInDay.length,
+        itemCount: mealsInDay.reduce((count, meal) => count + (meal.items?.length ?? 0), 0),
+      },
+    };
+  }
+
   const targetMeal = intent.kind === "latest"
     ? meals.find(meal => (meal.items?.length ?? 0) > 0) ?? meals[0] ?? null
     : findMealByLabelAndDate(meals, intent.mealLabel!, intent.referenceDate!);
