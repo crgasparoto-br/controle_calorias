@@ -82,17 +82,6 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
     return null;
   }
 
-  if (hasMealTarget(normalizedText)) {
-    return {
-      kind: "delete_meal",
-      text: trimmed,
-      normalizedText,
-      reply: DELETE_MEAL_REPLY,
-      eventType: "whatsapp.intent.delete_meal_clarification_needed",
-      detail: "Comando destrutivo de refeição bloqueado antes do fallback nutricional.",
-    };
-  }
-
   if (hasFoodTarget(normalizedText)) {
     return {
       kind: "delete_food_from_meal",
@@ -101,6 +90,17 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
       reply: DELETE_FOOD_REPLY,
       eventType: "whatsapp.intent.delete_food_clarification_needed",
       detail: "Comando destrutivo de alimento bloqueado antes do fallback nutricional.",
+    };
+  }
+
+  if (hasMealTarget(normalizedText)) {
+    return {
+      kind: "delete_meal",
+      text: trimmed,
+      normalizedText,
+      reply: DELETE_MEAL_REPLY,
+      eventType: "whatsapp.intent.delete_meal_clarification_needed",
+      detail: "Comando destrutivo de refeição bloqueado antes do fallback nutricional.",
     };
   }
 
