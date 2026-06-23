@@ -46,7 +46,8 @@ import {
   type MacroTotals,
 } from "@shared/reportsGoalAnalytics";
 import { Activity, ChevronDown, Leaf, Target, UtensilsCrossed } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+const ReportsMacroDistributionChart = React.lazy(() => import("@/features/reports/ReportsMacroDistributionChart"));
 
 type ReportsExperienceContext = "self" | "professional";
 type MealDateGroup = { date: string; items: StoredMeal[] };
@@ -240,6 +241,10 @@ function normalizeQueryResult(value: any): QueryLike {
   };
 }
 
+function ChartFallback() {
+  return <div className="flex h-full items-center justify-center rounded-2xl bg-muted/20 text-sm text-muted-foreground">Carregando gráfico...</div>;
+}
+
 function MacroValueTile({ label, grams, perKg }: { label: string; grams: number; perKg: number | null }) {
   return <div className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight">{formatMacro(grams)} g</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{formatPerKgDay(perKg)}</p></div>;
 }
@@ -251,7 +256,7 @@ function MacroDistributionSection({ consumed, planned, dailyMacros, weightPoints
   const chartData = analysis.items.map(item => ({ macro: item.label, planejado: item.plannedPercent, realizado: item.consumedPercent }));
   const macroDetails = analysis.items.map(item => ({ item, perKg: calculateMacroPerKg(item.key, dailyMacros, weightPoints) }));
 
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Macronutrientes planejados vs realizados</CardTitle><CardDescription>Mostra gramas, g/kg/dia e distribuição percentual para avaliar a composição do período, não apenas o total de calorias.</CardDescription></CardHeader><CardContent className="space-y-5">{!hasMacroGoal ? <ReportEmptyState text="Configure metas de proteínas, carboidratos e gorduras para liberar a comparação percentual de macros." /> : <><div className="grid gap-3 md:grid-cols-3"><ReportStatusTile label="Aderência da distribuição" value={formatPercent(analysis.distributionAdherencePercent)} /><ReportStatusTile label="Macro mais distante" value={analysis.mostDistantMacro?.label ?? "-"} /><ReportStatusTile label="Dias com macros" value={daySummary.daysWithMacroRecords} /></div><div className="h-[280px] rounded-2xl border bg-background p-4 shadow-sm"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData} barSize={32}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="macro" /><YAxis tickFormatter={value => `${value}%`} /><Tooltip formatter={value => formatPercent(Number(value))} /><Legend /><Bar dataKey="planejado" name="Planejado" fill="#94a3b8" radius={[8, 8, 0, 0]} /><Bar dataKey="realizado" name="Realizado" fill="#16a34a" radius={[8, 8, 0, 0]} /></BarChart></ResponsiveContainer></div><div className="grid gap-3 md:grid-cols-3">{macroDetails.map(({ item, perKg }) => <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm font-medium">{item.label}</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><MacroValueTile label="Planejado" grams={item.plannedGrams} perKg={perKg.planned} /><MacroValueTile label="Realizado" grams={item.consumedGrams} perKg={perKg.realized} /></div><p className="mt-3 text-sm text-muted-foreground">Distribuição: {formatPercent(item.plannedPercent)} planejado vs {formatPercent(item.consumedPercent)} realizado.</p></div>)}</div></>}</CardContent></Card>;
+  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Macronutrientes planejados vs realizados</CardTitle><CardDescription>Mostra gramas, g/kg/dia e distribuição percentual para avaliar a composição do período, não apenas o total de calorias.</CardDescription></CardHeader><CardContent className="space-y-5">{!hasMacroGoal ? <ReportEmptyState text="Configure metas de proteínas, carboidratos e gorduras para liberar a comparação percentual de macros." /> : <><div className="grid gap-3 md:grid-cols-3"><ReportStatusTile label="Aderência da distribuição" value={formatPercent(analysis.distributionAdherencePercent)} /><ReportStatusTile label="Macro mais distante" value={analysis.mostDistantMacro?.label ?? "-"} /><ReportStatusTile label="Dias com macros" value={daySummary.daysWithMacroRecords} /></div><div className="h-[280px] rounded-2xl border bg-background p-4 shadow-sm"><React.Suspense fallback={<ChartFallback />}><ReportsMacroDistributionChart data={chartData} /></React.Suspense></div><div className="grid gap-3 md:grid-cols-3">{macroDetails.map(({ item, perKg }) => <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm font-medium">{item.label}</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><MacroValueTile label="Planejado" grams={item.plannedGrams} perKg={perKg.planned} /><MacroValueTile label="Realizado" grams={item.consumedGrams} perKg={perKg.realized} /></div><p className="mt-3 text-sm text-muted-foreground">Distribuição: {formatPercent(item.plannedPercent)} planejado vs {formatPercent(item.consumedPercent)} realizado.</p></div>)}</div></>}</CardContent></Card>;
 }
 
 function FoodQualitySection({ quality, simpleQuality, dayCount }: { quality?: FoodQualitySummary; simpleQuality: typeof EMPTY_QUALITY; dayCount: number }) {
