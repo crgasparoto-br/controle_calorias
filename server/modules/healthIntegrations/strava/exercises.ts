@@ -146,7 +146,7 @@ async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exercis
 function logStravaImportEvent(input: {
   userId: number;
   activityId: number;
-  status: "success" | "warning" | "skipped";
+  status: "success" | "warning" | "error";
   eventType: string;
   detail: string;
 }) {
@@ -216,7 +216,7 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
     logStravaImportEvent({
       userId,
       activityId: activity.id,
-      status: "skipped",
+      status: "warning",
       eventType: "strava.import.activity_skipped",
       detail: `detalhe não solicitado porque a atividade não tem dados mínimos: ${skipReason}.`,
     });
@@ -328,7 +328,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
       logStravaImportEvent({
         userId,
         activityId: activity.id,
-        status: "skipped",
+        status: "warning",
         eventType: "strava.import.exercise_skipped",
         detail: "exercício não criado porque duração ou calorias ficaram abaixo do mínimo após os fallbacks.",
       });
