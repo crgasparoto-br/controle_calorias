@@ -9,6 +9,7 @@ import {
   type DateGroupedRegisteredMealsViewModel,
   buildDateGroupedMealGroups,
   buildRegisteredMealGroups,
+  filterMealsByDateRange,
 } from "@/features/meals/mealViewModels";
 import type { StoredMeal } from "@/features/meals/types";
 import {
@@ -50,6 +51,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 type ReportsExperienceContext = "self" | "professional";
 type MealDateGroup = { date: string; items: StoredMeal[] };
 type Totals = { calories: number; protein: number; carbs: number; fat: number };
+type DateRange = { start: string; end: string };
 type ReportDay = Totals & {
   date: string;
   label: string;
@@ -150,22 +152,26 @@ function buildGroupedMealViewModels(mealsByDate: MealDateGroup[]): DateGroupedRe
   }));
 }
 
-function normalizeMealDateGroups(value: any): MealDateGroup[] {
+function normalizeMealDateGroups(value: any, range: DateRange): MealDateGroup[] {
   return (Array.isArray(value) ? value : [])
     .map((group: any) => ({
       date: String(group?.date ?? ""),
       items: ((group?.items ?? group?.meals ?? []) as StoredMeal[]).filter(Boolean),
     }))
-    .filter(group => group.date);
+    .filter(group => group.date >= range.start && group.date <= range.end);
 }
 
-function extractMeals(bundleData: any, mealDateGroups: MealDateGroup[]): StoredMeal[] {
+function extractMeals(bundleData: any, mealDateGroups: MealDateGroup[], range: DateRange, userTimeZone: string): StoredMeal[] {
   const groupedMeals = mealDateGroups.flatMap(group => group.items);
   if (groupedMeals.length) return groupedMeals;
 
   const candidate = [bundleData?.meals, bundleData?.recentMeals, bundleData?.periodMeals, bundleData?.weeklyMeals]
     .find(value => Array.isArray(value));
-  return (candidate ?? []).filter(Boolean) as StoredMeal[];
+  return filterMealsByDateRange((candidate ?? []).filter(Boolean) as StoredMeal[], {
+    startDate: range.start,
+    endDate: range.end,
+    timeZone: userTimeZone,
+  });
 }
 
 function buildMealsByDate(mealsByDate: MealDateGroup[], periodMeals: StoredMeal[], userTimeZone: string) {
@@ -314,8 +320,8 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const exerciseActiveDays = isWeek ? metricDays.filter(day => day.exerciseCalories > 0).length : numberValue(bundleData?.habitAnalytics?.exercise?.activeDays);
   const exerciseCalories = isWeek ? metricDays.reduce((total, day) => total + day.exerciseCalories, 0) : numberValue(bundleData?.habitAnalytics?.exercise?.totalCalories);
   const highestExerciseDay = findExtreme(metricDays, day => day.exerciseCalories, "max");
-  const mealDateGroups = React.useMemo(() => normalizeMealDateGroups(bundleData?.mealsByDate ?? bundleData?.mealsByDay ?? bundleData?.dailyMealsByDate), [bundleData]);
-  const periodMeals = React.useMemo(() => extractMeals(bundleData, mealDateGroups), [bundleData, mealDateGroups]);
+  const mealDateGroups = React.useMemo(() => normalizeMealDateGroups(bundleData?.mealsByDate ?? bundleData?.mealsByDay ?? bundleData?.dailyMealsByDate, activeRange), [activeRange, bundleData]);
+  const periodMeals = React.useMemo(() => extractMeals(bundleData, mealDateGroups, activeRange, userTimeZone), [activeRange, bundleData, mealDateGroups, userTimeZone]);
   const mealGroupsAsc = React.useMemo(() => buildMealsByDate(mealDateGroups, periodMeals, userTimeZone), [mealDateGroups, periodMeals, userTimeZone]);
   const mealGroupsDesc = React.useMemo(() => [...mealGroupsAsc].reverse(), [mealGroupsAsc]);
   const scopeLabel = periodScope === "day" ? "Dia" : periodScope === "week" ? "Semana" : periodScope === "month" ? "Mês" : "Período";
