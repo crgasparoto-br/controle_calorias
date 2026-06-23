@@ -62,7 +62,7 @@ export function getStravaMaxActivityDetailRequestsPerSync() {
   return Math.floor(configured);
 }
 
-async function fetchStravaActivityDetail(accessToken: string, activityId: number) {
+export async function fetchStravaActivityDetail(accessToken: string, activityId: number) {
   const response = await fetch(buildStravaActivityDetailUrl(activityId), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -86,29 +86,6 @@ async function fetchStravaActivityDetail(accessToken: string, activityId: number
   return detail;
 }
 
-async function enrichStravaActivitiesWithDetails(accessToken: string, activities: StravaActivity[], remainingDetailRequests: number) {
-  const enrichedActivities: StravaActivity[] = [];
-  let usedDetailRequests = 0;
-
-  for (const activity of activities) {
-    if (!shouldFetchStravaActivityDetail(activity)) {
-      enrichedActivities.push(activity);
-      continue;
-    }
-
-    if (usedDetailRequests >= remainingDetailRequests) {
-      enrichedActivities.push(activity);
-      continue;
-    }
-
-    usedDetailRequests += 1;
-    const detail = await fetchStravaActivityDetail(accessToken, activity.id);
-    enrichedActivities.push(detail ? { ...activity, ...detail } : activity);
-  }
-
-  return { activities: enrichedActivities, usedDetailRequests };
-}
-
 export async function fetchStravaActivities(userId: number, lastSyncedAt: number | null) {
   const globalCooldownError = getStravaGlobalCooldownError();
   if (globalCooldownError) throw globalCooldownError;
@@ -119,7 +96,6 @@ export async function fetchStravaActivities(userId: number, lastSyncedAt: number
   const token = await ensureValidStravaToken(userId);
   const activities: StravaActivity[] = [];
   const after = getStravaActivitiesAfterTimestamp(lastSyncedAt);
-  let remainingDetailRequests = getStravaMaxActivityDetailRequestsPerSync();
 
   for (let page = 1; page <= STRAVA_MAX_ACTIVITY_PAGES; page += 1) {
     const response = await fetch(buildStravaActivitiesUrl(page, after), {
@@ -146,9 +122,7 @@ export async function fetchStravaActivities(userId: number, lastSyncedAt: number
       throw new Error("Resposta inesperada do Strava ao buscar atividades.");
     }
 
-    const enrichedPage = await enrichStravaActivitiesWithDetails(token.accessToken, pageActivities, remainingDetailRequests);
-    remainingDetailRequests = Math.max(remainingDetailRequests - enrichedPage.usedDetailRequests, 0);
-    activities.push(...enrichedPage.activities);
+    activities.push(...pageActivities);
     if (pageActivities.length < STRAVA_ACTIVITIES_PER_PAGE) break;
   }
 
