@@ -121,6 +121,7 @@ describe("healthIntegrationService Strava", () => {
     process.env.STRAVA_REDIRECT_URI = "https://app.test/api/health-integrations/strava/callback";
     delete process.env.WHATSAPP_PHONE_NUMBER;
     delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+    delete process.env.QUICK_EDIT_BASE_URL;
     delete process.env.STRAVA_AUTO_SYNC_DISABLED;
     delete process.env.STRAVA_AUTO_SYNC_INTERVAL_MINUTES;
     delete process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC;
@@ -203,6 +204,22 @@ describe("healthIntegrationService Strava", () => {
   it("envia WhatsApp ao importar novo exercício do Strava", async () => {
     process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
+    process.env.QUICK_EDIT_BASE_URL = "https://app.test";
+    exerciseMocks.listExercises
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 123,
+          userId: 42,
+          activityType: "Treinamento com peso noturno",
+          durationMinutes: 6,
+          caloriesBurned: 49,
+          occurredAt: new Date("2026-06-02T23:00:00Z").getTime(),
+          notes: "Importado automaticamente do Strava. Referencia externa: strava:996. Calorias: 49 kcal.",
+          createdAt: Date.now(),
+          updatedAt: new Date(),
+        },
+      ]);
     const dbModule = await import("../../db");
     vi.mocked(dbModule.getUserWhatsappConnection).mockResolvedValue({
       id: 1,
@@ -245,7 +262,7 @@ describe("healthIntegrationService Strava", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
-      "https://graph.facebook.com/v20.0/phone-number-test/messages",
+      "https://graph.facebook.com/v22.0/phone-number-test/messages",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -260,20 +277,16 @@ describe("healthIntegrationService Strava", () => {
       to: "5511999999999",
       type: "interactive",
       interactive: {
-        type: "button",
+        type: "cta_url",
         action: {
-          buttons: [
-            {
-              type: "reply",
-              reply: {
-                id: "daily_summary",
-                title: "Ver resumo do dia",
-              },
-            },
-          ],
+          name: "cta_url",
+          parameters: {
+            display_text: "Ver exercício",
+          },
         },
       },
     });
+    expect(body.interactive.action.parameters.url).toMatch(/^https:\/\/app\.test\/quick-edit\/exercise\//);
     expect(body.interactive.body.text).toBe([
       "*Treino importado do Strava* 🏋️",
       "",
