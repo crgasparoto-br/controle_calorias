@@ -14,8 +14,9 @@ describe("detectWhatsappDeleteIntent", () => {
       kind: "delete_meal",
       eventType: "whatsapp.intent.delete_meal_clarification_needed",
     }));
-    expect(detection?.reply).toContain("não excluí nada automaticamente");
-    expect(detection?.reply).toContain("Não registrei nenhum alimento novo");
+    expect(detection?.reply).toContain("preciso confirmar qual registro");
+    expect(detection?.reply).toContain("Não excluí nada");
+    expect(detection?.reply).toContain("não registrei nenhum alimento novo");
   });
 
   it.each([
@@ -49,7 +50,7 @@ describe("classifyWhatsappMessageDeterministically delete intents", () => {
     expect(intent.intent).toBe("delete_meal");
     expect(intent.items).toEqual([]);
     expect(intent.requiresConfirmation).toBe(true);
-    expect(intent.clarificationQuestion).toContain("não excluí nada automaticamente");
+    expect(intent.clarificationQuestion).toContain("preciso confirmar qual registro");
   });
 
   it("classifica comando destrutivo de alimento sem virar alimento estimado", () => {
