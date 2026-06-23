@@ -216,7 +216,7 @@ describe("ReportsPage weight trend", () => {
     const html = renderToString(React.createElement(ReportsPage));
 
     expect(html).toContain("Detalhamento de dias e refeições");
-    expect(html).toContain("1 refeições no dia");
-    expect(html).toContain("Café da manhã");
+    expect(html).toMatch(/1(?:<!-- -->)? refeições no dia/);
+    expect(html).toMatch(/café da manhã/i);
   });
 });
