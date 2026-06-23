@@ -97,6 +97,11 @@ function weightSummary() {
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     nutrition: {
+      professionals: {
+        patientPeriodBundle: {
+          useQuery: () => ({ data: null, isLoading: false, isError: false }),
+        },
+      },
       reports: {
         bundle: {
           useQuery: () => ({
