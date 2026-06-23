@@ -1,7 +1,10 @@
 import crypto from "node:crypto";
 import { eq, lt } from "drizzle-orm";
+import { ENV } from "../../_core/env";
 import { getDb, logInferenceEvent } from "../../db";
 import { quickEditTokens } from "../../../drizzle/schema";
+import { listExercises, updateExercise } from "../exercises/service";
+import type { UpdateExerciseInput } from "../exercises/schemas";
 import { listMeals, updateMeal } from "../meals/service";
 import type { UpdateMealInput } from "../meals/schemas";
 
@@ -29,6 +32,14 @@ type QuickEditTokenView = {
 type TokenAttemptBucket = {
   count: number;
   resetsAt: number;
+};
+
+type SignedExerciseTokenPayload = {
+  kind: "exercise";
+  userId: number;
+  exerciseId: number;
+  exp: number;
+  nonce: string;
 };
 
 const tokenStore = new Map<string, QuickEditTokenRow>();
@@ -60,6 +71,14 @@ function getQuickEditBaseUrl() {
 }
 
 function buildQuickEditUrl(token: string) {
+  return buildQuickEditPathUrl(`/quick-edit/${encodeURIComponent(token)}`);
+}
+
+function buildQuickEditExerciseUrl(token: string) {
+  return buildQuickEditPathUrl(`/quick-edit/exercise/${encodeURIComponent(token)}`);
+}
+
+function buildQuickEditPathUrl(path: string) {
   const baseUrl = getQuickEditBaseUrl();
   if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
     throw new Error(
@@ -67,7 +86,62 @@ function buildQuickEditUrl(token: string) {
       "Defina QUICK_EDIT_BASE_URL, PUBLIC_APP_URL, APP_BASE_URL ou APP_URL com uma URL iniciando por https://.",
     );
   }
-  return `${baseUrl}/quick-edit/${encodeURIComponent(token)}`;
+  return `${baseUrl}${path}`;
+}
+
+function signTokenPayload(encodedPayload: string) {
+  return crypto
+    .createHmac("sha256", ENV.cookieSecret)
+    .update(encodedPayload, "utf8")
+    .digest("base64url");
+}
+
+function createSignedExerciseToken(input: { userId: number; exerciseId: number; expiresAt: Date }) {
+  const payload: SignedExerciseTokenPayload = {
+    kind: "exercise",
+    userId: input.userId,
+    exerciseId: input.exerciseId,
+    exp: input.expiresAt.getTime(),
+    nonce: createRandomToken(),
+  };
+  const encodedPayload = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  return `${encodedPayload}.${signTokenPayload(encodedPayload)}`;
+}
+
+function parseSignedExerciseToken(token: string): SignedExerciseTokenPayload {
+  const normalized = token.trim();
+  const [encodedPayload, signature] = normalized.split(".");
+  if (!encodedPayload || !signature) {
+    throw new QuickEditTokenError();
+  }
+
+  assertTokenAttemptAllowed(hashToken(normalized));
+
+  const expectedSignature = signTokenPayload(encodedPayload);
+  const signatureBuffer = Buffer.from(signature, "base64url");
+  const expectedBuffer = Buffer.from(expectedSignature, "base64url");
+  if (signatureBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
+    throw new QuickEditTokenError();
+  }
+
+  let payload: SignedExerciseTokenPayload;
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as SignedExerciseTokenPayload;
+  } catch {
+    throw new QuickEditTokenError();
+  }
+
+  if (
+    payload.kind !== "exercise"
+    || !Number.isInteger(payload.userId)
+    || !Number.isInteger(payload.exerciseId)
+    || !Number.isFinite(payload.exp)
+    || payload.exp <= Date.now()
+  ) {
+    throw new QuickEditTokenError();
+  }
+
+  return payload;
 }
 
 function assertTokenAttemptAllowed(tokenHash: string) {
@@ -154,11 +228,18 @@ async function findQuickEditToken(token: string) {
 }
 
 type ListedMeal = Awaited<ReturnType<typeof listMeals>>[number];
+type ListedExercise = Awaited<ReturnType<typeof listExercises>>[number];
 
 type QuickEditPublicMeal = Omit<ListedMeal, "userId" | "sourceText" | "transcript" | "media">;
+type QuickEditPublicExercise = Omit<ListedExercise, "userId">;
 
 function toPublicMealView(meal: ListedMeal): QuickEditPublicMeal {
   const { userId: _u, sourceText: _s, transcript: _t, media: _m, ...rest } = meal;
+  return rest;
+}
+
+function toPublicExerciseView(exercise: ListedExercise): QuickEditPublicExercise {
+  const { userId: _u, ...rest } = exercise;
   return rest;
 }
 
@@ -208,6 +289,46 @@ export async function tryCreateQuickEditLinkForMeal(input: { userId: number; mea
   }
 }
 
+export async function createQuickEditLinkForExercise(input: {
+  userId: number;
+  exerciseId: number;
+  expiresInMs?: number;
+}): Promise<QuickEditTokenView> {
+  const exercise = (await listExercises(input.userId)).find(item => item.id === input.exerciseId);
+  if (!exercise) {
+    throw new QuickEditTokenError();
+  }
+
+  const expiresAt = new Date(Date.now() + (input.expiresInMs ?? QUICK_EDIT_TOKEN_TTL_MS));
+  const token = createSignedExerciseToken({
+    userId: input.userId,
+    exerciseId: input.exerciseId,
+    expiresAt,
+  });
+
+  return {
+    token,
+    url: buildQuickEditExerciseUrl(token),
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
+export async function tryCreateQuickEditLinkForExercise(input: { userId: number; exerciseId: number }) {
+  try {
+    return await createQuickEditLinkForExercise(input);
+  } catch (error) {
+    const cause = error instanceof Error && error.cause instanceof Error ? ` Causa: ${error.cause.message}` : "";
+    logInferenceEvent({
+      userId: input.userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "quick_edit.exercise_token_generation_failed",
+      detail: (error instanceof Error ? error.message : "Falha desconhecida ao gerar link de edição rápida para exercício.") + cause,
+    });
+    return null;
+  }
+}
+
 export async function getQuickEditMeal(token: string) {
   const row = await findQuickEditToken(token);
   const meal = (await listMeals(row.userId)).find(item => item.id === row.mealId);
@@ -229,6 +350,33 @@ export async function getQuickEditMeal(token: string) {
   };
 }
 
+async function findQuickEditExercise(token: string) {
+  const payload = parseSignedExerciseToken(token);
+  const exercise = (await listExercises(payload.userId)).find(item => item.id === payload.exerciseId);
+  if (!exercise) {
+    throw new QuickEditTokenError();
+  }
+
+  return { payload, exercise };
+}
+
+export async function getQuickEditExercise(token: string) {
+  const { payload, exercise } = await findQuickEditExercise(token);
+
+  logInferenceEvent({
+    userId: payload.userId,
+    origin: "web",
+    status: "success",
+    eventType: "quick_edit.exercise_link_opened",
+    detail: "Página de edição rápida de exercício acessada por link temporário.",
+  });
+
+  return {
+    exercise: toPublicExerciseView(exercise),
+    expiresAt: new Date(payload.exp).toISOString(),
+  };
+}
+
 export async function updateQuickEditMeal(token: string, input: Omit<UpdateMealInput, "mealId">) {
   const row = await findQuickEditToken(token);
   const meal = await updateMeal(row.userId, {
@@ -245,6 +393,24 @@ export async function updateQuickEditMeal(token: string, input: Omit<UpdateMealI
   });
 
   return meal;
+}
+
+export async function updateQuickEditExercise(token: string, input: Omit<UpdateExerciseInput, "exerciseId">) {
+  const { payload } = await findQuickEditExercise(token);
+  const exercise = await updateExercise(payload.userId, {
+    ...input,
+    exerciseId: payload.exerciseId,
+  });
+
+  logInferenceEvent({
+    userId: payload.userId,
+    origin: "web",
+    status: "success",
+    eventType: "quick_edit.exercise_updated",
+    detail: "Exercício atualizado por link temporário de edição rápida.",
+  });
+
+  return exercise;
 }
 
 export async function purgeExpiredQuickEditTokens() {
