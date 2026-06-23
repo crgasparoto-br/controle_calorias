@@ -54,9 +54,17 @@ export default function QuickEditMealPage() {
   const token = params?.token ?? "";
   const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
   const mealQuery = trpc.quickEdit.getMeal.useQuery({ token }, { enabled: Boolean(token), retry: false });
+  const [mealDeleted, setMealDeleted] = React.useState(false);
   const updateMeal = trpc.quickEdit.updateMeal.useMutation({
     onSuccess: () => toast.success("Refeição atualizada com sucesso."),
     onError: error => toast.error(error.message || "Não foi possível salvar a edição."),
+  });
+  const deleteMeal = trpc.quickEdit.deleteMeal.useMutation({
+    onSuccess: () => {
+      setMealDeleted(true);
+      toast.success("Refeição excluída com sucesso.");
+    },
+    onError: error => toast.error(error.message || "Não foi possível excluir a refeição."),
   });
 
   const [mealLabel, setMealLabel] = React.useState("");
@@ -75,6 +83,17 @@ export default function QuickEditMealPage() {
   }, [mealQuery.data?.meal, userTimeZone]);
 
   const totals = React.useMemo(() => sumItems(items), [items]);
+  const normalizedItems = React.useMemo(() => items
+    .map(item => ({
+      ...item,
+      foodName: item.foodName.trim(),
+      canonicalName: item.canonicalName.trim() || item.foodName.trim(),
+      portionText: item.portionText.trim() || "1 porção",
+      confidence: Number(item.confidence || 1),
+    }))
+    .filter(item => item.foodName), [items]);
+  const isDeletingMeal = normalizedItems.length === 0;
+  const isSaving = updateMeal.isPending || deleteMeal.isPending;
   const expiresAtLabel = mealQuery.data?.expiresAt
     ? new Intl.DateTimeFormat("pt-BR", {
         dateStyle: "short",
@@ -92,22 +111,21 @@ export default function QuickEditMealPage() {
   };
 
   const handleSave = () => {
-    const normalizedItems = items
-      .map(item => ({
-        ...item,
-        foodName: item.foodName.trim(),
-        canonicalName: item.canonicalName.trim() || item.foodName.trim(),
-        portionText: item.portionText.trim() || "1 porção",
-        confidence: Number(item.confidence || 1),
-      }))
-      .filter(item => item.foodName);
-
     if (!mealLabel.trim()) {
       toast.error("Informe o nome da refeição.");
       return;
     }
-    if (!normalizedItems.length) {
-      toast.error("Adicione pelo menos um alimento antes de salvar a refeição.");
+
+    if (isDeletingMeal) {
+      const confirmed = window.confirm(
+        "Você removeu todos os alimentos desta refeição. Deseja excluir a refeição inteira?",
+      );
+      if (!confirmed) {
+        toast.info("A refeição não foi excluída. Você pode adicionar alimentos ou voltar sem salvar.");
+        return;
+      }
+
+      deleteMeal.mutate({ token });
       return;
     }
 
@@ -167,16 +185,16 @@ export default function QuickEditMealPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="quick-edit-label">Refeição</Label>
-                <Input id="quick-edit-label" value={mealLabel} onChange={event => setMealLabel(event.target.value)} />
+                <Input id="quick-edit-label" value={mealLabel} onChange={event => setMealLabel(event.target.value)} disabled={mealDeleted} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="quick-edit-occurred-at">Data e hora</Label>
-                <Input id="quick-edit-occurred-at" type="datetime-local" value={occurredAt} onChange={event => setOccurredAt(event.target.value)} />
+                <Input id="quick-edit-occurred-at" type="datetime-local" value={occurredAt} onChange={event => setOccurredAt(event.target.value)} disabled={mealDeleted} />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="quick-edit-notes">Observações</Label>
-              <Textarea id="quick-edit-notes" value={notes} onChange={event => setNotes(event.target.value)} rows={3} />
+              <Textarea id="quick-edit-notes" value={notes} onChange={event => setNotes(event.target.value)} rows={3} disabled={mealDeleted} />
             </div>
           </CardContent>
         </Card>
@@ -184,7 +202,7 @@ export default function QuickEditMealPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold tracking-tight">Alimentos</h2>
-            <Button type="button" variant="outline" className="rounded-full" onClick={() => setItems(current => [...current, createEmptyQuickEditItem()])}>
+            <Button type="button" variant="outline" className="rounded-full" onClick={() => setItems(current => [...current, createEmptyQuickEditItem()])} disabled={mealDeleted}>
               <Plus className="mr-2 h-4 w-4" />
               Adicionar
             </Button>
@@ -195,7 +213,7 @@ export default function QuickEditMealPage() {
               <Card key={`${item.foodName}-${index}`} className="border shadow-sm">
                 <CardContent className="space-y-4 pt-6">
                   <MealItemEditor item={item} onChange={(key, value) => updateItem(index, key, value)} />
-                  <Button type="button" variant="outline" className="w-full rounded-full text-destructive" onClick={() => removeItem(index)}>
+                  <Button type="button" variant="outline" className="w-full rounded-full text-destructive" onClick={() => removeItem(index)} disabled={mealDeleted}>
                     <Trash2 className="mr-2 h-4 w-4" />
                     Remover alimento
                   </Button>
@@ -204,16 +222,24 @@ export default function QuickEditMealPage() {
             ))
           ) : (
             <div className="rounded-2xl border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-              Nenhum alimento nesta refeição. Adicione um alimento para salvar os ajustes.
+              {mealDeleted
+                ? "Esta refeição foi excluída. Ela não aparecerá mais nos resumos do dia."
+                : "Nenhum alimento nesta refeição. Ao salvar, você poderá confirmar a exclusão da refeição inteira."}
             </div>
           )}
         </section>
 
+        {isDeletingMeal && !mealDeleted ? (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive" role="status" aria-live="polite">
+            Você removeu todos os alimentos. Salvar agora excluirá esta refeição depois da confirmação.
+          </div>
+        ) : null}
+
         <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-2xl flex-col gap-2 sm:flex-row">
-            <Button type="button" className="rounded-full" onClick={handleSave} disabled={updateMeal.isPending}>
-              {updateMeal.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Salvar ajustes
+            <Button type="button" className="rounded-full" variant={isDeletingMeal ? "destructive" : "default"} onClick={handleSave} disabled={isSaving || mealDeleted}>
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isDeletingMeal ? <Trash2 className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
+              {isDeletingMeal ? "Excluir refeição" : "Salvar ajustes"}
             </Button>
             <Button type="button" variant="outline" className="rounded-full" asChild>
               <a href={getWhatsAppReturnUrl()}>
@@ -228,6 +254,13 @@ export default function QuickEditMealPage() {
           <div className="flex items-center gap-2 rounded-2xl border bg-muted/20 p-4 text-sm" role="status" aria-live="polite">
             <CheckCircle2 className="h-4 w-4 text-primary" />
             Ajustes salvos. Você já pode voltar ao WhatsApp.
+          </div>
+        ) : null}
+
+        {mealDeleted ? (
+          <div className="flex items-center gap-2 rounded-2xl border bg-muted/20 p-4 text-sm" role="status" aria-live="polite">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            Refeição excluída. Você já pode voltar ao WhatsApp.
           </div>
         ) : null}
       </div>
