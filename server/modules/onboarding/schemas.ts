@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DEFAULT_APP_TIME_ZONE, normalizeUserTimeZone, USER_TIME_ZONE_OPTIONS } from "../../../shared/timeZone";
 
 const userTimeZoneValues = USER_TIME_ZONE_OPTIONS.map(option => option.value) as [string, ...string[]];
+const userSexValues = ["female", "male", "non_binary", "prefer_not_to_say"] as const;
 
 export function calculateAgeYearsFromBirthDate(birthDate: string, referenceDate = new Date()) {
   const parts = birthDate.split("-").map(Number);
@@ -26,6 +27,7 @@ const onboardingBaseSchema = z.object({
   currentWeightKg: z.number().min(25).max(350),
   weightMeasuredAt: z.string().datetime().optional(),
   weightEntryNote: z.string().trim().max(200).optional(),
+  sex: z.enum(userSexValues).default("prefer_not_to_say"),
   objective: z.enum(["emagrecer", "manter_peso", "ganhar_massa", "melhorar_habitos"]),
   activityLevel: z.enum(["sedentary", "light", "moderate", "active", "very_active"]),
   trackingExperience: z.enum(["beginner", "intermediate", "advanced"]),
@@ -34,6 +36,7 @@ const onboardingBaseSchema = z.object({
   eatingRoutine: z.enum(["cozinha_em_casa", "come_fora", "delivery", "marmita", "misto"]),
   mainDifficulty: z.enum(["fome", "ansiedade", "falta_de_tempo", "beliscos", "doces", "comer_fora", "falta_de_planejamento"]),
   timezone: z.enum(userTimeZoneValues).default(DEFAULT_APP_TIME_ZONE),
+  recalculateGoals: z.boolean().optional(),
 });
 
 export const onboardingSchema = onboardingBaseSchema

@@ -1,5 +1,8 @@
-import { useEffect } from "react";
+import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
+
+const ReportsExperience = lazy(() => import("@/features/reports/ReportsExperience"));
 
 const ANALYSIS_TAB_LABEL = "Análise por pessoa acompanhada";
 const ANALYSIS_TITLE = "Análise da pessoa acompanhada";
@@ -7,9 +10,21 @@ const ANALYSIS_DESCRIPTION = "Escolha uma pessoa autorizada para revisar relató
 const ANALYZE_BUTTON_LABEL = "Analisar";
 const PERIOD_FILTER_LABELS = ["Dia", "Semana", "Mês", "Período"];
 const PERIOD_DETAIL_LABELS = ["Dia ativo", "Semana de referência", "Mês ativo", "Início"];
+const SHARED_REPORTS_MOUNT_ATTR = "data-shared-reports-experience";
+
+type ReportsPortalState = {
+  mount: HTMLElement | null;
+  patientId: number | null;
+};
+
+const EMPTY_PORTAL_STATE: ReportsPortalState = { mount: null, patientId: null };
 
 function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function isSamePortalState(first: ReportsPortalState, second: ReportsPortalState) {
+  return first.mount === second.mount && first.patientId === second.patientId;
 }
 
 function hasButtonLabel(container: Element, label: string) {
@@ -69,6 +84,41 @@ function movePeriodFilterIntoReportsTab() {
   reportsPanel.insertBefore(periodFilter, reportsPanel.firstChild);
 }
 
+function findSelectedPatientId() {
+  const patientLabel = Array.from(document.querySelectorAll<HTMLElement>("label")).find(element =>
+    elementText(element).includes("Pessoa acompanhada") && element.querySelector("select"),
+  );
+  const value = patientLabel?.querySelector<HTMLSelectElement>("select")?.value;
+  const patientId = Number(value ?? 0);
+  return Number.isFinite(patientId) && patientId > 0 ? patientId : null;
+}
+
+function hideLegacyReportsChildren(reportsPanel: HTMLElement, mount: HTMLElement) {
+  Array.from(reportsPanel.children).forEach(child => {
+    if (child === mount) return;
+    const element = child as HTMLElement;
+    if (element.dataset.legacyReportsHidden === "true" && element.style.display === "none") return;
+    element.dataset.legacyReportsHidden = "true";
+    element.style.display = "none";
+  });
+}
+
+function ensureSharedReportsMount() {
+  const reportsPanel = findReportsTabPanel();
+  if (!reportsPanel) return EMPTY_PORTAL_STATE;
+
+  let mount = reportsPanel.querySelector<HTMLElement>(`[${SHARED_REPORTS_MOUNT_ATTR}]`);
+  if (!mount) {
+    mount = document.createElement("div");
+    mount.setAttribute(SHARED_REPORTS_MOUNT_ATTR, "true");
+    mount.className = "space-y-6";
+    reportsPanel.insertBefore(mount, reportsPanel.firstChild);
+  }
+
+  hideLegacyReportsChildren(reportsPanel, mount);
+  return { mount, patientId: findSelectedPatientId() };
+}
+
 function alignPatientSelectorAndCopy() {
   const title = Array.from(document.querySelectorAll<HTMLElement>("h1, h2, h3, div")).find(element =>
     elementText(element) === ANALYSIS_TAB_LABEL,
@@ -93,6 +143,7 @@ function alignPatientSelectorAndCopy() {
 function refreshAnalysisLayout() {
   alignPatientSelectorAndCopy();
   movePeriodFilterIntoReportsTab();
+  return ensureSharedReportsMount();
 }
 
 function findAnalyzeButton(target: EventTarget | null) {
@@ -102,7 +153,7 @@ function findAnalyzeButton(target: EventTarget | null) {
   return elementText(button) === ANALYZE_BUTTON_LABEL ? button : null;
 }
 
-function openAnalysisTab() {
+function openAnalysisTab(onRefresh: (state: ReportsPortalState) => void) {
   const attempts = [0, 50, 150, 300];
   attempts.forEach(delay => {
     window.setTimeout(() => {
@@ -110,23 +161,37 @@ function openAnalysisTab() {
       tab?.click();
       tab?.focus({ preventScroll: true });
       findAnalysisPanel()?.scrollIntoView({ block: "start", behavior: "smooth" });
-      refreshAnalysisLayout();
+      onRefresh(refreshAnalysisLayout());
     }, delay);
   });
 }
 
 export default function ProfessionalAnalyzeTabBridge() {
   const [location] = useLocation();
+  const [portalState, setPortalState] = useState<ReportsPortalState>(EMPTY_PORTAL_STATE);
+  const refreshScheduled = useRef(false);
 
   useEffect(() => {
-    if (!location.startsWith("/professional")) return;
+    if (!location.startsWith("/professional")) {
+      setPortalState(previous => isSamePortalState(previous, EMPTY_PORTAL_STATE) ? previous : EMPTY_PORTAL_STATE);
+      return;
+    }
 
+    const applyPortalState = (next: ReportsPortalState) => {
+      setPortalState(previous => isSamePortalState(previous, next) ? previous : next);
+    };
+    const scheduleLayoutRefresh = () => {
+      if (refreshScheduled.current) return;
+      refreshScheduled.current = true;
+      window.requestAnimationFrame(() => {
+        refreshScheduled.current = false;
+        applyPortalState(refreshAnalysisLayout());
+      });
+    };
     const handleClick = (event: MouseEvent) => {
       if (!findAnalyzeButton(event.target)) return;
-      openAnalysisTab();
+      openAnalysisTab(applyPortalState);
     };
-
-    const scheduleLayoutRefresh = () => window.setTimeout(refreshAnalysisLayout, 0);
     const observer = new MutationObserver(scheduleLayoutRefresh);
 
     scheduleLayoutRefresh();
@@ -140,8 +205,17 @@ export default function ProfessionalAnalyzeTabBridge() {
       document.removeEventListener("click", handleClick, true);
       document.removeEventListener("click", scheduleLayoutRefresh, true);
       document.removeEventListener("change", scheduleLayoutRefresh, true);
+      refreshScheduled.current = false;
+      setPortalState(previous => isSamePortalState(previous, EMPTY_PORTAL_STATE) ? previous : EMPTY_PORTAL_STATE);
     };
   }, [location]);
 
-  return null;
+  if (!location.startsWith("/professional") || !portalState.mount) return null;
+
+  return createPortal(
+    <Suspense fallback={null}>
+      <ReportsExperience context="professional" subjectUserId={portalState.patientId} />
+    </Suspense>,
+    portalState.mount,
+  );
 }

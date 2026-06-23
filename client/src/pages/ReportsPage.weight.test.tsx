@@ -19,6 +19,7 @@ vi.mock("@/components/PeriodScopeSelector", () => ({
 }));
 
 vi.mock("@/features/meals/components", () => ({
+  RegisteredMealGroups: ({ groups }: { groups: Array<{ mealLabel: string }> }) => React.createElement("div", null, groups.map(group => group.mealLabel).join(", ")),
   SummaryPill: ({ label, value }: { label: string; value: string }) => React.createElement("span", null, label, value),
 }));
 
@@ -45,7 +46,7 @@ vi.mock("recharts", () => {
 
 const weeklyDays = [
   {
-    date: "2026-06-15",
+    date: "2026-06-22",
     label: "seg.",
     calories: 1800,
     protein: 120,
@@ -62,7 +63,7 @@ const weeklyDays = [
     goalFat: 70,
   },
   {
-    date: "2026-06-16",
+    date: "2026-06-23",
     label: "ter.",
     calories: 2100,
     protein: 140,
@@ -79,6 +80,25 @@ const weeklyDays = [
     goalFat: 70,
   },
 ];
+
+const breakfastMeal = {
+  id: 1,
+  mealLabel: "Café da manhã",
+  occurredAt: new Date("2026-06-22T10:00:00.000Z").getTime(),
+  notes: null,
+  items: [
+    {
+      foodName: "Banana",
+      portionText: "1 unidade",
+      estimatedGrams: 100,
+      calories: 90,
+      protein: 1,
+      carbs: 23,
+      fat: 0,
+    },
+  ],
+  totals: { calories: 90, protein: 1, carbs: 23, fat: 0 },
+};
 
 function weightSummary() {
   const entries = reportWeightEntries.current;
@@ -97,6 +117,11 @@ function weightSummary() {
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     nutrition: {
+      professionals: {
+        patientPeriodBundle: {
+          useQuery: () => ({ data: null, isLoading: false, isError: false }),
+        },
+      },
       reports: {
         bundle: {
           useQuery: () => ({
@@ -121,8 +146,8 @@ vi.mock("@/lib/trpc", () => ({
                 },
                 weight: weightSummary(),
               },
-              insights: { generatedAt: "2026-06-16T12:00:00Z", weekStart: "2026-06-15", weekEnd: "2026-06-21", insights: [] },
-              mealsByDate: [],
+              insights: { generatedAt: "2026-06-23T12:00:00Z", weekStart: "2026-06-22", weekEnd: "2026-06-28", insights: [] },
+              mealsByDate: [{ date: "2026-06-22", items: [breakfastMeal] }],
               quality: {
                 proteinGrams: 260,
                 fiberGrams: 0,
@@ -160,7 +185,7 @@ describe("ReportsPage weight trend", () => {
   });
 
   it("resume o peso quando existe apenas um registro", async () => {
-    reportWeightEntries.current = [{ id: 1, date: "2026-06-15", label: "15 jun.", weightKg: 82, notes: null }];
+    reportWeightEntries.current = [{ id: 1, date: "2026-06-22", label: "22 jun.", weightKg: 82, notes: null }];
 
     const { default: ReportsPage } = await import("./ReportsPage");
     const html = renderToString(React.createElement(ReportsPage));
@@ -173,8 +198,8 @@ describe("ReportsPage weight trend", () => {
 
   it("resume a variação quando há múltiplos registros de peso", async () => {
     reportWeightEntries.current = [
-      { id: 1, date: "2026-06-15", label: "15 jun.", weightKg: 82, notes: null },
-      { id: 2, date: "2026-06-16", label: "16 jun.", weightKg: 81.5, notes: null },
+      { id: 1, date: "2026-06-22", label: "22 jun.", weightKg: 82, notes: null },
+      { id: 2, date: "2026-06-23", label: "23 jun.", weightKg: 81.5, notes: null },
     ];
 
     const { default: ReportsPage } = await import("./ReportsPage");
@@ -184,5 +209,14 @@ describe("ReportsPage weight trend", () => {
     expect(html).toContain("Atual");
     expect(html).toContain("Variação");
     expect(html).not.toContain("Ainda não há registros de peso no período selecionado.");
+  });
+
+  it("lista refeições no detalhamento de dias", async () => {
+    const { default: ReportsPage } = await import("./ReportsPage");
+    const html = renderToString(React.createElement(ReportsPage));
+
+    expect(html).toContain("Detalhamento de dias e refeições");
+    expect(html).toMatch(/1(?:<!-- -->)? refeições no dia/);
+    expect(html).toMatch(/café da manhã/i);
   });
 });

@@ -3,6 +3,7 @@ import { getCatalogCache } from "./catalogRuntime";
 import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
+import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
 import { executeWhatsappLlmIntent } from "./modules/whatsapp/llmIntentActions";
 import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
@@ -27,7 +28,7 @@ import {
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
 
-type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>> | NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>> | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
+type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>> | NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>> | NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>> | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
 type TextIntentHandlingResult = boolean | { passthroughText: string };
 type NutritionTotals = {
   calories: number;
@@ -88,7 +89,7 @@ function extractSimpleFoodCandidate(text: string) {
   if (
     /[,;+\n]/.test(text)
     || /\b(e|com)\b/.test(normalized)
-    || /\b(resumo|relatorio|balanco|sugestao|agua|peso|mudar|alterar|trocar|corrigir|reduzir|aumentar|adicionar|registrar|registra|registre|inclua|remover|tirar|almocei|jantei|comi|lanchei|refeicao)\b/.test(normalized)
+    || /\b(resumo|relatorio|balanco|sugestao|agua|peso|mudar|alterar|trocar|corrigir|reduzir|aumentar|adicionar|registrar|registra|registre|inclua|remover|tirar|excluir|exclua|apagar|apague|deletar|delete|almocei|jantei|comi|lanchei|refeicao)\b/.test(normalized)
   ) return null;
 
   const candidate = normalized
@@ -119,7 +120,7 @@ function buildUnknownFoodReply(text: string) {
 
 function isBareDailySummaryRequest(text: string) {
   const normalized = normalizeText(text);
-  return normalized === "resumo" || normalized === "relatorio" || normalized === "balanco";
+  return normalized === "resuma" || normalized === "resumo" || normalized === "relatorio" || normalized === "balanco";
 }
 
 function shouldTryContextualLlmIntent(text: string) {
@@ -127,7 +128,7 @@ function shouldTryContextualLlmIntent(text: string) {
   if (!normalized) return false;
   if (hasExplicitFoodQuantity(text)) return false;
   if (/\b(almocei|jantei|comi|lanchei|ceei|tomei|bebi)\b/.test(normalized)) return false;
-  return /\b(refeicoes?|registrad[ao]s?|registrei|registro|consultar|consulta|listar|mostra|mostrar|ver|resumo do dia|total de hoje|calorias de hoje|corrigir|correcao|trocar|substituir|ajuda|comandos)\b/.test(normalized);
+  return /\b(refeicoes?|registrad[ao]s?|registrei|registro|consultar|consulta|listar|mostra|mostrar|ver|resumo do dia|total de hoje|calorias de hoje|corrigir|correcao|trocar|substituir|excluir|exclua|remover|remova|apagar|apague|deletar|delete|ajuda|comandos)\b/.test(normalized);
 }
 
 function looksLikeProfessionalAccessDecision(text: string) {
@@ -308,7 +309,7 @@ function extractMealId(data: Record<string, unknown> | undefined) {
 
 function buildMixedWaterReply(waterResults: TextIntentResult[]) {
   const waterLines = waterResults
-    .map((result) => typeof result.data?.amountMl === "number" ? `* ${formatNumber(result.data.amountMl)} ml de água` : null)
+    .map((result) => typeof result.data?.amountMl === "number" ? `* ${formatNumber(result.data?.amountMl)} ml de água` : null)
     .filter((line): line is string => Boolean(line));
 
   return [
@@ -395,6 +396,21 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const pendingContext = getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
   const occurredAt = resolveWhatsAppMessageOccurredAt(message);
+
+  const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent });
+  if (deleteIntentResult) {
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      reply: deleteIntentResult.reply,
+      eventType: deleteIntentResult.eventType,
+      detail: deleteIntentResult.detail,
+      status: "warning",
+    });
+    return true;
+  }
 
   const mealListResult = await executeWhatsappMealListIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (mealListResult) {

@@ -101,7 +101,7 @@ function createTextWebhookRequest(text: string) {
   };
 }
 
-describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
+describe("handleWhatsAppWebhookWithTextIntent delete guard", () => {
   let sentMessages: string[];
 
   beforeEach(() => {
@@ -125,7 +125,14 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     foodAssistantIntentMock.mockReturnValue(null);
     annotatedWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
-    listMealsMock.mockResolvedValue([]);
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        mealLabel: "Almoço",
+        occurredAt: "2026-06-23T15:00:00.000Z",
+        items: [{ foodName: "Arroz", portionText: "100 g" }],
+      },
+    ]);
     processProfessionalAccessWhatsappResponseMock.mockResolvedValue(null);
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const payload = init?.body ? JSON.parse(String(init.body)) : {};
@@ -134,108 +141,25 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     }) as typeof fetch;
   });
 
-  it("processa decisão profissional antes dos fluxos de nutrição", async () => {
-    processProfessionalAccessWhatsappResponseMock.mockResolvedValueOnce({
-      handled: true,
-      action: "professional_access_approved",
-      reply: "Autorização confirmada.",
-      eventType: "professional.access.whatsapp_approved",
-      detail: "Solicitação de acompanhamento aprovada via WhatsApp.",
-    });
-    const req = createTextWebhookRequest("AUTORIZAR ABCD1234");
+  it("bloqueia exclusao de refeicao antes de qualquer fallback nutricional", async () => {
+    const req = createTextWebhookRequest("exclua refeição fotografada");
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(processProfessionalAccessWhatsappResponseMock).toHaveBeenCalledWith(42, "AUTORIZAR ABCD1234");
     expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(foodAssistantIntentMock).not.toHaveBeenCalled();
     expect(annotatedWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       origin: "whatsapp",
-      status: "success",
-      eventType: "professional.access.whatsapp_approved",
+      status: "warning",
+      eventType: "whatsapp.intent.delete_meal_confirmation_requested",
     }));
-    expect(sentMessages.at(-1)).toBe("Autorização confirmada.");
-  });
-
-  it("responde lista de refeições antes do LLM e do fallback nutricional", async () => {
-    listMealsMock.mockResolvedValueOnce([
-      {
-        id: 10,
-        mealLabel: "Almoço",
-        occurredAt: "2026-06-03T15:00:00.000Z",
-        items: [
-          { foodName: "Arroz", portionText: "100 g", calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
-        ],
-      },
-    ]);
-    const req = createTextWebhookRequest("quais refeições eu registrei hoje?");
-    const res = createResponse();
-
-    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(processProfessionalAccessWhatsappResponseMock).not.toHaveBeenCalled();
-    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
-    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
-    expect(foodAssistantIntentMock).not.toHaveBeenCalled();
-    expect(annotatedWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.meal_foods_listed",
-    }));
-    expect(sentMessages.at(-1)).toContain("Alimentos registrados");
-    expect(sentMessages.at(-1)).toContain("Almoço");
-    expect(sentMessages.at(-1)).toContain("Arroz");
-  });
-
-  it("normaliza comando curto de resumo antes do fallback nutricional", async () => {
-    executeWhatsappTextIntentMock.mockResolvedValueOnce({
-      handled: true,
-      action: "period_report",
-      reply: "Resumo de hoje enviado.",
-      eventType: "whatsapp.intent.period_report",
-      detail: "Resumo diário enviado pelo WhatsApp.",
-      data: {
-        start: "2026-06-03T03:00:00.000Z",
-        end: "2026-06-04T02:59:59.000Z",
-        periodLabel: "hoje",
-      },
-    });
-    const req = createTextWebhookRequest("Resuma");
-    const res = createResponse();
-
-    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, expect.objectContaining({ text: "Resumo hoje" }));
-    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
-    expect(foodAssistantIntentMock).not.toHaveBeenCalled();
-    expect(annotatedWebhookMock).not.toHaveBeenCalled();
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.intent.period_report",
-    }));
-    expect(sentMessages.at(-1)).toContain("Resumo de hoje");
-  });
-
-  it("mantem texto comum no fluxo nutricional sem chamar a camada LLM", async () => {
-    const req = createTextWebhookRequest("almocei arroz, feijão e frango");
-    const res = createResponse();
-
-    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
-
-    expect(processProfessionalAccessWhatsappResponseMock).not.toHaveBeenCalled();
-    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
-    expect(annotatedWebhookMock).toHaveBeenCalledOnce();
-    expect(sentMessages).toEqual([]);
+    expect(sentMessages.at(-1)).toContain("Responda SIM");
+    expect(sentMessages.at(-1)).toContain("Não excluí nada ainda");
+    expect(sentMessages.at(-1)).toContain("não registrei nenhum alimento novo");
   });
 });

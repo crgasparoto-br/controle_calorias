@@ -122,20 +122,17 @@ describe("classifyWhatsappMessageDeterministically", () => {
     expect(intent.intent).not.toBe("add_foods_to_meal");
   });
 
-  it("classifica pedido explicito de resumo como resumo diario", () => {
-    const intent = classifyWhatsappMessageDeterministically("quero um resumo");
+  it.each([
+    "Resuma",
+    "resumo",
+    "quero um resumo",
+    "resuma meu dia",
+  ])("classifica comando curto de resumo como resumo diario: %s", text => {
+    const intent = classifyWhatsappMessageDeterministically(text);
 
     expect(intent.intent).toBe("daily_summary");
     expect(intent.requiresConfirmation).toBe(false);
-  });
-
-  it("nao trata alias curto sem memoria como alimento", () => {
-    const intent = classifyWhatsappMessageDeterministically("resuma");
-
-    expect(intent.intent).toBe("unknown");
     expect(intent.items).toEqual([]);
-    expect(intent.possibleIntents).toEqual(["daily_summary"]);
-    expect(intent.requiresConfirmation).toBe(true);
   });
 
   it("pede esclarecimento para texto curto ambiguo", () => {
