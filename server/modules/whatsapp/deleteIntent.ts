@@ -17,10 +17,7 @@ export type WhatsappDeleteIntentResult = {
   reply: string;
   eventType: string;
   detail: string;
-  data: {
-    deleteIntentKind: WhatsappDeleteIntentKind;
-    destructiveActionBlocked: true;
-  };
+  data: Record<string, unknown>;
 };
 
 const DELETE_FOOD_REPLY = [
