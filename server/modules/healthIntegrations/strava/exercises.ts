@@ -5,7 +5,6 @@ import { sendWhatsAppInteractiveUrlButtonMessage, sendWhatsAppTextMessage } from
 import {
   fetchStravaActivityDetail,
   getStravaMaxActivityDetailRequestsPerSync,
-  shouldFetchStravaActivityDetail,
 } from "./activities";
 import {
   formatDistanceKm,
@@ -18,7 +17,7 @@ import {
 } from "./activityUtils";
 import { STRAVA_ACTIVITY_NOTE_PREFIX } from "./constants";
 import { ensureValidStravaToken } from "./oauth";
-import { StravaRateLimitError, setStravaUserCooldown } from "./rateLimit";
+import { StravaRateLimitError, getStravaGlobalCooldownError, setStravaUserCooldown } from "./rateLimit";
 import type { StravaActivity, StravaExerciseImportSummary } from "./types";
 
 export function getStravaExerciseNote(activity: StravaActivity) {
@@ -137,6 +136,11 @@ function logStravaImportEvent(input: {
   });
 }
 
+function hasReliableStravaCalories(exercise: { notes?: string | null } | undefined) {
+  if (!exercise?.notes) return false;
+  return /(?<!estimadas\s)Calorias:\s*\d/.test(exercise.notes);
+}
+
 function getStravaActivityMinimumImportSkipReason(activity: StravaActivity) {
   if (!Number.isFinite(activity.id)) return "id da atividade ausente ou inválido";
   if (!activity.start_date) return "data de início ausente";
@@ -201,8 +205,8 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
     return activity;
   }
 
-  if (!shouldFetchStravaActivityDetail(activity)) {
-    return withStravaSummaryCaloriesOrigin(activity);
+  if (!state.blockedFallbackReason && getStravaGlobalCooldownError()) {
+    state.blockedFallbackReason = "uso da API do Strava aproximando-se do limite; proteção preventiva ativada";
   }
 
   if (state.blockedFallbackReason) {
@@ -213,7 +217,7 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
       eventType: "strava.import.detail_skipped",
       detail: `detalhe não solicitado por proteção ativa; usando fallback disponível. Motivo: ${state.blockedFallbackReason}.`,
     });
-    return activity;
+    return withStravaSummaryCaloriesOrigin(activity);
   }
 
   if (state.usedDetailRequests >= state.detailRequestLimit) {
@@ -224,7 +228,7 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
       eventType: "strava.import.detail_skipped",
       detail: `limite de ${state.detailRequestLimit} detalhe(s) por sincronização atingido; usando fallback disponível.`,
     });
-    return activity;
+    return withStravaSummaryCaloriesOrigin(activity);
   }
 
   state.usedDetailRequests += 1;
@@ -247,7 +251,7 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
         eventType: "strava.import.detail_missing",
         detail: "detalhe não retornou dados utilizáveis; usando fallback disponível.",
       });
-      return activity;
+      return withStravaSummaryCaloriesOrigin(activity);
     }
 
     const merged = mergeStravaActivityDetail(activity, detail);
@@ -272,7 +276,7 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
         eventType: "strava.import.detail_rate_limited",
         detail: "Strava retornou 429; novas chamadas de detalhe foram bloqueadas e o fallback disponível será usado.",
       });
-      return activity;
+      return withStravaSummaryCaloriesOrigin(activity);
     }
 
     logStravaImportEvent({
@@ -282,7 +286,7 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
       eventType: "strava.import.detail_failed",
       detail: `falha recuperável ao buscar detalhe; usando fallback disponível. ${error instanceof Error ? error.message : "Erro desconhecido"}.`,
     });
-    return activity;
+    return withStravaSummaryCaloriesOrigin(activity);
   }
 }
 
@@ -297,6 +301,21 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
   };
 
   for (const activity of activities) {
+    const externalReference = `strava:${activity.id}`;
+    const existingBeforeResolve = existingExercises.find(exercise => exercise.notes?.includes(externalReference));
+
+    if (hasReliableStravaCalories(existingBeforeResolve)) {
+      summary.skipped += 1;
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "success",
+        eventType: "strava.import.detail_skipped_redundant",
+        detail: "exercício já possui calorias confiáveis do Strava; detalhe não solicitado novamente nesta janela de overlap.",
+      });
+      continue;
+    }
+
     const resolvedActivity = await resolveStravaActivityForImport(userId, activity, detailState);
     Object.assign(activity, resolvedActivity);
 
@@ -322,7 +341,6 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
       detail: `origem escolhida: ${metadata.caloriesOrigin ?? "sem_calorias"}; calorias: ${metadata.calories ?? 0} kcal.`,
     });
 
-    const externalReference = `strava:${activity.id}`;
     const existing = existingExercises.find(exercise => exercise.notes?.includes(externalReference));
     if (existing) {
       await updateExercise(userId, {
@@ -337,7 +355,6 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_updated",
         detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
-      await sendStravaExerciseImportedWhatsAppMessage(userId, existing.id, exerciseInput);
     } else {
       const created = await createExercise(userId, exerciseInput);
       existingExercises.push(created);
