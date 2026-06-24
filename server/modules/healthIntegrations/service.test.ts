@@ -1152,7 +1152,7 @@ describe("healthIntegrationService Strava", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it("limite padrão de chamadas de detalhe por sync é 5", async () => {
+  it("limite padrão de chamadas de detalhe por sync cobre todas as atividades pendentes", async () => {
     const activitiesWithoutCalories = Array.from({ length: 10 }, (_, i) => ({
       id: 5_000 + i,
       name: `Treino ${i + 1}`,
@@ -1172,8 +1172,8 @@ describe("healthIntegrationService Strava", () => {
       }))
       .mockResolvedValueOnce(jsonResponse(activitiesWithoutCalories));
 
-    // Mock 5 detail responses
-    for (let i = 0; i < 5; i++) {
+    // Mock detail responses for all 10 pending activities
+    for (let i = 0; i < 10; i++) {
       fetchMock.mockResolvedValueOnce(jsonResponse({ ...activitiesWithoutCalories[i], calories: 200 + i }));
     }
 
@@ -1186,8 +1186,8 @@ describe("healthIntegrationService Strava", () => {
       scope: "read,activity:read_all",
     });
 
-    // 1 token exchange + 1 list page + 5 detail requests = 7 total
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    // 1 token exchange + 1 list page + 10 detail requests (no artificial cap) = 12 total
+    expect(fetchMock).toHaveBeenCalledTimes(12);
   });
 
   it("intervalo padrão do auto sync é 120 minutos", async () => {

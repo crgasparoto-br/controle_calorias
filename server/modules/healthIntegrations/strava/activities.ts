@@ -82,6 +82,10 @@ export async function fetchStravaActivityDetail(accessToken: string, activityId:
     return null;
   }
 
+  if (isApproachingStravaRateLimit(response)) {
+    setStravaGlobalCooldown(DEFAULT_STRAVA_RATE_LIMIT_COOLDOWN_MINUTES * 60_000);
+  }
+
   const detail = await response.json() as StravaActivity;
   return detail;
 }
