@@ -166,14 +166,6 @@ describe("healthIntegrationService Strava", () => {
         },
       ]))
       .mockResolvedValueOnce(jsonResponse({
-        id: 999,
-        name: "Corrida matinal",
-        sport_type: "Run",
-        start_date: "2026-06-01T10:00:00Z",
-        moving_time: 2100,
-        calories: 321.4,
-      }))
-      .mockResolvedValueOnce(jsonResponse({
         id: 1000,
         name: "Atividade sem gasto",
         sport_type: "Walk",
@@ -257,13 +249,6 @@ describe("healthIntegrationService Strava", () => {
           calories: 49,
         },
       ]))
-      .mockResolvedValueOnce(jsonResponse({
-        id: 996,
-        name: "Treinamento com peso noturno",
-        start_date: "2026-06-02T23:00:00Z",
-        moving_time: 360,
-        calories: 49,
-      }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -276,7 +261,7 @@ describe("healthIntegrationService Strava", () => {
     });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
+      3,
       "https://graph.facebook.com/v22.0/phone-number-test/messages",
       expect.objectContaining({
         method: "POST",
@@ -286,7 +271,7 @@ describe("healthIntegrationService Strava", () => {
         }),
       }),
     );
-    const body = JSON.parse(String(fetchMock.mock.calls[3][1]?.body));
+    const body = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
     expect(body).toMatchObject({
       messaging_product: "whatsapp",
       to: "5511999999999",

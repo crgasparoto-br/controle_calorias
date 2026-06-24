@@ -47,6 +47,12 @@ function buildStravaActivityDetailUrl(activityId: number) {
   return `${STRAVA_ACTIVITY_DETAIL_URL}/${activityId}`;
 }
 
+export function shouldFetchStravaActivityDetail(activity: StravaActivity) {
+  const calories = typeof activity.calories === "number" ? activity.calories : null;
+  const missingCalories = calories == null || calories <= 0;
+  return missingCalories && (activity.moving_time ?? 0) > 0;
+}
+
 export function getStravaMaxActivityDetailRequestsPerSync() {
   const configured = Number(process.env.STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC ?? DEFAULT_STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC);
   if (!Number.isFinite(configured) || configured < 0) {

@@ -5,6 +5,7 @@ import { sendWhatsAppInteractiveUrlButtonMessage, sendWhatsAppTextMessage } from
 import {
   fetchStravaActivityDetail,
   getStravaMaxActivityDetailRequestsPerSync,
+  shouldFetchStravaActivityDetail,
 } from "./activities";
 import {
   formatDistanceKm,
@@ -205,6 +206,10 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
     return activity;
   }
 
+  if (!shouldFetchStravaActivityDetail(activity)) {
+    return withStravaSummaryCaloriesOrigin(activity);
+  }
+
   if (!state.blockedFallbackReason && getStravaGlobalCooldownError()) {
     state.blockedFallbackReason = "uso da API do Strava aproximando-se do limite; proteção preventiva ativada";
   }
@@ -355,6 +360,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_updated",
         detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
+      await sendStravaExerciseImportedWhatsAppMessage(userId, existing.id, exerciseInput);
     } else {
       const created = await createExercise(userId, exerciseInput);
       existingExercises.push(created);
