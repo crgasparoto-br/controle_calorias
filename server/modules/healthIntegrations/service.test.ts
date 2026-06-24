@@ -166,6 +166,14 @@ describe("healthIntegrationService Strava", () => {
         },
       ]))
       .mockResolvedValueOnce(jsonResponse({
+        id: 999,
+        name: "Corrida matinal",
+        sport_type: "Run",
+        start_date: "2026-06-01T10:00:00Z",
+        moving_time: 2100,
+        calories: 321.4,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
         id: 1000,
         name: "Atividade sem gasto",
         sport_type: "Walk",
@@ -249,6 +257,13 @@ describe("healthIntegrationService Strava", () => {
           calories: 49,
         },
       ]))
+      .mockResolvedValueOnce(jsonResponse({
+        id: 996,
+        name: "Treinamento com peso noturno",
+        start_date: "2026-06-02T23:00:00Z",
+        moving_time: 360,
+        calories: 49,
+      }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -261,7 +276,7 @@ describe("healthIntegrationService Strava", () => {
     });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       "https://graph.facebook.com/v22.0/phone-number-test/messages",
       expect.objectContaining({
         method: "POST",
@@ -271,7 +286,7 @@ describe("healthIntegrationService Strava", () => {
         }),
       }),
     );
-    const body = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
+    const body = JSON.parse(String(fetchMock.mock.calls[3][1]?.body));
     expect(body).toMatchObject({
       messaging_product: "whatsapp",
       to: "5511999999999",
@@ -1152,7 +1167,7 @@ describe("healthIntegrationService Strava", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it("limite padrão de chamadas de detalhe por sync é 5", async () => {
+  it("limite padrão de chamadas de detalhe por sync cobre todas as atividades pendentes", async () => {
     const activitiesWithoutCalories = Array.from({ length: 10 }, (_, i) => ({
       id: 5_000 + i,
       name: `Treino ${i + 1}`,
@@ -1172,8 +1187,8 @@ describe("healthIntegrationService Strava", () => {
       }))
       .mockResolvedValueOnce(jsonResponse(activitiesWithoutCalories));
 
-    // Mock 5 detail responses
-    for (let i = 0; i < 5; i++) {
+    // Mock detail responses for all 10 pending activities
+    for (let i = 0; i < 10; i++) {
       fetchMock.mockResolvedValueOnce(jsonResponse({ ...activitiesWithoutCalories[i], calories: 200 + i }));
     }
 
@@ -1186,8 +1201,8 @@ describe("healthIntegrationService Strava", () => {
       scope: "read,activity:read_all",
     });
 
-    // 1 token exchange + 1 list page + 5 detail requests = 7 total
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    // 1 token exchange + 1 list page + 10 detail requests (no artificial cap) = 12 total
+    expect(fetchMock).toHaveBeenCalledTimes(12);
   });
 
   it("intervalo padrão do auto sync é 120 minutos", async () => {
