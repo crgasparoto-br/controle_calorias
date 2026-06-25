@@ -227,7 +227,8 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     expect(sentMessages.at(-1)).toContain("Resumo de hoje");
   });
 
-  it("mantem texto comum no fluxo nutricional sem chamar a camada LLM", async () => {
+  it("mantem texto com verbo de registro explícito no fluxo nutricional sem chamar a camada LLM", async () => {
+    // Verbos no passado (almocei, comi, jantei) são registros inequívocos — não devem passar pelo LLM classificador
     const req = createTextWebhookRequest("almocei arroz, feijão e frango");
     const res = createResponse();
 
@@ -237,5 +238,43 @@ describe("handleWhatsAppWebhookWithTextIntent com LLM contextual", () => {
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(annotatedWebhookMock).toHaveBeenCalledOnce();
     expect(sentMessages).toEqual([]);
+  });
+
+  it("encaminha mensagem ambígua sem verbo de registro para o LLM classificador", async () => {
+    // Mensagem sem verbo de registro explícito e sem quantidade — deve passar pelo LLM classificador
+    executeWhatsappLlmIntentMock.mockResolvedValueOnce({
+      handled: true,
+      action: "clarification_needed",
+      reply: "Você quer registrar frango grelhado como consumido ou quer informações nutricionais?",
+      eventType: "whatsapp.llm_intent.clarification_needed",
+      detail: "Intenção ambígua: pode ser registro ou consulta.",
+    });
+    const req = createTextWebhookRequest("frango grelhado");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(executeWhatsappLlmIntentMock).toHaveBeenCalledOnce();
+    expect(annotatedWebhookMock).not.toHaveBeenCalled();
+    expect(sentMessages.at(-1)).toContain("frango grelhado");
+  });
+
+  it("encaminha pergunta nutricional para o LLM classificador sem registrar alimento", async () => {
+    // Pergunta informacional — deve ser interceptada pelo LLM classificador, não virar registro
+    executeWhatsappLlmIntentMock.mockResolvedValueOnce({
+      handled: true,
+      action: "meal_suggestion",
+      reply: "O frango grelhado tem em média 165 kcal e 31 g de proteína por 100 g.",
+      eventType: "whatsapp.llm_intent.meal_suggestion",
+      detail: "Pedido de informação nutricional respondido sem registrar refeicão.",
+    });
+    const req = createTextWebhookRequest("quanto tem de proteína no frango grelhado?");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(executeWhatsappLlmIntentMock).toHaveBeenCalledOnce();
+    expect(annotatedWebhookMock).not.toHaveBeenCalled();
+    expect(sentMessages.at(-1)).toContain("frango grelhado");
   });
 });

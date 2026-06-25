@@ -359,6 +359,17 @@ function parseJson(value: string) {
   }
 }
 
+function buildRecentConversationSection(context: WhatsappIntentContext): string {
+  if (!context.recentConversation || context.recentConversation.length === 0) {
+    return "Historico recente da conversa: nenhum turno anterior disponivel.";
+  }
+  const lines = context.recentConversation.map((turn, i) => {
+    const botLine = turn.botReply ? `  Bot: ${turn.botReply.slice(0, 200)}` : "  Bot: (sem resposta textual)";
+    return `  Turno ${i + 1}:\n  Usuario: ${turn.userMessage}\n${botLine}`;
+  });
+  return `Historico recente da conversa (do mais antigo ao mais recente):\n${lines.join("\n")}`;
+}
+
 function buildInstructions(context: WhatsappIntentContext) {
   return [
     "Voce interpreta mensagens de WhatsApp sobre controle de calorias.",
@@ -376,7 +387,10 @@ function buildInstructions(context: WhatsappIntentContext) {
     "Para comandos curtos como 'resuma', 'resumo' ou 'quero um resumo', use daily_summary, nao add_foods_to_meal.",
     "Para correcoes como 'nao e A e sim B', use replace_food_in_meal e remova prefixos como 'sim' do alimento destino.",
     "Para adicionar alimento a uma refeicao valida ainda inexistente, use meal.createIfMissing=true quando a mensagem contiver alimentos.",
-    `Contexto seguro do usuario: ${JSON.stringify(context)}`,
+    "Use o historico recente da conversa para resolver ambiguidades referenciais. Exemplos: se o usuario perguntou sobre um alimento e agora diz 'registra', entenda como registro daquele alimento; se a mensagem for 'e o almoco?' apos uma troca sobre cafe da manha, interprete como consulta ou registro do almoco.",
+    "Perguntas nutricionais como 'quanto tem de proteina no X?' ou 'X tem muita caloria?' devem ser classificadas como meal_suggestion (informacao consultiva), nao como add_foods_to_meal.",
+    buildRecentConversationSection(context),
+    `Contexto seguro do usuario (refeicoes, alimentos recentes, memorias): ${JSON.stringify({ ...context, recentConversation: undefined })}`,
   ].join("\n");
 }
 

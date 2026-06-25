@@ -1,6 +1,7 @@
 import { listMeals } from "../meals/service";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { retrieveWhatsappContextMemory, type WhatsappMemoryRetrievalContext } from "./contextMemory";
+import { getRecentConversationTurns, type ConversationTurn } from "./conversationHistory";
 
 const MAX_CONTEXT_MEALS = 6;
 const MAX_CONTEXT_ITEMS_PER_MEAL = 8;
@@ -19,6 +20,14 @@ export type WhatsappIntentContext = {
     kind: string;
     originalIntent?: string;
   } | null;
+  /**
+   * Últimas trocas da conversa recente (usuário → bot).
+   * Permite ao LLM resolver ambiguidades como "e o almoço?" com base no que foi dito antes.
+   */
+  recentConversation: Array<{
+    userMessage: string;
+    botReply: string | null;
+  }>;
 };
 
 export type WhatsappContextMeal = {
@@ -92,6 +101,8 @@ export async function buildWhatsappIntentContext(
     now: receivedAt,
   });
 
+  const recentTurns = getRecentConversationTurns(userId, receivedAt.getTime());
+
   return {
     version: "whatsapp-intent-context/v1",
     nowIso: receivedAt.toISOString(),
@@ -108,5 +119,9 @@ export async function buildWhatsappIntentContext(
     recentFoodNames,
     contextualMemories: memoryContext.llmContext,
     pendingClarification: options.pendingClarification ?? null,
+    recentConversation: recentTurns.map(turn => ({
+      userMessage: turn.userMessage,
+      botReply: turn.botReply,
+    })),
   };
 }

@@ -4,9 +4,12 @@ const getUserIdByWhatsappPhoneMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const handleWhatsAppWebhookWithAnnotatedImagesMock = vi.fn();
 
+const listUserMealsMock = vi.fn();
+
 vi.mock("./db", () => ({
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   logInferenceEvent: logInferenceEventMock,
+  listUserMeals: listUserMealsMock,
 }));
 
 vi.mock("./whatsappConfig", () => ({
@@ -81,7 +84,9 @@ describe("handleWhatsAppWebhookWithTextIntent unknown food reply", () => {
     getUserIdByWhatsappPhoneMock.mockReset();
     logInferenceEventMock.mockReset();
     handleWhatsAppWebhookWithAnnotatedImagesMock.mockReset();
+    listUserMealsMock.mockReset();
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
+    listUserMealsMock.mockResolvedValue([]);
     handleWhatsAppWebhookWithAnnotatedImagesMock.mockImplementation(async (_req, res: MockResponse) => (
       res.status(200).json({ ok: true, processed: 1 })
     ));
@@ -94,25 +99,29 @@ describe("handleWhatsAppWebhookWithTextIntent unknown food reply", () => {
     }) as typeof fetch;
   });
 
-  it("responde quando alimento simples não existe no catálogo e não cria refeição genérica", async () => {
-    const req = createTextWebhookRequest("1 alimento inventado", "unknown-food");
+  it("alimento inventado sem quantidade explícita passa pelo LLM classificador antes de desistir", async () => {
+    // Com o Ponto 1 implementado, mensagens sem verbo de registro e sem quantidade
+    // são encaminhadas ao LLM classificador. O LLM retorna clarification_needed
+    // para alimentos ambíguos, em vez de cair direto no fallback food_not_found.
+    const req = createTextWebhookRequest("alimento inventado", "unknown-food");
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(handleWhatsAppWebhookWithAnnotatedImagesMock).not.toHaveBeenCalled();
+    // O LLM classificador é chamado (via executeWhatsappLlmIntent) e retorna clarification_needed
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       origin: "whatsapp",
       status: "warning",
-      eventType: "whatsapp.intent.food_not_found",
+      eventType: "whatsapp.llm_intent.clarification_needed",
     }));
-    expect(sentMessages.at(-1)).toContain("Não encontrei esse alimento no catálogo ainda");
   });
 
-  it("delega alimento conhecido para o fluxo nutricional normal", async () => {
-    const req = createTextWebhookRequest("1 bisnaguinha panco", "known-food");
+  it("alimento com unidade de medida explícita é delegado ao fluxo nutricional sem passar pelo LLM", async () => {
+    // Mensagem com unidade de medida explícita (100g) é reconhecida por hasExplicitFoodQuantity
+    // e vai direto para o pipeline nutricional sem consultar o LLM classificador
+    const req = createTextWebhookRequest("100g de bisnaguinha panco", "known-food-with-unit");
     const res = createResponse();
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);

@@ -27,6 +27,7 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
+import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
 
 type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>> | NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>> | NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>> | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
 type TextIntentHandlingResult = boolean | { passthroughText: string };
@@ -123,12 +124,28 @@ function isBareDailySummaryRequest(text: string) {
   return normalized === "resuma" || normalized === "resumo" || normalized === "relatorio" || normalized === "balanco";
 }
 
+function isDefinitelyFoodRegistration(normalized: string) {
+  // Verbos no passado ou imperativos de registro explícito — claramente um consumo
+  if (/\b(almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei)\b/.test(normalized)) return true;
+  // Imperativo de registro com alimento mencionado
+  if (/\b(registrar|registre|registra|adicionar|adicione|adiciona|inclua|incluir|lance|lancar)\b/.test(normalized)) return true;
+  return false;
+}
+
 function shouldTryContextualLlmIntent(text: string) {
   const normalized = normalizeText(text);
   if (!normalized) return false;
+
+  // Mensagens com quantidade explícita de alimento são quase sempre registros — deixar para o pipeline nutricional
   if (hasExplicitFoodQuantity(text)) return false;
-  if (/\b(almocei|jantei|comi|lanchei|ceei|tomei|bebi)\b/.test(normalized)) return false;
-  return /\b(refeicoes?|registrad[ao]s?|registrei|registro|consultar|consulta|listar|mostra|mostrar|ver|resumo do dia|total de hoje|calorias de hoje|corrigir|correcao|trocar|substituir|excluir|exclua|remover|remova|apagar|apague|deletar|delete|ajuda|comandos)\b/.test(normalized);
+
+  // Registro explícito e inequívoco — não precisa do classificador
+  if (isDefinitelyFoodRegistration(normalized)) return false;
+
+  // Qualquer mensagem que não seja claramente um registro deve passar pelo LLM classificador.
+  // Isso inclui perguntas nutricionais ("quanto tem de proteína no frango?"),
+  // pedidos de sugestão, consultas, comandos de gestão e textos ambíguos.
+  return true;
 }
 
 function looksLikeProfessionalAccessDecision(text: string) {
@@ -286,9 +303,20 @@ function rememberPendingTextIntentContext(userId: number, result: TextIntentResu
 export function __resetWhatsAppTextIntentContextForTests() {
   pendingTextIntentContexts.clear();
   recentlyHandledTextIntentMessageIds.clear();
+  __resetConversationHistoryForTests();
 }
 
-async function sendAndLogTextReply(input: { userId: number; sourcePhone: string; reply: string; eventType: string; detail: string; status: WhatsAppIntentLogStatus; mealId?: number | null }) {
+async function sendAndLogTextReply(input: {
+  userId: number;
+  sourcePhone: string;
+  userMessage: string;
+  reply: string;
+  eventType: string;
+  detail: string;
+  status: WhatsAppIntentLogStatus;
+  mealId?: number | null;
+  occurredAtMs?: number;
+}) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
 
   const quickEditLink = input.mealId
@@ -301,6 +329,14 @@ async function sendAndLogTextReply(input: { userId: number; sourcePhone: string;
   if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
     logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: replyResult.ok ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}` });
   }
+
+  // Registra a troca no histórico conversacional para enriquecer o contexto do LLM nas próximas mensagens
+  recordConversationTurn(
+    input.userId,
+    input.userMessage,
+    replyResult.ok ? input.reply : null,
+    input.occurredAtMs ?? Date.now(),
+  );
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
@@ -329,6 +365,8 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   if (!userId) return false;
 
   const text = getTextBody(message);
+  const occurredAt = resolveWhatsAppMessageOccurredAt(message);
+  const occurredAtMs = occurredAt.getTime();
   const safety = inspectWhatsAppUserContentSafety(text, "text");
   if (!safety.safe) {
     markTextIntentMessageHandled(message.id);
@@ -336,10 +374,12 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     await sendAndLogTextReply({
       userId,
       sourcePhone,
+      userMessage: text,
       reply: buildSuspiciousWhatsAppContentReply(),
       eventType: "whatsapp.security_guard_blocked",
       detail: `Conteudo bloqueado por seguranca antes do roteamento textual: ${safety.categories.join(", ") || "security_guard"}.`,
       status: "warning",
+      occurredAtMs,
     });
     return true;
   }
@@ -353,10 +393,12 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       await sendAndLogTextReply({
         userId,
         sourcePhone,
+        userMessage: text,
         reply: professionalAccessResponse.reply,
         eventType: professionalAccessResponse.eventType,
         detail: professionalAccessResponse.detail,
         status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
+        occurredAtMs,
       });
       return true;
     }
@@ -366,15 +408,17 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   if (mixedWaterFood) {
     const waterResults: TextIntentResult[] = [];
     for (const waterLine of mixedWaterFood.waterLines) {
-      const result = await executeWhatsappTextIntent(userId, { text: waterLine.text, receivedAt: resolveWhatsAppMessageOccurredAt(message) });
+      const result = await executeWhatsappTextIntent(userId, { text: waterLine.text, receivedAt: occurredAt });
       if (!result || result.action !== "water_logged") {
         await sendAndLogTextReply({
           userId,
           sourcePhone,
+          userMessage: text,
           reply: `Não consegui registrar a hidratação em "${waterLine.text}". Reenvie a água e os alimentos em mensagens separadas para evitar registro parcial.`,
           eventType: "whatsapp.intent.water_food_multiline_failed",
           detail: "Falha ao registrar hidratação em mensagem multi-linha com alimentos.",
           status: "warning",
+          occurredAtMs,
         });
         markTextIntentMessageHandled(message.id);
         return true;
@@ -385,17 +429,18 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     await sendAndLogTextReply({
       userId,
       sourcePhone,
+      userMessage: text,
       reply: buildMixedWaterReply(waterResults),
       eventType: "whatsapp.intent.water_food_multiline_split",
       detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional após separar mensagem multi-linha.",
       status: "success",
+      occurredAtMs,
     });
     return { passthroughText: mixedWaterFood.foodText };
   }
 
   const pendingContext = getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
-  const occurredAt = resolveWhatsAppMessageOccurredAt(message);
 
   const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent });
   if (deleteIntentResult) {
@@ -404,10 +449,12 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     await sendAndLogTextReply({
       userId,
       sourcePhone,
+      userMessage: text,
       reply: deleteIntentResult.reply,
       eventType: deleteIntentResult.eventType,
       detail: deleteIntentResult.detail,
       status: "warning",
+      occurredAtMs,
     });
     return true;
   }
@@ -419,11 +466,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     await sendAndLogTextReply({
       userId,
       sourcePhone,
+      userMessage: text,
       reply: mealListResult.reply,
       eventType: mealListResult.eventType,
       detail: mealListResult.detail,
       status: mealListResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId(mealListResult.data),
+      occurredAtMs,
     });
     return true;
   }
@@ -435,11 +484,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     await sendAndLogTextReply({
       userId,
       sourcePhone,
+      userMessage: text,
       reply: contextualReplacementResult.reply,
       eventType: contextualReplacementResult.eventType,
       detail: contextualReplacementResult.detail,
       status: contextualReplacementResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId(contextualReplacementResult.data),
+      occurredAtMs,
     });
     return true;
   }
@@ -455,7 +506,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     if (!unknownFoodReply) return false;
     markTextIntentMessageHandled(message.id);
     pendingTextIntentContexts.delete(userId);
-    await sendAndLogTextReply({ userId, sourcePhone, reply: unknownFoodReply, eventType: "whatsapp.intent.food_not_found", detail: "Alimento simples informado por texto não encontrado no catálogo antes da inferência nutricional.", status: "warning" });
+    await sendAndLogTextReply({ userId, sourcePhone, userMessage: text, reply: unknownFoodReply, eventType: "whatsapp.intent.food_not_found", detail: "Alimento simples informado por texto não encontrado no catálogo antes da inferência nutricional.", status: "warning", occurredAtMs });
     return true;
   }
 
@@ -464,11 +515,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   await sendAndLogTextReply({
     userId,
     sourcePhone,
+    userMessage: text,
     reply: await buildExerciseAwarePeriodReportReply(userId, result),
     eventType: result.eventType,
     detail: result.detail,
     status: getWhatsAppIntentLogStatus(result.action),
     mealId: extractMealId(result.data),
+    occurredAtMs,
   });
   return true;
 }
