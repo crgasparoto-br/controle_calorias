@@ -41,21 +41,12 @@ import calorieControlIcon from "../../../imagens/premium_app_icon_for_a_smart_ca
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 
-const SOLVERFIN_LOGO_SRC = "/brand/Solverfin_02.png";
-
 function ProductIcon({ className = "h-11 w-11" }: { className?: string }) {
-  const [logoSrc, setLogoSrc] = React.useState(SOLVERFIN_LOGO_SRC);
-
   return (
     <img
-      src={logoSrc}
-      alt="SolverFin"
+      src={calorieControlIcon}
+      alt="Controle de Calorias"
       className={`${className} rounded-2xl object-cover shadow-sm ring-1 ring-white/20`}
-      onError={() => {
-        if (logoSrc !== calorieControlIcon) {
-          setLogoSrc(calorieControlIcon);
-        }
-      }}
     />
   );
 }
@@ -162,7 +153,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <ProductIcon />
             <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-              <p className="truncate text-sm font-medium text-sidebar-foreground/70">SolverFin</p>
+              <p className="truncate text-sm font-medium text-sidebar-foreground/70">Controle de Calorias</p>
               <h1 className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">Nutrição inteligente</h1>
             </div>
           </div>
@@ -223,7 +214,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3">
               <SidebarTrigger className="h-9 w-9 rounded-xl border bg-background shadow-sm" />
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">SolverFin</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Controle de Calorias</p>
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
                   {activeItem?.label || "Hoje"}
                 </h2>
