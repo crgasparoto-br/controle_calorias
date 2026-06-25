@@ -19,6 +19,7 @@
     "db:check-integrity": "node scripts/check-referential-integrity.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:repair-meal-inferences": "node scripts/repair-meal-inferences-schema.mjs",
+    "db:repair-bolo-canonical": "node scripts/repair-bolo-canonical-name.mjs",
     "foods:seed:common-br": "tsx scripts/import-foods/seed_common_brazil_foods.ts",
     "foods:import:taco": "tsx scripts/import-foods/import_taco.ts",
     "foods:import:tbca": "tsx scripts/import-foods/import_tbca.ts"
