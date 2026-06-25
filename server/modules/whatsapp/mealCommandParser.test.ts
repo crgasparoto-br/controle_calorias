@@ -268,7 +268,62 @@ describe("parseMealCommandFromWhatsApp", () => {
     }));
   });
 
-  it("mantem refeicao simples como comando desconhecido", () => {
+  it("reconhece expressao aritmetica sem verbo quando ha tipo de refeicao — caso principal do bug", () => {
+    const result = parseMealCommandFromWhatsApp("120g - 30g frango ao almoco", { referenceDate });
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("almoço");
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        foodName: "frango",
+        quantity: 90,
+        unit: "g",
+        missingFields: [],
+        quantityExpression: expect.objectContaining({
+          leftQuantity: 120,
+          rightQuantity: 30,
+          operator: "-",
+          unit: "g",
+          result: 90,
+        }),
+      }),
+    ]);
+  });
+
+  it("reconhece expressao aritmetica sem verbo com alimento antes da expressao", () => {
+    const result = parseMealCommandFromWhatsApp("frango 120g - 30g no jantar", { referenceDate });
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("jantar");
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "frango",
+      quantity: 90,
+      unit: "g",
+      missingFields: [],
+    }));
+  });
+
+  it("reconhece expressao aritmetica de soma sem verbo", () => {
+    const result = parseMealCommandFromWhatsApp("150g + 50g de arroz no almoco", { referenceDate });
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("almoço");
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "arroz",
+      quantity: 200,
+      unit: "g",
+      missingFields: [],
+    }));
+  });
+
+  it("nao reconhece expressao aritmetica sem verbo quando nao ha tipo de refeicao", () => {
+    // Sem tipo de refeição a mensagem é ambígua — deve ser tratada pelo LLM
+    const result = parseMealCommandFromWhatsApp("120g - 30g frango", { referenceDate });
+
+    expect(result.intent).toBe("unknown");
+  });
+
+  it("mantem refeicao simples como comando desconhecido", async () => {
     const result = parseMealCommandFromWhatsApp("almoço: arroz, feijão e frango", { referenceDate });
 
     expect(result).toEqual(expect.objectContaining({

@@ -473,6 +473,56 @@ function parseRemoveItem(input: string): ParsedMealCommand | null {
   };
 }
 
+/**
+ * Reconhece adições implícitas de alimento quando a mensagem contém uma
+ * expressão aritmética de porção (ex: "120g - 30g") junto de um tipo de
+ * refeição, mas SEM verbo de ação explícito.
+ *
+ * Exemplos cobertos:
+ *   "120g - 30g frango ao almoço"         → 90g de frango no almoço
+ *   "frango 120g - 30g no jantar"          → 90g de frango no jantar
+ *   "150g + 50g de arroz no almoço"        → 200g de arroz no almoço
+ *
+ * Exige obrigatoriamente:
+ *   1. Uma expressão aritmética válida (resultado > 0, unidades compatíveis)
+ *   2. Um tipo de refeição identificável na mensagem
+ *
+ * Sem o tipo de refeição a mensagem é ambígua (pode ser correção de item
+ * existente) e deve ser tratada por outro handler ou pelo LLM.
+ */
+function parseImplicitFoodAdditionCommand(input: string, context: MealCommandContext): ParsedMealCommand | null {
+  const mealType = findMealType(input, context);
+  if (!mealType) return null;
+
+  const quantityExpression = parseQuantityExpression(input);
+  if (!quantityExpression || quantityExpression.kind !== "valid") return null;
+
+  // Extrai o nome do alimento removendo a expressão aritmética e o tipo de refeição
+  const mealPattern = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia)";
+  const withoutExpression = normalizeSpaces(
+    `${input.slice(0, quantityExpression.index)} ${input.slice(quantityExpression.index + quantityExpression.raw.length)}`,
+  );
+  const withoutMeal = normalizeSpaces(
+    withoutExpression
+      .replace(new RegExp(`\\s*(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${mealPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?`, "i"), " ")
+      .replace(new RegExp(`${mealPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*`, "i"), " "),
+  );
+  const foodNameRaw = cleanFoodName(withoutMeal);
+  if (!foodNameRaw) return null;
+
+  const date = resolveCommandDate(input, context);
+  const item = buildItem(foodNameRaw, quantityExpression.quantity, quantityExpression.unit, quantityExpression.expression);
+
+  return {
+    intent: "add_items_to_meal",
+    mealType,
+    date,
+    items: [item],
+    confidence: item.missingFields.length ? 0.62 : 0.88,
+    missingFields: item.missingFields.length ? ["foodName"] : [],
+  };
+}
+
 function parseBrandUpdate(input: string): ParsedMealCommand | null {
   const match = input.match(/\b(?:marca|brand)\b\s+(?:é|e|para|correta\s+é)\s+(.+)$/i);
   if (!match) {
@@ -505,6 +555,7 @@ export function parseMealCommandFromWhatsApp(input: string, context: MealCommand
     ?? parseShortQuantityCorrection(text, context)
     ?? parseRemoveItem(text)
     ?? parseItemReplacement(text)
+    ?? parseImplicitFoodAdditionCommand(text, context)
     ?? parseBrandUpdate(text)
     ?? emptyCommand("unknown", ["intent"]);
 }
