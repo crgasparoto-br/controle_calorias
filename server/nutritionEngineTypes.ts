@@ -40,6 +40,24 @@ export type MealDraftItem = {
   source: "catalog" | "hybrid" | "heuristic";
 };
 
+/**
+ * Contexto de intenção derivado do LLM classificador (WhatsApp intent interpreter).
+ * Quando presente, permite que o LLM nutricional foque na tarefa correta e
+ * evite ambiguidades sem precisar reinterpretar a mensagem do zero.
+ */
+export type IntentHint = {
+  /** Intenção identificada pelo classificador */
+  intent: string;
+  /** Confiança do classificador (0–1) */
+  confidence: number;
+  /** Tipo de refeição já resolvido pelo classificador, se houver */
+  mealLabel?: string | null;
+  /** Data já resolvida pelo classificador ("hoje", "ontem" ou ISO) */
+  date?: string | null;
+  /** Resumo do raciocínio do classificador para depuração */
+  reasoning?: string | null;
+};
+
 export type MealProcessingInput = {
   text?: string;
   transcript?: string;
@@ -49,6 +67,8 @@ export type MealProcessingInput = {
   occurredAt?: Date | string | number;
   timeZone?: string;
   suggestedMealLabel?: string | null;
+  /** Contexto opcional do LLM classificador para coordenar a extração nutricional */
+  intentHint?: IntentHint | null;
 };
 
 export type MealProcessingResult = {

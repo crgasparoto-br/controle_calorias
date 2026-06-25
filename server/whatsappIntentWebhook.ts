@@ -5,7 +5,7 @@ import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
-import { executeWhatsappLlmIntent } from "./modules/whatsapp/llmIntentActions";
+import { executeWhatsappLlmIntent, type WhatsappLlmNutritionFallback } from "./modules/whatsapp/llmIntentActions";
 import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
 import {
   buildSuspiciousWhatsAppContentReply,
@@ -29,8 +29,12 @@ import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedIma
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
 
-type TextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>> | NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>> | NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>> | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
-type TextIntentHandlingResult = boolean | { passthroughText: string };
+type TextIntentResult =
+  | NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>
+  | NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>>
+  | Exclude<NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>>, WhatsappLlmNutritionFallback>
+  | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
+type TextIntentHandlingResult = boolean | { passthroughText: string; intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null };
 type NutritionTotals = {
   calories: number;
   protein: number;
@@ -495,13 +499,25 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     return true;
   }
 
+  let nutritionFallback: WhatsappLlmNutritionFallback | null = null;
   let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (!result && shouldTryContextualLlmIntent(textForIntent)) {
-    result = await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+    const llmResult = await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+    if (llmResult && "handled" in llmResult && !llmResult.handled) {
+      // Classificador decidiu encaminhar ao pipeline nutricional com contexto de intenção
+      nutritionFallback = llmResult;
+    } else {
+      result = llmResult as TextIntentResult | null;
+    }
   }
   result ??= executeWhatsAppFoodAssistantIntent(text);
 
   if (!result) {
+    // Se o classificador gerou um intentHint (fallback nutricional com contexto),
+    // encaminha ao pipeline de imagem/nutricional com o hint para coordenar a extração
+    if (nutritionFallback) {
+      return { passthroughText: text, intentHint: nutritionFallback.intentHint };
+    }
     const unknownFoodReply = buildUnknownFoodReply(text);
     if (!unknownFoodReply) return false;
     markTextIntentMessageHandled(message.id);
@@ -569,6 +585,7 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
 
   const handledMessageKeys = new Set<string>();
   const textOverrides = new Map<string, string>();
+  const intentHints = new Map<string, import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]>();
   for (const message of messages) {
     const handled = await tryHandleTextIntent(message);
     const key = getExtractedWhatsAppMessageKey(message);
@@ -576,6 +593,9 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
       handledMessageKeys.add(key);
     } else if (handled && typeof handled === "object") {
       textOverrides.set(key, handled.passthroughText);
+      if (handled.intentHint) {
+        intentHints.set(key, handled.intentHint);
+      }
     }
   }
 
@@ -587,5 +607,9 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
   }
 
   req.body = remainingPayload;
+  // Propaga os intentHints ao pipeline nutricional via campo auxiliar no request
+  if (intentHints.size) {
+    (req as any).__intentHints = intentHints;
+  }
   return handleWhatsAppWebhookWithAnnotatedImages(req, res);
 }

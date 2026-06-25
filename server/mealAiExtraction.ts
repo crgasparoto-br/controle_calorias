@@ -94,6 +94,33 @@ function safeJsonParse<T>(value: string): T | null {
   }
 }
 
+function intentHintToPrompt(hint: import("./nutritionEngineTypes").IntentHint | null | undefined): string | null {
+  if (!hint) return null;
+
+  const lines: string[] = [
+    `Intenção identificada pelo classificador: ${hint.intent} (confiança: ${(hint.confidence * 100).toFixed(0)}%)`,
+  ];
+
+  if (hint.mealLabel) {
+    lines.push(`Tipo de refeição já resolvido: ${hint.mealLabel}`);
+  }
+  if (hint.date) {
+    lines.push(`Data já resolvida: ${hint.date}`);
+  }
+  if (hint.reasoning) {
+    lines.push(`Raciocínio do classificador: ${hint.reasoning}`);
+  }
+
+  lines.push(
+    "Use esse contexto para focar a extração:",
+    "- Se a intenção for 'add_foods_to_meal', extraia os alimentos mencionados para registro.",
+    "- Se a intenção for 'nutrition_query' ou similar, retorne items vazio e explique no reasoning.",
+    "- Se a confiança for baixa (< 60%), trate o contexto como sugestão, não como certeza.",
+  );
+
+  return lines.join("\n");
+}
+
 function habitsToPrompt(habits: HabitSnapshot[] = []) {
   if (!habits.length) {
     return "Sem histórico prévio relevante do usuário.";
@@ -116,6 +143,7 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
         `Texto disponível: ${composedText || "não informado"}`,
         `Rótulo sugerido pelo horário: ${suggestedMealLabel}`,
         `Histórico relevante do usuário:\n${habitsToPrompt(input.habits)}`,
+        ...(intentHintToPrompt(input.intentHint) ? [`Contexto do classificador de intenção:\n${intentHintToPrompt(input.intentHint)}`] : []),
         "Retorne apenas JSON válido no schema solicitado.",
         "Inclua somente alimentos ou bebidas explicitamente mencionados, fotografados ou claramente visíveis.",
         "Se a mensagem tiver apenas saudação, conversa genérica ou texto sem alimento, retorne items como lista vazia e confidence baixo.",

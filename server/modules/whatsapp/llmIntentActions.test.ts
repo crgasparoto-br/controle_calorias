@@ -140,7 +140,7 @@ describe("executeWhatsappLlmIntent", () => {
     }));
   });
 
-  it("deixa texto comum de refeicao seguir para inferencia nutricional", async () => {
+  it("deixa texto comum de refeicao seguir para inferencia nutricional com intentHint", async () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
       validationStatus: "valid",
@@ -150,7 +150,15 @@ describe("executeWhatsappLlmIntent", () => {
 
     const result = await executeWhatsappLlmIntent(42, { text: "almocei arroz, feijão e frango" });
 
-    expect(result).toBeNull();
+    // Agora retorna WhatsappLlmNutritionFallback com intentHint em vez de null
+    expect(result).not.toBeNull();
+    expect(result).toMatchObject({
+      handled: false,
+      intentHint: expect.objectContaining({
+        intent: "unknown",
+        confidence: 0.34,
+      }),
+    });
     expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       action: "fallback_to_nutrition",
       replyKind: "fallback",

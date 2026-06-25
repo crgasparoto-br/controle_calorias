@@ -38,6 +38,15 @@ type WhatsappLlmIntentResult = {
   toolTrace?: WhatsappAiToolTrace[];
 };
 
+/**
+ * Resultado especial quando o classificador decide encaminhar ao pipeline
+ * nutricional, mas já tem contexto útil para coordenar a extração.
+ */
+export type WhatsappLlmNutritionFallback = {
+  handled: false;
+  intentHint: import("../../nutritionEngineTypes").IntentHint;
+};
+
 type WhatsappLlmIntentInput = {
   text?: string | null;
   receivedAt?: Date;
@@ -265,6 +274,24 @@ function hasLikelyMealRegistrationSignal(text: string) {
 
 function shouldLetNutritionFallbackHandle(text: string, intent: WhatsappInterpretedIntent) {
   return intent.intent === "unknown" && hasLikelyMealRegistrationSignal(text);
+}
+
+/**
+ * Constrói um IntentHint a partir da interpretação do classificador para
+ * ser passado ao LLM nutricional como contexto de coordenação.
+ * Apenas exportado para uso no pipeline nutricional; não persiste dados.
+ */
+export function buildIntentHintFromInterpretation(
+  interpretation: WhatsappMessageInterpretation,
+): import("../../nutritionEngineTypes").IntentHint {
+  const intent = interpretation.intent;
+  return {
+    intent: intent.intent,
+    confidence: intent.confidence,
+    mealLabel: intent.meal?.label ?? null,
+    date: intent.date ?? null,
+    reasoning: intent.reason ?? null,
+  };
 }
 
 function buildIdempotencyKey(userId: number, text: string, receivedAt: Date, messageId?: string | null) {
@@ -619,7 +646,7 @@ function isPersistentIntent(intentName: WhatsappIntentName) {
   return PERSISTENT_INTENTS.includes(intentName as (typeof PERSISTENT_INTENTS)[number]);
 }
 
-export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLlmIntentInput): Promise<WhatsappLlmIntentResult | null> {
+export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLlmIntentInput): Promise<WhatsappLlmIntentResult | WhatsappLlmNutritionFallback | null> {
   const text = input.text?.trim();
   if (!text) {
     return null;
@@ -639,7 +666,8 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
 
   try {
     if (shouldLetNutritionFallbackHandle(text, intent)) {
-      return finish(null, "nutrition_fallback");
+      recordIntentAudit({ userId, text, interpretation, result: null, fallbackReason: "nutrition_fallback" });
+      return { handled: false, intentHint: buildIntentHintFromInterpretation(interpretation) };
     }
 
     if (intent.requiresConfirmation || intent.confidence < WHATSAPP_INTENT_CONFIDENCE.clarify) {

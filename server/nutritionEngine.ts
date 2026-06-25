@@ -25,6 +25,7 @@ export type {
   CatalogFood,
   ExplicitQuantity,
   HabitSnapshot,
+  IntentHint,
   LlmItem,
   MealDraftItem,
   MealProcessingInput,

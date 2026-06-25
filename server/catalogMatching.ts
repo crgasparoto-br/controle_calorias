@@ -41,6 +41,10 @@ function catalogHasVariation(food: CatalogFood, variation: string) {
   return normalizedTokenIncludes(searchable, variation);
 }
 
+function _catalogAliasesForSearch(food: CatalogFood): string[] {
+  return [food.name, ...food.aliases];
+}
+
 export function sourceMentionsFood(sourceText: string, foodName: string) {
   const source = normalizeForMatching(sourceText);
   const candidates = new Set<string>();
@@ -117,7 +121,24 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
   return Math.max(bestScore, 0);
 }
 
-export function findCatalogFood(foodName: string) {
+export function findCatalogFood(foodName: string, userId?: number): CatalogFood | undefined {
+  // Consulta aliases pessoais do usuário antes do catálogo global
+  if (userId != null) {
+    try {
+      // Import síncrono via require para evitar async no hot path
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { resolvePersonalFoodAlias } = require("./modules/whatsapp/personalFoodAliasStore") as typeof import("./modules/whatsapp/personalFoodAliasStore");
+      const personalAlias = resolvePersonalFoodAlias({ userId, foodText: foodName });
+      if (personalAlias) {
+        // Resolve o nome canônico aprendido contra o catálogo global (sem userId para evitar recursão)
+        const resolvedFood: CatalogFood | undefined = findCatalogFood(personalAlias.canonicalName);
+        if (resolvedFood) return resolvedFood;
+      }
+    } catch {
+      // Falha silenciosa: continua com catálogo global
+    }
+  }
+
   const normalized = normalizeForMatching(cleanFoodName(foodName));
   const rawNormalized = normalizeForMatching(foodName);
   const catalogSource = getCatalogCache() as CatalogFood[];

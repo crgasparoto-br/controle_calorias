@@ -2154,6 +2154,21 @@ export async function confirmPendingMeal(input: {
   inferenceStore.delete(input.draftId);
   await persistMealToDb(savedMeal);
   await updateHabitsFromMeal(savedMeal);
+
+  // Aprendizado silencioso de aliases pessoais: se o texto original difere do
+  // nome canônico, registra o mapeamento para uso futuro sem intervenção do usuário.
+  if (savedMeal.sourceText && savedMeal.source === "whatsapp") {
+    const { learnPersonalFoodAlias } = await import("./modules/whatsapp/personalFoodAliasStore");
+    for (const item of savedMeal.items) {
+      learnPersonalFoodAlias({
+        userId: savedMeal.userId,
+        aliasText: savedMeal.sourceText,
+        canonicalName: item.canonicalName,
+        canonicalSlug: item.source === "catalog" ? item.canonicalName : undefined,
+      });
+    }
+  }
+
   logInferenceEvent({
     userId: input.userId,
     origin: pending.source,

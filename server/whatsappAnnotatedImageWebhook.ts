@@ -199,6 +199,7 @@ async function processImageMealInputWithFallback(input: {
   userId: number;
   prepared: PreparedImageMessage;
   occurredAt: Date;
+  intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null;
 }) {
   try {
     return await processMealInput({
@@ -207,6 +208,7 @@ async function processImageMealInputWithFallback(input: {
       habits: await getHabitSnapshots(input.userId),
       occurredAt: input.occurredAt,
       timeZone: "America/Sao_Paulo",
+      intentHint: input.intentHint ?? undefined,
     });
   } catch (error) {
     if (!(error instanceof MealInferenceError)) {
@@ -418,7 +420,10 @@ async function sendAnnotatedImageFallbackText(input: {
   }
 }
 
-async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookMessage) {
+async function tryHandleAnnotatedImageMessage(
+  message: ExtractedWhatsAppWebhookMessage,
+  intentHints?: Map<string, import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]>,
+) {
   const sourcePhone = message.from || "unknown";
   if (!isWhatsAppMessageForConfiguredChannel(message) || !canHandleAnnotatedImageMessage(message)) {
     return false;
@@ -484,10 +489,13 @@ async function tryHandleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookM
     }
 
     const occurredAt = resolveWhatsAppMessageOccurredAt(message);
+    const messageKey = getExtractedWhatsAppMessageKey(message);
+    const intentHint = intentHints?.get(messageKey) ?? null;
     const processed = await processImageMealInputWithFallback({
       userId,
       prepared,
       occurredAt,
+      intentHint,
     });
     const processedForPersistence = {
       ...processed,
@@ -643,9 +651,11 @@ export async function handleWhatsAppWebhookWithAnnotatedImages(req: Request, res
     return handleWhatsAppWebhook(req, res);
   }
 
+  const intentHints = (req as any).__intentHints as Map<string, import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]> | undefined;
+
   const handledMessageKeys = new Set<string>();
   for (const message of messages) {
-    const handled = await tryHandleAnnotatedImageMessage(message);
+    const handled = await tryHandleAnnotatedImageMessage(message, intentHints);
     if (handled) {
       handledMessageKeys.add(getExtractedWhatsAppMessageKey(message));
     }
