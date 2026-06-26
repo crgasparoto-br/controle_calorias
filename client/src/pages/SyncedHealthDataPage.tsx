@@ -12,6 +12,8 @@ import { trpc } from "@/lib/trpc";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Database } from "lucide-react";
 import React, { useState } from "react";
 
+type FilterOption = { value: string; label: string };
+
 const DATA_TYPES = [
   { value: "all", label: "Todos" },
   { value: "steps", label: "Passos" },
@@ -76,6 +78,30 @@ const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   workout: "Treino",
   yoga: "Yoga",
 };
+
+const FEATURED_ACTIVITY_TYPE_OPTIONS: FilterOption[] = [
+  { value: "run", label: "Corrida" },
+  { value: "strength|strengthtraining|weighttraining", label: "Musculação" },
+];
+const FEATURED_ACTIVITY_TYPE_LABELS = new Set(FEATURED_ACTIVITY_TYPE_OPTIONS.map(option => option.label));
+
+function buildStravaActivityTypeOptions(): FilterOption[] {
+  const groupedOptions = new Map<string, string[]>();
+  for (const [value, label] of Object.entries(ACTIVITY_TYPE_LABELS)) {
+    if (FEATURED_ACTIVITY_TYPE_LABELS.has(label)) continue;
+    groupedOptions.set(label, [...(groupedOptions.get(label) ?? []), value]);
+  }
+
+  return [
+    { value: "all", label: "Todas" },
+    ...FEATURED_ACTIVITY_TYPE_OPTIONS,
+    ...Array.from(groupedOptions.entries())
+      .map(([label, values]) => ({ value: values.join("|"), label }))
+      .sort((left, right) => left.label.localeCompare(right.label, "pt-BR")),
+  ];
+}
+
+const STRAVA_ACTIVITY_TYPE_OPTIONS = buildStravaActivityTypeOptions();
 
 const METADATA_LABELS: Record<string, string> = {
   achievementCount: "Conquistas",
@@ -212,14 +238,17 @@ export default function SyncedHealthDataPage() {
   const todayKey = toDateInputValue();
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [dataType, setDataType] = useState("all");
+  const [activityType, setActivityType] = useState("all");
   const [source, setSource] = useState("all");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const effectiveDataType = activityType === "all" ? dataType : "activity";
 
   const syncedRecords = trpc.nutrition.healthIntegrations.syncedRecords.useQuery({
     provider: source === "all" ? undefined : source as HealthProvider,
-    dataType: dataType === "all" ? undefined : dataType as HealthDataType,
+    dataType: effectiveDataType === "all" ? undefined : effectiveDataType as HealthDataType,
+    activityType: activityType === "all" ? undefined : activityType,
     from: startOfDate(selectedDate),
     to: endOfDate(selectedDate),
     q: query.trim() || undefined,
@@ -229,6 +258,7 @@ export default function SyncedHealthDataPage() {
 
   const records = (syncedRecords.data?.items ?? []) as SyncedHealthRecord[];
   const sources = syncedRecords.data?.sources ?? [];
+  const totalRecords = syncedRecords.data?.total ?? records.length;
 
   const resetPagedView = () => {
     setOffset(0);
@@ -242,6 +272,17 @@ export default function SyncedHealthDataPage() {
 
   const updateDataType = (nextDataType: string) => {
     setDataType(nextDataType);
+    if (nextDataType !== "activity") {
+      setActivityType("all");
+    }
+    resetPagedView();
+  };
+
+  const updateActivityType = (nextActivityType: string) => {
+    setActivityType(nextActivityType);
+    if (nextActivityType !== "all") {
+      setDataType("activity");
+    }
     resetPagedView();
   };
 
@@ -283,7 +324,7 @@ export default function SyncedHealthDataPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr),auto,auto]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr),auto,minmax(14rem,auto),auto]">
               <Input
                 value={query}
                 onChange={event => updateQuery(event.target.value)}
@@ -296,6 +337,11 @@ export default function SyncedHealthDataPage() {
                 options={DATA_TYPES}
                 onChange={updateDataType}
               />
+              <ActivityTypeSelect
+                value={activityType}
+                options={STRAVA_ACTIVITY_TYPE_OPTIONS}
+                onChange={updateActivityType}
+              />
               <SegmentedFilter
                 label="ORIGEM:"
                 value={source}
@@ -304,8 +350,9 @@ export default function SyncedHealthDataPage() {
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Metric label="Passos" value={formatCountPtBr(syncedRecords.data?.totals.steps ?? 0)} />
+              <Metric label="Atividades" value={formatCountPtBr(syncedRecords.data?.totals.activityCount ?? 0)} />
               <Metric label="Atividade" value={formatCountPtBr(syncedRecords.data?.totals.activityMinutes ?? 0, " min")} />
               <Metric label="Calorias sincronizadas" value={formatCalories(syncedRecords.data?.totals.energyBurnedCalories ?? 0)} />
               <Metric label="Sono" value={formatCountPtBr(syncedRecords.data?.totals.sleepMinutes ?? 0, " min")} />
@@ -359,7 +406,7 @@ export default function SyncedHealthDataPage() {
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-muted-foreground">
-                    Exibindo {offset + 1}-{offset + records.length} de {syncedRecords.data?.total ?? records.length}
+                    {formatPaginationSummary(offset, records.length, totalRecords)}
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -493,7 +540,7 @@ function SegmentedFilter({
 }: {
   label: string;
   value: string;
-  options: ReadonlyArray<{ value: string; label: string }>;
+  options: ReadonlyArray<FilterOption>;
   onChange: (value: string) => void;
 }) {
   return (
@@ -515,6 +562,32 @@ function SegmentedFilter({
   );
 }
 
+function ActivityTypeSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: ReadonlyArray<FilterOption>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex h-11 min-w-0 items-center gap-2 rounded-2xl border bg-background px-3">
+      <span className="shrink-0 text-xs font-bold uppercase tracking-[0.16em] text-foreground">ATIVIDADE:</span>
+      <select
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none"
+        aria-label="Tipo de atividade importada do Strava"
+      >
+        {options.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border bg-background p-4">
@@ -531,6 +604,17 @@ function Detail({ label, value }: { label: string; value: string }) {
       <p className="mt-1 break-words font-medium text-foreground">{value}</p>
     </div>
   );
+}
+
+function formatPaginationSummary(offset: number, visibleCount: number, total: number) {
+  if (total <= 0 || visibleCount <= 0) return "Nenhum registro exibido";
+  if (offset === 0 && visibleCount >= total) {
+    return `Exibindo ${formatCountPtBr(total, total === 1 ? " registro" : " registros")}`;
+  }
+
+  const start = offset + 1;
+  const end = offset + visibleCount;
+  return `Exibindo ${formatIntegerPtBr(start)} a ${formatIntegerPtBr(end)} de ${formatCountPtBr(total, total === 1 ? " registro" : " registros")}`;
 }
 
 function getMetadata(record: SyncedHealthRecord): RecordMetadata {
