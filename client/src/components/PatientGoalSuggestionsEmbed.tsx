@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Check, Target, X } from "lucide-react";
@@ -50,25 +50,31 @@ function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
 }
 
-function findGoalsPageTitle() {
-  return Array.from(document.querySelectorAll("h1, h2, [role='heading'], div, p")).find(element =>
-    elementText(element) === "Metas nutricionais",
-  ) as HTMLElement | undefined;
-}
-
-function findGoalsPageContainer() {
-  const title = findGoalsPageTitle();
+function findDefaultGoalCard() {
+  const title = Array.from(document.querySelectorAll("h1, h2, h3, [role='heading'], div, p")).find(element =>
+    elementText(element) === "Meta padrão",
+  );
   let current = title?.parentElement ?? null;
 
   while (current?.parentElement) {
-    if (current.classList.contains("space-y-6") || current.parentElement.classList.contains("space-y-6")) {
-      return current.classList.contains("space-y-6") ? current : current.parentElement;
+    const text = elementText(current);
+    if (text.includes("Meta padrão") && text.includes("Salvar metas") && text.includes("Data de início da versão")) {
+      return current as HTMLElement;
     }
     current = current.parentElement;
   }
 
-  return document.querySelector<HTMLElement>("main .space-y-6")
-    ?? document.querySelector<HTMLElement>("[class*='space-y-6']");
+  return null;
+}
+
+function findDefaultGoalContent(card: HTMLElement) {
+  const versionStart = Array.from(card.querySelectorAll<HTMLElement>("div")).find(element =>
+    elementText(element).includes("Data de início da versão"),
+  );
+  return {
+    content: versionStart?.parentElement as HTMLElement | null,
+    before: versionStart ?? null,
+  };
 }
 
 function findPortalSlot() {
@@ -76,12 +82,15 @@ function findPortalSlot() {
   const existingSlot = document.querySelector<HTMLDivElement>(`[${SLOT_ATTRIBUTE}='true']`);
   if (existingSlot) return existingSlot;
 
-  const container = findGoalsPageContainer();
-  if (!container) return null;
+  const card = findDefaultGoalCard();
+  if (!card) return null;
+
+  const { content, before } = findDefaultGoalContent(card);
+  if (!content) return null;
 
   const slot = document.createElement("div");
   slot.setAttribute(SLOT_ATTRIBUTE, "true");
-  container.insertBefore(slot, container.children[1] ?? null);
+  content.insertBefore(slot, before);
   return slot;
 }
 
@@ -147,9 +156,9 @@ export default function PatientGoalSuggestionsEmbed() {
   const answeredSuggestions = suggestions.filter(suggestion => suggestion.status !== "sent").slice(0, 3);
 
   return createPortal(
-    <Card className="border-0 shadow-sm">
+    <section className="rounded-2xl border bg-muted/10 shadow-sm">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
+        <CardTitle className="flex items-center gap-2 text-lg">
           <Target className="h-5 w-5 text-primary" />
           Sugestões de meta recebidas
         </CardTitle>
@@ -157,9 +166,9 @@ export default function PatientGoalSuggestionsEmbed() {
           Revise as metas sugeridas pelo profissional. Ao aceitar, sua meta nutricional será atualizada com os valores sugeridos.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <div className="space-y-4 px-6 pb-6">
         {suggestionsQuery.isLoading ? (
-          <div className="rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground" role="status" aria-live="polite">
+          <div className="rounded-2xl border bg-background/70 p-4 text-sm text-muted-foreground" role="status" aria-live="polite">
             Carregando sugestões recebidas...
           </div>
         ) : null}
@@ -171,7 +180,7 @@ export default function PatientGoalSuggestionsEmbed() {
         ) : null}
 
         {!suggestionsQuery.isLoading && !suggestionsQuery.isError && !suggestions.length ? (
-          <div className="rounded-2xl border border-dashed bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
+          <div className="rounded-2xl border border-dashed bg-background/70 p-5 text-sm leading-6 text-muted-foreground">
             Nenhuma sugestão de meta recebida até agora. Quando um profissional enviar uma sugestão, ela aparecerá aqui para você aceitar ou recusar.
           </div>
         ) : null}
@@ -194,8 +203,8 @@ export default function PatientGoalSuggestionsEmbed() {
             ))}
           </div>
         ) : null}
-      </CardContent>
-    </Card>,
+      </div>
+    </section>,
     slot,
   );
 }
