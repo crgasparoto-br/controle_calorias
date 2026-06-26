@@ -177,7 +177,6 @@ function setNativeInputValue(input: HTMLInputElement, value: string) {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
   setter?.call(input, value);
   input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function roundToOneDecimal(value: number) {
@@ -302,6 +301,10 @@ function enhanceGoalSuggestionMacroMode() {
     });
   };
 
+  const syncGramInputsFromPercentAfterRender = () => {
+    window.requestAnimationFrame(syncGramInputsFromPercent);
+  };
+
   const applyMode = (mode: "grams" | "percent") => {
     const previousMode = modePanel.dataset.mode;
     modePanel.dataset.mode = mode;
@@ -324,7 +327,7 @@ function enhanceGoalSuggestionMacroMode() {
       syncGramInputsFromPercent();
     });
     caloriesInput.addEventListener("input", () => {
-      if (modePanel?.dataset.mode === "percent") syncGramInputsFromPercent();
+      if (modePanel?.dataset.mode === "percent") syncGramInputsFromPercentAfterRender();
     });
     percentInputs.forEach(field => field.percentInput.addEventListener("input", syncGramInputsFromPercent));
     modePanel.dataset.listenersAttached = "true";
