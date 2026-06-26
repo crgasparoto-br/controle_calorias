@@ -549,7 +549,7 @@ export const nutritionRouter = router({
     saveFavoriteGroup: protectedProcedure
       .input(saveFavoriteMealGroupSchema)
       .mutation(async ({ ctx, input }) => {
-        const result = await saveFavoriteMealGroup(ctx.user.id, input);
+        const result = await saveMealGroupFavorite(ctx.user.id, input);
         void analyticsService.track("favorite_meal_created", { item_count: result.items.length });
         return result;
       }),
