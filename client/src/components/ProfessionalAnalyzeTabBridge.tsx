@@ -208,19 +208,62 @@ function createModeButton(label: string, mode: "grams" | "percent") {
   return button;
 }
 
+function getDirectInput(label: HTMLElement) {
+  return Array.from(label.children).find((child): child is HTMLInputElement => child instanceof HTMLInputElement) ??
+    label.querySelector<HTMLInputElement>("input");
+}
+
+function setLabelChildrenVisibility(label: HTMLElement, visible: boolean, percentInput: HTMLInputElement, percentLabel: HTMLElement) {
+  Array.from(label.children).forEach(child => {
+    if (child === percentInput || child === percentLabel) return;
+    (child as HTMLElement).style.display = visible ? "" : "none";
+  });
+}
+
+function ensurePercentField(label: HTMLElement, macro: MacroDefinition) {
+  let percentLabel = label.querySelector<HTMLElement>(`[data-goal-percent-label='${macro.key}']`);
+  let percentInput = label.querySelector<HTMLInputElement>(`[data-goal-percent-input='${macro.key}']`);
+
+  if (!percentLabel) {
+    percentLabel = document.createElement("span");
+    percentLabel.dataset.goalPercentLabel = macro.key;
+    percentLabel.className = "text-sm font-medium leading-none";
+    percentLabel.textContent = `${macro.label} (%)`;
+    label.append(percentLabel);
+  }
+
+  if (!percentInput) {
+    percentInput = document.createElement("input");
+    percentInput.type = "number";
+    percentInput.min = "0";
+    percentInput.max = "100";
+    percentInput.step = "0.1";
+    percentInput.dataset.goalPercentInput = macro.key;
+    percentInput.className = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
+    label.append(percentInput);
+  }
+
+  return { percentInput, percentLabel };
+}
+
 function enhanceGoalSuggestionMacroMode() {
   const box = findGoalSuggestionBox();
   if (!box) return;
 
   const caloriesLabel = findLabelInput(box, "Calorias");
   const caloriesInput = caloriesLabel?.querySelector<HTMLInputElement>("input") ?? null;
-  const macroFields = MACRO_DEFINITIONS.map(macro => ({
-    ...macro,
-    labelElement: findLabelInput(box, macro.gramLabel),
-  }));
-  if (!caloriesInput || macroFields.some(field => !field.labelElement)) return;
+  const macroFields = MACRO_DEFINITIONS.map(macro => {
+    const labelElement = findLabelInput(box, macro.gramLabel);
+    return labelElement ? {
+      ...macro,
+      labelElement,
+      gramInput: getDirectInput(labelElement),
+      ...ensurePercentField(labelElement, macro),
+    } : null;
+  });
+  if (!caloriesInput || macroFields.some(field => !field?.gramInput)) return;
 
-  const firstMacroLabel = macroFields[0].labelElement;
+  const firstMacroLabel = macroFields[0]?.labelElement;
   const macroGrid = firstMacroLabel?.parentElement ?? null;
   if (!macroGrid) return;
 
@@ -229,7 +272,7 @@ function enhanceGoalSuggestionMacroMode() {
     modePanel = document.createElement("div");
     modePanel.setAttribute(GOAL_MACRO_MODE_ATTR, "true");
     modePanel.dataset.mode = "grams";
-    modePanel.className = "flex flex-wrap items-center gap-3 rounded-2xl border bg-muted/20 p-3";
+    modePanel.className = "flex items-center rounded-2xl border bg-muted/20 p-3";
 
     const buttonGroup = document.createElement("div");
     buttonGroup.className = "flex rounded-2xl border bg-background p-1";
@@ -237,86 +280,40 @@ function enhanceGoalSuggestionMacroMode() {
     const percentButton = createModeButton("Percentual", "percent");
     buttonGroup.append(gramsButton, percentButton);
 
-    const percentGrid = document.createElement("div");
-    percentGrid.dataset.goalPercentGrid = "true";
-    percentGrid.className = "grid flex-1 basis-full gap-3 sm:grid-cols-3";
-    percentGrid.hidden = true;
-
-    for (const macro of MACRO_DEFINITIONS) {
-      const label = document.createElement("label");
-      label.className = "space-y-2";
-      const text = document.createElement("span");
-      text.className = "text-sm font-medium leading-none";
-      text.textContent = `${macro.label} (%)`;
-      const input = document.createElement("input");
-      input.type = "number";
-      input.min = "0";
-      input.max = "100";
-      input.step = "0.1";
-      input.dataset.goalPercentInput = macro.key;
-      input.className = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
-      label.append(text, input);
-      percentGrid.append(label);
-    }
-
-    const note = document.createElement("p");
-    note.dataset.goalPercentNote = "true";
-    note.className = "basis-full text-xs text-muted-foreground";
-
-    modePanel.append(buttonGroup, percentGrid, note);
+    modePanel.append(buttonGroup);
     macroGrid.parentElement?.insertBefore(modePanel, macroGrid);
   }
 
-  const percentGrid = modePanel.querySelector<HTMLElement>("[data-goal-percent-grid='true']");
-  const percentNote = modePanel.querySelector<HTMLElement>("[data-goal-percent-note='true']");
   const gramsButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='grams']");
   const percentButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='percent']");
-  const percentInputs = MACRO_DEFINITIONS.map(macro => ({
-    ...macro,
-    input: modePanel.querySelector<HTMLInputElement>(`[data-goal-percent-input='${macro.key}']`),
-    gramInput: macroFields.find(field => field.key === macro.key)?.labelElement?.querySelector<HTMLInputElement>("input") ?? null,
-    gramLabel: macroFields.find(field => field.key === macro.key)?.labelElement ?? null,
-  }));
+  const percentInputs = macroFields.filter((field): field is NonNullable<typeof field> => Boolean(field));
 
   const syncPercentInputsFromGrams = () => {
     const calories = readInputNumber(caloriesInput);
     percentInputs.forEach(field => {
-      if (!field.input || !field.gramInput) return;
-      field.input.value = String(calculateMacroPercent(readInputNumber(field.gramInput), calories, field.caloriesPerGram));
+      field.percentInput.value = String(calculateMacroPercent(readInputNumber(field.gramInput), calories, field.caloriesPerGram));
     });
   };
 
   const syncGramInputsFromPercent = () => {
     const calories = readInputNumber(caloriesInput);
     percentInputs.forEach(field => {
-      if (!field.input || !field.gramInput) return;
-      setNativeInputValue(field.gramInput, String(calculateMacroGrams(readInputNumber(field.input), calories, field.caloriesPerGram)));
+      setNativeInputValue(field.gramInput, String(calculateMacroGrams(readInputNumber(field.percentInput), calories, field.caloriesPerGram)));
     });
-  };
-
-  const refreshPercentNote = () => {
-    const sum = roundToOneDecimal(percentInputs.reduce((total, field) => total + readInputNumber(field.input), 0));
-    if (!percentNote) return;
-    percentNote.textContent = modePanel.dataset.mode === "percent"
-      ? `Distribuição atual: ${sum.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% dos macros.`
-      : "";
-    percentNote.classList.toggle("text-destructive", modePanel.dataset.mode === "percent" && sum !== 100);
-    percentNote.classList.toggle("text-muted-foreground", modePanel.dataset.mode !== "percent" || sum === 100);
-    percentNote.hidden = modePanel.dataset.mode !== "percent";
   };
 
   const applyMode = (mode: "grams" | "percent") => {
     modePanel.dataset.mode = mode;
     if (mode === "percent") syncPercentInputsFromGrams();
-    percentGrid?.toggleAttribute("hidden", mode !== "percent");
     percentInputs.forEach(field => {
-      if (field.gramLabel) field.gramLabel.style.display = mode === "percent" ? "none" : "";
+      setLabelChildrenVisibility(field.labelElement, mode === "grams", field.percentInput, field.percentLabel);
+      field.percentInput.hidden = mode !== "percent";
+      field.percentLabel.hidden = mode !== "percent";
     });
     gramsButton?.classList.toggle("bg-primary", mode === "grams");
     gramsButton?.classList.toggle("text-primary-foreground", mode === "grams");
     percentButton?.classList.toggle("bg-primary", mode === "percent");
     percentButton?.classList.toggle("text-primary-foreground", mode === "percent");
-    refreshPercentNote();
   };
 
   if (modePanel.dataset.listenersAttached !== "true") {
@@ -328,10 +325,7 @@ function enhanceGoalSuggestionMacroMode() {
     caloriesInput.addEventListener("input", () => {
       if (modePanel?.dataset.mode === "percent") syncGramInputsFromPercent();
     });
-    percentInputs.forEach(field => field.input?.addEventListener("input", () => {
-      syncGramInputsFromPercent();
-      refreshPercentNote();
-    }));
+    percentInputs.forEach(field => field.percentInput.addEventListener("input", syncGramInputsFromPercent));
     modePanel.dataset.listenersAttached = "true";
   }
 
