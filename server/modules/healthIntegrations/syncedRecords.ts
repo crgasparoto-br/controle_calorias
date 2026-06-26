@@ -15,6 +15,7 @@ type SyncedRecordTotals = {
   steps: number;
   energyBurnedCalories: number;
   activityMinutes: number;
+  activityCount: number;
   sleepMinutes: number;
 };
 
@@ -27,6 +28,14 @@ type ActivityGroup = {
 
 function normalizeSearchValue(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function normalizeActivityTypeValue(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
 }
 
 function parseOptionalDate(value: string | undefined, fallback: number) {
@@ -69,6 +78,11 @@ function getMetadata(record: SyncedHealthRecord): RecordMetadata {
 function getPositiveMetadataNumber(metadata: RecordMetadata, key: string) {
   const value = metadata[key];
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function getStringMetadata(metadata: RecordMetadata, key: string) {
+  const value = metadata[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function getRecordExternalActivityKey(record: SyncedHealthRecord) {
@@ -146,6 +160,24 @@ function recordMatchesDataType(record: SyncedHealthRecord, dataType: HealthDataT
   return false;
 }
 
+function getActivityTypeSearchValues(record: SyncedHealthRecord) {
+  const metadata = getMetadata(record);
+  return [
+    record.activityType,
+    getStringMetadata(metadata, "sportType"),
+    getStringMetadata(metadata, "workoutType"),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map(normalizeActivityTypeValue);
+}
+
+function recordMatchesActivityType(record: SyncedHealthRecord, activityType: string | undefined) {
+  if (!activityType) return true;
+  if (record.dataType !== "activity") return false;
+  const normalizedActivityType = normalizeActivityTypeValue(activityType);
+  return getActivityTypeSearchValues(record).includes(normalizedActivityType);
+}
+
 function getRecordCalories(record: SyncedHealthRecord) {
   if (record.dataType === "energy_burned") return record.value;
   if (record.dataType !== "activity") return 0;
@@ -156,13 +188,17 @@ function calculateTotals(records: SyncedHealthRecord[]): SyncedRecordTotals {
   return records.reduce<SyncedRecordTotals>((totals, record) => {
     if (record.dataType === "steps") totals.steps += record.value;
     totals.energyBurnedCalories += getRecordCalories(record);
-    if (record.dataType === "activity") totals.activityMinutes += record.value;
+    if (record.dataType === "activity") {
+      totals.activityMinutes += record.value;
+      totals.activityCount += 1;
+    }
     if (record.dataType === "sleep") totals.sleepMinutes += record.value;
     return totals;
   }, {
     steps: 0,
     energyBurnedCalories: 0,
     activityMinutes: 0,
+    activityCount: 0,
     sleepMinutes: 0,
   });
 }
@@ -176,6 +212,7 @@ export function listSyncedHealthRecords(records: SyncedHealthRecord[], input: Li
   const filtered = consolidatedRecords
     .filter(record => !input.provider || record.source === input.provider)
     .filter(record => recordMatchesDataType(record, input.dataType))
+    .filter(record => recordMatchesActivityType(record, input.activityType))
     .filter(record => {
       const measuredAt = recordMeasuredAtTimestamp(record);
       return measuredAt >= fromTimestamp && measuredAt <= toTimestamp;
