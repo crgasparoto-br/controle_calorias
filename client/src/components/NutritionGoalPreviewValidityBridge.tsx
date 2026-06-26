@@ -24,29 +24,16 @@ type DatedGoal = GoalTarget & {
   startDate?: string | null;
 };
 
-type GoalDaySnapshot = GoalTarget & {
-  weekday?: number;
-  label?: string;
-  shortLabel?: string;
-  source?: "default" | "exception";
-  effectiveFrom?: Date | string | number | null;
+type PeriodGoalDay = {
+  date?: string;
+  goalCalories?: number;
+  goalProtein?: number;
+  goalCarbs?: number;
+  goalFat?: number;
 };
 
-type GoalVersionSnapshot = GoalTarget & {
-  id?: number;
-  startDate?: string;
-  effectiveFrom?: Date | string | number | null;
-  effectiveUntil?: Date | string | number | null;
-};
-
-type ExceptionVersionSnapshot = GoalVersionSnapshot & {
-  weekday?: number;
-};
-
-type GoalHistorySnapshot = {
-  days?: GoalDaySnapshot[];
-  versions?: GoalVersionSnapshot[];
-  exceptionVersions?: ExceptionVersionSnapshot[];
+type PeriodBundleSnapshot = {
+  daily?: PeriodGoalDay[];
 };
 
 const WEEKDAY_LABELS = [
@@ -108,81 +95,6 @@ function buildWeekDates(startDate: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return [];
   const previewStart = startOfPreviewWeekDateKey(startDate);
   return Array.from({ length: 7 }, (_, index) => addDaysToDateKey(previewStart, index));
-}
-
-function dateKeyFromDateLike(value: Date | string | number | null | undefined) {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
-}
-
-function startTimeFromDateKey(dateKey: string) {
-  return new Date(`${dateKey}T00:00:00.000Z`).getTime();
-}
-
-function isVersionActiveOnDate(version: GoalVersionSnapshot, dateKey: string) {
-  const startDate = version.startDate ?? dateKeyFromDateLike(version.effectiveFrom);
-  if (!startDate) return false;
-
-  const dateStartTime = startTimeFromDateKey(dateKey);
-  const dateEndTime = dateStartTime + 86_400_000;
-  const startTime = startTimeFromDateKey(startDate);
-  const endTime = version.effectiveUntil ? new Date(version.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
-
-  return startTime < dateEndTime && endTime > dateStartTime;
-}
-
-function sortVersionsByStartDesc(first: GoalVersionSnapshot, second: GoalVersionSnapshot) {
-  const firstStart = first.startDate ?? dateKeyFromDateLike(first.effectiveFrom) ?? "";
-  const secondStart = second.startDate ?? dateKeyFromDateLike(second.effectiveFrom) ?? "";
-  return secondStart.localeCompare(firstStart);
-}
-
-function goalFromVersion(date: string, source: DatedGoal["source"], version: GoalVersionSnapshot): DatedGoal {
-  return {
-    date,
-    source,
-    startDate: version.startDate ?? dateKeyFromDateLike(version.effectiveFrom),
-    calories: Number(version.calories ?? 0),
-    proteinGrams: Number(version.proteinGrams ?? 0),
-    carbsGrams: Number(version.carbsGrams ?? 0),
-    fatGrams: Number(version.fatGrams ?? 0),
-  };
-}
-
-function goalFromSummaryDay(date: string, day: GoalDaySnapshot): DatedGoal {
-  return {
-    date,
-    source: day.source === "exception" ? "exception" : "default",
-    startDate: dateKeyFromDateLike(day.effectiveFrom),
-    calories: Number(day.calories ?? 0),
-    proteinGrams: Number(day.proteinGrams ?? 0),
-    carbsGrams: Number(day.carbsGrams ?? 0),
-    fatGrams: Number(day.fatGrams ?? 0),
-  };
-}
-
-function resolveSummaryGoalForDate(date: string, data: GoalHistorySnapshot | null | undefined): DatedGoal | null {
-  const weekday = getUtcWeekdayIndex(dateKeyToLogicalUtcDate(date));
-  const day = (data?.days ?? []).find(item => item.weekday === weekday);
-  return day ? goalFromSummaryDay(date, day) : null;
-}
-
-function resolveHistoricalGoalForDate(date: string, data: GoalHistorySnapshot | null | undefined): DatedGoal | null {
-  const weekday = getUtcWeekdayIndex(dateKeyToLogicalUtcDate(date));
-  const exception = (data?.exceptionVersions ?? [])
-    .filter(version => version.weekday === weekday && isVersionActiveOnDate(version, date))
-    .sort(sortVersionsByStartDesc)[0];
-
-  if (exception) {
-    return goalFromVersion(date, "exception", exception);
-  }
-
-  const defaultVersion = (data?.versions ?? [])
-    .filter(version => isVersionActiveOnDate(version, date))
-    .sort(sortVersionsByStartDesc)[0];
-
-  return defaultVersion ? goalFromVersion(date, "default", defaultVersion) : null;
 }
 
 function previewMessageFromDatedGoal(goal: DatedGoal) {
@@ -254,6 +166,19 @@ function buildDatedGoal(date: string | undefined, data: any): DatedGoal | null {
     proteinGrams: Number(sourceGoal.proteinGrams ?? sourceGoal.protein ?? 0),
     carbsGrams: Number(sourceGoal.carbsGrams ?? sourceGoal.carbs ?? 0),
     fatGrams: Number(sourceGoal.fatGrams ?? sourceGoal.fat ?? 0),
+  };
+}
+
+function buildPeriodGoal(date: string, day: PeriodGoalDay | undefined): DatedGoal | null {
+  if (!day) return null;
+  return {
+    date,
+    source: "default",
+    startDate: null,
+    calories: Number(day.goalCalories ?? 0),
+    proteinGrams: Number(day.goalProtein ?? 0),
+    carbsGrams: Number(day.goalCarbs ?? 0),
+    fatGrams: Number(day.goalFat ?? 0),
   };
 }
 
@@ -343,7 +268,12 @@ export default function NutritionGoalPreviewValidityBridge() {
   const [originalDays, setOriginalDays] = useState<PreviewDay[]>([]);
   const hiddenCardRef = useRef<HTMLElement | null>(null);
   const previewDates = useMemo(() => buildWeekDates(startDateInput), [startDateInput]);
-  const goalHistory = trpc.nutrition.goals.get.useQuery(undefined, { enabled: isGoalsPage });
+  const periodStartDate = previewDates[0] ?? "1970-01-01";
+  const periodEndDate = previewDates[6] ?? "1970-01-01";
+  const periodBundle = trpc.nutrition.reports.periodBundle.useQuery(
+    { startDate: periodStartDate, endDate: periodEndDate },
+    { enabled: isGoalsPage && Boolean(previewDates[0] && previewDates[6]) },
+  );
 
   useEffect(() => {
     if (!isGoalsPage) return;
@@ -398,25 +328,26 @@ export default function NutritionGoalPreviewValidityBridge() {
     .map((query, index) => buildDatedGoal(previewDates[index], query.data))
     .filter((goal): goal is DatedGoal => Boolean(goal)), [day1.data, day2.data, day3.data, day4.data, day5.data, day6.data, day7.data, previewDates]);
 
-  const historicalGoals = useMemo(() => previewDates
-    .map(date => {
-      const data = goalHistory.data as GoalHistorySnapshot | null | undefined;
-      return resolveSummaryGoalForDate(date, data) ?? resolveHistoricalGoalForDate(date, data);
-    })
-    .filter((goal): goal is DatedGoal => Boolean(goal)), [goalHistory.data, previewDates]);
+  const periodGoals = useMemo(() => {
+    const daily = (periodBundle.data as PeriodBundleSnapshot | undefined)?.daily ?? [];
+    const dailyByDate = new Map(daily.map(day => [day.date, day]));
+    return previewDates
+      .map(date => buildPeriodGoal(date, dailyByDate.get(date)))
+      .filter((goal): goal is DatedGoal => Boolean(goal));
+  }, [periodBundle.data, previewDates]);
 
   const previewDays = useMemo(() => {
     const originalByDate = new Map(originalDays.map(day => [day.date, day]));
     const datedByDate = new Map(datedGoals.map(goal => [goal.date, goal]));
-    const historicalByDate = new Map(historicalGoals.map(goal => [goal.date, goal]));
+    const periodByDate = new Map(periodGoals.map(goal => [goal.date, goal]));
 
     return previewDates.map((date, index) => {
       const originalDay = originalByDate.get(date);
       const datedGoal = datedByDate.get(date);
-      const historicalGoal = historicalByDate.get(date);
-      const validityGoal = historicalGoal ?? datedGoal;
+      const periodGoal = periodByDate.get(date);
+      const validityGoal = periodGoal ?? datedGoal;
 
-      if (validityGoal && (!originalDay || date < startDateInput || historicalGoal)) {
+      if (validityGoal) {
         return {
           date,
           label: originalDay?.label ?? WEEKDAY_LABELS[index] ?? "Dia",
@@ -428,17 +359,9 @@ export default function NutritionGoalPreviewValidityBridge() {
         };
       }
 
-      return originalDay ?? (datedGoal ? {
-        date,
-        label: WEEKDAY_LABELS[index] ?? "Dia",
-        message: previewMessageFromDatedGoal(datedGoal),
-        calories: datedGoal.calories,
-        proteinGrams: datedGoal.proteinGrams,
-        carbsGrams: datedGoal.carbsGrams,
-        fatGrams: datedGoal.fatGrams,
-      } : null);
+      return originalDay ?? null;
     }).filter((day): day is PreviewDay => Boolean(day));
-  }, [datedGoals, historicalGoals, originalDays, previewDates, startDateInput]);
+  }, [datedGoals, originalDays, periodGoals, previewDates]);
 
   if (!isGoalsPage || !portalHost || !previewDays.length || !previewDates[0] || !previewDates[6]) return null;
 
