@@ -50,21 +50,25 @@ function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
 }
 
-function findGoalsPageIntro() {
-  const title = Array.from(document.querySelectorAll("h1, h2, [role='heading'], div, p")).find(element =>
+function findGoalsPageTitle() {
+  return Array.from(document.querySelectorAll("h1, h2, [role='heading'], div, p")).find(element =>
     elementText(element) === "Metas nutricionais",
-  );
-  if (!title) return null;
+  ) as HTMLElement | undefined;
+}
 
-  let current = title.parentElement;
+function findGoalsPageContainer() {
+  const title = findGoalsPageTitle();
+  let current = title?.parentElement ?? null;
+
   while (current?.parentElement) {
-    const text = elementText(current);
-    if (text.includes("Planejamento nutricional") && text.includes("Metas nutricionais")) {
-      return current as HTMLElement;
+    if (current.classList.contains("space-y-6") || current.parentElement.classList.contains("space-y-6")) {
+      return current.classList.contains("space-y-6") ? current : current.parentElement;
     }
     current = current.parentElement;
   }
-  return title.parentElement as HTMLElement | null;
+
+  return document.querySelector<HTMLElement>("main .space-y-6")
+    ?? document.querySelector<HTMLElement>("[class*='space-y-6']");
 }
 
 function findPortalSlot() {
@@ -72,14 +76,12 @@ function findPortalSlot() {
   const existingSlot = document.querySelector<HTMLDivElement>(`[${SLOT_ATTRIBUTE}='true']`);
   if (existingSlot) return existingSlot;
 
-  const intro = findGoalsPageIntro();
-  const parent = intro?.parentElement;
-  if (!intro || !parent) return null;
+  const container = findGoalsPageContainer();
+  if (!container) return null;
 
   const slot = document.createElement("div");
   slot.setAttribute(SLOT_ATTRIBUTE, "true");
-  slot.className = "mt-6";
-  parent.insertBefore(slot, intro.nextSibling);
+  container.insertBefore(slot, container.children[1] ?? null);
   return slot;
 }
 
@@ -144,8 +146,6 @@ export default function PatientGoalSuggestionsEmbed() {
   const pendingSuggestions = suggestions.filter(suggestion => suggestion.status === "sent");
   const answeredSuggestions = suggestions.filter(suggestion => suggestion.status !== "sent").slice(0, 3);
 
-  if (!suggestionsQuery.isLoading && !suggestionsQuery.isError && !suggestions.length) return null;
-
   return createPortal(
     <Card className="border-0 shadow-sm">
       <CardHeader>
@@ -167,6 +167,12 @@ export default function PatientGoalSuggestionsEmbed() {
         {suggestionsQuery.isError ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
             Não foi possível carregar as sugestões recebidas. Tente novamente em instantes.
+          </div>
+        ) : null}
+
+        {!suggestionsQuery.isLoading && !suggestionsQuery.isError && !suggestions.length ? (
+          <div className="rounded-2xl border border-dashed bg-muted/20 p-5 text-sm leading-6 text-muted-foreground">
+            Nenhuma sugestão de meta recebida até agora. Quando um profissional enviar uma sugestão, ela aparecerá aqui para você aceitar ou recusar.
           </div>
         ) : null}
 
