@@ -22,6 +22,11 @@ const OPTIONAL_FEATURES: OptionalFeatureConfig[] = [
     variables: ["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET", "STRAVA_REDIRECT_URI"],
     disabledMessage: "Strava OAuth disabled until client credentials and redirect URI are configured",
   },
+  {
+    name: "Strava Webhook",
+    variables: ["STRAVA_WEBHOOK_VERIFY_TOKEN"],
+    disabledMessage: "Strava real-time webhook disabled until STRAVA_WEBHOOK_VERIFY_TOKEN is configured",
+  },
 ];
 
 function readTrimmedEnv(name: string) {

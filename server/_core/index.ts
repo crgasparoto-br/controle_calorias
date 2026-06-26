@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
 import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/stravaScheduler";
+import { handleStravaWebhookVerification, handleStravaWebhookEvent } from "../modules/healthIntegrations/stravaWebhookHandler";
 import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdempotencyWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
@@ -102,6 +103,13 @@ async function startServer() {
   });
   app.get("/api/health-integrations/strava/callback", (req, res) => {
     void handleStravaOAuthCallback(req, res);
+  });
+  // Strava Webhook: verificação de subscription (GET) e recebimento de eventos (POST)
+  app.get("/api/health-integrations/strava/webhook", (req, res) => {
+    handleStravaWebhookVerification(req, res);
+  });
+  app.post("/api/health-integrations/strava/webhook", express.json({ limit: "4kb" }), (req, res) => {
+    handleStravaWebhookEvent(req, res);
   });
   app.get("/api/whatsapp/webhook", webhookRateLimit, verifyWhatsAppWebhook);
   app.post(
