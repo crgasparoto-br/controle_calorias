@@ -122,7 +122,7 @@ function previewMessageFromDatedGoal(goal: DatedGoal) {
 }
 
 function findPreviewCard() {
-  const title = Array.from(document.querySelectorAll("h1,h2,h3,p,span"))
+  const title = Array.from(document.querySelectorAll("[data-slot='card-title'],h1,h2,h3,p,span"))
     .filter(element => !element.closest("[data-nutrition-goal-preview-replacement='true']"))
     .find(element => element.textContent?.trim() === "Prévia da semana");
   let current = title?.parentElement ?? null;
