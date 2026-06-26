@@ -26,6 +26,13 @@ type MacroDefinition = {
   caloriesPerGram: number;
 };
 
+type GoalMacroField = MacroDefinition & {
+  labelElement: HTMLElement;
+  gramInput: HTMLInputElement;
+  percentInput: HTMLInputElement;
+  percentLabel: HTMLElement;
+};
+
 const EMPTY_PORTAL_STATE: ReportsPortalState = { mount: null, patientId: null };
 const MACRO_DEFINITIONS: MacroDefinition[] = [
   { key: "protein", label: "Proteínas", gramLabel: "Proteína (g)", caloriesPerGram: 4 },
@@ -252,22 +259,31 @@ function ensurePercentField(label: HTMLElement, macro: MacroDefinition) {
   return { percentInput, percentLabel };
 }
 
+function isGoalMacroField(field: GoalMacroField | null): field is GoalMacroField {
+  return field !== null;
+}
+
 function enhanceGoalSuggestionMacroMode() {
   const box = findGoalSuggestionBox();
   if (!box) return;
 
   const caloriesLabel = findLabelInput(box, "Calorias");
   const caloriesInput = caloriesLabel?.querySelector<HTMLInputElement>("input") ?? null;
-  const macroFields = MACRO_DEFINITIONS.map(macro => {
+  const macroFields: Array<GoalMacroField | null> = MACRO_DEFINITIONS.map(macro => {
     const labelElement = findLabelInput(box, macro.gramLabel);
-    return labelElement ? {
+    if (!labelElement) return null;
+
+    const gramInput = getDirectInput(labelElement);
+    if (!gramInput) return null;
+
+    return {
       ...macro,
       labelElement,
-      gramInput: getDirectInput(labelElement),
+      gramInput,
       ...ensurePercentField(labelElement, macro),
-    } : null;
+    };
   });
-  if (!caloriesInput || macroFields.some(field => !field?.gramInput)) return;
+  if (!caloriesInput || macroFields.some(field => field === null)) return;
 
   const firstMacroLabel = macroFields[0]?.labelElement;
   const macroGrid = firstMacroLabel?.parentElement ?? null;
@@ -294,7 +310,7 @@ function enhanceGoalSuggestionMacroMode() {
   const percentButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='percent']");
   const percentSumFeedback = modePanel.querySelector<HTMLElement>("[data-goal-percent-sum-feedback='true']") ?? createPercentSumFeedback();
   if (!percentSumFeedback.parentElement) modePanel.append(percentSumFeedback);
-  const percentInputs = macroFields.filter((field): field is NonNullable<typeof field> => Boolean(field));
+  const percentInputs = macroFields.filter(isGoalMacroField);
 
   const updatePercentSumFeedback = () => {
     const percentSum = roundToOneDecimal(percentInputs.reduce((sum, field) => sum + readInputNumber(field.percentInput), 0));

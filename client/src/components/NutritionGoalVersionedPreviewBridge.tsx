@@ -121,7 +121,7 @@ function readOriginalDays(card: HTMLElement): PreviewDay[] {
   const dayCards = Array.from(card.querySelectorAll<HTMLElement>("div.rounded-2xl"))
     .filter(item => item.textContent?.includes("proteína") && !item.textContent?.includes("Total da Semana"));
 
-  return dayCards.map(item => {
+  return dayCards.map((item): PreviewDay | null => {
     const date = parsePtBrDate(item.querySelector("span")?.textContent);
     const lines = Array.from(item.querySelectorAll("p")).map(line => line.textContent?.trim() ?? "");
     if (!date) return null;
@@ -145,7 +145,7 @@ function buildPreviewDays(startDate: string, data: any, originalDays: PreviewDay
   const versions = (data?.versions ?? []) as GoalVersion[];
   const exceptionVersions = (data?.exceptionVersions ?? []) as GoalVersion[];
 
-  return Array.from({ length: 7 }, (_, index) => {
+  return Array.from({ length: 7 }, (_, index): PreviewDay | null => {
     const date = addDays(weekStart, index);
     const weekday = weekdayIndex(date);
     const exception = latestVersion(exceptionVersions, date, weekday);
