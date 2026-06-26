@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import NutritionGoalReportInvalidator from "./components/NutritionGoalReportInvalidator";
 import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbed";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
@@ -90,6 +91,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <ProfileWhatsappGreetingVisibility />
+          <NutritionGoalReportInvalidator />
           <ProfessionalAnalyzeTabBridge />
           <ProfessionalGoalExceptionSuggestionsEmbed />
           <PatientGoalSuggestionsEmbed />
