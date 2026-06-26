@@ -126,7 +126,7 @@ describe("SyncedHealthDataPage", () => {
 
     expect(screen.getAllByText("Dados sincronizados").length).toBeGreaterThan(0);
     expect(screen.getByText("Dia selecionado")).toBeTruthy();
-    expect(screen.getByText("Corrida")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Corrida/i })).toBeTruthy();
     expect(screen.queryByText("Morning Run")).toBeNull();
     expect(screen.getByText("Calorias sincronizadas")).toBeTruthy();
     expect(screen.getAllByText("420 kcal").length).toBeGreaterThan(0);
@@ -168,7 +168,7 @@ describe("SyncedHealthDataPage", () => {
     expect(screen.getByText("Fonte das calorias")).toBeTruthy();
     expect(screen.getAllByText("Strava").length).toBeGreaterThan(0);
     expect(screen.getByText("Tipo de treino")).toBeTruthy();
-    expect(screen.getByText("Treino")).toBeTruthy();
+    expect(screen.getAllByText("Treino").length).toBeGreaterThan(0);
     expect(screen.getByText("Esforço percebido")).toBeTruthy();
     expect(screen.getByText("Moderado")).toBeTruthy();
     expect(screen.getByText("Status da sincronização")).toBeTruthy();

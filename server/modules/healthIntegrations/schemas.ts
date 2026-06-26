@@ -20,6 +20,7 @@ export const disconnectHealthIntegrationSchema = z.object({
 export const listSyncedHealthRecordsSchema = z.object({
   provider: healthProviderSchema.optional(),
   dataType: healthDataTypeSchema.optional(),
+  activityType: z.string().trim().min(1).max(160).optional(),
   from: z.string().trim().min(1).optional(),
   to: z.string().trim().min(1).optional(),
   q: z.string().trim().max(120).optional(),

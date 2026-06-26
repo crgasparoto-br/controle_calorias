@@ -8,16 +8,37 @@ const ANALYSIS_TAB_LABEL = "Análise por pessoa acompanhada";
 const ANALYSIS_TITLE = "Análise da pessoa acompanhada";
 const ANALYSIS_DESCRIPTION = "Escolha uma pessoa autorizada para revisar relatórios, metas, sugestões, IA e comentários. O período dos relatórios fica na aba Relatórios.";
 const ANALYZE_BUTTON_LABEL = "Analisar";
+const GOAL_SUGGESTION_TITLE = "Sugerir ajuste de meta";
 const PERIOD_FILTER_LABELS = ["Dia", "Semana", "Mês", "Período"];
 const PERIOD_DETAIL_LABELS = ["Dia ativo", "Semana de referência", "Mês ativo", "Início"];
 const SHARED_REPORTS_MOUNT_ATTR = "data-shared-reports-experience";
+const GOAL_MACRO_MODE_ATTR = "data-professional-goal-macro-mode";
 
 type ReportsPortalState = {
   mount: HTMLElement | null;
   patientId: number | null;
 };
 
+type MacroDefinition = {
+  key: "protein" | "carbs" | "fat";
+  label: string;
+  gramLabel: string;
+  caloriesPerGram: number;
+};
+
+type GoalMacroField = MacroDefinition & {
+  labelElement: HTMLElement;
+  gramInput: HTMLInputElement;
+  percentInput: HTMLInputElement;
+  percentLabel: HTMLElement;
+};
+
 const EMPTY_PORTAL_STATE: ReportsPortalState = { mount: null, patientId: null };
+const MACRO_DEFINITIONS: MacroDefinition[] = [
+  { key: "protein", label: "Proteínas", gramLabel: "Proteína (g)", caloriesPerGram: 4 },
+  { key: "carbs", label: "Carboidratos", gramLabel: "Carboidratos (g)", caloriesPerGram: 4 },
+  { key: "fat", label: "Gorduras", gramLabel: "Gorduras (g)", caloriesPerGram: 9 },
+];
 
 function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -140,9 +161,246 @@ function alignPatientSelectorAndCopy() {
   selectorRow.classList.add("sm:justify-start");
 }
 
+function findGoalSuggestionBox() {
+  const title = Array.from(document.querySelectorAll<HTMLElement>("p, h2, h3, div")).find(element =>
+    elementText(element) === GOAL_SUGGESTION_TITLE,
+  );
+  let current = title?.parentElement ?? null;
+  while (current) {
+    const text = elementText(current);
+    if (text.includes("Justificativa") && text.includes("Enviar sugestão")) return current;
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function findLabelInput(container: HTMLElement, labelText: string) {
+  return Array.from(container.querySelectorAll<HTMLLabelElement>("label")).find(label =>
+    elementText(label).includes(labelText) && label.querySelector("input"),
+  ) ?? null;
+}
+
+function setNativeInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function roundToOneDecimal(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function readInputNumber(input: HTMLInputElement | null) {
+  const value = Number(input?.value ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function calculateMacroPercent(grams: number, calories: number, caloriesPerGram: number) {
+  if (calories <= 0) return 0;
+  return roundToOneDecimal(((grams * caloriesPerGram) / calories) * 100);
+}
+
+function calculateMacroGrams(percent: number, calories: number, caloriesPerGram: number) {
+  if (calories <= 0 || percent <= 0) return 0;
+  return Math.round((calories * (percent / 100)) / caloriesPerGram);
+}
+
+function createModeButton(label: string, mode: "grams" | "percent") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.goalMacroModeButton = mode;
+  button.className = "rounded-xl px-3 py-1.5 text-sm font-medium transition";
+  button.textContent = label;
+  return button;
+}
+
+function createPercentSumFeedback() {
+  const feedback = document.createElement("div");
+  feedback.dataset.goalPercentSumFeedback = "true";
+  feedback.className = "rounded-xl border px-3 py-2 text-sm";
+  return feedback;
+}
+
+function getDirectInput(label: HTMLElement) {
+  return Array.from(label.children).find((child): child is HTMLInputElement => child instanceof HTMLInputElement) ??
+    label.querySelector<HTMLInputElement>("input");
+}
+
+function setLabelChildrenVisibility(label: HTMLElement, visible: boolean, percentInput: HTMLInputElement, percentLabel: HTMLElement) {
+  Array.from(label.children).forEach(child => {
+    if (child === percentInput || child === percentLabel) return;
+    (child as HTMLElement).style.display = visible ? "" : "none";
+  });
+}
+
+function ensurePercentField(label: HTMLElement, macro: MacroDefinition) {
+  let percentLabel = label.querySelector<HTMLElement>(`[data-goal-percent-label='${macro.key}']`);
+  let percentInput = label.querySelector<HTMLInputElement>(`[data-goal-percent-input='${macro.key}']`);
+
+  if (!percentLabel) {
+    percentLabel = document.createElement("span");
+    percentLabel.dataset.goalPercentLabel = macro.key;
+    percentLabel.className = "text-sm font-medium leading-none";
+    percentLabel.textContent = `${macro.label} (%)`;
+    label.append(percentLabel);
+  }
+
+  if (!percentInput) {
+    percentInput = document.createElement("input");
+    percentInput.type = "number";
+    percentInput.min = "0";
+    percentInput.max = "100";
+    percentInput.step = "0.1";
+    percentInput.dataset.goalPercentInput = macro.key;
+    percentInput.className = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
+    label.append(percentInput);
+  }
+
+  return { percentInput, percentLabel };
+}
+
+function isGoalMacroField(field: GoalMacroField | null): field is GoalMacroField {
+  return field !== null;
+}
+
+function enhanceGoalSuggestionMacroMode() {
+  const box = findGoalSuggestionBox();
+  if (!box) return;
+
+  const caloriesLabel = findLabelInput(box, "Calorias");
+  const caloriesInput = caloriesLabel?.querySelector<HTMLInputElement>("input") ?? null;
+  const macroFields: Array<GoalMacroField | null> = MACRO_DEFINITIONS.map(macro => {
+    const labelElement = findLabelInput(box, macro.gramLabel);
+    if (!labelElement) return null;
+
+    const gramInput = getDirectInput(labelElement);
+    if (!gramInput) return null;
+
+    return {
+      ...macro,
+      labelElement,
+      gramInput,
+      ...ensurePercentField(labelElement, macro),
+    };
+  });
+  if (!caloriesInput || macroFields.some(field => field === null)) return;
+
+  const firstMacroLabel = macroFields[0]?.labelElement;
+  const macroGrid = firstMacroLabel?.parentElement ?? null;
+  if (!macroGrid) return;
+
+  let modePanel = box.querySelector<HTMLElement>(`[${GOAL_MACRO_MODE_ATTR}]`);
+  if (!modePanel) {
+    modePanel = document.createElement("div");
+    modePanel.setAttribute(GOAL_MACRO_MODE_ATTR, "true");
+    modePanel.dataset.mode = "grams";
+    modePanel.className = "space-y-2 rounded-2xl border bg-muted/20 p-3";
+
+    const buttonGroup = document.createElement("div");
+    buttonGroup.className = "flex w-fit rounded-2xl border bg-background p-1";
+    const gramsButton = createModeButton("Gramas", "grams");
+    const percentButton = createModeButton("Percentual", "percent");
+    buttonGroup.append(gramsButton, percentButton);
+
+    modePanel.append(buttonGroup, createPercentSumFeedback());
+    macroGrid.parentElement?.insertBefore(modePanel, macroGrid);
+  }
+
+  const gramsButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='grams']");
+  const percentButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='percent']");
+  const percentSumFeedback = modePanel.querySelector<HTMLElement>("[data-goal-percent-sum-feedback='true']") ?? createPercentSumFeedback();
+  if (!percentSumFeedback.parentElement) modePanel.append(percentSumFeedback);
+  const percentInputs = macroFields.filter(isGoalMacroField);
+
+  const updatePercentSumFeedback = () => {
+    const percentSum = roundToOneDecimal(percentInputs.reduce((sum, field) => sum + readInputNumber(field.percentInput), 0));
+    const isValid = percentSum === 100;
+    percentSumFeedback.hidden = modePanel.dataset.mode !== "percent";
+    percentSumFeedback.textContent = isValid
+      ? `Soma dos percentuais: ${percentSum}%`
+      : `Soma dos percentuais: ${percentSum}%. Ajuste para fechar em 100%.`;
+    percentSumFeedback.classList.toggle("border-emerald-200", isValid);
+    percentSumFeedback.classList.toggle("bg-emerald-50", isValid);
+    percentSumFeedback.classList.toggle("text-emerald-700", isValid);
+    percentSumFeedback.classList.toggle("border-destructive/30", !isValid);
+    percentSumFeedback.classList.toggle("bg-destructive/5", !isValid);
+    percentSumFeedback.classList.toggle("text-destructive", !isValid);
+  };
+
+  const syncPercentInputsFromGrams = () => {
+    const calories = readInputNumber(caloriesInput);
+    percentInputs.forEach(field => {
+      field.percentInput.value = String(calculateMacroPercent(readInputNumber(field.gramInput), calories, field.caloriesPerGram));
+    });
+    updatePercentSumFeedback();
+  };
+
+  const syncGramInputsFromPercent = () => {
+    const calories = readInputNumber(caloriesInput);
+    modePanel.dataset.programmaticMacroSync = "true";
+    try {
+      percentInputs.forEach(field => {
+        setNativeInputValue(field.gramInput, String(calculateMacroGrams(readInputNumber(field.percentInput), calories, field.caloriesPerGram)));
+      });
+    } finally {
+      delete modePanel.dataset.programmaticMacroSync;
+    }
+    updatePercentSumFeedback();
+  };
+
+  const syncGramInputsFromPercentAfterRender = () => {
+    window.requestAnimationFrame(syncGramInputsFromPercent);
+  };
+
+  const syncPercentInputsFromGramsAfterRender = () => {
+    window.requestAnimationFrame(syncPercentInputsFromGrams);
+  };
+
+  if (modePanel.dataset.percentInitialized !== "true") {
+    syncPercentInputsFromGrams();
+    modePanel.dataset.percentInitialized = "true";
+  }
+
+  const applyMode = (mode: "grams" | "percent") => {
+    const previousMode = modePanel.dataset.mode;
+    modePanel.dataset.mode = mode;
+    if (mode === "percent" && previousMode !== "percent") syncPercentInputsFromGrams();
+    percentInputs.forEach(field => {
+      setLabelChildrenVisibility(field.labelElement, mode === "grams", field.percentInput, field.percentLabel);
+      field.percentInput.hidden = mode !== "percent";
+      field.percentLabel.hidden = mode !== "percent";
+    });
+    gramsButton?.classList.toggle("bg-primary", mode === "grams");
+    gramsButton?.classList.toggle("text-primary-foreground", mode === "grams");
+    percentButton?.classList.toggle("bg-primary", mode === "percent");
+    percentButton?.classList.toggle("text-primary-foreground", mode === "percent");
+    updatePercentSumFeedback();
+  };
+
+  if (modePanel.dataset.listenersAttached !== "true") {
+    gramsButton?.addEventListener("click", () => applyMode("grams"));
+    percentButton?.addEventListener("click", () => {
+      applyMode("percent");
+      syncGramInputsFromPercent();
+    });
+    caloriesInput.addEventListener("input", syncGramInputsFromPercentAfterRender);
+    percentInputs.forEach(field => {
+      field.percentInput.addEventListener("input", syncGramInputsFromPercent);
+      field.gramInput.addEventListener("input", () => {
+        if (modePanel.dataset.programmaticMacroSync === "true") return;
+        syncPercentInputsFromGramsAfterRender();
+      });
+    });
+    modePanel.dataset.listenersAttached = "true";
+  }
+
+  applyMode(modePanel.dataset.mode === "percent" ? "percent" : "grams");
+}
+
 function refreshAnalysisLayout() {
   alignPatientSelectorAndCopy();
   movePeriodFilterIntoReportsTab();
+  enhanceGoalSuggestionMacroMode();
   return ensureSharedReportsMount();
 }
 

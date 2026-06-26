@@ -48,6 +48,11 @@ export const professionalGoalSuggestionSchema = z.object({
   goal: goalSchema,
 });
 
+export const goalSuggestionDecisionSchema = z.object({
+  suggestionId: z.string().min(1),
+  decision: z.enum(["accepted", "refused"]),
+});
+
 export const professionalMealSuggestionStatusSchema = professionalSuggestionStatusSchema;
 
 export const professionalMealSuggestionSchema = z.object({
@@ -80,6 +85,7 @@ export type PatientPeriodBundleInput = z.infer<typeof patientPeriodBundleSchema>
 export type ProfessionalCommentInput = z.infer<typeof professionalCommentSchema>;
 export type ProfessionalGoalSuggestionInput = z.infer<typeof professionalGoalSuggestionSchema>;
 export type ProfessionalGoalSuggestionStatus = z.infer<typeof professionalGoalSuggestionStatusSchema>;
+export type GoalSuggestionDecisionInput = z.infer<typeof goalSuggestionDecisionSchema>;
 export type ProfessionalMealSuggestionInput = z.infer<typeof professionalMealSuggestionSchema>;
 export type ProfessionalMealSuggestionStatus = z.infer<typeof professionalMealSuggestionStatusSchema>;
 export type ProfessionalPatientQuestionInput = z.infer<typeof professionalPatientQuestionSchema>;
