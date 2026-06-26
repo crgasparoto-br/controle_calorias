@@ -229,13 +229,7 @@ function enhanceGoalSuggestionMacroMode() {
     modePanel = document.createElement("div");
     modePanel.setAttribute(GOAL_MACRO_MODE_ATTR, "true");
     modePanel.dataset.mode = "grams";
-    modePanel.className = "space-y-3 rounded-2xl border bg-muted/20 p-3";
-
-    const header = document.createElement("div");
-    header.className = "flex flex-wrap items-center justify-between gap-3";
-
-    const copy = document.createElement("div");
-    copy.innerHTML = '<p class="text-sm font-medium">Informar macros como</p><p class="text-xs text-muted-foreground">Escolha gramas ou percentual; a sugestão será salva em gramas.</p>';
+    modePanel.className = "flex flex-wrap items-center gap-3 rounded-2xl border bg-muted/20 p-3";
 
     const buttonGroup = document.createElement("div");
     buttonGroup.className = "flex rounded-2xl border bg-background p-1";
@@ -243,11 +237,9 @@ function enhanceGoalSuggestionMacroMode() {
     const percentButton = createModeButton("Percentual", "percent");
     buttonGroup.append(gramsButton, percentButton);
 
-    header.append(copy, buttonGroup);
-
     const percentGrid = document.createElement("div");
     percentGrid.dataset.goalPercentGrid = "true";
-    percentGrid.className = "grid gap-3 sm:grid-cols-3";
+    percentGrid.className = "grid flex-1 basis-full gap-3 sm:grid-cols-3";
     percentGrid.hidden = true;
 
     for (const macro of MACRO_DEFINITIONS) {
@@ -269,9 +261,9 @@ function enhanceGoalSuggestionMacroMode() {
 
     const note = document.createElement("p");
     note.dataset.goalPercentNote = "true";
-    note.className = "text-xs text-muted-foreground";
+    note.className = "basis-full text-xs text-muted-foreground";
 
-    modePanel.append(header, percentGrid, note);
+    modePanel.append(buttonGroup, percentGrid, note);
     macroGrid.parentElement?.insertBefore(modePanel, macroGrid);
   }
 
@@ -307,9 +299,10 @@ function enhanceGoalSuggestionMacroMode() {
     if (!percentNote) return;
     percentNote.textContent = modePanel.dataset.mode === "percent"
       ? `Distribuição atual: ${sum.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% dos macros.`
-      : "No modo percentual, a tela converte os valores para gramas usando as calorias informadas.";
+      : "";
     percentNote.classList.toggle("text-destructive", modePanel.dataset.mode === "percent" && sum !== 100);
     percentNote.classList.toggle("text-muted-foreground", modePanel.dataset.mode !== "percent" || sum === 100);
+    percentNote.hidden = modePanel.dataset.mode !== "percent";
   };
 
   const applyMode = (mode: "grams" | "percent") => {
