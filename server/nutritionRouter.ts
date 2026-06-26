@@ -158,6 +158,7 @@ import {
 } from "./repositories/healthSyncedRecordsRepository";
 import {
   accessIdSchema,
+  goalSuggestionDecisionSchema,
   patientIdSchema,
   patientPeriodBundleSchema,
   professionalCommentSchema,
@@ -183,6 +184,11 @@ import {
   suggestMealPlan,
   upsertProfessionalProfile,
 } from "./modules/professionals/service";
+import {
+  listPatientGoalSuggestions,
+  recordProfessionalGoalSuggestion,
+  respondPatientGoalSuggestion,
+} from "./modules/professionals/goalSuggestionApprovals";
 
 function mealLabelCategory(label: string) {
   const normalized = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -293,12 +299,29 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) => requestPatientAccess(ctx.user.id, input)),
     myAccesses: protectedProcedure.query(async ({ ctx }) => listProfessionalAccesses(ctx.user.id)),
     patientRequests: protectedProcedure.query(async ({ ctx }) => listPatientAccessRequests(ctx.user.id)),
+    patientGoalSuggestions: protectedProcedure.query(async ({ ctx }) => listPatientGoalSuggestions(ctx.user.id)),
     approveAccess: protectedProcedure
       .input(accessIdSchema)
       .mutation(async ({ ctx, input }) => approvePatientAccess(ctx.user.id, input.accessId)),
     revokeAccess: protectedProcedure
       .input(accessIdSchema)
       .mutation(async ({ ctx, input }) => revokePatientAccess(ctx.user.id, input.accessId)),
+    respondGoalSuggestion: protectedProcedure
+      .input(goalSuggestionDecisionSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await respondPatientGoalSuggestion(ctx.user.id, input);
+        } catch (error) {
+          if (!(error instanceof UnsafeNutritionGoalError)) {
+            throw error;
+          }
+
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error.message,
+          });
+        }
+      }),
     patientDashboard: protectedProcedure
       .input(patientIdSchema)
       .query(async ({ ctx, input }) => getProfessionalPatientDashboard(ctx.user.id, input.patientId, input.weekOffset)),
@@ -310,7 +333,11 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) => addProfessionalComment(ctx.user.id, input)),
     suggestGoalAdjustment: protectedProcedure
       .input(professionalGoalSuggestionSchema)
-      .mutation(async ({ ctx, input }) => suggestGoalAdjustment(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) => {
+        const suggestion = await suggestGoalAdjustment(ctx.user.id, input);
+        await recordProfessionalGoalSuggestion(suggestion);
+        return suggestion;
+      }),
     suggestMealPlan: protectedProcedure
       .input(professionalMealSuggestionSchema)
       .mutation(async ({ ctx, input }) => suggestMealPlan(ctx.user.id, input)),
@@ -522,7 +549,7 @@ export const nutritionRouter = router({
     saveFavoriteGroup: protectedProcedure
       .input(saveFavoriteMealGroupSchema)
       .mutation(async ({ ctx, input }) => {
-        const result = await saveMealGroupFavorite(ctx.user.id, input);
+        const result = await saveFavoriteMealGroup(ctx.user.id, input);
         void analyticsService.track("favorite_meal_created", { item_count: result.items.length });
         return result;
       }),
