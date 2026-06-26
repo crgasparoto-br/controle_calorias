@@ -10,6 +10,7 @@ import { useLocation } from "wouter";
 
 type GoalSuggestion = {
   id: string;
+  professionalUserId: number;
   rationale: string;
   status: "draft" | "sent" | "accepted" | "refused" | "cancelled";
   createdAt: number;
@@ -91,7 +92,7 @@ function macroSummary(goal: GoalSuggestion["goal"]["defaultGoal"]) {
 }
 
 function professionalLabel(suggestion: GoalSuggestion) {
-  return suggestion.professional?.displayName || `Profissional #${suggestion.professionalUserId ?? ""}`.trim();
+  return suggestion.professional?.displayName || `Profissional #${suggestion.professionalUserId}`;
 }
 
 function statusClass(status: GoalSuggestion["status"]) {
