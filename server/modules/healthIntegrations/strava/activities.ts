@@ -48,9 +48,13 @@ function buildStravaActivityDetailUrl(activityId: number) {
 }
 
 export function shouldFetchStravaActivityDetail(activity: StravaActivity) {
-  const calories = typeof activity.calories === "number" ? activity.calories : null;
-  const missingCalories = calories == null || calories <= 0;
-  return missingCalories && (activity.moving_time ?? 0) > 0;
+  // Sempre buscamos o detalhe da atividade para obter as calorias reais do
+  // dispositivo (Garmin, Apple Watch etc.), que só estão disponíveis no endpoint
+  // de detalhe (/activities/:id). A listagem (/athlete/activities) retorna uma
+  // estimativa do Strava baseada no perfil do atleta, não a leitura do sensor.
+  // A estimativa da listagem é usada apenas como fallback quando o detalhe
+  // falhar ou não retornar calorias.
+  return (activity.moving_time ?? 0) > 0;
 }
 
 export function getStravaMaxActivityDetailRequestsPerSync() {

@@ -177,12 +177,24 @@ function withStravaSummaryCaloriesOrigin(activity: StravaActivity): StravaActivi
 
 function mergeStravaActivityDetail(activity: StravaActivity, detail: StravaActivity) {
   const detailHasCalories = typeof detail.calories === "number" && detail.calories > 0;
-  return {
-    ...activity,
-    ...detail,
-    id: activity.id,
-    caloriesOrigin: detailHasCalories ? "strava_detail" as const : detail.caloriesOrigin,
-  } satisfies StravaActivity;
+  const summaryHasCalories = typeof activity.calories === "number" && activity.calories > 0;
+
+  // Prioridade: calorias do detalhe > calorias da listagem (summary) > estimativa local
+  // O detalhe retorna as calorias reais do dispositivo (Garmin, Apple Watch etc.).
+  // A listagem retorna estimativa do Strava baseada no perfil do atleta.
+  // A estimativa local é usada apenas como último recurso.
+  const merged = { ...activity, ...detail, id: activity.id } satisfies StravaActivity;
+
+  if (detailHasCalories) {
+    return { ...merged, caloriesOrigin: "strava_detail" as const };
+  }
+
+  if (summaryHasCalories) {
+    // Usa as calorias da listagem como fallback quando o detalhe não retornou calorias
+    return { ...merged, calories: activity.calories, caloriesOrigin: "strava_summary" as const };
+  }
+
+  return { ...merged, caloriesOrigin: detail.caloriesOrigin };
 }
 
 async function resolveStravaActivityForImport(userId: number, activity: StravaActivity, state: StravaDetailFetchState) {

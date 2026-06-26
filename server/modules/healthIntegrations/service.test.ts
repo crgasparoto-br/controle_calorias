@@ -165,6 +165,16 @@ describe("healthIntegrationService Strava", () => {
           calories: 0,
         },
       ]))
+      // Detalhe da corrida (id 999): agora sempre buscamos o detalhe para obter calorias reais do dispositivo
+      .mockResolvedValueOnce(jsonResponse({
+        id: 999,
+        name: "Corrida matinal",
+        sport_type: "Run",
+        start_date: "2026-06-01T10:00:00Z",
+        moving_time: 2100,
+        calories: 321,
+      }))
+      // Detalhe da caminhada (id 1000): sem calorias no detalhe, usa summary como fallback (também 0, cai na estimativa local)
       .mockResolvedValueOnce(jsonResponse({
         id: 1000,
         name: "Atividade sem gasto",
@@ -249,6 +259,14 @@ describe("healthIntegrationService Strava", () => {
           calories: 49,
         },
       ]))
+      // Detalhe da atividade (id 996): agora sempre buscamos o detalhe
+      .mockResolvedValueOnce(jsonResponse({
+        id: 996,
+        name: "Treinamento com peso noturno",
+        start_date: "2026-06-02T23:00:00Z",
+        moving_time: 360,
+        calories: 49,
+      }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -260,8 +278,9 @@ describe("healthIntegrationService Strava", () => {
       scope: "read,activity:read",
     });
 
+    // Chamada 1: token OAuth, Chamada 2: listagem de atividades, Chamada 3: detalhe da atividade, Chamada 4: WhatsApp
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       "https://graph.facebook.com/v22.0/phone-number-test/messages",
       expect.objectContaining({
         method: "POST",
@@ -271,7 +290,7 @@ describe("healthIntegrationService Strava", () => {
         }),
       }),
     );
-    const body = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
+    const body = JSON.parse(String(fetchMock.mock.calls[3][1]?.body));
     expect(body).toMatchObject({
       messaging_product: "whatsapp",
       to: "5511999999999",

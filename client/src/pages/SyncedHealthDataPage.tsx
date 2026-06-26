@@ -567,7 +567,7 @@ function formatSource(source: string) {
     garmin_connect: "Garmin Connect",
     google_fit: "Google Fit",
     health_connect: "Health Connect",
-    mock: "Mock",
+    mock: "Simulado",
     strava: "Strava",
   };
   return labels[source] ?? source;
@@ -656,6 +656,8 @@ function formatPace(value: number | null) {
 function formatCaloriesSource(record: SyncedHealthRecord) {
   const source = getStringMetadata(record, "caloriesSource");
   const estimated = getBooleanMetadata(record, "estimatedCalories");
+  if (source === "strava_detail") return "Strava (dados do dispositivo)";
+  if (source === "strava_summary") return "Strava (estimativa do perfil do atleta)";
   if (source === "strava") return "Strava";
   if (source === "kilojoules") return "Strava, convertido de kJ";
   if (source === "synced_energy") return "Registro sincronizado";
