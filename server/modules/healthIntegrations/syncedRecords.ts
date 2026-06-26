@@ -174,8 +174,12 @@ function getActivityTypeSearchValues(record: SyncedHealthRecord) {
 function recordMatchesActivityType(record: SyncedHealthRecord, activityType: string | undefined) {
   if (!activityType) return true;
   if (record.dataType !== "activity") return false;
-  const normalizedActivityType = normalizeActivityTypeValue(activityType);
-  return getActivityTypeSearchValues(record).includes(normalizedActivityType);
+  const normalizedActivityTypes = activityType
+    .split("|")
+    .map(normalizeActivityTypeValue)
+    .filter(Boolean);
+  if (!normalizedActivityTypes.length) return true;
+  return getActivityTypeSearchValues(record).some(value => normalizedActivityTypes.includes(value));
 }
 
 function getRecordCalories(record: SyncedHealthRecord) {
