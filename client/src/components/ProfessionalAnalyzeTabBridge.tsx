@@ -207,6 +207,13 @@ function createModeButton(label: string, mode: "grams" | "percent") {
   return button;
 }
 
+function createPercentSumFeedback() {
+  const feedback = document.createElement("div");
+  feedback.dataset.goalPercentSumFeedback = "true";
+  feedback.className = "rounded-xl border px-3 py-2 text-sm";
+  return feedback;
+}
+
 function getDirectInput(label: HTMLElement) {
   return Array.from(label.children).find((child): child is HTMLInputElement => child instanceof HTMLInputElement) ??
     label.querySelector<HTMLInputElement>("input");
@@ -271,27 +278,45 @@ function enhanceGoalSuggestionMacroMode() {
     modePanel = document.createElement("div");
     modePanel.setAttribute(GOAL_MACRO_MODE_ATTR, "true");
     modePanel.dataset.mode = "grams";
-    modePanel.className = "flex items-center rounded-2xl border bg-muted/20 p-3";
+    modePanel.className = "space-y-2 rounded-2xl border bg-muted/20 p-3";
 
     const buttonGroup = document.createElement("div");
-    buttonGroup.className = "flex rounded-2xl border bg-background p-1";
+    buttonGroup.className = "flex w-fit rounded-2xl border bg-background p-1";
     const gramsButton = createModeButton("Gramas", "grams");
     const percentButton = createModeButton("Percentual", "percent");
     buttonGroup.append(gramsButton, percentButton);
 
-    modePanel.append(buttonGroup);
+    modePanel.append(buttonGroup, createPercentSumFeedback());
     macroGrid.parentElement?.insertBefore(modePanel, macroGrid);
   }
 
   const gramsButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='grams']");
   const percentButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='percent']");
+  const percentSumFeedback = modePanel.querySelector<HTMLElement>("[data-goal-percent-sum-feedback='true']") ?? createPercentSumFeedback();
+  if (!percentSumFeedback.parentElement) modePanel.append(percentSumFeedback);
   const percentInputs = macroFields.filter((field): field is NonNullable<typeof field> => Boolean(field));
+
+  const updatePercentSumFeedback = () => {
+    const percentSum = roundToOneDecimal(percentInputs.reduce((sum, field) => sum + readInputNumber(field.percentInput), 0));
+    const isValid = percentSum === 100;
+    percentSumFeedback.hidden = modePanel.dataset.mode !== "percent";
+    percentSumFeedback.textContent = isValid
+      ? `Soma dos percentuais: ${percentSum}%`
+      : `Soma dos percentuais: ${percentSum}%. Ajuste para fechar em 100%.`;
+    percentSumFeedback.classList.toggle("border-emerald-200", isValid);
+    percentSumFeedback.classList.toggle("bg-emerald-50", isValid);
+    percentSumFeedback.classList.toggle("text-emerald-700", isValid);
+    percentSumFeedback.classList.toggle("border-destructive/30", !isValid);
+    percentSumFeedback.classList.toggle("bg-destructive/5", !isValid);
+    percentSumFeedback.classList.toggle("text-destructive", !isValid);
+  };
 
   const syncPercentInputsFromGrams = () => {
     const calories = readInputNumber(caloriesInput);
     percentInputs.forEach(field => {
       field.percentInput.value = String(calculateMacroPercent(readInputNumber(field.gramInput), calories, field.caloriesPerGram));
     });
+    updatePercentSumFeedback();
   };
 
   const syncGramInputsFromPercent = () => {
@@ -304,6 +329,7 @@ function enhanceGoalSuggestionMacroMode() {
     } finally {
       delete modePanel.dataset.programmaticMacroSync;
     }
+    updatePercentSumFeedback();
   };
 
   const syncGramInputsFromPercentAfterRender = () => {
@@ -332,6 +358,7 @@ function enhanceGoalSuggestionMacroMode() {
     gramsButton?.classList.toggle("text-primary-foreground", mode === "grams");
     percentButton?.classList.toggle("bg-primary", mode === "percent");
     percentButton?.classList.toggle("text-primary-foreground", mode === "percent");
+    updatePercentSumFeedback();
   };
 
   if (modePanel.dataset.listenersAttached !== "true") {
