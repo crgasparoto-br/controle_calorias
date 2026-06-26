@@ -45,6 +45,12 @@ function parseNumber(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function setTextIfChanged(element: Element | undefined, value: string) {
+  if (element && element.textContent !== value) {
+    element.textContent = value;
+  }
+}
+
 function formatPreviewMessage(source: "default" | "exception", startDate?: string | null) {
   if (source === "exception") {
     return `Exceção histórica desde ${startDate ? formatDateKey(startDate) : "data anterior"}.`;
@@ -152,16 +158,16 @@ function writeGoalValues(card: HTMLElement, goal: GoalTarget) {
   const carbs = lines.find(line => line.textContent?.toLowerCase().includes("carbo"));
   const fat = lines.find(line => line.textContent?.toLowerCase().includes("gordura"));
 
-  if (calories) calories.textContent = formatCalories(goal.calories);
-  if (protein) protein.textContent = `${formatGrams(goal.proteinGrams)} proteína`;
-  if (carbs) carbs.textContent = `${formatGrams(goal.carbsGrams)} carbo`;
-  if (fat) fat.textContent = `${formatGrams(goal.fatGrams)} gordura`;
+  setTextIfChanged(calories, formatCalories(goal.calories));
+  setTextIfChanged(protein, `${formatGrams(goal.proteinGrams)} proteína`);
+  setTextIfChanged(carbs, `${formatGrams(goal.carbsGrams)} carbo`);
+  setTextIfChanged(fat, `${formatGrams(goal.fatGrams)} gordura`);
 }
 
 function writePreviewMessage(card: HTMLElement, source: "default" | "exception", startDate?: string | null) {
   const message = Array.from(card.querySelectorAll("p"))
     .find(line => line.className.includes("min-h-10"));
-  if (message) message.textContent = formatPreviewMessage(source, startDate);
+  setTextIfChanged(message, formatPreviewMessage(source, startDate));
 }
 
 export default function NutritionGoalPreviewValidityBridge() {
