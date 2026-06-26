@@ -24,6 +24,14 @@ type DatedGoal = GoalTarget & {
   startDate?: string | null;
 };
 
+type GoalDaySnapshot = GoalTarget & {
+  weekday?: number;
+  label?: string;
+  shortLabel?: string;
+  source?: "default" | "exception";
+  effectiveFrom?: Date | string | number | null;
+};
+
 type GoalVersionSnapshot = GoalTarget & {
   id?: number;
   startDate?: string;
@@ -36,6 +44,7 @@ type ExceptionVersionSnapshot = GoalVersionSnapshot & {
 };
 
 type GoalHistorySnapshot = {
+  days?: GoalDaySnapshot[];
   versions?: GoalVersionSnapshot[];
   exceptionVersions?: ExceptionVersionSnapshot[];
 };
@@ -139,6 +148,24 @@ function goalFromVersion(date: string, source: DatedGoal["source"], version: Goa
     carbsGrams: Number(version.carbsGrams ?? 0),
     fatGrams: Number(version.fatGrams ?? 0),
   };
+}
+
+function goalFromSummaryDay(date: string, day: GoalDaySnapshot): DatedGoal {
+  return {
+    date,
+    source: day.source === "exception" ? "exception" : "default",
+    startDate: dateKeyFromDateLike(day.effectiveFrom),
+    calories: Number(day.calories ?? 0),
+    proteinGrams: Number(day.proteinGrams ?? 0),
+    carbsGrams: Number(day.carbsGrams ?? 0),
+    fatGrams: Number(day.fatGrams ?? 0),
+  };
+}
+
+function resolveSummaryGoalForDate(date: string, data: GoalHistorySnapshot | null | undefined): DatedGoal | null {
+  const weekday = getUtcWeekdayIndex(dateKeyToLogicalUtcDate(date));
+  const day = (data?.days ?? []).find(item => item.weekday === weekday);
+  return day ? goalFromSummaryDay(date, day) : null;
 }
 
 function resolveHistoricalGoalForDate(date: string, data: GoalHistorySnapshot | null | undefined): DatedGoal | null {
@@ -372,7 +399,10 @@ export default function NutritionGoalPreviewValidityBridge() {
     .filter((goal): goal is DatedGoal => Boolean(goal)), [day1.data, day2.data, day3.data, day4.data, day5.data, day6.data, day7.data, previewDates]);
 
   const historicalGoals = useMemo(() => previewDates
-    .map(date => resolveHistoricalGoalForDate(date, goalHistory.data as GoalHistorySnapshot | null | undefined))
+    .map(date => {
+      const data = goalHistory.data as GoalHistorySnapshot | null | undefined;
+      return resolveSummaryGoalForDate(date, data) ?? resolveHistoricalGoalForDate(date, data);
+    })
     .filter((goal): goal is DatedGoal => Boolean(goal)), [goalHistory.data, previewDates]);
 
   const previewDays = useMemo(() => {
