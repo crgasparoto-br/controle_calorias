@@ -282,10 +282,11 @@ function findConflictingExceptionVersion(_rows: NutritionGoal[], versionRows: Nu
 }
 
 function isActiveOnDate(row: NutritionGoal, date: Date) {
-  const dateTime = date.getTime();
+  const dateStartTime = startOfUtcDate(dateKeyFromDate(date)).getTime();
+  const dateEndTime = dateStartTime + 86_400_000;
   const startTime = new Date(row.effectiveFrom).getTime();
   const endTime = row.effectiveUntil ? new Date(row.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
-  return startTime <= dateTime && dateTime < endTime;
+  return startTime < dateEndTime && endTime > dateStartTime;
 }
 
 function sortByEffectiveDateDesc(first: NutritionGoal, second: NutritionGoal) {
