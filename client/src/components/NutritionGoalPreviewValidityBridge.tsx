@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
@@ -68,6 +68,7 @@ function addDaysToDateKey(dateKey: string, days: number) {
 }
 
 function buildWeekDates(startDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return [];
   const previewStart = startOfPreviewWeekDateKey(startDate);
   return Array.from({ length: 7 }, (_, index) => addDaysToDateKey(previewStart, index));
 }
@@ -140,16 +141,8 @@ function writePreviewMessage(card: HTMLElement, messageText: string) {
   setTextIfChanged(message, messageText);
 }
 
-function getPreviewDatesFromDom() {
-  const previewCard = findPreviewCard();
-  if (!previewCard) return [];
-
-  return findDayCards(previewCard)
-    .map(card => parsePtBrDateKey(card.querySelector("span")?.textContent))
-    .filter((dateKey): dateKey is string => Boolean(dateKey));
-}
-
-function buildDatedGoal(date: string, data: any): DatedGoal | null {
+function buildDatedGoal(date: string | undefined, data: any): DatedGoal | null {
+  if (!date) return null;
   const todayGoal = data?.today?.goal;
   const goalDay = data?.goal?.today;
   const sourceGoal = goalDay ?? todayGoal;
@@ -169,13 +162,29 @@ function buildDatedGoal(date: string, data: any): DatedGoal | null {
 export default function NutritionGoalPreviewValidityBridge() {
   const [location] = useLocation();
   const isGoalsPage = location === "/goals";
-  const [versionStartDate, setVersionStartDate] = useMemo(() => [null, null] as never, []);
+  const [startDateInput, setStartDateInput] = useState("");
   const isApplyingRef = useRef(false);
+  const previewDates = useMemo(() => buildWeekDates(startDateInput), [startDateInput]);
 
-  const startDateInput = typeof document !== "undefined"
-    ? document.querySelector<HTMLInputElement>("#goal-start-date")?.value ?? ""
-    : "";
-  const previewDates = startDateInput ? buildWeekDates(startDateInput) : [];
+  useEffect(() => {
+    if (!isGoalsPage) return;
+
+    const readStartDate = () => {
+      const nextStartDate = (document.querySelector<HTMLInputElement>("#goal-start-date")?.value || "").trim();
+      setStartDateInput(current => current === nextStartDate ? current : nextStartDate);
+    };
+
+    const observer = new MutationObserver(readStartDate);
+    observer.observe(document.body, { childList: true, subtree: true });
+    readStartDate();
+
+    document.querySelector("#goal-start-date")?.addEventListener("input", readStartDate);
+
+    return () => {
+      observer.disconnect();
+      document.querySelector("#goal-start-date")?.removeEventListener("input", readStartDate);
+    };
+  }, [isGoalsPage]);
 
   const day1 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[0] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[0]) });
   const day2 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[1] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[1]) });
@@ -187,7 +196,7 @@ export default function NutritionGoalPreviewValidityBridge() {
 
   const datedGoals = useMemo(() => [day1, day2, day3, day4, day5, day6, day7]
     .map((query, index) => buildDatedGoal(previewDates[index], query.data))
-    .filter((goal): goal is DatedGoal => Boolean(goal)), [day1.data, day2.data, day3.data, day4.data, day5.data, day6.data, day7.data, previewDates.join("|")]);
+    .filter((goal): goal is DatedGoal => Boolean(goal)), [day1.data, day2.data, day3.data, day4.data, day5.data, day6.data, day7.data, previewDates]);
 
   useEffect(() => {
     if (!isGoalsPage) return;
