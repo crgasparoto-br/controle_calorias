@@ -13,6 +13,7 @@ type GoalTarget = {
 type GoalVersion = GoalTarget & {
   id?: number;
   startDate?: string;
+  effectiveFrom?: Date | string | number | null;
   effectiveUntil?: Date | string | number | null;
   weekday?: number;
 };
@@ -21,16 +22,6 @@ type GoalsResponse = {
   versions?: GoalVersion[];
   exceptionVersions?: Array<GoalVersion & { weekday: number }>;
 };
-
-const WEEKDAY_LABELS = [
-  "segunda-feira",
-  "terça-feira",
-  "quarta-feira",
-  "quinta-feira",
-  "sexta-feira",
-  "sábado",
-  "domingo",
-];
 
 function dateKeyFromDateLike(value?: Date | string | number | null) {
   if (!value) return null;
@@ -70,8 +61,12 @@ function formatDateKey(dateKey: string) {
   }).format(new Date(`${dateKey}T12:00:00Z`));
 }
 
+function versionStartDate(version: GoalVersion) {
+  return version.startDate ?? dateKeyFromDateLike(version.effectiveFrom);
+}
+
 function isVersionActive(version: GoalVersion, dateKey: string) {
-  const startDate = version.startDate ?? dateKeyFromDateLike(version.effectiveFrom as Date | string | number | null | undefined);
+  const startDate = versionStartDate(version);
   const endDate = dateKeyFromDateLike(version.effectiveUntil);
   return Boolean(startDate && startDate <= dateKey && (!endDate || dateKey < endDate));
 }
@@ -82,7 +77,7 @@ function weekdayFromDateKey(dateKey: string) {
 }
 
 function sortNewestFirst(first: GoalVersion, second: GoalVersion) {
-  return String(second.startDate ?? "").localeCompare(String(first.startDate ?? ""));
+  return String(versionStartDate(second) ?? "").localeCompare(String(versionStartDate(first) ?? ""));
 }
 
 function resolveHistoricalGoal(goal: GoalsResponse, dateKey: string) {
@@ -95,7 +90,7 @@ function resolveHistoricalGoal(goal: GoalsResponse, dateKey: string) {
     return {
       ...exception,
       source: "exception" as const,
-      startDate: exception.startDate ?? dateKeyFromDateLike(exception.effectiveFrom as Date | string | number | null | undefined),
+      startDate: versionStartDate(exception),
     };
   }
 
@@ -108,7 +103,7 @@ function resolveHistoricalGoal(goal: GoalsResponse, dateKey: string) {
   return {
     ...defaultGoal,
     source: "default" as const,
-    startDate: defaultGoal.startDate ?? dateKeyFromDateLike(defaultGoal.effectiveFrom as Date | string | number | null | undefined),
+    startDate: versionStartDate(defaultGoal),
   };
 }
 
