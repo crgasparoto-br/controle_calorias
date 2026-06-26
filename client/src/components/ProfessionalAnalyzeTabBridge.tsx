@@ -8,16 +8,30 @@ const ANALYSIS_TAB_LABEL = "Análise por pessoa acompanhada";
 const ANALYSIS_TITLE = "Análise da pessoa acompanhada";
 const ANALYSIS_DESCRIPTION = "Escolha uma pessoa autorizada para revisar relatórios, metas, sugestões, IA e comentários. O período dos relatórios fica na aba Relatórios.";
 const ANALYZE_BUTTON_LABEL = "Analisar";
+const GOAL_SUGGESTION_TITLE = "Sugerir ajuste de meta";
 const PERIOD_FILTER_LABELS = ["Dia", "Semana", "Mês", "Período"];
 const PERIOD_DETAIL_LABELS = ["Dia ativo", "Semana de referência", "Mês ativo", "Início"];
 const SHARED_REPORTS_MOUNT_ATTR = "data-shared-reports-experience";
+const GOAL_MACRO_MODE_ATTR = "data-professional-goal-macro-mode";
 
 type ReportsPortalState = {
   mount: HTMLElement | null;
   patientId: number | null;
 };
 
+type MacroDefinition = {
+  key: "protein" | "carbs" | "fat";
+  label: string;
+  gramLabel: string;
+  caloriesPerGram: number;
+};
+
 const EMPTY_PORTAL_STATE: ReportsPortalState = { mount: null, patientId: null };
+const MACRO_DEFINITIONS: MacroDefinition[] = [
+  { key: "protein", label: "Proteínas", gramLabel: "Proteína (g)", caloriesPerGram: 4 },
+  { key: "carbs", label: "Carboidratos", gramLabel: "Carboidratos (g)", caloriesPerGram: 4 },
+  { key: "fat", label: "Gorduras", gramLabel: "Gorduras (g)", caloriesPerGram: 9 },
+];
 
 function elementText(element: Element) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -140,9 +154,201 @@ function alignPatientSelectorAndCopy() {
   selectorRow.classList.add("sm:justify-start");
 }
 
+function findGoalSuggestionBox() {
+  const title = Array.from(document.querySelectorAll<HTMLElement>("p, h2, h3, div")).find(element =>
+    elementText(element) === GOAL_SUGGESTION_TITLE,
+  );
+  let current = title?.parentElement ?? null;
+  while (current) {
+    const text = elementText(current);
+    if (text.includes("Justificativa") && text.includes("Enviar sugestão")) return current;
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function findLabelInput(container: HTMLElement, labelText: string) {
+  return Array.from(container.querySelectorAll<HTMLLabelElement>("label")).find(label =>
+    elementText(label).includes(labelText) && label.querySelector("input"),
+  ) ?? null;
+}
+
+function setNativeInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function roundToOneDecimal(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function readInputNumber(input: HTMLInputElement | null) {
+  const value = Number(input?.value ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function calculateMacroPercent(grams: number, calories: number, caloriesPerGram: number) {
+  if (calories <= 0) return 0;
+  return roundToOneDecimal(((grams * caloriesPerGram) / calories) * 100);
+}
+
+function calculateMacroGrams(percent: number, calories: number, caloriesPerGram: number) {
+  if (calories <= 0 || percent <= 0) return 0;
+  return Math.round((calories * (percent / 100)) / caloriesPerGram);
+}
+
+function createModeButton(label: string, mode: "grams" | "percent") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.goalMacroModeButton = mode;
+  button.className = "rounded-xl px-3 py-1.5 text-sm font-medium transition";
+  button.textContent = label;
+  return button;
+}
+
+function enhanceGoalSuggestionMacroMode() {
+  const box = findGoalSuggestionBox();
+  if (!box) return;
+
+  const caloriesLabel = findLabelInput(box, "Calorias");
+  const caloriesInput = caloriesLabel?.querySelector<HTMLInputElement>("input") ?? null;
+  const macroFields = MACRO_DEFINITIONS.map(macro => ({
+    ...macro,
+    labelElement: findLabelInput(box, macro.gramLabel),
+  }));
+  if (!caloriesInput || macroFields.some(field => !field.labelElement)) return;
+
+  const firstMacroLabel = macroFields[0].labelElement;
+  const macroGrid = firstMacroLabel?.parentElement ?? null;
+  if (!macroGrid) return;
+
+  let modePanel = box.querySelector<HTMLElement>(`[${GOAL_MACRO_MODE_ATTR}]`);
+  if (!modePanel) {
+    modePanel = document.createElement("div");
+    modePanel.setAttribute(GOAL_MACRO_MODE_ATTR, "true");
+    modePanel.dataset.mode = "grams";
+    modePanel.className = "space-y-3 rounded-2xl border bg-muted/20 p-3";
+
+    const header = document.createElement("div");
+    header.className = "flex flex-wrap items-center justify-between gap-3";
+
+    const copy = document.createElement("div");
+    copy.innerHTML = '<p class="text-sm font-medium">Informar macros como</p><p class="text-xs text-muted-foreground">Escolha gramas ou percentual; a sugestão será salva em gramas.</p>';
+
+    const buttonGroup = document.createElement("div");
+    buttonGroup.className = "flex rounded-2xl border bg-background p-1";
+    const gramsButton = createModeButton("Gramas", "grams");
+    const percentButton = createModeButton("Percentual", "percent");
+    buttonGroup.append(gramsButton, percentButton);
+
+    header.append(copy, buttonGroup);
+
+    const percentGrid = document.createElement("div");
+    percentGrid.dataset.goalPercentGrid = "true";
+    percentGrid.className = "grid gap-3 sm:grid-cols-3";
+    percentGrid.hidden = true;
+
+    for (const macro of MACRO_DEFINITIONS) {
+      const label = document.createElement("label");
+      label.className = "space-y-2";
+      const text = document.createElement("span");
+      text.className = "text-sm font-medium leading-none";
+      text.textContent = `${macro.label} (%)`;
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0";
+      input.max = "100";
+      input.step = "0.1";
+      input.dataset.goalPercentInput = macro.key;
+      input.className = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
+      label.append(text, input);
+      percentGrid.append(label);
+    }
+
+    const note = document.createElement("p");
+    note.dataset.goalPercentNote = "true";
+    note.className = "text-xs text-muted-foreground";
+
+    modePanel.append(header, percentGrid, note);
+    macroGrid.parentElement?.insertBefore(modePanel, macroGrid);
+  }
+
+  const percentGrid = modePanel.querySelector<HTMLElement>("[data-goal-percent-grid='true']");
+  const percentNote = modePanel.querySelector<HTMLElement>("[data-goal-percent-note='true']");
+  const gramsButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='grams']");
+  const percentButton = modePanel.querySelector<HTMLButtonElement>("[data-goal-macro-mode-button='percent']");
+  const percentInputs = MACRO_DEFINITIONS.map(macro => ({
+    ...macro,
+    input: modePanel.querySelector<HTMLInputElement>(`[data-goal-percent-input='${macro.key}']`),
+    gramInput: macroFields.find(field => field.key === macro.key)?.labelElement?.querySelector<HTMLInputElement>("input") ?? null,
+    gramLabel: macroFields.find(field => field.key === macro.key)?.labelElement ?? null,
+  }));
+
+  const syncPercentInputsFromGrams = () => {
+    const calories = readInputNumber(caloriesInput);
+    percentInputs.forEach(field => {
+      if (!field.input || !field.gramInput) return;
+      field.input.value = String(calculateMacroPercent(readInputNumber(field.gramInput), calories, field.caloriesPerGram));
+    });
+  };
+
+  const syncGramInputsFromPercent = () => {
+    const calories = readInputNumber(caloriesInput);
+    percentInputs.forEach(field => {
+      if (!field.input || !field.gramInput) return;
+      setNativeInputValue(field.gramInput, String(calculateMacroGrams(readInputNumber(field.input), calories, field.caloriesPerGram)));
+    });
+  };
+
+  const refreshPercentNote = () => {
+    const sum = roundToOneDecimal(percentInputs.reduce((total, field) => total + readInputNumber(field.input), 0));
+    if (!percentNote) return;
+    percentNote.textContent = modePanel.dataset.mode === "percent"
+      ? `Distribuição atual: ${sum.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% dos macros.`
+      : "No modo percentual, a tela converte os valores para gramas usando as calorias informadas.";
+    percentNote.classList.toggle("text-destructive", modePanel.dataset.mode === "percent" && sum !== 100);
+    percentNote.classList.toggle("text-muted-foreground", modePanel.dataset.mode !== "percent" || sum === 100);
+  };
+
+  const applyMode = (mode: "grams" | "percent") => {
+    modePanel.dataset.mode = mode;
+    if (mode === "percent") syncPercentInputsFromGrams();
+    percentGrid?.toggleAttribute("hidden", mode !== "percent");
+    percentInputs.forEach(field => {
+      if (field.gramLabel) field.gramLabel.style.display = mode === "percent" ? "none" : "";
+    });
+    gramsButton?.classList.toggle("bg-primary", mode === "grams");
+    gramsButton?.classList.toggle("text-primary-foreground", mode === "grams");
+    percentButton?.classList.toggle("bg-primary", mode === "percent");
+    percentButton?.classList.toggle("text-primary-foreground", mode === "percent");
+    refreshPercentNote();
+  };
+
+  if (modePanel.dataset.listenersAttached !== "true") {
+    gramsButton?.addEventListener("click", () => applyMode("grams"));
+    percentButton?.addEventListener("click", () => {
+      applyMode("percent");
+      syncGramInputsFromPercent();
+    });
+    caloriesInput.addEventListener("input", () => {
+      if (modePanel?.dataset.mode === "percent") syncGramInputsFromPercent();
+    });
+    percentInputs.forEach(field => field.input?.addEventListener("input", () => {
+      syncGramInputsFromPercent();
+      refreshPercentNote();
+    }));
+    modePanel.dataset.listenersAttached = "true";
+  }
+
+  applyMode(modePanel.dataset.mode === "percent" ? "percent" : "grams");
+}
+
 function refreshAnalysisLayout() {
   alignPatientSelectorAndCopy();
   movePeriodFilterIntoReportsTab();
+  enhanceGoalSuggestionMacroMode();
   return ensureSharedReportsMount();
 }
 
