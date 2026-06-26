@@ -3,6 +3,8 @@ import type {
   Response as OpenAiResponse,
   ResponseCreateParamsNonStreaming,
 } from "openai/resources/responses/responses";
+import { ENV } from "./env";
+import { GeminiProvider } from "./geminiProvider";
 import { createOpenAiClient } from "./openaiClient";
 
 export type AiProviderResponseFormat =
@@ -260,8 +262,26 @@ export class OpenAiProvider implements AiProvider {
 
 export type AiProviderFactory = () => AiProvider;
 
-const defaultAiProviderFactory: AiProviderFactory = () =>
+const openAiProviderFactory: AiProviderFactory = () =>
   new OpenAiProvider(() => createOpenAiClient());
+
+const geminiProviderFactory: AiProviderFactory = () => {
+  const apiKey = ENV.geminiApiKey;
+  if (!apiKey) {
+    throw new Error(
+      "AI_VISION_PROVIDER is set to 'gemini' but GEMINI_API_KEY is not configured. " +
+      "Set GEMINI_API_KEY to your Google AI Studio key to use Gemini.",
+    );
+  }
+  return new GeminiProvider(apiKey);
+};
+
+const defaultAiProviderFactory: AiProviderFactory = () => {
+  if (ENV.aiVisionProvider === "gemini") {
+    return geminiProviderFactory();
+  }
+  return openAiProviderFactory();
+};
 
 let aiProviderFactory: AiProviderFactory = defaultAiProviderFactory;
 

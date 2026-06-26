@@ -97,4 +97,17 @@ export const ENV = {
   get openaiModel() { return process.env.OPENAI_MODEL ?? "gpt-4.1-mini"; },
   get openaiTranscriptionModel() { return process.env.OPENAI_TRANSCRIPTION_MODEL ?? "whisper-1"; },
   get openaiImageModel() { return process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1"; },
+  /** Selects the AI provider for vision/text tasks: "openai" (default) or "gemini" */
+  get aiVisionProvider() { return (process.env.AI_VISION_PROVIDER ?? "openai").toLowerCase() as "openai" | "gemini"; },
+  get geminiApiKey() { return process.env.GEMINI_API_KEY ?? ""; },
+  get geminiModel() { return process.env.GEMINI_MODEL ?? "gemini-2.5-flash"; },
+  /**
+   * Returns the correct vision/text model name for the active provider.
+   * Use this wherever getAiProvider().createTextResponse() is called.
+   */
+  get visionModel() {
+    return (process.env.AI_VISION_PROVIDER ?? "openai").toLowerCase() === "gemini"
+      ? (process.env.GEMINI_MODEL ?? "gemini-2.5-flash")
+      : (process.env.OPENAI_MODEL ?? "gpt-4.1-mini");
+  },
 };

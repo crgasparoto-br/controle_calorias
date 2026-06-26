@@ -191,7 +191,7 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
   ];
 
   const response = await getAiProvider().createTextResponse({
-    model: ENV.openaiModel,
+    model: ENV.visionModel,
     instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado.",
     input: aiInput,
     format: {

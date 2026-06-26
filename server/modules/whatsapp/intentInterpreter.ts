@@ -1,4 +1,5 @@
 import { getAiProvider } from "../../_core/aiProvider";
+import { ENV } from "../../_core/env";
 import {
   parseWhatsappInterpretedIntent,
   WHATSAPP_INTENT_CONFIDENCE,
@@ -417,7 +418,10 @@ function getWhatsappIntentRetries() {
 }
 
 function resolveWhatsappIntentModelName() {
-  return process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? "gpt-4.1-mini";
+  // Allow a specific override for the intent classifier; otherwise follow the
+  // active vision provider (AI_VISION_PROVIDER=openai|gemini) so that a single
+  // env-var change switches both the intent classifier and the nutrition extractor.
+  return process.env.OPENAI_WHATSAPP_INTENT_MODEL ?? process.env.OPENAI_TEXT_MODEL ?? ENV.visionModel;
 }
 
 function buildOperationalTrace(input: {

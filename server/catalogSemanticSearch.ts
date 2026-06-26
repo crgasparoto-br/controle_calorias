@@ -261,7 +261,7 @@ async function findPackagedSnackByWebSearch(
 
   try {
     const response = await getAiProvider().createTextResponse({
-      model: ENV.openaiModel,
+      model: ENV.visionModel,
       instructions: [
         "Você pesquisa informações nutricionais de produtos alimentícios embalados no Brasil.",
         "Use busca na internet para encontrar o produto mais específico possível por nome, marca, variação e embalagem.",
