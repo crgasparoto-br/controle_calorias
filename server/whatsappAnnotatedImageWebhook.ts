@@ -200,7 +200,7 @@ async function processImageMealInputWithFallback(input: {
   prepared: PreparedImageMessage;
   occurredAt: Date;
   intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null;
-}) {
+}): Promise<MealProcessingResult | null> {
   try {
     return await processMealInput({
       text: input.prepared.text,
@@ -216,23 +216,18 @@ async function processImageMealInputWithFallback(input: {
     }
 
     console.warn(
-      "[WhatsAppAnnotatedImage] Meal image inference returned no reliable items; using reviewable fallback item.",
+      "[WhatsAppAnnotatedImage] Meal image inference returned no reliable items; skipping registration.",
       error.message,
     );
     logInferenceEvent({
       userId: input.userId,
       origin: "whatsapp",
       status: "warning",
-      eventType: "whatsapp.image_inference_fallback_used",
-      detail: "A imagem foi recebida, mas a IA não retornou itens confiáveis. Um item estimado foi criado para manter o registro revisável.",
+      eventType: "whatsapp.image_inference_not_recognized",
+      detail: "A imagem foi recebida, mas a IA não identificou alimentos com segurança suficiente. Nenhum registro foi criado.",
     });
 
-    return buildImageInferenceFallbackResult({
-      text: input.prepared.text,
-      imageAnalysisUrl: input.prepared.imageAnalysisUrl,
-      imageUrl: input.prepared.imageUrl,
-      occurredAt: input.occurredAt,
-    });
+    return null;
   }
 }
 
@@ -497,6 +492,16 @@ async function tryHandleAnnotatedImageMessage(
       occurredAt,
       intentHint,
     });
+
+    if (!processed) {
+      const notRecognizedReply = prepared.text?.trim()
+        ? `Não consegui identificar alimentos na imagem com segurança suficiente. Tente descrever o que você comeu em texto para eu registrar corretamente.`
+        : `Não consegui identificar alimentos nessa foto. Tente tirar uma foto com melhor iluminação ou descreva o que você comeu em texto.`;
+      await sendAnnotatedImageFallbackText({ userId, sourcePhone, reply: notRecognizedReply });
+      markAnnotatedImageMessageHandled(message.id);
+      return true;
+    }
+
     const processedForPersistence = {
       ...processed,
       imageUrl: prepared.imageUrl,
