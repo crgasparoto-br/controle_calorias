@@ -303,8 +303,9 @@ function enhanceGoalSuggestionMacroMode() {
   };
 
   const applyMode = (mode: "grams" | "percent") => {
+    const previousMode = modePanel.dataset.mode;
     modePanel.dataset.mode = mode;
-    if (mode === "percent") syncPercentInputsFromGrams();
+    if (mode === "percent" && previousMode !== "percent") syncPercentInputsFromGrams();
     percentInputs.forEach(field => {
       setLabelChildrenVisibility(field.labelElement, mode === "grams", field.percentInput, field.percentLabel);
       field.percentInput.hidden = mode !== "percent";
