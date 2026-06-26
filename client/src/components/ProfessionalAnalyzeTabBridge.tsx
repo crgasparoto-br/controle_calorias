@@ -296,14 +296,28 @@ function enhanceGoalSuggestionMacroMode() {
 
   const syncGramInputsFromPercent = () => {
     const calories = readInputNumber(caloriesInput);
-    percentInputs.forEach(field => {
-      setNativeInputValue(field.gramInput, String(calculateMacroGrams(readInputNumber(field.percentInput), calories, field.caloriesPerGram)));
-    });
+    modePanel.dataset.programmaticMacroSync = "true";
+    try {
+      percentInputs.forEach(field => {
+        setNativeInputValue(field.gramInput, String(calculateMacroGrams(readInputNumber(field.percentInput), calories, field.caloriesPerGram)));
+      });
+    } finally {
+      delete modePanel.dataset.programmaticMacroSync;
+    }
   };
 
   const syncGramInputsFromPercentAfterRender = () => {
     window.requestAnimationFrame(syncGramInputsFromPercent);
   };
+
+  const syncPercentInputsFromGramsAfterRender = () => {
+    window.requestAnimationFrame(syncPercentInputsFromGrams);
+  };
+
+  if (modePanel.dataset.percentInitialized !== "true") {
+    syncPercentInputsFromGrams();
+    modePanel.dataset.percentInitialized = "true";
+  }
 
   const applyMode = (mode: "grams" | "percent") => {
     const previousMode = modePanel.dataset.mode;
@@ -326,10 +340,14 @@ function enhanceGoalSuggestionMacroMode() {
       applyMode("percent");
       syncGramInputsFromPercent();
     });
-    caloriesInput.addEventListener("input", () => {
-      if (modePanel?.dataset.mode === "percent") syncGramInputsFromPercentAfterRender();
+    caloriesInput.addEventListener("input", syncGramInputsFromPercentAfterRender);
+    percentInputs.forEach(field => {
+      field.percentInput.addEventListener("input", syncGramInputsFromPercent);
+      field.gramInput.addEventListener("input", () => {
+        if (modePanel.dataset.programmaticMacroSync === "true") return;
+        syncPercentInputsFromGramsAfterRender();
+      });
     });
-    percentInputs.forEach(field => field.percentInput.addEventListener("input", syncGramInputsFromPercent));
     modePanel.dataset.listenersAttached = "true";
   }
 
