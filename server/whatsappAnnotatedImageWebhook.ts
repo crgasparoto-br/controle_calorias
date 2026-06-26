@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, logInferenceEvent } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
+import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import {
   buildSuspiciousWhatsAppContentReply,
@@ -481,6 +482,18 @@ async function tryHandleAnnotatedImageMessage(
       });
       markAnnotatedImageMessageHandled(message.id);
       return true;
+    }
+
+    // Se a legenda da foto for um comando de exclusão (ex: "exclua", "apague"),
+    // encaminhar para o handler de texto em vez de processar como alimento.
+    const captionText = prepared.text?.trim();
+    if (captionText) {
+      const deleteResult = await executeWhatsappDeleteIntent(userId, { text: captionText });
+      if (deleteResult) {
+        await sendAnnotatedImageFallbackText({ userId, sourcePhone, reply: deleteResult.reply });
+        markAnnotatedImageMessageHandled(message.id);
+        return true;
+      }
     }
 
     const occurredAt = resolveWhatsAppMessageOccurredAt(message);
