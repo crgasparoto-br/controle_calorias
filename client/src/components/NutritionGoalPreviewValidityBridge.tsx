@@ -24,6 +24,17 @@ type DatedGoal = GoalTarget & {
   startDate?: string | null;
 };
 
+type GoalDaySnapshot = GoalTarget & {
+  weekday?: number;
+  label?: string;
+  source?: "default" | "exception";
+  effectiveFrom?: Date | string | number | null;
+};
+
+type GoalSnapshot = {
+  days?: GoalDaySnapshot[];
+};
+
 type PeriodGoalDay = {
   date?: string;
   goalCalories?: number;
@@ -97,6 +108,12 @@ function buildWeekDates(startDate: string) {
   return Array.from({ length: 7 }, (_, index) => addDaysToDateKey(previewStart, index));
 }
 
+function dateKeyFromDateLike(value: Date | string | number | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
 function previewMessageFromDatedGoal(goal: DatedGoal) {
   if (goal.source === "exception") {
     return `Exceção vigente em ${formatDateKey(goal.date)}.`;
@@ -106,6 +123,7 @@ function previewMessageFromDatedGoal(goal: DatedGoal) {
 
 function findPreviewCard() {
   const title = Array.from(document.querySelectorAll("h1,h2,h3,p,span"))
+    .filter(element => !element.closest("[data-nutrition-goal-preview-replacement='true']"))
     .find(element => element.textContent?.trim() === "Prévia da semana");
   let current = title?.parentElement ?? null;
   while (current && !current.textContent?.includes("Total da Semana")) {
@@ -182,6 +200,19 @@ function buildPeriodGoal(date: string, day: PeriodGoalDay | undefined): DatedGoa
   };
 }
 
+function buildSummaryGoal(date: string, day: GoalDaySnapshot | undefined): DatedGoal | null {
+  if (!day) return null;
+  return {
+    date,
+    source: day.source === "exception" ? "exception" : "default",
+    startDate: dateKeyFromDateLike(day.effectiveFrom),
+    calories: Number(day.calories ?? 0),
+    proteinGrams: Number(day.proteinGrams ?? 0),
+    carbsGrams: Number(day.carbsGrams ?? 0),
+    fatGrams: Number(day.fatGrams ?? 0),
+  };
+}
+
 function totalGoals(days: PreviewDay[]) {
   return days.reduce(
     (acc, day) => ({
@@ -192,6 +223,30 @@ function totalGoals(days: PreviewDay[]) {
     }),
     { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
   );
+}
+
+function applyPreviewDaysToCard(previewCard: HTMLElement | null, days: PreviewDay[]) {
+  if (!previewCard || !days.length) return;
+  const cards = findDayCards(previewCard);
+  cards.forEach((card, index) => {
+    const day = days[index];
+    if (!day) return;
+    const label = card.querySelector("p");
+    const dateBadge = card.querySelector("span");
+    const message = Array.from(card.querySelectorAll("p")).find(line => line.className.includes("min-h-10"));
+    const valueLines = Array.from(card.querySelectorAll("p")).filter(line => {
+      const text = line.textContent?.toLowerCase() ?? "";
+      return text.includes("kcal") || text.includes("proteína") || text.includes("carbo") || text.includes("gordura");
+    });
+
+    if (label) label.textContent = day.label;
+    if (dateBadge) dateBadge.textContent = formatDateKey(day.date);
+    if (message) message.textContent = day.message;
+    if (valueLines[0]) valueLines[0].textContent = formatCalories(day.calories);
+    if (valueLines[1]) valueLines[1].textContent = `${formatGrams(day.proteinGrams)} proteína`;
+    if (valueLines[2]) valueLines[2].textContent = `${formatGrams(day.carbsGrams)} carbo`;
+    if (valueLines[3]) valueLines[3].textContent = `${formatGrams(day.fatGrams)} gordura`;
+  });
 }
 
 function DayPreviewCard({ day }: { day: PreviewDay }) {
@@ -238,7 +293,7 @@ function ReplacementPreview({ days, startDate, endDate }: { days: PreviewDay[]; 
   const totals = totalGoals(days);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-nutrition-goal-preview-replacement="true">
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm border-0 shadow-sm">
         <div className="flex flex-col space-y-1.5 p-6">
           <h3 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
@@ -270,6 +325,7 @@ export default function NutritionGoalPreviewValidityBridge() {
   const previewDates = useMemo(() => buildWeekDates(startDateInput), [startDateInput]);
   const periodStartDate = previewDates[0] ?? "1970-01-01";
   const periodEndDate = previewDates[6] ?? "1970-01-01";
+  const goalSummary = trpc.nutrition.goals.get.useQuery(undefined, { enabled: isGoalsPage });
   const periodBundle = trpc.nutrition.reports.periodBundle.useQuery(
     { startDate: periodStartDate, endDate: periodEndDate },
     { enabled: isGoalsPage && Boolean(previewDates[0] && previewDates[6]) },
@@ -336,16 +392,26 @@ export default function NutritionGoalPreviewValidityBridge() {
       .filter((goal): goal is DatedGoal => Boolean(goal));
   }, [periodBundle.data, previewDates]);
 
+  const summaryGoals = useMemo(() => {
+    const days = (goalSummary.data as GoalSnapshot | undefined)?.days ?? [];
+    const daysByWeekday = new Map(days.map(day => [day.weekday, day]));
+    return previewDates
+      .map(date => buildSummaryGoal(date, daysByWeekday.get(getUtcWeekdayIndex(dateKeyToLogicalUtcDate(date)))))
+      .filter((goal): goal is DatedGoal => Boolean(goal));
+  }, [goalSummary.data, previewDates]);
+
   const previewDays = useMemo(() => {
     const originalByDate = new Map(originalDays.map(day => [day.date, day]));
     const datedByDate = new Map(datedGoals.map(goal => [goal.date, goal]));
     const periodByDate = new Map(periodGoals.map(goal => [goal.date, goal]));
+    const summaryByDate = new Map(summaryGoals.map(goal => [goal.date, goal]));
 
     return previewDates.map((date, index) => {
       const originalDay = originalByDate.get(date);
       const datedGoal = datedByDate.get(date);
       const periodGoal = periodByDate.get(date);
-      const validityGoal = periodGoal ?? datedGoal;
+      const summaryGoal = summaryByDate.get(date);
+      const validityGoal = summaryGoal ?? periodGoal ?? datedGoal;
 
       if (validityGoal) {
         return {
@@ -361,7 +427,11 @@ export default function NutritionGoalPreviewValidityBridge() {
 
       return originalDay ?? null;
     }).filter((day): day is PreviewDay => Boolean(day));
-  }, [datedGoals, originalDays, periodGoals, previewDates]);
+  }, [datedGoals, originalDays, periodGoals, previewDates, summaryGoals]);
+
+  useEffect(() => {
+    applyPreviewDaysToCard(hiddenCardRef.current, previewDays);
+  }, [previewDays]);
 
   if (!isGoalsPage || !portalHost || !previewDays.length || !previewDates[0] || !previewDates[6]) return null;
 
