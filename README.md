@@ -7,7 +7,7 @@ Controle de Calorias é uma plataforma de nutrição com registro multimodal de 
 | Domínio | Situação atual |
 |---|---|
 | Registro alimentar | Entrada por texto, imagem, áudio e cadastro manual |
-| Inferência nutricional | Núcleo compartilhado entre web e WhatsApp, validado com Zod |
+| Inferência nutricional | Núcleo compartilhado entre web e WhatsApp, validado com Zod. Suporta OpenAI e Gemini 2.5 Flash. |
 | Confirmação | Persistência apenas após revisão/fluxo equivalente |
 | Autenticação web | Cadastro e login próprios com nome, e-mail e senha |
 | Sessão | Cookie HTTP-only assinado com `JWT_SECRET` |
@@ -43,6 +43,26 @@ Situação atual:
 - Inferência nutricional de texto e imagem usa o provider OpenAI com saída estruturada e validação Zod.
 - Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise da refeição continua normalmente.
 
+## Seleção de Provider de IA (Visão e Texto)
+
+O projeto suporta a troca de provedor de IA via variável de ambiente, sem necessidade de alteração de código. O provedor selecionado será usado para reconhecimento de foto de refeição, classificador de intenção (WhatsApp) e busca semântica de catálogo.
+
+- **OpenAI (Padrão):**
+  ```env
+  AI_VISION_PROVIDER=openai
+  OPENAI_API_KEY=<sua_chave_openai>
+  OPENAI_MODEL=gpt-4.1-mini # opcional
+  ```
+
+- **Gemini (Recomendado para melhor reconhecimento de imagens):**
+  ```env
+  AI_VISION_PROVIDER=gemini
+  GEMINI_API_KEY=<sua_chave_google_ai_studio>
+  GEMINI_MODEL=gemini-2.5-flash # opcional
+  ```
+
+*Nota: A transcrição de áudio (Whisper) e a geração de imagem anotada continuam usando OpenAI independentemente do provedor selecionado. Portanto, `OPENAI_API_KEY` deve ser mantida.*
+
 ## Variáveis de ambiente obrigatórias
 
 Configure estas variáveis no backend/runtime responsável pela API:
@@ -70,7 +90,7 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 
 | Feature | Variáveis | Comportamento quando ausentes |
 |---|---|---|
-| OpenAI | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL` | Fluxos que dependem do provider OpenAI ficam indisponíveis ou usam o provider configurado em `AI_PROVIDER` quando aplicável. |
+| OpenAI / Gemini | `AI_VISION_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Fluxos que dependem do provider ficam indisponíveis se a chave correspondente não estiver configurada. |
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
 | Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth e sincronização automática do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |
@@ -86,6 +106,9 @@ Durante o startup, o backend registra aviso para features opcionais sem configur
 A integração usa um único número oficial da solução. O `WHATSAPP_PHONE_NUMBER_ID` identifica o canal de envio e recebimento; o telefone de origem do usuário final é salvo apenas como vínculo com o usuário autenticado.
 
 O webhook localiza o usuário pelo telefone de origem, processa a refeição no contexto desse usuário e responde pelo mesmo canal oficial configurado no ambiente.
+
+**Inteligência do WhatsApp:**
+O canal possui um classificador de intenções (LLM) que atua antes do pipeline nutricional para evitar registros acidentais. Ele avalia o histórico conversacional recente do usuário para resolver ambiguidades (ex: distinguir "frango grelhado" como consulta vs. registro). O sistema também conta com aprendizado silencioso de aliases pessoais, associando automaticamente apelidos informais aos nomes canônicos do catálogo após registros bem-sucedidos.
 
 ## Strava
 

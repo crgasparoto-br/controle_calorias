@@ -9,7 +9,7 @@ O projeto permanece como um monólito orientado a produto. Frontend, backend, au
 | Frontend | React + Vite + Tailwind | Fluxos web, dashboard, formulários e visualizações |
 | Backend | Express + tRPC | Contratos tipados, autenticação, orquestração e casos de uso |
 | Banco | MySQL/TiDB + Drizzle | Persistência relacional, migrações e integridade referencial |
-| IA principal | Provider OpenAI isolado no backend | Transcrição, inferência nutricional multimodal e visual auxiliar opcional |
+| IA principal | Provider OpenAI ou Gemini (selecionável) | Transcrição, inferência nutricional multimodal e visual auxiliar opcional |
 | IA legada remanescente | Forge restrito ao assistente educativo | Sugestões alimentares fora do fluxo principal de refeição |
 | Canal externo | WhatsApp Business Cloud API | Entrada e saída conversacional oficial |
 | Testes | Vitest | Cobertura de regras, routers e UI |
@@ -23,7 +23,8 @@ server/nutritionRouter        -> composição de routers, autenticação, schema
 server/modules/*              -> regra de negócio por domínio
 server/repositories/*         -> acesso a dados reutilizável por domínio
 server/_core/openaiClient.ts  -> cliente oficial da OpenAI, isolado do domínio
-server/_core/aiProvider.ts    -> interface interna e factory do provider
+server/_core/geminiProvider.ts -> implementação do provider Gemini (Google Generative AI)
+server/_core/aiProvider.ts    -> interface interna e factory que seleciona o provider ativo
 server/_core/voiceTranscription.ts -> helper de transcrição baseado no provider interno
 server/_core/imageGeneration.ts -> helper visual auxiliar opcional, não bloqueante
 server/db.ts                  -> persistência legada e funções agregadoras ainda centralizadas
