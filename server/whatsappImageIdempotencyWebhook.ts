@@ -196,6 +196,29 @@ async function sendWaterImageClarification(input: { userId: number; sourcePhone:
   }
 }
 
+function getStravaExerciseReference(exercise: { notes?: string | null }) {
+  const match = exercise.notes?.match(/\bstrava:(\d+)\b/i);
+  return match?.[1] ? `strava:${match[1]}` : null;
+}
+
+function sumExerciseCaloriesForDate(exercises: Array<{ occurredAt: number | string | Date; caloriesBurned?: number | null; notes?: string | null }>, dateKey: string) {
+  const seenExternalReferences = new Set<string>();
+
+  return exercises
+    .filter(exercise => isSameDateKeyInSaoPaulo(exercise.occurredAt, dateKey))
+    .reduce((total, exercise) => {
+      const externalReference = getStravaExerciseReference(exercise);
+      if (externalReference) {
+        if (seenExternalReferences.has(externalReference)) {
+          return total;
+        }
+        seenExternalReferences.add(externalReference);
+      }
+
+      return total + Number(exercise.caloriesBurned || 0);
+    }, 0);
+}
+
 async function buildExerciseCaloriesContext(messages: IndexedWhatsAppWebhookMessage[]) {
   const context: Record<string, number> = {};
   const seen = new Set<string>();
@@ -220,9 +243,7 @@ async function buildExerciseCaloriesContext(messages: IndexedWhatsAppWebhookMess
       }
 
       const exercises = await listUserExercises(userId);
-      context[dateKey] = (context[dateKey] ?? 0) + exercises
-        .filter(exercise => isSameDateKeyInSaoPaulo(Number(exercise.occurredAt), dateKey))
-        .reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0);
+      context[dateKey] = (context[dateKey] ?? 0) + sumExerciseCaloriesForDate(exercises, dateKey);
     } catch (error) {
       logInferenceEvent({
         userId: 0,
