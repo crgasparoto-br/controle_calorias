@@ -414,25 +414,11 @@ export class HealthIntegrationService {
         lastError: null,
       });
 
-      try {
-        const syncResult = await this.sync(decodedState.userId, { provider: "strava" });
-        return {
-          ok: true,
-          redirectTo: "/health-integrations?provider=strava&status=connected",
-          message: `Strava conectado com sucesso para o usuário ${connection.userId}. ${formatStravaImportSummary(syncResult.importedExercises ?? { created: 0, updated: 0, skipped: 0 })}`,
-        } as const;
-      } catch (syncError) {
-        upsertConnectionState(decodedState.userId, {
-          provider: "strava",
-          status: "connected",
-          lastError: syncError instanceof Error ? syncError.message : "Falha desconhecida na sincronização inicial do Strava.",
-        });
-        return {
-          ok: true,
-          redirectTo: "/health-integrations?provider=strava&status=connected",
-          message: `Strava conectado com sucesso para o usuário ${connection.userId}. A rotina automática tentará importar os exercícios recentes novamente em segundo plano.`,
-        } as const;
-      }
+      return {
+        ok: true,
+        redirectTo: "/health-integrations?provider=strava&status=connected",
+        message: `Strava conectado com sucesso para o usuário ${connection.userId}. Use a sincronização manual para importar agora; novas atividades serão importadas automaticamente pelo webhook do Strava.`,
+      } as const;
     } catch (error) {
       return {
         ok: false,
