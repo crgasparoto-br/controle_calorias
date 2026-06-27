@@ -6,6 +6,7 @@ const listUserExercisesMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const handleWhatsAppWebhookMock = vi.fn();
 const createWaterLogMock = vi.fn();
+const updateUserCurrentWeightMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
@@ -15,6 +16,7 @@ vi.mock("./db", () => ({
   getUserNutritionGoal: getUserNutritionGoalMock,
   listUserExercises: listUserExercisesMock,
   logInferenceEvent: logInferenceEventMock,
+  updateUserCurrentWeight: updateUserCurrentWeightMock,
 }));
 
 vi.mock("./modules/quickEdit/service", () => ({
@@ -153,6 +155,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     logInferenceEventMock.mockReset();
     handleWhatsAppWebhookMock.mockReset();
     createWaterLogMock.mockReset();
+    updateUserCurrentWeightMock.mockReset();
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     tryCreateQuickEditLinkForMealMock.mockReset();
@@ -162,6 +165,10 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     listUserExercisesMock.mockResolvedValue([]);
     createWaterLogMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
       id: 91,
+      userId: 42,
+      ...input,
+    }));
+    updateUserCurrentWeightMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
       userId: 42,
       ...input,
     }));
@@ -200,6 +207,50 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.water_logged",
     }));
     expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
+  });
+
+  it("registra peso pela intenção textual e não delega para criação de refeição", async () => {
+    const req = createTextWebhookRequest("peso 80,5 kg", {
+      id: "weight-current",
+      timestamp: "1780502400",
+    });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(42, {
+      weightKg: 80.5,
+      measuredAt: expect.any(Date),
+      notes: "Peso atualizado pelo WhatsApp.",
+    });
+    expect(createWaterLogMock).not.toHaveBeenCalled();
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.weight_logged",
+    }));
+    expect(sentMessages.at(-1)).toContain("Atualizei seu peso atual para 80,5 kg");
+  });
+
+  it("pede esclarecimento para peso sem valor e não delega para criação de refeição", async () => {
+    const req = createTextWebhookRequest("peso", { id: "weight-clarification" });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(updateUserCurrentWeightMock).not.toHaveBeenCalled();
+    expect(createWaterLogMock).not.toHaveBeenCalled();
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.intent.clarification_needed",
+    }));
+    expect(sentMessages.at(-1)).toContain("preciso do valor em kg");
   });
 
   it("pede esclarecimento para água sem quantidade e não delega para criação de refeição", async () => {
@@ -423,6 +474,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(createWaterLogMock).not.toHaveBeenCalled();
+    expect(updateUserCurrentWeightMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();
     expect(handleWhatsAppWebhookMock).toHaveBeenCalledOnce();
     expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -438,6 +490,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
     expect(createWaterLogMock).not.toHaveBeenCalled();
+    expect(updateUserCurrentWeightMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();
     expect(handleWhatsAppWebhookMock).toHaveBeenCalledOnce();
     expect(sentMessages).toEqual([]);

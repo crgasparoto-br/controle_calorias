@@ -13,7 +13,7 @@ import {
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
-import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent } from "./db";
+import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, updateUserCurrentWeight } from "./db";
 import { listMeals } from "./modules/meals/service";
 import {
   extractWhatsAppWebhookMessages,
@@ -47,6 +47,8 @@ const pendingTextIntentContexts = new Map<number, { kind: "period_report"; expir
 const TEXT_INTENT_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
 const SIMPLE_FOOD_QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|m\\s*l|mililitros?|l|litros?|un|unidades?|fatias?|pedacos?|xicaras?|copos?|colheres?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|porcoes?|porcao";
+const MIN_WEIGHT_LOG_KG = 25;
+const MAX_WEIGHT_LOG_KG = 350;
 const UNKNOWN_FOOD_REPLY = [
   "Não encontrei esse alimento no catálogo ainda.",
   "Me envie com mais detalhes, como marca, porção ou uma foto do rótulo, para eu conseguir registrar corretamente.",
@@ -80,6 +82,57 @@ function normalizeTextPreservingQuantities(value: string) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value);
+}
+
+function parseWeightKg(text: string) {
+  const normalized = normalizeTextPreservingQuantities(text);
+  const weightFirstMatch = normalized.match(/\b(?:peso atual|peso|pesei|pesando)\b[^\d]*(\d{2,3}(?:[,.]\d{1,2})?)\b/);
+  if (weightFirstMatch) {
+    return Number(weightFirstMatch[1].replace(",", "."));
+  }
+
+  const numberBeforeWeightMatch = normalized.match(/\b(\d{2,3}(?:[,.]\d{1,2})?)\s*(?:de\s*)?(?:peso atual|peso|pesei|pesando)\b/);
+  if (numberBeforeWeightMatch) {
+    return Number(numberBeforeWeightMatch[1].replace(",", "."));
+  }
+
+  const kgMatch = normalized.match(/\b(\d{2,3}(?:[,.]\d{1,2})?)\s*(?:kg|kgs|quilo|quilos)\b/);
+  if (kgMatch) {
+    return Number(kgMatch[1].replace(",", "."));
+  }
+
+  return null;
+}
+
+function isValidWeightKg(weightKg: number | null) {
+  return Boolean(weightKg && weightKg >= MIN_WEIGHT_LOG_KG && weightKg <= MAX_WEIGHT_LOG_KG);
+}
+
+function detectWeightLogFromText(text: string) {
+  const normalized = normalizeText(text);
+  const mentionsWeightWord = /\b(peso|pesei|pesando)\b/.test(normalized);
+  const mentionsWeightUnit = /\b(kg|kgs|quilo|quilos)\b/.test(normalized);
+  if (!mentionsWeightWord && !mentionsWeightUnit) {
+    return null;
+  }
+
+  const weightKg = parseWeightKg(text);
+  if (isValidWeightKg(weightKg)) {
+    return { kind: "weight" as const, weightKg: weightKg! };
+  }
+
+  return mentionsWeightWord ? { kind: "clarification" as const } : null;
+}
+
+function buildWeightLogReply(weightKg: number, occurredAt: Date) {
+  return `Atualizei seu peso atual para ${formatNumber(weightKg)} kg em ${occurredAt.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  })}.`;
 }
 
 function hasExplicitFoodQuantity(text: string) {
@@ -406,6 +459,45 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       });
       return true;
     }
+  }
+
+  const weightLog = detectWeightLogFromText(text);
+  if (weightLog?.kind === "clarification") {
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: "Entendi que você quer registrar peso, mas preciso do valor em kg. Exemplo: peso 80,5 kg.",
+      eventType: "whatsapp.intent.clarification_needed",
+      detail: "Pedido de peso sem valor explícito válido.",
+      status: "warning",
+      occurredAtMs,
+    });
+    return true;
+  }
+
+  if (weightLog?.kind === "weight") {
+    await updateUserCurrentWeight(userId, {
+      weightKg: weightLog.weightKg,
+      measuredAt: occurredAt,
+      notes: "Peso atualizado pelo WhatsApp.",
+    });
+
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: buildWeightLogReply(weightLog.weightKg, occurredAt),
+      eventType: "whatsapp.intent.weight_logged",
+      detail: `Peso de ${formatNumber(weightLog.weightKg)} kg registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.`,
+      status: "success",
+      occurredAtMs,
+    });
+    return true;
   }
 
   const mixedWaterFood = splitWhatsAppWaterAndFoodText(text);
