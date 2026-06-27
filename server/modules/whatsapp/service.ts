@@ -33,6 +33,7 @@ import {
 } from "./intentRouter";
 import { getWhatsAppIntentLogStatus } from "./intentResult";
 import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
+import { executeWhatsappGramsAdjustmentIntent } from "./gramsAdjustmentIntent";
 import { resolveWhatsappTemporalContext } from "./temporalContext";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
@@ -316,6 +317,16 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       });
       return processMealDraft(userId, { source: "whatsapp", text: toText });
     }
+  }
+
+  const gramsAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappGramsAdjustmentIntent(userId, {
+    text,
+    receivedAt,
+  }), { text, receivedAt });
+  if (gramsAdjustment) {
+    return temporalResolution.context
+      ? { ...gramsAdjustment, data: { ...gramsAdjustment.data, temporalContext: temporalResolution.context } }
+      : gramsAdjustment;
   }
 
   const recordAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappRecordAdjustmentIntent(userId, {
