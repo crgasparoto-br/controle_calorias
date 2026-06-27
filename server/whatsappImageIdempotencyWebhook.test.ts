@@ -26,6 +26,7 @@ const {
   __resetWhatsAppImageIdempotencyForTests,
   handleWhatsAppWebhookWithImageIdempotency,
 } = await import("./whatsappImageIdempotencyWebhook");
+const { getWhatsAppExerciseCaloriesForDateKey } = await import("./modules/whatsapp/goalProgressContext");
 
 type MockResponse = {
   statusCode: number;
@@ -145,5 +146,40 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(sentBodies.some(body => body.includes("Identifiquei água na imagem"))).toBe(false);
     expect(downstreamWebhookMock).toHaveBeenCalledOnce();
+  });
+
+  it("deduplica calorias de exercícios Strava repetidos no contexto da meta do WhatsApp", async () => {
+    const observedExerciseCalories: Array<number | undefined> = [];
+    listUserExercisesMock.mockResolvedValue([
+      {
+        id: 1,
+        occurredAt: Date.parse("2026-06-03T16:00:00.000Z"),
+        caloriesBurned: 383,
+        notes: "Importado do Strava. Referencia externa: strava:123.",
+      },
+      {
+        id: 2,
+        occurredAt: Date.parse("2026-06-03T16:00:00.000Z"),
+        caloriesBurned: 383,
+        notes: "Importado do Strava. Referencia externa: strava:123.",
+      },
+      {
+        id: 3,
+        occurredAt: Date.parse("2026-06-03T16:10:00.000Z"),
+        caloriesBurned: 25,
+        notes: "Exercício manual.",
+      },
+    ]);
+    downstreamWebhookMock.mockImplementation(async (_req, res: MockResponse) => {
+      observedExerciseCalories.push(getWhatsAppExerciseCaloriesForDateKey("2026-06-03"));
+      return res.status(200).json({ ok: true, processed: 1 });
+    });
+
+    const req = createImageWebhookRequest();
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
+
+    expect(observedExerciseCalories).toEqual([408]);
   });
 });

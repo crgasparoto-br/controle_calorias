@@ -137,9 +137,17 @@ function logStravaImportEvent(input: {
   });
 }
 
+function parseReliableStravaCalories(exercise: { notes?: string | null } | undefined) {
+  if (!exercise?.notes) return null;
+  const match = exercise.notes.match(/(?<!estimadas\s)Calorias:\s*(\d+)/);
+  if (!match?.[1]) return null;
+
+  const calories = Number(match[1]);
+  return Number.isFinite(calories) && calories > 0 ? calories : null;
+}
+
 function hasReliableStravaCalories(exercise: { notes?: string | null } | undefined) {
-  if (!exercise?.notes) return false;
-  return /(?<!estimadas\s)Calorias:\s*\d/.test(exercise.notes);
+  return parseReliableStravaCalories(exercise) !== null;
 }
 
 function getStravaActivityMinimumImportSkipReason(activity: StravaActivity) {
@@ -320,8 +328,13 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
   for (const activity of activities) {
     const externalReference = `strava:${activity.id}`;
     const existingBeforeResolve = existingExercises.find(exercise => exercise.notes?.includes(externalReference));
+    const reliableCalories = parseReliableStravaCalories(existingBeforeResolve);
 
-    if (hasReliableStravaCalories(existingBeforeResolve)) {
+    if (reliableCalories !== null) {
+      Object.assign(activity, {
+        calories: reliableCalories,
+        caloriesOrigin: "strava_summary" as const,
+      });
       summary.skipped += 1;
       logStravaImportEvent({
         userId,

@@ -10,7 +10,6 @@ import { PAYLOAD_LIMITS, RATE_LIMITS, createExpressRateLimit } from "./rateLimit
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
-import { startStravaAutoSyncScheduler } from "../modules/healthIntegrations/stravaScheduler";
 import { handleStravaWebhookVerification, handleStravaWebhookEvent } from "../modules/healthIntegrations/stravaWebhookHandler";
 import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdempotencyWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
@@ -87,7 +86,6 @@ async function startServer() {
   } catch (error) {
     console.warn("[Nutrition] Food catalog sync skipped:", error);
   }
-  startStravaAutoSyncScheduler();
 
   const defaultJsonParser = express.json({ limit: PAYLOAD_LIMITS.defaultJson });
   const defaultUrlencodedParser = express.urlencoded({ limit: PAYLOAD_LIMITS.defaultJson, extended: true });

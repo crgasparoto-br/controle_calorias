@@ -17,6 +17,7 @@
 import type { Request, Response } from "express";
 import { healthIntegrationService } from "./stravaDetailSafeService";
 import { listStoredStravaUserIds, loadStoredStravaTokenState } from "./strava/tokenStorage";
+import { upsertHealthSyncedRecords } from "../../repositories/healthSyncedRecordsRepository";
 
 // Tipos do payload de evento do Strava
 type StravaWebhookEvent = {
@@ -77,6 +78,16 @@ async function findUserIdByStravaAthleteId(stravaAthleteId: number): Promise<num
   return null;
 }
 
+async function persistWebhookSyncedRecords(userId: number, records: Awaited<ReturnType<typeof healthIntegrationService.sync>>["records"]) {
+  await upsertHealthSyncedRecords(records.map(record => ({
+    ...record,
+    userId,
+    provider: "strava" as const,
+    source: "strava" as const,
+    createdAt: Date.now(),
+  })));
+}
+
 /**
  * POST /api/health-integrations/strava/webhook
  * Recebe eventos de atividade do Strava e dispara sincronização incremental.
@@ -111,6 +122,7 @@ export function handleStravaWebhookEvent(req: Request, res: Response) {
       console.log(`[StravaWebhook] Sincronizando atividade ${activityId} para userId ${userId}...`);
 
       const result = await healthIntegrationService.sync(userId, { provider: "strava" });
+      await persistWebhookSyncedRecords(userId, result.records);
       const summary = result.importedExercises;
       const count = summary ? summary.created + summary.updated : 0;
       console.log(`[StravaWebhook] Sincronização concluída para userId ${userId}: ${count} exercício(s) importado(s).`);

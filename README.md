@@ -14,7 +14,7 @@ Controle de Calorias é uma plataforma de nutrição com registro multimodal de 
 | WhatsApp | Entrada e resposta pelo número oficial configurado |
 | Relatórios | Dashboard diário, visão semanal e detalhamento por refeição |
 | Operação administrativa | Status do canal e atualização segura do token do WhatsApp |
-| Saúde externa | Conexão OAuth persistente com Strava e sincronização de atividades recentes como exercícios |
+| Saúde externa | Conexão OAuth persistente com Strava, importação automática por webhook e importação manual via API/tRPC |
 
 ## Autenticação própria
 
@@ -93,7 +93,7 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 | OpenAI / Gemini | `AI_VISION_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Fluxos que dependem do provider ficam indisponíveis se a chave correspondente não estiver configurada. |
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
-| Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth e sincronização automática do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |
+| Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth, webhook e importação manual do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |
 
 `OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
 
@@ -116,11 +116,13 @@ A integração com Strava usa OAuth 2.0 no backend. O botão da tela de saúde e
 
 `STRAVA_REDIRECT_URI` deve apontar para o callback público da API, por exemplo `https://api.seudominio.com/api/health-integrations/strava/callback`. `STRAVA_APP_REDIRECT_BASE_URL` deve apontar para o domínio do app web onde o usuário está logado, por exemplo `https://app.seudominio.com`. Depois de salvar o vínculo, o callback usa essa base para devolver o usuário ao frontend em `/health-integrations`.
 
-Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime, e tenta uma primeira sincronização das atividades recentes do atleta autenticado. Com `DATABASE_URL` configurado, o vínculo permanece disponível após restart do servidor; sem banco, esse vínculo só pode ser usado em modo efêmero fora de produção.
+Após o callback, o backend salva o estado OAuth por usuário em `appSecrets`, criptografado com segredo do runtime. O callback não importa atividades automaticamente. A importação automática acontece somente pelo webhook do Strava; quando o usuário quiser trazer histórico ou forçar uma atualização, deve acionar a sincronização manual pela tela/API.
 
-A sincronização lê apenas as atividades dos últimos 2 meses da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que sincronizações futuras atualizem o mesmo exercício em vez de duplicar o registro.
+A importação manual lê apenas as atividades dos últimos 2 meses da API do Strava e registra como exercícios no domínio existente quando a atividade tem duração e calorias válidas. O webhook processa os eventos recebidos do Strava e usa o mesmo caminho de persistência de exercícios. Cada exercício importado recebe uma referência externa nas notas (`strava:<activityId>`) para que importações futuras atualizem ou ignorem o mesmo exercício em vez de duplicar o registro.
 
-`STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` controla quantas chamadas de detalhe `/activities/{id}` cada sincronização pode fazer para atividades cuja listagem não trouxe calorias válidas. O padrão `5` preserva cota. Configure `all` para tentar enriquecer todas as atividades elegíveis antes de qualquer estimativa local; nesse modo, limites 429 ou falhas temporárias no detalhe interrompem a sincronização para permitir nova tentativa sem salvar estimativas prematuras.
+Quando uma atividade já importada reaparece em uma janela de sincronização ou em novo evento, a referência `strava:<activityId>` é usada para localizar o exercício existente. Se esse exercício já contém calorias confiáveis do Strava nas notas (`Calorias: N kcal`), esse valor é preservado e não é substituído por estimativa local.
+
+`STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` controla quantas chamadas de detalhe `/activities/{id}` cada importação manual ou processamento de webhook pode fazer para atividades cuja listagem não trouxe calorias válidas. O padrão `5` preserva cota. Configure `all` para tentar enriquecer todas as atividades elegíveis antes de qualquer estimativa local; nesse modo, limites 429 ou falhas temporárias no detalhe interrompem a importação para permitir nova tentativa sem salvar estimativas prematuras.
 
 Tokens de acesso e refresh do Strava continuam restritos ao backend, são armazenados criptografados e não são expostos ao frontend.
 
@@ -164,7 +166,10 @@ Resumo do rollout:
 - configurar `STRAVA_APP_REDIRECT_BASE_URL` com o domínio público do frontend;
 - validar o redirect URI público do Strava apontando para `/api/health-integrations/strava/callback`;
 - validar que o usuário volta do Strava para o frontend já autenticado;
-- validar que a sincronização do Strava importa apenas exercícios dos últimos 2 meses;
+- validar que o callback OAuth do Strava conecta a conta sem importar exercícios;
+- validar que o webhook do Strava importa novas atividades automaticamente;
+- validar que a sincronização manual do Strava importa apenas exercícios dos últimos 2 meses;
+- validar que reprocessar uma atividade já importada pelo webhook não duplica o exercício nem troca calorias confiáveis por estimativa local;
 - validar que o vínculo Strava continua conectado após restart do backend com banco ativo;
 - validar cadastro, login, logout e usuário atual;
 - validar web e WhatsApp com smoke tests;
