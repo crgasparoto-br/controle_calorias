@@ -170,7 +170,7 @@ describe("healthIntegrationService Strava", () => {
         start_date: "2026-06-01T10:00:00Z",
         moving_time: 2100,
         calories: 321,
-      })));
+      }));
     vi.stubGlobal("fetch", fetchMock);
 
     const { healthIntegrationService } = await import("./service");
