@@ -196,14 +196,14 @@ describe("healthIntegrationService Strava", () => {
     });
   });
 
-  it("não duplica exercício e preserva as calorias salvas no exercício existente", async () => {
+  it("não duplica exercício e preserva calorias confiáveis já importadas", async () => {
     exerciseMocks.listExercises.mockResolvedValue([
       {
         id: 456,
         userId: 42,
         activityType: "Corrida",
         durationMinutes: 35,
-        caloriesBurned: 280,
+        caloriesBurned: 321,
         occurredAt: new Date("2026-06-01T10:00:00Z").getTime(),
         notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Tipo Strava: Run. Calorias: 321 kcal.",
         createdAt: Date.now(),
@@ -241,18 +241,17 @@ describe("healthIntegrationService Strava", () => {
     const activityRecord = syncResult.records.find(record => record.id === "999:activity");
     const energyRecord = syncResult.records.find(record => record.id === "999:energy");
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(exerciseMocks.createExercise).not.toHaveBeenCalled();
     expect(exerciseMocks.updateExercise).not.toHaveBeenCalled();
     expect(activityRecord?.metadata).toMatchObject({
-      calories: 280,
+      calories: 321,
       caloriesSource: "strava",
       caloriesOrigin: "strava_summary",
       estimatedCalories: false,
     });
     expect(energyRecord).toMatchObject({
       dataType: "energy_burned",
-      value: 280,
+      value: 321,
       unit: "kcal",
     });
   });

@@ -137,11 +137,17 @@ function logStravaImportEvent(input: {
   });
 }
 
-function getReliableExistingStravaExerciseCalories(exercise: { notes?: string | null; caloriesBurned?: number | null } | undefined) {
-  if (!exercise?.notes || !/(?<!estimadas\s)Calorias:\s*\d/.test(exercise.notes)) return null;
+function parseReliableStravaCalories(exercise: { notes?: string | null } | undefined) {
+  if (!exercise?.notes) return null;
+  const match = exercise.notes.match(/(?<!estimadas\s)Calorias:\s*(\d+)/);
+  if (!match?.[1]) return null;
 
-  const calories = Number(exercise.caloriesBurned ?? 0);
-  return Number.isFinite(calories) && calories > 0 ? Math.round(calories) : null;
+  const calories = Number(match[1]);
+  return Number.isFinite(calories) && calories > 0 ? calories : null;
+}
+
+function hasReliableStravaCalories(exercise: { notes?: string | null } | undefined) {
+  return parseReliableStravaCalories(exercise) !== null;
 }
 
 function getStravaActivityMinimumImportSkipReason(activity: StravaActivity) {
@@ -322,7 +328,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
   for (const activity of activities) {
     const externalReference = `strava:${activity.id}`;
     const existingBeforeResolve = existingExercises.find(exercise => exercise.notes?.includes(externalReference));
-    const reliableCalories = getReliableExistingStravaExerciseCalories(existingBeforeResolve);
+    const reliableCalories = parseReliableStravaCalories(existingBeforeResolve);
 
     if (reliableCalories !== null) {
       Object.assign(activity, {
@@ -335,7 +341,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         activityId: activity.id,
         status: "success",
         eventType: "strava.import.detail_skipped_redundant",
-        detail: "exercício já possui calorias confiáveis salvas; detalhe não solicitado novamente nesta janela de overlap.",
+        detail: "exercício já possui calorias confiáveis do Strava; detalhe não solicitado novamente nesta janela de overlap.",
       });
       continue;
     }
