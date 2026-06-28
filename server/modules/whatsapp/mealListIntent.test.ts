@@ -115,12 +115,14 @@ describe("executeWhatsappMealListIntent", () => {
     expect(result?.reply).toContain("100 g de salada - 40 kcal");
     expect(result?.reply).toContain("100 g de arroz - 130 kcal");
     expect(result?.reply).toContain("120 g de frango - 198 kcal");
+    expect(result?.reply).toContain("Subtotal da refeição: 368 kcal | Prot. 41,1 g | Carb. 33 g | Gord. 6,1 g");
     expect(result?.reply).toContain("Café da manhã:");
     expect(result?.reply).toContain("100 g de pão - 140 kcal");
+    expect(result?.reply).toContain("Subtotal da refeição: 140 kcal | Prot. 4,5 g | Carb. 28 g | Gord. 1,5 g");
     expect(result?.reply).not.toContain("Almoço às");
     expect(result?.reply).not.toContain("Café da manhã às");
     expect(result?.reply).not.toContain("sopa");
-    expect(result?.reply).toContain("Total do dia: 508 kcal");
+    expect(result?.reply).toContain("Total do dia: 508 kcal | Prot. 45,6 g | Carb. 61 g | Gord. 7,6 g");
   });
 
   it("trata 'o que comi hoje' como consulta de alimentos do dia", async () => {
@@ -134,6 +136,7 @@ describe("executeWhatsappMealListIntent", () => {
     expect(result?.reply).toContain("Almoço:");
     expect(result?.reply).toContain("arroz");
     expect(result?.reply).toContain("pão");
+    expect(result?.reply).toContain("Subtotal da refeição:");
     expect(result?.reply).not.toContain("às");
   });
 
