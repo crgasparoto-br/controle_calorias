@@ -49,6 +49,13 @@ type ReplacementCandidate = {
   replacement: FoodReplacementIntent;
 };
 
+type NutritionTotals = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
 const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 1,
 });
@@ -88,8 +95,39 @@ function formatReplyTime(value: number | string | Date) {
   });
 }
 
+function formatNutritionTotals(totals: NutritionTotals | MealItemInput | MealDraftItem) {
+  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
+}
+
 function formatTotalsLine(item: MealItemInput) {
-  return `${formatNumber(item.calories)} kcal | Prot. ${formatNumber(item.protein)} g | Carb. ${formatNumber(item.carbs)} g | Gord. ${formatNumber(item.fat)} g`;
+  return formatNutritionTotals(item);
+}
+
+function sumMealItems(items: Array<MealDraftItem | MealItemInput>) {
+  return items.reduce<NutritionTotals>(
+    (acc, item) => ({
+      calories: acc.calories + Number(item.calories || 0),
+      protein: acc.protein + Number(item.protein || 0),
+      carbs: acc.carbs + Number(item.carbs || 0),
+      fat: acc.fat + Number(item.fat || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+}
+
+function formatMealItemSummaryLine(item: MealDraftItem | MealItemInput) {
+  const portion = item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada");
+  return `• ${portion} de ${item.foodName} - ${formatNutritionTotals(item)}`;
+}
+
+function formatMealSummary(mealLabel: string, items: Array<MealDraftItem | MealItemInput>) {
+  if (!items.length) return `Resumo da refeição ${mealLabel}: sem alimentos registrados.`;
+
+  return [
+    `Resumo da refeição ${mealLabel}:`,
+    ...items.map(formatMealItemSummaryLine),
+    `Total da refeição: ${formatNutritionTotals(sumMealItems(items))}`,
+  ].join("\n");
 }
 
 function cleanTargetFoodText(value?: string) {
@@ -394,14 +432,18 @@ export async function executeWhatsappContextualFoodReplacementIntent(
     updatedMeals.push(updatedMeal);
   }
 
+  const mealSummaries = Array.from(groups.values())
+    .filter(group => group.applied.length > 0)
+    .map(group => formatMealSummary(group.meal.mealLabel, group.items));
+  const summarySection = mealSummaries.length ? `\n\n${mealSummaries.join("\n\n")}` : "";
   const notFoundNote = notFound.length ? `\nNão encontrei: ${notFound.join(", ")}.` : "";
   const reply = applied.length === 1
     ? (() => {
         const item = applied[0].item;
         const recalculationSource = item.source === "catalog" ? "com base no catálogo" : "por estimativa";
-        return `Troquei ${applied[0].from} por ${applied[0].to} na refeição ${applied[0].meal.mealLabel} das ${formatReplyTime(applied[0].meal.occurredAt)} e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g. Estimativa: ${formatTotalsLine(item)}.${notFoundNote}`;
+        return `Troquei ${applied[0].from} por ${applied[0].to} na refeição ${applied[0].meal.mealLabel} das ${formatReplyTime(applied[0].meal.occurredAt)} e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g. Estimativa: ${formatTotalsLine(item)}.${notFoundNote}${summarySection}`;
       })()
-    : `Troquei os seguintes alimentos nas refeições recentes e recalculei os macros:\n${applied.map(({ from, to, item, meal }) => `• ${meal.mealLabel} às ${formatReplyTime(meal.occurredAt)}: ${from} → ${to}: ${formatNumber(item.estimatedGrams)} g | ${formatTotalsLine(item)}`).join("\n")}${notFoundNote}`;
+    : `Troquei os seguintes alimentos nas refeições recentes e recalculei os macros:\n${applied.map(({ from, to, item, meal }) => `• ${meal.mealLabel} às ${formatReplyTime(meal.occurredAt)}: ${from} → ${to}: ${formatNumber(item.estimatedGrams)} g | ${formatTotalsLine(item)}`).join("\n")}${notFoundNote}${summarySection}`;
 
   return {
     action: "meal_item_replaced",
