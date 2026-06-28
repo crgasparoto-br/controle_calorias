@@ -33,6 +33,12 @@ type ZonedParts = {
   second: number;
 };
 
+type MealGroup = {
+  label: string;
+  meals: ExistingMeal[];
+  items: MealDraftItem[];
+};
+
 const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 1,
 });
@@ -56,14 +62,6 @@ function formatReplyDate(date: Date) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: SAO_PAULO_TIME_ZONE,
-  });
-}
-
-function formatReplyTime(date: Date) {
-  return date.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
     timeZone: SAO_PAULO_TIME_ZONE,
   });
 }
@@ -220,11 +218,28 @@ function formatTotals(totals: ReturnType<typeof sumMealItems>) {
   return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
 }
 
+function formatMealSubtotal(items: MealDraftItem[]) {
+  return `Subtotal da refeição: ${formatTotals(sumMealItems(items))}`;
+}
+
+function groupMealsByLabel(meals: ExistingMeal[]) {
+  const groups = new Map<string, MealGroup>();
+  for (const meal of meals) {
+    const label = meal.mealLabel?.trim() || "Refeição";
+    const key = normalizeText(label) || label;
+    const group = groups.get(key) ?? { label, meals: [], items: [] };
+    group.meals.push(meal);
+    group.items.push(...(meal.items ?? []));
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
   const items = meal.items ?? [];
   const mealDate = new Date(meal.occurredAt);
   const title = isLatest
-    ? `Alimentos da última refeição (${meal.mealLabel} às ${formatReplyTime(mealDate)}):`
+    ? `Alimentos da última refeição (${meal.mealLabel}):`
     : `Alimentos de ${meal.mealLabel} em ${formatReplyDate(mealDate)}:`;
 
   if (!items.length) {
@@ -240,6 +255,15 @@ function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
   ].join("\n");
 }
 
+function formatDayMealGroup(group: MealGroup) {
+  const itemLines = group.items.length ? group.items.map(formatItemLine) : ["• Sem alimentos detalhados."];
+  return [
+    `${group.label}:`,
+    ...itemLines,
+    ...(group.items.length ? [formatMealSubtotal(group.items)] : []),
+  ];
+}
+
 function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date) {
   const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate));
   const dateLabel = formatReplyDate(referenceDate);
@@ -247,15 +271,12 @@ function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date) {
     return `Não encontrei alimentos registrados em ${dateLabel}.`;
   }
 
-  const lines = mealsInDay.flatMap((meal, index) => {
-    const items = meal.items ?? [];
-    const mealLines = [
-      `${meal.mealLabel} às ${formatReplyTime(new Date(meal.occurredAt))}:`,
-      ...(items.length ? items.map(formatItemLine) : ["• Sem alimentos detalhados." ]),
-    ];
-    return index === mealsInDay.length - 1 ? mealLines : [...mealLines, ""];
+  const groups = groupMealsByLabel(mealsInDay);
+  const lines = groups.flatMap((group, index) => {
+    const groupLines = formatDayMealGroup(group);
+    return index === groups.length - 1 ? groupLines : [...groupLines, ""];
   });
-  const allItems = mealsInDay.flatMap(meal => meal.items ?? []);
+  const allItems = groups.flatMap(group => group.items);
 
   return [
     `Alimentos registrados em ${dateLabel}:`,
