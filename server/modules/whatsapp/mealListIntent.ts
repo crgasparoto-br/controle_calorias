@@ -218,6 +218,10 @@ function formatTotals(totals: ReturnType<typeof sumMealItems>) {
   return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
 }
 
+function formatMealSubtotal(items: MealDraftItem[]) {
+  return `Subtotal da refeição: ${formatTotals(sumMealItems(items))}`;
+}
+
 function groupMealsByLabel(meals: ExistingMeal[]) {
   const groups = new Map<string, MealGroup>();
   for (const meal of meals) {
@@ -256,6 +260,7 @@ function formatDayMealGroup(group: MealGroup) {
   return [
     `${group.label}:`,
     ...itemLines,
+    ...(group.items.length ? [formatMealSubtotal(group.items)] : []),
   ];
 }
 
