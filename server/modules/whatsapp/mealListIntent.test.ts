@@ -34,6 +34,12 @@ describe("executeWhatsappMealListIntent", () => {
         items: [item({ foodName: "sopa", calories: 180, protein: 8, carbs: 20, fat: 6 })],
       },
       {
+        id: 4,
+        mealLabel: "Almoço",
+        occurredAt: "2026-06-20T16:20:00.000Z",
+        items: [item({ foodName: "salada", calories: 40, protein: 1.2, carbs: 5, fat: 1.5 })],
+      },
+      {
         id: 2,
         mealLabel: "Almoço",
         occurredAt: "2026-06-20T15:30:00.000Z",
@@ -60,12 +66,12 @@ describe("executeWhatsappMealListIntent", () => {
     expect(result).toMatchObject({
       action: "meal_foods_listed",
       eventType: "whatsapp.intent.meal_foods_listed",
-      data: expect.objectContaining({ mealId: 2, itemCount: 2 }),
+      data: expect.objectContaining({ mealId: 4, itemCount: 1 }),
     });
     expect(result?.reply).toContain("Alimentos de Almoço em 20/06/2026:");
-    expect(result?.reply).toContain("100 g de arroz - 130 kcal");
-    expect(result?.reply).toContain("120 g de frango - 198 kcal");
-    expect(result?.reply).toContain("Total: 328 kcal");
+    expect(result?.reply).toContain("100 g de salada - 40 kcal");
+    expect(result?.reply).toContain("Total: 40 kcal");
+    expect(result?.reply).not.toContain("às");
   });
 
   it("lista alimentos da refeição por label e data relativa de ontem", async () => {
@@ -78,9 +84,10 @@ describe("executeWhatsappMealListIntent", () => {
     expect(result?.data).toEqual(expect.objectContaining({ mealId: 3, mealLabel: "Jantar" }));
     expect(result?.reply).toContain("Alimentos de Jantar em 19/06/2026:");
     expect(result?.reply).toContain("100 g de sopa - 180 kcal");
+    expect(result?.reply).not.toContain("às");
   });
 
-  it("lista alimentos da última refeição explicitamente solicitada", async () => {
+  it("lista alimentos da última refeição explicitamente solicitada sem horário", async () => {
     const result = await executeWhatsappMealListIntent(42, {
       text: "me mostre a lista de alimentos da última refeição",
       receivedAt: new Date("2026-06-20T20:14:00-03:00"),
@@ -88,7 +95,8 @@ describe("executeWhatsappMealListIntent", () => {
 
     expect(result?.action).toBe("meal_foods_listed");
     expect(result?.data).toEqual(expect.objectContaining({ mealId: 3 }));
-    expect(result?.reply).toContain("Alimentos da última refeição (Jantar às 19:00):");
+    expect(result?.reply).toContain("Alimentos da última refeição (Jantar):");
+    expect(result?.reply).not.toContain("às");
   });
 
   it("lista comandos genéricos de alimentos agrupados por refeição do dia", async () => {
@@ -100,16 +108,19 @@ describe("executeWhatsappMealListIntent", () => {
     expect(result).toMatchObject({
       action: "meal_foods_listed",
       eventType: "whatsapp.intent.meal_foods_listed",
-      data: expect.objectContaining({ mealCount: 2, itemCount: 3 }),
+      data: expect.objectContaining({ mealCount: 3, itemCount: 4 }),
     });
     expect(result?.reply).toContain("Alimentos registrados em 20/06/2026:");
-    expect(result?.reply).toContain("Almoço às 12:30:");
+    expect(result?.reply).toContain("Almoço:");
+    expect(result?.reply).toContain("100 g de salada - 40 kcal");
     expect(result?.reply).toContain("100 g de arroz - 130 kcal");
     expect(result?.reply).toContain("120 g de frango - 198 kcal");
-    expect(result?.reply).toContain("Café da manhã às 07:00:");
+    expect(result?.reply).toContain("Café da manhã:");
     expect(result?.reply).toContain("100 g de pão - 140 kcal");
+    expect(result?.reply).not.toContain("Almoço às");
+    expect(result?.reply).not.toContain("Café da manhã às");
     expect(result?.reply).not.toContain("sopa");
-    expect(result?.reply).toContain("Total do dia: 468 kcal");
+    expect(result?.reply).toContain("Total do dia: 508 kcal");
   });
 
   it("trata 'o que comi hoje' como consulta de alimentos do dia", async () => {
@@ -120,8 +131,10 @@ describe("executeWhatsappMealListIntent", () => {
 
     expect(result?.action).toBe("meal_foods_listed");
     expect(result?.reply).toContain("Alimentos registrados em 20/06/2026:");
+    expect(result?.reply).toContain("Almoço:");
     expect(result?.reply).toContain("arroz");
     expect(result?.reply).toContain("pão");
+    expect(result?.reply).not.toContain("às");
   });
 
   it("retorna estado vazio para listagem genérica sem registros no dia", async () => {
