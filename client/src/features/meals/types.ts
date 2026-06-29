@@ -19,6 +19,7 @@ export type MealItemState = {
 
 export type DraftState = {
   draftId: string;
+  suggestedOccurredAt?: string;
   processed: {
     detectedMealLabel: string;
     sourceText: string;
