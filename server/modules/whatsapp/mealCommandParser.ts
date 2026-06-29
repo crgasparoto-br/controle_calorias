@@ -48,6 +48,7 @@ export type MealCommandContext = {
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
 const DECIMAL_NUMBER_PATTERN = "\\d+(?:[,.]\\d+)?";
+const QUANTITY_VALUE_PATTERN = `${DECIMAL_NUMBER_PATTERN}|uma?|um`;
 
 const MEAL_TYPES = [
   "cafe da manha",
@@ -212,11 +213,15 @@ function normalizeUnit(unit: string) {
 }
 
 function parseDecimalQuantity(value: string) {
+  const normalized = normalizeText(value);
+  if (normalized === "um" || normalized === "uma") {
+    return 1;
+  }
   return Number(value.replace(",", "."));
 }
 
 function parseQuantity(value: string): ParsedQuantity | null {
-  const match = value.match(new RegExp(`(${DECIMAL_NUMBER_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
+  const match = value.match(new RegExp(`(${QUANTITY_VALUE_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "i"));
   if (!match) {
     return null;
   }
@@ -224,6 +229,20 @@ function parseQuantity(value: string): ParsedQuantity | null {
   return {
     quantity: parseDecimalQuantity(match[1]),
     unit: normalizeUnit(match[2]),
+    index: match.index ?? 0,
+    raw: match[0],
+  };
+}
+
+function parseUnitlessLeadingQuantity(value: string): ParsedQuantity | null {
+  const match = value.match(new RegExp(`^\\s*(${QUANTITY_VALUE_PATTERN})\\b(?!\\s*(?:${QUANTITY_UNIT_PATTERN})\\b)`, "i"));
+  if (!match) {
+    return null;
+  }
+
+  return {
+    quantity: parseDecimalQuantity(match[1]),
+    unit: "unidade",
     index: match.index ?? 0,
     raw: match[0],
   };
@@ -297,7 +316,7 @@ function removeBrand(foodName: string, brand: string | null) {
 function cleanFoodName(value: string) {
   return normalizeSpaces(
     stripTrailingDate(value)
-      .replace(/^(?:a|ao|à|no|na)\s+(?:refei[cç][aã]o\s+)?(?:caf[eé]\s+da\s+manh[aã]|almo[cç]o|jantar|lanche(?:\s+da\s+tarde)?|ceia)(?:\s+(?:de\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\s+/i, "")
+      .replace(/^(?:a|ao|à|no|na)\s+(?:refei[cç][aã]o\s+)?(?:caf[eé]\s+da\s+manh[aã]|almo[cç]o|jantar|lanche(?:\s+da\s+tarde)?|ceia)(?:\s+(?:de\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\s*[,;:]?\s*/i, "")
       .replace(/^(?:de|do|da|dos|das)\s+/i, "")
       .replace(/[.,;:!?]+$/g, ""),
   );
@@ -346,7 +365,7 @@ function buildItemFromPart(part: string) {
     return buildItem(foodName, null, null);
   }
 
-  const quantity = parseQuantity(part);
+  const quantity = parseQuantity(part) ?? parseUnitlessLeadingQuantity(part);
   if (!quantity) {
     return buildItem(part, null, null);
   }
@@ -364,8 +383,10 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
   const date = resolveCommandDate(input, context);
   const afterAction = input.slice((actionMatch.index ?? 0) + actionMatch[0].length);
   const mealPattern = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia)";
-  const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)\\s+(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${mealPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*$`, "i"));
-  const afterMealMatch = afterAction.match(new RegExp(`^(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${mealPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s+(.+)$`, "i"));
+  const datePattern = "(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?";
+  const mealPrefixPattern = `(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${mealPattern}${datePattern}`;
+  const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)\\s+${mealPrefixPattern}\\s*$`, "i"));
+  const afterMealMatch = afterAction.match(new RegExp(`^\\s*${mealPrefixPattern}(?:\\s*[,;:]\\s*|\\s+)(.+)$`, "i"));
   const itemsText = beforeMealMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction;
   const items = splitItemParts(itemsText).map(buildItemFromPart);
   const missingFields = [
