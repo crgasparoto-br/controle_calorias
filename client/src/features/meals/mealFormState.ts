@@ -21,6 +21,68 @@ function scaleNutritionValue(value: number, factor: number) {
   return roundNutritionValue(Number(value || 0) * factor);
 }
 
+function parseNumberForSubmit(value: unknown, fallback: number) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return fallback;
+
+    const normalized = trimmed.includes(",")
+      ? trimmed.replace(/\./g, "").replace(",", ".")
+      : trimmed;
+    const numberValue = Number(normalized);
+    return Number.isFinite(numberValue) ? numberValue : fallback;
+  }
+
+  return fallback;
+}
+
+function parsePositiveNumberForSubmit(value: unknown, fallback: number) {
+  const numberValue = parseNumberForSubmit(value, fallback);
+  return numberValue > 0 ? numberValue : fallback;
+}
+
+function parseNonNegativeNumberForSubmit(value: unknown, fallback = 0) {
+  const numberValue = parseNumberForSubmit(value, fallback);
+  return numberValue >= 0 ? numberValue : fallback;
+}
+
+export function normalizeMealItemForSubmit(item: MealItemState): MealItemState {
+  const foodName = item.foodName.trim();
+  const canonicalName = item.canonicalName.trim() || foodName;
+  const portionText = item.portionText.trim() || "1 porção";
+  const servings = parsePositiveNumberForSubmit(item.servings, 1);
+
+  return {
+    ...item,
+    foodName,
+    canonicalName,
+    portionText,
+    portionQuantity: item.portionQuantity === undefined
+      ? undefined
+      : parsePositiveNumberForSubmit(item.portionQuantity, servings),
+    quantity: item.quantity === undefined
+      ? undefined
+      : parsePositiveNumberForSubmit(item.quantity, servings),
+    servings,
+    estimatedGrams: parseNonNegativeNumberForSubmit(item.estimatedGrams),
+    calories: parseNonNegativeNumberForSubmit(item.calories),
+    protein: parseNonNegativeNumberForSubmit(item.protein),
+    carbs: parseNonNegativeNumberForSubmit(item.carbs),
+    fat: parseNonNegativeNumberForSubmit(item.fat),
+    confidence: Math.min(1, parseNonNegativeNumberForSubmit(item.confidence, 1)),
+  };
+}
+
+export function normalizeMealItemsForSubmit(items: MealItemState[]) {
+  return items
+    .map(normalizeMealItemForSubmit)
+    .filter(item => item.foodName);
+}
+
 export function recalculateMealItemQuantityUnit(
   item: MealItemState,
   nextQuantity: number,

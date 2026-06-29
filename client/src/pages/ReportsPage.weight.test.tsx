@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const reportWeightEntries = vi.hoisted(() => ({
   current: [] as Array<{ id: number; date: string; label?: string; weightKg: number; notes?: string | null }>,
@@ -173,7 +173,13 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("ReportsPage weight trend", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-22T12:00:00.000Z"));
     reportWeightEntries.current = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("mantém a seção visível sem registros de peso", async () => {
