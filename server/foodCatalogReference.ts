@@ -324,7 +324,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
   {
     slug: "pao-frances",
     name: "Pão francês",
-    aliases: ["pao", "pão", "pão francês", "pao frances"],
+    aliases: ["pão francês", "pao frances", "pão trigo francês", "pao trigo frances"],
     servingLabel: "1 unidade",
     gramsPerServing: 50,
     calories: 135,

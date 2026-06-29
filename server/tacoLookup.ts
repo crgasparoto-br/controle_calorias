@@ -90,6 +90,31 @@ function getSearchTerms(food: TacoEntry): string[] {
   return [food.name, ...food.aliases].map(normalizeText).filter(Boolean);
 }
 
+function isGenericSingleWordTerm(term: string) {
+  return term.split(/\s+/).filter(Boolean).length === 1;
+}
+
+function scoreTacoSubstringMatch(item: TacoEntry, query: string) {
+  const queryWords = query.split(/\s+/).filter(Boolean);
+  let bestScore = 0;
+
+  for (const term of getSearchTerms(item)) {
+    if (!term) continue;
+    if (isGenericSingleWordTerm(term) && queryWords.length > 1 && query !== term) continue;
+
+    if (query.includes(term)) {
+      bestScore = Math.max(bestScore, 700 + term.length);
+      continue;
+    }
+
+    if (term.includes(query)) {
+      bestScore = Math.max(bestScore, 500 + query.length);
+    }
+  }
+
+  return bestScore;
+}
+
 // ---------------------------------------------------------------------------
 // Textual search
 // ---------------------------------------------------------------------------
@@ -112,11 +137,10 @@ export function findTacoFood(foodName: string): CatalogFood | null {
   if (exact) return tacoToCatalogFood(exact);
 
   // Tier 2: substring containment
-  const substring = catalog.find(item =>
-    getSearchTerms(item).some(
-      term => query.includes(term) || term.includes(query),
-    ),
-  );
+  const substring = catalog
+    .map(item => ({ item, score: scoreTacoSubstringMatch(item, query) }))
+    .filter(match => match.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.item;
   if (substring) return tacoToCatalogFood(substring);
 
   // Tier 3: all significant keywords present

@@ -16,7 +16,22 @@ const KNOWN_BRANDS = [
   "Italac",
   "Piracanjuba",
 ];
-const CRITICAL_VARIATION_TERMS = ["zero", "diet", "light", "integral", "desnatado", "sem acucar", "sem açúcar", "tradicional", "proteico"];
+const CRITICAL_VARIATION_TERMS = [
+  "zero",
+  "diet",
+  "light",
+  "integral",
+  "desnatado",
+  "sem acucar",
+  "sem açúcar",
+  "tradicional",
+  "proteico",
+  "frances",
+  "francês",
+  "sovado",
+  "forma",
+];
+const MATCHING_STOP_WORDS = new Set(["a", "as", "o", "os", "de", "da", "das", "do", "dos", "com", "sem", "ao", "aos", "em", "no", "na"]);
 
 export function detectKnownBrand(value: string) {
   const normalized = normalizeForMatching(value);
@@ -39,6 +54,31 @@ function catalogHasVariation(food: CatalogFood, variation: string) {
     ...(food.variants ?? []),
   ].join(" "));
   return normalizedTokenIncludes(searchable, variation);
+}
+
+function getSignificantWords(value: string) {
+  return normalizeForMatching(value)
+    .trim()
+    .split(/\s+/)
+    .filter(word => word.length >= 3 && !MATCHING_STOP_WORDS.has(word));
+}
+
+function catalogCoversSignificantWords(food: CatalogFood, normalizedRawQuery: string) {
+  const queryWords = getSignificantWords(normalizedRawQuery);
+  if (queryWords.length <= 1) return true;
+
+  const searchable = normalizeForMatching([
+    food.name,
+    ...food.aliases,
+    ...(food.variants ?? []),
+    food.brandName ?? "",
+  ].join(" "));
+
+  return queryWords.every(word => normalizedTokenIncludes(searchable, word));
+}
+
+function isGenericSingleWordAlias(alias: string) {
+  return alias.split(/\s+/).filter(Boolean).length === 1;
 }
 
 function _catalogAliasesForSearch(food: CatalogFood): string[] {
@@ -88,7 +128,7 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
       continue;
     }
 
-    if (queryMentionsFullAlias(candidate)) {
+    if (queryMentionsFullAlias(candidate) && !(isGenericSingleWordAlias(alias) && queryText !== alias)) {
       bestScore = Math.max(bestScore, 700 + alias.length);
       continue;
     }
@@ -100,6 +140,14 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
 
   if (!bestScore) return 0;
 
+  if (!catalogCoversSignificantWords(food, normalizedRawQuery)) {
+    return 0;
+  }
+
+  if (queryVariations.length > 0 && queryVariations.some(variation => !catalogHasVariation(food, variation))) {
+    return 0;
+  }
+
   if (food.isBrandedProduct) {
     if (food.brandName && catalogBrand) {
       bestScore += 220;
@@ -110,13 +158,7 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
     bestScore -= 80;
   }
 
-  for (const variation of queryVariations) {
-    if (catalogHasVariation(food, variation)) {
-      bestScore += 70;
-    } else if (food.isBrandedProduct || mentionedBrand) {
-      bestScore -= 250;
-    }
-  }
+  bestScore += queryVariations.length * 70;
 
   return Math.max(bestScore, 0);
 }

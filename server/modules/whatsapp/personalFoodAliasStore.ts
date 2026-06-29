@@ -68,6 +68,11 @@ function isTrivialAlias(aliasText: string, canonicalName: string): boolean {
   return false;
 }
 
+function isGenericSingleWordAlias(value: string): boolean {
+  const words = value.split(/\s+/).filter(Boolean);
+  return words.length === 1 && value.length <= 4;
+}
+
 function pruneExpired(aliases: PersonalFoodAlias[], now: number): PersonalFoodAlias[] {
   return aliases.filter(alias => now - alias.lastUsedAt < ALIAS_TTL_MS);
 }
@@ -135,7 +140,11 @@ export function resolvePersonalFoodAlias(input: {
 
   const match = aliases
     .filter(alias => now - alias.lastUsedAt < ALIAS_TTL_MS)
-    .find(alias => alias.aliasText === normalized || normalized.includes(alias.aliasText) || alias.aliasText.includes(normalized));
+    .find(alias => {
+      if (alias.aliasText === normalized) return true;
+      if (isGenericSingleWordAlias(alias.aliasText) || isGenericSingleWordAlias(normalized)) return false;
+      return normalized.includes(alias.aliasText) || alias.aliasText.includes(normalized);
+    });
 
   if (match) {
     match.lastUsedAt = now;
