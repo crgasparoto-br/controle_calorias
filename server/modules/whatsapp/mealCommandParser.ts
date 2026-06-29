@@ -141,7 +141,7 @@ function getZonedParts(date: Date, timeZone = SAO_PAULO_TIME_ZONE): ZonedParts {
   return {
     year: Number(parts.year),
     month: Number(parts.month),
-    day: Number(parts.month),
+    day: Number(parts.day),
     hour: hour === 24 ? 0 : hour,
     minute: Number(parts.minute),
     second: Number(parts.second),
