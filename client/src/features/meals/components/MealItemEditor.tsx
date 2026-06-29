@@ -81,6 +81,16 @@ function normalizeUnitInput(value: string) {
   return normalizeMeasurementUnit(value.replace(/^\d+(?:[,.]\d+)?\s*/u, ""));
 }
 
+function parseNutritionInput(value: string) {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) {
+    return 0;
+  }
+
+  const numberValue = Number(normalized);
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
+}
+
 export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
   const unitListId = React.useId();
   const quantity = item.quantity ?? parseQuantityFromPortionText(item.portionText) ?? item.servings;
@@ -342,19 +352,19 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
         </div>
         <div className="space-y-2">
           <Label>Calorias</Label>
-          <Input type="number" value={item.calories} onChange={event => onChange("calories", Number(event.target.value))} />
+          <Input type="text" inputMode="decimal" value={item.calories} onChange={event => onChange("calories", parseNutritionInput(event.target.value))} />
         </div>
         <div className="space-y-2">
           <Label>Proteínas</Label>
-          <Input type="number" value={item.protein} onChange={event => onChange("protein", Number(event.target.value))} />
+          <Input type="text" inputMode="decimal" value={item.protein} onChange={event => onChange("protein", parseNutritionInput(event.target.value))} />
         </div>
         <div className="space-y-2">
           <Label>Carboidratos</Label>
-          <Input type="number" value={item.carbs} onChange={event => onChange("carbs", Number(event.target.value))} />
+          <Input type="text" inputMode="decimal" value={item.carbs} onChange={event => onChange("carbs", parseNutritionInput(event.target.value))} />
         </div>
         <div className="space-y-2">
           <Label>Gorduras</Label>
-          <Input type="number" value={item.fat} onChange={event => onChange("fat", Number(event.target.value))} />
+          <Input type="text" inputMode="decimal" value={item.fat} onChange={event => onChange("fat", parseNutritionInput(event.target.value))} />
         </div>
       </div>
     </div>
