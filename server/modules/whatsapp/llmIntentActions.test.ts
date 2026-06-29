@@ -243,6 +243,48 @@ describe("executeWhatsappLlmIntent", () => {
     }));
   });
 
+  it("usa a data relativa do texto ao adicionar alimento em refeicao de ontem", async () => {
+    listMealsMock.mockResolvedValue([
+      { id: 20, mealLabel: "Jantar", occurredAt: "2026-06-12T22:00:00.000Z", items: [] },
+      { id: 21, mealLabel: "Jantar", occurredAt: "2026-06-11T22:00:00.000Z", items: [] },
+    ]);
+    updateMealMock.mockImplementation((_userId, input) => Promise.resolve({
+      id: input.mealId,
+      mealLabel: input.mealLabel,
+      occurredAt: input.occurredAt,
+      items: input.items,
+    }));
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      operationalTrace: llmTrace,
+      intent: interpretedIntent({
+        intent: "add_foods_to_meal",
+        confidence: 0.91,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        meal: { label: "jantar", createIfMissing: true },
+        date: null,
+        items: [{ foodName: "Arroz", quantity: 100, unit: "g" }],
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, {
+      text: "inclua 100g de arroz no jantar de ontem",
+      receivedAt: new Date("2026-06-12T15:00:00.000Z"),
+      messageId: "wamid-yesterday-dinner",
+    });
+
+    expect(result).toEqual(expect.objectContaining({ action: "llm_intent_add_foods_to_meal" }));
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 21,
+      mealLabel: "Jantar",
+      occurredAt: "2026-06-11T22:00:00.000Z",
+    }));
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(result?.reply).toContain("11/06/2026");
+  });
+
   it("bloqueia intencao alimentar invalida antes de consultar ou escrever refeicao", async () => {
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
