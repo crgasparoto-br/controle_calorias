@@ -73,6 +73,11 @@ function normalizeText(value: string) {
     .trim();
 }
 
+function looksLikeTonicWaterFood(text: string) {
+  const normalized = normalizeText(text);
+  return /\bagua\s+tonicas?\b/.test(normalized);
+}
+
 function normalizeTextPreservingQuantities(value: string) {
   return value
     .normalize("NFD")
@@ -473,6 +478,10 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       occurredAtMs,
     });
     return true;
+  }
+
+  if (looksLikeTonicWaterFood(text)) {
+    return false;
   }
 
   if (looksLikeProfessionalAccessDecision(text)) {
