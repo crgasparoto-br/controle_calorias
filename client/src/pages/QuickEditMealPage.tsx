@@ -7,7 +7,7 @@ import { getBrowserTimeZone, toDateTimeLocalValue, zonedDateTimeLocalToIso } fro
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { MealItemEditor, SummaryPill } from "@/features/meals/components";
-import { sumItems } from "@/features/meals/mealFormState";
+import { normalizeMealItemsForSubmit, sumItems } from "@/features/meals/mealFormState";
 import type { MealItemState } from "@/features/meals/types";
 import { CheckCircle2, Loader2, MessageCircle, Plus, Save, Trash2 } from "lucide-react";
 import React from "react";
@@ -83,15 +83,7 @@ export default function QuickEditMealPage() {
   }, [mealQuery.data?.meal, userTimeZone]);
 
   const totals = React.useMemo(() => sumItems(items), [items]);
-  const normalizedItems = React.useMemo(() => items
-    .map(item => ({
-      ...item,
-      foodName: item.foodName.trim(),
-      canonicalName: item.canonicalName.trim() || item.foodName.trim(),
-      portionText: item.portionText.trim() || "1 porção",
-      confidence: Number(item.confidence || 1),
-    }))
-    .filter(item => item.foodName), [items]);
+  const normalizedItems = React.useMemo(() => normalizeMealItemsForSubmit(items), [items]);
   const isDeletingMeal = normalizedItems.length === 0;
   const isSaving = updateMeal.isPending || deleteMeal.isPending;
   const expiresAtLabel = mealQuery.data?.expiresAt
