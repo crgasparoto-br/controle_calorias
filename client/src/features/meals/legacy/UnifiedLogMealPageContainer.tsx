@@ -156,8 +156,12 @@ export default function LogMealPage() {
 
   const processDraft = trpc.nutrition.meals.processDraft.useMutation({
     onSuccess: result => {
+      const nextOccurredAt = result.suggestedOccurredAt
+        ? toDateTimeLocalValue(new Date(result.suggestedOccurredAt), userTimeZone)
+        : occurredAt;
       setDraft(result as DraftState);
-      setMealLabel(suggestedDraftMealLabel ?? result.processed.detectedMealLabel);
+      setOccurredAt(nextOccurredAt);
+      setMealLabel(suggestMealLabelFromSchedules(nextOccurredAt, mealSchedules) ?? result.processed.detectedMealLabel);
       setEditableItems(result.processed.items);
       toast.success("Registro preparado. Revise e ajuste antes de salvar.");
     },
