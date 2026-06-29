@@ -61,6 +61,12 @@ type ExistingMeal = {
   items?: MealDraftItem[];
 };
 
+type ResolvedIntentDate = {
+  date: Date;
+  explicit: boolean;
+  source: "text" | "intent" | "received_day";
+};
+
 function normalizeText(value: string) {
   return value
     .normalize("NFD")
@@ -115,15 +121,32 @@ function normalizeMealLabel(value: string) {
   return value.trim();
 }
 
-function resolveIntentDate(intent: WhatsappInterpretedIntent, receivedAt: Date) {
+function resolveRelativeDateFromText(text: string, receivedAt: Date) {
+  const normalized = normalizeText(text);
+  if (/\banteontem\b/.test(normalized)) return new Date(receivedAt.getTime() - 172_800_000);
+  if (/\bontem\b/.test(normalized)) return new Date(receivedAt.getTime() - 86_400_000);
+  if (/\bamanha\b/.test(normalized)) return new Date(receivedAt.getTime() + 86_400_000);
+  if (/\bhoje\b/.test(normalized)) return receivedAt;
+  return null;
+}
+
+function resolveIntentDateSelection(intent: WhatsappInterpretedIntent, receivedAt: Date, sourceText?: string): ResolvedIntentDate {
+  const textDate = sourceText ? resolveRelativeDateFromText(sourceText, receivedAt) : null;
+  if (textDate) {
+    return { date: textDate, explicit: true, source: "text" };
+  }
   if (!intent.date) {
-    return receivedAt;
+    return { date: receivedAt, explicit: false, source: "received_day" };
   }
   const normalized = normalizeText(intent.date);
-  if (normalized === "hoje") return receivedAt;
-  if (normalized === "ontem") return new Date(receivedAt.getTime() - 86_400_000);
+  if (normalized === "hoje") return { date: receivedAt, explicit: true, source: "intent" };
+  if (normalized === "ontem") return { date: new Date(receivedAt.getTime() - 86_400_000), explicit: true, source: "intent" };
+  if (normalized === "anteontem") return { date: new Date(receivedAt.getTime() - 172_800_000), explicit: true, source: "intent" };
+  if (normalized === "amanha") return { date: new Date(receivedAt.getTime() + 86_400_000), explicit: true, source: "intent" };
   const parsed = new Date(intent.date);
-  return Number.isNaN(parsed.getTime()) ? receivedAt : parsed;
+  return Number.isNaN(parsed.getTime())
+    ? { date: receivedAt, explicit: false, source: "received_day" }
+    : { date: parsed, explicit: true, source: "intent" };
 }
 
 function findMealByLabel(
@@ -384,18 +407,19 @@ async function handleAddFoodsToMeal(
   intent: WhatsappInterpretedIntent,
   receivedAt: Date,
   idempotencyKey: string,
+  sourceText: string,
 ): Promise<WhatsappLlmIntentResult | null> {
   if (!intent.meal?.label || !intent.items.length) {
     return null;
   }
   const toolTrace: WhatsappAiToolTrace[] = [];
-  const targetDate = resolveIntentDate(intent, receivedAt);
+  const targetDate = resolveIntentDateSelection(intent, receivedAt, sourceText);
   const mealLabel = normalizeMealLabel(intent.meal.label);
   const mealsResult = await runWhatsappAiTool({
     toolId: "meal_records_list",
     intent: "add_foods_to_meal",
     outcome: "success",
-    parameterSummary: { dateWindow: intent.date ?? "received_day", mealLabel },
+    parameterSummary: { dateWindow: targetDate.explicit ? targetDate.source : "received_day", mealLabel },
   }, () => listMeals(userId));
   toolTrace.push(mealsResult.trace);
   if (!mealsResult.result) {
@@ -403,7 +427,7 @@ async function handleAddFoodsToMeal(
   }
 
   const meals = mealsResult.result;
-  const existingMeal = findMealByLabel(meals, mealLabel, targetDate, { allowCrossDayFallback: !intent.date });
+  const existingMeal = findMealByLabel(meals, mealLabel, targetDate.date, { allowCrossDayFallback: !targetDate.explicit });
   if (!existingMeal && !intent.meal.createIfMissing) {
     return null;
   }
@@ -442,10 +466,10 @@ async function handleAddFoodsToMeal(
         backendValidated: true,
         idempotencyKey,
         outcome: "success",
-        parameterSummary: { mealLabel, itemCount: addedItems.length, occurredAt: targetDate.toISOString() },
+        parameterSummary: { mealLabel, itemCount: addedItems.length, occurredAt: targetDate.date.toISOString() },
       }, () => createManualMeal(userId, {
         mealLabel,
-        occurredAt: targetDate.toISOString(),
+        occurredAt: targetDate.date.toISOString(),
         notes: "Criada automaticamente pelo interpretador estruturado do WhatsApp.",
         items: addedItems,
       }));
@@ -697,7 +721,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
 
     switch (intent.intent) {
       case "add_foods_to_meal":
-        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt, idempotencyKey));
+        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt, idempotencyKey, text));
       case "replace_food_in_meal":
         return finish(await handleReplaceFoodInMeal(userId, intent, idempotencyKey));
       case "list_meal_records":
