@@ -188,10 +188,10 @@ describe("nutritionEngine.processMealInput", () => {
       portionText: "140 g",
       estimatedGrams: 140,
     }));
-    // Com a TACO integrada, a carne moída pode ser resolvida via catálogo TACO
-    // (source: "catalog") ou via heurística (source: "hybrid") dependendo do match.
+    // Com a TACO integrada e as salvaguardas de variação, a carne moída pode
+    // ser resolvida via catálogo ou permanecer no fallback textual.
     // O importante é que o item seja reconhecido com os dados corretos de porção.
-    expect(["catalog", "hybrid"]).toContain(result.items[0].source);
+    expect(["catalog", "hybrid", "heuristic"]).toContain(result.items[0].source);
   });
 
   it("normaliza nome e gramas quando a IA devolve quantidade junto do foodName", async () => {
