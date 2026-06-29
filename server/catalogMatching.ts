@@ -31,7 +31,33 @@ const CRITICAL_VARIATION_TERMS = [
   "sovado",
   "forma",
 ];
-const MATCHING_STOP_WORDS = new Set(["a", "as", "o", "os", "de", "da", "das", "do", "dos", "com", "sem", "ao", "aos", "em", "no", "na"]);
+const MATCHING_STOP_WORDS = new Set([
+  "a",
+  "as",
+  "o",
+  "os",
+  "um",
+  "uma",
+  "de",
+  "da",
+  "das",
+  "do",
+  "dos",
+  "com",
+  "ao",
+  "aos",
+  "em",
+  "no",
+  "na",
+  "comi",
+  "bebi",
+  "tomei",
+  "consumi",
+  "inclui",
+  "incluí",
+  "adicionei",
+  "registrei",
+]);
 
 export function detectKnownBrand(value: string) {
   const normalized = normalizeForMatching(value);
@@ -63,8 +89,9 @@ function getSignificantWords(value: string) {
     .filter(word => word.length >= 3 && !MATCHING_STOP_WORDS.has(word));
 }
 
-function catalogCoversSignificantWords(food: CatalogFood, normalizedRawQuery: string) {
-  const queryWords = getSignificantWords(normalizedRawQuery);
+function catalogCoversSignificantWords(food: CatalogFood, normalizedRawQuery: string, mentionedBrand: string | null) {
+  const brandWords = new Set(mentionedBrand ? getSignificantWords(mentionedBrand) : []);
+  const queryWords = getSignificantWords(normalizedRawQuery).filter(word => !brandWords.has(word));
   if (queryWords.length <= 1) return true;
 
   const searchable = normalizeForMatching([
@@ -117,6 +144,8 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
   const queryVariations = detectCriticalVariations(normalizedRawQuery);
   const queryMentionsFullAlias = (alias: string) => normalizedTokenIncludes(normalizedQuery, alias);
   const queryText = normalizedQuery.trim();
+  const brandWords = new Set(mentionedBrand ? getSignificantWords(mentionedBrand) : []);
+  const queryWordSet = new Set(getSignificantWords(normalizedRawQuery).filter(word => !brandWords.has(word)));
   let bestScore = 0;
 
   for (const candidate of [food.name, ...food.aliases]) {
@@ -133,6 +162,12 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
       continue;
     }
 
+    const aliasWords = getSignificantWords(alias);
+    if (aliasWords.length > 1 && aliasWords.every(word => queryWordSet.has(word))) {
+      bestScore = Math.max(bestScore, 600 + alias.length);
+      continue;
+    }
+
     if (!food.isBrandedProduct && alias.includes(queryText)) {
       bestScore = Math.max(bestScore, 350 + queryText.length);
     }
@@ -140,7 +175,7 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
 
   if (!bestScore) return 0;
 
-  if (!catalogCoversSignificantWords(food, normalizedRawQuery)) {
+  if (!catalogCoversSignificantWords(food, normalizedRawQuery, mentionedBrand)) {
     return 0;
   }
 
