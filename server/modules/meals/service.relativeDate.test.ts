@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const storagePutMock = vi.fn();
 const transcribeAudioMock = vi.fn();
@@ -83,6 +83,10 @@ describe("processMealDraft relative date suggestions", () => {
       processed,
       media,
     }));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("retorna suggestedOccurredAt no dia anterior quando o texto menciona ontem", async () => {
