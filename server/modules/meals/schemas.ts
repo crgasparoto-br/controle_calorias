@@ -94,6 +94,7 @@ export const updateMealGroupSchema = z.object({
   mealLabel: mealLabelSchema,
   meals: z.array(z.object({
     mealId: z.number().int().positive(),
+    occurredAt: z.string().min(1).optional(),
     items: z.array(mealItemSchema),
   })).min(1).max(50),
 });
