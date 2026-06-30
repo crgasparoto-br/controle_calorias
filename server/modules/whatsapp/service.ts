@@ -18,6 +18,7 @@ import {
   registerWhatsappConversationPendingContext,
   resolveWhatsappConversationContext,
 } from "./conversationContext";
+import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import {
   buildWhatsappDuplicateInboundResult,
@@ -251,6 +252,16 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   });
   if (route.action !== "continue_pipeline") {
     return logAndReturnRouterResult(userId, route);
+  }
+
+  const datedFoodAddition = await logAndReturnInterpretedIntent(userId, await executeWhatsappDatedFoodAdditionIntent(userId, {
+    text,
+    receivedAt,
+  }), { text, receivedAt });
+  if (datedFoodAddition) {
+    return temporalResolution.context
+      ? { ...datedFoodAddition, data: { ...datedFoodAddition.data, temporalContext: temporalResolution.context } }
+      : datedFoodAddition;
   }
 
   const waterFoodSplit = splitWhatsAppWaterAndFoodText(text);
