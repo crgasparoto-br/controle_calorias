@@ -7,6 +7,7 @@ const logInferenceEventMock = vi.fn();
 const upsertUserWhatsappConnectionMock = vi.fn();
 const listMealsMock = vi.fn();
 const processMealDraftMock = vi.fn();
+const executeWhatsappDatedFoodAdditionIntentMock = vi.fn();
 const executeWhatsappLlmIntentMock = vi.fn();
 const executeWhatsappTextIntentMock = vi.fn();
 const executeWhatsAppFoodAssistantIntentMock = vi.fn();
@@ -22,6 +23,10 @@ vi.mock("../../db", () => ({
 vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,
   processMealDraft: processMealDraftMock,
+}));
+
+vi.mock("./datedFoodAdditionIntent", () => ({
+  executeWhatsappDatedFoodAdditionIntent: executeWhatsappDatedFoodAdditionIntentMock,
 }));
 
 vi.mock("./llmIntentActions", () => ({
@@ -81,11 +86,13 @@ describe("simulateWhatsappInbound", () => {
     upsertUserWhatsappConnectionMock.mockReset();
     listMealsMock.mockReset();
     processMealDraftMock.mockReset();
+    executeWhatsappDatedFoodAdditionIntentMock.mockReset();
     executeWhatsappLlmIntentMock.mockReset();
     executeWhatsappTextIntentMock.mockReset();
     executeWhatsAppFoodAssistantIntentMock.mockReset();
     getDbMock.mockResolvedValue(null);
     listMealsMock.mockResolvedValue([]);
+    executeWhatsappDatedFoodAdditionIntentMock.mockResolvedValue(null);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     executeWhatsappTextIntentMock.mockResolvedValue(null);
     executeWhatsAppFoodAssistantIntentMock.mockReturnValue(null);
