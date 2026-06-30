@@ -60,8 +60,10 @@ type ExecuteWhatsappMultiActionIntentInput = {
   temporalContext?: Record<string, unknown> | null;
 };
 
-const ACTION_SPLIT_RE = /\s+(?:e|depois|entao|então)\s+(?=(?:troca|trocar|substitui|substituir|remove|remover|tira|tirar|retira|retirar|corrige|corrigir|ajusta|ajustar|soma|somar|some|adiciona|adicionar|adicione|inclui|inclua|lança|lanca|registre|registra|não é|nao e|não era|nao era)(?:\s|$))/gi;
-const ACTION_COMMA_SPLIT_RE = /\s*,\s*(?=(?:troca|trocar|substitui|substituir|remove|remover|tira|tirar|retira|retirar|corrige|corrigir|ajusta|ajustar|soma|somar|some|adiciona|adicionar|adicione|inclui|inclua|lança|lanca|registre|registra|não é|nao e|não era|nao era)(?:\s|$))/gi;
+const ACTION_START_PATTERN = "(?:troca|trocar|substitui|substituir|remove|remover|tira|tirar|retira|retirar|corrige|corrigir|ajusta|ajustar|soma|somar|some|adiciona|adicionar|adicione|inclui|inclua|lança|lanca|registre|registra|não\\s+é|nao\\s+e|não\\s+era|nao\\s+era)";
+const ACTION_SPLIT_RE = new RegExp(`\\s+(?:e|depois|entao|então)\\s+(?=${ACTION_START_PATTERN}(?:\\s|$))`, "gi");
+const ACTION_COMMA_SPLIT_RE = new RegExp(`\\s*,\\s*(?=${ACTION_START_PATTERN}(?:\\s|$))`, "gi");
+const REPEATED_ACTION_SPLIT_RE = new RegExp(`\\s+(?=${ACTION_START_PATTERN}(?:\\s|$))`, "gi");
 const QUANTITY_RE = /^(\d+(?:[,.]\d+)?)\s*(g|gramas?|kg|ml|l|litros?|unidades?|un|fatia|fatias|colher|colheres)\b/i;
 
 function cleanText(value: string) {
@@ -80,6 +82,7 @@ function splitPotentialActions(text: string) {
     .replace(/[;]+/g, "|")
     .replace(ACTION_COMMA_SPLIT_RE, "|")
     .replace(ACTION_SPLIT_RE, "|")
+    .replace(REPEATED_ACTION_SPLIT_RE, "|")
     .split("|")
     .map(cleanText)
     .filter(Boolean);
