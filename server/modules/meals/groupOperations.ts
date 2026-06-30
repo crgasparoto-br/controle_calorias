@@ -70,7 +70,7 @@ export async function updateMealGroup(userId: number, input: UpdateMealGroupInpu
     updatedMeals.push(await updateMeal(userId, {
       mealId: mealInput.mealId,
       mealLabel: input.mealLabel,
-      occurredAt: new Date(existing.occurredAt).toISOString(),
+      occurredAt: mealInput.occurredAt ?? new Date(existing.occurredAt).toISOString(),
       notes: existing.notes,
       items: mealInput.items,
     }));
