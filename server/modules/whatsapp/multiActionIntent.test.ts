@@ -36,6 +36,38 @@ describe("executeWhatsappMultiActionIntent", () => {
     ]);
   });
 
+  it("decompoe trocas repetidas mesmo sem virgula antes da segunda correcao", () => {
+    const result = executeWhatsappMultiActionIntent({
+      text: "Não é pão francês é pão de milho Não é mortadela é peito de peru",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "multi_action_confirmation_needed",
+      data: expect.objectContaining({
+        actionCount: 2,
+        transactionMode: "all_or_nothing",
+        partialSuccessAllowed: false,
+      }),
+    }));
+    expect(result?.data.extractedActions).toEqual([
+      expect.objectContaining({
+        order: 1,
+        actionType: "trocar_alimento",
+        sourceFood: "pão francês",
+        targetFood: "pão de milho",
+        validationStatus: "needs_confirmation",
+      }),
+      expect.objectContaining({
+        order: 2,
+        actionType: "trocar_alimento",
+        sourceFood: "mortadela",
+        targetFood: "peito de peru",
+        validationStatus: "needs_confirmation",
+      }),
+    ]);
+  });
+
   it("decompoe multiplas remocoes em uma unica resposta segura", () => {
     const result = executeWhatsappMultiActionIntent({
       text: "remove a cerveja e tira o feijão",

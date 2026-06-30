@@ -385,7 +385,6 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_updated",
         detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
-      await sendStravaExerciseImportedWhatsAppMessage(userId, existing.id, exerciseInput);
     } else {
       const created = await createExercise(userId, exerciseInput);
       existingExercises.push(created);
