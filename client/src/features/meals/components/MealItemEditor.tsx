@@ -171,6 +171,19 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
     updateQuantityAndUnit(parsePositiveQuantityInput(quantityInput) ?? quantity, value);
   };
 
+  const applyPortion = (portion: CatalogPortion, quantity = 1) => {
+    if (!selectedCatalogFood) return;
+    const grams = roundNutrition((portion.grams * quantity) / (portion.quantity || 1));
+
+    onChange("portionId", portion.id);
+    onChange("portionQuantity", quantity);
+    onChange("quantity", quantity);
+    onChange("unit", normalizeUnitInput(portion.unit || portion.label) || "porção");
+    onChange("portionText", portionLabel(quantity, portion));
+    onChange("servings", quantity);
+    applyCatalogNutrition(selectedCatalogFood, grams);
+  };
+
   const handleManualQuantityChange = (nextQuantity: number) => {
     updateQuantityAndUnit(nextQuantity, unitInput || unit);
     onChange("portionId", undefined);
