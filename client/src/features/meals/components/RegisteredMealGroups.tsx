@@ -76,10 +76,10 @@ function normalizeItemForSave(item: MealItemState): MealItemState {
   };
 }
 
-function buildMealItemUpdatePayload(meal: StoredMeal, userTimeZone: string, items: MealItemState[]) {
+function buildMealItemUpdatePayload(meal: StoredMeal, userTimeZone: string, items: MealItemState[], mealLabel = normalizeMealType(meal.mealLabel)) {
   return {
     mealId: meal.id,
-    mealLabel: normalizeMealType(meal.mealLabel),
+    mealLabel,
     occurredAt: zonedDateTimeLocalToIso(toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone), userTimeZone),
     notes: meal.notes?.trim() || undefined,
     items,
@@ -438,14 +438,19 @@ export function RegisteredMealGroups({
     setEditingItemTarget({ meal, itemIndex });
   };
 
-  const handleSaveMealItem = (item: MealItemState) => {
+  const handleSaveMealItem = (item: MealItemState, mealLabel: string) => {
     if (!editingItemTarget) {
       return;
     }
 
     const normalizedItem = normalizeItemForSave(item);
+    const normalizedMealLabel = mealLabel.trim();
     if (!normalizedItem.foodName) {
       toast.error("Preencha o nome do alimento.");
+      return;
+    }
+    if (!normalizedMealLabel) {
+      toast.error("Escolha a refeição do alimento.");
       return;
     }
 
@@ -456,6 +461,7 @@ export function RegisteredMealGroups({
       editingItemTarget.meal.items.map((currentItem, currentIndex) =>
         currentIndex === editingItemTarget.itemIndex ? normalizedItem : normalizeItemForSave(currentItem),
       ),
+      normalizedMealLabel,
     ));
   };
 

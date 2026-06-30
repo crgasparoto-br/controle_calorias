@@ -11,8 +11,10 @@ import {
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { Trash2 } from "lucide-react";
 import { MealItemEditor } from "./MealItemEditor";
+import { MealLabelInput } from "./MealLabelInput";
 import { SummaryPill } from "./SummaryPill";
 import { createEmptyItem, sumItems } from "../mealFormState";
+import { normalizeMealType } from "../mealViewModels";
 import type { MealItemState, StoredMeal } from "../types";
 
 export type RegisteredMealItemEditTarget = {
@@ -25,11 +27,15 @@ type RegisteredMealItemEditDialogProps = {
   isSaving?: boolean;
   onOpenChange: (open: boolean) => void;
   onDelete: () => void;
-  onSave: (item: MealItemState) => void;
+  onSave: (item: MealItemState, mealLabel: string) => void;
 };
 
 function getInitialItem(target: RegisteredMealItemEditTarget | null): MealItemState {
   return target?.meal.items[target.itemIndex] ? { ...target.meal.items[target.itemIndex] } : createEmptyItem();
+}
+
+function getInitialMealLabel(target: RegisteredMealItemEditTarget | null) {
+  return target?.meal.mealLabel ? normalizeMealType(target.meal.mealLabel) : "";
 }
 
 export function RegisteredMealItemEditDialog({
@@ -40,9 +46,11 @@ export function RegisteredMealItemEditDialog({
   onSave,
 }: RegisteredMealItemEditDialogProps) {
   const [draftItem, setDraftItem] = useState<MealItemState>(() => getInitialItem(target));
+  const [draftMealLabel, setDraftMealLabel] = useState(() => getInitialMealLabel(target));
 
   useEffect(() => {
     setDraftItem(getInitialItem(target));
+    setDraftMealLabel(getInitialMealLabel(target));
   }, [target]);
 
   const totals = useMemo(() => sumItems([draftItem]), [draftItem]);
@@ -52,13 +60,17 @@ export function RegisteredMealItemEditDialog({
     setDraftItem(current => ({ ...current, [key]: value }));
   };
 
+  if (!target) {
+    return null;
+  }
+
   return (
     <Dialog open={Boolean(target)} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Editar alimento</DialogTitle>
           <DialogDescription>
-            Ajuste somente as informações de {foodName}. Ao excluir o último alimento de um horário, aquele registro será removido.
+            Ajuste as informações de {foodName} e, se precisar, mova o alimento para outra refeição.
           </DialogDescription>
         </DialogHeader>
 
@@ -73,6 +85,7 @@ export function RegisteredMealItemEditDialog({
             </div>
           </div>
 
+          <MealLabelInput value={draftMealLabel} onChange={setDraftMealLabel} />
           <MealItemEditor item={draftItem} onChange={updateDraftItem} />
         </div>
 
@@ -91,7 +104,7 @@ export function RegisteredMealItemEditDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button type="button" onClick={() => onSave(draftItem)} disabled={isSaving}>
+            <Button type="button" onClick={() => onSave(draftItem, draftMealLabel)} disabled={isSaving}>
               {isSaving ? "Salvando..." : "Salvar alimento"}
             </Button>
           </div>

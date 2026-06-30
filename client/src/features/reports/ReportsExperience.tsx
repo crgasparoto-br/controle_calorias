@@ -1,6 +1,7 @@
 import React from "react";
 import PageIntro from "@/components/PageIntro";
 import { PeriodScopeSelector } from "@/components/PeriodScopeSelector";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,8 +40,10 @@ import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import {
   calculateCalorieAdherence,
+  calculateFoodQualitySummary,
   calculateMacroAdherence,
   calculateMacroDaySummary,
+  type FoodQualityDay,
   type FoodQualitySummary,
   type MacroGoalDay,
   type MacroTotals,
@@ -53,30 +56,14 @@ type ReportsExperienceContext = "self" | "professional";
 type MealDateGroup = { date: string; items: StoredMeal[] };
 type Totals = { calories: number; protein: number; carbs: number; fat: number };
 type DateRange = { start: string; end: string };
-type ReportDay = Totals & {
-  date: string;
-  label: string;
-  goalCalories: number;
-  adjustedGoalCalories: number;
-  goalProtein: number;
-  goalCarbs: number;
-  goalFat: number;
-  waterConsumedMl: number;
-  waterGoalMl: number;
-  exerciseCalories: number;
-};
+type ReportDay = Totals & { date: string; label: string; goalCalories: number; adjustedGoalCalories: number; goalProtein: number; goalCarbs: number; goalFat: number; waterConsumedMl: number; waterGoalMl: number; exerciseCalories: number; quality?: any };
 type TrendDay = ReportTrendDay & { baseGoalCalories: number; exerciseCalories: number; calorieDelta: number; adherencePercent: number };
 type WeightPoint = { date: string; weightKg: number | null };
 type MacroGoalDayWithDate = MacroGoalDay & { date: string };
 type MacroGoalKey = "goalProtein" | "goalCarbs" | "goalFat";
-
 type QueryLike = { data: unknown; isLoading: boolean; isError: boolean };
 
-export type ReportsExperienceProps = {
-  context?: ReportsExperienceContext;
-  viewerUserId?: number | null;
-  subjectUserId?: number | null;
-};
+export type ReportsExperienceProps = { context?: ReportsExperienceContext; viewerUserId?: number | null; subjectUserId?: number | null };
 
 const EMPTY_TOTALS: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const EMPTY_QUALITY = { proteinGrams: 0, fiberGrams: 0, waterMl: 0, fruitServings: 0, vegetableServings: 0, ultraProcessedServings: 0, mealCount: 0, regularityScore: 0 };
@@ -113,6 +100,7 @@ function normalizeDay(day: any, fallbackGoal?: any): ReportDay {
     waterConsumedMl: numberValue(day.waterConsumedMl),
     waterGoalMl: numberValue(day.waterGoalMl),
     exerciseCalories: numberValue(day.exerciseCalories),
+    quality: day.quality,
   };
 }
 
@@ -155,24 +143,15 @@ function buildGroupedMealViewModels(mealsByDate: MealDateGroup[]): DateGroupedRe
 
 function normalizeMealDateGroups(value: any, range: DateRange): MealDateGroup[] {
   return (Array.isArray(value) ? value : [])
-    .map((group: any) => ({
-      date: String(group?.date ?? ""),
-      items: ((group?.items ?? group?.meals ?? []) as StoredMeal[]).filter(Boolean),
-    }))
+    .map((group: any) => ({ date: String(group?.date ?? ""), items: ((group?.items ?? group?.meals ?? []) as StoredMeal[]).filter(Boolean) }))
     .filter(group => group.date >= range.start && group.date <= range.end);
 }
 
 function extractMeals(bundleData: any, mealDateGroups: MealDateGroup[], range: DateRange, userTimeZone: string): StoredMeal[] {
   const groupedMeals = mealDateGroups.flatMap(group => group.items);
   if (groupedMeals.length) return groupedMeals;
-
-  const candidate = [bundleData?.meals, bundleData?.recentMeals, bundleData?.periodMeals, bundleData?.weeklyMeals]
-    .find(value => Array.isArray(value));
-  return filterMealsByDateRange((candidate ?? []).filter(Boolean) as StoredMeal[], {
-    startDate: range.start,
-    endDate: range.end,
-    timeZone: userTimeZone,
-  });
+  const candidate = [bundleData?.meals, bundleData?.recentMeals, bundleData?.periodMeals, bundleData?.weeklyMeals].find(value => Array.isArray(value));
+  return filterMealsByDateRange((candidate ?? []).filter(Boolean) as StoredMeal[], { startDate: range.start, endDate: range.end, timeZone: userTimeZone });
 }
 
 function buildMealsByDate(mealsByDate: MealDateGroup[], periodMeals: StoredMeal[], userTimeZone: string) {
@@ -204,11 +183,7 @@ function calculateMacroPerKg(key: keyof MacroTotals, days: MacroGoalDayWithDate[
     acc.days += 1;
     return acc;
   }, { planned: 0, realized: 0, days: 0 });
-
-  return {
-    planned: perKg.days ? perKg.planned / perKg.days : null,
-    realized: perKg.days ? perKg.realized / perKg.days : null,
-  };
+  return { planned: perKg.days ? perKg.planned / perKg.days : null, realized: perKg.days ? perKg.realized / perKg.days : null };
 }
 
 function formatPerKgDay(value: number | null) {
@@ -234,11 +209,25 @@ function findExtreme<T>(items: T[], getValue: (item: T) => number, direction: "m
 }
 
 function normalizeQueryResult(value: any): QueryLike {
-  return {
-    data: value?.data ?? null,
-    isLoading: Boolean(value?.isLoading),
-    isError: Boolean(value?.isError),
-  };
+  return { data: value?.data ?? null, isLoading: Boolean(value?.isLoading), isError: Boolean(value?.isError) };
+}
+
+function buildQualityFromDays(days: ReportDay[]) {
+  const foodQualityDays: FoodQualityDay[] = [];
+  const quality = days.reduce((total, day) => {
+    const item = day.quality ?? {};
+    total.proteinGrams += numberValue(item.proteinGrams);
+    total.fiberGrams += numberValue(item.fiberGrams);
+    total.waterMl += numberValue(item.waterMl);
+    total.fruitServings += numberValue(item.fruitServings);
+    total.vegetableServings += numberValue(item.vegetableServings);
+    total.ultraProcessedServings += numberValue(item.ultraProcessedServings);
+    total.mealCount += numberValue(item.mealCount);
+    total.regularityScore += numberValue(item.regularityScore) / Math.max(days.length, 1);
+    foodQualityDays.push({ date: day.date, items: item.foodQualityItems ?? [] });
+    return total;
+  }, { ...EMPTY_QUALITY });
+  return { simpleQuality: quality, foodQuality: calculateFoodQualitySummary(foodQualityDays, days.length) };
 }
 
 function ChartFallback() {
@@ -255,7 +244,6 @@ function MacroDistributionSection({ consumed, planned, dailyMacros, weightPoints
   const hasMacroGoal = planned.protein > 0 || planned.carbs > 0 || planned.fat > 0;
   const chartData = analysis.items.map(item => ({ macro: item.label, planejado: item.plannedPercent, realizado: item.consumedPercent }));
   const macroDetails = analysis.items.map(item => ({ item, perKg: calculateMacroPerKg(item.key, dailyMacros, weightPoints) }));
-
   return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Macronutrientes planejados vs realizados</CardTitle><CardDescription>Mostra gramas, g/kg/dia e distribuição percentual para avaliar a composição do período, não apenas o total de calorias.</CardDescription></CardHeader><CardContent className="space-y-5">{!hasMacroGoal ? <ReportEmptyState text="Configure metas de proteínas, carboidratos e gorduras para liberar a comparação percentual de macros." /> : <><div className="grid gap-3 md:grid-cols-3"><ReportStatusTile label="Aderência da distribuição" value={formatPercent(analysis.distributionAdherencePercent)} /><ReportStatusTile label="Macro mais distante" value={analysis.mostDistantMacro?.label ?? "-"} /><ReportStatusTile label="Dias com macros" value={daySummary.daysWithMacroRecords} /></div><div className="h-[280px] rounded-2xl border bg-background p-4 shadow-sm"><React.Suspense fallback={<ChartFallback />}><ReportsMacroDistributionChart data={chartData} /></React.Suspense></div><div className="grid gap-3 md:grid-cols-3">{macroDetails.map(({ item, perKg }) => <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm font-medium">{item.label}</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><MacroValueTile label="Planejado" grams={item.plannedGrams} perKg={perKg.planned} /><MacroValueTile label="Realizado" grams={item.consumedGrams} perKg={perKg.realized} /></div><p className="mt-3 text-sm text-muted-foreground">Distribuição: {formatPercent(item.plannedPercent)} planejado vs {formatPercent(item.consumedPercent)} realizado.</p></div>)}</div></>}</CardContent></Card>;
 }
 
@@ -283,6 +271,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const [selectedMonth, setSelectedMonth] = React.useState(() => toMonthInputValue(new Date(), userTimeZone));
   const [rangeStart, setRangeStart] = React.useState(() => toDateInputValue(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000), userTimeZone));
   const [rangeEnd, setRangeEnd] = React.useState(() => toDateInputValue());
+  const [showDetails, setShowDetails] = React.useState(false);
 
   const activeRange = React.useMemo(() => {
     if (periodScope === "day") return { start: selectedDay, end: selectedDay };
@@ -292,32 +281,40 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
   const weekOffset = React.useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
 
-  const selfWeeklyBundle = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" }));
+  React.useEffect(() => setShowDetails(false), [activeRange.start, activeRange.end, periodScope, subjectUserId]);
+
+  const selfWeeklyQuery = trpc.nutrition.reports.weekly;
+  const hasWeeklySummaryQuery = Boolean(selfWeeklyQuery);
+  const selfWeeklySummary = normalizeQueryResult(selfWeeklyQuery?.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" && hasWeeklySummaryQuery }));
+  const selfWeeklyDetails = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" && (!hasWeeklySummaryQuery || showDetails) }));
   const selfPeriodBundle = normalizeQueryResult(trpc.nutrition.reports.periodBundle.useQuery({ startDate: activeRange.start, endDate: activeRange.end }, { enabled: !isProfessional && periodScope !== "week" }));
   const professionalPeriodQuery = trpc.nutrition.professionals?.patientPeriodBundle;
-  const professionalWeeklyBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) && periodScope === "week" }));
-  const professionalPeriodBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) && periodScope !== "week" }));
+  const professionalBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) }));
+
   const isWeek = periodScope === "week";
-  const usesWeeklyShape = !isProfessional && isWeek;
-  const activeBundle = isProfessional ? (isWeek ? professionalWeeklyBundle : professionalPeriodBundle) : (isWeek ? selfWeeklyBundle : selfPeriodBundle);
+  const weeklyDetailsLoadedByFallback = isWeek && !isProfessional && !hasWeeklySummaryQuery;
+  const activeBundle = isProfessional ? professionalBundle : (isWeek ? (hasWeeklySummaryQuery ? selfWeeklySummary : selfWeeklyDetails) : selfPeriodBundle);
+  const detailsBundle = isProfessional || !isWeek ? activeBundle : selfWeeklyDetails;
   const bundleData = activeBundle.data as any;
+  const detailData = detailsBundle.data as any;
 
   const metricDays = React.useMemo(() => {
-    const rawDays = usesWeeklyShape ? (bundleData?.weekly ?? bundleData?.weeklyReport ?? []) : (bundleData?.daily ?? []);
+    const rawDays = isWeek && !isProfessional ? (Array.isArray(bundleData) ? bundleData : bundleData?.weekly ?? bundleData?.weeklyReport ?? []) : (bundleData?.daily ?? []);
     return (rawDays as any[]).map(day => normalizeDay(day, bundleData?.goal));
-  }, [bundleData, usesWeeklyShape]);
+  }, [bundleData, isProfessional, isWeek]);
   const dayCount = metricDays.length || countDaysInRange(activeRange);
-  const trendData = metricDays.map(toTrendDay);
+  const trendData = React.useMemo(() => metricDays.map(toTrendDay), [metricDays]);
   const adherence = calculateCalorieAdherence(trendData, dayCount);
   const diagnosis = buildDiagnosis(periodScope, adherence.adherencePercent, adherence.daysWithinRange, dayCount);
   const totals = metricDays.length ? metricDays.reduce<Totals>((acc, day) => ({ calories: acc.calories + day.calories, protein: acc.protein + day.protein, carbs: acc.carbs + day.carbs, fat: acc.fat + day.fat }), { ...EMPTY_TOTALS }) : bundleData?.totals ?? EMPTY_TOTALS;
   const consumedMacros: MacroTotals = { protein: totals.protein, carbs: totals.carbs, fat: totals.fat };
   const plannedMacros: MacroTotals = { protein: metricDays.reduce((total, day) => total + day.goalProtein, 0), carbs: metricDays.reduce((total, day) => total + day.goalCarbs, 0), fat: metricDays.reduce((total, day) => total + day.goalFat, 0) };
   const dailyMacros: MacroGoalDayWithDate[] = metricDays.map(day => ({ date: day.date, protein: day.protein, carbs: day.carbs, fat: day.fat, goalProtein: day.goalProtein, goalCarbs: day.goalCarbs, goalFat: day.goalFat }));
-  const supportWeight = usesWeeklyShape ? (bundleData?.progress?.weight ?? bundleData?.weight) : (bundleData?.weightTrend ?? bundleData?.progress?.weight);
+  const qualityFromDays = React.useMemo(() => buildQualityFromDays(metricDays), [metricDays]);
+  const supportWeight = isWeek && !isProfessional ? detailData?.progress?.weight : (bundleData?.weightTrend ?? bundleData?.progress?.weight);
   const weightPoints = normalizeWeightPoints(supportWeight);
-  const simpleQuality = bundleData?.quality ?? EMPTY_QUALITY;
-  const foodQuality = bundleData?.quality?.foodQuality as FoodQualitySummary | undefined;
+  const simpleQuality = bundleData?.quality ?? detailData?.quality ?? qualityFromDays.simpleQuality;
+  const foodQuality = (bundleData?.quality?.foodQuality ?? detailData?.quality?.foodQuality ?? qualityFromDays.foodQuality) as FoodQualitySummary | undefined;
   const waterConsumedMl = isWeek ? metricDays.reduce((total, day) => total + day.waterConsumedMl, 0) : numberValue(bundleData?.habitAnalytics?.water?.totalConsumedMl);
   const waterGoalMl = isWeek ? metricDays.reduce((total, day) => total + day.waterGoalMl, 0) : numberValue(bundleData?.habitAnalytics?.water?.totalGoalMl);
   const waterHitDays = isWeek ? metricDays.filter(day => day.waterGoalMl > 0 && day.waterConsumedMl >= day.waterGoalMl).length : numberValue(bundleData?.habitAnalytics?.water?.goalHitDays);
@@ -325,17 +322,20 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const exerciseActiveDays = isWeek ? metricDays.filter(day => day.exerciseCalories > 0).length : numberValue(bundleData?.habitAnalytics?.exercise?.activeDays);
   const exerciseCalories = isWeek ? metricDays.reduce((total, day) => total + day.exerciseCalories, 0) : numberValue(bundleData?.habitAnalytics?.exercise?.totalCalories);
   const highestExerciseDay = findExtreme(metricDays, day => day.exerciseCalories, "max");
-  const mealDateGroups = React.useMemo(() => normalizeMealDateGroups(bundleData?.mealsByDate ?? bundleData?.mealsByDay ?? bundleData?.dailyMealsByDate, activeRange), [activeRange, bundleData]);
-  const periodMeals = React.useMemo(() => extractMeals(bundleData, mealDateGroups, activeRange, userTimeZone), [activeRange, bundleData, mealDateGroups, userTimeZone]);
+  const mealDateGroups = React.useMemo(() => normalizeMealDateGroups(detailData?.mealsByDate ?? detailData?.mealsByDay ?? detailData?.dailyMealsByDate, activeRange), [activeRange, detailData]);
+  const periodMeals = React.useMemo(() => extractMeals(detailData, mealDateGroups, activeRange, userTimeZone), [activeRange, detailData, mealDateGroups, userTimeZone]);
   const mealGroupsAsc = React.useMemo(() => buildMealsByDate(mealDateGroups, periodMeals, userTimeZone), [mealDateGroups, periodMeals, userTimeZone]);
   const mealGroupsDesc = React.useMemo(() => [...mealGroupsAsc].reverse(), [mealGroupsAsc]);
   const scopeLabel = periodScope === "day" ? "Dia" : periodScope === "week" ? "Semana" : periodScope === "month" ? "Mês" : "Período";
+  const shouldShowDetailsPrompt = !isProfessional && isWeek && hasWeeklySummaryQuery && !showDetails;
+  const shouldRenderDetails = isProfessional || !isWeek || showDetails || weeklyDetailsLoadedByFallback;
+  const shouldShowDetailsState = showDetails || weeklyDetailsLoadedByFallback;
 
   if (isProfessional && !subjectUserId) {
     return <ReportEmptyState text="Escolha uma pessoa autorizada para revisar relatórios, metas e evolução no período selecionado." />;
   }
 
-  return <div className="space-y-6"><PageIntro eyebrow="Relatórios" title="Diagnóstico nutricional do período" description={`${diagnosis} Intervalo ativo: ${formatRangeLabel(activeRange)}.`} actions={<PeriodScopeSelector scope={periodScope} onScopeChange={setPeriodScope} selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} selectedMonth={selectedMonth} onSelectedMonthChange={setSelectedMonth} rangeStart={rangeStart} onRangeStartChange={setRangeStart} rangeEnd={rangeEnd} onRangeEndChange={setRangeEnd} />} />{activeBundle.isLoading ? <div className="grid gap-4 lg:grid-cols-3"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : null}{activeBundle.isError ? <ReportEmptyState text={isProfessional ? "Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." : "Não foi possível carregar os relatórios agora. Tente novamente em instantes."} /> : null}{!activeBundle.isLoading && !activeBundle.isError ? <><CalorieAdherenceSection trendData={trendData} dayCount={dayCount} /><ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={trendData} /><FoodQualitySection quality={foodQuality} simpleQuality={simpleQuality} dayCount={dayCount} /><MacroDistributionSection consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} weightPoints={weightPoints} /><ReportsSupportInsightsSection scopeLabel={scopeLabel} trendData={trendData} dayCount={dayCount} weight={supportWeight} /><div className="grid gap-6 xl:grid-cols-2"><ReportWaterAnalyticsCard title="Hidratação como contexto" scopeLabel={isWeek ? "Semanal" : "Período"} description="Mostra consistência de água sem competir com o diagnóstico calórico." totalConsumedMl={waterConsumedMl} totalGoalMl={waterGoalMl} goalHitDays={waterHitDays} totalDays={dayCount} averageDailyMl={averageValue(waterConsumedMl, Math.max(dayCount, 1))} lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} reading={waterHitDays > 0 ? `${waterHitDays} de ${dayCount} dias bateram a meta de água.` : "Ainda não há dias com meta de água batida neste intervalo."} /><ReportExerciseAnalyticsCard title="Exercícios e meta ajustada" scopeLabel={isWeek ? "Semanal" : "Período"} description="Explica quanto os exercícios adicionaram à meta e como se distribuíram no período." activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} detailLabel="Impacto na meta" detailValue={formatCalories(exerciseCalories)} averageCaloriesPerActiveDay={exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0} highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} reading={exerciseActiveDays > 0 ? `Os exercícios apareceram em ${exerciseActiveDays} de ${dayCount} dias e foram incorporados à meta ajustada.` : "Nenhum exercício foi registrado neste intervalo."} /></div><DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} /></> : null}</div>;
+  return <div className="space-y-6"><PageIntro eyebrow="Relatórios" title="Diagnóstico nutricional do período" description={`${diagnosis} Intervalo ativo: ${formatRangeLabel(activeRange)}.`} actions={<PeriodScopeSelector scope={periodScope} onScopeChange={setPeriodScope} selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} selectedMonth={selectedMonth} onSelectedMonthChange={setSelectedMonth} rangeStart={rangeStart} onRangeStartChange={setRangeStart} rangeEnd={rangeEnd} onRangeEndChange={setRangeEnd} />} />{activeBundle.isLoading ? <div className="grid gap-4 lg:grid-cols-3"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : null}{activeBundle.isError ? <ReportEmptyState text={isProfessional ? "Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." : "Não foi possível carregar os relatórios agora. Tente novamente em instantes."} /> : null}{!activeBundle.isLoading && !activeBundle.isError ? <><CalorieAdherenceSection trendData={trendData} dayCount={dayCount} /><ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={trendData} /><FoodQualitySection quality={foodQuality} simpleQuality={simpleQuality} dayCount={dayCount} /><MacroDistributionSection consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} weightPoints={weightPoints} /><ReportsSupportInsightsSection scopeLabel={scopeLabel} trendData={trendData} dayCount={dayCount} weight={supportWeight} /><div className="grid gap-6 xl:grid-cols-2"><ReportWaterAnalyticsCard title="Hidratação como contexto" scopeLabel={isWeek ? "Semanal" : "Período"} description="Mostra consistência de água sem competir com o diagnóstico calórico." totalConsumedMl={waterConsumedMl} totalGoalMl={waterGoalMl} goalHitDays={waterHitDays} totalDays={dayCount} averageDailyMl={averageValue(waterConsumedMl, Math.max(dayCount, 1))} lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} reading={waterHitDays > 0 ? `${waterHitDays} de ${dayCount} dias bateram a meta de água.` : "Ainda não há dias com meta de água batida neste intervalo."} /><ReportExerciseAnalyticsCard title="Exercícios e meta ajustada" scopeLabel={isWeek ? "Semanal" : "Período"} description="Explica quanto os exercícios adicionaram à meta e como se distribuíram no período." activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} detailLabel="Impacto na meta" detailValue={formatCalories(exerciseCalories)} averageCaloriesPerActiveDay={exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0} highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} reading={exerciseActiveDays > 0 ? `Os exercícios apareceram em ${exerciseActiveDays} de ${dayCount} dias e foram incorporados à meta ajustada.` : "Nenhum exercício foi registrado neste intervalo."} /></div>{shouldShowDetailsPrompt ? <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5 text-primary" />Detalhamento de dias e refeições</CardTitle><CardDescription>O detalhamento completo é carregado apenas quando você precisar investigar as refeições.</CardDescription></CardHeader><CardContent><Button className="rounded-full" onClick={() => setShowDetails(true)}>Carregar detalhamento</Button></CardContent></Card> : null}{detailsBundle.isLoading && shouldShowDetailsState ? <Skeleton className="h-40 rounded-2xl" /> : null}{detailsBundle.isError && shouldShowDetailsState ? <ReportEmptyState text="Não foi possível carregar o detalhamento de refeições agora." /> : null}{shouldRenderDetails && !detailsBundle.isLoading && !detailsBundle.isError ? <DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} /> : null}</> : null}</div>;
 }
 
 export default ReportsExperience;
