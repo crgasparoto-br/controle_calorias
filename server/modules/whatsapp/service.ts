@@ -14,6 +14,13 @@ import {
 import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import {
+  getMissingWhatsAppChannelConfig,
+  getWhatsAppChannelConfig,
+  normalizeWhatsAppPhoneNumber,
+} from "../../whatsappConfig";
+import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
+import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
+import {
   getWhatsappConversationPendingContext,
   registerWhatsappConversationPendingContext,
   resolveWhatsappConversationContext,
@@ -34,6 +41,7 @@ import {
 import { getWhatsAppIntentLogStatus } from "./intentResult";
 import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
 import { executeWhatsappGramsAdjustmentIntent } from "./gramsAdjustmentIntent";
+import { executeWhatsappGramsIncrementIntent } from "./gramsIncrementIntent";
 import { resolveWhatsappTemporalContext } from "./temporalContext";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
@@ -327,6 +335,16 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return temporalResolution.context
       ? { ...gramsAdjustment, data: { ...gramsAdjustment.data, temporalContext: temporalResolution.context } }
       : gramsAdjustment;
+  }
+
+  const gramsIncrement = await logAndReturnInterpretedIntent(userId, await executeWhatsappGramsIncrementIntent(userId, {
+    text,
+    receivedAt,
+  }), { text, receivedAt });
+  if (gramsIncrement) {
+    return temporalResolution.context
+      ? { ...gramsIncrement, data: { ...gramsIncrement.data, temporalContext: temporalResolution.context } }
+      : gramsIncrement;
   }
 
   const recordAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappRecordAdjustmentIntent(userId, {
