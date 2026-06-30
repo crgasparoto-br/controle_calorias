@@ -21,6 +21,10 @@ function scaleNutritionValue(value: number, factor: number) {
   return roundNutritionValue(Number(value || 0) * factor);
 }
 
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function parseNumberForSubmit(value: unknown, fallback: number) {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : fallback;
@@ -40,21 +44,21 @@ function parseNumberForSubmit(value: unknown, fallback: number) {
   return fallback;
 }
 
-function parsePositiveNumberForSubmit(value: unknown, fallback: number) {
+function parsePositiveNumberForSubmit(value: unknown, fallback: number, max = Number.POSITIVE_INFINITY) {
   const numberValue = parseNumberForSubmit(value, fallback);
-  return numberValue > 0 ? numberValue : fallback;
+  return numberValue > 0 ? clampNumber(numberValue, 0.1, max) : fallback;
 }
 
-function parseNonNegativeNumberForSubmit(value: unknown, fallback = 0) {
+function parseNonNegativeNumberForSubmit(value: unknown, fallback = 0, max = Number.POSITIVE_INFINITY) {
   const numberValue = parseNumberForSubmit(value, fallback);
-  return numberValue >= 0 ? numberValue : fallback;
+  return numberValue >= 0 ? clampNumber(numberValue, 0, max) : fallback;
 }
 
 export function normalizeMealItemForSubmit(item: MealItemState): MealItemState {
   const foodName = item.foodName.trim();
   const canonicalName = item.canonicalName.trim() || foodName;
   const portionText = item.portionText.trim() || "1 porção";
-  const servings = parsePositiveNumberForSubmit(item.servings, 1);
+  const servings = parsePositiveNumberForSubmit(item.servings, 1, 20);
 
   return {
     ...item,
@@ -63,17 +67,17 @@ export function normalizeMealItemForSubmit(item: MealItemState): MealItemState {
     portionText,
     portionQuantity: item.portionQuantity === undefined
       ? undefined
-      : parsePositiveNumberForSubmit(item.portionQuantity, servings),
+      : parsePositiveNumberForSubmit(item.portionQuantity, servings, 100),
     quantity: item.quantity === undefined
       ? undefined
-      : parsePositiveNumberForSubmit(item.quantity, servings),
+      : parsePositiveNumberForSubmit(item.quantity, servings, 5000),
     servings,
-    estimatedGrams: parseNonNegativeNumberForSubmit(item.estimatedGrams),
-    calories: parseNonNegativeNumberForSubmit(item.calories),
-    protein: parseNonNegativeNumberForSubmit(item.protein),
-    carbs: parseNonNegativeNumberForSubmit(item.carbs),
-    fat: parseNonNegativeNumberForSubmit(item.fat),
-    confidence: Math.min(1, parseNonNegativeNumberForSubmit(item.confidence, 1)),
+    estimatedGrams: parseNonNegativeNumberForSubmit(item.estimatedGrams, 0, 5000),
+    calories: parseNonNegativeNumberForSubmit(item.calories, 0, 10000),
+    protein: parseNonNegativeNumberForSubmit(item.protein, 0, 1000),
+    carbs: parseNonNegativeNumberForSubmit(item.carbs, 0, 1000),
+    fat: parseNonNegativeNumberForSubmit(item.fat, 0, 1000),
+    confidence: parseNonNegativeNumberForSubmit(item.confidence, 1, 1),
   };
 }
 
