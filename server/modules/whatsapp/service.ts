@@ -34,6 +34,7 @@ import {
 import { getWhatsAppIntentLogStatus } from "./intentResult";
 import { executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
 import { executeWhatsappGramsAdjustmentIntent } from "./gramsAdjustmentIntent";
+import { executeWhatsappGramsIncrementIntent } from "./gramsIncrementIntent";
 import { resolveWhatsappTemporalContext } from "./temporalContext";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
 
@@ -329,6 +330,16 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       : gramsAdjustment;
   }
 
+  const gramsIncrement = await logAndReturnInterpretedIntent(userId, await executeWhatsappGramsIncrementIntent(userId, {
+    text,
+    receivedAt,
+  }), { text, receivedAt });
+  if (gramsIncrement) {
+    return temporalResolution.context
+      ? { ...gramsIncrement, data: { ...gramsIncrement.data, temporalContext: temporalResolution.context } }
+      : gramsIncrement;
+  }
+
   const recordAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappRecordAdjustmentIntent(userId, {
     text,
     receivedAt,
@@ -340,15 +351,6 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       : recordAdjustment;
   }
 
-  const llmRaw = await executeWhatsappLlmIntent(userId, { text, receivedAt, messageId: input.messageId });
-  // WhatsappLlmNutritionFallback (handled: false) não é um resultado de intent tratado — ignorar aqui
-  const llmInterpreted = await logAndReturnInterpretedIntent(userId, llmRaw && "handled" in llmRaw && !llmRaw.handled ? null : llmRaw as Exclude<typeof llmRaw, { handled: false }>, { text, receivedAt });
-  if (llmInterpreted) {
-    return temporalResolution.context
-      ? { ...llmInterpreted, data: { ...llmInterpreted.data, temporalContext: temporalResolution.context } }
-      : llmInterpreted;
-  }
-
   const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
     text,
     receivedAt,
@@ -357,6 +359,15 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return temporalResolution.context
       ? { ...interpreted, data: { ...interpreted.data, temporalContext: temporalResolution.context } }
       : interpreted;
+  }
+
+  const llmRaw = await executeWhatsappLlmIntent(userId, { text, receivedAt, messageId: input.messageId });
+  // WhatsappLlmNutritionFallback (handled: false) não é um resultado de intent tratado — ignorar aqui
+  const llmInterpreted = await logAndReturnInterpretedIntent(userId, llmRaw && "handled" in llmRaw && !llmRaw.handled ? null : llmRaw as Exclude<typeof llmRaw, { handled: false }>, { text, receivedAt });
+  if (llmInterpreted) {
+    return temporalResolution.context
+      ? { ...llmInterpreted, data: { ...llmInterpreted.data, temporalContext: temporalResolution.context } }
+      : llmInterpreted;
   }
 
   const assistant = executeWhatsAppFoodAssistantIntent(text);

@@ -172,6 +172,35 @@ describe("meal group operations", () => {
     }));
   });
 
+  it("atualiza a data enviada para cada refeição do grupo", async () => {
+    listMealsMock.mockResolvedValue([
+      buildMeal({ id: 10, occurredAt: new Date("2026-05-21T12:00:00.000Z").getTime(), notes: "a" }),
+      buildMeal({ id: 11, occurredAt: new Date("2026-05-21T14:00:00.000Z").getTime(), notes: "b" }),
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: unknown) => input);
+
+    await updateMealGroup(42, {
+      mealLabel: "jantar",
+      meals: [
+        { mealId: 10, occurredAt: "2026-05-20T12:00:00.000Z", items: [buildMeal({ id: 10 }).items[0]] },
+        { mealId: 11, occurredAt: "2026-05-20T14:00:00.000Z", items: [buildMeal({ id: 11 }).items[0]] },
+      ],
+    });
+
+    expect(updateMealMock).toHaveBeenNthCalledWith(1, 42, expect.objectContaining({
+      mealId: 10,
+      mealLabel: "jantar",
+      occurredAt: "2026-05-20T12:00:00.000Z",
+      notes: "a",
+    }));
+    expect(updateMealMock).toHaveBeenNthCalledWith(2, 42, expect.objectContaining({
+      mealId: 11,
+      mealLabel: "jantar",
+      occurredAt: "2026-05-20T14:00:00.000Z",
+      notes: "b",
+    }));
+  });
+
   it("remove todos os registros do grupo validado", async () => {
     listMealsMock.mockResolvedValue([
       buildMeal({ id: 10 }),

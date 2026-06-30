@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recalculateMealItemQuantityUnit } from "./mealFormState";
+import { normalizeMealItemForSubmit, recalculateMealItemQuantityUnit } from "./mealFormState";
 import type { MealItemState } from "./types";
 
 function buildItem(overrides: Partial<MealItemState> = {}): MealItemState {
@@ -83,6 +83,56 @@ describe("meal form quantity recalculation", () => {
       portionText: "300 g",
       estimatedGrams: 300,
       calories: 600,
+    }));
+  });
+
+  it("limita o recalculo aos valores aceitos pelo backend", () => {
+    const updated = recalculateMealItemQuantityUnit(buildItem({
+      servings: 15,
+      calories: 600,
+      protein: 80,
+      carbs: 80,
+      fat: 80,
+    }), 9999, "g");
+
+    expect(updated).toEqual(expect.objectContaining({
+      quantity: 5000,
+      unit: "g",
+      portionText: "5000 g",
+      servings: 20,
+      estimatedGrams: 5000,
+      calories: 10000,
+      protein: 1000,
+      carbs: 1000,
+      fat: 1000,
+    }));
+  });
+
+  it("normaliza valores editados para o intervalo aceito no salvamento", () => {
+    const normalized = normalizeMealItemForSubmit(buildItem({
+      foodName: " Café ",
+      canonicalName: "",
+      quantity: 6000,
+      servings: 30,
+      estimatedGrams: 6000,
+      calories: 12000,
+      protein: 1200,
+      carbs: 1200,
+      fat: 1200,
+      confidence: 2,
+    }));
+
+    expect(normalized).toEqual(expect.objectContaining({
+      foodName: "Café",
+      canonicalName: "Café",
+      quantity: 5000,
+      servings: 20,
+      estimatedGrams: 5000,
+      calories: 10000,
+      protein: 1000,
+      carbs: 1000,
+      fat: 1000,
+      confidence: 1,
     }));
   });
 });

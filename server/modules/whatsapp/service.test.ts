@@ -139,14 +139,11 @@ describe("simulateWhatsappInbound", () => {
       text: "300mo água",
     });
 
-    expect(executeWhatsappLlmIntentMock).toHaveBeenCalledWith(42, {
-      text: "300 ml água",
-      receivedAt: expect.any(Date),
-    });
     expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, {
       text: "300 ml água",
       receivedAt: expect.any(Date),
     });
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "water_logged",
