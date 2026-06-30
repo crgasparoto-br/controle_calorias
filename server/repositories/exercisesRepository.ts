@@ -24,6 +24,41 @@ export type ExercisesRepository = {
   delete(userId: number, exerciseId: number): Promise<void>;
 };
 
+function getExternalExerciseReference(exercise: Pick<ExerciseRecord, "notes">) {
+  const reference = /\bstrava:([a-zA-Z0-9_-]+)\b/i.exec(exercise.notes ?? "")?.[1];
+  return reference ? `strava:${reference.toLowerCase()}` : null;
+}
+
+function deduplicateExternalExercises(records: ExerciseRecord[]) {
+  const selectedByReference = new Map<string, ExerciseRecord>();
+  const recordsWithoutExternalReference: ExerciseRecord[] = [];
+
+  for (const record of records) {
+    const reference = getExternalExerciseReference(record);
+    if (!reference) {
+      recordsWithoutExternalReference.push(record);
+      continue;
+    }
+
+    const current = selectedByReference.get(reference);
+    if (!current || record.updatedAt.getTime() > current.updatedAt.getTime()) {
+      selectedByReference.set(reference, record);
+    }
+  }
+
+  return [...recordsWithoutExternalReference, ...selectedByReference.values()]
+    .sort((first, second) => second.occurredAt - first.occurredAt);
+}
+
+function mapExerciseRow(row: typeof exercises.$inferSelect): ExerciseRecord {
+  return {
+    ...row,
+    occurredAt: new Date(row.occurredAt).getTime(),
+    createdAt: new Date(row.createdAt).getTime(),
+    updatedAt: new Date(row.updatedAt),
+  };
+}
+
 export function createDrizzleExercisesRepository(deps: {
   getDb: DbProvider;
   onWarning: PersistenceWarningHandler;
@@ -35,11 +70,7 @@ export function createDrizzleExercisesRepository(deps: {
 
       try {
         const rows = await db.select().from(exercises).where(eq(exercises.userId, userId)).orderBy(desc(exercises.occurredAt));
-        return rows.map((row: typeof exercises.$inferSelect) => ({
-          ...row,
-          occurredAt: new Date(row.occurredAt).getTime(),
-          createdAt: new Date(row.createdAt).getTime(),
-        }));
+        return deduplicateExternalExercises(rows.map(mapExerciseRow));
       } catch (error) {
         deps.onWarning("Exercise read skipped", error);
         return null;
@@ -56,12 +87,7 @@ export function createDrizzleExercisesRepository(deps: {
           .from(exercises)
           .where(and(eq(exercises.userId, userId), gte(exercises.occurredAt, startAt), lt(exercises.occurredAt, endAt)))
           .orderBy(desc(exercises.occurredAt));
-        return rows.map((row: typeof exercises.$inferSelect) => ({
-          ...row,
-          occurredAt: new Date(row.occurredAt).getTime(),
-          createdAt: new Date(row.createdAt).getTime(),
-          updatedAt: new Date(row.updatedAt),
-        }));
+        return deduplicateExternalExercises(rows.map(mapExerciseRow));
       } catch (error) {
         deps.onWarning("Exercise range read skipped", error);
         return null;
