@@ -105,6 +105,7 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
   const selectedCatalogFood = catalogFoods.data?.find(food => food.id === item.foodId) as CatalogFood | undefined;
   const selectedPortion = selectedCatalogFood?.portions.find(portion => portion.id === item.portionId);
   const [quantityInput, setQuantityInput] = React.useState(() => formatQuantity(quantity));
+  const [unitInput, setUnitInput] = React.useState(unit);
   const [portionQuantityInput, setPortionQuantityInput] = React.useState(() => formatQuantity(item.portionQuantity ?? item.servings));
   const hasFoodSwap =
     item.foodName.trim().length > 0 &&
@@ -114,6 +115,10 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
   React.useEffect(() => {
     setQuantityInput(formatQuantity(quantity));
   }, [quantity]);
+
+  React.useEffect(() => {
+    setUnitInput(unit);
+  }, [unit]);
 
   React.useEffect(() => {
     setPortionQuantityInput(formatQuantity(item.portionQuantity ?? item.servings));
@@ -162,25 +167,16 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
     onChange("fat", updatedItem.fat);
   };
 
-  const applyPortion = (portion: CatalogPortion, quantity = 1) => {
-    if (!selectedCatalogFood) return;
-    const grams = roundNutrition((portion.grams * quantity) / (portion.quantity || 1));
-
-    onChange("portionId", portion.id);
-    onChange("portionQuantity", quantity);
-    onChange("quantity", quantity);
-    onChange("unit", normalizeUnitInput(portion.unit || portion.label) || "porção");
-    onChange("portionText", portionLabel(quantity, portion));
-    onChange("servings", quantity);
-    applyCatalogNutrition(selectedCatalogFood, grams);
+  const applyUnitInput = (value: string) => {
+    updateQuantityAndUnit(parsePositiveQuantityInput(quantityInput) ?? quantity, value);
   };
 
   const handleManualQuantityChange = (nextQuantity: number) => {
-    updateQuantityAndUnit(nextQuantity, unit);
+    updateQuantityAndUnit(nextQuantity, unitInput || unit);
     onChange("portionId", undefined);
     onChange("portionQuantity", undefined);
     if (selectedCatalogFood) {
-      const normalizedUnit = normalizeMeasurementUnit(unit);
+      const normalizedUnit = normalizeMeasurementUnit(unitInput || unit);
       if (["g", "ml"].includes(normalizedUnit) && nextQuantity > 0) {
         applyCatalogNutrition(selectedCatalogFood, nextQuantity);
       }
@@ -195,6 +191,11 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
     }
 
     handleManualQuantityChange(nextQuantity);
+  };
+
+  const handleManualUnitInputChange = (value: string) => {
+    setUnitInput(value);
+    onChange("unit", value as MealItemState["unit"]);
   };
 
   const handlePortionQuantityChange = (quantity: number) => {
@@ -339,9 +340,9 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
           <Label>Unidade de medida</Label>
           <Input
             list={unitListId}
-            value={unit}
-            onChange={event => updateQuantityAndUnit(parsePositiveQuantityInput(quantityInput) ?? quantity, event.target.value)}
-            onBlur={event => updateQuantityAndUnit(parsePositiveQuantityInput(quantityInput) ?? quantity, event.target.value)}
+            value={unitInput}
+            onChange={event => handleManualUnitInputChange(event.target.value)}
+            onBlur={event => applyUnitInput(event.target.value)}
             placeholder="Ex.: g, ml, fatia, lata"
           />
           <datalist id={unitListId}>
