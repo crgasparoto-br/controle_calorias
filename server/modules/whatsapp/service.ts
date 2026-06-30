@@ -170,6 +170,30 @@ function isShortContextReply(value?: string | null) {
   return /^(?:s|sim|ok|confirmo|confirmar|pode|pode sim|isso|certo|n|nao|negativo|cancela|cancelar|nenhuma|nenhum|0|opcao\s*\d+|\d+)$/.test(text);
 }
 
+function normalizeMealTemporalText(value?: string | null) {
+  return value
+    ?.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[-_]/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim() ?? "";
+}
+
+function shouldBypassTextIntentForExplicitMealDate(
+  text: string | null | undefined,
+  context: NonNullable<ReturnType<typeof resolveWhatsappTemporalContext>["context"]> | null,
+) {
+  if (!context || context.dateKind === "today" || !context.mealSlot) {
+    return false;
+  }
+
+  const normalized = normalizeMealTemporalText(text);
+  return /\b(?:adicionar|adiciona|adicione|incluir|inclui|inclua|registrar|registra|registre|acrescentar|acrescenta|acrescente|colocar|coloca|coloque)\b/.test(normalized)
+    || /\b(?:xicaras?|cafe|capsulas?|porcoes?|porcao|fatias?|gramas?|g|ml)\b/.test(normalized);
+}
+
 function shouldSkipTextIdempotencyForContextReply(userId: number, text?: string | null, receivedAt?: Date) {
   return Boolean(getWhatsappConversationPendingContext(userId, receivedAt) && isShortContextReply(text));
 }
@@ -362,10 +386,12 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       : recordAdjustment;
   }
 
-  const interpreted = await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
-    text,
-    receivedAt,
-  }), { text, receivedAt });
+  const interpreted = shouldBypassTextIntentForExplicitMealDate(text, temporalResolution.context)
+    ? null
+    : await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
+      text,
+      receivedAt,
+    }), { text, receivedAt });
   if (interpreted) {
     return temporalResolution.context
       ? { ...interpreted, data: { ...interpreted.data, temporalContext: temporalResolution.context } }
