@@ -14,13 +14,6 @@ import {
 import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
 import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
 import {
-  getMissingWhatsAppChannelConfig,
-  getWhatsAppChannelConfig,
-  normalizeWhatsAppPhoneNumber,
-} from "../../whatsappConfig";
-import { normalizeTextMeasurementUnits } from "../../../shared/measurementUnits";
-import { SimulateWhatsappInboundInput, WhatsappConnectionInput } from "./schemas";
-import {
   getWhatsappConversationPendingContext,
   registerWhatsappConversationPendingContext,
   resolveWhatsappConversationContext,
