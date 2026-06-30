@@ -23,7 +23,7 @@ import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MealItemEditor, MealLabelInput, RegisteredMealGroups, SummaryPill } from "./components";
 import { buildExerciseDayGroups, buildWaterLogDayGroups } from "./habitRecordViewModels";
-import { createEmptyItem, createManualMealState, sumItems } from "./mealFormState";
+import { createEmptyItem, createManualMealState, normalizeMealItemsForSubmit, sumItems } from "./mealFormState";
 import {
   type DateGroupedRegisteredMealsViewModel,
   type RegisteredMealGroupViewModel,
@@ -62,9 +62,15 @@ type ManualMealGroupEditSource = {
   itemIndex: number;
 };
 
+type ManualMealGroupEditRecord = {
+  mealId: number;
+  occurredAt: string | number | Date;
+};
+
 type ManualMealEditState = ManualMealState & {
   groupEdit?: {
     mealIds: number[];
+    mealRecords: ManualMealGroupEditRecord[];
     sourceItems: ManualMealGroupEditSource[];
   };
 };
@@ -187,6 +193,16 @@ function formatDateTimeLabel(value: string | number | Date, timeZone: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(toRecordDate(value)).replace(",", "");
+}
+
+function toDateInputFromDateTimeLocal(value: string) {
+  return value.slice(0, 10);
+}
+
+function mergeDateWithExistingLocalTime(dateKey: string, occurredAt: string | number | Date, timeZone: string) {
+  const originalLocal = toDateTimeLocalValue(toRecordDate(occurredAt), timeZone);
+  const timePart = originalLocal.includes("T") ? originalLocal.slice(11) : "12:00";
+  return `${dateKey}T${timePart}`;
 }
 
 function formatExerciseNotesLabel(notes?: string | null) {
@@ -375,7 +391,7 @@ function HabitRecordsSection({
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="font-medium tracking-tight">Registros de exercícios</p>
-                <p className="text-sm text-muted-foreground">{exerciseLogs.length} {exerciseLogs.length === 1 ? "lançamento" : "lançamentos"}</p>
+                <p className="text-sm text-muted-foreground">{exerciseLogs.length} {exerciseLogs.length === 1 ? "atividade" : "atividades"}</p>
               </div>
               <Dumbbell className="h-5 w-5 text-primary" />
             </div>
@@ -650,6 +666,7 @@ export function RegisteredMealsPage() {
       items: group.items.map(item => ({ ...item.item })),
       groupEdit: {
         mealIds: groupMealIds(group),
+        mealRecords: group.meals.map(meal => ({ mealId: meal.id, occurredAt: meal.occurredAt })),
         sourceItems: group.items.map(item => ({ mealId: item.meal.id, itemIndex: item.itemIndex })),
       },
     });
@@ -689,13 +706,7 @@ export function RegisteredMealsPage() {
     }));
   };
 
-  const normalizeManualItems = () => manualMeal.items.map(item => ({
-    ...item,
-    foodName: item.foodName.trim(),
-    canonicalName: item.canonicalName.trim() || item.foodName.trim(),
-    portionText: item.portionText.trim() || "1 porção",
-    confidence: Number(item.confidence || 1),
-  }));
+  const normalizeManualItems = () => normalizeMealItemsForSubmit(manualMeal.items);
 
   const handleSubmitManualMeal = () => {
     if (!manualMeal.mealId) {
@@ -723,12 +734,22 @@ export function RegisteredMealsPage() {
         itemsByMealId.set(mealId, [...(itemsByMealId.get(mealId) ?? []), item]);
       });
 
+      const groupDate = toDateInputFromDateTimeLocal(manualMeal.occurredAt);
+      const mealRecordById = new Map(manualMeal.groupEdit.mealRecords.map(record => [record.mealId, record]));
+
       updateMealGroup.mutate({
         mealLabel: manualMeal.mealLabel,
-        meals: manualMeal.groupEdit.mealIds.map(mealId => ({
-          mealId,
-          items: itemsByMealId.get(mealId) ?? [],
-        })),
+        meals: manualMeal.groupEdit.mealIds.map(mealId => {
+          const originalRecord = mealRecordById.get(mealId);
+          const occurredAtLocal = originalRecord
+            ? mergeDateWithExistingLocalTime(groupDate, originalRecord.occurredAt, userTimeZone)
+            : manualMeal.occurredAt;
+          return {
+            mealId,
+            occurredAt: zonedDateTimeLocalToIso(occurredAtLocal, userTimeZone),
+            items: itemsByMealId.get(mealId) ?? [],
+          };
+        }),
       });
       return;
     }
@@ -773,7 +794,7 @@ export function RegisteredMealsPage() {
         </CardTitle>
         <CardDescription>
           {isGroupEditing
-            ? "O rótulo será aplicado ao grupo inteiro; os horários originais de cada registro serão preservados."
+            ? "O rótulo e a data serão aplicados ao grupo inteiro; os horários originais de cada registro serão preservados."
             : "O editor abre acima da lista para manter o contexto e reduzir deslocamento visual."}
         </CardDescription>
       </CardHeader>
@@ -784,12 +805,25 @@ export function RegisteredMealsPage() {
             onChange={mealLabel => setManualMeal(current => ({ ...current, mealLabel }))}
             suggestedLabel={suggestedManualMealLabel}
           />
-          {!isGroupEditing ? (
+          {isGroupEditing ? (
+            <div className="space-y-2">
+              <Label htmlFor="registered-edit-group-date">Data do grupo</Label>
+              <Input
+                id="registered-edit-group-date"
+                type="date"
+                value={toDateInputFromDateTimeLocal(manualMeal.occurredAt)}
+                onChange={event => setManualMeal(current => ({
+                  ...current,
+                  occurredAt: `${event.target.value}T${current.occurredAt.includes("T") ? current.occurredAt.slice(11) : "12:00"}`,
+                }))}
+              />
+            </div>
+          ) : (
             <div className="space-y-2">
               <Label htmlFor="registered-edit-occurred-at">Data e horário</Label>
               <Input id="registered-edit-occurred-at" type="datetime-local" value={manualMeal.occurredAt} onChange={event => setManualMeal(current => ({ ...current, occurredAt: event.target.value }))} />
             </div>
-          ) : null}
+          )}
         </div>
 
         {!isGroupEditing ? (
