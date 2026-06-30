@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { MEASUREMENT_UNIT_SUGGESTIONS, normalizeMeasurementUnit } from "@shared/measurementUnits";
 import { recalculateMealItemQuantityUnit } from "../mealFormState";
@@ -91,8 +92,15 @@ function parseNutritionInput(value: string) {
   return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
 }
 
+function getUnitSelectValue(value: string) {
+  const normalized = normalizeMeasurementUnit(value);
+  const suggestions = MEASUREMENT_UNIT_SUGGESTIONS as readonly string[];
+  if (suggestions.includes(value)) return value;
+  if (suggestions.includes(normalized)) return normalized;
+  return "custom";
+}
+
 export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
-  const unitListId = React.useId();
   const quantity = item.quantity ?? parseQuantityFromPortionText(item.portionText) ?? item.servings;
   const unit = item.unit?.trim() || deriveUnitFromPortionText(item.portionText);
   const equivalenceText = item.estimatedGrams > 0
@@ -107,6 +115,7 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
   const [quantityInput, setQuantityInput] = React.useState(() => formatQuantity(quantity));
   const [unitInput, setUnitInput] = React.useState(unit);
   const [portionQuantityInput, setPortionQuantityInput] = React.useState(() => formatQuantity(item.portionQuantity ?? item.servings));
+  const unitSelectValue = getUnitSelectValue(unitInput);
   const hasFoodSwap =
     item.foodName.trim().length > 0 &&
     item.canonicalName.trim().length > 0 &&
@@ -209,6 +218,12 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
   const handleManualUnitInputChange = (value: string) => {
     setUnitInput(value);
     onChange("unit", value as MealItemState["unit"]);
+  };
+
+  const handleUnitSuggestionChange = (value: string) => {
+    if (value === "custom") return;
+    setUnitInput(value);
+    applyUnitInput(value);
   };
 
   const handlePortionQuantityChange = (quantity: number) => {
@@ -351,18 +366,25 @@ export function MealItemEditor({ item, onChange }: MealItemEditorProps) {
         </div>
         <div className="space-y-2 xl:col-span-2">
           <Label>Unidade de medida</Label>
-          <Input
-            list={unitListId}
-            value={unitInput}
-            onChange={event => handleManualUnitInputChange(event.target.value)}
-            onBlur={event => applyUnitInput(event.target.value)}
-            placeholder="Ex.: g, ml, fatia, lata"
-          />
-          <datalist id={unitListId}>
-            {MEASUREMENT_UNIT_SUGGESTIONS.map(suggestion => (
-              <option key={suggestion} value={suggestion} />
-            ))}
-          </datalist>
+          <div className="grid gap-2 sm:grid-cols-[minmax(120px,0.8fr)_minmax(140px,1fr)]">
+            <Select value={unitSelectValue} onValueChange={handleUnitSuggestionChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Escolha" />
+              </SelectTrigger>
+              <SelectContent align="start">
+                {MEASUREMENT_UNIT_SUGGESTIONS.map(suggestion => (
+                  <SelectItem key={suggestion} value={suggestion}>{suggestion}</SelectItem>
+                ))}
+                <SelectItem value="custom">Outra unidade</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              value={unitInput}
+              onChange={event => handleManualUnitInputChange(event.target.value)}
+              onBlur={event => applyUnitInput(event.target.value)}
+              placeholder="Ex.: g, ml, fatia, lata"
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label>Calorias</Label>
