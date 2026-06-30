@@ -8,7 +8,15 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      staleTime: 30 * 1000,
+    },
+  },
+});
 
 function installAnalyticsScript() {
   const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
