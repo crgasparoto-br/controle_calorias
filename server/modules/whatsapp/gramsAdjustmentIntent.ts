@@ -24,7 +24,7 @@ function parse(text: string) {
   if (!/\b(?:diminuir|diminui|diminuia|reduzir|reduz|reduza|tirar)\b/.test(normalized)) return null;
   const mealLabel = mealFromText(normalized);
   const adjustments: Array<{ gramsDelta: number; targetFood: string | null }> = [];
-  const rx = /(\d+(?:[,.]\d+)?)\s*(?:g|gr|gramas?|ml|mililitros?)\b(?:\s+(?:do|da|de)\s+((?:(?!\d|\be\s+\d|[,;]\s*\d)\S+\s*)+))?/gi;
+  const rx = /(\d+(?:[,.]\d+)?)\s*(?:g|gr|gramas?|ml|mililitros?)\b(?:\s+(?:(?:do|da|de)\s+)?((?:(?!\d|\be\s+\d|[,;]\s*\d)\S+\s*)+))?/gi;
   let match: RegExpExecArray | null;
   while ((match = rx.exec(normalized)) !== null) {
     const gramsDelta = Number(match[1].replace(",", "."));
