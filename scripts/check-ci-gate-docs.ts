@@ -21,6 +21,7 @@ function requireRegex(source: string, expected: RegExp, context: string) {
 
 requireText(workflow, "name: Agent-first gate", ".github/workflows/agent-check.yml");
 requireRegex(workflow, /jobs:\s+agent-check:[\s\S]*?name:\s+Agent-first gate/, ".github/workflows/agent-check.yml");
+requireRegex(workflow, /push:\s*\n\s+branches:\s*\n\s+- main\s*\n\s+- develop/, ".github/workflows/agent-check.yml");
 
 for (const command of [
   "pnpm check",
@@ -44,7 +45,9 @@ for (const doc of [contributing, pullRequestTemplate, branchProtection]) {
 }
 
 requireText(contributing, "status check obrigatório", "CONTRIBUTING.md");
+requireText(contributing, "push direto para `develop` executa o workflow `Agent-first gate`", "CONTRIBUTING.md");
 requireText(branchProtection, "Required status check: `Agent-first gate`", ".github/branch-protection-main.md");
+requireText(pullRequestTemplate, "`Agent-first gate` passou em PR contra `main` ou `develop`", ".github/pull_request_template.md");
 requireText(pullRequestTemplate, "db:check-integrity", ".github/pull_request_template.md");
 
 if (failures.length > 0) {
