@@ -64,7 +64,7 @@ export type MacroDaySummary = {
 
 export type FoodProcessingCategory = "naturalOrMinimallyProcessed" | "ultraProcessed" | "unclassified";
 
-export type FoodQualityUnclassifiedReason = "missing_catalog_id" | "catalog_id_not_found" | "text_lookup_failed" | "unknown";
+export type FoodQualityUnclassifiedReason = "missing_catalog_id" | "catalog_id_not_found" | "unknown";
 
 export type FoodQualityItem = {
   calories: number;
