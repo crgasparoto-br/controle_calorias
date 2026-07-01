@@ -27,6 +27,11 @@ const OPTIONAL_FEATURES: OptionalFeatureConfig[] = [
     variables: ["STRAVA_WEBHOOK_VERIFY_TOKEN"],
     disabledMessage: "Strava real-time webhook disabled until STRAVA_WEBHOOK_VERIFY_TOKEN is configured",
   },
+  {
+    name: "Dedicated app secrets encryption key",
+    variables: ["APP_SECRETS_ENCRYPTION_KEY"],
+    disabledMessage: "Persisted secrets are encrypted with a key derived from JWT_SECRET (legacy fallback) until APP_SECRETS_ENCRYPTION_KEY is configured; rotating JWT_SECRET without migrating first can make legacy secrets unreadable",
+  },
 ];
 
 function readTrimmedEnv(name: string) {
@@ -44,6 +49,16 @@ export function requireCookieSecret(context = "secure secret operations") {
   }
 
   return secret;
+}
+
+/**
+ * Dedicated key for encrypting persisted secrets (e.g. WhatsApp access token), decoupled
+ * from JWT_SECRET so rotating the session/cookie secret does not affect stored secrets.
+ * Empty when not configured; callers fall back to a JWT_SECRET-derived key for legacy
+ * compatibility (see ARCHITECTURE.md / README.md for the migration path).
+ */
+export function readAppSecretsEncryptionKey(): string {
+  return readTrimmedEnv("APP_SECRETS_ENCRYPTION_KEY");
 }
 
 export type RuntimeEnvValidationResult = {
@@ -85,7 +100,10 @@ export function validateRuntimeEnv(options: { logOptionalFeatures?: boolean } = 
 
 export const ENV = {
   get cookieSecret() {
-    return requireCookieSecret("authentication sessions and encrypted app secrets");
+    return requireCookieSecret("authentication sessions and, as a legacy fallback, encrypted app secrets");
+  },
+  get appSecretsEncryptionKey() {
+    return readAppSecretsEncryptionKey();
   },
   get databaseUrl() { return process.env.DATABASE_URL ?? ""; },
   get isProduction() { return process.env.NODE_ENV === "production"; },

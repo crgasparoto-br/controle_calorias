@@ -69,7 +69,7 @@ Configure estas variáveis no backend/runtime responsável pela API:
 
 ### Obrigatórias em produção
 
-- `JWT_SECRET`: segredo usado para assinar sessões locais e derivar chaves de criptografia de segredos internos.
+- `JWT_SECRET`: segredo usado para assinar sessões locais. Também é usado como fallback legado para derivar a chave de criptografia de segredos internos (ex.: token do WhatsApp) enquanto `APP_SECRETS_ENCRYPTION_KEY` não estiver configurada — veja a seção "Criptografia de segredos persistidos" abaixo.
 - `DATABASE_URL`: conexão MySQL/TiDB usada para persistir contas, metas, refeições, integrações e dados sensíveis do domínio.
 
 Em `NODE_ENV=production`, o backend aborta o startup quando `JWT_SECRET` ou `DATABASE_URL` estiver ausente, vazio ou composto apenas por espaços. A mensagem informa o nome da variável inválida sem imprimir seu valor.
@@ -94,8 +94,23 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
 | Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth, webhook e importação manual do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |
+| Criptografia dedicada de segredos | `APP_SECRETS_ENCRYPTION_KEY` | Quando ausente, segredos persistidos (ex.: token do WhatsApp em `appSecrets`) continuam sendo criptografados com uma chave derivada de `JWT_SECRET` (fallback legado), acoplando rotação de sessão à leitura de segredos. |
 
-`OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
+`OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, `APP_SECRETS_ENCRYPTION_KEY`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
+
+### Criptografia de segredos persistidos (`APP_SECRETS_ENCRYPTION_KEY`)
+
+O token de acesso do WhatsApp gravado em `appSecrets.valueEncrypted` é criptografado com AES-256-GCM. A chave usada depende da configuração:
+
+- **Chave dedicada configurada** (`APP_SECRETS_ENCRYPTION_KEY`): todo novo segredo é criptografado com essa chave, desacoplada de `JWT_SECRET`. Segredos gravados assim continuam legíveis mesmo depois de `JWT_SECRET` ser rotacionado.
+- **Chave dedicada ausente** (fallback legado): o segredo é criptografado com uma chave derivada de `JWT_SECRET`. Isso é compatibilidade temporária — cada payload persistido carrega um marcador (`keySource`) que identifica qual chave foi usada para criptografá-lo, então segredos antigos continuam legíveis independentemente de quando `APP_SECRETS_ENCRYPTION_KEY` for configurada.
+
+Estratégia de migração:
+
+1. Defina `APP_SECRETS_ENCRYPTION_KEY` com um valor aleatório forte (ex.: `openssl rand -hex 32`) em todos os ambientes.
+2. A partir do próximo deploy, novos segredos (ou atualizações de segredos existentes, como reconexão do WhatsApp) passam a usar a chave dedicada automaticamente — não há script de reescrita obrigatório.
+3. Segredos ainda não reescritos continuam sendo lidos com a chave legada derivada de `JWT_SECRET`. Rotacionar `JWT_SECRET` antes de reescrever esses segredos os torna ilegíveis — force a reescrita (ex.: reenviando o token do WhatsApp) antes de rotacionar `JWT_SECRET` se a chave dedicada ainda não estiver configurada.
+4. Risco residual: enquanto algum segredo persistido não tiver sido reescrito com a chave dedicada, ele permanece dependente de `JWT_SECRET`. Nenhum valor de chave ou segredo decriptado é logado; falhas de decriptação retornam erro sanitizado.
 
 `OPENAI_IMAGE_MODEL` pode ser configurada no backend quando o fluxo visual auxiliar estiver habilitado, mas não é necessária para a autenticação nem para o login web.
 

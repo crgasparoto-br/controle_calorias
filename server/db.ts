@@ -27,7 +27,9 @@ import { createUsersService } from "./modules/users/service";
 import { createExercisesService, sumExercises } from "./modules/exercises/store";
 import { createGamificationService, BADGE_DEFINITIONS } from "./modules/gamification/store";
 import { createGoalsService, type GoalInput } from "./modules/goals/store";
+import { createPrivacyService } from "./modules/privacy/service";
 import { createWaterService, sumWater } from "./modules/water/store";
+import { decryptAppSecretValue as decryptAppSecretPayload, encryptAppSecretValue as encryptAppSecretPayload } from "./modules/appSecrets/encryption";
 import { safeLogDetail } from "./privacy";
 
 export { BADGE_DEFINITIONS };
@@ -50,12 +52,6 @@ let memoryWhatsAppAccessToken: {
   updatedByUserId: number;
 } | null = null;
 
-type EncryptedSecretPayload = {
-  iv: string;
-  tag: string;
-  value: string;
-};
-
 export type AdminWhatsAppTokenStatus = {
   configured: boolean;
   source: "database" | "environment" | "missing";
@@ -72,36 +68,31 @@ function maskSecret(value: string) {
   return `${value.slice(0, 6)}${"•".repeat(Math.max(8, value.length - 10))}${value.slice(-4)}`;
 }
 
-function getAppSecretCipherKey() {
-  return crypto
-    .createHash("sha256")
-    .update(`controle-calorias::app-secrets::${ENV.cookieSecret}`)
-    .digest();
+let warnedAboutLegacyAppSecretsKey = false;
+
+function getAppSecretCipherKeyDeps() {
+  return {
+    dedicatedKey: ENV.appSecretsEncryptionKey,
+    getLegacyKey: () => ENV.cookieSecret,
+  };
 }
 
 function encryptAppSecretValue(value: string) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", getAppSecretCipherKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
+  const deps = getAppSecretCipherKeyDeps();
+  const { payload, keySource } = encryptAppSecretPayload(value, deps);
 
-  return JSON.stringify({
-    iv: iv.toString("base64"),
-    tag: tag.toString("base64"),
-    value: encrypted.toString("base64"),
-  } satisfies EncryptedSecretPayload);
+  if (keySource === "legacy" && !warnedAboutLegacyAppSecretsKey) {
+    warnedAboutLegacyAppSecretsKey = true;
+    console.warn(
+      "[Database] APP_SECRETS_ENCRYPTION_KEY not configured; encrypting persisted secret with a key derived from JWT_SECRET (legacy fallback). Configure APP_SECRETS_ENCRYPTION_KEY to decouple session and secrets encryption."
+    );
+  }
+
+  return payload;
 }
 
 function decryptAppSecretValue(payload: string) {
-  const parsed = JSON.parse(payload) as EncryptedSecretPayload;
-  const decipher = crypto.createDecipheriv("aes-256-gcm", getAppSecretCipherKey(), Buffer.from(parsed.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(parsed.tag, "base64"));
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(parsed.value, "base64")),
-    decipher.final(),
-  ]);
-
-  return decrypted.toString("utf8");
+  return decryptAppSecretPayload(payload, getAppSecretCipherKeyDeps());
 }
 
 async function getAppSecret(secretKey: string) {
@@ -1728,103 +1719,47 @@ export function logInferenceEvent(entry: Omit<AdminLogEntry, "id" | "createdAt">
   void persistLogToDb(created);
 }
 
-export async function exportUserPrivacyData(userId: number) {
-  const db = await getDb();
-  const [profile, goals, mealsForUser, exercisesForUser, waterGoal, waterLogsForUser, weeklyProgress, whatsappConnection] =
-    await Promise.all([
-      db ? userProfileRepository.findProfileByUserId(userId) : Promise.resolve(undefined),
-      getStoredNutritionGoals(userId),
-      listUserMeals(userId),
-      listUserExercises(userId),
-      getUserWaterGoal(userId),
-      listUserWaterLogs(userId),
-      getWeeklyProgress(userId),
-      getUserWhatsappConnection(userId),
-    ]);
-
-  const dbUser = db ? await usersRepository.findById(userId) : undefined;
-  const dbPreferences = db ? await userProfileRepository.findPreferencesByUserId(userId) : [];
-  const dbRestrictions = db ? await userProfileRepository.findRestrictionsByUserId(userId) : [];
-
-  return {
-    exportedAt: new Date().toISOString(),
-    policy: {
-      format: "JSON",
-      scope: "Dados principais da conta, rotina alimentar, metas, peso, hidratação, exercícios, preferências e consentimentos ativos.",
-      sensitiveDataNotice: "Este arquivo pode conter dados pessoais e dados sensíveis de saúde.",
+const privacyService = createPrivacyService({
+  getDb,
+  findUserById: userId => usersRepository.findById(userId),
+  findProfileByUserId: userId => userProfileRepository.findProfileByUserId(userId),
+  getOnboardingProfileMemory: userId => usersService.getOnboardingProfileMemory(userId),
+  findPreferencesByUserId: userId => userProfileRepository.findPreferencesByUserId(userId),
+  findRestrictionsByUserId: userId => userProfileRepository.findRestrictionsByUserId(userId),
+  getStoredNutritionGoals,
+  listUserMeals,
+  listFavoriteMeals: userId => favoriteMealStore.get(userId) ?? [],
+  listUserExercises,
+  getUserWaterGoal,
+  listUserWaterLogs,
+  getWeeklyProgress,
+  getUserWhatsappConnection,
+  purgeDatabaseUserData: userId => accountRepository.purgeUserData(userId),
+  purgeMemoryDomains: [
+    userId => goalsService.clearMemory(userId),
+    userId => usersService.clearMemory(userId),
+    userId => mealStore.delete(userId),
+    userId => exercisesService.clearMemory(userId),
+    userId => waterService.clearMemory(userId),
+    userId => habitStore.delete(userId),
+    userId => foodsService.clearMemory(userId),
+    userId => favoriteMealStore.delete(userId),
+    userId => gamificationService.clearMemory(userId),
+    userId => {
+      for (const [draftId, draft] of Array.from(inferenceStore.entries())) {
+        if (draft.userId === userId) inferenceStore.delete(draftId);
+      }
     },
-    account: dbUser
-      ? {
-          id: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          loginMethod: dbUser.loginMethod,
-          role: dbUser.role,
-          createdAt: dbUser.createdAt,
-          updatedAt: dbUser.updatedAt,
-          lastSignedIn: dbUser.lastSignedIn,
-        }
-      : { id: userId },
-    profile: profile ?? usersService.getOnboardingProfileMemory(userId) ?? null,
-    nutritionGoals: goals,
-    meals: mealsForUser,
-    favoriteMeals: favoriteMealStore.get(userId) ?? [],
-    exercises: exercisesForUser,
-    water: {
-      goal: waterGoal,
-      logs: waterLogsForUser,
+    userId => {
+      for (let index = whatsappConnectionStore.length - 1; index >= 0; index -= 1) {
+        if (whatsappConnectionStore[index].userId === userId) whatsappConnectionStore.splice(index, 1);
+      }
     },
-    weight: weeklyProgress.weight,
-    preferences: dbPreferences,
-    restrictions: dbRestrictions,
-    whatsapp: whatsappConnection
-      ? {
-          status: whatsappConnection.status,
-          phoneNumber: whatsappConnection.phoneNumber,
-          displayName: whatsappConnection.displayName,
-          createdAt: whatsappConnection.createdAt,
-          updatedAt: whatsappConnection.updatedAt,
-        }
-      : null,
-    professionalSharing: "Compartilhamento operacional depende de solicitação pendente e aprovação explícita do paciente.",
-    healthIntegrations: "Integrações de saúde exigem consentimento no módulo healthIntegrations antes da sincronização.",
-  };
-}
+  ],
+});
 
-function deleteUserMemoryData(userId: number) {
-  goalsService.clearMemory(userId);
-  usersService.clearMemory(userId);
-  mealStore.delete(userId);
-  exercisesService.clearMemory(userId);
-  waterService.clearMemory(userId);
-  habitStore.delete(userId);
-  foodsService.clearMemory(userId);
-  favoriteMealStore.delete(userId);
-  gamificationService.clearMemory(userId);
-
-  for (const [draftId, draft] of Array.from(inferenceStore.entries())) {
-    if (draft.userId === userId) inferenceStore.delete(draftId);
-  }
-
-  for (let index = whatsappConnectionStore.length - 1; index >= 0; index -= 1) {
-    if (whatsappConnectionStore[index].userId === userId) whatsappConnectionStore.splice(index, 1);
-  }
-}
-
-export async function requestUserAccountDeletion(userId: number) {
-  const db = await getDb();
-  if (db) {
-    await accountRepository.purgeUserData(userId);
-  }
-
-  deleteUserMemoryData(userId);
-
-  return {
-    success: true,
-    deletedAt: new Date().toISOString(),
-    scope: "Conta e dados principais vinculados ao usuário removidos ou desvinculados.",
-  } as const;
-}
+export const exportUserPrivacyData = privacyService.exportUserPrivacyData;
+export const requestUserAccountDeletion = privacyService.requestUserAccountDeletion;
 
 export function buildSavedMedia(input: Omit<SavedMedia, "id">) {
   return {

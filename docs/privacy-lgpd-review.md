@@ -68,7 +68,7 @@ Risco restante: qualquer `console.*` novo pode vazar dado se registrar objetos c
 ## Criptografia
 
 - Em transito: depende de HTTPS/TLS no ambiente de deploy e dos provedores externos. O codigo nao deve operar em producao sem TLS no proxy/gateway.
-- Em repouso: token administrativo WhatsApp em `appSecrets.valueEncrypted` usa AES-256-GCM derivado de `ENV.cookieSecret`.
+- Em repouso: token administrativo WhatsApp em `appSecrets.valueEncrypted` usa AES-256-GCM derivado de `ENV.appSecretsEncryptionKey` (dedicada) quando configurada, ou de `ENV.cookieSecret` como fallback legado enquanto a chave dedicada nao for definida (ver README.md).
 - Dados de saude em tabelas principais nao tem criptografia de campo no codigo atual. Dependem de criptografia do banco/disco gerenciado.
 
 ## IA e servicos externos
