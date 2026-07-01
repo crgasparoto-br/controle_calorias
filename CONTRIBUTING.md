@@ -24,9 +24,13 @@ Este projeto usa um gate de validação antes de merge para reduzir regressões 
 - cálculo nutricional, refeições e fluxo alimentar;
 - billing ou assinaturas, quando existirem.
 
-## Gate obrigatório da `main`
+## Gate obrigatório de `main` e validação automática de `develop`
 
-PRs contra `main` devem aguardar o status check obrigatório `Agent-first gate`. Esse é o nome do job definido em `.github/workflows/agent-check.yml` e deve ser o mesmo configurado em branch protection ou ruleset do GitHub.
+PRs contra `main` e `develop` devem aguardar o status check obrigatório `Agent-first gate`. Esse é o nome do job definido em `.github/workflows/agent-check.yml` e deve ser o mesmo configurado em branch protection ou ruleset do GitHub.
+
+A proteção preferencial para `develop` é bloquear push direto por branch protection ou ruleset e exigir PR com `Agent-first gate` verde. Como essa configuração depende de permissão administrativa no GitHub e não é versionada neste repositório, a decisão implementada aqui é adicionar `develop` ao gatilho `push.branches` do workflow. Assim, push direto para `develop` executa o workflow `Agent-first gate`, mantendo cobertura automática verificável mesmo quando a proteção administrativa ainda não estiver aplicada.
+
+Push direto para `develop` deve continuar sendo exceção operacional. Quando acontecer, a execução do workflow deve ser acompanhada e qualquer falha precisa ser corrigida antes de novas integrações nessa base.
 
 Para áreas sensíveis, a PR deve registrar:
 
@@ -59,7 +63,7 @@ A validação local deve ser registrada na PR com os comandos executados e o res
 
 Além dos comandos automatizados, use smoke tests manuais quando a mudança tocar fluxos de usuário ou integrações externas. Exemplos: login/logout para autenticação, envio e recebimento de webhook para WhatsApp, OAuth/callback para Strava, inferência de refeição para OpenAI ou cálculo de metas/refeições para o fluxo nutricional.
 
-O CI atual executa o workflow `Agent-first gate` em PRs e valida TypeScript, testes, arquitetura, documentação, build, `pnpm agent:check` e o alinhamento de documentação do próprio gate. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` é condicionada à disponibilidade de `DATABASE_URL`; quando o CI pular esse passo, a PR deve informar se houve validação de banco em outro ambiente.
+O CI atual executa o workflow `Agent-first gate` em PRs, em push para `main` e em push para `develop`. Ele valida TypeScript, testes, arquitetura, documentação, build, `pnpm agent:check` e o alinhamento de documentação do próprio gate. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` é condicionada à disponibilidade de `DATABASE_URL`; quando o CI pular esse passo, a PR deve informar se houve validação de banco em outro ambiente.
 
 Se algum gate crítico deixar de existir no CI ou não cobrir um comando obrigatório, registre a lacuna na PR e abra uma issue separada para automatizar o check antes de tratar a automação como garantida.
 
