@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../../drizzle/schema";
+import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 
 type DbProvider = () => Promise<any | null>;
@@ -73,14 +74,10 @@ export type MealsRepository = {
   countConfirmed(): Promise<number>;
 };
 
-function directCatalogKey(foodCatalogId: number) {
-  return `catalog:${foodCatalogId}`;
-}
-
 function resolveMealItemFoodCatalogId(item: MealDraftItem, resolvedCatalogIds: Map<string, number>) {
   const directId = Number(item.foodCatalogId);
   if (Number.isFinite(directId) && directId > 0) {
-    const resolvedDirectId = resolvedCatalogIds.get(directCatalogKey(directId));
+    const resolvedDirectId = resolvedCatalogIds.get(foodCatalogDirectKey(directId));
     if (resolvedDirectId) return resolvedDirectId;
   }
 

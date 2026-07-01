@@ -1,5 +1,6 @@
 import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
 import { fuzzyMatchesWords } from "../../fuzzyTextMatch";
+import { foodCatalogDirectKey } from "../../foodCatalogKeys";
 import type { FoodCatalogRepository } from "../../repositories/foodCatalogRepository";
 import type { MealDraftItem } from "../../nutritionEngine";
 
@@ -99,10 +100,6 @@ function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[]
   }
 }
 
-function directCatalogKey(foodCatalogId: number) {
-  return `catalog:${foodCatalogId}`;
-}
-
 function setResolvedCatalogId(resolved: Map<string, number>, key: string | null | undefined, foodCatalogId: number) {
   if (key?.trim()) {
     resolved.set(key, foodCatalogId);
@@ -119,6 +116,7 @@ export function createFoodsService(deps: {
   const userFoodStore = new Map<number, FoodSearchItem[]>();
   const favoriteFoodStore = new Map<number, Set<number>>();
   let foodIdSequence = 10000;
+  let dbSearchContext: { userId: number; promise: Promise<FoodSearchItem[]> } | null = null;
 
   function getMemoryFoodsForUser(userId: number) {
     const favorites = favoriteFoodStore.get(userId) ?? new Set<number>();
@@ -170,45 +168,65 @@ export function createFoodsService(deps: {
     }
   }
 
+  async function loadDbSearchFoods(userId: number) {
+    const [favorites, rows, usage] = await Promise.all([
+      loadFavoriteFoodIdsFromDb(userId),
+      deps.foodCatalogRepository.findAll(),
+      loadRecentFoodUsageFromDb(userId),
+    ]);
+
+    return rows
+      .filter(row => !row.createdByUserId || row.createdByUserId === userId)
+      .map(row => {
+        const lastUsedAt = usage.get(normalizeCatalogText(row.name)) ?? null;
+        return {
+          id: row.id,
+          name: row.name,
+          brandName: row.brandName,
+          servingSize: row.gramsPerServing,
+          servingUnit: row.servingUnit,
+          calories: row.calories,
+          protein: row.protein,
+          carbs: row.carbs,
+          fat: row.fat,
+          fiber: row.fiber,
+          isFruit: row.isFruit === 1,
+          isVegetable: row.isVegetable === 1,
+          isUltraProcessed: row.isUltraProcessed === 1,
+          source: row.dataSource,
+          foodType: row.foodType,
+          isUserCreated: row.isUserCreated === 1,
+          createdByUserId: row.createdByUserId,
+          isFavorite: favorites.has(row.id),
+          lastUsedAt,
+        } satisfies FoodSearchItem;
+      });
+  }
+
+  async function getDbSearchFoods(userId: number) {
+    if (dbSearchContext?.userId === userId) {
+      return dbSearchContext.promise;
+    }
+
+    const promise = loadDbSearchFoods(userId);
+    dbSearchContext = { userId, promise };
+
+    try {
+      return await promise;
+    } finally {
+      if (dbSearchContext?.promise === promise) {
+        dbSearchContext = null;
+      }
+    }
+  }
+
   async function searchFoods(userId: number, query = "", limit = 20) {
     const normalizedQuery = normalizeCatalogText(query);
     const db = await deps.getDb();
-    const favorites = await loadFavoriteFoodIdsFromDb(userId);
 
     if (db) {
       try {
-        const [rows, usage] = await Promise.all([
-          deps.foodCatalogRepository.findAll(),
-          loadRecentFoodUsageFromDb(userId),
-        ]);
-
-        const foods = rows
-          .filter(row => !row.createdByUserId || row.createdByUserId === userId)
-          .map(row => {
-            const lastUsedAt = usage.get(normalizeCatalogText(row.name)) ?? null;
-            return {
-              id: row.id,
-              name: row.name,
-              brandName: row.brandName,
-              servingSize: row.gramsPerServing,
-              servingUnit: row.servingUnit,
-              calories: row.calories,
-              protein: row.protein,
-              carbs: row.carbs,
-              fat: row.fat,
-              fiber: row.fiber,
-              isFruit: row.isFruit === 1,
-              isVegetable: row.isVegetable === 1,
-              isUltraProcessed: row.isUltraProcessed === 1,
-              source: row.dataSource,
-              foodType: row.foodType,
-              isUserCreated: row.isUserCreated === 1,
-              createdByUserId: row.createdByUserId,
-              isFavorite: favorites.has(row.id),
-              lastUsedAt,
-            } satisfies FoodSearchItem;
-          });
-
+        const foods = await getDbSearchFoods(userId);
         return foods
           .filter(food => {
             if (!normalizedQuery) return true;
@@ -399,7 +417,7 @@ export function createFoodsService(deps: {
       for (const item of items) {
         const directId = Number(item.foodCatalogId);
         if (Number.isFinite(directId) && directId > 0 && validCatalogIds.has(directId)) {
-          resolved.set(directCatalogKey(directId), directId);
+          resolved.set(foodCatalogDirectKey(directId), directId);
           setResolvedCatalogId(resolved, item.canonicalName, directId);
           setResolvedCatalogId(resolved, item.foodName, directId);
           continue;
