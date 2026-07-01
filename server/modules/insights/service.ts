@@ -210,6 +210,7 @@ function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: n
 }
 
 const FOOD_QUALITY_LOOKUP_QUERY_LIMIT = 8;
+const FOOD_QUALITY_LOOKUP_CONCURRENCY = 6;
 
 type ReportRangeData = {
   dates: string[];
@@ -251,14 +252,34 @@ function collectFoodQualityLookupNames(mealsByDay: ReportRangeData["mealsByDay"]
   return Array.from(names);
 }
 
+async function mapFoodLookupNames(
+  names: string[],
+  mapper: (name: string) => Promise<Awaited<ReturnType<typeof searchFoods>>>,
+) {
+  const results: Array<Awaited<ReturnType<typeof searchFoods>>> = [];
+  let nextIndex = 0;
+  const workerCount = Math.min(FOOD_QUALITY_LOOKUP_CONCURRENCY, names.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < names.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(names[currentIndex]);
+    }
+  }));
+
+  return results;
+}
+
 async function buildFoodLookupForMeals(userId: number, mealsByDay: ReportRangeData["mealsByDay"]) {
   const lookupNames = collectFoodQualityLookupNames(mealsByDay);
   if (!lookupNames.length) {
     return createFoodLookup([]);
   }
 
-  const results = await Promise.all(
-    lookupNames.map(name => searchFoods(userId, name, FOOD_QUALITY_LOOKUP_QUERY_LIMIT)),
+  const results = await mapFoodLookupNames(
+    lookupNames,
+    name => searchFoods(userId, name, FOOD_QUALITY_LOOKUP_QUERY_LIMIT),
   );
   const foodsById = new Map<number, Awaited<ReturnType<typeof searchFoods>>[number]>();
 
