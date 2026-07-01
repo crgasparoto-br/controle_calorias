@@ -22,6 +22,7 @@ export type HabitSnapshot = {
 
 export type MealDraftItem = {
   foodId?: number;
+  foodCatalogId?: number | null;
   portionId?: number;
   portionQuantity?: number;
   foodName: string;
