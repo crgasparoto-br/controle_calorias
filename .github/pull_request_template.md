@@ -20,7 +20,7 @@
 
 Status check obrigatório:
 
-- [ ] `Agent-first gate` passou em PR contra `main`
+- [ ] `Agent-first gate` passou em PR contra `main` ou `develop`
 
 Comandos relevantes:
 
