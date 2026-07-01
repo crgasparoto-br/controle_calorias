@@ -1,14 +1,16 @@
 import { normalizeFoodName } from "./normalize_food_name.ts";
 
 const FOOD_SYNONYMS = new Map<string, string[]>([
-  ["arroz branco", ["arroz", "arroz cozido"]],
-  ["feijao carioca", ["feijao", "feijao carioquinha"]],
+  ["arroz branco", ["arroz", "arroz cozido", "arroz branco cozido"]],
+  ["feijao carioca", ["feijao", "feijao carioquinha", "feijao cozido", "feijao com caldo"]],
   ["feijao preto", ["feijao preto cozido"]],
-  ["pao frances", ["pao de sal", "cacete"]],
+  ["frango peito", ["peito de frango", "frango grelhado", "file de frango", "file de frango grelhado"]],
+  ["pao frances", ["pao de sal", "paozinho frances", "cacete"]],
+  ["leite integral", ["leite", "leite de vaca", "leite de vaca integral", "copo de leite"]],
   ["mandioca", ["aipim", "macaxeira"]],
   ["abobora", ["jerimum"]],
   ["mexerica", ["tangerina", "bergamota"]],
-  ["banana prata", ["banana"]],
+  ["banana prata", ["banana", "banana madura", "banana prata madura"]],
   ["cafe com leite", ["pingado"]],
 ]);
 
