@@ -54,7 +54,7 @@ Checklist recomendado:
 - [x] `admin/logs`: preparar serviço isolado para logs administrativos e inferências, mantendo sanitização de detalhes antes de gravar em memória ou banco.
 - [x] `users/profile`: mover stores e funções de usuário, onboarding, perfil, preferências, restrições e peso inicial (`server/modules/users/service.ts`), preservando a assinatura pública exportada por `server/db.ts` e expondo acessores para os domínios que ainda leem essa memória (peso semanal, exportação de privacidade e purge de conta).
 - [ ] `meals`: mover inferências pendentes, refeições, mídia, favoritos de refeição, hábitos derivados e helpers de totais específicos do domínio.
-- [ ] `foods`: mover catálogo em memória, favoritos de alimentos, ranking, busca, criação e atualização de alimentos do usuário.
+- [x] `foods`: mover catálogo em memória, favoritos de alimentos, ranking, busca, criação e atualização de alimentos do usuário (`server/modules/foods/catalog.ts`), mantendo `mealStore` e `mealsRepository` como dependências injetadas até a extração do domínio `meals`.
 - [ ] `water/exercises`: mover metas de água, logs de hidratação, exercícios e consultas por data.
 - [ ] `goals/gamification`: mover metas nutricionais, snapshots semanais de badges e cálculo de conquistas.
 - [ ] `privacy/account`: mover exportação de privacidade, exclusão de dados em memória e orquestração de purge por domínio.

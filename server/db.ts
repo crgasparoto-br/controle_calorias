@@ -3,7 +3,6 @@ import { createPool, type Pool } from "mysql2/promise";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, NutritionGoal, User, WeightEntry } from "../drizzle/schema";
 import { ENV } from "./_core/env";
-import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
 import { getDateKeyInTimeZone } from "../shared/timeZone";
@@ -23,9 +22,9 @@ import { createDrizzleUsersRepository } from "./repositories/usersRepository";
 import { createDrizzleWaterRepository } from "./repositories/waterRepository";
 import { createDrizzleWeightRepository } from "./repositories/weightRepository";
 import { createDrizzleWhatsAppRepository } from "./repositories/whatsappRepository";
+import { createFoodsService, normalizeCatalogText, type FoodSearchItem, type FoodUpsertInput } from "./modules/foods/catalog";
 import { createUsersService } from "./modules/users/service";
 import { safeLogDetail } from "./privacy";
-import { fuzzyMatchesWords } from "./fuzzyTextMatch";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 const WHATSAPP_ACCESS_TOKEN_SECRET_KEY = "whatsapp_access_token";
@@ -548,8 +547,6 @@ const exerciseStore = new Map<number, ExerciseEntry[]>();
 const waterGoalStore = new Map<number, WaterGoalEntry>();
 const waterLogStore = new Map<number, WaterLogEntry[]>();
 const habitStore = new Map<number, HabitMemoryState[]>();
-const userFoodStore = new Map<number, FoodSearchItem[]>();
-const favoriteFoodStore = new Map<number, Set<number>>();
 const favoriteMealStore = new Map<number, FavoriteMeal[]>();
 const gamificationSettingsStore = new Map<number, GamificationSettingEntry>();
 const userBadgeStore = new Map<number, UserBadgeEntry[]>();
@@ -561,7 +558,6 @@ let goalIdSequence = 1;
 let exerciseIdSequence = 1;
 let waterGoalIdSequence = 1;
 let waterLogIdSequence = 1;
-let foodIdSequence = 10000;
 let favoriteMealIdSequence = 1;
 let userBadgeIdSequence = 1;
 
@@ -576,50 +572,6 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
 ];
 
 const BADGE_DEFINITION_BY_CODE = new Map(BADGE_DEFINITIONS.map(badge => [badge.code, badge]));
-
-export type FoodSearchItem = {
-  id: number;
-  name: string;
-  brandName?: string | null;
-  servingSize: number;
-  servingUnit: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number | null;
-  isFruit: boolean;
-  isVegetable: boolean;
-  isUltraProcessed: boolean;
-  source: string;
-  foodType: "generic" | "branded";
-  isUserCreated: boolean;
-  createdByUserId?: number | null;
-  isFavorite: boolean;
-  lastUsedAt?: number | null;
-};
-
-const referenceFoods: FoodSearchItem[] = FOOD_CATALOG_REFERENCE.map((food, index) => ({
-  id: index + 1,
-  name: food.name,
-  brandName: null,
-  servingSize: food.gramsPerServing,
-  servingUnit: food.servingLabel.replace(String(food.gramsPerServing), "").trim() || "porção",
-  calories: food.calories,
-  protein: food.protein,
-  carbs: food.carbs,
-  fat: food.fat,
-  fiber: null,
-  isFruit: false,
-  isVegetable: false,
-  isUltraProcessed: false,
-  source: "catalog",
-  foodType: "generic",
-  isUserCreated: false,
-  createdByUserId: null,
-  isFavorite: false,
-  lastUsedAt: null,
-}));
 
 function getWeekdayIndex(date: Date) {
   return (date.getDay() + 6) % 7;
@@ -1123,6 +1075,21 @@ const logsRepository = createDrizzleLogsRepository({
 });
 const accountRepository = createDrizzleAccountRepository({ getDb });
 
+const foodsService = createFoodsService({
+  foodCatalogRepository,
+  findMealItemsWithDates: userId => mealsRepository.findItemsWithMealDates(userId),
+  getUserMealsMemory: userId => mealStore.get(userId) ?? [],
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+export const searchFoods = foodsService.searchFoods;
+export const listRecentFoods = foodsService.listRecentFoods;
+export const upsertFavoriteFood = foodsService.upsertFavoriteFood;
+export const createUserFood = foodsService.createUserFood;
+export const updateUserFood = foodsService.updateUserFood;
+const resolveFoodCatalogIds = foodsService.resolveFoodCatalogIds;
+export type { FoodSearchItem, FoodUpsertInput } from "./modules/foods/catalog";
+
 function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[] {
   if (!value) return fallback;
   try {
@@ -1140,340 +1107,6 @@ function parseJsonObject(value: string | null | undefined, fallback: Record<stri
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : fallback;
   } catch {
     return fallback;
-  }
-}
-
-function normalizeCatalogText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s-]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function toSlug(value: string) {
-  const normalized = normalizeCatalogText(value).replace(/[\s_]+/g, "-").replace(/-+/g, "-");
-  return normalized || `food-${Date.now()}`;
-}
-
-function rankFoods(food: FoodSearchItem, query: string) {
-  const normalizedQuery = normalizeCatalogText(query);
-  const haystack = normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`);
-  const exact = normalizedQuery && haystack.startsWith(normalizedQuery) ? 4 : 0;
-  const favorite = food.isFavorite ? 3 : 0;
-  const recent = food.lastUsedAt ? 2 : 0;
-  const userCreated = food.isUserCreated ? 1 : 0;
-  return exact + favorite + recent + userCreated;
-}
-
-function getMemoryFoodsForUser(userId: number) {
-  const favorites = favoriteFoodStore.get(userId) ?? new Set<number>();
-  const userFoods = userFoodStore.get(userId) ?? [];
-  const recentMeals = mealStore.get(userId) ?? [];
-  const recentByName = new Map<string, number>();
-
-  for (const meal of recentMeals) {
-    for (const item of meal.items) {
-      const key = normalizeCatalogText(item.canonicalName || item.foodName);
-      recentByName.set(key, Math.max(recentByName.get(key) ?? 0, meal.occurredAt));
-    }
-  }
-
-  return [...userFoods, ...referenceFoods].map(food => {
-    const lastUsedAt = recentByName.get(normalizeCatalogText(food.name)) ?? food.lastUsedAt ?? null;
-    return {
-      ...food,
-      isFavorite: favorites.has(food.id),
-      lastUsedAt,
-    };
-  });
-}
-
-async function loadFavoriteFoodIdsFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return favoriteFoodStore.get(userId) ?? new Set<number>();
-
-  const ids = await foodCatalogRepository.findFavoriteIdsByUserId(userId);
-  favoriteFoodStore.set(userId, ids);
-  return ids;
-}
-
-async function loadRecentFoodUsageFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return new Map<string, number>();
-
-  try {
-    const items = await mealsRepository.findItemsWithMealDates(userId);
-    const usage = new Map<string, number>();
-    for (const item of items) {
-      const key = normalizeCatalogText(item.canonicalName || item.foodName);
-      usage.set(key, Math.max(usage.get(key) ?? 0, item.occurredAt));
-    }
-    return usage;
-  } catch (error) {
-    logPersistenceWarning("Recent foods read skipped", error);
-    return new Map<string, number>();
-  }
-}
-
-export async function searchFoods(userId: number, query = "", limit = 20) {
-  const normalizedQuery = normalizeCatalogText(query);
-  const db = await getDb();
-  const favorites = await loadFavoriteFoodIdsFromDb(userId);
-
-  if (db) {
-    try {
-      const [rows, usage] = await Promise.all([
-        foodCatalogRepository.findAll(),
-        loadRecentFoodUsageFromDb(userId),
-      ]);
-
-      const foods = rows
-        .filter(row => !row.createdByUserId || row.createdByUserId === userId)
-        .map(row => {
-          const lastUsedAt = usage.get(normalizeCatalogText(row.name)) ?? null;
-          return {
-            id: row.id,
-            name: row.name,
-            brandName: row.brandName,
-            servingSize: row.gramsPerServing,
-            servingUnit: row.servingUnit,
-            calories: row.calories,
-            protein: row.protein,
-            carbs: row.carbs,
-            fat: row.fat,
-            fiber: row.fiber,
-            isFruit: row.isFruit === 1,
-            isVegetable: row.isVegetable === 1,
-            isUltraProcessed: row.isUltraProcessed === 1,
-            source: row.dataSource,
-            foodType: row.foodType,
-            isUserCreated: row.isUserCreated === 1,
-            createdByUserId: row.createdByUserId,
-            isFavorite: favorites.has(row.id),
-            lastUsedAt,
-          } satisfies FoodSearchItem;
-        });
-
-      return foods
-        .filter(food => {
-          if (!normalizedQuery) return true;
-          const haystack = normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`);
-          return haystack.includes(normalizedQuery) || fuzzyMatchesWords(normalizedQuery, haystack);
-        })
-        .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
-        .slice(0, limit);
-    } catch (error) {
-      logPersistenceWarning("Food search read skipped", error);
-    }
-  }
-
-  return getMemoryFoodsForUser(userId)
-    .filter(food => !normalizedQuery || normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`).includes(normalizedQuery))
-    .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
-    .slice(0, limit);
-}
-
-export async function listRecentFoods(userId: number, limit = 10) {
-  return (await searchFoods(userId, "", 100)).filter(food => food.lastUsedAt).slice(0, limit);
-}
-
-export async function upsertFavoriteFood(userId: number, foodId: number, favorite: boolean) {
-  const favorites = new Set(favoriteFoodStore.get(userId) ?? []);
-  if (favorite) favorites.add(foodId);
-  else favorites.delete(foodId);
-  favoriteFoodStore.set(userId, favorites);
-
-  const db = await getDb();
-  if (db) {
-    try {
-      if (favorite) {
-        await foodCatalogRepository.upsertFavorite(userId, foodId);
-      } else {
-        await foodCatalogRepository.deleteFavorite(userId, foodId);
-      }
-    } catch (error) {
-      logPersistenceWarning("Food favorite write skipped", error);
-    }
-  }
-
-  const [food] = await searchFoods(userId, "", 200);
-  return (await searchFoods(userId, "", 200)).find(item => item.id === foodId) ?? food;
-}
-
-export type FoodUpsertInput = {
-  foodId?: number;
-  name: string;
-  brandName?: string | null;
-  servingSize: number;
-  servingUnit: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number | null;
-  isFruit?: boolean;
-  isVegetable?: boolean;
-  isUltraProcessed?: boolean;
-  source: string;
-  foodType: "generic" | "branded";
-};
-
-export async function createUserFood(userId: number, input: FoodUpsertInput) {
-  const food: FoodSearchItem = {
-    id: foodIdSequence++,
-    name: input.name,
-    brandName: input.brandName ?? null,
-    servingSize: input.servingSize,
-    servingUnit: input.servingUnit,
-    calories: input.calories,
-    protein: input.protein,
-    carbs: input.carbs,
-    fat: input.fat,
-    fiber: input.fiber ?? null,
-    isFruit: input.isFruit ?? false,
-    isVegetable: input.isVegetable ?? false,
-    isUltraProcessed: input.isUltraProcessed ?? false,
-    source: input.source || "manual",
-    foodType: input.foodType,
-    isUserCreated: true,
-    createdByUserId: userId,
-    isFavorite: false,
-    lastUsedAt: null,
-  };
-
-  const db = await getDb();
-  if (db) {
-    try {
-      const insertedId = await foodCatalogRepository.insert({
-        slug: `${toSlug(`${input.brandName ?? ""} ${input.name}`)}-${userId}-${Date.now()}`,
-        name: input.name,
-        aliases: JSON.stringify([]),
-        brandName: input.brandName ?? null,
-        foodType: input.foodType,
-        dataSource: input.source || "manual",
-        servingLabel: `${input.servingSize} ${input.servingUnit}`,
-        servingUnit: input.servingUnit,
-        gramsPerServing: input.servingSize,
-        calories: input.calories,
-        protein: input.protein,
-        carbs: input.carbs,
-        fat: input.fat,
-        fiber: input.fiber ?? null,
-        isFruit: input.isFruit ? 1 : 0,
-        isVegetable: input.isVegetable ? 1 : 0,
-        isUltraProcessed: input.isUltraProcessed ? 1 : 0,
-        isUserCreated: 1,
-        createdByUserId: userId,
-      });
-      if (insertedId) food.id = insertedId;
-    } catch (error) {
-      logPersistenceWarning("Food creation persistence skipped", error);
-    }
-  }
-
-  const current = userFoodStore.get(userId) ?? [];
-  userFoodStore.set(userId, [food, ...current]);
-  return food;
-}
-
-export async function updateUserFood(userId: number, input: FoodUpsertInput & { foodId: number }) {
-  const current = userFoodStore.get(userId) ?? [];
-  const existing = current.find(food => food.id === input.foodId);
-  if (!existing) {
-    const dbFoods = await searchFoods(userId, "", 200);
-    const dbExisting = dbFoods.find(food => food.id === input.foodId && food.isUserCreated && food.createdByUserId === userId);
-    if (!dbExisting) {
-      throw new Error("Alimento criado pelo usuário não encontrado.");
-    }
-  }
-
-  const updated: FoodSearchItem = {
-    ...(existing ?? { id: input.foodId, isFavorite: false, lastUsedAt: null }),
-    id: input.foodId,
-    name: input.name,
-    brandName: input.brandName ?? null,
-    servingSize: input.servingSize,
-    servingUnit: input.servingUnit,
-    calories: input.calories,
-    protein: input.protein,
-    carbs: input.carbs,
-    fat: input.fat,
-    fiber: input.fiber ?? null,
-    isFruit: input.isFruit ?? false,
-    isVegetable: input.isVegetable ?? false,
-    isUltraProcessed: input.isUltraProcessed ?? false,
-    source: input.source || "manual",
-    foodType: input.foodType,
-    isUserCreated: true,
-    createdByUserId: userId,
-  };
-
-  const db = await getDb();
-  if (db) {
-    try {
-      await foodCatalogRepository.update(input.foodId, userId, {
-        name: input.name,
-        brandName: input.brandName ?? null,
-        foodType: input.foodType,
-        dataSource: input.source || "manual",
-        servingLabel: `${input.servingSize} ${input.servingUnit}`,
-        servingUnit: input.servingUnit,
-        gramsPerServing: input.servingSize,
-        calories: input.calories,
-        protein: input.protein,
-        carbs: input.carbs,
-        fat: input.fat,
-        fiber: input.fiber ?? null,
-        isFruit: input.isFruit ? 1 : 0,
-        isVegetable: input.isVegetable ? 1 : 0,
-        isUltraProcessed: input.isUltraProcessed ? 1 : 0,
-      });
-    } catch (error) {
-      logPersistenceWarning("Food update persistence skipped", error);
-    }
-  }
-
-  userFoodStore.set(userId, [updated, ...current.filter(food => food.id !== input.foodId)]);
-  return updated;
-}
-
-async function resolveFoodCatalogIds(items: MealDraftItem[]) {
-  const db = await getDb();
-  if (!db || !items.length) {
-    return new Map<string, number>();
-  }
-
-  try {
-    const rows = await foodCatalogRepository.findAll();
-    const catalogIndex = new Map<string, number>();
-
-    for (const row of rows) {
-      const aliases = parseJsonArray<string>(row.aliases, []);
-      const keys = [row.name, ...aliases].map(normalizeCatalogText);
-      for (const key of keys) {
-        if (key) {
-          catalogIndex.set(key, row.id);
-        }
-      }
-    }
-
-    const resolved = new Map<string, number>();
-    for (const item of items) {
-      const directKey = normalizeCatalogText(item.canonicalName);
-      const fallbackKey = normalizeCatalogText(item.foodName);
-      const resolvedId = catalogIndex.get(directKey) ?? catalogIndex.get(fallbackKey);
-      if (resolvedId) {
-        resolved.set(item.canonicalName, resolvedId);
-        resolved.set(item.foodName, resolvedId);
-      }
-    }
-
-    return resolved;
-  } catch (error) {
-    logPersistenceWarning("Food catalog resolution skipped", error);
-    return new Map<string, number>();
   }
 }
 
@@ -2966,8 +2599,7 @@ function deleteUserMemoryData(userId: number) {
   waterGoalStore.delete(userId);
   waterLogStore.delete(userId);
   habitStore.delete(userId);
-  userFoodStore.delete(userId);
-  favoriteFoodStore.delete(userId);
+  foodsService.clearMemory(userId);
   favoriteMealStore.delete(userId);
   gamificationSettingsStore.delete(userId);
   userBadgeStore.delete(userId);
