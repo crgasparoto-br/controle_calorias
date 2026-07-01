@@ -1,8 +1,8 @@
 import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
 import { fuzzyMatchesWords } from "../../fuzzyTextMatch";
+import { foodCatalogDirectKey } from "../../foodCatalogKeys";
 import type { FoodCatalogRepository } from "../../repositories/foodCatalogRepository";
 import type { MealDraftItem } from "../../nutritionEngine";
-import { foodCatalogDirectKey } from "./catalogKeys";
 
 export type FoodSearchItem = {
   id: number;
