@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../../drizzle/schema";
-import { foodCatalogDirectKey } from "../modules/foods/catalogKeys";
+import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 
 type DbProvider = () => Promise<any | null>;
