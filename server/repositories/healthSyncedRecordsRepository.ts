@@ -1,6 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import { getDb } from "../db";
 import type { HealthDataType, HealthProvider } from "../modules/healthIntegrations/schemas";
+import { mapStravaExercisesToSyncedHealthRecords, type StravaSyncedExercise } from "../modules/healthIntegrations/strava/syncedExercises";
 import type { SyncedHealthRecord } from "../modules/healthIntegrations/syncedRecords";
 
 type PersistedSyncedRecord = SyncedHealthRecord & {
@@ -25,6 +26,17 @@ type HealthSyncedRecordRow = {
   energyKind: "burned" | null;
   metadataJson: string | null;
   createdAt: Date | string;
+};
+
+type StravaExerciseSyncedRow = {
+  id: number;
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  notes: string | null;
+  occurredAt: Date | string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 };
 
 function isSqlExecutor(value: unknown): value is SqlExecutor {
@@ -82,6 +94,59 @@ function mapRow(row: HealthSyncedRecordRow): PersistedSyncedRecord {
   };
 }
 
+function mapStravaExerciseRow(row: StravaExerciseSyncedRow): StravaSyncedExercise {
+  return {
+    id: Number(row.id),
+    activityType: row.activityType,
+    durationMinutes: Number(row.durationMinutes),
+    caloriesBurned: Number(row.caloriesBurned),
+    notes: row.notes,
+    occurredAt: row.occurredAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+async function listPersistedHealthSyncedRecords(db: SqlExecutor, userId: number) {
+  const result = await db.execute(sql`
+    SELECT
+      externalRecordId,
+      provider,
+      dataType,
+      measuredAt,
+      value,
+      unit,
+      activityType,
+      energyKind,
+      metadataJson,
+      createdAt
+    FROM healthSyncedRecords
+    WHERE userId = ${userId}
+    ORDER BY measuredAt DESC
+    LIMIT 1000
+  `);
+  return extractRows<HealthSyncedRecordRow>(result).map(row => ({ ...mapRow(row), userId }));
+}
+
+async function listStravaExerciseSyncedRecords(db: SqlExecutor, userId: number) {
+  const result = await db.execute(sql`
+    SELECT
+      id,
+      activityType,
+      durationMinutes,
+      caloriesBurned,
+      notes,
+      occurredAt,
+      createdAt,
+      updatedAt
+    FROM exercises
+    WHERE userId = ${userId} AND notes LIKE ${"%strava:%"}
+    ORDER BY occurredAt DESC
+    LIMIT 1000
+  `);
+  return mapStravaExercisesToSyncedHealthRecords(extractRows<StravaExerciseSyncedRow>(result).map(mapStravaExerciseRow));
+}
+
 export async function upsertHealthSyncedRecords(records: PersistedSyncedRecord[]) {
   if (!records.length) return false;
 
@@ -135,29 +200,24 @@ export async function listHealthSyncedRecords(userId: number) {
   const db = await getDb();
   if (!isSqlExecutor(db)) return null;
 
+  const records: SyncedHealthRecord[] = [];
+  let readSucceeded = false;
+
   try {
-    const result = await db.execute(sql`
-      SELECT
-        externalRecordId,
-        provider,
-        dataType,
-        measuredAt,
-        value,
-        unit,
-        activityType,
-        energyKind,
-        metadataJson,
-        createdAt
-      FROM healthSyncedRecords
-      WHERE userId = ${userId}
-      ORDER BY measuredAt DESC
-      LIMIT 1000
-    `);
-    return extractRows<HealthSyncedRecordRow>(result).map(row => ({ ...mapRow(row), userId }));
+    records.push(...await listPersistedHealthSyncedRecords(db, userId));
+    readSucceeded = true;
   } catch (error) {
     console.warn("[HealthIntegrations] Failed to list persisted synced health records:", error instanceof Error ? error.message : error);
-    return null;
   }
+
+  try {
+    records.push(...await listStravaExerciseSyncedRecords(db, userId));
+    readSucceeded = true;
+  } catch (error) {
+    console.warn("[HealthIntegrations] Failed to list Strava exercises as synced records:", error instanceof Error ? error.message : error);
+  }
+
+  return readSucceeded ? records : null;
 }
 
 export async function deleteHealthSyncedRecords(userId: number, provider: HealthProvider) {

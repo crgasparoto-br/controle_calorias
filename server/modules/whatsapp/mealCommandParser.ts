@@ -49,6 +49,7 @@ const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
 const DECIMAL_NUMBER_PATTERN = "\\d+(?:[,.]\\d+)?";
 const QUANTITY_VALUE_PATTERN = `${DECIMAL_NUMBER_PATTERN}|uma?|um`;
+const MEAL_PATTERN_SOURCE = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia|pr[eé][\\s-]?treino|p[oó]s[\\s-]?treino)";
 
 const MEAL_TYPES = [
   "cafe da manha",
@@ -59,6 +60,14 @@ const MEAL_TYPES = [
   "lanche da tarde",
   "lanche",
   "ceia",
+  "pre treino",
+  "pre-treino",
+  "pré treino",
+  "pré-treino",
+  "pos treino",
+  "pos-treino",
+  "pós treino",
+  "pós-treino",
 ];
 
 const KNOWN_BRANDS = [
@@ -197,13 +206,19 @@ function resolveCommandDate(input: string, context: MealCommandContext) {
   return context.recentDate ?? referenceDate;
 }
 
+function normalizeMealType(value: string) {
+  return value
+    .replace("almoco", "almoço")
+    .replace("cafe da manha", "café da manhã")
+    .replace(/pr[eé][\s-]?treino/, "pré-treino")
+    .replace(/p[oó]s[\s-]?treino/, "pós-treino");
+}
+
 function findMealType(input: string, context: MealCommandContext) {
   const normalized = normalizeText(input);
   const mealType = MEAL_TYPES.find(candidate => normalized.includes(normalizeText(candidate)));
   if (mealType) {
-    return mealType
-      .replace("almoco", "almoço")
-      .replace("cafe da manha", "café da manhã");
+    return normalizeMealType(mealType);
   }
   return context.recentMealType ?? null;
 }
@@ -316,7 +331,7 @@ function removeBrand(foodName: string, brand: string | null) {
 function cleanFoodName(value: string) {
   return normalizeSpaces(
     stripTrailingDate(value)
-      .replace(/^(?:a|ao|à|no|na)\s+(?:refei[cç][aã]o\s+)?(?:caf[eé]\s+da\s+manh[aã]|almo[cç]o|jantar|lanche(?:\s+da\s+tarde)?|ceia)(?:\s+(?:de\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\s*[,;:]?\s*/i, "")
+      .replace(new RegExp(`^(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${MEAL_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*[,;:]?\\s*`, "i"), "")
       .replace(/^(?:de|do|da|dos|das)\s+/i, "")
       .replace(/[.,;:!?]+$/g, ""),
   );
@@ -382,9 +397,8 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
   const mealType = findMealType(input, context);
   const date = resolveCommandDate(input, context);
   const afterAction = input.slice((actionMatch.index ?? 0) + actionMatch[0].length);
-  const mealPattern = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia)";
   const datePattern = "(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?";
-  const mealPrefixPattern = `(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${mealPattern}${datePattern}`;
+  const mealPrefixPattern = `(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${MEAL_PATTERN_SOURCE}${datePattern}`;
   const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)\\s+${mealPrefixPattern}\\s*$`, "i"));
   const afterMealMatch = afterAction.match(new RegExp(`^\\s*${mealPrefixPattern}(?:\\s*[,;:]\\s*|\\s+)(.+)$`, "i"));
   const itemsText = beforeMealMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction;
@@ -519,14 +533,13 @@ function parseImplicitFoodAdditionCommand(input: string, context: MealCommandCon
   if (!quantityExpression || quantityExpression.kind !== "valid") return null;
 
   // Extrai o nome do alimento removendo a expressão aritmética e o tipo de refeição
-  const mealPattern = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia)";
   const withoutExpression = normalizeSpaces(
     `${input.slice(0, quantityExpression.index)} ${input.slice(quantityExpression.index + quantityExpression.raw.length)}`,
   );
   const withoutMeal = normalizeSpaces(
     withoutExpression
-      .replace(new RegExp(`\\s*(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${mealPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?`, "i"), " ")
-      .replace(new RegExp(`${mealPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*`, "i"), " "),
+      .replace(new RegExp(`\\s*(?:a|ao|à|no|na)\\s+(?:refei[cç][aã]o\\s+)?${MEAL_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?`, "i"), " ")
+      .replace(new RegExp(`${MEAL_PATTERN_SOURCE}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?\\s*`, "i"), " "),
   );
   const foodNameRaw = cleanFoodName(withoutMeal);
   if (!foodNameRaw) return null;

@@ -25,6 +25,25 @@ describe("parseMealCommandFromWhatsApp", () => {
     ]);
   });
 
+  it("interpreta adicao multipla na refeicao pre-treino sem cair em ajuste de ultimo alimento", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar 57g de banana prata, 9g linhaça, 14g aveia em flocos, 10g mel, 22g whey proten, 6g creatina, 1 iogurte natural desnatado a refeição pré treino",
+      { referenceDate },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("pré-treino");
+    expect(result.items).toEqual([
+      expect.objectContaining({ foodName: "banana prata", quantity: 57, unit: "g", missingFields: [] }),
+      expect.objectContaining({ foodName: "linhaça", quantity: 9, unit: "g", missingFields: [] }),
+      expect.objectContaining({ foodName: "aveia em flocos", quantity: 14, unit: "g", missingFields: [] }),
+      expect.objectContaining({ foodName: "mel", quantity: 10, unit: "g", missingFields: [] }),
+      expect.objectContaining({ foodName: "whey proten", quantity: 22, unit: "g", missingFields: [] }),
+      expect.objectContaining({ foodName: "creatina", quantity: 6, unit: "g", missingFields: [] }),
+      expect.objectContaining({ foodName: "iogurte natural desnatado", quantity: 1, unit: "unidade", missingFields: [] }),
+    ]);
+  });
+
   it("calcula quantidade liquida com subtracao em gramas antes de montar o alimento", () => {
     const result = parseMealCommandFromWhatsApp(
       "Adicionar 160g - 23g de maça fugi ao lanche",
@@ -311,6 +330,19 @@ describe("parseMealCommandFromWhatsApp", () => {
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "arroz",
       quantity: 200,
+      unit: "g",
+      missingFields: [],
+    }));
+  });
+
+  it("reconhece expressao aritmetica no pre-treino sem verbo explicito", () => {
+    const result = parseMealCommandFromWhatsApp("banana 80g - 23g no pré-treino", { referenceDate });
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("pré-treino");
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "banana",
+      quantity: 57,
       unit: "g",
       missingFields: [],
     }));
