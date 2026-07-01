@@ -509,7 +509,7 @@ export async function getDashboardOverview(userId: number) {
       carbs: acc.carbs + day.carbs,
       fat: acc.fat + day.fat,
     }),
-    { calories: 0, carbs: 0, fat: 0, protein: 0 },
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
   const weeklyPlanned = weekly.reduce(
     (acc, day) => ({
