@@ -49,7 +49,7 @@ const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
 const DECIMAL_NUMBER_PATTERN = "\\d+(?:[,.]\\d+)?";
 const QUANTITY_VALUE_PATTERN = `${DECIMAL_NUMBER_PATTERN}|uma?|um`;
-const MEAL_PATTERN_SOURCE = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia|pr[eé][\s-]?treino|p[oó]s[\s-]?treino)";
+const MEAL_PATTERN_SOURCE = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia|pr[eé][\\s-]?treino|p[oó]s[\\s-]?treino)";
 
 const MEAL_TYPES = [
   "cafe da manha",
