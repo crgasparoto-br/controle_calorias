@@ -14,12 +14,13 @@ permissions:
 jobs:
   apply-issue-585:
     name: Apply issue 585 extraction
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex/585-extract-privacy-account' }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/codex/585-extract-privacy-account') || (github.event_name == 'pull_request' && github.head_ref == 'codex/585-extract-privacy-account') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Apply privacy account extraction
@@ -38,7 +39,7 @@ jobs:
 
   agent-check:
     name: Agent-first gate
-    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/codex/585-extract-privacy-account' }}
+    if: ${{ !((github.event_name == 'push' && github.ref == 'refs/heads/codex/585-extract-privacy-account') || (github.event_name == 'pull_request' && github.head_ref == 'codex/585-extract-privacy-account')) }}
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
