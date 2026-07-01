@@ -3,7 +3,7 @@ import { __foodQualityTesting } from "./service";
 
 const { calculateQualityIndicators, createFoodLookup } = __foodQualityTesting;
 
-function food(overrides: Partial<ReturnType<typeof createFoodLookup> extends never ? never : {
+type FoodFixture = {
   id: number;
   name: string;
   brandName: string | null;
@@ -23,7 +23,9 @@ function food(overrides: Partial<ReturnType<typeof createFoodLookup> extends nev
   createdByUserId: number | null;
   isFavorite: boolean;
   lastUsedAt: number | null;
-}>) {
+};
+
+function food(overrides: Partial<FoodFixture> = {}): FoodFixture {
   return {
     id: 1,
     name: "Banana",
@@ -39,7 +41,7 @@ function food(overrides: Partial<ReturnType<typeof createFoodLookup> extends nev
     isVegetable: false,
     isUltraProcessed: false,
     source: "test",
-    foodType: "generic" as const,
+    foodType: "generic",
     isUserCreated: false,
     createdByUserId: null,
     isFavorite: false,
