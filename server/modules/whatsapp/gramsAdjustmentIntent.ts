@@ -12,11 +12,11 @@ function norm(value: string) {
 function fmt(value: number) { return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value); }
 function itemName(item: Item) { return item.foodName || item.canonicalName || "item"; }
 function labelRx(label: string) { return label.replace(/\s+/g, "\\s+"); }
-function mealFromText(text: string) { return MEALS.find(label => new RegExp(`\\b(?:do|da|de|no|na|ao|a|para)\\s+(?:refeicao\\s+)?${labelRx(label)}\\b`).test(text)) ?? null; }
+function mealFromText(text: string) { return MEALS.find(label => new RegExp(`\b(?:do|da|de|no|na|ao|a|para)\s+(?:refeicao\s+)?${labelRx(label)}\b`).test(text)) ?? null; }
 function cleanFood(value: string | null, mealLabel: string | null) {
   if (!value) return null;
   let cleaned = value.replace(/^\s*(?:o|a|os|as|do|da|de|dos|das)\s+/i, "").trim();
-  if (mealLabel) cleaned = cleaned.replace(new RegExp(`\\s+(?:do|da|de|no|na|ao|a|para)\\s+(?:refeicao\\s+)?${labelRx(mealLabel)}\\s*$`, "i"), "").trim();
+  if (mealLabel) cleaned = cleaned.replace(new RegExp(`\s+(?:do|da|de|no|na|ao|a|para)\s+(?:refeicao\s+)?${labelRx(mealLabel)}\s*$`, "i"), "").trim();
   return cleaned || null;
 }
 function parse(text: string) {
@@ -37,18 +37,19 @@ function score(item: Item, food: string) {
   if (!wanted || !text) return 0;
   if (text === wanted) return 4;
   if (text.includes(wanted) || wanted.includes(norm(itemName(item)))) return 3;
+  const itemWords = text.split(" ").filter(Boolean);
   const words = wanted.split(" ").filter(Boolean);
-  return words.filter(word => text.split(" ").includes(word)).length;
+  return words.filter(word => itemWords.includes(word)).length;
 }
-function findItem(items: Item[], food: string | null) {
+function findItem(items: Item[], food: string | null, allowLastItemFallback = true) {
   if (!items.length) return -1;
-  if (!food) return items.length - 1;
+  if (!food) return allowLastItemFallback ? items.length - 1 : -1;
   return items.map((item, index) => ({ index, score: score(item, food) })).filter(x => x.score > 0).sort((a, b) => b.score - a.score)[0]?.index ?? -1;
 }
 function findMeal(meals: Meal[], intent: NonNullable<ReturnType<typeof parse>>) {
   if (intent.mealLabel) return meals.find(meal => norm(meal.mealLabel ?? "").includes(intent.mealLabel!)) ?? null;
   const targets = intent.adjustments.filter(x => x.targetFood);
-  return targets.length ? meals.find(meal => targets.every(target => findItem(meal.items ?? [], target.targetFood) >= 0)) ?? meals[0] ?? null : meals[0] ?? null;
+  return targets.length ? meals.find(meal => targets.every(target => findItem(meal.items ?? [], target.targetFood, false) >= 0)) ?? meals[0] ?? null : meals[0] ?? null;
 }
 function scale(item: Item, grams: number): MealItemInput {
   const old = Number(item.estimatedGrams || 0), ratio = old > 0 ? grams / old : 1;
@@ -64,8 +65,9 @@ export async function executeWhatsappGramsAdjustmentIntent(userId: number, input
   if (!meal?.items?.length) return { handled: true, action: "clarification_needed" as const, reply: `Nao encontrei esses alimentos na ${context}. Me diga quais itens devo ajustar.`, eventType: "whatsapp.intent.clarification_needed", detail: "Pedido de reducao de gramas sem refeicao compativel." };
   let items: Item[] = [...meal.items];
   const applied: Array<{ foodName: string; previousGrams: number; nextGrams: number }> = [];
+  const allowFallbackForSingleUntargetedAdjustment = intent.adjustments.length === 1 && !intent.adjustments[0].targetFood;
   for (const adj of intent.adjustments) {
-    const idx = findItem(items, adj.targetFood);
+    const idx = findItem(items, adj.targetFood, allowFallbackForSingleUntargetedAdjustment);
     if (idx < 0) continue;
     const previousGrams = Number(items[idx].estimatedGrams || 0), nextGrams = Math.max(previousGrams - adj.gramsDelta, 1);
     applied.push({ foodName: itemName(items[idx]), previousGrams, nextGrams });
