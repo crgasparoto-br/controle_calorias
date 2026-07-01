@@ -25,6 +25,32 @@ function createService(overrides: Partial<Parameters<typeof createFoodsService>[
   });
 }
 
+function catalogRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 55,
+    slug: "arroz-branco",
+    name: "Arroz branco",
+    aliases: JSON.stringify(["arroz cozido"]),
+    brandName: null,
+    foodType: "generic",
+    dataSource: "catalog",
+    servingLabel: "100 g",
+    servingUnit: "g",
+    gramsPerServing: 100,
+    calories: 130,
+    protein: 2.7,
+    carbs: 28,
+    fat: 0.3,
+    fiber: 0.4,
+    isFruit: 0,
+    isVegetable: 0,
+    isUltraProcessed: 0,
+    isUserCreated: 0,
+    createdByUserId: null,
+    ...overrides,
+  } as any;
+}
+
 describe("foods catalog service", () => {
   it("finds a user-created food from memory when the database is unavailable", async () => {
     const service = createService();
@@ -69,28 +95,7 @@ describe("foods catalog service", () => {
 
   it("resolves catalog ids by canonical name, alias or food name", async () => {
     const repository = createFakeFoodCatalogRepository({
-      findAll: vi.fn(async () => [{
-        id: 55,
-        slug: "arroz-branco",
-        name: "Arroz branco",
-        aliases: JSON.stringify(["arroz cozido"]),
-        brandName: null,
-        foodType: "generic",
-        dataSource: "catalog",
-        servingLabel: "100 g",
-        servingUnit: "g",
-        gramsPerServing: 100,
-        calories: 130,
-        protein: 2.7,
-        carbs: 28,
-        fat: 0.3,
-        fiber: 0.4,
-        isFruit: 0,
-        isVegetable: 0,
-        isUltraProcessed: 0,
-        isUserCreated: 0,
-        createdByUserId: null,
-      } as any]),
+      findAll: vi.fn(async () => [catalogRow()]),
     });
     const service = createService({ foodCatalogRepository: repository, getDb: async () => ({}) });
 
@@ -100,6 +105,38 @@ describe("foods catalog service", () => {
 
     expect(resolved.get("arroz cozido")).toBe(55);
     expect(resolved.get("arroz")).toBe(55);
+  });
+
+  it("keeps only direct catalog ids that exist before meal persistence", async () => {
+    const repository = createFakeFoodCatalogRepository({
+      findAll: vi.fn(async () => [catalogRow({ id: 10, name: "Banana", aliases: "[]" })]),
+    });
+    const service = createService({ foodCatalogRepository: repository, getDb: async () => ({}) });
+
+    const resolved = await service.resolveFoodCatalogIds([
+      { foodCatalogId: 10, canonicalName: "texto divergente", foodName: "texto divergente" } as any,
+      { foodCatalogId: 999, canonicalName: "sem cadastro", foodName: "sem cadastro" } as any,
+    ]);
+
+    expect(resolved.get("catalog:10")).toBe(10);
+    expect(resolved.get("texto divergente")).toBe(10);
+    expect(resolved.has("catalog:999")).toBe(false);
+    expect(resolved.has("sem cadastro")).toBe(false);
+  });
+
+  it("falls back to catalog aliases when a direct catalog id is invalid", async () => {
+    const repository = createFakeFoodCatalogRepository({
+      findAll: vi.fn(async () => [catalogRow({ id: 20, name: "Aveia", aliases: JSON.stringify(["flocos de aveia"]) })]),
+    });
+    const service = createService({ foodCatalogRepository: repository, getDb: async () => ({}) });
+
+    const resolved = await service.resolveFoodCatalogIds([
+      { foodCatalogId: 999, canonicalName: "sem id valido", foodName: "flocos de aveia" } as any,
+    ]);
+
+    expect(resolved.get("sem id valido")).toBe(20);
+    expect(resolved.get("flocos de aveia")).toBe(20);
+    expect(resolved.has("catalog:999")).toBe(false);
   });
 
   it("clears user-created foods and favorites from memory", async () => {

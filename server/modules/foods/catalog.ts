@@ -99,6 +99,16 @@ function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[]
   }
 }
 
+function directCatalogKey(foodCatalogId: number) {
+  return `catalog:${foodCatalogId}`;
+}
+
+function setResolvedCatalogId(resolved: Map<string, number>, key: string | null | undefined, foodCatalogId: number) {
+  if (key?.trim()) {
+    resolved.set(key, foodCatalogId);
+  }
+}
+
 export function createFoodsService(deps: {
   foodCatalogRepository: FoodCatalogRepository;
   findMealItemsWithDates: (userId: number) => Promise<Array<{ canonicalName?: string | null; foodName: string; occurredAt: number }>>;
@@ -372,6 +382,7 @@ export function createFoodsService(deps: {
 
     try {
       const rows = await deps.foodCatalogRepository.findAll();
+      const validCatalogIds = new Set(rows.map(row => row.id));
       const catalogIndex = new Map<string, number>();
 
       for (const row of rows) {
@@ -386,12 +397,20 @@ export function createFoodsService(deps: {
 
       const resolved = new Map<string, number>();
       for (const item of items) {
+        const directId = Number(item.foodCatalogId);
+        if (Number.isFinite(directId) && directId > 0 && validCatalogIds.has(directId)) {
+          resolved.set(directCatalogKey(directId), directId);
+          setResolvedCatalogId(resolved, item.canonicalName, directId);
+          setResolvedCatalogId(resolved, item.foodName, directId);
+          continue;
+        }
+
         const directKey = normalizeCatalogText(item.canonicalName);
         const fallbackKey = normalizeCatalogText(item.foodName);
         const resolvedId = catalogIndex.get(directKey) ?? catalogIndex.get(fallbackKey);
         if (resolvedId) {
-          resolved.set(item.canonicalName, resolvedId);
-          resolved.set(item.foodName, resolvedId);
+          setResolvedCatalogId(resolved, item.canonicalName, resolvedId);
+          setResolvedCatalogId(resolved, item.foodName, resolvedId);
         }
       }
       return resolved;

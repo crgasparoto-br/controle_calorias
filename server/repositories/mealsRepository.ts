@@ -73,10 +73,24 @@ export type MealsRepository = {
   countConfirmed(): Promise<number>;
 };
 
+function directCatalogKey(foodCatalogId: number) {
+  return `catalog:${foodCatalogId}`;
+}
+
+function resolveMealItemFoodCatalogId(item: MealDraftItem, resolvedCatalogIds: Map<string, number>) {
+  const directId = Number(item.foodCatalogId);
+  if (Number.isFinite(directId) && directId > 0) {
+    const resolvedDirectId = resolvedCatalogIds.get(directCatalogKey(directId));
+    if (resolvedDirectId) return resolvedDirectId;
+  }
+
+  return resolvedCatalogIds.get(item.canonicalName) ?? resolvedCatalogIds.get(item.foodName) ?? null;
+}
+
 function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>) {
   return items.map(item => ({
     mealId,
-    foodCatalogId: item.foodCatalogId ?? resolvedCatalogIds.get(item.canonicalName) ?? resolvedCatalogIds.get(item.foodName) ?? null,
+    foodCatalogId: resolveMealItemFoodCatalogId(item, resolvedCatalogIds),
     foodName: item.foodName,
     canonicalName: item.canonicalName,
     portionText: item.portionText,

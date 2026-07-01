@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { __foodQualityTesting } from "./service";
+import { calculateQualityIndicators, createFoodLookup } from "./foodQuality";
 
-const { calculateQualityIndicators, createFoodLookup } = __foodQualityTesting;
+const { calculateQualityIndicators: calculateQuality, createFoodLookup: createLookup } = {
+  calculateQualityIndicators,
+  createFoodLookup,
+};
 
 type FoodFixture = {
   id: number;
@@ -89,10 +92,10 @@ function meal(items: unknown[]) {
 
 describe("food quality report lookup", () => {
   it("classifica por foodCatalogId antes do texto", () => {
-    const lookup = createFoodLookup([
+    const lookup = createLookup([
       food({ id: 10, name: "Banana", isFruit: true }),
     ]);
-    const quality = calculateQualityIndicators(
+    const quality = calculateQuality(
       meal([
         mealItem({
           foodCatalogId: 10,
@@ -113,10 +116,10 @@ describe("food quality report lookup", () => {
   });
 
   it("usa fallback textual quando o foodCatalogId não resolve", () => {
-    const lookup = createFoodLookup([
+    const lookup = createLookup([
       food({ id: 20, name: "Aveia", fiber: 8 }),
     ]);
-    const quality = calculateQualityIndicators(
+    const quality = calculateQuality(
       meal([
         mealItem({
           foodCatalogId: 999,
@@ -134,10 +137,10 @@ describe("food quality report lookup", () => {
   });
 
   it("mantém item desconhecido como não classificado com diagnóstico mínimo", () => {
-    const lookup = createFoodLookup([
+    const lookup = createLookup([
       food({ id: 30, name: "Maçã", isFruit: true }),
     ]);
-    const quality = calculateQualityIndicators(
+    const quality = calculateQuality(
       meal([
         mealItem({
           foodName: "produto sem cadastro",
