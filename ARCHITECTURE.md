@@ -52,7 +52,7 @@ A extração de `server/db.ts` deve acontecer em PRs pequenos, cada um focado em
 Checklist recomendado:
 
 - [x] `admin/logs`: preparar serviço isolado para logs administrativos e inferências, mantendo sanitização de detalhes antes de gravar em memória ou banco.
-- [ ] `users/profile`: mover stores e funções de usuário, onboarding, perfil, preferências, restrições e peso inicial.
+- [x] `users/profile`: mover stores e funções de usuário, onboarding, perfil, preferências, restrições e peso inicial (`server/modules/users/service.ts`), preservando a assinatura pública exportada por `server/db.ts` e expondo acessores para os domínios que ainda leem essa memória (peso semanal, exportação de privacidade e purge de conta).
 - [ ] `meals`: mover inferências pendentes, refeições, mídia, favoritos de refeição, hábitos derivados e helpers de totais específicos do domínio.
 - [ ] `foods`: mover catálogo em memória, favoritos de alimentos, ranking, busca, criação e atualização de alimentos do usuário.
 - [ ] `water/exercises`: mover metas de água, logs de hidratação, exercícios e consultas por data.
