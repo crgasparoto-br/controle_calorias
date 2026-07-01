@@ -210,7 +210,6 @@ function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: n
 }
 
 const FOOD_QUALITY_LOOKUP_QUERY_LIMIT = 8;
-const FOOD_QUALITY_LOOKUP_NAME_LIMIT = 80;
 
 type ReportRangeData = {
   dates: string[];
@@ -249,7 +248,7 @@ function collectFoodQualityLookupNames(mealsByDay: ReportRangeData["mealsByDay"]
     }
   }
 
-  return Array.from(names).slice(0, FOOD_QUALITY_LOOKUP_NAME_LIMIT);
+  return Array.from(names);
 }
 
 async function buildFoodLookupForMeals(userId: number, mealsByDay: ReportRangeData["mealsByDay"]) {
