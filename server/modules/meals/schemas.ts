@@ -39,6 +39,7 @@ function deriveUnitFromPortionText(portionText: string) {
 
 const mealItemBaseSchema = z.object({
   foodId: z.number().int().positive().optional(),
+  foodCatalogId: z.number().int().positive().nullable().optional(),
   portionId: z.number().int().positive().optional(),
   portionQuantity: z.number().positive().max(100).optional(),
   foodName: z.string().min(1),

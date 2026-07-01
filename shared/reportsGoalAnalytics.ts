@@ -64,12 +64,19 @@ export type MacroDaySummary = {
 
 export type FoodProcessingCategory = "naturalOrMinimallyProcessed" | "ultraProcessed" | "unclassified";
 
+export type FoodQualityUnclassifiedReason = "missing_catalog_id" | "catalog_id_not_found" | "text_lookup_failed" | "unknown";
+
 export type FoodQualityItem = {
   calories: number;
+  foodCatalogId?: number | null;
+  foodName?: string | null;
+  canonicalName?: string | null;
+  portionText?: string | null;
   isFruit?: boolean;
   isVegetable?: boolean;
   isUltraProcessed?: boolean;
   isClassified?: boolean;
+  unclassifiedReason?: FoodQualityUnclassifiedReason;
 };
 
 export type FoodQualityDay = {
@@ -82,6 +89,19 @@ export type FoodQualityDistributionItem = {
   label: string;
   calories: number;
   percent: number;
+};
+
+export type FoodQualityUnclassifiedItemDiagnostic = {
+  key: string;
+  foodName: string | null;
+  canonicalName: string | null;
+  portionText: string | null;
+  foodCatalogId: number | null;
+  totalCalories: number;
+  occurrences: number;
+  firstDate: string | null;
+  lastDate: string | null;
+  reason: FoodQualityUnclassifiedReason;
 };
 
 export type FoodQualitySummary = {
@@ -100,6 +120,7 @@ export type FoodQualitySummary = {
   unclassifiedCaloriesPercent: number;
   qualityIndex: number | null;
   distribution: FoodQualityDistributionItem[];
+  unclassifiedItems: FoodQualityUnclassifiedItemDiagnostic[];
 };
 
 const MACRO_LABELS: Record<keyof MacroTotals, string> = {
@@ -151,6 +172,67 @@ function isWithinMacroRange(consumed: number, planned: number) {
   if (consumed <= 0 || planned <= 0) return false;
   const ratio = consumed / planned;
   return ratio >= 0.9 && ratio <= 1.1;
+}
+
+function normalizeDiagnosticKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, " ")
+    .trim();
+}
+
+function buildDiagnosticKey(item: FoodQualityItem) {
+  return normalizeDiagnosticKey(item.canonicalName ?? item.foodName ?? item.portionText ?? "") || "alimento sem identificacao";
+}
+
+function mergeUnclassifiedReason(
+  current: FoodQualityUnclassifiedReason,
+  next: FoodQualityUnclassifiedReason,
+): FoodQualityUnclassifiedReason {
+  if (current === next) return current;
+  if (current === "unknown") return next;
+  if (next === "unknown") return current;
+  return "unknown";
+}
+
+function addUnclassifiedDiagnostic(
+  diagnostics: Map<string, FoodQualityUnclassifiedItemDiagnostic>,
+  date: string,
+  item: FoodQualityItem,
+  calories: number,
+) {
+  const key = buildDiagnosticKey(item);
+  const existing = diagnostics.get(key);
+  const reason = item.unclassifiedReason ?? "unknown";
+
+  if (!existing) {
+    diagnostics.set(key, {
+      key,
+      foodName: item.foodName ?? null,
+      canonicalName: item.canonicalName ?? null,
+      portionText: item.portionText ?? null,
+      foodCatalogId: item.foodCatalogId ?? null,
+      totalCalories: calories,
+      occurrences: 1,
+      firstDate: date || null,
+      lastDate: date || null,
+      reason,
+    });
+    return;
+  }
+
+  existing.totalCalories += calories;
+  existing.occurrences += 1;
+  existing.reason = mergeUnclassifiedReason(existing.reason, reason);
+  if (!existing.foodName && item.foodName) existing.foodName = item.foodName;
+  if (!existing.canonicalName && item.canonicalName) existing.canonicalName = item.canonicalName;
+  if (!existing.portionText && item.portionText) existing.portionText = item.portionText;
+  if (!existing.foodCatalogId && item.foodCatalogId) existing.foodCatalogId = item.foodCatalogId;
+  if (!existing.firstDate || (date && date < existing.firstDate)) existing.firstDate = date;
+  if (!existing.lastDate || (date && date > existing.lastDate)) existing.lastDate = date;
 }
 
 export function calculateCalorieAdherence(days: CalorieGoalDay[], expectedDayCount = days.length): CalorieAdherenceSummary {
@@ -252,15 +334,18 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
 
       for (const item of day.items) {
         const calories = Math.max(item.calories, 0);
-        if (calories <= 0) continue;
-
-        acc.totalCalories += calories;
 
         if (!item.isClassified) {
+          addUnclassifiedDiagnostic(acc.unclassifiedDiagnostics, day.date, item, calories);
+          if (calories <= 0) continue;
+          acc.totalCalories += calories;
           acc.unclassifiedCalories += calories;
           continue;
         }
 
+        if (calories <= 0) continue;
+
+        acc.totalCalories += calories;
         acc.classifiedCalories += calories;
 
         if (item.isUltraProcessed) {
@@ -281,6 +366,7 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
       unclassifiedCalories: 0,
       ultraProcessedCalories: 0,
       naturalOrMinimallyProcessedCalories: 0,
+      unclassifiedDiagnostics: new Map<string, FoodQualityUnclassifiedItemDiagnostic>(),
     },
   );
 
@@ -294,6 +380,12 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
   const qualityIndex = summary.classifiedCalories > 0
     ? Math.max(0, Math.min(100, roundMetric(100 - percentOfTotal(summary.ultraProcessedCalories, summary.classifiedCalories))))
     : null;
+  const unclassifiedItems = Array.from(summary.unclassifiedDiagnostics.values())
+    .map(item => ({
+      ...item,
+      totalCalories: roundMetric(item.totalCalories),
+    }))
+    .sort((first, second) => second.totalCalories - first.totalCalories || second.occurrences - first.occurrences || first.key.localeCompare(second.key));
 
   return {
     hasData: totalCalories > 0,
@@ -330,6 +422,7 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
         percent: unclassifiedPercent,
       },
     ],
+    unclassifiedItems,
   };
 }
 

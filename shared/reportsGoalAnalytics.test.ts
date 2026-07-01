@@ -111,6 +111,81 @@ describe("reportsGoalAnalytics", () => {
     expect(summary.ultraProcessedCaloriesPercent).toBe(27.3);
     expect(summary.unclassifiedCaloriesPercent).toBe(36.4);
     expect(summary.qualityIndex).toBe(57.1);
+    expect(summary.unclassifiedItems).toEqual([
+      expect.objectContaining({
+        key: "alimento sem identificacao",
+        totalCalories: 400,
+        occurrences: 1,
+        reason: "unknown",
+      }),
+    ]);
+  });
+
+  it("agrega diagnóstico de alimentos não classificados por chave normalizada", () => {
+    const summary = calculateFoodQualitySummary([
+      {
+        date: "2026-06-01",
+        items: [
+          {
+            calories: 120,
+            foodName: "Iogurte Grego",
+            canonicalName: "Iogurte grego",
+            portionText: "1 pote",
+            isClassified: false,
+            unclassifiedReason: "missing_catalog_id",
+          },
+        ],
+      },
+      {
+        date: "2026-06-03",
+        items: [
+          {
+            calories: 180,
+            foodName: "iogurte grego",
+            canonicalName: "iogurte grego",
+            portionText: "150 g",
+            isClassified: false,
+            unclassifiedReason: "missing_catalog_id",
+          },
+          {
+            calories: 90,
+            foodCatalogId: 999,
+            foodName: "barra x",
+            canonicalName: "barra x",
+            portionText: "1 unidade",
+            isClassified: false,
+            unclassifiedReason: "catalog_id_not_found",
+          },
+        ],
+      },
+    ]);
+
+    expect(summary.unclassifiedItems).toEqual([
+      {
+        key: "iogurte grego",
+        foodName: "Iogurte Grego",
+        canonicalName: "Iogurte grego",
+        portionText: "1 pote",
+        foodCatalogId: null,
+        totalCalories: 300,
+        occurrences: 2,
+        firstDate: "2026-06-01",
+        lastDate: "2026-06-03",
+        reason: "missing_catalog_id",
+      },
+      {
+        key: "barra x",
+        foodName: "barra x",
+        canonicalName: "barra x",
+        portionText: "1 unidade",
+        foodCatalogId: 999,
+        totalCalories: 90,
+        occurrences: 1,
+        firstDate: "2026-06-03",
+        lastDate: "2026-06-03",
+        reason: "catalog_id_not_found",
+      },
+    ]);
   });
 
   it("retorna estado vazio para qualidade alimentar sem calorias registradas", () => {
@@ -120,6 +195,7 @@ describe("reportsGoalAnalytics", () => {
     expect(summary.totalCalories).toBe(0);
     expect(summary.qualityIndex).toBeNull();
     expect(summary.distribution.every(item => item.percent === 0)).toBe(true);
+    expect(summary.unclassifiedItems).toEqual([]);
   });
 
   it("calcula evolução de peso com variação absoluta, percentual e tendência", () => {
