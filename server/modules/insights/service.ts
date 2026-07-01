@@ -13,7 +13,7 @@ import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
 import { calculateDayTotals, roundNutritionValue } from "../../../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../../../shared/safeMessages";
 import { getDateKeyInTimeZone, getWeekdayIndexInTimeZone, toLogicalDateInTimeZone } from "../../../shared/timeZone";
-import { calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
+import { calculateFoodQualitySummary, type FoodQualityDay, type FoodQualityUnclassifiedReason } from "../../../shared/reportsGoalAnalytics";
 import { getNutritionGoalForDate } from "../goals/service";
 import { weeklyInsightService } from "./weeklyInsightService";
 
@@ -209,6 +209,8 @@ function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: n
   return roundNutritionValue(baseCalories + Math.max(exerciseCalories, 0));
 }
 
+const FOOD_QUALITY_LOOKUP_LIMIT = Number.MAX_SAFE_INTEGER;
+
 type ReportRangeData = {
   dates: string[];
   mealsByDay: Array<Awaited<ReturnType<typeof listUserMealsByDate>>>;
@@ -224,6 +226,18 @@ async function loadReportRangeData(userId: number, dates: string[]): Promise<Rep
   ]);
 
   return { dates, mealsByDay, exercisesByDay, waterLogsByDay };
+}
+
+function hasFoodQualityItems(mealsByDay: ReportRangeData["mealsByDay"]) {
+  return mealsByDay.some(meals => meals.some(meal => meal.items.length > 0));
+}
+
+async function buildFoodLookupForMeals(userId: number, mealsByDay: ReportRangeData["mealsByDay"]) {
+  if (!hasFoodQualityItems(mealsByDay)) {
+    return createFoodLookup([]);
+  }
+
+  return createFoodLookup(await searchFoods(userId, "", FOOD_QUALITY_LOOKUP_LIMIT));
 }
 
 function buildHabitAnalyticsFromRange(
@@ -321,6 +335,7 @@ function calculateRegularityScore(meals: Array<{ mealLabel: string }>) {
 }
 
 type FoodLookupEntry = {
+  id?: number;
   fiber?: number | null;
   isFruit: boolean;
   isVegetable: boolean;
@@ -329,11 +344,15 @@ type FoodLookupEntry = {
 };
 
 type FoodLookup = {
+  foodsById: Map<number, FoodLookupEntry>;
   foodsByName: Map<string, FoodLookupEntry>;
   fuzzyMatchers: Array<{ key: string; entry: FoodLookupEntry }>;
 };
 
+type MealFoodQualityItem = Awaited<ReturnType<typeof listUserMeals>>[number]["items"][number];
+
 function createFoodLookup(foods: Awaited<ReturnType<typeof searchFoods>>): FoodLookup {
+  const foodsById = new Map<number, FoodLookupEntry>();
   const foodsByName = new Map<string, FoodLookupEntry>();
 
   for (const food of FOOD_CATALOG_REFERENCE) {
@@ -353,13 +372,18 @@ function createFoodLookup(foods: Awaited<ReturnType<typeof searchFoods>>): FoodL
 
   for (const food of foods) {
     const existing = foodsByName.get(normalizeCatalogText(food.name));
-    foodsByName.set(normalizeCatalogText(food.name), {
+    const entry: FoodLookupEntry = {
+      id: food.id,
       fiber: food.fiber ?? existing?.fiber ?? null,
       isFruit: food.isFruit || existing?.isFruit || false,
       isVegetable: food.isVegetable || existing?.isVegetable || false,
       isUltraProcessed: food.isUltraProcessed || existing?.isUltraProcessed || false,
       servingSize: food.servingSize || existing?.servingSize || 0,
-    });
+    };
+    foodsByName.set(normalizeCatalogText(food.name), entry);
+    if (Number.isFinite(food.id) && food.id > 0) {
+      foodsById.set(food.id, entry);
+    }
   }
 
   const fuzzyMatchers = Array.from(foodsByName.entries())
@@ -368,12 +392,13 @@ function createFoodLookup(foods: Awaited<ReturnType<typeof searchFoods>>): FoodL
     .map(([key, entry]) => ({ key, entry }));
 
   return {
+    foodsById,
     foodsByName,
     fuzzyMatchers,
   };
 }
 
-function resolveFoodLookupEntry(foodLookup: FoodLookup, ...names: Array<string | undefined>) {
+function resolveFoodLookupEntryByText(foodLookup: FoodLookup, ...names: Array<string | undefined>) {
   for (const name of names) {
     if (!name) continue;
     const normalized = normalizeCatalogText(name);
@@ -385,6 +410,37 @@ function resolveFoodLookupEntry(foodLookup: FoodLookup, ...names: Array<string |
   }
 
   return null;
+}
+
+function resolveFoodLookupEntry(foodLookup: FoodLookup, item: MealFoodQualityItem) {
+  if (item.foodCatalogId) {
+    const byId = foodLookup.foodsById.get(item.foodCatalogId);
+    if (byId) return byId;
+  }
+
+  return resolveFoodLookupEntryByText(foodLookup, item.canonicalName, item.foodName, item.portionText);
+}
+
+function getUnclassifiedReason(item: MealFoodQualityItem, hasLookup: boolean): FoodQualityUnclassifiedReason {
+  if (!hasLookup) return "unknown";
+  if (item.foodCatalogId) return "catalog_id_not_found";
+  return "missing_catalog_id";
+}
+
+function buildUnclassifiedFoodQualityItem(
+  item: MealFoodQualityItem,
+  calories: number,
+  reason: FoodQualityUnclassifiedReason,
+): FoodQualityDay["items"][number] {
+  return {
+    calories,
+    foodCatalogId: item.foodCatalogId ?? null,
+    foodName: item.foodName,
+    canonicalName: item.canonicalName,
+    portionText: item.portionText,
+    isClassified: false,
+    unclassifiedReason: reason,
+  };
 }
 
 function calculateQualityIndicators(
@@ -413,13 +469,13 @@ function calculateQualityIndicators(
         acc.proteinGrams += Number(item.protein || 0);
 
         if (!foodLookup) {
-          acc.foodQualityItems.push({ calories: itemCalories, isClassified: false });
+          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, "unknown"));
           continue;
         }
 
-        const food = resolveFoodLookupEntry(foodLookup, item.canonicalName, item.foodName, item.portionText);
+        const food = resolveFoodLookupEntry(foodLookup, item);
         if (!food) {
-          acc.foodQualityItems.push({ calories: itemCalories, isClassified: false });
+          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, getUnclassifiedReason(item, true)));
           continue;
         }
 
@@ -469,13 +525,12 @@ function calculateQualityIndicators(
 
 async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
   const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
-  const [goalsByDate, waterGoal, foods, rangeData] = await Promise.all([
+  const [goalsByDate, waterGoal, rangeData] = await Promise.all([
     Promise.all(dateKeys.map(date => getNutritionGoalForDate(userId, date))),
     getUserWaterGoal(userId),
-    searchFoods(userId, "", 500),
     loadReportRangeData(userId, dateKeys),
   ]);
-  const foodLookup = createFoodLookup(foods);
+  const foodLookup = await buildFoodLookupForMeals(userId, rangeData.mealsByDay);
 
   return rangeData.dates.map((date, index) => {
     const planned = goalsByDate[index]?.today ?? goalsByDate[0].today;
@@ -683,19 +738,19 @@ export async function getDashboardOverview(userId: number) {
 
 export async function getDashboardTodayOverview(userId: number, options: { date?: string; includeQualityDetails?: boolean } = {}) {
   const selectedDate = options.date ?? getDateKeyInTimeZone(new Date());
-  const [goal, waterGoal, todaysMeals, todaysExercises, todaysWaterLogs, foods] = await Promise.all([
+  const [goal, waterGoal, todaysMeals, todaysExercises, todaysWaterLogs] = await Promise.all([
     getNutritionGoalForDate(userId, selectedDate),
     getUserWaterGoal(userId),
     listUserMealsByDate(userId, selectedDate, { includeMedia: false }),
     listUserExercisesByDate(userId, selectedDate),
     listUserWaterLogsByDate(userId, selectedDate),
-    options.includeQualityDetails ? searchFoods(userId, "", 500) : Promise.resolve(null),
   ]);
   const plannedGoal = goal.today;
   const todayTotals = calculateDayTotals(todaysMeals);
   const todayBurnedCalories = todaysExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
   const todayWaterMl = todaysWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
-  const todayQuality = calculateQualityIndicators(todaysMeals, todayWaterMl, foods ? createFoodLookup(foods) : undefined);
+  const foodLookup = options.includeQualityDetails ? await buildFoodLookupForMeals(userId, [todaysMeals]) : undefined;
+  const todayQuality = calculateQualityIndicators(todaysMeals, todayWaterMl, foodLookup);
 
   return {
     goal,
@@ -792,10 +847,9 @@ export async function getPeriodReportBundle(
   range: { startDate: string; endDate: string },
 ) {
   const dates = listDateKeysInRange(range.startDate, range.endDate);
-  const [goalsByDate, waterGoal, foods, progress, rangeData] = await Promise.all([
+  const [goalsByDate, waterGoal, progress, rangeData] = await Promise.all([
     Promise.all(dates.map(date => getNutritionGoalForDate(userId, date))),
     getUserWaterGoal(userId),
-    searchFoods(userId, "", 500),
     getWeeklyProgress(userId),
     loadReportRangeData(userId, dates),
   ]);
@@ -803,7 +857,7 @@ export async function getPeriodReportBundle(
   const meals = rangeData.mealsByDay.flat();
   const totals = calculateDayTotals(meals);
   const mealsByDate = groupMealsByDate(meals);
-  const foodLookup = createFoodLookup(foods);
+  const foodLookup = await buildFoodLookupForMeals(userId, rangeData.mealsByDay);
   const foodQualityDays: FoodQualityDay[] = [];
   const daily = dates.map((date, index) => {
     const planned = goalsByDate[index]?.today ?? goalsByDate[0].today;
@@ -878,3 +932,8 @@ export async function getHabitAnalyticsReport(
 
   return buildHabitAnalyticsFromRange(waterGoal, rangeData, range);
 }
+
+export const __foodQualityTesting = {
+  createFoodLookup,
+  calculateQualityIndicators,
+};
