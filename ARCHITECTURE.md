@@ -57,7 +57,7 @@ Checklist recomendado:
 - [x] `foods`: mover catálogo em memória, favoritos de alimentos, ranking, busca, criação e atualização de alimentos do usuário (`server/modules/foods/catalog.ts`), mantendo `mealStore` e `mealsRepository` como dependências injetadas até a extração do domínio `meals`.
 - [x] `water/exercises`: mover metas de água, logs de hidratação, exercícios e consultas por data (`server/modules/water/store.ts`, `server/modules/exercises/store.ts`), preservando a assinatura pública exportada por `server/db.ts`.
 - [x] `goals/gamification`: mover metas nutricionais, configurações de gamificação, snapshots semanais de badges e cálculo de conquistas (`server/modules/goals/store.ts`, `server/modules/gamification/store.ts`), preservando `server/db.ts` como fachada compatível.
-- [ ] `privacy/account`: mover exportação de privacidade, exclusão de dados em memória e orquestração de purge por domínio.
+- [x] `privacy/account`: mover exportação de privacidade, exclusão de dados em memória e orquestração de purge por domínio (`server/modules/privacy/service.ts`), preservando `server/db.ts` como fachada compatível; a orquestração recebe cada domínio como dependência explícita porque `meals` ainda não foi extraído de `server/db.ts`.
 - [ ] Atualizar esta seção a cada PR concluído, incluindo qualquer fronteira nova validada por `pnpm architecture:check`.
 
 Regras para cada PR de extração:
