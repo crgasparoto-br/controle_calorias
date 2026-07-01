@@ -24,6 +24,8 @@ import { createDrizzleWeightRepository } from "./repositories/weightRepository";
 import { createDrizzleWhatsAppRepository } from "./repositories/whatsappRepository";
 import { createFoodsService, normalizeCatalogText, type FoodSearchItem, type FoodUpsertInput } from "./modules/foods/catalog";
 import { createUsersService } from "./modules/users/service";
+import { createExercisesService, sumExercises } from "./modules/exercises/store";
+import { createWaterService, sumWater } from "./modules/water/store";
 import { safeLogDetail } from "./privacy";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -482,35 +484,6 @@ type AdminLogEntry = {
   createdAt: number;
 };
 
-type ExerciseEntry = {
-  id: number;
-  userId: number;
-  activityType: string;
-  durationMinutes: number;
-  caloriesBurned: number;
-  notes?: string | null;
-  occurredAt: number;
-  createdAt: number;
-  updatedAt: Date;
-};
-
-type WaterGoalEntry = {
-  id: number;
-  userId: number;
-  dailyTargetMl: number;
-  createdAt: number;
-  updatedAt: Date;
-};
-
-type WaterLogEntry = {
-  id: number;
-  userId: number;
-  amountMl: number;
-  occurredAt: number;
-  createdAt: number;
-  updatedAt: Date;
-};
-
 type BadgeCode =
   | "registered_3_days_week"
   | "registered_5_days_week"
@@ -543,9 +516,6 @@ type GamificationSettingEntry = {
 
 const goalStore = new Map<number, NutritionGoal[]>();
 const mealStore = new Map<number, SavedMeal[]>();
-const exerciseStore = new Map<number, ExerciseEntry[]>();
-const waterGoalStore = new Map<number, WaterGoalEntry>();
-const waterLogStore = new Map<number, WaterLogEntry[]>();
 const habitStore = new Map<number, HabitMemoryState[]>();
 const favoriteMealStore = new Map<number, FavoriteMeal[]>();
 const gamificationSettingsStore = new Map<number, GamificationSettingEntry>();
@@ -555,9 +525,6 @@ const adminLogStore: AdminLogEntry[] = [];
 let mealIdSequence = 1;
 let mediaIdSequence = 1;
 let goalIdSequence = 1;
-let exerciseIdSequence = 1;
-let waterGoalIdSequence = 1;
-let waterLogIdSequence = 1;
 let favoriteMealIdSequence = 1;
 let userBadgeIdSequence = 1;
 
@@ -750,14 +717,6 @@ function sumMealItems(items: MealDraftItem[]) {
 
 function sumMeals(meals: Array<{ items: MealDraftItem[] }>) {
   return calculateDayTotals(meals);
-}
-
-function sumExercises(items: ExerciseEntry[]) {
-  return items.reduce((acc, item) => acc + Number(item.caloriesBurned ?? 0), 0);
-}
-
-function sumWater(items: WaterLogEntry[]) {
-  return items.reduce((acc, item) => acc + Number(item.amountMl ?? 0), 0);
 }
 
 type QualityIndicators = {
@@ -1049,6 +1008,27 @@ export const getUserByOpenId = usersService.getUserByOpenId;
 export const saveUserOnboardingProfile = usersService.saveUserOnboardingProfile;
 export const updateUserCurrentWeight = usersService.updateUserCurrentWeight;
 export const getFoodAssistantProfile = usersService.getFoodAssistantProfile;
+const exercisesService = createExercisesService({
+  exercisesRepository,
+  buildOccurredAtRange,
+  onEvent: logInferenceEvent,
+});
+export const listUserExercises = exercisesService.listExercises;
+export const listUserExercisesByDate = exercisesService.listExercisesByDate;
+export const createUserExercise = exercisesService.createExercise;
+export const updateUserExercise = exercisesService.updateExercise;
+export const removeUserExercise = exercisesService.removeExercise;
+const waterService = createWaterService({
+  waterRepository,
+  buildOccurredAtRange,
+  onEvent: logInferenceEvent,
+});
+export const getUserWaterGoal = waterService.getWaterGoal;
+export const listUserWaterLogs = waterService.listWaterLogs;
+export const listUserWaterLogsByDate = waterService.listWaterLogsByDate;
+export const updateUserWaterGoal = waterService.updateWaterGoal;
+export const createUserWaterLog = waterService.createWaterLog;
+export const removeUserWaterLog = waterService.removeWaterLog;
 const whatsappRepository = createDrizzleWhatsAppRepository({
   getDb,
   onWarning: logPersistenceWarning,
@@ -1163,18 +1143,6 @@ async function persistMealToDb(meal: SavedMeal) {
   }
 }
 
-async function persistExerciseToDb(exercise: ExerciseEntry) {
-  await exercisesRepository.insert(exercise);
-}
-
-async function updateExerciseInDb(exercise: ExerciseEntry) {
-  await exercisesRepository.update(exercise);
-}
-
-async function deleteExerciseFromDb(userId: number, exerciseId: number) {
-  await exercisesRepository.delete(userId, exerciseId);
-}
-
 async function updateMealInDb(meal: SavedMeal) {
   const db = await getDb();
   if (!db) return;
@@ -1205,18 +1173,6 @@ async function deleteMealFromDb(userId: number, mealId: number) {
   } catch (error) {
     logPersistenceWarning("Meal deletion skipped", error);
   }
-}
-
-async function persistWaterGoalToDb(goal: WaterGoalEntry) {
-  await waterRepository.upsertGoal(goal);
-}
-
-async function persistWaterLogToDb(log: WaterLogEntry) {
-  await waterRepository.insertLog(log);
-}
-
-async function deleteWaterLogFromDb(userId: number, waterLogId: number) {
-  await waterRepository.deleteLog(userId, waterLogId);
 }
 
 async function persistHabitsToDb(userId: number, habits: HabitMemoryState[]) {
@@ -1257,26 +1213,6 @@ function buildOccurredAtRange(date: string): Required<OccurredAtRange> {
 async function loadMealsFromDb(userId: number, options: MealLoadOptions = {}) {
   const dbMeals = await mealsRepository.findConfirmedByUserId(userId, options);
   return dbMeals as SavedMeal[] | null;
-}
-
-async function loadExercisesFromDb(userId: number) {
-  return exercisesRepository.findByUserId(userId);
-}
-
-async function loadExercisesFromDbByRange(userId: number, range: Required<OccurredAtRange>) {
-  return exercisesRepository.findByUserIdAndRange(userId, range.startAt, range.endAt);
-}
-
-async function loadWaterGoalFromDb(userId: number) {
-  return waterRepository.findGoalByUserId(userId);
-}
-
-async function loadWaterLogsFromDb(userId: number) {
-  return waterRepository.findLogsByUserId(userId);
-}
-
-async function loadWaterLogsFromDbByRange(userId: number, range: Required<OccurredAtRange>) {
-  return waterRepository.findLogsByUserIdAndRange(userId, range.startAt, range.endAt);
 }
 
 async function loadWeightEntriesFromDb(userId: number) {
@@ -1938,258 +1874,6 @@ export async function removeUserMeal(userId: number, mealId: number) {
   return { success: true };
 }
 
-async function getStoredWaterGoal(userId: number) {
-  const dbGoal = await loadWaterGoalFromDb(userId);
-  if (dbGoal) {
-    if (canUseMemoryPersistenceFallback()) {
-      waterGoalStore.set(userId, dbGoal);
-    }
-    return dbGoal;
-  }
-
-  if (canUseMemoryPersistenceFallback()) {
-    const stored = waterGoalStore.get(userId);
-    if (stored) {
-      return stored;
-    }
-  }
-
-  const created: WaterGoalEntry = {
-    id: waterGoalIdSequence++,
-    userId,
-    dailyTargetMl: 2500,
-    createdAt: Date.now(),
-    updatedAt: new Date(),
-  };
-  if (canUseMemoryPersistenceFallback()) {
-    waterGoalStore.set(userId, created);
-  }
-  return created;
-}
-
-async function getStoredWaterLogs(userId: number) {
-  const dbLogs = await loadWaterLogsFromDb(userId);
-  if (dbLogs) {
-    if (canUseMemoryPersistenceFallback()) {
-      waterLogStore.set(userId, dbLogs);
-    }
-    return dbLogs;
-  }
-
-  return canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : [];
-}
-
-export async function getUserWaterGoal(userId: number) {
-  return getStoredWaterGoal(userId);
-}
-
-export async function listUserWaterLogs(userId: number) {
-  const logs = await getStoredWaterLogs(userId);
-  return logs.slice().sort((a, b) => b.occurredAt - a.occurredAt);
-}
-
-export async function listUserWaterLogsByDate(userId: number, date: string) {
-  const range = buildOccurredAtRange(date);
-  const dbLogs = await loadWaterLogsFromDbByRange(userId, range);
-  const logs = dbLogs ?? (canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : []);
-  return logs
-    .filter(log => getDateKeyInTimeZone(Number(log.occurredAt)) === date)
-    .slice()
-    .sort((a, b) => b.occurredAt - a.occurredAt);
-}
-
-export async function updateUserWaterGoal(userId: number, dailyTargetMl: number) {
-  const current = await getStoredWaterGoal(userId);
-  const updated: WaterGoalEntry = {
-    ...current,
-    dailyTargetMl,
-    updatedAt: new Date(),
-  };
-  if (canUseMemoryPersistenceFallback()) {
-    waterGoalStore.set(userId, updated);
-  }
-  await persistWaterGoalToDb(updated);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "water.goal_updated",
-    detail: `Meta diária de água atualizada para ${dailyTargetMl} ml.`,
-  });
-  return updated;
-}
-
-export async function createUserWaterLog(userId: number, input: { amountMl: number; occurredAt: string }) {
-  const created: WaterLogEntry = {
-    id: waterLogIdSequence++,
-    userId,
-    amountMl: input.amountMl,
-    occurredAt: new Date(input.occurredAt).getTime(),
-    createdAt: Date.now(),
-    updatedAt: new Date(),
-  };
-
-  const current = await listUserWaterLogs(userId);
-  if (canUseMemoryPersistenceFallback()) {
-    waterLogStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
-  }
-  await persistWaterLogToDb(created);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "water.logged",
-    detail: `Consumo de ${created.amountMl} ml de água registrado.`,
-  });
-  return created;
-}
-
-export async function removeUserWaterLog(userId: number, waterLogId: number) {
-  const current = await listUserWaterLogs(userId);
-  const existing = current.find(item => item.id === waterLogId);
-  if (!existing) {
-    throw new Error("Registro de água não encontrado.");
-  }
-
-  if (canUseMemoryPersistenceFallback()) {
-    waterLogStore.set(userId, current.filter(item => item.id !== waterLogId));
-  }
-  await deleteWaterLogFromDb(userId, waterLogId);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "water.deleted",
-    detail: `Registro de água de ${existing.amountMl} ml removido pelo usuário.`,
-  });
-  return { success: true };
-}
-
-async function getStoredExercises(userId: number) {
-  const dbExercises = await loadExercisesFromDb(userId);
-  if (dbExercises) {
-    if (canUseMemoryPersistenceFallback()) {
-      exerciseStore.set(userId, dbExercises);
-    }
-    return dbExercises;
-  }
-
-  return canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : [];
-}
-
-export async function listUserExercises(userId: number) {
-  const exercisesForUser = await getStoredExercises(userId);
-  return exercisesForUser.slice().sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
-}
-
-export async function listUserExercisesByDate(userId: number, date: string) {
-  const range = buildOccurredAtRange(date);
-  const dbExercises = await loadExercisesFromDbByRange(userId, range);
-  const exercisesForUser = dbExercises ?? (canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : []);
-  return exercisesForUser
-    .filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === date)
-    .slice()
-    .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
-}
-
-export async function createUserExercise(userId: number, input: {
-  activityType: string;
-  durationMinutes: number;
-  caloriesBurned: number;
-  occurredAt: string;
-  notes?: string;
-}) {
-  const created: ExerciseEntry = {
-    id: exerciseIdSequence++,
-    userId,
-    activityType: input.activityType,
-    durationMinutes: input.durationMinutes,
-    caloriesBurned: input.caloriesBurned,
-    notes: input.notes ?? null,
-    occurredAt: new Date(input.occurredAt).getTime(),
-    createdAt: Date.now(),
-    updatedAt: new Date(),
-  };
-
-  const current = await listUserExercises(userId);
-  if (canUseMemoryPersistenceFallback()) {
-    exerciseStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
-  }
-  await persistExerciseToDb(created);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "exercise.created",
-    detail: `Exercício ${created.activityType} registrado com gasto de ${round(created.caloriesBurned)} kcal.`,
-  });
-  return created;
-}
-
-export async function updateUserExercise(userId: number, input: {
-  exerciseId: number;
-  activityType: string;
-  durationMinutes: number;
-  caloriesBurned: number;
-  occurredAt: string;
-  notes?: string;
-}) {
-  const current = await listUserExercises(userId);
-  const existing = current.find(item => item.id === input.exerciseId);
-  if (!existing) {
-    throw new Error("Exercício não encontrado.");
-  }
-
-  const updated: ExerciseEntry = {
-    ...existing,
-    activityType: input.activityType,
-    durationMinutes: input.durationMinutes,
-    caloriesBurned: input.caloriesBurned,
-    occurredAt: new Date(input.occurredAt).getTime(),
-    notes: input.notes ?? null,
-    updatedAt: new Date(),
-  };
-
-  if (canUseMemoryPersistenceFallback()) {
-    exerciseStore.set(
-      userId,
-      current
-        .map(item => (item.id === input.exerciseId ? updated : item))
-        .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt)),
-    );
-  }
-  await updateExerciseInDb(updated);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "exercise.updated",
-    detail: `Exercício ${updated.activityType} atualizado pelo usuário.`,
-  });
-  return updated;
-}
-
-export async function removeUserExercise(userId: number, exerciseId: number) {
-  const current = await listUserExercises(userId);
-  const existing = current.find(item => item.id === exerciseId);
-  if (!existing) {
-    throw new Error("Exercício não encontrado.");
-  }
-
-  if (canUseMemoryPersistenceFallback()) {
-    exerciseStore.set(userId, current.filter(item => item.id !== exerciseId));
-  }
-  await deleteExerciseFromDb(userId, exerciseId);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "exercise.deleted",
-    detail: `Exercício ${existing.activityType} removido pelo usuário.`,
-  });
-  return { success: true };
-}
-
 export async function getWeeklySummary(userId: number) {
   const goal = await getUserNutritionGoal(userId);
   const waterGoal = await getUserWaterGoal(userId);
@@ -2595,9 +2279,8 @@ function deleteUserMemoryData(userId: number) {
   goalStore.delete(userId);
   usersService.clearMemory(userId);
   mealStore.delete(userId);
-  exerciseStore.delete(userId);
-  waterGoalStore.delete(userId);
-  waterLogStore.delete(userId);
+  exercisesService.clearMemory(userId);
+  waterService.clearMemory(userId);
   habitStore.delete(userId);
   foodsService.clearMemory(userId);
   favoriteMealStore.delete(userId);
