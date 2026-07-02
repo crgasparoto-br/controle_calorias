@@ -397,11 +397,15 @@ export const exercises = mysqlTable("exercises", {
   durationMinutes: int("durationMinutes").notNull(),
   caloriesBurned: double("caloriesBurned").notNull(),
   notes: text("notes"),
+  externalProvider: varchar("externalProvider", { length: 40 }),
+  externalId: varchar("externalId", { length: 160 }),
   occurredAt: timestamp("occurredAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
   userOccurredAtIdx: index("exercises_user_occurredAt_idx").on(table.userId, table.occurredAt),
+  externalReferenceIdx: index("exercises_external_reference_idx").on(table.externalProvider, table.externalId),
+  userExternalReferenceUnique: uniqueIndex("exercises_user_external_reference_unique").on(table.userId, table.externalProvider, table.externalId),
 }));
 
 export const healthSyncedRecords = mysqlTable("healthSyncedRecords", {
