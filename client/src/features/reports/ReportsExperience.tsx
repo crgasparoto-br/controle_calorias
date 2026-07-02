@@ -293,6 +293,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
     () => isWeek && !isProfessional && hasWeeklySummaryQuery && isRenderableWeeklySummary(selfWeeklySummary.data, activeRange),
     [activeRange, hasWeeklySummaryQuery, isProfessional, isWeek, selfWeeklySummary.data],
   );
+  const shouldUseWeeklySummary = isWeek && !isProfessional && hasWeeklySummaryQuery && (selfWeeklySummary.isLoading || weeklySummaryRenderable);
   const shouldFallbackToWeeklyDetails = isWeek && !isProfessional && (
     !hasWeeklySummaryQuery ||
     showDetails ||
@@ -304,7 +305,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const professionalBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) }));
 
   const weeklyDetailsLoadedByFallback = isWeek && !isProfessional && !showDetails && shouldFallbackToWeeklyDetails;
-  const activeBundle = isProfessional ? professionalBundle : (isWeek ? (weeklySummaryRenderable ? selfWeeklySummary : selfWeeklyDetails) : selfPeriodBundle);
+  const activeBundle = isProfessional ? professionalBundle : (isWeek ? (shouldUseWeeklySummary ? selfWeeklySummary : selfWeeklyDetails) : selfPeriodBundle);
   const detailsBundle = isProfessional || !isWeek ? activeBundle : selfWeeklyDetails;
   const bundleData = activeBundle.data as any;
   const detailData = detailsBundle.data as any;
