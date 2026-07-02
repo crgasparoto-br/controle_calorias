@@ -62,7 +62,20 @@ export type MacroDaySummary = {
   fatDaysAboveGoal: number;
 };
 
-export type FoodProcessingCategory = "naturalOrMinimallyProcessed" | "ultraProcessed" | "unclassified";
+export type FoodProcessingLevel =
+  | "natural_or_minimally_processed"
+  | "processed_culinary_ingredient"
+  | "processed"
+  | "ultra_processed"
+  | "unknown";
+
+export type FoodProcessingCategory =
+  | "naturalOrMinimallyProcessed"
+  | "processedCulinaryIngredient"
+  | "processed"
+  | "ultraProcessed"
+  | "unknownProcessing"
+  | "unclassified";
 
 export type FoodQualityUnclassifiedReason = "missing_catalog_id" | "catalog_id_not_found" | "unknown";
 
@@ -72,6 +85,7 @@ export type FoodQualityItem = {
   foodName?: string | null;
   canonicalName?: string | null;
   portionText?: string | null;
+  processingLevel?: FoodProcessingLevel;
   isFruit?: boolean;
   isVegetable?: boolean;
   isUltraProcessed?: boolean;
@@ -115,8 +129,14 @@ export type FoodQualitySummary = {
   unclassifiedCalories: number;
   ultraProcessedCalories: number;
   naturalOrMinimallyProcessedCalories: number;
+  processedCulinaryIngredientCalories: number;
+  processedCalories: number;
+  unknownProcessingCalories: number;
   ultraProcessedCaloriesPercent: number;
   naturalOrMinimallyProcessedCaloriesPercent: number;
+  processedCulinaryIngredientCaloriesPercent: number;
+  processedCaloriesPercent: number;
+  unknownProcessingCaloriesPercent: number;
   unclassifiedCaloriesPercent: number;
   qualityIndex: number | null;
   distribution: FoodQualityDistributionItem[];
@@ -131,7 +151,10 @@ const MACRO_LABELS: Record<keyof MacroTotals, string> = {
 
 const FOOD_PROCESSING_LABELS: Record<FoodProcessingCategory, string> = {
   naturalOrMinimallyProcessed: "In natura/minimamente processados",
+  processedCulinaryIngredient: "Ingredientes culinários processados",
+  processed: "Processados",
   ultraProcessed: "Ultraprocessados",
+  unknownProcessing: "Conhecidos sem nível definido",
   unclassified: "Não classificados",
 };
 
@@ -196,6 +219,23 @@ function mergeUnclassifiedReason(
   if (current === "unknown") return next;
   if (next === "unknown") return current;
   return "unknown";
+}
+
+function getFoodProcessingCategory(item: FoodQualityItem): FoodProcessingCategory {
+  switch (item.processingLevel) {
+    case "natural_or_minimally_processed":
+      return "naturalOrMinimallyProcessed";
+    case "processed_culinary_ingredient":
+      return "processedCulinaryIngredient";
+    case "processed":
+      return "processed";
+    case "ultra_processed":
+      return "ultraProcessed";
+    case "unknown":
+      return "unknownProcessing";
+    default:
+      return item.isUltraProcessed ? "ultraProcessed" : "naturalOrMinimallyProcessed";
+  }
 }
 
 function addUnclassifiedDiagnostic(
@@ -348,10 +388,23 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
         acc.totalCalories += calories;
         acc.classifiedCalories += calories;
 
-        if (item.isUltraProcessed) {
-          acc.ultraProcessedCalories += calories;
-        } else {
-          acc.naturalOrMinimallyProcessedCalories += calories;
+        switch (getFoodProcessingCategory(item)) {
+          case "ultraProcessed":
+            acc.ultraProcessedCalories += calories;
+            break;
+          case "processedCulinaryIngredient":
+            acc.processedCulinaryIngredientCalories += calories;
+            break;
+          case "processed":
+            acc.processedCalories += calories;
+            break;
+          case "unknownProcessing":
+            acc.unknownProcessingCalories += calories;
+            break;
+          case "naturalOrMinimallyProcessed":
+          default:
+            acc.naturalOrMinimallyProcessedCalories += calories;
+            break;
         }
       }
 
@@ -366,6 +419,9 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
       unclassifiedCalories: 0,
       ultraProcessedCalories: 0,
       naturalOrMinimallyProcessedCalories: 0,
+      processedCulinaryIngredientCalories: 0,
+      processedCalories: 0,
+      unknownProcessingCalories: 0,
       unclassifiedDiagnostics: new Map<string, FoodQualityUnclassifiedItemDiagnostic>(),
     },
   );
@@ -373,9 +429,15 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
   const totalCalories = roundMetric(summary.totalCalories);
   const ultraProcessedCalories = roundMetric(summary.ultraProcessedCalories);
   const naturalOrMinimallyProcessedCalories = roundMetric(summary.naturalOrMinimallyProcessedCalories);
+  const processedCulinaryIngredientCalories = roundMetric(summary.processedCulinaryIngredientCalories);
+  const processedCalories = roundMetric(summary.processedCalories);
+  const unknownProcessingCalories = roundMetric(summary.unknownProcessingCalories);
   const unclassifiedCalories = roundMetric(summary.unclassifiedCalories);
   const naturalPercent = percentOfTotal(naturalOrMinimallyProcessedCalories, totalCalories);
+  const culinaryPercent = percentOfTotal(processedCulinaryIngredientCalories, totalCalories);
+  const processedPercent = percentOfTotal(processedCalories, totalCalories);
   const ultraPercent = percentOfTotal(ultraProcessedCalories, totalCalories);
+  const unknownProcessingPercent = percentOfTotal(unknownProcessingCalories, totalCalories);
   const unclassifiedPercent = percentOfTotal(unclassifiedCalories, totalCalories);
   const qualityIndex = summary.classifiedCalories > 0
     ? Math.max(0, Math.min(100, roundMetric(100 - percentOfTotal(summary.ultraProcessedCalories, summary.classifiedCalories))))
@@ -398,8 +460,14 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
     unclassifiedCalories,
     ultraProcessedCalories,
     naturalOrMinimallyProcessedCalories,
+    processedCulinaryIngredientCalories,
+    processedCalories,
+    unknownProcessingCalories,
     ultraProcessedCaloriesPercent: ultraPercent,
     naturalOrMinimallyProcessedCaloriesPercent: naturalPercent,
+    processedCulinaryIngredientCaloriesPercent: culinaryPercent,
+    processedCaloriesPercent: processedPercent,
+    unknownProcessingCaloriesPercent: unknownProcessingPercent,
     unclassifiedCaloriesPercent: unclassifiedPercent,
     qualityIndex,
     distribution: [
@@ -410,10 +478,28 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
         percent: naturalPercent,
       },
       {
+        key: "processedCulinaryIngredient",
+        label: FOOD_PROCESSING_LABELS.processedCulinaryIngredient,
+        calories: processedCulinaryIngredientCalories,
+        percent: culinaryPercent,
+      },
+      {
+        key: "processed",
+        label: FOOD_PROCESSING_LABELS.processed,
+        calories: processedCalories,
+        percent: processedPercent,
+      },
+      {
         key: "ultraProcessed",
         label: FOOD_PROCESSING_LABELS.ultraProcessed,
         calories: ultraProcessedCalories,
         percent: ultraPercent,
+      },
+      {
+        key: "unknownProcessing",
+        label: FOOD_PROCESSING_LABELS.unknownProcessing,
+        calories: unknownProcessingCalories,
+        percent: unknownProcessingPercent,
       },
       {
         key: "unclassified",

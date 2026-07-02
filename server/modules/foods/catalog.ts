@@ -3,6 +3,7 @@ import { fuzzyMatchesWords } from "../../fuzzyTextMatch";
 import { foodCatalogDirectKey } from "../../foodCatalogKeys";
 import type { FoodCatalogRepository } from "../../repositories/foodCatalogRepository";
 import type { MealDraftItem } from "../../nutritionEngine";
+import type { FoodProcessingLevel } from "../../../shared/reportsGoalAnalytics";
 
 export type FoodSearchItem = {
   id: number;
@@ -15,6 +16,7 @@ export type FoodSearchItem = {
   carbs: number;
   fat: number;
   fiber?: number | null;
+  processingLevel?: FoodProcessingLevel;
   isFruit: boolean;
   isVegetable: boolean;
   isUltraProcessed: boolean;
@@ -55,6 +57,7 @@ const referenceFoods: FoodSearchItem[] = FOOD_CATALOG_REFERENCE.map((food, index
   carbs: food.carbs,
   fat: food.fat,
   fiber: null,
+  processingLevel: food.processingLevel,
   isFruit: false,
   isVegetable: false,
   isUltraProcessed: false,

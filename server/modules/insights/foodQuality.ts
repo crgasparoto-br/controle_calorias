@@ -1,11 +1,12 @@
 import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
 import { normalizeCatalogText, type FoodSearchItem } from "../foods/catalog";
 import { roundNutritionValue } from "../../../shared/mealTotals";
-import type { FoodQualityDay, FoodQualityUnclassifiedReason } from "../../../shared/reportsGoalAnalytics";
+import type { FoodProcessingLevel, FoodQualityDay, FoodQualityUnclassifiedReason } from "../../../shared/reportsGoalAnalytics";
 
 export type FoodLookupEntry = {
   id?: number;
   fiber?: number | null;
+  processingLevel: FoodProcessingLevel;
   isFruit: boolean;
   isVegetable: boolean;
   isUltraProcessed: boolean;
@@ -34,16 +35,32 @@ export type MealForFoodQuality = {
   items: MealFoodQualityItem[];
 };
 
+function legacyProcessingLevel(food: { isFruit?: boolean; isVegetable?: boolean; isUltraProcessed?: boolean }): FoodProcessingLevel | null {
+  if (food.isUltraProcessed) return "ultra_processed";
+  if (food.isFruit || food.isVegetable) return "natural_or_minimally_processed";
+  return null;
+}
+
+function referenceProcessingLevel(food: { processingLevel?: FoodProcessingLevel; isUltraProcessed?: boolean }) {
+  return food.processingLevel ?? (food.isUltraProcessed ? "ultra_processed" : "natural_or_minimally_processed");
+}
+
+function searchItemProcessingLevel(food: FoodSearchItem, existing?: FoodLookupEntry) {
+  return food.processingLevel ?? legacyProcessingLevel(food) ?? existing?.processingLevel ?? "unknown";
+}
+
 export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
   const foodsById = new Map<number, FoodLookupEntry>();
   const foodsByName = new Map<string, FoodLookupEntry>();
 
   for (const food of FOOD_CATALOG_REFERENCE) {
+    const processingLevel = referenceProcessingLevel(food);
     const entry: FoodLookupEntry = {
       fiber: food.fiber ?? null,
+      processingLevel,
       isFruit: Boolean(food.isFruit),
       isVegetable: Boolean(food.isVegetable),
-      isUltraProcessed: Boolean(food.isUltraProcessed),
+      isUltraProcessed: processingLevel === "ultra_processed" || Boolean(food.isUltraProcessed),
       servingSize: food.gramsPerServing,
     };
 
@@ -55,12 +72,15 @@ export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
 
   for (const food of foods) {
     const existing = foodsByName.get(normalizeCatalogText(food.name));
+    const processingLevel = searchItemProcessingLevel(food, existing);
+    const isUltraProcessed = processingLevel === "ultra_processed" || food.isUltraProcessed || existing?.isUltraProcessed || false;
     const entry: FoodLookupEntry = {
       id: food.id,
       fiber: food.fiber ?? existing?.fiber ?? null,
+      processingLevel,
       isFruit: food.isFruit || existing?.isFruit || false,
       isVegetable: food.isVegetable || existing?.isVegetable || false,
-      isUltraProcessed: food.isUltraProcessed || existing?.isUltraProcessed || false,
+      isUltraProcessed,
       servingSize: food.servingSize || existing?.servingSize || 0,
     };
     foodsByName.set(normalizeCatalogText(food.name), entry);
@@ -70,7 +90,7 @@ export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
   }
 
   const fuzzyMatchers = Array.from(foodsByName.entries())
-    .filter(([key, entry]) => key.length >= 4 && (entry.isVegetable || entry.isFruit || entry.isUltraProcessed || entry.fiber))
+    .filter(([key, entry]) => key.length >= 4 && (entry.processingLevel !== "unknown" || entry.isVegetable || entry.isFruit || entry.isUltraProcessed || entry.fiber))
     .sort((first, second) => second[0].length - first[0].length)
     .map(([key, entry]) => ({ key, entry }));
 
@@ -170,16 +190,18 @@ export function calculateQualityIndicators(
         }
 
         const servingFactor = food.servingSize > 0 && item.estimatedGrams > 0 ? item.estimatedGrams / food.servingSize : item.servings || 1;
+        const isUltraProcessed = food.processingLevel === "ultra_processed" || food.isUltraProcessed;
         acc.fiberGrams += Number(food.fiber || 0) * servingFactor;
         if (food.isFruit) acc.fruitServings += servingFactor;
         if (food.isVegetable) acc.vegetableServings += servingFactor;
-        if (food.isUltraProcessed) acc.ultraProcessedServings += servingFactor;
+        if (isUltraProcessed) acc.ultraProcessedServings += servingFactor;
         acc.foodQualityItems.push({
           calories: itemCalories,
+          processingLevel: food.processingLevel,
           isClassified: true,
           isFruit: food.isFruit,
           isVegetable: food.isVegetable,
-          isUltraProcessed: food.isUltraProcessed,
+          isUltraProcessed,
         });
       }
       return acc;
