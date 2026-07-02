@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateWeeklyReportData } from "./reportDataAdapter";
+import { hasReportDayActivity, validateWeeklyReportData } from "./reportDataAdapter";
 
 function weeklyDay(date: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -45,11 +45,16 @@ describe("weekly report data adapter", () => {
     expect(validation.days[0]).toMatchObject({ date: "2026-06-22", calories: 1800, protein: 120 });
   });
 
-  it("aceita semana sem registros quando os 7 dias vêm zerados e normalizados", () => {
+  it("envia semana totalmente zerada para fallback antes de renderizar", () => {
     const validation = validateWeeklyReportData({ weekly: validWeek() });
 
-    expect(validation.renderable).toBe(true);
-    expect(validation.days.every(day => day.calories === 0 && day.waterConsumedMl === 0)).toBe(true);
+    expect(validation).toMatchObject({ renderable: false, reason: "empty_weekly_summary" });
+  });
+
+  it("considera água, exercícios e qualidade como atividade renderizável", () => {
+    expect(hasReportDayActivity(weeklyDay("2026-06-22", { waterConsumedMl: 500 }))).toBe(true);
+    expect(hasReportDayActivity(weeklyDay("2026-06-22", { exerciseCalories: 120 }))).toBe(true);
+    expect(hasReportDayActivity(weeklyDay("2026-06-22", { quality: { mealCount: 1 } }))).toBe(true);
   });
 
   it("rejeita retorno vazio ou semana incompleta", () => {
