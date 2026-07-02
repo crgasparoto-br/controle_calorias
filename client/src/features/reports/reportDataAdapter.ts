@@ -52,6 +52,31 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function hasQualityActivity(quality: unknown) {
+  if (!isObjectRecord(quality)) return false;
+  return [
+    quality.proteinGrams,
+    quality.fiberGrams,
+    quality.waterMl,
+    quality.fruitServings,
+    quality.vegetableServings,
+    quality.ultraProcessedServings,
+    quality.mealCount,
+    quality.regularityScore,
+  ].some(value => numberValue(value) > 0);
+}
+
+export function hasReportDayActivity(day: ReportDay) {
+  return [
+    day.calories,
+    day.protein,
+    day.carbs,
+    day.fat,
+    day.waterConsumedMl,
+    day.exerciseCalories,
+  ].some(value => numberValue(value) > 0) || hasQualityActivity(day.quality);
+}
+
 export function normalizeReportDay(day: unknown, fallbackGoal?: Record<string, unknown> | null): ReportDay {
   const source = isObjectRecord(day) ? day : {};
   const goalCalories = numberValue(source.goalCalories ?? fallbackGoal?.calories);
@@ -116,5 +141,10 @@ export function validateWeeklyReportData(value: unknown): WeeklyReportValidation
     }
   }
 
-  return { renderable: true, days: rawDays.map(day => normalizeReportDay(day)), reason: null };
+  const days = rawDays.map(day => normalizeReportDay(day));
+  if (!days.some(hasReportDayActivity)) {
+    return { renderable: false, days: [], reason: "empty_weekly_summary" };
+  }
+
+  return { renderable: true, days, reason: null };
 }
