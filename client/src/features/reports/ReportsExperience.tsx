@@ -285,7 +285,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   React.useEffect(() => setShowDetails(false), [activeRange.start, activeRange.end, periodScope, subjectUserId]);
 
   const selfWeeklyQuery = trpc.nutrition.reports.weekly;
-  const hasWeeklySummaryQuery = Boolean(selfWeeklyQuery);
+  const hasWeeklySummaryQuery = false;
   const selfWeeklySummary = normalizeQueryResult(selfWeeklyQuery?.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" && hasWeeklySummaryQuery }));
   const selfWeeklyDetails = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" && (!hasWeeklySummaryQuery || showDetails) }));
   const selfPeriodBundle = normalizeQueryResult(trpc.nutrition.reports.periodBundle.useQuery({ startDate: activeRange.start, endDate: activeRange.end }, { enabled: !isProfessional && periodScope !== "week" }));
