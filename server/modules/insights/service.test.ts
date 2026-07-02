@@ -147,9 +147,9 @@ describe("insights food quality report integration", () => {
             calories: 120,
           }),
           mealItem({
-            foodName: "Iogurte sem cadastro",
-            canonicalName: "Iogurte artesanal",
-            portionText: "1 pote",
+            foodName: "Item externo sem cadastro",
+            canonicalName: "Preparacao xpto isolada",
+            portionText: "1 pacote indefinido",
             calories: 100,
           }),
         ]),
@@ -178,7 +178,7 @@ describe("insights food quality report integration", () => {
     });
     expect(report.quality.foodQuality.unclassifiedItems).toEqual([
       expect.objectContaining({
-        key: "iogurte artesanal",
+        key: "preparacao xpto isolada",
         totalCalories: 100,
         occurrences: 1,
         reason: "missing_catalog_id",
