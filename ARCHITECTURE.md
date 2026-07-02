@@ -52,12 +52,12 @@ A extração de `server/db.ts` deve acontecer em PRs pequenos, cada um focado em
 Checklist recomendado:
 
 - [x] `admin/logs`: preparar serviço isolado para logs administrativos e inferências, mantendo sanitização de detalhes antes de gravar em memória ou banco.
-- [ ] `users/profile`: mover stores e funções de usuário, onboarding, perfil, preferências, restrições e peso inicial.
-- [ ] `meals`: mover inferências pendentes, refeições, mídia, favoritos de refeição, hábitos derivados e helpers de totais específicos do domínio.
-- [ ] `foods`: mover catálogo em memória, favoritos de alimentos, ranking, busca, criação e atualização de alimentos do usuário.
-- [ ] `water/exercises`: mover metas de água, logs de hidratação, exercícios e consultas por data.
-- [ ] `goals/gamification`: mover metas nutricionais, snapshots semanais de badges e cálculo de conquistas.
-- [ ] `privacy/account`: mover exportação de privacidade, exclusão de dados em memória e orquestração de purge por domínio.
+- [x] `users/profile`: mover stores e funções de usuário, onboarding, perfil, preferências, restrições e peso inicial (`server/modules/users/service.ts`), preservando a assinatura pública exportada por `server/db.ts` e expondo acessores para os domínios que ainda leem essa memória (peso semanal, exportação de privacidade e purge de conta).
+- [ ] `meals`: seguir o plano detalhado em `docs/exec-plans/active/extract-meals-from-db.md` antes de mover código. A extração deve ser dividida em sublotes pequenos para favoritos, inferências pendentes/mídia, refeições confirmadas/totais, hábitos derivados e agregadores/admin/privacidade, mantendo `server/db.ts` como fachada compatível até a migração dos consumidores.
+- [x] `foods`: mover catálogo em memória, favoritos de alimentos, ranking, busca, criação e atualização de alimentos do usuário (`server/modules/foods/catalog.ts`), mantendo `mealStore` e `mealsRepository` como dependências injetadas até a extração do domínio `meals`.
+- [x] `water/exercises`: mover metas de água, logs de hidratação, exercícios e consultas por data (`server/modules/water/store.ts`, `server/modules/exercises/store.ts`), preservando a assinatura pública exportada por `server/db.ts`.
+- [x] `goals/gamification`: mover metas nutricionais, configurações de gamificação, snapshots semanais de badges e cálculo de conquistas (`server/modules/goals/store.ts`, `server/modules/gamification/store.ts`), preservando `server/db.ts` como fachada compatível.
+- [x] `privacy/account`: mover exportação de privacidade, exclusão de dados em memória e orquestração de purge por domínio (`server/modules/privacy/service.ts`), preservando `server/db.ts` como fachada compatível; a orquestração recebe cada domínio como dependência explícita porque `meals` ainda não foi extraído de `server/db.ts`.
 - [ ] Atualizar esta seção a cada PR concluído, incluindo qualquer fronteira nova validada por `pnpm architecture:check`.
 
 Regras para cada PR de extração:

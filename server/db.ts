@@ -3,7 +3,6 @@ import { createPool, type Pool } from "mysql2/promise";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, NutritionGoal, User, WeightEntry } from "../drizzle/schema";
 import { ENV } from "./_core/env";
-import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
 import { getDateKeyInTimeZone } from "../shared/timeZone";
@@ -23,9 +22,17 @@ import { createDrizzleUsersRepository } from "./repositories/usersRepository";
 import { createDrizzleWaterRepository } from "./repositories/waterRepository";
 import { createDrizzleWeightRepository } from "./repositories/weightRepository";
 import { createDrizzleWhatsAppRepository } from "./repositories/whatsappRepository";
-import type { OnboardingInput } from "./modules/onboarding/schemas";
+import { createFoodsService, normalizeCatalogText, type FoodSearchItem, type FoodUpsertInput } from "./modules/foods/catalog";
+import { createUsersService } from "./modules/users/service";
+import { createExercisesService, sumExercises } from "./modules/exercises/store";
+import { createGamificationService, BADGE_DEFINITIONS } from "./modules/gamification/store";
+import { createGoalsService, type GoalInput } from "./modules/goals/store";
+import { createPrivacyService } from "./modules/privacy/service";
+import { createWaterService, sumWater } from "./modules/water/store";
+import { decryptAppSecretValue as decryptAppSecretPayload, encryptAppSecretValue as encryptAppSecretPayload } from "./modules/appSecrets/encryption";
 import { safeLogDetail } from "./privacy";
-import { fuzzyMatchesWords } from "./fuzzyTextMatch";
+
+export { BADGE_DEFINITIONS };
 
 let _db: ReturnType<typeof drizzle> | null = null;
 const WHATSAPP_ACCESS_TOKEN_SECRET_KEY = "whatsapp_access_token";
@@ -45,12 +52,6 @@ let memoryWhatsAppAccessToken: {
   updatedByUserId: number;
 } | null = null;
 
-type EncryptedSecretPayload = {
-  iv: string;
-  tag: string;
-  value: string;
-};
-
 export type AdminWhatsAppTokenStatus = {
   configured: boolean;
   source: "database" | "environment" | "missing";
@@ -67,36 +68,31 @@ function maskSecret(value: string) {
   return `${value.slice(0, 6)}${"•".repeat(Math.max(8, value.length - 10))}${value.slice(-4)}`;
 }
 
-function getAppSecretCipherKey() {
-  return crypto
-    .createHash("sha256")
-    .update(`controle-calorias::app-secrets::${ENV.cookieSecret}`)
-    .digest();
+let warnedAboutLegacyAppSecretsKey = false;
+
+function getAppSecretCipherKeyDeps() {
+  return {
+    dedicatedKey: ENV.appSecretsEncryptionKey,
+    getLegacyKey: () => ENV.cookieSecret,
+  };
 }
 
 function encryptAppSecretValue(value: string) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", getAppSecretCipherKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
+  const deps = getAppSecretCipherKeyDeps();
+  const { payload, keySource } = encryptAppSecretPayload(value, deps);
 
-  return JSON.stringify({
-    iv: iv.toString("base64"),
-    tag: tag.toString("base64"),
-    value: encrypted.toString("base64"),
-  } satisfies EncryptedSecretPayload);
+  if (keySource === "legacy" && !warnedAboutLegacyAppSecretsKey) {
+    warnedAboutLegacyAppSecretsKey = true;
+    console.warn(
+      "[Database] APP_SECRETS_ENCRYPTION_KEY not configured; encrypting persisted secret with a key derived from JWT_SECRET (legacy fallback). Configure APP_SECRETS_ENCRYPTION_KEY to decouple session and secrets encryption."
+    );
+  }
+
+  return payload;
 }
 
 function decryptAppSecretValue(payload: string) {
-  const parsed = JSON.parse(payload) as EncryptedSecretPayload;
-  const decipher = crypto.createDecipheriv("aes-256-gcm", getAppSecretCipherKey(), Buffer.from(parsed.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(parsed.tag, "base64"));
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(parsed.value, "base64")),
-    decipher.final(),
-  ]);
-
-  return decrypted.toString("utf8");
+  return decryptAppSecretPayload(payload, getAppSecretCipherKeyDeps());
 }
 
 async function getAppSecret(secretKey: string) {
@@ -240,192 +236,6 @@ export async function getDb() {
   return _db;
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
-  const values: InsertUser = {
-    openId: user.openId,
-  };
-  const updateSet: Record<string, unknown> = {};
-
-  const textFields = ["name", "email", "loginMethod"] as const;
-  type TextField = (typeof textFields)[number];
-
-  const assignNullable = (field: TextField) => {
-    const value = user[field];
-    if (value === undefined) return;
-    const normalized = value ?? null;
-    values[field] = normalized;
-    updateSet[field] = normalized;
-  };
-
-  textFields.forEach(assignNullable);
-
-  if (user.lastSignedIn !== undefined) {
-    values.lastSignedIn = user.lastSignedIn;
-    updateSet.lastSignedIn = user.lastSignedIn;
-  }
-  if (user.role !== undefined) {
-    values.role = user.role;
-    updateSet.role = user.role;
-  } else if (user.openId === "local:owner") {
-    values.role = "admin";
-    updateSet.role = "admin";
-  }
-
-  if (!values.lastSignedIn) {
-    values.lastSignedIn = new Date();
-  }
-
-  if (Object.keys(updateSet).length === 0) {
-    updateSet.lastSignedIn = new Date();
-  }
-
-  await usersRepository.upsert(values, updateSet);
-}
-
-export async function getUserByOpenId(openId: string) {
-  return usersRepository.findByOpenId(openId);
-}
-
-export async function saveUserOnboardingProfile(userId: number, input: OnboardingInput) {
-  const now = new Date();
-  const profile = {
-    userId,
-    ...input,
-    completedAt: now,
-  };
-
-  if (canUseMemoryPersistenceFallback()) {
-    onboardingProfileStore.set(userId, profile);
-  }
-
-  const profileValues = {
-    displayName: input.name,
-    birthDate: input.birthDate ?? null,
-    ageYears: input.ageYears,
-    sex: "prefer_not_to_say" as const,
-    heightCm: input.heightCm,
-    currentWeightKg: input.currentWeightKg,
-    nutritionObjective: input.objective,
-    activityLevel: input.activityLevel,
-    trackingExperience: input.trackingExperience,
-    eatingRoutine: input.eatingRoutine,
-    mainDifficulty: input.mainDifficulty,
-    onboardingCompletedAt: now,
-    updatedAt: now,
-  };
-
-  try {
-    await userProfileRepository.upsertProfile(userId, profileValues);
-    await weightRepository.insertEntry(userId, input.currentWeightKg, now, "Peso informado no onboarding.");
-
-    const preferenceKeys = ["dietary_preferences", "eating_routine", "main_difficulty", "tracking_experience"];
-    await userProfileRepository.replacePreferences(userId, preferenceKeys, [
-      { preferenceKey: "dietary_preferences", preferenceValue: JSON.stringify(input.dietaryPreferences) },
-      { preferenceKey: "eating_routine", preferenceValue: input.eatingRoutine },
-      { preferenceKey: "main_difficulty", preferenceValue: input.mainDifficulty },
-      { preferenceKey: "tracking_experience", preferenceValue: input.trackingExperience },
-    ]);
-
-    await userProfileRepository.insertRestrictions(userId, input.dietaryRestrictions);
-  } catch (error) {
-    logPersistenceWarning("Onboarding persistence skipped", error);
-  }
-
-  return profile;
-}
-
-export async function updateUserCurrentWeight(userId: number, input: {
-  weightKg: number;
-  measuredAt: Date;
-  notes?: string;
-}) {
-  if (canUseMemoryPersistenceFallback()) {
-    const existingProfile = onboardingProfileStore.get(userId);
-    if (existingProfile) {
-      onboardingProfileStore.set(userId, {
-        ...existingProfile,
-        currentWeightKg: input.weightKg,
-        weightMeasuredAt: input.measuredAt.toISOString(),
-        weightEntryNote: input.notes,
-      });
-    }
-
-    const entries = weightEntryStore.get(userId) ?? [];
-    const nextId = entries.reduce((max, entry) => Math.max(max, entry.id), 0) + 1;
-    const now = new Date();
-    weightEntryStore.set(userId, [
-      ...entries,
-      {
-        id: nextId,
-        userId,
-        weightKg: input.weightKg,
-        measuredAt: input.measuredAt,
-        notes: input.notes ?? null,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ]);
-  }
-
-  await userProfileRepository.updateCurrentWeight(userId, input.weightKg);
-  await weightRepository.insertEntry(userId, input.weightKg, input.measuredAt, input.notes ?? "Peso atualizado pelo WhatsApp.");
-
-  return {
-    userId,
-    weightKg: input.weightKg,
-    measuredAt: input.measuredAt,
-    notes: input.notes ?? null,
-  };
-}
-
-function parsePreferenceList(value: string | null | undefined) {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter(item => typeof item === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function getFoodAssistantProfile(userId: number) {
-  const memoryProfile = onboardingProfileStore.get(userId);
-  const fallback = {
-    preferences: memoryProfile?.dietaryPreferences ?? [],
-    restrictions: memoryProfile?.dietaryRestrictions ?? [],
-    eatingRoutine: memoryProfile?.eatingRoutine ?? null,
-    objective: memoryProfile?.objective ?? null,
-  };
-
-  const db = await getDb();
-  if (!db) {
-    return fallback;
-  }
-
-  try {
-    const [profile, preferenceRows, restrictionRows] = await Promise.all([
-      userProfileRepository.findProfileByUserId(userId),
-      userProfileRepository.findPreferencesByUserId(userId),
-      userProfileRepository.findRestrictionsByUserId(userId),
-    ]);
-    const preferenceMap = new Map(preferenceRows.map(row => [row.preferenceKey, row.preferenceValue]));
-
-    return {
-      preferences: parsePreferenceList(preferenceMap.get("dietary_preferences")),
-      restrictions: restrictionRows.map(row => row.label).filter(Boolean),
-      eatingRoutine: profile?.eatingRoutine ?? preferenceMap.get("eating_routine") ?? null,
-      objective: profile?.nutritionObjective ?? null,
-    };
-  } catch (error) {
-    logPersistenceWarning("Food assistant profile read skipped", error);
-    return fallback;
-  }
-}
-
 export function normalizeWhatsAppPhoneNumber(phoneNumber: string) {
   return phoneNumber.replace(/\D/g, "");
 }
@@ -550,62 +360,6 @@ export async function upsertUserWhatsappConnection(input: {
   return saved;
 }
 
-type GoalTargetInput = {
-  calories: number;
-  proteinGrams: number;
-  carbsGrams: number;
-  fatGrams: number;
-};
-
-type GoalExceptionDuration = "1_week" | "2_weeks" | "3_weeks" | "always";
-
-type GoalExceptionInput = GoalTargetInput & {
-  id?: number;
-  weekday: number;
-  durationType: GoalExceptionDuration;
-};
-
-type GoalInput = {
-  defaultGoal: GoalTargetInput;
-  exceptions: GoalExceptionInput[];
-};
-
-type GoalDayView = NutritionGoal & {
-  label: string;
-  shortLabel: string;
-  source: "default" | "exception";
-  exceptionId?: number;
-};
-
-type GoalExceptionView = NutritionGoal & {
-  label: string;
-  shortLabel: string;
-  isActive: boolean;
-};
-
-type GoalSummary = {
-  defaultGoal: NutritionGoal;
-  exceptions: GoalExceptionView[];
-  days: GoalDayView[];
-  today: GoalDayView;
-  weeklyTotals: {
-    calories: number;
-    proteinGrams: number;
-    carbsGrams: number;
-    fatGrams: number;
-  };
-};
-
-const WEEKDAY_META = [
-  { weekday: 0, label: "Segunda-feira", shortLabel: "seg." },
-  { weekday: 1, label: "Terça-feira", shortLabel: "ter." },
-  { weekday: 2, label: "Quarta-feira", shortLabel: "qua." },
-  { weekday: 3, label: "Quinta-feira", shortLabel: "qui." },
-  { weekday: 4, label: "Sexta-feira", shortLabel: "sex." },
-  { weekday: 5, label: "Sábado", shortLabel: "sáb." },
-  { weekday: 6, label: "Domingo", shortLabel: "dom." },
-] as const;
-
 type SavedMedia = {
   id: number;
   mediaType: "image" | "audio";
@@ -669,296 +423,17 @@ type AdminLogEntry = {
   createdAt: number;
 };
 
-type ExerciseEntry = {
-  id: number;
-  userId: number;
-  activityType: string;
-  durationMinutes: number;
-  caloriesBurned: number;
-  notes?: string | null;
-  occurredAt: number;
-  createdAt: number;
-  updatedAt: Date;
-};
-
-type WaterGoalEntry = {
-  id: number;
-  userId: number;
-  dailyTargetMl: number;
-  createdAt: number;
-  updatedAt: Date;
-};
-
-type WaterLogEntry = {
-  id: number;
-  userId: number;
-  amountMl: number;
-  occurredAt: number;
-  createdAt: number;
-  updatedAt: Date;
-};
-
-type BadgeCode =
-  | "registered_3_days_week"
-  | "registered_5_days_week"
-  | "protein_4_days_week"
-  | "water_3_days_week"
-  | "created_favorite_meal"
-  | "planned_meal"
-  | "weekly_consistency";
-
-type BadgeDefinition = {
-  code: BadgeCode;
-  title: string;
-  description: string;
-};
-
-type UserBadgeEntry = {
-  id: number;
-  userId: number;
-  badgeCode: BadgeCode;
-  earnedAt: number;
-  weekStart: string | null;
-  metadata?: Record<string, unknown>;
-};
-
-type GamificationSettingEntry = {
-  userId: number;
-  enabled: boolean;
-  updatedAt: number;
-};
-
-type OnboardingProfileEntry = OnboardingInput & {
-  userId: number;
-  completedAt: Date;
-};
-
-const goalStore = new Map<number, NutritionGoal[]>();
-const onboardingProfileStore = new Map<number, OnboardingProfileEntry>();
 const mealStore = new Map<number, SavedMeal[]>();
-const exerciseStore = new Map<number, ExerciseEntry[]>();
-const waterGoalStore = new Map<number, WaterGoalEntry>();
-const waterLogStore = new Map<number, WaterLogEntry[]>();
-const weightEntryStore = new Map<number, WeightEntry[]>();
 const habitStore = new Map<number, HabitMemoryState[]>();
-const userFoodStore = new Map<number, FoodSearchItem[]>();
-const favoriteFoodStore = new Map<number, Set<number>>();
 const favoriteMealStore = new Map<number, FavoriteMeal[]>();
-const gamificationSettingsStore = new Map<number, GamificationSettingEntry>();
-const userBadgeStore = new Map<number, UserBadgeEntry[]>();
 const inferenceStore = new Map<string, PendingInference>();
 const adminLogStore: AdminLogEntry[] = [];
 let mealIdSequence = 1;
 let mediaIdSequence = 1;
-let goalIdSequence = 1;
-let exerciseIdSequence = 1;
-let waterGoalIdSequence = 1;
-let waterLogIdSequence = 1;
-let foodIdSequence = 10000;
 let favoriteMealIdSequence = 1;
-let userBadgeIdSequence = 1;
-
-export const BADGE_DEFINITIONS: BadgeDefinition[] = [
-  { code: "registered_3_days_week", title: "3 dias registrados", description: "Registrou refeições em 3 dias da semana." },
-  { code: "registered_5_days_week", title: "5 dias registrados", description: "Registrou refeições em 5 dias da semana." },
-  { code: "protein_4_days_week", title: "Proteína em 4 dias", description: "Atingiu a meta de proteína em 4 dias da semana." },
-  { code: "water_3_days_week", title: "Água em 3 dias", description: "Registrou água em 3 dias da semana." },
-  { code: "created_favorite_meal", title: "Refeição favorita criada", description: "Salvou uma refeição favorita para reduzir fricção na rotina." },
-  { code: "planned_meal", title: "Refeição planejada", description: "Planejou uma refeição para um horário futuro." },
-  { code: "weekly_consistency", title: "Consistência semanal", description: "Manteve registros consistentes ao longo da semana." },
-];
-
-const BADGE_DEFINITION_BY_CODE = new Map(BADGE_DEFINITIONS.map(badge => [badge.code, badge]));
-
-export type FoodSearchItem = {
-  id: number;
-  name: string;
-  brandName?: string | null;
-  servingSize: number;
-  servingUnit: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number | null;
-  isFruit: boolean;
-  isVegetable: boolean;
-  isUltraProcessed: boolean;
-  source: string;
-  foodType: "generic" | "branded";
-  isUserCreated: boolean;
-  createdByUserId?: number | null;
-  isFavorite: boolean;
-  lastUsedAt?: number | null;
-};
-
-const referenceFoods: FoodSearchItem[] = FOOD_CATALOG_REFERENCE.map((food, index) => ({
-  id: index + 1,
-  name: food.name,
-  brandName: null,
-  servingSize: food.gramsPerServing,
-  servingUnit: food.servingLabel.replace(String(food.gramsPerServing), "").trim() || "porção",
-  calories: food.calories,
-  protein: food.protein,
-  carbs: food.carbs,
-  fat: food.fat,
-  fiber: null,
-  isFruit: false,
-  isVegetable: false,
-  isUltraProcessed: false,
-  source: "catalog",
-  foodType: "generic",
-  isUserCreated: false,
-  createdByUserId: null,
-  isFavorite: false,
-  lastUsedAt: null,
-}));
 
 function getWeekdayIndex(date: Date) {
   return (date.getDay() + 6) % 7;
-}
-
-const DEFAULT_GOAL_WEEKDAY = -1;
-
-const defaultGoal = (userId: number): NutritionGoal => ({
-  id: goalIdSequence++,
-  userId,
-  ruleType: "default",
-  weekday: DEFAULT_GOAL_WEEKDAY,
-  durationType: "always",
-  calories: 2200,
-  proteinGrams: 160,
-  carbsGrams: 240,
-  fatGrams: 70,
-  effectiveFrom: new Date(),
-  effectiveUntil: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-});
-
-function startOfWeek(date: Date) {
-  const value = startOfDay(date);
-  value.setDate(value.getDate() - getWeekdayIndex(value));
-  return value;
-}
-
-function endOfWeek(date: Date) {
-  const value = startOfWeek(date);
-  value.setDate(value.getDate() + 6);
-  value.setHours(23, 59, 59, 999);
-  return value;
-}
-
-function buildExceptionEndDate(referenceDate: Date, durationType: GoalExceptionDuration) {
-  if (durationType === "always") {
-    return null;
-  }
-
-  const durationWeeks = durationType === "1_week" ? 1 : durationType === "2_weeks" ? 2 : 3;
-  const value = endOfWeek(referenceDate);
-  value.setDate(value.getDate() + (durationWeeks - 1) * 7);
-  return value;
-}
-
-function isDefaultGoalActiveOnDate(rule: NutritionGoal, date: Date) {
-  if (rule.ruleType !== "default") {
-    return false;
-  }
-
-  const currentTime = date.getTime();
-  const startTime = new Date(rule.effectiveFrom).getTime();
-  const endTime = rule.effectiveUntil ? new Date(rule.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
-  return currentTime >= startTime && currentTime <= endTime;
-}
-
-function getDefaultGoalRule(userId: number, rows: NutritionGoal[], referenceDate = new Date()) {
-  return rows
-    .filter(row => isDefaultGoalActiveOnDate(row, referenceDate))
-    .sort((a, b) => {
-      if (!a.effectiveUntil && b.effectiveUntil) return -1;
-      if (a.effectiveUntil && !b.effectiveUntil) return 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    })[0] ?? defaultGoal(userId);
-}
-
-function getExceptionRules(rows: NutritionGoal[]) {
-  return rows
-    .filter(row => row.ruleType === "exception")
-    .slice()
-    .sort((a, b) => {
-      const updatedDiff = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-      if (updatedDiff !== 0) return updatedDiff;
-      return new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime();
-    });
-}
-
-function isExceptionActiveOnDate(rule: NutritionGoal, date: Date) {
-  if (rule.ruleType !== "exception") {
-    return false;
-  }
-
-  if (rule.weekday !== getWeekdayIndex(date)) {
-    return false;
-  }
-
-  const currentWeek = startOfWeek(date).getTime();
-  const startWeek = startOfWeek(new Date(rule.effectiveFrom)).getTime();
-  const endTime = rule.effectiveUntil ? new Date(rule.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
-  return currentWeek >= startWeek && date.getTime() < endTime;
-}
-
-function resolveGoalForDate(userId: number, rows: NutritionGoal[], date: Date): GoalDayView {
-  const fallback = getDefaultGoalRule(userId, rows, date);
-  const activeException = getExceptionRules(rows).find(rule => isExceptionActiveOnDate(rule, date));
-  const applied = activeException ?? fallback;
-  const weekday = getWeekdayIndex(date);
-  const meta = WEEKDAY_META[weekday] ?? { label: "Dia", shortLabel: "dia" };
-
-  return {
-    ...applied,
-    weekday,
-    label: meta.label,
-    shortLabel: meta.shortLabel,
-    source: activeException ? "exception" : "default",
-    exceptionId: activeException?.id,
-  };
-}
-
-function buildGoalSummary(rows: NutritionGoal[], userId: number, referenceDate = new Date()): GoalSummary {
-  const monday = startOfWeek(referenceDate);
-  const days = Array.from({ length: 7 }).map((_, index) => {
-    const current = new Date(monday);
-    current.setDate(monday.getDate() + index);
-    return resolveGoalForDate(userId, rows, current);
-  });
-  const today = resolveGoalForDate(userId, rows, referenceDate);
-  const defaultGoalRule = getDefaultGoalRule(userId, rows, referenceDate);
-  const currentTime = referenceDate.getTime();
-  const exceptions = getExceptionRules(rows)
-    .filter(rule => !rule.effectiveUntil || new Date(rule.effectiveUntil).getTime() > currentTime)
-    .map(rule => ({
-      ...rule,
-      label: WEEKDAY_META[rule.weekday]?.label ?? "Dia",
-      shortLabel: WEEKDAY_META[rule.weekday]?.shortLabel ?? "dia",
-      isActive: isExceptionActiveOnDate(rule, referenceDate),
-    }));
-
-  return {
-    defaultGoal: defaultGoalRule,
-    exceptions,
-    days,
-    today,
-    weeklyTotals: days.reduce(
-      (acc, day) => {
-        acc.calories += day.calories;
-        acc.proteinGrams += day.proteinGrams;
-        acc.carbsGrams += day.carbsGrams;
-        acc.fatGrams += day.fatGrams;
-        return acc;
-      },
-      { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
-    ),
-  };
 }
 
 function startOfDay(date: Date) {
@@ -991,14 +466,6 @@ function sumMealItems(items: MealDraftItem[]) {
 
 function sumMeals(meals: Array<{ items: MealDraftItem[] }>) {
   return calculateDayTotals(meals);
-}
-
-function sumExercises(items: ExerciseEntry[]) {
-  return items.reduce((acc, item) => acc + Number(item.caloriesBurned ?? 0), 0);
-}
-
-function sumWater(items: WaterLogEntry[]) {
-  return items.reduce((acc, item) => acc + Number(item.amountMl ?? 0), 0);
 }
 
 type QualityIndicators = {
@@ -1077,166 +544,6 @@ async function calculateQualityIndicators(userId: number, meals: SavedMeal[], wa
 
 const round = roundNutritionValue;
 
-function badgeWeekStart() {
-  return dateKey(startOfLocalWeek(new Date()));
-}
-
-function withBadgeDefinition(entry: UserBadgeEntry) {
-  const definition = BADGE_DEFINITION_BY_CODE.get(entry.badgeCode);
-  return {
-    id: entry.id,
-    code: entry.badgeCode,
-    title: definition?.title ?? entry.badgeCode,
-    description: definition?.description ?? "",
-    earnedAt: entry.earnedAt,
-    weekStart: entry.weekStart,
-    metadata: entry.metadata ?? {},
-  };
-}
-
-async function getGamificationEnabled(userId: number) {
-  const memory = gamificationSettingsStore.get(userId);
-  if (memory) return memory.enabled;
-
-  const db = await getDb();
-  if (db) {
-    try {
-      const row = await gamificationRepository.findSettingByUserId(userId);
-      if (row) {
-        const setting = { userId, enabled: row.enabled === 1, updatedAt: new Date(row.updatedAt).getTime() };
-        gamificationSettingsStore.set(userId, setting);
-        return setting.enabled;
-      }
-    } catch (error) {
-      logPersistenceWarning("Gamification settings read skipped", error);
-    }
-  }
-
-  return true;
-}
-
-export async function updateUserGamificationSettings(userId: number, enabled: boolean) {
-  const setting = { userId, enabled, updatedAt: Date.now() };
-  gamificationSettingsStore.set(userId, setting);
-
-  try {
-    await gamificationRepository.upsertSetting(userId, enabled);
-  } catch (error) {
-    logPersistenceWarning("Gamification settings persistence skipped", error);
-  }
-
-  return { enabled };
-}
-
-async function loadUserBadges(userId: number) {
-  const db = await getDb();
-  if (db) {
-    try {
-      const rows = await gamificationRepository.findBadgesByUserId(userId);
-      const entries = rows.map(row => ({
-        id: row.id,
-        userId: row.userId,
-        badgeCode: row.badgeCode as BadgeCode,
-        earnedAt: new Date(row.earnedAt).getTime(),
-        weekStart: row.weekStart ?? null,
-        metadata: parseJsonObject(row.metadataJson, {}),
-      }));
-      userBadgeStore.set(userId, entries);
-      return entries;
-    } catch (error) {
-      logPersistenceWarning("User badges read skipped", error);
-    }
-  }
-
-  return userBadgeStore.get(userId) ?? [];
-}
-
-async function awardUserBadge(userId: number, badgeCode: BadgeCode, weekStart: string, metadata: Record<string, unknown>) {
-  const current = await loadUserBadges(userId);
-  const existing = current.find(badge => badge.badgeCode === badgeCode && badge.weekStart === weekStart);
-  if (existing) return existing;
-
-  const badge: UserBadgeEntry = {
-    id: userBadgeIdSequence++,
-    userId,
-    badgeCode,
-    earnedAt: Date.now(),
-    weekStart,
-    metadata,
-  };
-
-  const db = await getDb();
-  if (db) {
-    try {
-      const insertedId = await gamificationRepository.insertBadge({
-        userId,
-        badgeCode,
-        weekStart,
-        metadataJson: JSON.stringify(metadata),
-      });
-      if (insertedId) badge.id = insertedId;
-    } catch (error) {
-      logPersistenceWarning("User badge persistence skipped", error);
-    }
-  }
-
-  userBadgeStore.set(userId, [badge, ...current]);
-  return badge;
-}
-
-async function calculateEarnedBadgeCodes(userId: number, weekly: Awaited<ReturnType<typeof getWeeklySummary>>): Promise<Array<{ code: BadgeCode; metadata: Record<string, unknown> }>> {
-  const daysWithMeals = weekly.filter(day => day.quality.mealCount > 0).length;
-  const daysWithProteinGoal = weekly.filter(day => day.goalProtein > 0 && day.protein >= day.goalProtein).length;
-  const daysWithWater = weekly.filter(day => day.waterConsumedMl > 0).length;
-  const favorites = await listFavoriteMeals(userId);
-  const meals = await listUserMeals(userId);
-  const hasPlannedMeal = meals.some(meal => meal.occurredAt > Date.now() && meal.source === "web");
-  const badges: Array<{ code: BadgeCode; metadata: Record<string, unknown> }> = [];
-
-  if (daysWithMeals >= 3) badges.push({ code: "registered_3_days_week", metadata: { daysWithMeals } });
-  if (daysWithMeals >= 5) badges.push({ code: "registered_5_days_week", metadata: { daysWithMeals } });
-  if (daysWithProteinGoal >= 4) badges.push({ code: "protein_4_days_week", metadata: { daysWithProteinGoal } });
-  if (daysWithWater >= 3) badges.push({ code: "water_3_days_week", metadata: { daysWithWater } });
-  if (favorites.length > 0) badges.push({ code: "created_favorite_meal", metadata: { favoriteMeals: favorites.length } });
-  if (hasPlannedMeal) badges.push({ code: "planned_meal", metadata: {} });
-  if (daysWithMeals >= 5 && daysWithWater >= 3) badges.push({ code: "weekly_consistency", metadata: { daysWithMeals, daysWithWater } });
-
-  return badges;
-}
-
-export async function getUserGamification(userId: number, weekly?: Awaited<ReturnType<typeof getWeeklySummary>>) {
-  const enabled = await getGamificationEnabled(userId);
-  const history = await loadUserBadges(userId);
-
-  if (!enabled) {
-    return {
-      enabled,
-      availableBadges: BADGE_DEFINITIONS,
-      earnedBadges: history.map(withBadgeDefinition),
-      newlyEarnedBadges: [],
-    };
-  }
-
-  const weekStart = badgeWeekStart();
-  const weeklyData = weekly ?? await getWeeklySummary(userId);
-  const earnedCandidates = await calculateEarnedBadgeCodes(userId, weeklyData);
-  const newlyEarned: UserBadgeEntry[] = [];
-
-  for (const candidate of earnedCandidates) {
-    const before = (userBadgeStore.get(userId) ?? history).some(badge => badge.badgeCode === candidate.code && badge.weekStart === weekStart);
-    const awarded = await awardUserBadge(userId, candidate.code, weekStart, candidate.metadata);
-    if (!before) newlyEarned.push(awarded);
-  }
-
-  const updatedHistory = await loadUserBadges(userId);
-  return {
-    enabled,
-    availableBadges: BADGE_DEFINITIONS,
-    earnedBadges: updatedHistory.map(withBadgeDefinition),
-    newlyEarnedBadges: newlyEarned.map(withBadgeDefinition),
-  };
-}
-
 function isMissingTableError(error: unknown) {
   const code = (error as { code?: string })?.code;
   const causeCode = (error as { cause?: { code?: string } })?.cause?.code;
@@ -1254,6 +561,13 @@ const nutritionGoalsRepository = createDrizzleNutritionGoalsRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+const goalsService = createGoalsService({
+  nutritionGoalsRepository,
+  onEvent: logInferenceEvent,
+});
+const getStoredNutritionGoals = goalsService.getStoredNutritionGoals;
+export const getUserNutritionGoal = goalsService.getUserNutritionGoal;
+export const upsertNutritionGoal = goalsService.upsertNutritionGoal;
 const exercisesRepository = createDrizzleExercisesRepository({
   getDb,
   onWarning: logPersistenceWarning,
@@ -1278,6 +592,39 @@ const weightRepository = createDrizzleWeightRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+const usersService = createUsersService({
+  usersRepository,
+  userProfileRepository,
+  weightRepository,
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+export const upsertUser = usersService.upsertUser;
+export const getUserByOpenId = usersService.getUserByOpenId;
+export const saveUserOnboardingProfile = usersService.saveUserOnboardingProfile;
+export const updateUserCurrentWeight = usersService.updateUserCurrentWeight;
+export const getFoodAssistantProfile = usersService.getFoodAssistantProfile;
+const exercisesService = createExercisesService({
+  exercisesRepository,
+  buildOccurredAtRange,
+  onEvent: logInferenceEvent,
+});
+export const listUserExercises = exercisesService.listExercises;
+export const listUserExercisesByDate = exercisesService.listExercisesByDate;
+export const createUserExercise = exercisesService.createExercise;
+export const updateUserExercise = exercisesService.updateExercise;
+export const removeUserExercise = exercisesService.removeExercise;
+const waterService = createWaterService({
+  waterRepository,
+  buildOccurredAtRange,
+  onEvent: logInferenceEvent,
+});
+export const getUserWaterGoal = waterService.getWaterGoal;
+export const listUserWaterLogs = waterService.listWaterLogs;
+export const listUserWaterLogsByDate = waterService.listWaterLogsByDate;
+export const updateUserWaterGoal = waterService.updateWaterGoal;
+export const createUserWaterLog = waterService.createWaterLog;
+export const removeUserWaterLog = waterService.removeWaterLog;
 const whatsappRepository = createDrizzleWhatsAppRepository({
   getDb,
   onWarning: logPersistenceWarning,
@@ -1286,6 +633,18 @@ const gamificationRepository = createDrizzleGamificationRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+const gamificationService = createGamificationService({
+  gamificationRepository,
+  getDb,
+  getWeekStart: () => dateKey(startOfLocalWeek(new Date())),
+  getWeeklySummary,
+  listFavoriteMeals,
+  listUserMeals,
+  parseJsonObject,
+  onWarning: logPersistenceWarning,
+});
+export const getUserGamification = gamificationService.getUserGamification;
+export const updateUserGamificationSettings = gamificationService.updateUserGamificationSettings;
 const foodCatalogRepository = createDrizzleFoodCatalogRepository({
   getDb,
   onWarning: logPersistenceWarning,
@@ -1303,6 +662,21 @@ const logsRepository = createDrizzleLogsRepository({
   onWarning: logPersistenceWarning,
 });
 const accountRepository = createDrizzleAccountRepository({ getDb });
+
+const foodsService = createFoodsService({
+  foodCatalogRepository,
+  findMealItemsWithDates: userId => mealsRepository.findItemsWithMealDates(userId),
+  getUserMealsMemory: userId => mealStore.get(userId) ?? [],
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+export const searchFoods = foodsService.searchFoods;
+export const listRecentFoods = foodsService.listRecentFoods;
+export const upsertFavoriteFood = foodsService.upsertFavoriteFood;
+export const createUserFood = foodsService.createUserFood;
+export const updateUserFood = foodsService.updateUserFood;
+const resolveFoodCatalogIds = foodsService.resolveFoodCatalogIds;
+export type { FoodSearchItem, FoodUpsertInput } from "./modules/foods/catalog";
 
 function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[] {
   if (!value) return fallback;
@@ -1322,345 +696,6 @@ function parseJsonObject(value: string | null | undefined, fallback: Record<stri
   } catch {
     return fallback;
   }
-}
-
-function normalizeCatalogText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s-]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function toSlug(value: string) {
-  const normalized = normalizeCatalogText(value).replace(/[\s_]+/g, "-").replace(/-+/g, "-");
-  return normalized || `food-${Date.now()}`;
-}
-
-function rankFoods(food: FoodSearchItem, query: string) {
-  const normalizedQuery = normalizeCatalogText(query);
-  const haystack = normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`);
-  const exact = normalizedQuery && haystack.startsWith(normalizedQuery) ? 4 : 0;
-  const favorite = food.isFavorite ? 3 : 0;
-  const recent = food.lastUsedAt ? 2 : 0;
-  const userCreated = food.isUserCreated ? 1 : 0;
-  return exact + favorite + recent + userCreated;
-}
-
-function getMemoryFoodsForUser(userId: number) {
-  const favorites = favoriteFoodStore.get(userId) ?? new Set<number>();
-  const userFoods = userFoodStore.get(userId) ?? [];
-  const recentMeals = mealStore.get(userId) ?? [];
-  const recentByName = new Map<string, number>();
-
-  for (const meal of recentMeals) {
-    for (const item of meal.items) {
-      const key = normalizeCatalogText(item.canonicalName || item.foodName);
-      recentByName.set(key, Math.max(recentByName.get(key) ?? 0, meal.occurredAt));
-    }
-  }
-
-  return [...userFoods, ...referenceFoods].map(food => {
-    const lastUsedAt = recentByName.get(normalizeCatalogText(food.name)) ?? food.lastUsedAt ?? null;
-    return {
-      ...food,
-      isFavorite: favorites.has(food.id),
-      lastUsedAt,
-    };
-  });
-}
-
-async function loadFavoriteFoodIdsFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return favoriteFoodStore.get(userId) ?? new Set<number>();
-
-  const ids = await foodCatalogRepository.findFavoriteIdsByUserId(userId);
-  favoriteFoodStore.set(userId, ids);
-  return ids;
-}
-
-async function loadRecentFoodUsageFromDb(userId: number) {
-  const db = await getDb();
-  if (!db) return new Map<string, number>();
-
-  try {
-    const items = await mealsRepository.findItemsWithMealDates(userId);
-    const usage = new Map<string, number>();
-    for (const item of items) {
-      const key = normalizeCatalogText(item.canonicalName || item.foodName);
-      usage.set(key, Math.max(usage.get(key) ?? 0, item.occurredAt));
-    }
-    return usage;
-  } catch (error) {
-    logPersistenceWarning("Recent foods read skipped", error);
-    return new Map<string, number>();
-  }
-}
-
-export async function searchFoods(userId: number, query = "", limit = 20) {
-  const normalizedQuery = normalizeCatalogText(query);
-  const db = await getDb();
-  const favorites = await loadFavoriteFoodIdsFromDb(userId);
-
-  if (db) {
-    try {
-      const [rows, usage] = await Promise.all([
-        foodCatalogRepository.findAll(),
-        loadRecentFoodUsageFromDb(userId),
-      ]);
-
-      const foods = rows
-        .filter(row => !row.createdByUserId || row.createdByUserId === userId)
-        .map(row => {
-          const lastUsedAt = usage.get(normalizeCatalogText(row.name)) ?? null;
-          return {
-            id: row.id,
-            name: row.name,
-            brandName: row.brandName,
-            servingSize: row.gramsPerServing,
-            servingUnit: row.servingUnit,
-            calories: row.calories,
-            protein: row.protein,
-            carbs: row.carbs,
-            fat: row.fat,
-            fiber: row.fiber,
-            isFruit: row.isFruit === 1,
-            isVegetable: row.isVegetable === 1,
-            isUltraProcessed: row.isUltraProcessed === 1,
-            source: row.dataSource,
-            foodType: row.foodType,
-            isUserCreated: row.isUserCreated === 1,
-            createdByUserId: row.createdByUserId,
-            isFavorite: favorites.has(row.id),
-            lastUsedAt,
-          } satisfies FoodSearchItem;
-        });
-
-      return foods
-        .filter(food => {
-          if (!normalizedQuery) return true;
-          const haystack = normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`);
-          return haystack.includes(normalizedQuery) || fuzzyMatchesWords(normalizedQuery, haystack);
-        })
-        .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
-        .slice(0, limit);
-    } catch (error) {
-      logPersistenceWarning("Food search read skipped", error);
-    }
-  }
-
-  return getMemoryFoodsForUser(userId)
-    .filter(food => !normalizedQuery || normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`).includes(normalizedQuery))
-    .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
-    .slice(0, limit);
-}
-
-export async function listRecentFoods(userId: number, limit = 10) {
-  return (await searchFoods(userId, "", 100)).filter(food => food.lastUsedAt).slice(0, limit);
-}
-
-export async function upsertFavoriteFood(userId: number, foodId: number, favorite: boolean) {
-  const favorites = new Set(favoriteFoodStore.get(userId) ?? []);
-  if (favorite) favorites.add(foodId);
-  else favorites.delete(foodId);
-  favoriteFoodStore.set(userId, favorites);
-
-  const db = await getDb();
-  if (db) {
-    try {
-      if (favorite) {
-        await foodCatalogRepository.upsertFavorite(userId, foodId);
-      } else {
-        await foodCatalogRepository.deleteFavorite(userId, foodId);
-      }
-    } catch (error) {
-      logPersistenceWarning("Food favorite write skipped", error);
-    }
-  }
-
-  const [food] = await searchFoods(userId, "", 200);
-  return (await searchFoods(userId, "", 200)).find(item => item.id === foodId) ?? food;
-}
-
-export type FoodUpsertInput = {
-  foodId?: number;
-  name: string;
-  brandName?: string | null;
-  servingSize: number;
-  servingUnit: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number | null;
-  isFruit?: boolean;
-  isVegetable?: boolean;
-  isUltraProcessed?: boolean;
-  source: string;
-  foodType: "generic" | "branded";
-};
-
-export async function createUserFood(userId: number, input: FoodUpsertInput) {
-  const food: FoodSearchItem = {
-    id: foodIdSequence++,
-    name: input.name,
-    brandName: input.brandName ?? null,
-    servingSize: input.servingSize,
-    servingUnit: input.servingUnit,
-    calories: input.calories,
-    protein: input.protein,
-    carbs: input.carbs,
-    fat: input.fat,
-    fiber: input.fiber ?? null,
-    isFruit: input.isFruit ?? false,
-    isVegetable: input.isVegetable ?? false,
-    isUltraProcessed: input.isUltraProcessed ?? false,
-    source: input.source || "manual",
-    foodType: input.foodType,
-    isUserCreated: true,
-    createdByUserId: userId,
-    isFavorite: false,
-    lastUsedAt: null,
-  };
-
-  const db = await getDb();
-  if (db) {
-    try {
-      const insertedId = await foodCatalogRepository.insert({
-        slug: `${toSlug(`${input.brandName ?? ""} ${input.name}`)}-${userId}-${Date.now()}`,
-        name: input.name,
-        aliases: JSON.stringify([]),
-        brandName: input.brandName ?? null,
-        foodType: input.foodType,
-        dataSource: input.source || "manual",
-        servingLabel: `${input.servingSize} ${input.servingUnit}`,
-        servingUnit: input.servingUnit,
-        gramsPerServing: input.servingSize,
-        calories: input.calories,
-        protein: input.protein,
-        carbs: input.carbs,
-        fat: input.fat,
-        fiber: input.fiber ?? null,
-        isFruit: input.isFruit ? 1 : 0,
-        isVegetable: input.isVegetable ? 1 : 0,
-        isUltraProcessed: input.isUltraProcessed ? 1 : 0,
-        isUserCreated: 1,
-        createdByUserId: userId,
-      });
-      if (insertedId) food.id = insertedId;
-    } catch (error) {
-      logPersistenceWarning("Food creation persistence skipped", error);
-    }
-  }
-
-  const current = userFoodStore.get(userId) ?? [];
-  userFoodStore.set(userId, [food, ...current]);
-  return food;
-}
-
-export async function updateUserFood(userId: number, input: FoodUpsertInput & { foodId: number }) {
-  const current = userFoodStore.get(userId) ?? [];
-  const existing = current.find(food => food.id === input.foodId);
-  if (!existing) {
-    const dbFoods = await searchFoods(userId, "", 200);
-    const dbExisting = dbFoods.find(food => food.id === input.foodId && food.isUserCreated && food.createdByUserId === userId);
-    if (!dbExisting) {
-      throw new Error("Alimento criado pelo usuário não encontrado.");
-    }
-  }
-
-  const updated: FoodSearchItem = {
-    ...(existing ?? { id: input.foodId, isFavorite: false, lastUsedAt: null }),
-    id: input.foodId,
-    name: input.name,
-    brandName: input.brandName ?? null,
-    servingSize: input.servingSize,
-    servingUnit: input.servingUnit,
-    calories: input.calories,
-    protein: input.protein,
-    carbs: input.carbs,
-    fat: input.fat,
-    fiber: input.fiber ?? null,
-    isFruit: input.isFruit ?? false,
-    isVegetable: input.isVegetable ?? false,
-    isUltraProcessed: input.isUltraProcessed ?? false,
-    source: input.source || "manual",
-    foodType: input.foodType,
-    isUserCreated: true,
-    createdByUserId: userId,
-  };
-
-  const db = await getDb();
-  if (db) {
-    try {
-      await foodCatalogRepository.update(input.foodId, userId, {
-        name: input.name,
-        brandName: input.brandName ?? null,
-        foodType: input.foodType,
-        dataSource: input.source || "manual",
-        servingLabel: `${input.servingSize} ${input.servingUnit}`,
-        servingUnit: input.servingUnit,
-        gramsPerServing: input.servingSize,
-        calories: input.calories,
-        protein: input.protein,
-        carbs: input.carbs,
-        fat: input.fat,
-        fiber: input.fiber ?? null,
-        isFruit: input.isFruit ? 1 : 0,
-        isVegetable: input.isVegetable ? 1 : 0,
-        isUltraProcessed: input.isUltraProcessed ? 1 : 0,
-      });
-    } catch (error) {
-      logPersistenceWarning("Food update persistence skipped", error);
-    }
-  }
-
-  userFoodStore.set(userId, [updated, ...current.filter(food => food.id !== input.foodId)]);
-  return updated;
-}
-
-async function resolveFoodCatalogIds(items: MealDraftItem[]) {
-  const db = await getDb();
-  if (!db || !items.length) {
-    return new Map<string, number>();
-  }
-
-  try {
-    const rows = await foodCatalogRepository.findAll();
-    const catalogIndex = new Map<string, number>();
-
-    for (const row of rows) {
-      const aliases = parseJsonArray<string>(row.aliases, []);
-      const keys = [row.name, ...aliases].map(normalizeCatalogText);
-      for (const key of keys) {
-        if (key) {
-          catalogIndex.set(key, row.id);
-        }
-      }
-    }
-
-    const resolved = new Map<string, number>();
-    for (const item of items) {
-      const directKey = normalizeCatalogText(item.canonicalName);
-      const fallbackKey = normalizeCatalogText(item.foodName);
-      const resolvedId = catalogIndex.get(directKey) ?? catalogIndex.get(fallbackKey);
-      if (resolvedId) {
-        resolved.set(item.canonicalName, resolvedId);
-        resolved.set(item.foodName, resolvedId);
-      }
-    }
-
-    return resolved;
-  } catch (error) {
-    logPersistenceWarning("Food catalog resolution skipped", error);
-    return new Map<string, number>();
-  }
-}
-
-async function persistGoalToDb(goals: NutritionGoal[]) {
-  if (!goals.length) return;
-  await nutritionGoalsRepository.replaceForUser(goals[0].userId, goals);
 }
 
 async function persistInferenceToDb(draft: PendingInference) {
@@ -1711,18 +746,6 @@ async function persistMealToDb(meal: SavedMeal) {
   }
 }
 
-async function persistExerciseToDb(exercise: ExerciseEntry) {
-  await exercisesRepository.insert(exercise);
-}
-
-async function updateExerciseInDb(exercise: ExerciseEntry) {
-  await exercisesRepository.update(exercise);
-}
-
-async function deleteExerciseFromDb(userId: number, exerciseId: number) {
-  await exercisesRepository.delete(userId, exerciseId);
-}
-
 async function updateMealInDb(meal: SavedMeal) {
   const db = await getDb();
   if (!db) return;
@@ -1755,18 +778,6 @@ async function deleteMealFromDb(userId: number, mealId: number) {
   }
 }
 
-async function persistWaterGoalToDb(goal: WaterGoalEntry) {
-  await waterRepository.upsertGoal(goal);
-}
-
-async function persistWaterLogToDb(log: WaterLogEntry) {
-  await waterRepository.insertLog(log);
-}
-
-async function deleteWaterLogFromDb(userId: number, waterLogId: number) {
-  await waterRepository.deleteLog(userId, waterLogId);
-}
-
 async function persistHabitsToDb(userId: number, habits: HabitMemoryState[]) {
   await habitsRepository.insertMany(userId, habits);
 }
@@ -1779,10 +790,6 @@ async function persistLogToDb(entry: AdminLogEntry) {
     eventType: entry.eventType,
     detail: safeLogDetail(entry.detail),
   });
-}
-
-async function loadGoalFromDb(userId: number) {
-  return nutritionGoalsRepository.findByUserId(userId);
 }
 
 type OccurredAtRange = {
@@ -1805,26 +812,6 @@ function buildOccurredAtRange(date: string): Required<OccurredAtRange> {
 async function loadMealsFromDb(userId: number, options: MealLoadOptions = {}) {
   const dbMeals = await mealsRepository.findConfirmedByUserId(userId, options);
   return dbMeals as SavedMeal[] | null;
-}
-
-async function loadExercisesFromDb(userId: number) {
-  return exercisesRepository.findByUserId(userId);
-}
-
-async function loadExercisesFromDbByRange(userId: number, range: Required<OccurredAtRange>) {
-  return exercisesRepository.findByUserIdAndRange(userId, range.startAt, range.endAt);
-}
-
-async function loadWaterGoalFromDb(userId: number) {
-  return waterRepository.findGoalByUserId(userId);
-}
-
-async function loadWaterLogsFromDb(userId: number) {
-  return waterRepository.findLogsByUserId(userId);
-}
-
-async function loadWaterLogsFromDbByRange(userId: number, range: Required<OccurredAtRange>) {
-  return waterRepository.findLogsByUserIdAndRange(userId, range.startAt, range.endAt);
 }
 
 async function loadWeightEntriesFromDb(userId: number) {
@@ -1878,98 +865,6 @@ async function loadRecentLogsFromDb() {
     detail: row.detail,
     createdAt: new Date(row.createdAt).getTime(),
   } satisfies AdminLogEntry));
-}
-
-async function getStoredNutritionGoals(userId: number) {
-  const dbGoals = await loadGoalFromDb(userId);
-  if (dbGoals?.length) {
-    if (canUseMemoryPersistenceFallback()) {
-      goalStore.set(userId, dbGoals);
-    }
-    return dbGoals;
-  }
-
-  if (canUseMemoryPersistenceFallback()) {
-    const stored = goalStore.get(userId);
-    if (stored?.length) {
-      return stored;
-    }
-  }
-
-  const created = [defaultGoal(userId)];
-  if (canUseMemoryPersistenceFallback()) {
-    goalStore.set(userId, created);
-  }
-  return created;
-}
-
-export async function getUserNutritionGoal(userId: number) {
-  const goals = await getStoredNutritionGoals(userId);
-  return buildGoalSummary(goals, userId);
-}
-
-export async function upsertNutritionGoal(userId: number, input: GoalInput) {
-  const now = new Date();
-  const effectiveFrom = startOfWeek(now);
-  const currentGoals = await getStoredNutritionGoals(userId);
-  const historicalGoals = currentGoals.map(goal => {
-    const existingEnd = goal.effectiveUntil ? new Date(goal.effectiveUntil).getTime() : Number.POSITIVE_INFINITY;
-    if (existingEnd <= effectiveFrom.getTime()) {
-      return goal;
-    }
-
-    return {
-      ...goal,
-      effectiveUntil: effectiveFrom,
-      updatedAt: now,
-    };
-  });
-
-  const updated: NutritionGoal[] = [
-    {
-      id: goalIdSequence++,
-      userId,
-      ruleType: "default",
-      weekday: DEFAULT_GOAL_WEEKDAY,
-      durationType: "always",
-      calories: input.defaultGoal.calories,
-      proteinGrams: input.defaultGoal.proteinGrams,
-      carbsGrams: input.defaultGoal.carbsGrams,
-      fatGrams: input.defaultGoal.fatGrams,
-      effectiveFrom,
-      effectiveUntil: null,
-      createdAt: now,
-      updatedAt: now,
-    },
-    ...input.exceptions.map(exception => ({
-      id: exception.id ?? goalIdSequence++,
-      userId,
-      ruleType: "exception" as const,
-      weekday: exception.weekday,
-      durationType: exception.durationType,
-      calories: exception.calories,
-      proteinGrams: exception.proteinGrams,
-      carbsGrams: exception.carbsGrams,
-      fatGrams: exception.fatGrams,
-      effectiveFrom,
-      effectiveUntil: buildExceptionEndDate(effectiveFrom, exception.durationType),
-      createdAt: now,
-      updatedAt: now,
-    })),
-  ];
-
-  if (canUseMemoryPersistenceFallback()) {
-    goalStore.set(userId, [...historicalGoals, ...updated]);
-  }
-  await persistGoalToDb(updated);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "goal.updated",
-    detail: "Meta padrão e exceções nutricionais atualizadas pelo usuário.",
-  });
-  return buildGoalSummary([...historicalGoals, ...updated], userId);
 }
 
 export async function getHabitSnapshots(userId: number): Promise<HabitSnapshot[]> {
@@ -2486,258 +1381,6 @@ export async function removeUserMeal(userId: number, mealId: number) {
   return { success: true };
 }
 
-async function getStoredWaterGoal(userId: number) {
-  const dbGoal = await loadWaterGoalFromDb(userId);
-  if (dbGoal) {
-    if (canUseMemoryPersistenceFallback()) {
-      waterGoalStore.set(userId, dbGoal);
-    }
-    return dbGoal;
-  }
-
-  if (canUseMemoryPersistenceFallback()) {
-    const stored = waterGoalStore.get(userId);
-    if (stored) {
-      return stored;
-    }
-  }
-
-  const created: WaterGoalEntry = {
-    id: waterGoalIdSequence++,
-    userId,
-    dailyTargetMl: 2500,
-    createdAt: Date.now(),
-    updatedAt: new Date(),
-  };
-  if (canUseMemoryPersistenceFallback()) {
-    waterGoalStore.set(userId, created);
-  }
-  return created;
-}
-
-async function getStoredWaterLogs(userId: number) {
-  const dbLogs = await loadWaterLogsFromDb(userId);
-  if (dbLogs) {
-    if (canUseMemoryPersistenceFallback()) {
-      waterLogStore.set(userId, dbLogs);
-    }
-    return dbLogs;
-  }
-
-  return canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : [];
-}
-
-export async function getUserWaterGoal(userId: number) {
-  return getStoredWaterGoal(userId);
-}
-
-export async function listUserWaterLogs(userId: number) {
-  const logs = await getStoredWaterLogs(userId);
-  return logs.slice().sort((a, b) => b.occurredAt - a.occurredAt);
-}
-
-export async function listUserWaterLogsByDate(userId: number, date: string) {
-  const range = buildOccurredAtRange(date);
-  const dbLogs = await loadWaterLogsFromDbByRange(userId, range);
-  const logs = dbLogs ?? (canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : []);
-  return logs
-    .filter(log => getDateKeyInTimeZone(Number(log.occurredAt)) === date)
-    .slice()
-    .sort((a, b) => b.occurredAt - a.occurredAt);
-}
-
-export async function updateUserWaterGoal(userId: number, dailyTargetMl: number) {
-  const current = await getStoredWaterGoal(userId);
-  const updated: WaterGoalEntry = {
-    ...current,
-    dailyTargetMl,
-    updatedAt: new Date(),
-  };
-  if (canUseMemoryPersistenceFallback()) {
-    waterGoalStore.set(userId, updated);
-  }
-  await persistWaterGoalToDb(updated);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "water.goal_updated",
-    detail: `Meta diária de água atualizada para ${dailyTargetMl} ml.`,
-  });
-  return updated;
-}
-
-export async function createUserWaterLog(userId: number, input: { amountMl: number; occurredAt: string }) {
-  const created: WaterLogEntry = {
-    id: waterLogIdSequence++,
-    userId,
-    amountMl: input.amountMl,
-    occurredAt: new Date(input.occurredAt).getTime(),
-    createdAt: Date.now(),
-    updatedAt: new Date(),
-  };
-
-  const current = await listUserWaterLogs(userId);
-  if (canUseMemoryPersistenceFallback()) {
-    waterLogStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
-  }
-  await persistWaterLogToDb(created);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "water.logged",
-    detail: `Consumo de ${created.amountMl} ml de água registrado.`,
-  });
-  return created;
-}
-
-export async function removeUserWaterLog(userId: number, waterLogId: number) {
-  const current = await listUserWaterLogs(userId);
-  const existing = current.find(item => item.id === waterLogId);
-  if (!existing) {
-    throw new Error("Registro de água não encontrado.");
-  }
-
-  if (canUseMemoryPersistenceFallback()) {
-    waterLogStore.set(userId, current.filter(item => item.id !== waterLogId));
-  }
-  await deleteWaterLogFromDb(userId, waterLogId);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "water.deleted",
-    detail: `Registro de água de ${existing.amountMl} ml removido pelo usuário.`,
-  });
-  return { success: true };
-}
-
-async function getStoredExercises(userId: number) {
-  const dbExercises = await loadExercisesFromDb(userId);
-  if (dbExercises) {
-    if (canUseMemoryPersistenceFallback()) {
-      exerciseStore.set(userId, dbExercises);
-    }
-    return dbExercises;
-  }
-
-  return canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : [];
-}
-
-export async function listUserExercises(userId: number) {
-  const exercisesForUser = await getStoredExercises(userId);
-  return exercisesForUser.slice().sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
-}
-
-export async function listUserExercisesByDate(userId: number, date: string) {
-  const range = buildOccurredAtRange(date);
-  const dbExercises = await loadExercisesFromDbByRange(userId, range);
-  const exercisesForUser = dbExercises ?? (canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : []);
-  return exercisesForUser
-    .filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === date)
-    .slice()
-    .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
-}
-
-export async function createUserExercise(userId: number, input: {
-  activityType: string;
-  durationMinutes: number;
-  caloriesBurned: number;
-  occurredAt: string;
-  notes?: string;
-}) {
-  const created: ExerciseEntry = {
-    id: exerciseIdSequence++,
-    userId,
-    activityType: input.activityType,
-    durationMinutes: input.durationMinutes,
-    caloriesBurned: input.caloriesBurned,
-    notes: input.notes ?? null,
-    occurredAt: new Date(input.occurredAt).getTime(),
-    createdAt: Date.now(),
-    updatedAt: new Date(),
-  };
-
-  const current = await listUserExercises(userId);
-  if (canUseMemoryPersistenceFallback()) {
-    exerciseStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
-  }
-  await persistExerciseToDb(created);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "exercise.created",
-    detail: `Exercício ${created.activityType} registrado com gasto de ${round(created.caloriesBurned)} kcal.`,
-  });
-  return created;
-}
-
-export async function updateUserExercise(userId: number, input: {
-  exerciseId: number;
-  activityType: string;
-  durationMinutes: number;
-  caloriesBurned: number;
-  occurredAt: string;
-  notes?: string;
-}) {
-  const current = await listUserExercises(userId);
-  const existing = current.find(item => item.id === input.exerciseId);
-  if (!existing) {
-    throw new Error("Exercício não encontrado.");
-  }
-
-  const updated: ExerciseEntry = {
-    ...existing,
-    activityType: input.activityType,
-    durationMinutes: input.durationMinutes,
-    caloriesBurned: input.caloriesBurned,
-    occurredAt: new Date(input.occurredAt).getTime(),
-    notes: input.notes ?? null,
-    updatedAt: new Date(),
-  };
-
-  if (canUseMemoryPersistenceFallback()) {
-    exerciseStore.set(
-      userId,
-      current
-        .map(item => (item.id === input.exerciseId ? updated : item))
-        .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt)),
-    );
-  }
-  await updateExerciseInDb(updated);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "exercise.updated",
-    detail: `Exercício ${updated.activityType} atualizado pelo usuário.`,
-  });
-  return updated;
-}
-
-export async function removeUserExercise(userId: number, exerciseId: number) {
-  const current = await listUserExercises(userId);
-  const existing = current.find(item => item.id === exerciseId);
-  if (!existing) {
-    throw new Error("Exercício não encontrado.");
-  }
-
-  if (canUseMemoryPersistenceFallback()) {
-    exerciseStore.set(userId, current.filter(item => item.id !== exerciseId));
-  }
-  await deleteExerciseFromDb(userId, exerciseId);
-  logInferenceEvent({
-    userId,
-    origin: "web",
-    status: "success",
-    eventType: "exercise.deleted",
-    detail: `Exercício ${existing.activityType} removido pelo usuário.`,
-  });
-  return { success: true };
-}
-
 export async function getWeeklySummary(userId: number) {
   const goal = await getUserNutritionGoal(userId);
   const waterGoal = await getUserWaterGoal(userId);
@@ -2795,15 +1438,15 @@ async function listUserWeightEntries(userId: number) {
   const dbEntries = await loadWeightEntriesFromDb(userId);
   if (dbEntries) {
     if (canUseMemoryPersistenceFallback()) {
-      weightEntryStore.set(userId, dbEntries);
+      usersService.setWeightEntriesMemory(userId, dbEntries);
     }
     return dbEntries;
   }
 
-  const memoryEntries = weightEntryStore.get(userId);
+  const memoryEntries = usersService.getWeightEntriesMemory(userId);
   if (memoryEntries?.length) return memoryEntries;
 
-  const onboardingProfile = onboardingProfileStore.get(userId);
+  const onboardingProfile = usersService.getOnboardingProfileMemory(userId);
   if (!onboardingProfile?.currentWeightKg) return [];
 
   return [{
@@ -3076,107 +1719,47 @@ export function logInferenceEvent(entry: Omit<AdminLogEntry, "id" | "createdAt">
   void persistLogToDb(created);
 }
 
-export async function exportUserPrivacyData(userId: number) {
-  const db = await getDb();
-  const [profile, goals, mealsForUser, exercisesForUser, waterGoal, waterLogsForUser, weeklyProgress, whatsappConnection] =
-    await Promise.all([
-      db ? userProfileRepository.findProfileByUserId(userId) : Promise.resolve(undefined),
-      getStoredNutritionGoals(userId),
-      listUserMeals(userId),
-      listUserExercises(userId),
-      getUserWaterGoal(userId),
-      listUserWaterLogs(userId),
-      getWeeklyProgress(userId),
-      getUserWhatsappConnection(userId),
-    ]);
-
-  const dbUser = db ? await usersRepository.findById(userId) : undefined;
-  const dbPreferences = db ? await userProfileRepository.findPreferencesByUserId(userId) : [];
-  const dbRestrictions = db ? await userProfileRepository.findRestrictionsByUserId(userId) : [];
-
-  return {
-    exportedAt: new Date().toISOString(),
-    policy: {
-      format: "JSON",
-      scope: "Dados principais da conta, rotina alimentar, metas, peso, hidratação, exercícios, preferências e consentimentos ativos.",
-      sensitiveDataNotice: "Este arquivo pode conter dados pessoais e dados sensíveis de saúde.",
+const privacyService = createPrivacyService({
+  getDb,
+  findUserById: userId => usersRepository.findById(userId),
+  findProfileByUserId: userId => userProfileRepository.findProfileByUserId(userId),
+  getOnboardingProfileMemory: userId => usersService.getOnboardingProfileMemory(userId),
+  findPreferencesByUserId: userId => userProfileRepository.findPreferencesByUserId(userId),
+  findRestrictionsByUserId: userId => userProfileRepository.findRestrictionsByUserId(userId),
+  getStoredNutritionGoals,
+  listUserMeals,
+  listFavoriteMeals: userId => favoriteMealStore.get(userId) ?? [],
+  listUserExercises,
+  getUserWaterGoal,
+  listUserWaterLogs,
+  getWeeklyProgress,
+  getUserWhatsappConnection,
+  purgeDatabaseUserData: userId => accountRepository.purgeUserData(userId),
+  purgeMemoryDomains: [
+    userId => goalsService.clearMemory(userId),
+    userId => usersService.clearMemory(userId),
+    userId => mealStore.delete(userId),
+    userId => exercisesService.clearMemory(userId),
+    userId => waterService.clearMemory(userId),
+    userId => habitStore.delete(userId),
+    userId => foodsService.clearMemory(userId),
+    userId => favoriteMealStore.delete(userId),
+    userId => gamificationService.clearMemory(userId),
+    userId => {
+      for (const [draftId, draft] of Array.from(inferenceStore.entries())) {
+        if (draft.userId === userId) inferenceStore.delete(draftId);
+      }
     },
-    account: dbUser
-      ? {
-          id: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          loginMethod: dbUser.loginMethod,
-          role: dbUser.role,
-          createdAt: dbUser.createdAt,
-          updatedAt: dbUser.updatedAt,
-          lastSignedIn: dbUser.lastSignedIn,
-        }
-      : { id: userId },
-    profile: profile ?? onboardingProfileStore.get(userId) ?? null,
-    nutritionGoals: goals,
-    meals: mealsForUser,
-    favoriteMeals: favoriteMealStore.get(userId) ?? [],
-    exercises: exercisesForUser,
-    water: {
-      goal: waterGoal,
-      logs: waterLogsForUser,
+    userId => {
+      for (let index = whatsappConnectionStore.length - 1; index >= 0; index -= 1) {
+        if (whatsappConnectionStore[index].userId === userId) whatsappConnectionStore.splice(index, 1);
+      }
     },
-    weight: weeklyProgress.weight,
-    preferences: dbPreferences,
-    restrictions: dbRestrictions,
-    whatsapp: whatsappConnection
-      ? {
-          status: whatsappConnection.status,
-          phoneNumber: whatsappConnection.phoneNumber,
-          displayName: whatsappConnection.displayName,
-          createdAt: whatsappConnection.createdAt,
-          updatedAt: whatsappConnection.updatedAt,
-        }
-      : null,
-    professionalSharing: "Compartilhamento operacional depende de solicitação pendente e aprovação explícita do paciente.",
-    healthIntegrations: "Integrações de saúde exigem consentimento no módulo healthIntegrations antes da sincronização.",
-  };
-}
+  ],
+});
 
-function deleteUserMemoryData(userId: number) {
-  goalStore.delete(userId);
-  onboardingProfileStore.delete(userId);
-  mealStore.delete(userId);
-  exerciseStore.delete(userId);
-  waterGoalStore.delete(userId);
-  waterLogStore.delete(userId);
-  weightEntryStore.delete(userId);
-  habitStore.delete(userId);
-  userFoodStore.delete(userId);
-  favoriteFoodStore.delete(userId);
-  favoriteMealStore.delete(userId);
-  gamificationSettingsStore.delete(userId);
-  userBadgeStore.delete(userId);
-
-  for (const [draftId, draft] of Array.from(inferenceStore.entries())) {
-    if (draft.userId === userId) inferenceStore.delete(draftId);
-  }
-
-  for (let index = whatsappConnectionStore.length - 1; index >= 0; index -= 1) {
-    if (whatsappConnectionStore[index].userId === userId) whatsappConnectionStore.splice(index, 1);
-  }
-}
-
-export async function requestUserAccountDeletion(userId: number) {
-  const db = await getDb();
-  if (db) {
-    await accountRepository.purgeUserData(userId);
-  }
-
-  deleteUserMemoryData(userId);
-
-  return {
-    success: true,
-    deletedAt: new Date().toISOString(),
-    scope: "Conta e dados principais vinculados ao usuário removidos ou desvinculados.",
-  } as const;
-}
+export const exportUserPrivacyData = privacyService.exportUserPrivacyData;
+export const requestUserAccountDeletion = privacyService.requestUserAccountDeletion;
 
 export function buildSavedMedia(input: Omit<SavedMedia, "id">) {
   return {

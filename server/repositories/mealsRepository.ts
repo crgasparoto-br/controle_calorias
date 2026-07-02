@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../../drizzle/schema";
+import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
 
 type DbProvider = () => Promise<any | null>;
@@ -54,7 +55,7 @@ export type MealsRepository = {
   updateMeal(meal: { id: number; userId: number; mealLabel: string; notes?: string; confidence: number; occurredAt: number }): Promise<void>;
   replaceMealItems(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>): Promise<void>;
   deleteMeal(userId: number, mealId: number): Promise<void>;
-  findItemsWithMealDates(userId: number): Promise<Array<{ canonicalName: string; foodName: string; occurredAt: number }>>;
+  findItemsWithMealDates(userId: number): Promise<Array<{ canonicalName: string; foodName: string; foodCatalogId: number | null; occurredAt: number }>>;
   insertInference(draft: {
     draftId: string;
     userId: number;
@@ -73,10 +74,20 @@ export type MealsRepository = {
   countConfirmed(): Promise<number>;
 };
 
+function resolveMealItemFoodCatalogId(item: MealDraftItem, resolvedCatalogIds: Map<string, number>) {
+  const directId = Number(item.foodCatalogId);
+  if (Number.isFinite(directId) && directId > 0) {
+    const resolvedDirectId = resolvedCatalogIds.get(foodCatalogDirectKey(directId));
+    if (resolvedDirectId) return resolvedDirectId;
+  }
+
+  return resolvedCatalogIds.get(item.canonicalName) ?? resolvedCatalogIds.get(item.foodName) ?? null;
+}
+
 function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>) {
   return items.map(item => ({
     mealId,
-    foodCatalogId: resolvedCatalogIds.get(item.canonicalName) ?? resolvedCatalogIds.get(item.foodName) ?? null,
+    foodCatalogId: resolveMealItemFoodCatalogId(item, resolvedCatalogIds),
     foodName: item.foodName,
     canonicalName: item.canonicalName,
     portionText: item.portionText,
@@ -122,6 +133,7 @@ export function createDrizzleMealsRepository(deps: {
         for (const item of itemRows) {
           const list = itemsByMealId.get(item.mealId) ?? [];
           list.push({
+            foodCatalogId: item.foodCatalogId ?? null,
             foodName: item.foodName,
             canonicalName: item.canonicalName,
             portionText: item.portionText,
@@ -261,13 +273,14 @@ export function createDrizzleMealsRepository(deps: {
       if (!db) return [];
 
       const mealRows = await db.select().from(meals).where(eq(meals.userId, userId));
-      const results: Array<{ canonicalName: string; foodName: string; occurredAt: number }> = [];
+      const results: Array<{ canonicalName: string; foodName: string; foodCatalogId: number | null; occurredAt: number }> = [];
       for (const meal of mealRows) {
         const items = await db.select().from(mealItems).where(eq(mealItems.mealId, meal.id));
         for (const item of items) {
           results.push({
             canonicalName: item.canonicalName,
             foodName: item.foodName,
+            foodCatalogId: item.foodCatalogId ?? null,
             occurredAt: new Date(meal.occurredAt).getTime(),
           });
         }

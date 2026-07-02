@@ -12,6 +12,7 @@ describe("runtime environment validation", () => {
     process.env = { ...originalEnv };
     delete process.env.JWT_SECRET;
     delete process.env.DATABASE_URL;
+    delete process.env.APP_SECRETS_ENCRYPTION_KEY;
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
 
@@ -102,5 +103,33 @@ describe("runtime environment validation", () => {
     expect(result.disabledOptionalFeatures.some((feature) => feature.name === "Strava OAuth")).toBe(true);
     expect(result.disabledOptionalFeatures.some((feature) => feature.name === "Database persistence")).toBe(false);
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("Strava OAuth disabled"));
+  });
+
+  it("reports the dedicated app secrets encryption key as disabled when absent, without exposing values", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = "session-secret-for-production";
+    process.env.DATABASE_URL = "mysql://user:password@example.com:3306/app";
+    delete process.env.APP_SECRETS_ENCRYPTION_KEY;
+    const { validateRuntimeEnv } = await importEnvModule();
+
+    const result = validateRuntimeEnv();
+
+    const feature = result.disabledOptionalFeatures.find((entry) => entry.name === "Dedicated app secrets encryption key");
+    expect(feature).toBeDefined();
+    expect(feature?.missingVariables).toEqual(["APP_SECRETS_ENCRYPTION_KEY"]);
+  });
+
+  it("exposes the dedicated app secrets encryption key when configured, and empty string when absent or blank", async () => {
+    delete process.env.APP_SECRETS_ENCRYPTION_KEY;
+    const { ENV: envWithoutKey } = await importEnvModule();
+    expect(envWithoutKey.appSecretsEncryptionKey).toBe("");
+
+    process.env.APP_SECRETS_ENCRYPTION_KEY = "   ";
+    const { ENV: envWithBlankKey } = await importEnvModule();
+    expect(envWithBlankKey.appSecretsEncryptionKey).toBe("");
+
+    process.env.APP_SECRETS_ENCRYPTION_KEY = "dedicated-key-value";
+    const { ENV: envWithKey } = await importEnvModule();
+    expect(envWithKey.appSecretsEncryptionKey).toBe("dedicated-key-value");
   });
 });

@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+      - develop
+
+permissions:
+  contents: read
 
 jobs:
   agent-check:
