@@ -1,6 +1,15 @@
 import { z } from "zod";
 
+export const MAX_REPORT_RANGE_DAYS = 90;
+
 const reportDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use datas no formato YYYY-MM-DD.");
+
+function countInclusiveDays(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T12:00:00.000Z`);
+  const end = new Date(`${endDate}T12:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
 
 export const dashboardTodaySchema = z
   .object({
@@ -11,6 +20,7 @@ export const dashboardTodaySchema = z
 export const reportsPeriodSchema = z
   .object({
     weekOffset: z.number().int().min(-1).max(0).default(0),
+    fallback: z.boolean().optional(),
   })
   .optional();
 
@@ -21,5 +31,9 @@ export const reportsHabitAnalyticsSchema = z
   })
   .refine(({ startDate, endDate }) => startDate <= endDate, {
     message: "A data final deve ser igual ou posterior à data inicial.",
+    path: ["endDate"],
+  })
+  .refine(({ startDate, endDate }) => countInclusiveDays(startDate, endDate) <= MAX_REPORT_RANGE_DAYS, {
+    message: `Escolha um período de até ${MAX_REPORT_RANGE_DAYS} dias.`,
     path: ["endDate"],
   });
