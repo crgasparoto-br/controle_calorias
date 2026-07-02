@@ -1,4 +1,7 @@
-type ReportMetricsEnv = Partial<Record<"REPORTS_OBSERVABILITY_ENABLED" | "REPORTS_METRICS_ENABLED", string | undefined>>;
+type ReportMetricsEnv = {
+  REPORTS_OBSERVABILITY_ENABLED?: string;
+  REPORTS_METRICS_ENABLED?: string;
+};
 
 type ReportMetricStatus = "success" | "error";
 
@@ -16,6 +19,10 @@ type ReportStageMetric = {
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+function getMetricsEnv(env?: ReportMetricsEnv): ReportMetricsEnv {
+  return env ?? (process.env as unknown as ReportMetricsEnv);
+}
+
 function isEnabledValue(value: string | undefined) {
   return TRUE_VALUES.has(String(value ?? "").trim().toLowerCase());
 }
@@ -25,8 +32,9 @@ function clampNonNegativeInteger(value: number) {
   return Math.round(value);
 }
 
-export function isReportsObservabilityEnabled(env: ReportMetricsEnv = process.env) {
-  return isEnabledValue(env.REPORTS_OBSERVABILITY_ENABLED) || isEnabledValue(env.REPORTS_METRICS_ENABLED);
+export function isReportsObservabilityEnabled(env?: ReportMetricsEnv) {
+  const currentEnv = getMetricsEnv(env);
+  return isEnabledValue(currentEnv.REPORTS_OBSERVABILITY_ENABLED) || isEnabledValue(currentEnv.REPORTS_METRICS_ENABLED);
 }
 
 export function estimateReportPayloadBytes(payload: unknown) {
@@ -44,7 +52,7 @@ export function getReportRangeDays(range: { startDate: string; endDate: string }
   return Math.floor((end - start) / MS_PER_DAY) + 1;
 }
 
-export function logReportStageMetric(metric: ReportStageMetric, env: ReportMetricsEnv = process.env) {
+export function logReportStageMetric(metric: ReportStageMetric, env?: ReportMetricsEnv) {
   if (!isReportsObservabilityEnabled(env)) return;
 
   console.info("[ReportsMetric]", JSON.stringify({
