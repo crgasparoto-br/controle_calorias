@@ -33,6 +33,10 @@ describe("reportsDataAdapter", () => {
     expect(isRenderableWeeklySummary({ weekly: weeklySummary() }, range)).toBe(true);
   });
 
+  it("aceita payload diário envelopado como resumo semanal renderizável", () => {
+    expect(isRenderableWeeklySummary({ daily: weeklySummary() }, range)).toBe(true);
+  });
+
   it("rejeita array semanal puro para forçar fallback com dados de apoio", () => {
     expect(isRenderableWeeklySummary(weeklySummary(), range)).toBe(false);
   });
@@ -68,6 +72,7 @@ describe("reportsDataAdapter", () => {
     expect(extractReportDays(week, "week")).toBe(week);
     expect(extractReportDays({ weekly: week }, "week")).toBe(week);
     expect(extractReportDays({ weeklyReport: week }, "week")).toBe(week);
+    expect(extractReportDays({ daily: week }, "week")).toBe(week);
     expect(extractReportDays({ daily: period }, "period")).toBe(period);
   });
 });
