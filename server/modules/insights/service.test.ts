@@ -2,13 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoodProcessingLevel } from "../../../shared/reportsGoalAnalytics";
 
 const dbMocks = vi.hoisted(() => ({
+  getDb: vi.fn(),
   getHabitSnapshots: vi.fn(),
   getUserGamification: vi.fn(),
   getUserWaterGoal: vi.fn(),
   getWeeklyProgress: vi.fn(),
+  listUserExercises: vi.fn(),
   listUserExercisesByDate: vi.fn(),
   listUserMeals: vi.fn(),
   listUserMealsByDate: vi.fn(),
+  listUserWaterLogs: vi.fn(),
   listUserWaterLogsByDate: vi.fn(),
   searchFoods: vi.fn(),
 }));
@@ -82,6 +85,12 @@ function meal(items: ReturnType<typeof mealItem>[]) {
     items,
     media: [],
     createdAt: Date.now(),
+    totals: items.reduce((totals, item) => ({
+      calories: totals.calories + item.calories,
+      protein: totals.protein + item.protein,
+      carbs: totals.carbs + item.carbs,
+      fat: totals.fat + item.fat,
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 }),
   };
 }
 
@@ -112,9 +121,14 @@ function foodSearchItem(overrides: FoodSearchOverrides = {}) {
 }
 
 function configureCommonMocks() {
+  dbMocks.getDb.mockResolvedValue(null);
   dbMocks.getUserWaterGoal.mockResolvedValue({ dailyTargetMl: 2000 });
   dbMocks.getWeeklyProgress.mockResolvedValue({ weight: { entries: [] } });
+  dbMocks.listUserExercises.mockResolvedValue([]);
   dbMocks.listUserExercisesByDate.mockResolvedValue([]);
+  dbMocks.listUserMeals.mockResolvedValue([]);
+  dbMocks.listUserMealsByDate.mockResolvedValue([]);
+  dbMocks.listUserWaterLogs.mockResolvedValue([]);
   dbMocks.listUserWaterLogsByDate.mockResolvedValue([]);
   goalMocks.getNutritionGoalForDate.mockResolvedValue({
     today: {
@@ -135,26 +149,23 @@ describe("insights food quality report integration", () => {
   });
 
   it("usa lookup direcionado do período para classificar por foodCatalogId e manter diagnóstico", async () => {
-    dbMocks.listUserMealsByDate.mockImplementation(async (_userId: number, date: string) => {
-      if (date !== "2026-06-01") return [];
-      return [
-        meal([
-          mealItem({
-            foodCatalogId: 501,
-            foodName: "texto sem alias",
-            canonicalName: "Alimento fora dos primeiros resultados",
-            portionText: "porção divergente",
-            calories: 120,
-          }),
-          mealItem({
-            foodName: "Item externo sem cadastro",
-            canonicalName: "Preparacao xpto isolada",
-            portionText: "1 pacote indefinido",
-            calories: 100,
-          }),
-        ]),
-      ];
-    });
+    dbMocks.listUserMeals.mockResolvedValue([
+      meal([
+        mealItem({
+          foodCatalogId: 501,
+          foodName: "texto sem alias",
+          canonicalName: "Alimento fora dos primeiros resultados",
+          portionText: "porção divergente",
+          calories: 120,
+        }),
+        mealItem({
+          foodName: "Item externo sem cadastro",
+          canonicalName: "Preparacao xpto isolada",
+          portionText: "1 pacote indefinido",
+          calories: 100,
+        }),
+      ]),
+    ]);
     dbMocks.searchFoods.mockImplementation(async (_userId: number, query: string) => {
       if (query === "Alimento fora dos primeiros resultados") {
         return [foodSearchItem()];
@@ -167,6 +178,7 @@ describe("insights food quality report integration", () => {
       endDate: "2026-06-02",
     });
 
+    expect(dbMocks.listUserMealsByDate).not.toHaveBeenCalled();
     expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "Alimento fora dos primeiros resultados", expect.any(Number));
     expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "texto sem alias", expect.any(Number));
     expect(dbMocks.searchFoods).not.toHaveBeenCalledWith(77, "", expect.any(Number));
@@ -187,7 +199,7 @@ describe("insights food quality report integration", () => {
   });
 
   it("não executa busca de alimentos quando o período não possui refeições", async () => {
-    dbMocks.listUserMealsByDate.mockResolvedValue([]);
+    dbMocks.listUserMeals.mockResolvedValue([]);
     dbMocks.searchFoods.mockResolvedValue([]);
 
     const report = await getPeriodReportBundle(77, {

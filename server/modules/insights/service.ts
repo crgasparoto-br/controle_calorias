@@ -15,6 +15,11 @@ import { getDateKeyInTimeZone, getWeekdayIndexInTimeZone, toLogicalDateInTimeZon
 import { calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
 import { getNutritionGoalForDate } from "../goals/service";
 import { calculateQualityIndicators, createFoodLookup } from "./foodQuality";
+import {
+  listReportExercisesByDateRange,
+  listReportMealsByDateRange,
+  listReportWaterLogsByDateRange,
+} from "./rangeData";
 import { weeklyInsightService } from "./weeklyInsightService";
 
 function mealDateKey(meal: { occurredAt: number }) {
@@ -214,19 +219,45 @@ const FOOD_QUALITY_LOOKUP_CONCURRENCY = 6;
 
 type ReportRangeData = {
   dates: string[];
-  mealsByDay: Array<Awaited<ReturnType<typeof listUserMealsByDate>>>;
-  exercisesByDay: Array<Awaited<ReturnType<typeof listUserExercisesByDate>>>;
-  waterLogsByDay: Array<Awaited<ReturnType<typeof listUserWaterLogsByDate>>>;
+  mealsByDay: Array<Awaited<ReturnType<typeof listReportMealsByDateRange>>>;
+  exercisesByDay: Array<Awaited<ReturnType<typeof listReportExercisesByDateRange>>>;
+  waterLogsByDay: Array<Awaited<ReturnType<typeof listReportWaterLogsByDateRange>>>;
 };
 
+function groupRangeItemsByDate<T>(dates: string[], items: T[], getDate: (item: T) => string) {
+  const groups = new Map<string, T[]>();
+
+  for (const item of items) {
+    const date = getDate(item);
+    if (!dates.includes(date)) continue;
+    const current = groups.get(date) ?? [];
+    current.push(item);
+    groups.set(date, current);
+  }
+
+  return dates.map(date => groups.get(date) ?? []);
+}
+
 async function loadReportRangeData(userId: number, dates: string[]): Promise<ReportRangeData> {
-  const [mealsByDay, exercisesByDay, waterLogsByDay] = await Promise.all([
-    Promise.all(dates.map(date => listUserMealsByDate(userId, date, { includeMedia: false }))),
-    Promise.all(dates.map(date => listUserExercisesByDate(userId, date))),
-    Promise.all(dates.map(date => listUserWaterLogsByDate(userId, date))),
+  const startDate = dates[0];
+  const endDate = dates[dates.length - 1];
+  if (!startDate || !endDate) {
+    return { dates, mealsByDay: [], exercisesByDay: [], waterLogsByDay: [] };
+  }
+
+  const range = { startDate, endDate };
+  const [meals, exercises, waterLogs] = await Promise.all([
+    listReportMealsByDateRange(userId, range, { includeMedia: false }),
+    listReportExercisesByDateRange(userId, range),
+    listReportWaterLogsByDateRange(userId, range),
   ]);
 
-  return { dates, mealsByDay, exercisesByDay, waterLogsByDay };
+  return {
+    dates,
+    mealsByDay: groupRangeItemsByDate(dates, meals, mealDateKey),
+    exercisesByDay: groupRangeItemsByDate(dates, exercises, exercise => getDateKeyInTimeZone(Number(exercise.occurredAt))),
+    waterLogsByDay: groupRangeItemsByDate(dates, waterLogs, log => getDateKeyInTimeZone(Number(log.occurredAt))),
+  };
 }
 
 function addFoodLookupName(names: Set<string>, value: string | null | undefined) {
@@ -661,24 +692,25 @@ export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
 }
 
 export async function getWeeklyInsightsReport(userId: number, weekOffset = 0) {
-  const [progress, mealsByDay] = await Promise.all([
+  const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
+  const range = { startDate: dateKeys[0], endDate: dateKeys[dateKeys.length - 1] };
+  const [progress, weeklyMeals] = await Promise.all([
     getWeeklyProgressReport(userId, weekOffset),
-    Promise.all(resolveWeekDates(weekOffset).map(day => listUserMealsByDate(userId, getDateKeyInTimeZone(day), { includeMedia: false }))),
+    listReportMealsByDateRange(userId, range, { includeMedia: false }),
   ]);
-  const weeklyMeals = mealsByDay.flat();
 
   return buildWeeklyInsights(progress, weeklyMeals);
 }
 
 export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
   const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
-  const [weekly, fallbackProgress, mealsByDay] = await Promise.all([
+  const range = { startDate: dateKeys[0], endDate: dateKeys[dateKeys.length - 1] };
+  const [weekly, fallbackProgress, weeklyMeals] = await Promise.all([
     buildWeeklyReportSummary(userId, weekOffset),
     getWeeklyProgress(userId),
-    Promise.all(dateKeys.map(date => listUserMealsByDate(userId, date, { includeMedia: false }))),
+    listReportMealsByDateRange(userId, range, { includeMedia: false }),
   ]);
   const progress = buildWeeklyProgressFromSummary(weekly, fallbackProgress);
-  const weeklyMeals = mealsByDay.flat();
 
   return {
     weekly,
