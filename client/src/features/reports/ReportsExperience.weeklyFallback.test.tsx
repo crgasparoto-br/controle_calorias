@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const reportQueryState = vi.hoisted(() => ({
   weekly: { data: null as unknown, isLoading: false, isError: false },
@@ -133,6 +133,10 @@ describe("ReportsExperience weekly summary fallback", () => {
     reportQueryState.bundle = { data: bundleData(), isLoading: false, isError: false };
     reportQueryState.periodBundle = { data: null, isLoading: false, isError: false };
     reportQueryState.bundleCalls = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("usa weekly válido sem carregar bundle completo na primeira renderização", async () => {
