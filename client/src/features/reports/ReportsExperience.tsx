@@ -26,6 +26,7 @@ import {
   type ReportTrendDay,
 } from "@/features/reports/ReportAnalyticsSections";
 import ReportsSupportInsightsSection from "@/features/reports/ReportsSupportInsightsSection";
+import { extractReportDays, isRenderableWeeklySummary } from "@/features/reports/reportsDataAdapter";
 import {
   countDaysInRange,
   formatRangeLabel,
@@ -281,26 +282,35 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
     return normalizeDateRange(rangeStart, rangeEnd);
   }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
   const weekOffset = React.useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
+  const isWeek = periodScope === "week";
 
   React.useEffect(() => setShowDetails(false), [activeRange.start, activeRange.end, periodScope, subjectUserId]);
 
   const selfWeeklyQuery = trpc.nutrition.reports.weekly;
   const hasWeeklySummaryQuery = Boolean(selfWeeklyQuery);
-  const selfWeeklySummary = normalizeQueryResult(selfWeeklyQuery?.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" && hasWeeklySummaryQuery }));
-  const selfWeeklyDetails = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" && (!hasWeeklySummaryQuery || showDetails) }));
-  const selfPeriodBundle = normalizeQueryResult(trpc.nutrition.reports.periodBundle.useQuery({ startDate: activeRange.start, endDate: activeRange.end }, { enabled: !isProfessional && periodScope !== "week" }));
+  const selfWeeklySummary = normalizeQueryResult(selfWeeklyQuery?.useQuery({ weekOffset }, { enabled: !isProfessional && isWeek && hasWeeklySummaryQuery }));
+  const weeklySummaryRenderable = React.useMemo(
+    () => isWeek && !isProfessional && hasWeeklySummaryQuery && isRenderableWeeklySummary(selfWeeklySummary.data, activeRange),
+    [activeRange, hasWeeklySummaryQuery, isProfessional, isWeek, selfWeeklySummary.data],
+  );
+  const shouldFallbackToWeeklyDetails = isWeek && !isProfessional && (
+    !hasWeeklySummaryQuery ||
+    showDetails ||
+    (hasWeeklySummaryQuery && !selfWeeklySummary.isLoading && (selfWeeklySummary.isError || !weeklySummaryRenderable))
+  );
+  const selfWeeklyDetails = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: !isProfessional && isWeek && shouldFallbackToWeeklyDetails }));
+  const selfPeriodBundle = normalizeQueryResult(trpc.nutrition.reports.periodBundle.useQuery({ startDate: activeRange.start, endDate: activeRange.end }, { enabled: !isProfessional && !isWeek }));
   const professionalPeriodQuery = trpc.nutrition.professionals?.patientPeriodBundle;
   const professionalBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) }));
 
-  const isWeek = periodScope === "week";
-  const weeklyDetailsLoadedByFallback = isWeek && !isProfessional && !hasWeeklySummaryQuery;
-  const activeBundle = isProfessional ? professionalBundle : (isWeek ? (hasWeeklySummaryQuery ? selfWeeklySummary : selfWeeklyDetails) : selfPeriodBundle);
+  const weeklyDetailsLoadedByFallback = isWeek && !isProfessional && !showDetails && shouldFallbackToWeeklyDetails;
+  const activeBundle = isProfessional ? professionalBundle : (isWeek ? (weeklySummaryRenderable ? selfWeeklySummary : selfWeeklyDetails) : selfPeriodBundle);
   const detailsBundle = isProfessional || !isWeek ? activeBundle : selfWeeklyDetails;
   const bundleData = activeBundle.data as any;
   const detailData = detailsBundle.data as any;
 
   const metricDays = React.useMemo(() => {
-    const rawDays = isWeek && !isProfessional ? (Array.isArray(bundleData) ? bundleData : bundleData?.weekly ?? bundleData?.weeklyReport ?? []) : (bundleData?.daily ?? []);
+    const rawDays = extractReportDays(bundleData, isWeek && !isProfessional ? "week" : "period");
     return (rawDays as any[]).map(day => normalizeDay(day, bundleData?.goal));
   }, [bundleData, isProfessional, isWeek]);
   const dayCount = metricDays.length || countDaysInRange(activeRange);
@@ -328,7 +338,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const mealGroupsAsc = React.useMemo(() => buildMealsByDate(mealDateGroups, periodMeals, userTimeZone), [mealDateGroups, periodMeals, userTimeZone]);
   const mealGroupsDesc = React.useMemo(() => [...mealGroupsAsc].reverse(), [mealGroupsAsc]);
   const scopeLabel = periodScope === "day" ? "Dia" : periodScope === "week" ? "Semana" : periodScope === "month" ? "Mês" : "Período";
-  const shouldShowDetailsPrompt = !isProfessional && isWeek && hasWeeklySummaryQuery && !showDetails;
+  const shouldShowDetailsPrompt = !isProfessional && isWeek && weeklySummaryRenderable && !showDetails;
   const shouldRenderDetails = isProfessional || !isWeek || showDetails || weeklyDetailsLoadedByFallback;
   const shouldShowDetailsState = showDetails || weeklyDetailsLoadedByFallback;
 
