@@ -1,4 +1,4 @@
-type ReportMetricsEnv = Pick<NodeJS.ProcessEnv, "REPORTS_OBSERVABILITY_ENABLED" | "REPORTS_METRICS_ENABLED">;
+type ReportMetricsEnv = Partial<Record<"REPORTS_OBSERVABILITY_ENABLED" | "REPORTS_METRICS_ENABLED", string | undefined>>;
 
 type ReportMetricStatus = "success" | "error";
 
