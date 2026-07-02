@@ -1,3 +1,5 @@
+import type { FoodProcessingLevel } from "../shared/reportsGoalAnalytics";
+
 export type CatalogFoodReference = {
   slug: string;
   name: string;
@@ -9,6 +11,7 @@ export type CatalogFoodReference = {
   carbs: number;
   fat: number;
   fiber?: number;
+  processingLevel?: FoodProcessingLevel;
   isFruit?: boolean;
   isVegetable?: boolean;
   isUltraProcessed?: boolean;
@@ -40,6 +43,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 0,
     fat: 0,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
     variants: ["sem acucar", "sem açúcar", "sem adicao de acucar", "sem adição de açúcar", "puro", "preto", "natural"],
   },
   {
@@ -62,6 +66,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 0,
     fat: 0,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
     variants: ["sem acucar", "sem açúcar", "sem adicao de acucar", "sem adição de açúcar", "puro", "natural"],
   },
   {
@@ -75,6 +80,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 0,
     fat: 0,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
     variants: ["natural", "sem gas", "sem gás"],
   },
   {
@@ -88,6 +94,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 0,
     fat: 0,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
     variants: ["com gas", "com gás", "gaseificada"],
   },
   {
@@ -108,6 +115,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 9.0,
     fat: 5.4,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
     brandName: "Nestlé",
     variants: ["natural"],
     isBrandedProduct: true,
@@ -134,6 +142,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 24.0,
     fat: 12.0,
     fiber: 0.9,
+    processingLevel: "ultra_processed",
     brandName: "Nestlé",
     variants: ["ao leite", "original"],
     isUltraProcessed: true,
@@ -157,6 +166,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     protein: 0.7,
     carbs: 14.0,
     fat: 4.0,
+    processingLevel: "ultra_processed",
     brandName: "Nestlé",
     variants: ["original"],
     isUltraProcessed: true,
@@ -178,6 +188,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 21.0,
     fat: 2.0,
     fiber: 4.2,
+    processingLevel: "ultra_processed",
     brandName: "Wickbold",
     variants: ["integral"],
     isUltraProcessed: true,
@@ -207,6 +218,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 0,
     fat: 0,
     fiber: 0,
+    processingLevel: "ultra_processed",
     brandName: "Coca-Cola",
     variants: ["zero", "sem acucar", "sem açúcar"],
     isUltraProcessed: true,
@@ -228,6 +240,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 10.0,
     fat: 0,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
     brandName: "Molico",
     variants: ["desnatado"],
     isBrandedProduct: true,
@@ -249,6 +262,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 1.2,
     fat: 2.8,
     fiber: 0,
+    processingLevel: "ultra_processed",
     brandName: "Polenghi",
     variants: ["light"],
     isUltraProcessed: true,
@@ -265,6 +279,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 28.0,
     fat: 0.3,
     fiber: 0.4,
+    processingLevel: "natural_or_minimally_processed",
   },
   {
     slug: "feijao-carioca",
@@ -277,6 +292,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 13.6,
     fat: 0.5,
     fiber: 8.5,
+    processingLevel: "natural_or_minimally_processed",
   },
   {
     slug: "frango-grelhado",
@@ -289,6 +305,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 0,
     fat: 3.6,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
   },
   {
     slug: "ovo",
@@ -301,6 +318,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 0.6,
     fat: 5.3,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
   },
   {
     slug: "banana",
@@ -313,6 +331,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 18.6,
     fat: 0.2,
     fiber: 2.1,
+    processingLevel: "natural_or_minimally_processed",
     isFruit: true,
   },
   {
@@ -326,6 +345,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 19.9,
     fat: 2.5,
     fiber: 2.7,
+    processingLevel: "natural_or_minimally_processed",
   },
   {
     slug: "pao-frances",
@@ -338,6 +358,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 28.0,
     fat: 1.5,
     fiber: 1.2,
+    processingLevel: "processed",
   },
   {
     slug: "bisnaguinha-panco",
@@ -361,6 +382,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 12.0,
     fat: 0.9,
     fiber: 0.6,
+    processingLevel: "ultra_processed",
     brandName: "Panco",
     isUltraProcessed: true,
     isBrandedProduct: true,
@@ -376,6 +398,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 1.0,
     fat: 6.2,
     fiber: 0,
+    processingLevel: "processed",
   },
   {
     slug: "iogurte-natural",
@@ -388,6 +411,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 7.8,
     fat: 5.5,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
   },
   {
     slug: "batata-doce",
@@ -400,6 +424,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 18.4,
     fat: 0.1,
     fiber: 2.2,
+    processingLevel: "natural_or_minimally_processed",
     isVegetable: true,
   },
   {
@@ -413,6 +438,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 0,
     fat: 13.4,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
   },
   {
     slug: "salada-verde",
@@ -425,6 +451,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 3.2,
     fat: 0.2,
     fiber: 1.6,
+    processingLevel: "natural_or_minimally_processed",
     isVegetable: true,
   },
   {
@@ -438,6 +465,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 18.0,
     fat: 0.2,
     fiber: 3.0,
+    processingLevel: "natural_or_minimally_processed",
     isFruit: true,
   },
   {
@@ -451,6 +479,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 3.0,
     fat: 2.0,
     fiber: 0,
+    processingLevel: "ultra_processed",
     isUltraProcessed: true,
   },
   {
@@ -464,5 +493,6 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     carbs: 9.4,
     fat: 6.6,
     fiber: 0,
+    processingLevel: "natural_or_minimally_processed",
   },
 ];
