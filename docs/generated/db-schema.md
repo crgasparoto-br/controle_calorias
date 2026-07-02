@@ -101,3 +101,4 @@ Fonte: `drizzle/schema.ts`.
 - A maioria dos dados de domínio referencia `users.id`.
 - `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.
 - `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.
+
