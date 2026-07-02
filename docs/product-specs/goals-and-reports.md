@@ -19,6 +19,8 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Relatórios deve permitir análise por dia, semana, mês e período configurável com o mesmo padrão visual de seleção.
 - Relatórios devem priorizar aderência às metas e evolução, não listagem detalhada de alimentos.
 - Relatórios de semana, mês e período devem carregar a primeira leitura usando apenas dados do intervalo ativo, evitando depender de consultas históricas pesadas.
+- A carga por intervalo de Relatórios deve emitir métricas estruturadas somente quando `REPORTS_OBSERVABILITY_ENABLED` ou `REPORTS_METRICS_ENABLED` estiver ativa.
+- Métricas de Relatórios devem informar etapa, duração, tamanho aproximado de payload, quantidade de itens e indicação de fallback sem incluir identificadores de usuário, textos de refeições ou dados sensíveis.
 - A visão semanal de Relatórios deve tentar usar o resumo leve `reports.weekly` quando ele existir e retornar um contrato renderizável completo.
 - `reports.weekly` deve retornar exatamente 7 dias para a semana solicitada; semana sem registros deve vir como 7 dias zerados, não como lista vazia.
 - A tela deve validar o contrato semanal antes de renderizar o resumo e fazer fallback automático para `reports.bundle` quando o resumo falhar, vier incompleto ou tiver campos obrigatórios incompatíveis.
@@ -86,3 +88,4 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 - Relatórios semanais usam `reports.weekly` somente quando o retorno tem 7 dias completos e campos mínimos renderizáveis.
 - Relatórios semanais fazem fallback para `reports.bundle` quando `reports.weekly` falha ou não cumpre o contrato mínimo.
 - Períodos customizados acima de 90 dias inclusivos são rejeitados antes de consultas pesadas.
+- Métricas estruturadas de Relatórios são emitidas apenas quando a flag de observabilidade está ativa e não contêm dados sensíveis.
