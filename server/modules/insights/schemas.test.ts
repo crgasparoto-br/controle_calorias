@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reportsHabitAnalyticsSchema } from "./schemas";
+import { reportsHabitAnalyticsSchema, reportsPeriodSchema } from "./schemas";
 import { patientPeriodBundleSchema } from "../professionals/schemas";
 
 describe("bounded report range schemas", () => {
@@ -28,6 +28,16 @@ describe("bounded report range schemas", () => {
 
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.message).toBe("A data final deve ser igual ou posterior à data inicial.");
+  });
+
+  it("aceita navegação semanal além da semana anterior", () => {
+    expect(reportsPeriodSchema.parse({ weekOffset: -8 })).toEqual({ weekOffset: -8 });
+    expect(reportsPeriodSchema.parse({ weekOffset: 4 })).toEqual({ weekOffset: 4 });
+  });
+
+  it("bloqueia navegação semanal excessiva", () => {
+    expect(reportsPeriodSchema.safeParse({ weekOffset: -53 }).success).toBe(false);
+    expect(reportsPeriodSchema.safeParse({ weekOffset: 53 }).success).toBe(false);
   });
 
   it("aplica o mesmo limite no bundle profissional por paciente", () => {
