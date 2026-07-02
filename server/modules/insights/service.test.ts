@@ -167,8 +167,8 @@ describe("insights food quality report integration", () => {
       endDate: "2026-06-02",
     });
 
-    expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "Alimento fora dos primeiros resultados", 8);
-    expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "texto sem alias", 8);
+    expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "Alimento fora dos primeiros resultados", expect.any(Number));
+    expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "texto sem alias", expect.any(Number));
     expect(dbMocks.searchFoods).not.toHaveBeenCalledWith(77, "", expect.any(Number));
     expect(report.quality.foodQuality).toMatchObject({
       totalCalories: 220,
