@@ -9,7 +9,7 @@ WHERE `notes` REGEXP 'strava:[A-Za-z0-9_-]+'
   AND `externalProvider` IS NULL
   AND `externalId` IS NULL;
 --> statement-breakpoint
-UPDATE `exercises` duplicate
+UPDATE `exercises` e
 JOIN (
   SELECT `id`
   FROM (
@@ -24,17 +24,17 @@ JOIN (
       AND `externalId` IS NOT NULL
   ) ranked
   WHERE ranked.`duplicateRank` > 1
-) ranked_duplicates ON ranked_duplicates.`id` = duplicate.`id`
-SET duplicate.`notes` = CONCAT(
-      COALESCE(duplicate.`notes`, ''),
+) ranked_duplicates ON ranked_duplicates.`id` = e.`id`
+SET e.`notes` = CONCAT(
+      COALESCE(e.`notes`, ''),
       ' Duplicado historico Strava mantido sem referencia estruturada para preservar indice unico. Referencia original: ',
-      duplicate.`externalProvider`,
+      e.`externalProvider`,
       ':',
-      duplicate.`externalId`,
+      e.`externalId`,
       '.'
     ),
-    duplicate.`externalProvider` = NULL,
-    duplicate.`externalId` = NULL;
+    e.`externalProvider` = NULL,
+    e.`externalId` = NULL;
 --> statement-breakpoint
 CREATE INDEX `exercises_external_reference_idx` ON `exercises` (`externalProvider`, `externalId`);
 --> statement-breakpoint
