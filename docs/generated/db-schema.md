@@ -29,7 +29,7 @@ Fonte: `drizzle/schema.ts`.
 | `mealInferences` | `mealInferences` | 14 | Requer atenção |
 | `habitMemories` | `habitMemories` | 10 | Requer atenção |
 | `dailySummaries` | `dailySummaries` | 9 | Baixa |
-| `exercises` | `exercises` | 9 | Requer atenção |
+| `exercises` | `exercises` | 11 | Requer atenção |
 | `healthSyncedRecords` | `healthSyncedRecords` | 13 | Baixa |
 | `weightEntries` | `weightEntries` | 7 | Requer atenção |
 | `waterGoals` | `waterGoals` | 5 | Requer atenção |
@@ -101,4 +101,3 @@ Fonte: `drizzle/schema.ts`.
 - A maioria dos dados de domínio referencia `users.id`.
 - `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.
 - `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.
-
