@@ -45,8 +45,14 @@ function hasRenderableWeeklyNumbers(day: Record<string, unknown>) {
   return REQUIRED_WEEKLY_NUMBER_FIELDS.every(field => hasFiniteNumber(day[field]));
 }
 
+function isWrappedWeeklyReport(data: unknown): data is Record<string, unknown> {
+  return Boolean(data && typeof data === "object" && !Array.isArray(data));
+}
+
 export function isRenderableWeeklySummary(data: unknown, range: ReportDateRange) {
-  const days = extractReportDays(data, "week");
+  if (!isWrappedWeeklyReport(data)) return false;
+
+  const days = firstArray(data.weekly, data.weeklyReport, data.days) ?? [];
   if (days.length !== WEEKLY_REPORT_DAY_COUNT) return false;
 
   const seenDates = new Set<string>();
