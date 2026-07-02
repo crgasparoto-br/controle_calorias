@@ -29,11 +29,15 @@ function weeklySummary(overrides: Record<string, unknown> = {}) {
 }
 
 describe("reportsDataAdapter", () => {
-  it("aceita resumo semanal com 7 dias renderizáveis", () => {
-    expect(isRenderableWeeklySummary(weeklySummary(), range)).toBe(true);
+  it("aceita resumo semanal envelopado com 7 dias renderizáveis", () => {
+    expect(isRenderableWeeklySummary({ weekly: weeklySummary() }, range)).toBe(true);
   });
 
-  it("aceita semana sem registros quando os 7 dias vêm zerados", () => {
+  it("rejeita array semanal puro para forçar fallback com dados de apoio", () => {
+    expect(isRenderableWeeklySummary(weeklySummary(), range)).toBe(false);
+  });
+
+  it("aceita semana sem registros quando os 7 dias vêm zerados dentro do envelope", () => {
     const emptyWeek = weeklySummary({
       calories: 0,
       protein: 0,
@@ -48,13 +52,13 @@ describe("reportsDataAdapter", () => {
 
   it("rejeita resumo vazio, incompleto ou sem data", () => {
     expect(isRenderableWeeklySummary([], range)).toBe(false);
-    expect(isRenderableWeeklySummary(weeklySummary().slice(0, 6), range)).toBe(false);
-    expect(isRenderableWeeklySummary(weeklySummary({ date: undefined }), range)).toBe(false);
+    expect(isRenderableWeeklySummary({ weekly: weeklySummary().slice(0, 6) }, range)).toBe(false);
+    expect(isRenderableWeeklySummary({ weekly: weeklySummary({ date: undefined }) }, range)).toBe(false);
   });
 
   it("rejeita campos numéricos obrigatórios ausentes ou incompatíveis", () => {
-    expect(isRenderableWeeklySummary(weeklySummary({ adjustedGoalCalories: undefined }), range)).toBe(false);
-    expect(isRenderableWeeklySummary(weeklySummary({ waterConsumedMl: "abc" }), range)).toBe(false);
+    expect(isRenderableWeeklySummary({ weekly: weeklySummary({ adjustedGoalCalories: undefined }) }, range)).toBe(false);
+    expect(isRenderableWeeklySummary({ weekly: weeklySummary({ waterConsumedMl: "abc" }) }, range)).toBe(false);
   });
 
   it("extrai dias semanais e de período dos formatos aceitos", () => {
