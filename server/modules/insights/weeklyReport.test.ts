@@ -116,13 +116,14 @@ describe("weekly report summary contract", () => {
 
     const summaryCalories = summary.reduce((total, day) => total + day.calories, 0);
     const summaryProtein = summary.reduce((total, day) => total + day.protein, 0);
+    const roundedAverageProtein = Math.round((summaryProtein / 7) * 10) / 10;
     const bundleCalories = bundle.weekly.reduce((total, day) => total + day.calories, 0);
     const bundleProtein = bundle.weekly.reduce((total, day) => total + day.protein, 0);
 
     expect(bundle.weekly).toHaveLength(7);
     expect(dbMocks.listUserMealsByDate).not.toHaveBeenCalled();
     expect(bundle.progress.summary.totalCalories).toBe(summaryCalories);
-    expect(bundle.progress.summary.averageProtein).toBe(summaryProtein / 7);
+    expect(bundle.progress.summary.averageProtein).toBe(roundedAverageProtein);
     expect(bundleCalories).toBe(summaryCalories);
     expect(bundleProtein).toBe(summaryProtein);
   });
