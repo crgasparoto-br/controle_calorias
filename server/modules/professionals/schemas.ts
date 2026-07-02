@@ -29,7 +29,7 @@ export const patientIdSchema = z.object({
   weekOffset: z.number().int().optional().default(0),
 });
 
-export const patientPeriodBundleSchema = boundedReportDateRangeSchema.extend({
+export const patientPeriodBundleSchema = boundedReportDateRangeSchema.safeExtend({
   patientId: z.number().int().positive(),
 });
 
