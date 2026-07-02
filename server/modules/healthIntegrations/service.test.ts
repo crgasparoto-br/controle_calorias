@@ -188,6 +188,8 @@ describe("healthIntegrationService Strava", () => {
       caloriesBurned: 321,
       occurredAt: "2026-06-01T10:00:00Z",
       notes: "Importado automaticamente do Strava. Referencia externa: strava:999. Tipo Strava: Run. Calorias: 321 kcal.",
+      externalProvider: "strava",
+      externalId: "999",
     });
     expect(syncResult.records.find(record => record.id === "999:activity")?.metadata).toMatchObject({
       calories: 321,

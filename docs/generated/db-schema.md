@@ -29,7 +29,7 @@ Fonte: `drizzle/schema.ts`.
 | `mealInferences` | `mealInferences` | 14 | Requer atenção |
 | `habitMemories` | `habitMemories` | 10 | Requer atenção |
 | `dailySummaries` | `dailySummaries` | 9 | Baixa |
-| `exercises` | `exercises` | 9 | Requer atenção |
+| `exercises` | `exercises` | 11 | Requer atenção |
 | `healthSyncedRecords` | `healthSyncedRecords` | 13 | Baixa |
 | `weightEntries` | `weightEntries` | 7 | Requer atenção |
 | `waterGoals` | `waterGoals` | 5 | Requer atenção |
