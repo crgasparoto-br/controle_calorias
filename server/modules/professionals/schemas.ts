@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { goalSchema } from "../goals/schemas";
+import { boundedReportDateRangeSchema } from "../insights/schemas";
 
 const patientContactSchema = z.string().trim().min(3, "Informe o e-mail ou celular do paciente.").max(320);
 const professionalSuggestionStatusSchema = z.enum(["draft", "sent", "accepted", "refused", "cancelled"]);
@@ -28,10 +29,8 @@ export const patientIdSchema = z.object({
   weekOffset: z.number().int().optional().default(0),
 });
 
-export const patientPeriodBundleSchema = z.object({
+export const patientPeriodBundleSchema = boundedReportDateRangeSchema.safeExtend({
   patientId: z.number().int().positive(),
-  startDate: z.string().min(1),
-  endDate: z.string().min(1),
 });
 
 export const professionalCommentSchema = z.object({
