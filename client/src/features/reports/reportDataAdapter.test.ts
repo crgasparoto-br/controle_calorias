@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasReportDayActivity, validateWeeklyReportData } from "./reportDataAdapter";
+import { extractWeeklyReportDays, hasReportDayActivity, validateWeeklyReportData } from "./reportDataAdapter";
 
 function weeklyDay(date: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -37,12 +37,26 @@ function validWeek(overrides: Record<string, unknown> = {}) {
 }
 
 describe("weekly report data adapter", () => {
-  it("aceita resumo semanal completo com 7 dias renderizáveis", () => {
-    const validation = validateWeeklyReportData(validWeek({ calories: 1800, protein: 120 }));
+  it("aceita resumo semanal envelopado com 7 dias renderizáveis", () => {
+    const validation = validateWeeklyReportData({ weekly: validWeek({ calories: 1800, protein: 120 }) });
 
     expect(validation.renderable).toBe(true);
     expect(validation.days).toHaveLength(7);
     expect(validation.days[0]).toMatchObject({ date: "2026-06-22", calories: 1800, protein: 120 });
+  });
+
+  it("aceita payload diário envelopado como resumo semanal renderizável", () => {
+    const validation = validateWeeklyReportData({ daily: validWeek({ waterConsumedMl: 500 }) });
+
+    expect(validation.renderable).toBe(true);
+    expect(validation.days).toHaveLength(7);
+  });
+
+  it("rejeita array semanal puro para forçar fallback com dados de apoio", () => {
+    expect(validateWeeklyReportData(validWeek({ calories: 1800 }))).toMatchObject({
+      renderable: false,
+      reason: "missing_weekly_envelope",
+    });
   });
 
   it("envia semana totalmente zerada para fallback antes de renderizar", () => {
@@ -58,12 +72,22 @@ describe("weekly report data adapter", () => {
   });
 
   it("rejeita retorno vazio ou semana incompleta", () => {
-    expect(validateWeeklyReportData([])).toMatchObject({ renderable: false, reason: "expected_7_days" });
-    expect(validateWeeklyReportData(validWeek().slice(0, 6))).toMatchObject({ renderable: false, reason: "expected_7_days" });
+    expect(validateWeeklyReportData([])).toMatchObject({ renderable: false, reason: "missing_weekly_envelope" });
+    expect(validateWeeklyReportData({ weekly: validWeek().slice(0, 6) })).toMatchObject({ renderable: false, reason: "expected_7_days" });
   });
 
   it("rejeita dias sem data ou com campos numéricos incompatíveis", () => {
-    expect(validateWeeklyReportData(validWeek({ date: "" }))).toMatchObject({ renderable: false, reason: "invalid_day_date" });
-    expect(validateWeeklyReportData(validWeek({ calories: "não numérico" }))).toMatchObject({ renderable: false, reason: "invalid_calories" });
+    expect(validateWeeklyReportData({ weekly: validWeek({ date: "" }) })).toMatchObject({ renderable: false, reason: "invalid_day_date" });
+    expect(validateWeeklyReportData({ weekly: validWeek({ calories: "não numérico" }) })).toMatchObject({ renderable: false, reason: "invalid_calories" });
+  });
+
+  it("extrai dias dos formatos envelopados aceitos", () => {
+    const week = validWeek({ calories: 1800 });
+
+    expect(extractWeeklyReportDays({ weekly: week })).toBe(week);
+    expect(extractWeeklyReportDays({ weeklyReport: week })).toBe(week);
+    expect(extractWeeklyReportDays({ days: week })).toBe(week);
+    expect(extractWeeklyReportDays({ daily: week })).toBe(week);
+    expect(extractWeeklyReportDays(week)).toEqual([]);
   });
 });
