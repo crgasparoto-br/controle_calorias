@@ -27,7 +27,7 @@ vi.mock("./weeklyInsightService", () => ({
   },
 }));
 
-import { getWeeklyReport, getWeeklyReportBundle } from "./service";
+import { getWeeklyProgressReport, getWeeklyReport, getWeeklyReportBundle } from "./service";
 
 function mealItem(overrides: Record<string, unknown> = {}) {
   return {
@@ -62,6 +62,21 @@ function meal() {
     items: [mealItem()],
     media: [],
     createdAt: Date.now(),
+  };
+}
+
+function exercise(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 10,
+    userId: 77,
+    activityType: "corrida",
+    durationMinutes: 35,
+    caloriesBurned: 300,
+    notes: null,
+    occurredAt: Date.now(),
+    createdAt: Date.now(),
+    updatedAt: new Date(),
+    ...overrides,
   };
 }
 
@@ -104,6 +119,31 @@ describe("weekly report summary contract", () => {
     expect(report.every(day => day.date && day.calories === 0 && day.protein === 0)).toBe(true);
     expect(report.every(day => day.goalCalories === 2000 && day.adjustedGoalCalories === 2000)).toBe(true);
     expect(report.every(day => day.waterGoalMl === 2000 && day.exerciseCalories === 0)).toBe(true);
+  });
+
+  it("inclui exercícios no resumo semanal e na meta ajustada", async () => {
+    dbMocks.listUserExercises.mockResolvedValue([exercise()]);
+
+    const report = await getWeeklyReport(77, 0);
+    const exercisedDay = report.find(day => day.exerciseCalories === 300);
+
+    expect(dbMocks.listUserExercises).toHaveBeenCalledTimes(1);
+    expect(dbMocks.listUserExercisesByDate).not.toHaveBeenCalled();
+    expect(exercisedDay).toEqual(expect.objectContaining({
+      exerciseCalories: 300,
+      goalCalories: 2000,
+      adjustedGoalCalories: 2300,
+      netCalories: -300,
+    }));
+  });
+
+  it("inclui exercícios no progresso semanal consolidado", async () => {
+    dbMocks.listUserExercises.mockResolvedValue([exercise()]);
+
+    const progress = await getWeeklyProgressReport(77, 0);
+
+    expect(progress.summary.totalExerciseCalories).toBe(300);
+    expect(progress.summary.totalNetCalories).toBe(-300);
   });
 
   it("mantém equivalência básica de totais entre resumo semanal e bundle", async () => {
