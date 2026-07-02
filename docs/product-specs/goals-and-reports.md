@@ -19,6 +19,11 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Relatórios deve permitir análise por dia, semana, mês e período configurável com o mesmo padrão visual de seleção.
 - Relatórios devem priorizar aderência às metas e evolução, não listagem detalhada de alimentos.
 - Relatórios de semana, mês e período devem carregar a primeira leitura usando apenas dados do intervalo ativo, evitando depender de consultas históricas pesadas.
+- A visão semanal de Relatórios deve tentar usar o resumo leve `reports.weekly` quando ele existir e retornar um contrato renderizável completo.
+- `reports.weekly` deve retornar exatamente 7 dias para a semana solicitada; semana sem registros deve vir como 7 dias zerados, não como lista vazia.
+- A tela deve validar o contrato semanal antes de renderizar o resumo e fazer fallback automático para `reports.bundle` quando o resumo falhar, vier incompleto ou tiver campos obrigatórios incompatíveis.
+- O detalhamento completo de dias e refeições deve continuar sob demanda quando o resumo semanal validado for suficiente para a primeira leitura.
+- Períodos customizados de relatórios são limitados a 90 dias inclusivos; ranges invertidos ou maiores devem ser bloqueados pelo backend e avisados pela interface quando possível.
 - A leitura principal de relatórios deve comparar consumido vs meta ajustada, macros planejados vs realizados, peso, qualidade alimentar, água e exercícios.
 - A organização visual de Relatórios deve começar por um resumo do período com cards de decisão antes dos blocos analíticos detalhados.
 - Meta ajustada de calorias é a meta base do dia somada às calorias de exercícios registradas no mesmo dia, quando houver gasto aplicável.
@@ -78,3 +83,6 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 - Relatórios exibem água e exercícios como indicadores de apoio às metas, sem transformar Reports em dashboard detalhado de treinos ou hidratação.
 - Relatórios usam registros reais de peso do período selecionado no gráfico de evolução de peso quando houver dados no intervalo.
 - Relatórios não duplicam a experiência operacional de Refeições registradas.
+- Relatórios semanais usam `reports.weekly` somente quando o retorno tem 7 dias completos e campos mínimos renderizáveis.
+- Relatórios semanais fazem fallback para `reports.bundle` quando `reports.weekly` falha ou não cumpre o contrato mínimo.
+- Períodos customizados acima de 90 dias inclusivos são rejeitados antes de consultas pesadas.
