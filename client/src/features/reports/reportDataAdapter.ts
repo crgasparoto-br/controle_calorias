@@ -102,14 +102,17 @@ export function normalizeReportDay(day: unknown, fallbackGoal?: Record<string, u
 }
 
 export function extractWeeklyReportDays(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
   if (!isObjectRecord(value)) return [];
 
-  const candidates = [value.weekly, value.weeklyReport, value.days];
+  const candidates = [value.weekly, value.weeklyReport, value.days, value.daily];
   return candidates.find(Array.isArray) ?? [];
 }
 
 export function validateWeeklyReportData(value: unknown): WeeklyReportValidation {
+  if (!isObjectRecord(value)) {
+    return { renderable: false, days: [], reason: "missing_weekly_envelope" };
+  }
+
   const rawDays = extractWeeklyReportDays(value);
 
   if (rawDays.length !== WEEKLY_DAY_COUNT) {
