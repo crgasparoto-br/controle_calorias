@@ -97,6 +97,27 @@ function withMealTotals(meal: ReportMeal): ReportMeal {
   };
 }
 
+function sortByOccurredAtDesc<T extends { occurredAt: number }>(items: T[]) {
+  return items.slice().sort((first, second) => Number(second.occurredAt) - Number(first.occurredAt));
+}
+
+function filterByLogicalRange<T extends { occurredAt: number }>(items: T[], range: ReportDateRange) {
+  return items.filter(item => isInsideLogicalRange(Number(item.occurredAt), range));
+}
+
+async function recoverEmptyRangeRead<T extends { occurredAt: number }>(
+  rangeItems: T[],
+  range: ReportDateRange,
+  markFallback: () => void,
+  loadAllItems: () => Promise<T[]>,
+) {
+  if (rangeItems.length) return rangeItems;
+
+  markFallback();
+  const recoveredItems = sortByOccurredAtDesc(filterByLogicalRange(await loadAllItems(), range));
+  return recoveredItems.length ? recoveredItems : rangeItems;
+}
+
 export async function listReportMealsByDateRange(
   userId: number,
   range: ReportDateRange,
@@ -112,18 +133,15 @@ export async function listReportMealsByDateRange(
       });
 
       if (dbMeals) {
-        return dbMeals
-          .filter(meal => isInsideLogicalRange(meal.occurredAt, range))
-          .map(meal => withMealTotals(meal as ReportMeal))
-          .sort((first, second) => second.occurredAt - first.occurredAt);
+        const rangeMeals = sortByOccurredAtDesc(filterByLogicalRange(dbMeals, range).map(meal => withMealTotals(meal as ReportMeal)));
+        return recoverEmptyRangeRead(rangeMeals, range, markFallback, async () =>
+          (await listUserMeals(userId)).map(withMealTotals),
+        );
       }
     }
 
     markFallback();
-    return (await listUserMeals(userId))
-      .filter(meal => isInsideLogicalRange(meal.occurredAt, range))
-      .map(withMealTotals)
-      .sort((first, second) => second.occurredAt - first.occurredAt);
+    return sortByOccurredAtDesc(filterByLogicalRange(await listUserMeals(userId), range).map(withMealTotals));
   });
 }
 
@@ -135,16 +153,13 @@ export async function listReportExercisesByDateRange(userId: number, range: Repo
       const dbExercises = await exercisesRepository.findByUserIdAndRange(userId, occurredAtRange.startAt, occurredAtRange.endAt);
 
       if (dbExercises) {
-        return dbExercises
-          .filter(exercise => isInsideLogicalRange(Number(exercise.occurredAt), range))
-          .sort((first, second) => Number(second.occurredAt) - Number(first.occurredAt));
+        const rangeExercises = sortByOccurredAtDesc(filterByLogicalRange(dbExercises, range));
+        return recoverEmptyRangeRead(rangeExercises, range, markFallback, () => listUserExercises(userId));
       }
     }
 
     markFallback();
-    return (await listUserExercises(userId))
-      .filter(exercise => isInsideLogicalRange(Number(exercise.occurredAt), range))
-      .sort((first, second) => Number(second.occurredAt) - Number(first.occurredAt));
+    return sortByOccurredAtDesc(filterByLogicalRange(await listUserExercises(userId), range));
   });
 }
 
@@ -156,15 +171,12 @@ export async function listReportWaterLogsByDateRange(userId: number, range: Repo
       const dbLogs = await waterRepository.findLogsByUserIdAndRange(userId, occurredAtRange.startAt, occurredAtRange.endAt);
 
       if (dbLogs) {
-        return dbLogs
-          .filter(log => isInsideLogicalRange(Number(log.occurredAt), range))
-          .sort((first, second) => Number(second.occurredAt) - Number(first.occurredAt));
+        const rangeLogs = sortByOccurredAtDesc(filterByLogicalRange(dbLogs, range));
+        return recoverEmptyRangeRead(rangeLogs, range, markFallback, () => listUserWaterLogs(userId));
       }
     }
 
     markFallback();
-    return (await listUserWaterLogs(userId))
-      .filter(log => isInsideLogicalRange(Number(log.occurredAt), range))
-      .sort((first, second) => Number(second.occurredAt) - Number(first.occurredAt));
+    return sortByOccurredAtDesc(filterByLogicalRange(await listUserWaterLogs(userId), range));
   });
 }
