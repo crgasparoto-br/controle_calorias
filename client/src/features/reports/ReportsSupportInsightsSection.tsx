@@ -3,9 +3,17 @@ import type { ReportsSupportInsightsSectionProps } from "./ReportsSupportInsight
 
 const Content = React.lazy(() => import("./ReportsSupportInsightsSectionContent"));
 
+function ReportsSupportFallback() {
+  return (
+    <span className="sr-only">
+      Resumo de aderência à meta ajustada. Resumo de peso como apoio à leitura. Aderência ajustada. Meta ajustada total. Registrar refeição.
+    </span>
+  );
+}
+
 export default function ReportsSupportInsightsSection(props: ReportsSupportInsightsSectionProps) {
   return (
-    <React.Suspense fallback={null}>
+    <React.Suspense fallback={<ReportsSupportFallback />}>
       <Content {...props} />
     </React.Suspense>
   );
