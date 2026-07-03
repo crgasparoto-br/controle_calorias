@@ -130,8 +130,18 @@ describe("report range data loaders", () => {
     expect(result[0].totals).toMatchObject({ calories: 200, protein: 2, carbs: 20, fat: 1 });
   });
 
-  it("recupera refeições pelo fallback em memória quando a leitura por intervalo vem vazia", async () => {
+  it("não recupera histórico completo quando a leitura por intervalo vem vazia", async () => {
     mocks.findMealsByRange.mockResolvedValue([]);
+    mocks.listUserMeals.mockResolvedValue([meal(1, "2026-06-22"), meal(2, "2026-06-24")]);
+
+    const result = await listReportMealsByDateRange(1, reportRange, { includeMedia: false });
+
+    expect(mocks.listUserMeals).not.toHaveBeenCalled();
+    expect(result).toEqual([]);
+  });
+
+  it("recupera refeições pelo fallback em memória quando a leitura por intervalo não está disponível", async () => {
+    mocks.findMealsByRange.mockResolvedValue(null);
     mocks.listUserMeals.mockResolvedValue([meal(1, "2026-06-22"), meal(2, "2026-06-24")]);
 
     const result = await listReportMealsByDateRange(1, reportRange, { includeMedia: false });
