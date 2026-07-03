@@ -182,7 +182,7 @@ export async function processBillingWebhook(input: BillingWebhookInput) {
   if (!signatureIsValid) {
     recordBillingEvent({
       provider: input.provider,
-      providerEventId: input.providerEventId,
+      providerEventId: `invalid:${input.providerEventId}`,
       eventType: input.eventType,
       userId: input.userId ?? null,
       subscriptionId: null,
