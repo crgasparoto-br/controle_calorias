@@ -172,6 +172,14 @@ export const foodCatalog = mysqlTable("foodCatalog", {
   isFruit: int("isFruit").default(0).notNull(),
   isVegetable: int("isVegetable").default(0).notNull(),
   isUltraProcessed: int("isUltraProcessed").default(0).notNull(),
+  processingLevel: mysqlEnum("processingLevel", [
+    "natural_or_minimally_processed",
+    "processed_culinary_ingredient",
+    "processed",
+    "ultra_processed",
+  ]),
+  classificationSource: varchar("classificationSource", { length: 40 }),
+  classificationConfidence: double("classificationConfidence"),
   isUserCreated: int("isUserCreated").default(0).notNull(),
   createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -284,7 +292,7 @@ export const meals = mysqlTable("meals", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
   userOccurredAtIdx: index("meals_user_occurredAt_idx").on(table.userId, table.occurredAt),
-  userStatusIdx: index("meals_user_status_idx").on(table.userId, table.status),
+  userStatusOccurredAtIdx: index("meals_user_status_occurredAt_idx").on(table.userId, table.status, table.occurredAt),
 }));
 
 export const mealItems = mysqlTable("mealItems", {

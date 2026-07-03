@@ -3,6 +3,7 @@ import type { FoodProcessingLevel } from "../../../shared/reportsGoalAnalytics";
 
 const dbMocks = vi.hoisted(() => ({
   getDb: vi.fn(),
+  getFoodsByIds: vi.fn(),
   getHabitSnapshots: vi.fn(),
   getUserGamification: vi.fn(),
   getUserWaterGoal: vi.fn(),
@@ -132,6 +133,7 @@ function configureCommonMocks() {
   dbMocks.listUserMealsByDate.mockResolvedValue([]);
   dbMocks.listUserWaterLogs.mockResolvedValue([]);
   dbMocks.listUserWaterLogsByDate.mockResolvedValue([]);
+  dbMocks.getFoodsByIds.mockResolvedValue([]);
   goalMocks.getNutritionGoalForDate.mockResolvedValue({
     today: {
       calories: 2000,
@@ -228,7 +230,7 @@ describe("insights food quality report integration", () => {
     ]);
     dbMocks.searchFoods.mockResolvedValue([foodSearchItem()]);
 
-    const weekly = await getWeeklyReport(77);
+    const { weekly } = await getWeeklyReport(77);
     const dayWithMeal = weekly.find(day => day.calories > 0);
 
     expect(dbMocks.searchFoods).not.toHaveBeenCalled();

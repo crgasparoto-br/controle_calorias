@@ -272,20 +272,23 @@ export function createDrizzleMealsRepository(deps: {
       const db = await deps.getDb();
       if (!db) return [];
 
-      const mealRows = await db.select().from(meals).where(eq(meals.userId, userId));
-      const results: Array<{ canonicalName: string; foodName: string; foodCatalogId: number | null; occurredAt: number }> = [];
-      for (const meal of mealRows) {
-        const items = await db.select().from(mealItems).where(eq(mealItems.mealId, meal.id));
-        for (const item of items) {
-          results.push({
-            canonicalName: item.canonicalName,
-            foodName: item.foodName,
-            foodCatalogId: item.foodCatalogId ?? null,
-            occurredAt: new Date(meal.occurredAt).getTime(),
-          });
-        }
-      }
-      return results;
+      const rows = await db
+        .select({
+          canonicalName: mealItems.canonicalName,
+          foodName: mealItems.foodName,
+          foodCatalogId: mealItems.foodCatalogId,
+          occurredAt: meals.occurredAt,
+        })
+        .from(mealItems)
+        .innerJoin(meals, eq(mealItems.mealId, meals.id))
+        .where(eq(meals.userId, userId));
+
+      return rows.map((row: { canonicalName: string; foodName: string; foodCatalogId: number | null; occurredAt: Date | number }) => ({
+        canonicalName: row.canonicalName,
+        foodName: row.foodName,
+        foodCatalogId: row.foodCatalogId ?? null,
+        occurredAt: new Date(row.occurredAt).getTime(),
+      }));
     },
 
     async insertInference(draft) {

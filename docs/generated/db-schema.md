@@ -15,7 +15,7 @@ Fonte: `drizzle/schema.ts`.
 | `foods` | `foods` | 21 | Baixa |
 | `foodAliases` | `food_aliases` | 6 | Baixa |
 | `foodPortions` | `food_portions` | 12 | Baixa |
-| `foodCatalog` | `foodCatalog` | 24 | Requer atenção |
+| `foodCatalog` | `foodCatalog` | 27 | Requer atenção |
 | `foodFavorites` | `foodFavorites` | 4 | Requer atenção |
 | `userGamificationSettings` | `userGamificationSettings` | 5 | Requer atenção |
 | `userBadges` | `userBadges` | 6 | Requer atenção |
