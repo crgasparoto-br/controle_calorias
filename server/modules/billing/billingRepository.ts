@@ -26,6 +26,10 @@ const events = new Map<string, BillingEvent>();
 let nextSubscriptionId = 1;
 let nextEventId = 1;
 
+function billingEventKey(provider: BillingProviderCode, providerEventId: string) {
+  return `${provider}:${providerEventId}`;
+}
+
 function seedDefaultPlans() {
   plans.clear();
   const createdAt = now();
@@ -142,6 +146,10 @@ export function updateBillingSubscription(id: number, patch: Partial<Omit<Billin
   return updated;
 }
 
+export function findBillingEvent(provider: BillingProviderCode, providerEventId: string) {
+  return events.get(billingEventKey(provider, providerEventId)) ?? null;
+}
+
 export function recordBillingEvent(input: {
   provider: BillingProviderCode;
   providerEventId: string;
@@ -152,7 +160,7 @@ export function recordBillingEvent(input: {
   processingError?: string | null;
   processedAt?: Date | null;
 }) {
-  const key = `${input.provider}:${input.providerEventId}`;
+  const key = billingEventKey(input.provider, input.providerEventId);
   const existing = events.get(key);
   if (existing) {
     return { event: existing, duplicate: true } as const;
