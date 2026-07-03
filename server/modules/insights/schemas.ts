@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const MAX_REPORT_RANGE_DAYS = 90;
 export const MIN_REPORT_WEEK_OFFSET = -520;
-export const MAX_REPORT_WEEK_OFFSET = 520;
+export const MAX_REPORT_WEEK_OFFSET = 52;
 
 export const reportDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use datas no formato YYYY-MM-DD.");
 

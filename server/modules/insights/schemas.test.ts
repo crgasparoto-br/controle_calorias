@@ -55,14 +55,14 @@ describe("reports period schema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("aceita deslocamento semanal histórico dentro do limite", () => {
+  it("aceita deslocamento semanal histórico e futuro dentro do limite", () => {
     expect(reportsPeriodSchema.safeParse({ weekOffset: -120 }).success).toBe(true);
-    expect(reportsPeriodSchema.safeParse({ weekOffset: 120 }).success).toBe(true);
+    expect(reportsPeriodSchema.safeParse({ weekOffset: 52 }).success).toBe(true);
   });
 
   it("rejeita deslocamento semanal fora do limite", () => {
     expect(reportsPeriodSchema.safeParse({ weekOffset: -521 }).success).toBe(false);
-    expect(reportsPeriodSchema.safeParse({ weekOffset: 521 }).success).toBe(false);
+    expect(reportsPeriodSchema.safeParse({ weekOffset: 53 }).success).toBe(false);
   });
 
   it("reutiliza o limite de período no bundle profissional", () => {
