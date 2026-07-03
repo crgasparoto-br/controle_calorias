@@ -12,11 +12,11 @@ function norm(value: string) {
 function fmt(value: number) { return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value); }
 function itemName(item: Item) { return item.foodName || item.canonicalName || "item"; }
 function labelRx(label: string) { return label.replace(/\s+/g, "\\s+"); }
-function mealFromText(text: string) { return MEALS.find(label => new RegExp(`\b(?:do|da|de|no|na|ao|a|para)\s+(?:refeicao\s+)?${labelRx(label)}\b`).test(text)) ?? null; }
+function mealFromText(text: string) { return MEALS.find(label => new RegExp(`\\b(?:do|da|de|no|na|ao|a|para)\\s+(?:refeicao\\s+)?${labelRx(label)}\\b`).test(text)) ?? null; }
 function cleanFood(value: string | null, mealLabel: string | null) {
   if (!value) return null;
   let cleaned = value.replace(/^\s*(?:o|a|os|as|do|da|de|dos|das)\s+/i, "").trim();
-  if (mealLabel) cleaned = cleaned.replace(new RegExp(`\s+(?:do|da|de|no|na|ao|a|para)\s+(?:refeicao\s+)?${labelRx(mealLabel)}\s*$`, "i"), "").trim();
+  if (mealLabel) cleaned = cleaned.replace(new RegExp(`\\s+(?:do|da|de|no|na|ao|a|para)\\s+(?:refeicao\\s+)?${labelRx(mealLabel)}\\s*$`, "i"), "").trim();
   return cleaned || null;
 }
 function parse(text: string) {
