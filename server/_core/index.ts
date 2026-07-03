@@ -10,6 +10,7 @@ import { PAYLOAD_LIMITS, RATE_LIMITS, createExpressRateLimit } from "./rateLimit
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
+import { handleBillingWebhook } from "../modules/billing/billingWebhookHandler";
 import { handleStravaWebhookVerification, handleStravaWebhookEvent } from "../modules/healthIntegrations/stravaWebhookHandler";
 import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdempotencyWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
@@ -108,6 +109,9 @@ async function startServer() {
   });
   app.post("/api/health-integrations/strava/webhook", express.json({ limit: "4kb" }), (req, res) => {
     handleStravaWebhookEvent(req, res);
+  });
+  app.post("/api/billing/webhooks/:provider", webhookRateLimit, express.json({ limit: PAYLOAD_LIMITS.webhookJson }), (req, res) => {
+    void handleBillingWebhook(req, res);
   });
   app.get("/api/whatsapp/webhook", webhookRateLimit, verifyWhatsAppWebhook);
   app.post(
