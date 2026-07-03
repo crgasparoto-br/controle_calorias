@@ -6,6 +6,8 @@ export const exerciseSchema = z.object({
   caloriesBurned: z.number().min(1).max(10000),
   occurredAt: z.string().min(1),
   notes: z.string().max(500).optional(),
+  externalProvider: z.enum(["strava"]).optional(),
+  externalId: z.string().min(1).max(160).optional(),
 });
 
 export const updateExerciseSchema = exerciseSchema.extend({

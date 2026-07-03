@@ -182,6 +182,13 @@ function buildMockRecords(userId: number, provider: HealthProvider, scopes: Heal
       value: provider === "strava" ? 510 : 260,
       unit: "kcal",
       energyKind: "burned",
+      activityType: getStravaActivityType({
+        id: 0,
+        name: "Mock",
+        start_date: measuredAt,
+        moving_time: 35 * 60,
+        type: provider === "strava" ? "Run" : "Walk",
+      }),
       createdAt: Date.now(),
     },
     {
@@ -273,6 +280,8 @@ function mergeStravaImportSummary(target: StravaExerciseImportSummary, source: S
   target.created += source.created;
   target.updated += source.updated;
   target.skipped += source.skipped;
+  target.notificationsSent += source.notificationsSent;
+  target.notificationsSkipped += source.notificationsSkipped;
   return target;
 }
 
@@ -506,7 +515,7 @@ export class HealthIntegrationService {
       attempted: userIds.length,
       succeeded: 0,
       failed: 0,
-      importedExercises: { created: 0, updated: 0, skipped: 0 },
+      importedExercises: { created: 0, updated: 0, skipped: 0, notificationsSent: 0, notificationsSkipped: 0 },
     };
 
     for (const userId of userIds) {

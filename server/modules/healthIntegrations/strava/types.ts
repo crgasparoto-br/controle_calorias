@@ -141,6 +141,8 @@ export type StravaExerciseImportSummary = {
   created: number;
   updated: number;
   skipped: number;
+  notificationsSent: number;
+  notificationsSkipped: number;
 };
 
 export type StravaAutoSyncSummary = {

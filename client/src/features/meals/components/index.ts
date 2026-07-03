@@ -10,6 +10,6 @@ export { MealModeGuide } from "./MealModeGuide";
 export { MealPhotoTabContent } from "./MealPhotoTabContent";
 export { MealTotalsBlock } from "./MealTotalsBlock";
 export { MealUploadField } from "./MealUploadField";
-export { RegisteredMealGroups } from "./RegisteredMealGroups";
+export { RegisteredMealGroups } from "./RegisteredMealGroupsLazy";
 export { RegisteredMealItemEditDialog, type RegisteredMealItemEditTarget } from "./RegisteredMealItemEditDialog";
 export { SummaryPill } from "./SummaryPill";

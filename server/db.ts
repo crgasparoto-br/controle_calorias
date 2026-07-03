@@ -611,6 +611,7 @@ const exercisesService = createExercisesService({
 });
 export const listUserExercises = exercisesService.listExercises;
 export const listUserExercisesByDate = exercisesService.listExercisesByDate;
+export const listUserExercisesInRange = exercisesService.listExercisesInRange;
 export const createUserExercise = exercisesService.createExercise;
 export const updateUserExercise = exercisesService.updateExercise;
 export const removeUserExercise = exercisesService.removeExercise;
@@ -622,6 +623,7 @@ const waterService = createWaterService({
 export const getUserWaterGoal = waterService.getWaterGoal;
 export const listUserWaterLogs = waterService.listWaterLogs;
 export const listUserWaterLogsByDate = waterService.listWaterLogsByDate;
+export const listUserWaterLogsInRange = waterService.listWaterLogsInRange;
 export const updateUserWaterGoal = waterService.updateWaterGoal;
 export const createUserWaterLog = waterService.createWaterLog;
 export const removeUserWaterLog = waterService.removeWaterLog;
@@ -671,6 +673,7 @@ const foodsService = createFoodsService({
   onWarning: logPersistenceWarning,
 });
 export const searchFoods = foodsService.searchFoods;
+export const getFoodsByIds = foodsService.getFoodsByIds;
 export const listRecentFoods = foodsService.listRecentFoods;
 export const upsertFavoriteFood = foodsService.upsertFavoriteFood;
 export const createUserFood = foodsService.createUserFood;
@@ -734,7 +737,7 @@ async function persistMealToDb(meal: SavedMeal) {
     meal.id = resolvedMealId;
 
     if (meal.items.length) {
-      const resolvedCatalogIds = await resolveFoodCatalogIds(meal.items);
+      const resolvedCatalogIds = await resolveFoodCatalogIds(meal.items, meal.userId);
       await mealsRepository.insertMealItems(resolvedMealId, meal.items, resolvedCatalogIds);
     }
 
@@ -760,7 +763,7 @@ async function updateMealInDb(meal: SavedMeal) {
       occurredAt: meal.occurredAt,
     });
 
-    const resolvedCatalogIds = meal.items.length ? await resolveFoodCatalogIds(meal.items) : new Map<string, number>();
+    const resolvedCatalogIds = meal.items.length ? await resolveFoodCatalogIds(meal.items, meal.userId) : new Map<string, number>();
     await mealsRepository.replaceMealItems(meal.id, meal.items, resolvedCatalogIds);
   } catch (error) {
     logPersistenceWarning("Meal update skipped", error);
@@ -1097,6 +1100,33 @@ export async function listUserMealsByDate(userId: number, date: string, options:
 
   return mealsForUser
     .filter(meal => getDateKeyInTimeZone(meal.occurredAt) === date)
+    .slice()
+    .sort((a, b) => b.occurredAt - a.occurredAt)
+    .map(meal => ({
+      ...meal,
+      totals: sumMealItems(meal.items),
+    }));
+}
+
+export async function listUserMealsInRange(
+  userId: number,
+  startDate: string,
+  endDate: string,
+  options: { includeMedia?: boolean } = {},
+) {
+  const startAt = new Date(`${startDate}T00:00:00.000Z`);
+  startAt.setUTCDate(startAt.getUTCDate() - 1);
+  const endAt = new Date(`${endDate}T00:00:00.000Z`);
+  endAt.setUTCDate(endAt.getUTCDate() + 2);
+
+  const dbMeals = await loadMealsFromDb(userId, { startAt, endAt, includeMedia: options.includeMedia });
+  const mealsForUser = dbMeals ?? mealStore.get(userId) ?? [];
+
+  return mealsForUser
+    .filter(meal => {
+      const key = getDateKeyInTimeZone(meal.occurredAt);
+      return key >= startDate && key <= endDate;
+    })
     .slice()
     .sort((a, b) => b.occurredAt - a.occurredAt)
     .map(meal => ({

@@ -164,9 +164,9 @@ const MACRO_COLORS: Record<keyof MacroTotals, string> = {
 };
 
 const EMPTY_FOOD_QUALITY_DISTRIBUTION: FoodQualityDistributionItem[] = [
-  { key: "naturalOrMinimallyProcessed", label: "In natura/minimamente processados", calories: 0, percent: 0 },
-  { key: "ultraProcessed", label: "Ultraprocessados", calories: 0, percent: 0 },
-  { key: "unclassified", label: "Não classificados", calories: 0, percent: 0 },
+  { key: "naturalOrMinimallyProcessed", label: "In natura/minimamente processados", calories: 0, percent: 0, items: [] },
+  { key: "ultraProcessed", label: "Ultraprocessados", calories: 0, percent: 0, items: [] },
+  { key: "unclassified", label: "Não classificados", calories: 0, percent: 0, items: [] },
 ];
 
 
