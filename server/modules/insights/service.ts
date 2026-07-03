@@ -16,14 +16,11 @@ import { getDateKeyInTimeZone, getWeekdayIndexInTimeZone, toLogicalDateInTimeZon
 import { calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
 import { getNutritionGoalForDate } from "../goals/service";
 import { calculateQualityIndicators, createFoodLookup } from "./foodQuality";
-<<<<<<< HEAD
 import {
   listReportExercisesByDateRange,
   listReportMealsByDateRange,
   listReportWaterLogsByDateRange,
 } from "./rangeData";
-=======
->>>>>>> origin/main
 import { weeklyInsightService } from "./weeklyInsightService";
 
 function mealDateKey(meal: { occurredAt: number }) {
@@ -220,10 +217,7 @@ function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: n
 
 const FOOD_QUALITY_LOOKUP_QUERY_LIMIT = 8;
 const FOOD_QUALITY_LOOKUP_CONCURRENCY = 6;
-<<<<<<< HEAD
 const REFERENCE_FOOD_LOOKUP = createFoodLookup([]);
-=======
->>>>>>> origin/main
 
 type ReportRangeData = {
   dates: string[];
@@ -418,69 +412,6 @@ function calculateLightQualityIndicators(
   };
 }
 
-function addFoodLookupName(names: Set<string>, value: string | null | undefined) {
-  const normalized = value?.trim();
-  if (normalized) {
-    names.add(normalized);
-  }
-}
-
-function collectFoodQualityLookupNames(mealsByDay: ReportRangeData["mealsByDay"]) {
-  const names = new Set<string>();
-
-  for (const meals of mealsByDay) {
-    for (const meal of meals) {
-      for (const item of meal.items) {
-        addFoodLookupName(names, item.canonicalName);
-        addFoodLookupName(names, item.foodName);
-        addFoodLookupName(names, item.portionText);
-      }
-    }
-  }
-
-  return Array.from(names);
-}
-
-async function mapFoodLookupNames(
-  names: string[],
-  mapper: (name: string) => Promise<Awaited<ReturnType<typeof searchFoods>>>,
-) {
-  const results: Array<Awaited<ReturnType<typeof searchFoods>>> = [];
-  let nextIndex = 0;
-  const workerCount = Math.min(FOOD_QUALITY_LOOKUP_CONCURRENCY, names.length);
-
-  await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (nextIndex < names.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      results[currentIndex] = await mapper(names[currentIndex]);
-    }
-  }));
-
-  return results;
-}
-
-async function buildFoodLookupForMeals(userId: number, mealsByDay: ReportRangeData["mealsByDay"]) {
-  const lookupNames = collectFoodQualityLookupNames(mealsByDay);
-  if (!lookupNames.length) {
-    return createFoodLookup([]);
-  }
-
-  const results = await mapFoodLookupNames(
-    lookupNames,
-    name => searchFoods(userId, name, FOOD_QUALITY_LOOKUP_QUERY_LIMIT),
-  );
-  const foodsById = new Map<number, Awaited<ReturnType<typeof searchFoods>>[number]>();
-
-  for (const foods of results) {
-    for (const food of foods) {
-      foodsById.set(food.id, food);
-    }
-  }
-
-  return createFoodLookup(Array.from(foodsById.values()));
-}
-
 function buildHabitAnalyticsFromRange(
   waterGoal: Awaited<ReturnType<typeof getUserWaterGoal>>,
   data: ReportRangeData,
@@ -559,24 +490,16 @@ function buildHabitAnalyticsFromRange(
   };
 }
 
-<<<<<<< HEAD
 async function buildWeeklyReportSummary(userId: number, weekOffset = 0, options: WeeklyReportSummaryOptions = {}) {
-=======
-async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
->>>>>>> origin/main
   const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
   const [goalsByDate, waterGoal, rangeData] = await Promise.all([
     Promise.all(dateKeys.map(date => getNutritionGoalForDate(userId, date))),
     getUserWaterGoal(userId),
     loadReportRangeData(userId, dateKeys),
   ]);
-<<<<<<< HEAD
   const foodLookup = options.includeFoodQualityDetails
     ? await buildFoodLookupForMeals(userId, rangeData.mealsByDay)
     : undefined;
-=======
-  const foodLookup = await buildFoodLookupForMeals(userId, rangeData.mealsByDay);
->>>>>>> origin/main
 
   return rangeData.dates.map((date, index) => {
     const planned = goalsByDate[index]?.today ?? goalsByDate[0].today;
@@ -917,10 +840,6 @@ export async function getPeriodReportBundle(
   const totals = calculateDayTotals(meals);
   const mealsByDate = groupMealsByDate(meals);
   const foodLookup = await buildFoodLookupForMeals(userId, rangeData.mealsByDay);
-<<<<<<< HEAD
-=======
-  const foodQualityDays: FoodQualityDay[] = [];
->>>>>>> origin/main
   const daily = dates.map((date, index) => {
     const planned = goalsByDate[index]?.today ?? goalsByDate[0].today;
     const dailyMeals = rangeData.mealsByDay[index] ?? [];

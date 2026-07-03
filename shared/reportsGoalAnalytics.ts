@@ -131,19 +131,6 @@ export type FoodQualityUnclassifiedItemDiagnostic = {
   reason: FoodQualityUnclassifiedReason;
 };
 
-export type FoodQualityUnclassifiedItemDiagnostic = {
-  key: string;
-  foodName: string | null;
-  canonicalName: string | null;
-  portionText: string | null;
-  foodCatalogId: number | null;
-  totalCalories: number;
-  occurrences: number;
-  firstDate: string | null;
-  lastDate: string | null;
-  reason: FoodQualityUnclassifiedReason;
-};
-
 export type FoodQualitySummary = {
   hasData: boolean;
   dayCount: number;
@@ -264,7 +251,6 @@ function getFoodProcessingCategory(item: FoodQualityItem): FoodProcessingCategor
   }
 }
 
-<<<<<<< HEAD
 function mergeCategoryItemFields(existing: FoodQualityCategoryItem, item: FoodQualityItem, date: string, calories: number) {
   existing.totalCalories += calories;
   existing.occurrences += 1;
@@ -309,8 +295,6 @@ function sortCategoryItems<T extends { totalCalories: number; occurrences: numbe
     .sort((first, second) => second.totalCalories - first.totalCalories || second.occurrences - first.occurrences || first.key.localeCompare(second.key));
 }
 
-=======
->>>>>>> origin/main
 function addUnclassifiedDiagnostic(
   diagnostics: Map<string, FoodQualityUnclassifiedItemDiagnostic>,
   date: string,
@@ -337,20 +321,8 @@ function addUnclassifiedDiagnostic(
     return;
   }
 
-<<<<<<< HEAD
   existing.reason = mergeUnclassifiedReason(existing.reason, reason);
   mergeCategoryItemFields(existing, item, date, calories);
-=======
-  existing.totalCalories += calories;
-  existing.occurrences += 1;
-  existing.reason = mergeUnclassifiedReason(existing.reason, reason);
-  if (!existing.foodName && item.foodName) existing.foodName = item.foodName;
-  if (!existing.canonicalName && item.canonicalName) existing.canonicalName = item.canonicalName;
-  if (!existing.portionText && item.portionText) existing.portionText = item.portionText;
-  if (!existing.foodCatalogId && item.foodCatalogId) existing.foodCatalogId = item.foodCatalogId;
-  if (!existing.firstDate || (date && date < existing.firstDate)) existing.firstDate = date;
-  if (!existing.lastDate || (date && date > existing.lastDate)) existing.lastDate = date;
->>>>>>> origin/main
 }
 
 export function calculateCalorieAdherence(days: CalorieGoalDay[], expectedDayCount = days.length): CalorieAdherenceSummary {
@@ -466,12 +438,8 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
         acc.totalCalories += calories;
         acc.classifiedCalories += calories;
 
-<<<<<<< HEAD
         const category = getFoodProcessingCategory(item);
         switch (category) {
-=======
-        switch (getFoodProcessingCategory(item)) {
->>>>>>> origin/main
           case "ultraProcessed":
             acc.ultraProcessedCalories += calories;
             break;
@@ -507,7 +475,6 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
       processedCalories: 0,
       unknownProcessingCalories: 0,
       unclassifiedDiagnostics: new Map<string, FoodQualityUnclassifiedItemDiagnostic>(),
-<<<<<<< HEAD
       categoryDiagnostics: {
         naturalOrMinimallyProcessed: new Map<string, FoodQualityCategoryItem>(),
         processedCulinaryIngredient: new Map<string, FoodQualityCategoryItem>(),
@@ -515,8 +482,6 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
         ultraProcessed: new Map<string, FoodQualityCategoryItem>(),
         unknownProcessing: new Map<string, FoodQualityCategoryItem>(),
       } as Record<Exclude<FoodProcessingCategory, "unclassified">, Map<string, FoodQualityCategoryItem>>,
-=======
->>>>>>> origin/main
     },
   );
 
@@ -536,7 +501,6 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
   const qualityIndex = summary.classifiedCalories > 0
     ? Math.max(0, Math.min(100, roundMetric(100 - percentOfTotal(summary.ultraProcessedCalories, summary.classifiedCalories))))
     : null;
-<<<<<<< HEAD
   const unclassifiedItems = sortCategoryItems(Array.from(summary.unclassifiedDiagnostics.values()));
   const categoryItems = {
     naturalOrMinimallyProcessed: sortCategoryItems(Array.from(summary.categoryDiagnostics.naturalOrMinimallyProcessed.values())),
@@ -545,14 +509,6 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
     ultraProcessed: sortCategoryItems(Array.from(summary.categoryDiagnostics.ultraProcessed.values())),
     unknownProcessing: sortCategoryItems(Array.from(summary.categoryDiagnostics.unknownProcessing.values())),
   };
-=======
-  const unclassifiedItems = Array.from(summary.unclassifiedDiagnostics.values())
-    .map(item => ({
-      ...item,
-      totalCalories: roundMetric(item.totalCalories),
-    }))
-    .sort((first, second) => second.totalCalories - first.totalCalories || second.occurrences - first.occurrences || first.key.localeCompare(second.key));
->>>>>>> origin/main
 
   return {
     hasData: totalCalories > 0,
@@ -598,18 +554,6 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
         items: categoryItems.processed,
       },
       {
-        key: "processedCulinaryIngredient",
-        label: FOOD_PROCESSING_LABELS.processedCulinaryIngredient,
-        calories: processedCulinaryIngredientCalories,
-        percent: culinaryPercent,
-      },
-      {
-        key: "processed",
-        label: FOOD_PROCESSING_LABELS.processed,
-        calories: processedCalories,
-        percent: processedPercent,
-      },
-      {
         key: "ultraProcessed",
         label: FOOD_PROCESSING_LABELS.ultraProcessed,
         calories: ultraProcessedCalories,
@@ -622,12 +566,6 @@ export function calculateFoodQualitySummary(days: FoodQualityDay[], expectedDayC
         calories: unknownProcessingCalories,
         percent: unknownProcessingPercent,
         items: categoryItems.unknownProcessing,
-      },
-      {
-        key: "unknownProcessing",
-        label: FOOD_PROCESSING_LABELS.unknownProcessing,
-        calories: unknownProcessingCalories,
-        percent: unknownProcessingPercent,
       },
       {
         key: "unclassified",

@@ -79,7 +79,6 @@ export function createWaterService(deps: {
       .sort((a, b) => b.occurredAt - a.occurredAt);
   }
 
-<<<<<<< HEAD
   async function listWaterLogsInRange(userId: number, startAt: Date, endAt: Date) {
     const dbLogs = await deps.waterRepository.findLogsByUserIdAndRange(userId, startAt, endAt);
     const logs = dbLogs ?? (canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : []);
@@ -89,8 +88,6 @@ export function createWaterService(deps: {
       .sort((a, b) => b.occurredAt - a.occurredAt);
   }
 
-=======
->>>>>>> origin/main
   async function updateWaterGoal(userId: number, dailyTargetMl: number) {
     const current = await getStoredWaterGoal(userId);
     const updated: WaterGoalEntry = {
@@ -167,10 +164,7 @@ export function createWaterService(deps: {
     getWaterGoal,
     listWaterLogs,
     listWaterLogsByDate,
-<<<<<<< HEAD
     listWaterLogsInRange,
-=======
->>>>>>> origin/main
     updateWaterGoal,
     createWaterLog,
     removeWaterLog,

@@ -193,10 +193,7 @@ export function createFoodsService(deps: {
           carbs: row.carbs,
           fat: row.fat,
           fiber: row.fiber,
-<<<<<<< HEAD
           processingLevel: row.processingLevel ?? undefined,
-=======
->>>>>>> origin/main
           isFruit: row.isFruit === 1,
           isVegetable: row.isVegetable === 1,
           isUltraProcessed: row.isUltraProcessed === 1,
@@ -210,7 +207,6 @@ export function createFoodsService(deps: {
       });
   }
 
-<<<<<<< HEAD
   async function getFoodsByIds(userId: number, ids: number[]) {
     if (!ids.length) return [];
 
@@ -219,8 +215,6 @@ export function createFoodsService(deps: {
     return foods.filter(food => uniqueIds.has(food.id));
   }
 
-=======
->>>>>>> origin/main
   async function getDbSearchFoods(userId: number) {
     if (dbSearchContext?.userId === userId) {
       return dbSearchContext.promise;
@@ -410,7 +404,6 @@ export function createFoodsService(deps: {
     return updated;
   }
 
-<<<<<<< HEAD
   function buildAutoClassifiedCatalogSlug(userId: number, name: string) {
     const base = normalizeCatalogText(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "alimento";
     return `user-${userId}-${base}-${Date.now()}-${Math.round(Math.random() * 1e6)}`.slice(0, 128);
@@ -455,9 +448,6 @@ export function createFoodsService(deps: {
   }
 
   async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number) {
-=======
-  async function resolveFoodCatalogIds(items: MealDraftItem[]) {
->>>>>>> origin/main
     const db = await deps.getDb();
     if (!db || !items.length) {
       return new Map<string, number>();
@@ -494,7 +484,6 @@ export function createFoodsService(deps: {
         if (resolvedId) {
           setResolvedCatalogId(resolved, item.canonicalName, resolvedId);
           setResolvedCatalogId(resolved, item.foodName, resolvedId);
-<<<<<<< HEAD
           continue;
         }
 
@@ -505,8 +494,6 @@ export function createFoodsService(deps: {
             setResolvedCatalogId(resolved, item.canonicalName, createdId);
             setResolvedCatalogId(resolved, item.foodName, createdId);
           }
-=======
->>>>>>> origin/main
         }
       }
       return resolved;
@@ -523,10 +510,7 @@ export function createFoodsService(deps: {
 
   return {
     searchFoods,
-<<<<<<< HEAD
     getFoodsByIds,
-=======
->>>>>>> origin/main
     listRecentFoods,
     upsertFavoriteFood,
     createUserFood,

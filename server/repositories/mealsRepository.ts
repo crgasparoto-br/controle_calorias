@@ -272,7 +272,6 @@ export function createDrizzleMealsRepository(deps: {
       const db = await deps.getDb();
       if (!db) return [];
 
-<<<<<<< HEAD
       const rows = await db
         .select({
           canonicalName: mealItems.canonicalName,
@@ -290,22 +289,6 @@ export function createDrizzleMealsRepository(deps: {
         foodCatalogId: row.foodCatalogId ?? null,
         occurredAt: new Date(row.occurredAt).getTime(),
       }));
-=======
-      const mealRows = await db.select().from(meals).where(eq(meals.userId, userId));
-      const results: Array<{ canonicalName: string; foodName: string; foodCatalogId: number | null; occurredAt: number }> = [];
-      for (const meal of mealRows) {
-        const items = await db.select().from(mealItems).where(eq(mealItems.mealId, meal.id));
-        for (const item of items) {
-          results.push({
-            canonicalName: item.canonicalName,
-            foodName: item.foodName,
-            foodCatalogId: item.foodCatalogId ?? null,
-            occurredAt: new Date(meal.occurredAt).getTime(),
-          });
-        }
-      }
-      return results;
->>>>>>> origin/main
     },
 
     async insertInference(draft) {

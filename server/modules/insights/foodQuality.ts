@@ -197,13 +197,10 @@ export function calculateQualityIndicators(
         if (isUltraProcessed) acc.ultraProcessedServings += servingFactor;
         acc.foodQualityItems.push({
           calories: itemCalories,
-<<<<<<< HEAD
           foodCatalogId: item.foodCatalogId ?? null,
           foodName: item.foodName,
           canonicalName: item.canonicalName,
           portionText: item.portionText,
-=======
->>>>>>> origin/main
           processingLevel: food.processingLevel,
           isClassified: true,
           isFruit: food.isFruit,
