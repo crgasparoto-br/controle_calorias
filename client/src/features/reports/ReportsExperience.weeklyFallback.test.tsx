@@ -3,10 +3,12 @@ import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const reportQueryState = vi.hoisted(() => ({
+  forcedScope: "week" as "week" | "range",
   weekly: { data: null as unknown, isLoading: false, isError: false },
   bundle: { data: null as unknown, isLoading: false, isError: false },
   periodBundle: { data: null as unknown, isLoading: false, isError: false },
   bundleCalls: [] as Array<{ input: unknown; options: { enabled?: boolean } }>,
+  periodBundleCalls: [] as Array<{ input: unknown; options: { enabled?: boolean } }>,
 }));
 
 vi.mock("@/components/PageIntro", () => ({
@@ -15,7 +17,20 @@ vi.mock("@/components/PageIntro", () => ({
 }));
 
 vi.mock("@/components/PeriodScopeSelector", () => ({
-  PeriodScopeSelector: () => React.createElement("div", null, "Semana de referência"),
+  PeriodScopeSelector: ({ onScopeChange, onRangeStartChange, onRangeEndChange }: {
+    onScopeChange: (scope: "range") => void;
+    onRangeStartChange: (value: string) => void;
+    onRangeEndChange: (value: string) => void;
+  }) => {
+    React.useEffect(() => {
+      if (reportQueryState.forcedScope !== "range") return;
+      onScopeChange("range");
+      onRangeStartChange("2026-01-01");
+      onRangeEndChange("2026-04-01");
+    }, [onRangeEndChange, onRangeStartChange, onScopeChange]);
+
+    return React.createElement("div", null, "Semana de referência");
+  },
 }));
 
 vi.mock("@/features/meals/components", () => ({
@@ -46,7 +61,10 @@ vi.mock("@/lib/trpc", () => ({
           },
         },
         periodBundle: {
-          useQuery: () => reportQueryState.periodBundle,
+          useQuery: (input: unknown, options: { enabled?: boolean }) => {
+            reportQueryState.periodBundleCalls.push({ input, options });
+            return reportQueryState.periodBundle;
+          },
         },
       },
     },
@@ -125,17 +143,34 @@ function bundleData(days = week(1900)) {
   };
 }
 
+function mockReportsRangeState(rangeStart: string, rangeEnd: string) {
+  const setState = vi.fn();
+  let stateIndex = 0;
+  return vi.spyOn(React, "useState").mockImplementation(((initialState: unknown) => {
+    const currentIndex = stateIndex;
+    stateIndex += 1;
+    const value = typeof initialState === "function" ? (initialState as () => unknown)() : initialState;
+    if (currentIndex === 0) return ["range", setState];
+    if (currentIndex === 3) return [rangeStart, setState];
+    if (currentIndex === 4) return [rangeEnd, setState];
+    return [value, setState];
+  }) as unknown as typeof React.useState);
+}
+
 describe("ReportsExperience weekly summary fallback", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-22T12:00:00.000Z"));
+    reportQueryState.forcedScope = "week";
     reportQueryState.weekly = { data: week(1800), isLoading: false, isError: false };
     reportQueryState.bundle = { data: bundleData(), isLoading: false, isError: false };
     reportQueryState.periodBundle = { data: null, isLoading: false, isError: false };
     reportQueryState.bundleCalls = [];
+    reportQueryState.periodBundleCalls = [];
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -177,5 +212,15 @@ describe("ReportsExperience weekly summary fallback", () => {
 
     expect(reportQueryState.bundleCalls[0]?.options.enabled).toBe(true);
     expect(html).toContain("Não foi possível carregar os relatórios agora. Tente novamente em instantes.");
+  });
+
+  it("exibe mensagem controlada e evita periodBundle para range acima de 90 dias", async () => {
+    mockReportsRangeState("2026-01-01", "2026-04-01");
+    const { default: ReportsExperience } = await import("./ReportsExperience");
+
+    const html = renderToString(React.createElement(ReportsExperience));
+
+    expect(html).toContain("Escolha um período de até 90 dias para carregar os relatórios.");
+    expect(reportQueryState.periodBundleCalls.at(-1)?.options.enabled).toBe(false);
   });
 });
