@@ -52,7 +52,6 @@ describe("exercises service", () => {
     expect(exercises.map(exercise => exercise.activityType)).toEqual(["Bike", "Corrida"]);
   });
 
-<<<<<<< HEAD
   it("updates an existing external exercise instead of creating a duplicate", async () => {
     const repository = createFakeExercisesRepository();
     const service = createService({ exercisesRepository: repository });
@@ -84,8 +83,6 @@ describe("exercises service", () => {
     expect(repository.update).toHaveBeenCalledTimes(1);
   });
 
-=======
->>>>>>> origin/main
   it("filters exercises by date", async () => {
     const service = createService();
     await service.createExercise(1, baseInput);
@@ -166,8 +163,4 @@ describe("sumExercises", () => {
     ]);
     expect(total).toBe(350);
   });
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> origin/main
