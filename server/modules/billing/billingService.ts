@@ -1,6 +1,7 @@
 import type { User } from "../../../drizzle/schema";
 import {
   createBillingSubscription,
+  findBillingEvent,
   findBillingPlanByCode,
   findBillingPlanById,
   findLatestSubscriptionByUserId,
@@ -191,16 +192,8 @@ export async function processBillingWebhook(input: BillingWebhookInput) {
     throw new BillingError("INVALID_WEBHOOK_SIGNATURE", "Assinatura do webhook inválida.");
   }
 
-  const eventRegistration = recordBillingEvent({
-    provider: input.provider,
-    providerEventId: input.providerEventId,
-    eventType: input.eventType,
-    userId: input.userId ?? null,
-    subscriptionId: null,
-    payloadJson,
-  });
-
-  if (eventRegistration.duplicate) {
+  const existingEvent = findBillingEvent(input.provider, input.providerEventId);
+  if (existingEvent) {
     const subscription = input.providerSubscriptionId
       ? findSubscriptionByProviderSubscriptionId(input.providerSubscriptionId)
       : input.userId
@@ -218,7 +211,7 @@ export async function processBillingWebhook(input: BillingWebhookInput) {
     : input.userId
       ? findLatestSubscriptionByUserId(input.userId)
       : null;
-  let plan = input.planCode ? findBillingPlanByCode(input.planCode) : subscription ? findBillingPlanById(subscription.planId) : null;
+  const plan = input.planCode ? findBillingPlanByCode(input.planCode) : subscription ? findBillingPlanById(subscription.planId) : null;
 
   if (!subscription && input.userId && plan) {
     subscription = createBillingSubscription({
@@ -247,6 +240,16 @@ export async function processBillingWebhook(input: BillingWebhookInput) {
     currentPeriodStart: status === "active" ? occurredAt : subscription.currentPeriodStart,
     currentPeriodEnd: periodEnd,
     cancelAtPeriodEnd: status === "canceled" || status === "expired" ? false : subscription.cancelAtPeriodEnd,
+  });
+
+  recordBillingEvent({
+    provider: input.provider,
+    providerEventId: input.providerEventId,
+    eventType: input.eventType,
+    userId: updated?.userId ?? subscription.userId,
+    subscriptionId: updated?.id ?? subscription.id,
+    payloadJson,
+    processedAt: new Date(),
   });
 
   return {
