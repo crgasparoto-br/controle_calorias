@@ -102,6 +102,7 @@ export function normalizeReportDay(day: unknown, fallbackGoal?: Record<string, u
 }
 
 export function extractWeeklyReportDays(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
   if (!isObjectRecord(value)) return [];
 
   const candidates = [value.weekly, value.weeklyReport, value.days, value.daily];
@@ -109,7 +110,7 @@ export function extractWeeklyReportDays(value: unknown): unknown[] {
 }
 
 export function validateWeeklyReportData(value: unknown): WeeklyReportValidation {
-  if (!isObjectRecord(value)) {
+  if (!Array.isArray(value) && !isObjectRecord(value)) {
     return { renderable: false, days: [], reason: "missing_weekly_envelope" };
   }
 
@@ -144,10 +145,5 @@ export function validateWeeklyReportData(value: unknown): WeeklyReportValidation
     }
   }
 
-  const days = rawDays.map(day => normalizeReportDay(day));
-  if (!days.some(hasReportDayActivity)) {
-    return { renderable: false, days: [], reason: "empty_weekly_summary" };
-  }
-
-  return { renderable: true, days, reason: null };
+  return { renderable: true, days: rawDays.map(day => normalizeReportDay(day)), reason: null };
 }

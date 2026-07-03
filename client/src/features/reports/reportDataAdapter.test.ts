@@ -52,17 +52,21 @@ describe("weekly report data adapter", () => {
     expect(validation.days).toHaveLength(7);
   });
 
-  it("rejeita array semanal puro para forçar fallback com dados de apoio", () => {
-    expect(validateWeeklyReportData(validWeek({ calories: 1800 }))).toMatchObject({
-      renderable: false,
-      reason: "missing_weekly_envelope",
-    });
+  it("aceita o array semanal puro retornado por reports.weekly", () => {
+    const week = validWeek({ calories: 1800 });
+    const validation = validateWeeklyReportData(week);
+
+    expect(validation.renderable).toBe(true);
+    expect(validation.days).toHaveLength(7);
+    expect(extractWeeklyReportDays(week)).toBe(week);
   });
 
-  it("envia semana totalmente zerada para fallback antes de renderizar", () => {
+  it("aceita semana totalmente zerada como estado vazio legítimo", () => {
     const validation = validateWeeklyReportData({ weekly: validWeek() });
 
-    expect(validation).toMatchObject({ renderable: false, reason: "empty_weekly_summary" });
+    expect(validation.renderable).toBe(true);
+    expect(validation.days).toHaveLength(7);
+    expect(validation.days.every(day => day.calories === 0 && day.waterConsumedMl === 0)).toBe(true);
   });
 
   it("considera água, exercícios e qualidade como atividade renderizável", () => {
@@ -72,7 +76,7 @@ describe("weekly report data adapter", () => {
   });
 
   it("rejeita retorno vazio ou semana incompleta", () => {
-    expect(validateWeeklyReportData([])).toMatchObject({ renderable: false, reason: "missing_weekly_envelope" });
+    expect(validateWeeklyReportData([])).toMatchObject({ renderable: false, reason: "expected_7_days" });
     expect(validateWeeklyReportData({ weekly: validWeek().slice(0, 6) })).toMatchObject({ renderable: false, reason: "expected_7_days" });
   });
 
@@ -81,13 +85,13 @@ describe("weekly report data adapter", () => {
     expect(validateWeeklyReportData({ weekly: validWeek({ calories: "não numérico" }) })).toMatchObject({ renderable: false, reason: "invalid_calories" });
   });
 
-  it("extrai dias dos formatos envelopados aceitos", () => {
+  it("extrai dias dos formatos aceitos", () => {
     const week = validWeek({ calories: 1800 });
 
     expect(extractWeeklyReportDays({ weekly: week })).toBe(week);
     expect(extractWeeklyReportDays({ weeklyReport: week })).toBe(week);
     expect(extractWeeklyReportDays({ days: week })).toBe(week);
     expect(extractWeeklyReportDays({ daily: week })).toBe(week);
-    expect(extractWeeklyReportDays(week)).toEqual([]);
+    expect(extractWeeklyReportDays(week)).toBe(week);
   });
 });
