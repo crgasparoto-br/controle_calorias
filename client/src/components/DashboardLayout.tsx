@@ -24,6 +24,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   Apple,
   BarChart3,
+  CreditCard,
   Database,
   Goal,
   HeartPulse,
@@ -102,6 +103,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const isRegisterRoute = location === "/record" || location === "/log-meal" || location === "/registrar";
   const isRecordsRoute = location === "/meals";
   const isReportsRoute = location === "/reports";
+  const isSubscriptionRoute = location === "/assinatura" || location === "/subscription";
   const isSettingsRoute = location === "/settings" || location === "/onboarding";
   const hasActiveProfessionalProfile = Boolean(user?.professionalProfileActive);
 
@@ -111,6 +113,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       { icon: MessageSquareMore, label: "Registrar", path: "/registrar" },
       { icon: ListChecks, label: "Registros", path: "/meals" },
       { icon: BarChart3, label: "Relatórios", path: "/reports" },
+      { icon: CreditCard, label: "Assinatura", path: "/assinatura" },
       { icon: Apple, label: "Alimentos", path: "/foods" },
       { icon: Goal, label: "Metas nutricionais", path: "/goals" },
       { icon: HeartPulse, label: "Integrações", path: "/health-integrations" },
@@ -139,6 +142,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       return isRegisterRoute;
     }
 
+    if (item.path === "/assinatura") {
+      return isSubscriptionRoute;
+    }
+
     if (item.path === "/settings") {
       return isSettingsRoute;
     }
@@ -165,6 +172,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               const isActive =
                 (item.path === "/today" && isTodayRoute) ||
                 (item.path === "/registrar" && isRegisterRoute) ||
+                (item.path === "/assinatura" && isSubscriptionRoute) ||
                 (item.path === "/settings" && isSettingsRoute) ||
                 item.path === location;
 
