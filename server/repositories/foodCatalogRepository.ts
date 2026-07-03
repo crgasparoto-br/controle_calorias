@@ -24,6 +24,9 @@ export type FoodCatalogInsertInput = {
   isFruit: number;
   isVegetable: number;
   isUltraProcessed: number;
+  processingLevel?: FoodCatalogRow["processingLevel"];
+  classificationSource?: string | null;
+  classificationConfidence?: number | null;
   isUserCreated: number;
   createdByUserId: number;
 };

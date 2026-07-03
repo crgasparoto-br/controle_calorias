@@ -44,8 +44,8 @@ function groupMealsByDate(meals: Awaited<ReturnType<typeof listUserMeals>>) {
     }));
 }
 
-function buildWeeklyQuality(weekly: Awaited<ReturnType<typeof buildWeeklyReportSummary>>) {
-  const totals = weekly.reduce(
+function buildAggregateQuality(days: Array<{ date: string; quality?: ReturnType<typeof calculateQualityIndicators> }>) {
+  const totals = days.reduce(
     (acc, day) => {
       acc.proteinGrams += day.quality?.proteinGrams ?? 0;
       acc.fiberGrams += day.quality?.fiberGrams ?? 0;
@@ -80,7 +80,7 @@ function buildWeeklyQuality(weekly: Awaited<ReturnType<typeof buildWeeklyReportS
     ultraProcessedServings: totals.ultraProcessedServings,
     mealCount: totals.mealCount,
     regularityScore: totals.regularityScore,
-    foodQuality: calculateFoodQualitySummary(totals.foodQualityDays, weekly.length),
+    foodQuality: calculateFoodQualitySummary(totals.foodQualityDays, days.length),
   };
 }
 
@@ -624,7 +624,7 @@ export async function getDashboardOverview(userId: number) {
     { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
   );
   const weeklyBurnedCalories = weekly.reduce((acc, day) => acc + day.exerciseCalories, 0);
-  const weeklyQuality = buildWeeklyQuality(weekly);
+  const weeklyQuality = buildAggregateQuality(weekly);
 
   return {
     goal,
@@ -751,7 +751,16 @@ export async function getDashboardTodayOverview(userId: number, options: { date?
 }
 
 export async function getWeeklyReport(userId: number, weekOffset = 0) {
-  return buildWeeklyReportSummary(userId, weekOffset);
+  const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
+  const [weekly, fallbackProgress] = await Promise.all([
+    buildWeeklyReportSummary(userId, weekOffset),
+    getWeeklyProgress(userId),
+  ]);
+
+  return {
+    weekly,
+    weightTrend: buildWeightTrendForDates(fallbackProgress.weight.entries, dateKeys),
+  };
 }
 
 export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
@@ -789,7 +798,7 @@ export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
     progress,
     insights: buildWeeklyInsights(progress, weeklyMeals),
     mealsByDate: groupMealsByDate(weeklyMeals),
-    quality: buildWeeklyQuality(weekly),
+    quality: buildAggregateQuality(weekly),
   };
 }
 
@@ -809,16 +818,16 @@ export async function getPeriodReportBundle(
   const totals = calculateDayTotals(meals);
   const mealsByDate = groupMealsByDate(meals);
   const foodLookup = await buildFoodLookupForMeals(userId, rangeData.mealsByDay);
-  const foodQualityDays: FoodQualityDay[] = [];
   const daily = dates.map((date, index) => {
     const planned = goalsByDate[index]?.today ?? goalsByDate[0].today;
     const dailyMeals = rangeData.mealsByDay[index] ?? [];
     const dailyExercises = rangeData.exercisesByDay[index] ?? [];
+    const dailyWaterLogs = rangeData.waterLogsByDay[index] ?? [];
     const dailyTotals = calculateDayTotals(dailyMeals);
-    const dailyQuality = calculateQualityIndicators(dailyMeals, 0, foodLookup);
+    const waterConsumedMl = dailyWaterLogs.reduce((total, log) => total + Number(log.amountMl ?? 0), 0);
+    const dailyQuality = calculateQualityIndicators(dailyMeals, waterConsumedMl, foodLookup);
     const exerciseCalories = dailyExercises.reduce((total, exercise) => total + Number(exercise.caloriesBurned ?? 0), 0);
     const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, exerciseCalories);
-    foodQualityDays.push({ date, items: dailyQuality.foodQualityItems });
 
     return {
       date,
@@ -828,6 +837,7 @@ export async function getPeriodReportBundle(
       carbs: roundNutritionValue(dailyTotals.carbs),
       fat: roundNutritionValue(dailyTotals.fat),
       exerciseCalories: roundNutritionValue(exerciseCalories),
+      quality: dailyQuality,
       goalCalories: planned.calories,
       adjustedGoalCalories,
       goalProtein: planned.proteinGrams,
@@ -864,9 +874,7 @@ export async function getPeriodReportBundle(
     daily,
     mealsByDate,
     habitAnalytics,
-    quality: {
-      foodQuality: calculateFoodQualitySummary(foodQualityDays, dates.length),
-    },
+    quality: buildAggregateQuality(daily),
     weightTrend,
   };
 }

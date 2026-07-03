@@ -15,6 +15,13 @@ type AiInputContentItem =
       detail: "high";
     };
 
+const foodProcessingLevelEnum = z.enum([
+  "natural_or_minimally_processed",
+  "processed_culinary_ingredient",
+  "processed",
+  "ultra_processed",
+]);
+
 const mealExtractionSchema = z.object({
   mealLabel: z.string().trim().min(1).max(80),
   confidence: z.number().min(0).max(1),
@@ -33,6 +40,12 @@ const mealExtractionSchema = z.object({
       fat: z.number().min(0).max(1000),
     }),
     confidence: z.number().min(0).max(1),
+    foodClassification: z.object({
+      processingLevel: foodProcessingLevelEnum,
+      isFruit: z.boolean(),
+      isVegetable: z.boolean(),
+      fiberGrams: z.number().min(0).max(100),
+    }),
   })),
 });
 
@@ -68,6 +81,25 @@ const mealExtractionJsonSchema = {
             required: ["protein", "carbs", "fat"],
           },
           confidence: { type: "number", minimum: 0, maximum: 1 },
+          foodClassification: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              processingLevel: {
+                type: "string",
+                enum: [
+                  "natural_or_minimally_processed",
+                  "processed_culinary_ingredient",
+                  "processed",
+                  "ultra_processed",
+                ],
+              },
+              isFruit: { type: "boolean" },
+              isVegetable: { type: "boolean" },
+              fiberGrams: { type: "number", minimum: 0, maximum: 100 },
+            },
+            required: ["processingLevel", "isFruit", "isVegetable", "fiberGrams"],
+          },
         },
         required: [
           "foodName",
@@ -78,7 +110,8 @@ const mealExtractionJsonSchema = {
           "estimatedGrams",
           "estimatedCalories",
           "estimatedMacros",
-          "confidence"
+          "confidence",
+          "foodClassification"
         ],
       },
     },
@@ -171,6 +204,13 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
         "Alimentos ricos em amido (arroz, batata, massa, pão) costumam ter maior volume e peso no prato; calibre sua estimativa de gramas levando em conta a densidade típica desses alimentos.",
         "Ao estimar porções, prefira valores em gramas (estimatedGrams) a descrições vagas como '1 porção'; use referências visuais de escala para chegar a um número realista.",
         "Se houver tabela nutricional visível no rótulo, extraia os valores textuais com precisão de OCR — leia cada número individualmente e use-os diretamente em estimatedCalories e estimatedMacros sem arredondamentos desnecessários.",
+        "Para cada item, preencha foodClassification usando a classificação NOVA de processamento de alimentos:",
+        "- natural_or_minimally_processed: alimentos in natura ou minimamente processados (frutas, legumes, verduras, ovos, carnes frescas, grãos, leite, raízes), incluindo quando cortados, congelados ou pasteurizados sem aditivos.",
+        "- processed_culinary_ingredient: ingredientes culinários extraídos de alimentos in natura e usados para temperar/cozinhar (óleo, manteiga, açúcar, sal, farinha, vinagre).",
+        "- processed: alimentos com poucos ingredientes adicionados via processos simples (pão caseiro/de padaria, queijos, conservas em salmoura, embutidos artesanais, enlatados simples).",
+        "- ultra_processed: formulações industriais com múltiplos ingredientes refinados e aditivos (refrigerantes, salgadinhos industrializados, embutidos industriais, macarrão instantâneo, biscoitos, sorvetes, produtos com muitos aditivos/conservantes).",
+        "Marque isFruit e isVegetable apenas quando o item for de fato uma fruta ou um legume/verdura consumido como tal (não marque sucos industrializados ou preparações compostas como fruta/vegetal puro).",
+        "Estime fiberGrams como a quantidade de fibra alimentar (em gramas) presente na porção estimada do item, usando 0 quando não houver fibra relevante (ex.: bebidas, carnes, laticínios).",
       ].join("\n"),
     },
   ];

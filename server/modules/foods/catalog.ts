@@ -193,6 +193,7 @@ export function createFoodsService(deps: {
           carbs: row.carbs,
           fat: row.fat,
           fiber: row.fiber,
+          processingLevel: row.processingLevel ?? undefined,
           isFruit: row.isFruit === 1,
           isVegetable: row.isVegetable === 1,
           isUltraProcessed: row.isUltraProcessed === 1,
@@ -395,7 +396,50 @@ export function createFoodsService(deps: {
     return updated;
   }
 
-  async function resolveFoodCatalogIds(items: MealDraftItem[]) {
+  function buildAutoClassifiedCatalogSlug(userId: number, name: string) {
+    const base = normalizeCatalogText(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "alimento";
+    return `user-${userId}-${base}-${Date.now()}-${Math.round(Math.random() * 1e6)}`.slice(0, 128);
+  }
+
+  async function createAutoClassifiedCatalogEntry(userId: number, item: MealDraftItem) {
+    const classification = item.classification;
+    if (!classification || !item.estimatedGrams || item.estimatedGrams <= 0) {
+      return null;
+    }
+
+    try {
+      const foodId = await deps.foodCatalogRepository.insert({
+        slug: buildAutoClassifiedCatalogSlug(userId, item.canonicalName || item.foodName),
+        name: item.canonicalName || item.foodName,
+        aliases: JSON.stringify([item.foodName].filter(Boolean)),
+        brandName: item.brand ?? null,
+        foodType: "generic",
+        dataSource: "ai_estimated",
+        servingLabel: item.portionText || `${item.estimatedGrams} g`,
+        servingUnit: item.unit || "g",
+        gramsPerServing: item.estimatedGrams,
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+        fiber: classification.fiberGrams,
+        isFruit: classification.isFruit ? 1 : 0,
+        isVegetable: classification.isVegetable ? 1 : 0,
+        isUltraProcessed: classification.processingLevel === "ultra_processed" ? 1 : 0,
+        processingLevel: classification.processingLevel,
+        classificationSource: "ai_estimated",
+        classificationConfidence: item.confidence,
+        isUserCreated: 1,
+        createdByUserId: userId,
+      });
+      return foodId > 0 ? foodId : null;
+    } catch (error) {
+      deps.onWarning("Auto food classification persistence skipped", error);
+      return null;
+    }
+  }
+
+  async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number) {
     const db = await deps.getDb();
     if (!db || !items.length) {
       return new Map<string, number>();
@@ -432,6 +476,16 @@ export function createFoodsService(deps: {
         if (resolvedId) {
           setResolvedCatalogId(resolved, item.canonicalName, resolvedId);
           setResolvedCatalogId(resolved, item.foodName, resolvedId);
+          continue;
+        }
+
+        if (!resolved.has(directKey) && !resolved.has(fallbackKey)) {
+          const createdId = await createAutoClassifiedCatalogEntry(userId, item);
+          if (createdId) {
+            catalogIndex.set(directKey, createdId);
+            setResolvedCatalogId(resolved, item.canonicalName, createdId);
+            setResolvedCatalogId(resolved, item.foodName, createdId);
+          }
         }
       }
       return resolved;

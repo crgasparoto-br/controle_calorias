@@ -364,7 +364,7 @@ describe("nutrition router", () => {
     const today = await caller.nutrition.dashboard.today();
     const dashboard = await caller.nutrition.dashboard.overview();
     const weeklyView = await caller.nutrition.reports.weeklyProgress();
-    const weeklyReport = await caller.nutrition.reports.weekly();
+    const weeklyReport = (await caller.nutrition.reports.weekly()).weekly;
 
     expect(dayTotals.totals).toEqual(editedMeal.totals);
     expect(today.today.goal.calories).toBe(2200);
@@ -401,7 +401,7 @@ describe("nutrition router", () => {
     });
 
     const overview = await caller.nutrition.dashboard.overview();
-    const weekly = await caller.nutrition.reports.weekly();
+    const weekly = (await caller.nutrition.reports.weekly()).weekly;
     const admin = await caller.nutrition.admin.overview();
 
     expect(savedMeal.items.length).toBe(simulated.processed.items.length);
@@ -489,7 +489,7 @@ describe("nutrition router", () => {
     await caller.nutrition.water.create({ amountMl: 300, occurredAt: "2026-04-22T16:00:00.000Z" });
 
     const overview = await caller.nutrition.dashboard.overview();
-    const weekly = await caller.nutrition.reports.weekly();
+    const weekly = (await caller.nutrition.reports.weekly()).weekly;
 
     expect(overview.today.quality.fiberGrams).toBe(2.6);
     expect(overview.today.quality.fruitServings).toBe(1);
@@ -561,7 +561,7 @@ describe("nutrition router", () => {
       });
       await caller.nutrition.water.create({ amountMl: 250, occurredAt: "2026-04-22T00:50:00-03:00" });
 
-      const weekly = await caller.nutrition.reports.weekly();
+      const weekly = (await caller.nutrition.reports.weekly()).weekly;
       const overview = await caller.nutrition.dashboard.overview();
       const progress = await caller.nutrition.reports.weeklyProgress();
       const localDay = weekly.find(day => day.date === "2026-04-22");
@@ -1087,7 +1087,7 @@ describe("nutrition router", () => {
 
     const exerciseList = await caller.nutrition.exercises.list();
     const overview = await caller.nutrition.dashboard.overview();
-    const weekly = await caller.nutrition.reports.weekly();
+    const weekly = (await caller.nutrition.reports.weekly()).weekly;
 
     expect(exerciseList).toHaveLength(1);
     expect(exerciseList[0]?.activityType).toBe("Corrida leve");
@@ -1109,7 +1109,7 @@ describe("nutrition router", () => {
     });
     const updatedListAfterEdit = await caller.nutrition.exercises.list();
     const overviewAfterEdit = await caller.nutrition.dashboard.overview();
-    const weeklyAfterEdit = await caller.nutrition.reports.weekly();
+    const weeklyAfterEdit = (await caller.nutrition.reports.weekly()).weekly;
 
     expect(updatedExercise.activityType).toBe("Corrida moderada");
     expect(updatedExercise.caloriesBurned).toBe(410);

@@ -228,7 +228,7 @@ describe("insights food quality report integration", () => {
     ]);
     dbMocks.searchFoods.mockResolvedValue([foodSearchItem()]);
 
-    const weekly = await getWeeklyReport(77);
+    const { weekly } = await getWeeklyReport(77);
     const dayWithMeal = weekly.find(day => day.calories > 0);
 
     expect(dbMocks.searchFoods).not.toHaveBeenCalled();

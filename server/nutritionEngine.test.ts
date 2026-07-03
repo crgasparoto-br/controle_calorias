@@ -33,6 +33,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 999,
             },
             confidence: 0.95,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
           {
             foodName: "molho pesto",
@@ -46,6 +47,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 11,
             },
             confidence: 0.72,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
         ],
       }),
@@ -114,6 +116,7 @@ describe("nutritionEngine.processMealInput", () => {
         fat: 3,
       },
       confidence: 0.8,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
     }));
 
     createTextResponseMock.mockResolvedValue({
@@ -214,6 +217,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 14,
             },
             confidence: 0.75,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
         ],
       }),
@@ -255,6 +259,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 0.2,
             },
             confidence: 0.9,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
           {
             foodName: "whey protein",
@@ -268,6 +273,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 2,
             },
             confidence: 0.72,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
         ],
       }),
@@ -309,6 +315,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 0.3,
             },
             confidence: 0.9,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
         ],
       }),
@@ -347,6 +354,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 10,
             },
             confidence: 0.88,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
         ],
       }),
@@ -399,6 +407,7 @@ describe("nutritionEngine.processMealInput", () => {
               fat: 7,
             },
             confidence: 0.84,
+              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
         ],
       }),

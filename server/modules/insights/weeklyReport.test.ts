@@ -111,7 +111,7 @@ describe("weekly report summary contract", () => {
   it("retorna 7 dias zerados quando a semana não possui registros", async () => {
     dbMocks.listUserMeals.mockResolvedValue([]);
 
-    const report = await getWeeklyReport(77, 0);
+    const { weekly: report } = await getWeeklyReport(77, 0);
 
     expect(report).toHaveLength(7);
     expect(dbMocks.listUserMeals).toHaveBeenCalledTimes(1);
@@ -124,7 +124,7 @@ describe("weekly report summary contract", () => {
   it("inclui exercícios no resumo semanal e na meta ajustada", async () => {
     dbMocks.listUserExercises.mockResolvedValue([exercise()]);
 
-    const report = await getWeeklyReport(77, 0);
+    const { weekly: report } = await getWeeklyReport(77, 0);
     const exercisedDay = report.find(day => day.exerciseCalories === 300);
 
     expect(dbMocks.listUserExercises).toHaveBeenCalledTimes(1);
@@ -149,7 +149,7 @@ describe("weekly report summary contract", () => {
   it("mantém equivalência básica de totais entre resumo semanal e bundle", async () => {
     dbMocks.listUserMeals.mockResolvedValue([meal()]);
 
-    const [summary, bundle] = await Promise.all([
+    const [{ weekly: summary }, bundle] = await Promise.all([
       getWeeklyReport(77, 0),
       getWeeklyReportBundle(77, 0),
     ]);

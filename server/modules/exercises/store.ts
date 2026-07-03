@@ -62,6 +62,15 @@ export function createExercisesService(deps: {
       .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
   }
 
+  async function listExercisesInRange(userId: number, startAt: Date, endAt: Date) {
+    const dbExercises = await deps.exercisesRepository.findByUserIdAndRange(userId, startAt, endAt);
+    const exercisesForUser = dbExercises ?? (canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : []);
+    return exercisesForUser
+      .filter(exercise => Number(exercise.occurredAt) >= startAt.getTime() && Number(exercise.occurredAt) <= endAt.getTime())
+      .slice()
+      .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
+  }
+
   async function createExercise(userId: number, input: {
     activityType: string;
     durationMinutes: number;
@@ -221,6 +230,7 @@ export function createExercisesService(deps: {
   return {
     listExercises,
     listExercisesByDate,
+    listExercisesInRange,
     createExercise,
     updateExercise,
     removeExercise,
