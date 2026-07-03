@@ -345,7 +345,7 @@ function calculateMealRegularityScore(meals: Array<{ mealLabel: string }>) {
 }
 
 function calculateLightQualityIndicators(
-  meals: Array<{ mealLabel: string; items: Array<{ protein?: number | null }> }>,
+  meals: Parameters<typeof calculateQualityIndicators>[0],
   waterMl: number,
 ) {
   if (!meals.length) {
