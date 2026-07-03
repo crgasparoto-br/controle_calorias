@@ -265,6 +265,22 @@ function summarizeExceptionVersions(rows: NutritionGoal[] | null) {
     .sort((first, second) => second.startDate.localeCompare(first.startDate) || first.weekday - second.weekday);
 }
 
+type GoalRowsContext = {
+  rows: NutritionGoal[] | null;
+  versions: ReturnType<typeof summarizeDefaultVersions>;
+  exceptionVersions: ReturnType<typeof summarizeExceptionVersions>;
+};
+
+const inFlightGoalContextByUserId = new Map<number, Promise<GoalRowsContext>>();
+
+function buildGoalRowsContext(rows: NutritionGoal[] | null): GoalRowsContext {
+  return {
+    rows,
+    versions: summarizeDefaultVersions(rows),
+    exceptionVersions: summarizeExceptionVersions(rows),
+  };
+}
+
 function findConflictingExceptionVersion(_rows: NutritionGoal[], versionRows: NutritionGoal[]) {
   const seenVersions = new Set<string>();
 
@@ -347,6 +363,7 @@ function buildGoalSummaryForReferenceDate(rows: NutritionGoal[], userId: number,
   const today = buildGoalDayView(rows, userId, referenceDate) ?? days[0];
   const defaultGoal = resolveDefaultGoalForDate(rows, referenceDate) ?? rows.find(row => row.ruleType === "default");
   const currentTime = referenceDate.getTime();
+  const activeException = resolveExceptionForDate(rows, referenceDate);
   const exceptions = rows
     .filter(row => row.ruleType === "exception" && (!row.effectiveUntil || new Date(row.effectiveUntil).getTime() > currentTime))
     .sort(sortByEffectiveDateDesc)
@@ -354,7 +371,7 @@ function buildGoalSummaryForReferenceDate(rows: NutritionGoal[], userId: number,
       ...rule,
       label: WEEKDAY_META[rule.weekday]?.label ?? "Dia",
       shortLabel: WEEKDAY_META[rule.weekday]?.shortLabel ?? "dia",
-      isActive: resolveExceptionForDate(rows, referenceDate)?.id === rule.id,
+      isActive: activeException?.id === rule.id,
     }));
 
   if (!defaultGoal || !today) {
@@ -393,10 +410,25 @@ async function listGoalRows(userId: number) {
   return request;
 }
 
+async function listGoalContext(userId: number) {
+  const current = inFlightGoalContextByUserId.get(userId);
+  if (current) {
+    return current;
+  }
+
+  const request = listGoalRows(userId)
+    .then(buildGoalRowsContext)
+    .finally(() => {
+      inFlightGoalContextByUserId.delete(userId);
+    });
+  inFlightGoalContextByUserId.set(userId, request);
+  return request;
+}
+
 export async function getNutritionGoal(userId: number) {
-  const [goal, rows] = await Promise.all([
+  const [goal, context] = await Promise.all([
     getUserNutritionGoal(userId),
-    listGoalRows(userId),
+    listGoalContext(userId),
   ]);
   const assessment = assessNutritionGoalInput({
     defaultGoal: goal.defaultGoal,
@@ -406,14 +438,15 @@ export async function getNutritionGoal(userId: number) {
   return {
     ...goal,
     startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
-    versions: summarizeDefaultVersions(rows),
-    exceptionVersions: summarizeExceptionVersions(rows),
+    versions: context.versions,
+    exceptionVersions: context.exceptionVersions,
     safetyWarnings: assessment.warnings,
   };
 }
 
 export async function getNutritionGoalForDate(userId: number, date: string) {
-  const rows = await listGoalRows(userId);
+  const context = await listGoalContext(userId);
+  const { rows } = context;
   if (!rows?.length) {
     const goal = await getNutritionGoal(userId);
     const weekday = getUtcWeekdayIndex(logicalUtcDate(date));
@@ -438,8 +471,8 @@ export async function getNutritionGoalForDate(userId: number, date: string) {
   return {
     ...goal,
     startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
-    versions: summarizeDefaultVersions(rows),
-    exceptionVersions: summarizeExceptionVersions(rows),
+    versions: context.versions,
+    exceptionVersions: context.exceptionVersions,
     safetyWarnings: assessment.warnings,
   };
 }
@@ -481,7 +514,7 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
   await nutritionGoalsRepository.createVersionForUser(userId, versionRows, startOfUtcDate(startDate));
 
   const goal = await getUserNutritionGoal(userId);
-  const savedRows = await listGoalRows(userId);
+  const savedContext = await listGoalContext(userId);
   const savedAssessment = assessNutritionGoalInput({
     defaultGoal: goal.defaultGoal,
     exceptions: goal.exceptions,
@@ -490,8 +523,8 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
   return {
     ...goal,
     startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
-    versions: summarizeDefaultVersions(savedRows),
-    exceptionVersions: summarizeExceptionVersions(savedRows),
+    versions: savedContext.versions,
+    exceptionVersions: savedContext.exceptionVersions,
     safetyWarnings: savedAssessment.warnings,
   };
 }
