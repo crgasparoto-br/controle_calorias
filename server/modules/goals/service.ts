@@ -78,6 +78,8 @@ const nutritionGoalsRepository = createDrizzleNutritionGoalsRepository({
   },
 });
 
+const inFlightGoalRowsByUserId = new Map<number, Promise<NutritionGoal[] | null>>();
+
 function todayDateKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -378,7 +380,17 @@ function buildGoalSummaryForReferenceDate(rows: NutritionGoal[], userId: number,
 }
 
 async function listGoalRows(userId: number) {
-  return nutritionGoalsRepository.findByUserId(userId);
+  const current = inFlightGoalRowsByUserId.get(userId);
+  if (current) {
+    return current;
+  }
+
+  const request = nutritionGoalsRepository.findByUserId(userId)
+    .finally(() => {
+      inFlightGoalRowsByUserId.delete(userId);
+    });
+  inFlightGoalRowsByUserId.set(userId, request);
+  return request;
 }
 
 export async function getNutritionGoal(userId: number) {
