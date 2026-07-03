@@ -82,7 +82,7 @@ describe("billing service", () => {
     expect(getUserSubscriptionStatus(user.id).status).toBe("active");
   });
 
-  it("rejeita webhook inválido e registra evento para auditoria", async () => {
+  it("rejeita webhook inválido e registra evento para auditoria sem bloquear o evento válido", async () => {
     process.env.BILLING_WEBHOOK_SECRET = "secret-for-tests";
 
     await expect(processBillingWebhook({
@@ -97,7 +97,7 @@ describe("billing service", () => {
     })).rejects.toMatchObject({ code: "INVALID_WEBHOOK_SIGNATURE" });
 
     expect(listBillingEventsForTests()).toEqual([
-      expect.objectContaining({ providerEventId: "evt-invalid", processingError: "invalid_signature" }),
+      expect.objectContaining({ providerEventId: "invalid:evt-invalid", processingError: "invalid_signature" }),
     ]);
   });
 
