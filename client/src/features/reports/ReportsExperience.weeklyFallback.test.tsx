@@ -1,4 +1,5 @@
 import React from "react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -156,6 +157,7 @@ describe("ReportsExperience weekly summary fallback", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
   });
 
@@ -203,9 +205,11 @@ describe("ReportsExperience weekly summary fallback", () => {
     reportQueryState.forcedScope = "range";
     const { default: ReportsExperience } = await import("./ReportsExperience");
 
-    const html = renderToString(React.createElement(ReportsExperience));
+    render(React.createElement(ReportsExperience));
 
-    expect(html).toContain("Escolha um período de até 90 dias para carregar os relatórios.");
-    expect(reportQueryState.periodBundleCalls[0]?.options.enabled).toBe(false);
+    await waitFor(() => {
+      expect(screen.getByText("Escolha um período de até 90 dias para carregar os relatórios.")).toBeTruthy();
+    });
+    expect(reportQueryState.periodBundleCalls.at(-1)?.options.enabled).toBe(false);
   });
 });
