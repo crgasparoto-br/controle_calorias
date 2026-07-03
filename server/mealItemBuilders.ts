@@ -103,6 +103,7 @@ export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
     fat: roundNutritionValue(llmItem.estimatedMacros.fat),
     confidence: clampConfidence(llmItem.confidence),
     source: "hybrid",
+    classification: llmItem.foodClassification ?? null,
   };
 }
 

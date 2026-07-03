@@ -52,6 +52,37 @@ describe("exercises service", () => {
     expect(exercises.map(exercise => exercise.activityType)).toEqual(["Bike", "Corrida"]);
   });
 
+  it("updates an existing external exercise instead of creating a duplicate", async () => {
+    const repository = createFakeExercisesRepository();
+    const service = createService({ exercisesRepository: repository });
+    const created = await service.createExercise(1, {
+      ...baseInput,
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:123.",
+      externalProvider: "strava",
+      externalId: "123",
+    });
+
+    const updated = await service.createExercise(1, {
+      ...baseInput,
+      caloriesBurned: 350,
+      notes: "Importado automaticamente do Strava. Referencia externa: strava:123. Calorias: 350 kcal.",
+      externalProvider: "strava",
+      externalId: "123",
+    });
+
+    const exercises = await service.listExercises(1);
+    expect(updated.id).toBe(created.id);
+    expect(updated.externalImportStatus).toBe("updated");
+    expect(exercises).toHaveLength(1);
+    expect(exercises[0]).toMatchObject({
+      id: created.id,
+      caloriesBurned: 350,
+      externalProvider: "strava",
+      externalId: "123",
+    });
+    expect(repository.update).toHaveBeenCalledTimes(1);
+  });
+
   it("filters exercises by date", async () => {
     const service = createService();
     await service.createExercise(1, baseInput);

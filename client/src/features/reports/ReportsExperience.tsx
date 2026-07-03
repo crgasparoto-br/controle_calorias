@@ -3,6 +3,7 @@ import PageIntro from "@/components/PageIntro";
 import { PeriodScopeSelector } from "@/components/PeriodScopeSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RegisteredMealGroups } from "@/features/meals/components";
@@ -13,7 +14,6 @@ import {
   filterMealsByDateRange,
 } from "@/features/meals/mealViewModels";
 import type { StoredMeal } from "@/features/meals/types";
-import FoodQualityUnclassifiedDiagnostics from "@/features/reports/FoodQualityUnclassifiedDiagnostics";
 import {
   ReportEmptyState,
   ReportExerciseAnalyticsCard,
@@ -26,6 +26,14 @@ import {
   type ReportTrendDay,
 } from "@/features/reports/ReportAnalyticsSections";
 import ReportsSupportInsightsSection from "@/features/reports/ReportsSupportInsightsSection";
+import {
+  MAX_REPORT_RANGE_DAYS,
+  type ReportDay,
+  type ReportTotals as Totals,
+  normalizeReportDay,
+  numberValue,
+  validateWeeklyReportData,
+} from "@/features/reports/reportDataAdapter";
 import {
   countDaysInRange,
   formatRangeLabel,
@@ -44,7 +52,9 @@ import {
   calculateFoodQualitySummary,
   calculateMacroAdherence,
   calculateMacroDaySummary,
+  type FoodQualityCategoryItem,
   type FoodQualityDay,
+  type FoodQualityDistributionItem,
   type FoodQualitySummary,
   type MacroGoalDay,
   type MacroTotals,
@@ -55,9 +65,7 @@ const ReportsMacroDistributionChart = React.lazy(() => import("@/features/report
 
 type ReportsExperienceContext = "self" | "professional";
 type MealDateGroup = { date: string; items: StoredMeal[] };
-type Totals = { calories: number; protein: number; carbs: number; fat: number };
 type DateRange = { start: string; end: string };
-type ReportDay = Totals & { date: string; label: string; goalCalories: number; adjustedGoalCalories: number; goalProtein: number; goalCarbs: number; goalFat: number; waterConsumedMl: number; waterGoalMl: number; exerciseCalories: number; quality?: any };
 type TrendDay = ReportTrendDay & { baseGoalCalories: number; exerciseCalories: number; calorieDelta: number; adherencePercent: number };
 type WeightPoint = { date: string; weightKg: number | null };
 type MacroGoalDayWithDate = MacroGoalDay & { date: string };
@@ -70,11 +78,6 @@ const EMPTY_TOTALS: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 const EMPTY_QUALITY = { proteinGrams: 0, fiberGrams: 0, waterMl: 0, fruitServings: 0, vegetableServings: 0, ultraProcessedServings: 0, mealCount: 0, regularityScore: 0 };
 const MACRO_GOAL_KEYS: Record<keyof MacroTotals, MacroGoalKey> = { protein: "goalProtein", carbs: "goalCarbs", fat: "goalFat" };
 
-function numberValue(value: unknown) {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 function formatDateHeading(date: string) {
   return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "short" });
 }
@@ -83,25 +86,11 @@ function formatChartDateLabel(date: string) {
   return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
-function normalizeDay(day: any, fallbackGoal?: any): ReportDay {
-  const goalCalories = numberValue(day.goalCalories ?? fallbackGoal?.calories);
-  const adjustedGoalCalories = numberValue(day.adjustedGoalCalories ?? day.goalCalories ?? fallbackGoal?.calories);
+function normalizeDisplayDay(day: unknown, fallbackGoal?: Record<string, unknown> | null): ReportDay {
+  const normalized = normalizeReportDay(day, fallbackGoal);
   return {
-    date: String(day.date ?? ""),
-    label: String(day.label ?? (day.date ? formatChartDateLabel(day.date) : "-")),
-    calories: numberValue(day.calories),
-    protein: numberValue(day.protein),
-    carbs: numberValue(day.carbs),
-    fat: numberValue(day.fat),
-    goalCalories,
-    adjustedGoalCalories,
-    goalProtein: numberValue(day.goalProtein ?? fallbackGoal?.protein ?? fallbackGoal?.proteinGrams),
-    goalCarbs: numberValue(day.goalCarbs ?? fallbackGoal?.carbs ?? fallbackGoal?.carbsGrams),
-    goalFat: numberValue(day.goalFat ?? fallbackGoal?.fat ?? fallbackGoal?.fatGrams),
-    waterConsumedMl: numberValue(day.waterConsumedMl),
-    waterGoalMl: numberValue(day.waterGoalMl),
-    exerciseCalories: numberValue(day.exerciseCalories),
-    quality: day.quality,
+    ...normalized,
+    label: normalized.label && normalized.label !== normalized.date ? normalized.label : (normalized.date ? formatChartDateLabel(normalized.date) : "-"),
   };
 }
 
@@ -142,7 +131,7 @@ function buildGroupedMealViewModels(mealsByDate: MealDateGroup[]): DateGroupedRe
   }));
 }
 
-function normalizeMealDateGroups(value: any, range: DateRange): MealDateGroup[] {
+function normalizeMealDateGroups(value: unknown, range: DateRange): MealDateGroup[] {
   return (Array.isArray(value) ? value : [])
     .map((group: any) => ({ date: String(group?.date ?? ""), items: ((group?.items ?? group?.meals ?? []) as StoredMeal[]).filter(Boolean) }))
     .filter(group => group.date >= range.start && group.date <= range.end);
@@ -210,13 +199,13 @@ function findExtreme<T>(items: T[], getValue: (item: T) => number, direction: "m
 }
 
 function normalizeQueryResult(value: any): QueryLike {
-  return { data: value?.data ?? null, isLoading: Boolean(value?.isLoading), isError: Boolean(value?.isError) };
+  return { data: value?.data ?? null, isLoading: Boolean(value?.isLoading), isError: Boolean(value?.isError ?? value?.error) };
 }
 
 function buildQualityFromDays(days: ReportDay[]) {
   const foodQualityDays: FoodQualityDay[] = [];
   const quality = days.reduce((total, day) => {
-    const item = day.quality ?? {};
+    const item = (day.quality ?? {}) as any;
     total.proteinGrams += numberValue(item.proteinGrams);
     total.fiberGrams += numberValue(item.fiberGrams);
     total.waterMl += numberValue(item.waterMl);
@@ -229,6 +218,11 @@ function buildQualityFromDays(days: ReportDay[]) {
     return total;
   }, { ...EMPTY_QUALITY });
   return { simpleQuality: quality, foodQuality: calculateFoodQualitySummary(foodQualityDays, days.length) };
+}
+
+function weeklyDaysFromBundleData(bundleData: any) {
+  if (Array.isArray(bundleData)) return bundleData;
+  return bundleData?.weekly ?? bundleData?.weeklyReport ?? [];
 }
 
 function ChartFallback() {
@@ -248,9 +242,19 @@ function MacroDistributionSection({ consumed, planned, dailyMacros, weightPoints
   return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Macronutrientes planejados vs realizados</CardTitle><CardDescription>Mostra gramas, g/kg/dia e distribuição percentual para avaliar a composição do período, não apenas o total de calorias.</CardDescription></CardHeader><CardContent className="space-y-5">{!hasMacroGoal ? <ReportEmptyState text="Configure metas de proteínas, carboidratos e gorduras para liberar a comparação percentual de macros." /> : <><div className="grid gap-3 md:grid-cols-3"><ReportStatusTile label="Aderência da distribuição" value={formatPercent(analysis.distributionAdherencePercent)} /><ReportStatusTile label="Macro mais distante" value={analysis.mostDistantMacro?.label ?? "-"} /><ReportStatusTile label="Dias com macros" value={daySummary.daysWithMacroRecords} /></div><div className="h-[280px] rounded-2xl border bg-background p-4 shadow-sm"><React.Suspense fallback={<ChartFallback />}><ReportsMacroDistributionChart data={chartData} /></React.Suspense></div><div className="grid gap-3 md:grid-cols-3">{macroDetails.map(({ item, perKg }) => <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm font-medium">{item.label}</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><MacroValueTile label="Planejado" grams={item.plannedGrams} perKg={perKg.planned} /><MacroValueTile label="Realizado" grams={item.consumedGrams} perKg={perKg.realized} /></div><p className="mt-3 text-sm text-muted-foreground">Distribuição: {formatPercent(item.plannedPercent)} planejado vs {formatPercent(item.consumedPercent)} realizado.</p></div>)}</div></>}</CardContent></Card>;
 }
 
+function foodQualityItemLabel(item: FoodQualityCategoryItem) {
+  return item.foodName?.trim() || item.canonicalName?.trim() || item.portionText?.trim() || "Alimento sem identificação";
+}
+
+function FoodQualityItemsDialog({ category, onOpenChange }: { category: FoodQualityDistributionItem | null; onOpenChange: (open: boolean) => void }) {
+  const items = category?.items ?? [];
+  return <Dialog open={Boolean(category)} onOpenChange={onOpenChange}><DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>{category?.label ?? ""}</DialogTitle><DialogDescription>{category ? `${formatCalories(category.calories)} no período, distribuídos entre ${items.length} alimento${items.length === 1 ? "" : "s"}.` : ""}</DialogDescription></DialogHeader>{items.length ? <ul className="space-y-2">{items.map(item => <li key={item.key} className="rounded-xl border bg-muted/10 p-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">{foodQualityItemLabel(item)}</p><span className="shrink-0 text-sm text-muted-foreground">{formatCalories(item.totalCalories)}</span></div><p className="mt-1 text-xs text-muted-foreground">{item.occurrences} ocorrência{item.occurrences === 1 ? "" : "s"} no período{item.portionText ? ` · ${item.portionText}` : ""}</p></li>)}</ul> : <ReportEmptyState text="Nenhum alimento encontrado para esta categoria." />}</DialogContent></Dialog>;
+}
+
 function FoodQualitySection({ quality, simpleQuality, dayCount }: { quality?: FoodQualitySummary; simpleQuality: typeof EMPTY_QUALITY; dayCount: number }) {
   const distribution = quality?.distribution ?? [];
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Leaf className="h-5 w-5 text-primary" />Qualidade alimentar</CardTitle><CardDescription>Indicadores de processamento, fibras, frutas, legumes e regularidade entram como parte central do diagnóstico.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReportStatusTile label="Índice de qualidade" value={quality?.qualityIndex == null ? "-" : formatPercent(quality.qualityIndex)} /><ReportStatusTile label="Ultraprocessados" value={formatPercent(quality?.ultraProcessedCaloriesPercent ?? 0)} /><ReportStatusTile label="In natura/minimamente" value={formatPercent(quality?.naturalOrMinimallyProcessedCaloriesPercent ?? 0)} /><ReportStatusTile label="Não classificados" value={formatPercent(quality?.unclassifiedCaloriesPercent ?? 0)} /></div>{distribution.length ? <div className="grid gap-3 md:grid-cols-3">{distribution.map(item => <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm"><div className="mb-3 flex items-center justify-between gap-3"><p className="text-sm font-medium">{item.label}</p><span className="rounded-full border px-3 py-1 text-xs">{formatPercent(item.percent)}</span></div><Progress className="h-2" value={item.percent} /><p className="mt-3 text-sm text-muted-foreground">{formatCalories(item.calories)} no período.</p></div>)}</div> : <ReportEmptyState text="Ainda não há classificação suficiente para montar a distribuição por processamento neste período." />}<FoodQualityUnclassifiedDiagnostics items={quality?.unclassifiedItems} /><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReportStatusTile label="Dias com frutas" value={`${quality?.fruitDays ?? 0}/${quality?.dayCount ?? dayCount}`} /><ReportStatusTile label="Dias com legumes/verduras" value={`${quality?.vegetableDays ?? 0}/${quality?.dayCount ?? dayCount}`} /><ReportStatusTile label="Fibras" value={`${formatMacro(simpleQuality.fiberGrams)} g`} /><ReportStatusTile label="Regularidade" value={formatPercent(simpleQuality.regularityScore)} /></div></CardContent></Card>;
+  const [selectedCategory, setSelectedCategory] = React.useState<FoodQualityDistributionItem | null>(null);
+  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Leaf className="h-5 w-5 text-primary" />Qualidade alimentar</CardTitle><CardDescription>Indicadores de processamento, fibras, frutas, legumes e regularidade entram como parte central do diagnóstico.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReportStatusTile label="Índice de qualidade" value={quality?.qualityIndex == null ? "-" : formatPercent(quality.qualityIndex)} /><ReportStatusTile label="Ultraprocessados" value={formatPercent(quality?.ultraProcessedCaloriesPercent ?? 0)} /><ReportStatusTile label="In natura/minimamente" value={formatPercent(quality?.naturalOrMinimallyProcessedCaloriesPercent ?? 0)} /><ReportStatusTile label="Não classificados" value={formatPercent(quality?.unclassifiedCaloriesPercent ?? 0)} /></div>{distribution.length ? <div className="grid gap-3 md:grid-cols-3">{distribution.map(item => <button key={item.key} type="button" disabled={!item.items.length} onClick={() => setSelectedCategory(item)} className="rounded-2xl border bg-background p-4 text-left shadow-sm transition-colors enabled:hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"><div className="mb-3 flex items-center justify-between gap-3"><p className="text-sm font-medium">{item.label}</p><span className="rounded-full border px-3 py-1 text-xs">{formatPercent(item.percent)}</span></div><Progress className="h-2" value={item.percent} /><p className="mt-3 text-sm text-muted-foreground">{formatCalories(item.calories)} no período{item.items.length ? ` · ${item.items.length} alimento${item.items.length === 1 ? "" : "s"}` : ""}.</p></button>)}</div> : <ReportEmptyState text="Ainda não há classificação suficiente para montar a distribuição por processamento neste período." />}<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReportStatusTile label="Dias com frutas" value={`${quality?.fruitDays ?? 0}/${quality?.dayCount ?? dayCount}`} /><ReportStatusTile label="Dias com legumes/verduras" value={`${quality?.vegetableDays ?? 0}/${quality?.dayCount ?? dayCount}`} /><ReportStatusTile label="Fibras" value={`${formatMacro(simpleQuality.fiberGrams)} g`} /><ReportStatusTile label="Regularidade" value={formatPercent(simpleQuality.regularityScore)} /></div></CardContent><FoodQualityItemsDialog category={selectedCategory} onOpenChange={open => !open && setSelectedCategory(null)} /></Card>;
 }
 
 function CalorieAdherenceSection({ trendData, dayCount }: { trendData: TrendDay[]; dayCount: number }) {
@@ -280,29 +284,52 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
     if (periodScope === "month") return getMonthRange(selectedMonth);
     return normalizeDateRange(rangeStart, rangeEnd);
   }, [periodScope, rangeEnd, rangeStart, selectedDay, selectedMonth]);
+  const activeRangeDayCount = React.useMemo(() => countDaysInRange(activeRange), [activeRange]);
+  const activeRangeLimitMessage = activeRangeDayCount > MAX_REPORT_RANGE_DAYS
+    ? `Escolha um período de até ${MAX_REPORT_RANGE_DAYS} dias para carregar os relatórios.`
+    : null;
   const weekOffset = React.useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
 
   React.useEffect(() => setShowDetails(false), [activeRange.start, activeRange.end, periodScope, subjectUserId]);
 
+  const isWeek = periodScope === "week";
   const selfWeeklyQuery = trpc.nutrition.reports.weekly;
   const hasWeeklySummaryQuery = Boolean(selfWeeklyQuery);
-  const selfWeeklySummary = normalizeQueryResult(selfWeeklyQuery?.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" && hasWeeklySummaryQuery }));
-  const selfWeeklyDetails = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: !isProfessional && periodScope === "week" && (!hasWeeklySummaryQuery || showDetails) }));
-  const selfPeriodBundle = normalizeQueryResult(trpc.nutrition.reports.periodBundle.useQuery({ startDate: activeRange.start, endDate: activeRange.end }, { enabled: !isProfessional && periodScope !== "week" }));
+  const selfWeeklySummary = normalizeQueryResult(selfWeeklyQuery?.useQuery({ weekOffset }, { enabled: !isProfessional && isWeek && hasWeeklySummaryQuery }));
+  const weeklySummaryContract = React.useMemo(() => validateWeeklyReportData(selfWeeklySummary.data), [selfWeeklySummary.data]);
+  const shouldFallbackFromWeeklySummary = isWeek && !isProfessional && hasWeeklySummaryQuery && (selfWeeklySummary.isError || (!selfWeeklySummary.isLoading && !weeklySummaryContract.renderable));
+  const selfWeeklyDetails = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery(
+    { weekOffset, fallback: shouldFallbackFromWeeklySummary },
+    { enabled: !isProfessional && isWeek && (!hasWeeklySummaryQuery || showDetails || shouldFallbackFromWeeklySummary) },
+  ));
+  const selfPeriodBundle = normalizeQueryResult(trpc.nutrition.reports.periodBundle.useQuery(
+    { startDate: activeRange.start, endDate: activeRange.end },
+    { enabled: !isProfessional && periodScope !== "week" && !activeRangeLimitMessage },
+  ));
   const professionalPeriodQuery = trpc.nutrition.professionals?.patientPeriodBundle;
-  const professionalBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery({ patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end }, { enabled: isProfessional && Boolean(subjectUserId) }));
+  const professionalBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery(
+    { patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end },
+    { enabled: isProfessional && Boolean(subjectUserId) && !activeRangeLimitMessage },
+  ));
 
-  const isWeek = periodScope === "week";
-  const weeklyDetailsLoadedByFallback = isWeek && !isProfessional && !hasWeeklySummaryQuery;
-  const activeBundle = isProfessional ? professionalBundle : (isWeek ? (hasWeeklySummaryQuery ? selfWeeklySummary : selfWeeklyDetails) : selfPeriodBundle);
+  const useWeeklySummaryAsPrimary = isWeek && !isProfessional && hasWeeklySummaryQuery && !selfWeeklySummary.isError && weeklySummaryContract.renderable;
+  const waitingForWeeklySummary = isWeek && !isProfessional && hasWeeklySummaryQuery && selfWeeklySummary.isLoading;
+  const weeklyDetailsLoadedByFallback = isWeek && !isProfessional && (!hasWeeklySummaryQuery || shouldFallbackFromWeeklySummary);
+  const activeBundle = isProfessional
+    ? professionalBundle
+    : (isWeek ? (waitingForWeeklySummary || useWeeklySummaryAsPrimary ? selfWeeklySummary : selfWeeklyDetails) : selfPeriodBundle);
   const detailsBundle = isProfessional || !isWeek ? activeBundle : selfWeeklyDetails;
   const bundleData = activeBundle.data as any;
   const detailData = detailsBundle.data as any;
 
   const metricDays = React.useMemo(() => {
-    const rawDays = isWeek && !isProfessional ? (Array.isArray(bundleData) ? bundleData : bundleData?.weekly ?? bundleData?.weeklyReport ?? []) : (bundleData?.daily ?? []);
-    return (rawDays as any[]).map(day => normalizeDay(day, bundleData?.goal));
-  }, [bundleData, isProfessional, isWeek]);
+    if (isWeek && !isProfessional && useWeeklySummaryAsPrimary) {
+      return weeklySummaryContract.days.map(day => normalizeDisplayDay(day));
+    }
+
+    const rawDays = isWeek && !isProfessional ? weeklyDaysFromBundleData(bundleData) : (bundleData?.daily ?? []);
+    return (rawDays as unknown[]).map(day => normalizeDisplayDay(day, bundleData?.goal));
+  }, [bundleData, isProfessional, isWeek, useWeeklySummaryAsPrimary, weeklySummaryContract]);
   const dayCount = metricDays.length || countDaysInRange(activeRange);
   const trendData = React.useMemo(() => metricDays.map(toTrendDay), [metricDays]);
   const adherence = calculateCalorieAdherence(trendData, dayCount);
@@ -312,7 +339,9 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const plannedMacros: MacroTotals = { protein: metricDays.reduce((total, day) => total + day.goalProtein, 0), carbs: metricDays.reduce((total, day) => total + day.goalCarbs, 0), fat: metricDays.reduce((total, day) => total + day.goalFat, 0) };
   const dailyMacros: MacroGoalDayWithDate[] = metricDays.map(day => ({ date: day.date, protein: day.protein, carbs: day.carbs, fat: day.fat, goalProtein: day.goalProtein, goalCarbs: day.goalCarbs, goalFat: day.goalFat }));
   const qualityFromDays = React.useMemo(() => buildQualityFromDays(metricDays), [metricDays]);
-  const supportWeight = isWeek && !isProfessional ? detailData?.progress?.weight : (bundleData?.weightTrend ?? bundleData?.progress?.weight);
+  const supportWeight = isWeek && !isProfessional
+    ? (bundleData?.weightTrend ?? detailData?.progress?.weight)
+    : (bundleData?.weightTrend ?? bundleData?.progress?.weight);
   const weightPoints = normalizeWeightPoints(supportWeight);
   const simpleQuality = bundleData?.quality ?? detailData?.quality ?? qualityFromDays.simpleQuality;
   const foodQuality = (bundleData?.quality?.foodQuality ?? detailData?.quality?.foodQuality ?? qualityFromDays.foodQuality) as FoodQualitySummary | undefined;
@@ -328,7 +357,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const mealGroupsAsc = React.useMemo(() => buildMealsByDate(mealDateGroups, periodMeals, userTimeZone), [mealDateGroups, periodMeals, userTimeZone]);
   const mealGroupsDesc = React.useMemo(() => [...mealGroupsAsc].reverse(), [mealGroupsAsc]);
   const scopeLabel = periodScope === "day" ? "Dia" : periodScope === "week" ? "Semana" : periodScope === "month" ? "Mês" : "Período";
-  const shouldShowDetailsPrompt = !isProfessional && isWeek && hasWeeklySummaryQuery && !showDetails;
+  const shouldShowDetailsPrompt = !isProfessional && isWeek && useWeeklySummaryAsPrimary && !showDetails;
   const shouldRenderDetails = isProfessional || !isWeek || showDetails || weeklyDetailsLoadedByFallback;
   const shouldShowDetailsState = showDetails || weeklyDetailsLoadedByFallback;
 
@@ -336,7 +365,7 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
     return <ReportEmptyState text="Escolha uma pessoa autorizada para revisar relatórios, metas e evolução no período selecionado." />;
   }
 
-  return <div className="space-y-6"><PageIntro eyebrow="Relatórios" title="Diagnóstico nutricional do período" description={`${diagnosis} Intervalo ativo: ${formatRangeLabel(activeRange)}.`} actions={<PeriodScopeSelector scope={periodScope} onScopeChange={setPeriodScope} selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} selectedMonth={selectedMonth} onSelectedMonthChange={setSelectedMonth} rangeStart={rangeStart} onRangeStartChange={setRangeStart} rangeEnd={rangeEnd} onRangeEndChange={setRangeEnd} />} />{activeBundle.isLoading ? <div className="grid gap-4 lg:grid-cols-3"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : null}{activeBundle.isError ? <ReportEmptyState text={isProfessional ? "Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." : "Não foi possível carregar os relatórios agora. Tente novamente em instantes."} /> : null}{!activeBundle.isLoading && !activeBundle.isError ? <><CalorieAdherenceSection trendData={trendData} dayCount={dayCount} /><ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={trendData} /><FoodQualitySection quality={foodQuality} simpleQuality={simpleQuality} dayCount={dayCount} /><MacroDistributionSection consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} weightPoints={weightPoints} /><ReportsSupportInsightsSection scopeLabel={scopeLabel} trendData={trendData} dayCount={dayCount} weight={supportWeight} /><div className="grid gap-6 xl:grid-cols-2"><ReportWaterAnalyticsCard title="Hidratação como contexto" scopeLabel={isWeek ? "Semanal" : "Período"} description="Mostra consistência de água sem competir com o diagnóstico calórico." totalConsumedMl={waterConsumedMl} totalGoalMl={waterGoalMl} goalHitDays={waterHitDays} totalDays={dayCount} averageDailyMl={averageValue(waterConsumedMl, Math.max(dayCount, 1))} lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} reading={waterHitDays > 0 ? `${waterHitDays} de ${dayCount} dias bateram a meta de água.` : "Ainda não há dias com meta de água batida neste intervalo."} /><ReportExerciseAnalyticsCard title="Exercícios e meta ajustada" scopeLabel={isWeek ? "Semanal" : "Período"} description="Explica quanto os exercícios adicionaram à meta e como se distribuíram no período." activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} detailLabel="Impacto na meta" detailValue={formatCalories(exerciseCalories)} averageCaloriesPerActiveDay={exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0} highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} reading={exerciseActiveDays > 0 ? `Os exercícios apareceram em ${exerciseActiveDays} de ${dayCount} dias e foram incorporados à meta ajustada.` : "Nenhum exercício foi registrado neste intervalo."} /></div>{shouldShowDetailsPrompt ? <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5 text-primary" />Detalhamento de dias e refeições</CardTitle><CardDescription>O detalhamento completo é carregado apenas quando você precisar investigar as refeições.</CardDescription></CardHeader><CardContent><Button className="rounded-full" onClick={() => setShowDetails(true)}>Carregar detalhamento</Button></CardContent></Card> : null}{detailsBundle.isLoading && shouldShowDetailsState ? <Skeleton className="h-40 rounded-2xl" /> : null}{detailsBundle.isError && shouldShowDetailsState ? <ReportEmptyState text="Não foi possível carregar o detalhamento de refeições agora." /> : null}{shouldRenderDetails && !detailsBundle.isLoading && !detailsBundle.isError ? <DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} /> : null}</> : null}</div>;
+  return <div className="space-y-6"><PageIntro eyebrow="Relatórios" title="Diagnóstico nutricional do período" description={`${diagnosis} Intervalo ativo: ${formatRangeLabel(activeRange)}.`} actions={<PeriodScopeSelector scope={periodScope} onScopeChange={setPeriodScope} selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} selectedMonth={selectedMonth} onSelectedMonthChange={setSelectedMonth} rangeStart={rangeStart} onRangeStartChange={setRangeStart} rangeEnd={rangeEnd} onRangeEndChange={setRangeEnd} />} />{activeRangeLimitMessage ? <ReportEmptyState text={activeRangeLimitMessage} /> : <>{activeBundle.isLoading ? <div className="grid gap-4 lg:grid-cols-3"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : null}{activeBundle.isError ? <ReportEmptyState text={isProfessional ? "Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." : "Não foi possível carregar os relatórios agora. Tente novamente em instantes."} /> : null}{!activeBundle.isLoading && !activeBundle.isError ? <><CalorieAdherenceSection trendData={trendData} dayCount={dayCount} /><ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={trendData} /><FoodQualitySection quality={foodQuality} simpleQuality={simpleQuality} dayCount={dayCount} /><MacroDistributionSection consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} weightPoints={weightPoints} /><ReportsSupportInsightsSection scopeLabel={scopeLabel} trendData={trendData} dayCount={dayCount} weight={supportWeight} /><div className="grid gap-6 xl:grid-cols-2"><ReportWaterAnalyticsCard title="Hidratação como contexto" scopeLabel={isWeek ? "Semanal" : "Período"} description="Mostra consistência de água sem competir com o diagnóstico calórico." totalConsumedMl={waterConsumedMl} totalGoalMl={waterGoalMl} goalHitDays={waterHitDays} totalDays={dayCount} averageDailyMl={averageValue(waterConsumedMl, Math.max(dayCount, 1))} lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} reading={waterHitDays > 0 ? `${waterHitDays} de ${dayCount} dias bateram a meta de água.` : "Ainda não há dias com meta de água batida neste intervalo."} /><ReportExerciseAnalyticsCard title="Exercícios e meta ajustada" scopeLabel={isWeek ? "Semanal" : "Período"} description="Explica quanto os exercícios adicionaram à meta e como se distribuíram no período." activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} detailLabel="Impacto na meta" detailValue={formatCalories(exerciseCalories)} averageCaloriesPerActiveDay={exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0} highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} reading={exerciseActiveDays > 0 ? `Os exercícios apareceram em ${exerciseActiveDays} de ${dayCount} dias e foram incorporados à meta ajustada.` : "Nenhum exercício foi registrado neste intervalo."} /></div>{shouldShowDetailsPrompt ? <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5 text-primary" />Detalhamento de dias e refeições</CardTitle><CardDescription>O detalhamento completo é carregado apenas quando você precisar investigar as refeições.</CardDescription></CardHeader><CardContent><Button className="rounded-full" onClick={() => setShowDetails(true)}>Carregar detalhamento</Button></CardContent></Card> : null}{detailsBundle.isLoading && shouldShowDetailsState ? <Skeleton className="h-40 rounded-2xl" /> : null}{detailsBundle.isError && shouldShowDetailsState ? <ReportEmptyState text="Não foi possível carregar o detalhamento de refeições agora." /> : null}{shouldRenderDetails && !detailsBundle.isLoading && !detailsBundle.isError ? <DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} /> : null}</> : null}</>}</div>;
 }
 
 export default ReportsExperience;

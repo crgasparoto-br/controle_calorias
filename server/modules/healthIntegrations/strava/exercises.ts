@@ -86,11 +86,20 @@ function buildStravaExerciseImportedWhatsAppMessage(input: {
 }
 
 async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exerciseId: number, exercise: ReturnType<typeof toStravaExerciseInput>) {
-  if (!exercise) return;
+  if (!exercise) return "skipped" as const;
 
   try {
     const connection = await getUserWhatsappConnection(userId);
-    if (!connection || connection.status !== "active") return;
+    if (!connection || connection.status !== "active") {
+      logInferenceEvent({
+        userId,
+        origin: "admin",
+        status: "success",
+        eventType: "strava.whatsapp_import_notification_skipped",
+        detail: "Notificação de exercício Strava importado ignorada porque o usuário não possui WhatsApp ativo.",
+      });
+      return "skipped" as const;
+    }
 
     const message = buildStravaExerciseImportedWhatsAppMessage(exercise);
     const quickEditLink = await tryCreateQuickEditLinkForExercise({ userId, exerciseId });
@@ -106,10 +115,12 @@ async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exercis
         userId,
         origin: "admin",
         status: response.ok ? "warning" : "error",
-        eventType: "strava.whatsapp_import_notification_failed",
-        detail: `Falha ao enviar notificação de exercício Strava importado pelo WhatsApp: ${response.detail}`,
+        eventType: response.ok ? "strava.whatsapp_import_notification_fallback" : "strava.whatsapp_import_notification_failed",
+        detail: `Envio da notificação de exercício Strava importado pelo WhatsApp: ${response.detail}`,
       });
     }
+
+    return response.ok ? "sent" as const : "failed" as const;
   } catch (error) {
     logInferenceEvent({
       userId,
@@ -118,6 +129,7 @@ async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exercis
       eventType: "strava.whatsapp_import_notification_failed",
       detail: `Falha ao enviar notificação de exercício Strava importado pelo WhatsApp: ${error instanceof Error ? error.message : "erro desconhecido"}.`,
     });
+    return "failed" as const;
   }
 }
 
@@ -144,10 +156,6 @@ function parseReliableStravaCalories(exercise: { notes?: string | null } | undef
 
   const calories = Number(match[1]);
   return Number.isFinite(calories) && calories > 0 ? calories : null;
-}
-
-function hasReliableStravaCalories(exercise: { notes?: string | null } | undefined) {
-  return parseReliableStravaCalories(exercise) !== null;
 }
 
 function getStravaActivityMinimumImportSkipReason(activity: StravaActivity) {
@@ -317,7 +325,13 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
 
 export async function upsertStravaActivitiesAsExercises(userId: number, activities: StravaActivity[]): Promise<StravaExerciseImportSummary> {
   const existingExercises = await listExercises(userId);
-  const summary: StravaExerciseImportSummary = { created: 0, updated: 0, skipped: 0 };
+  const summary: StravaExerciseImportSummary = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    notificationsSent: 0,
+    notificationsSkipped: 0,
+  };
   const detailState: StravaDetailFetchState = {
     accessToken: null,
     detailRequestLimit: getStravaMaxActivityDetailRequestsPerSync(),
@@ -326,8 +340,12 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
   };
 
   for (const activity of activities) {
-    const externalReference = `strava:${activity.id}`;
-    const existingBeforeResolve = existingExercises.find(exercise => exercise.notes?.includes(externalReference));
+    const externalId = String(activity.id);
+    const externalReference = `strava:${externalId}`;
+    const existingBeforeResolve = existingExercises.find(exercise =>
+      exercise.externalProvider === "strava" && exercise.externalId === externalId.toLowerCase()
+      || exercise.notes?.includes(externalReference)
+    );
     const reliableCalories = parseReliableStravaCalories(existingBeforeResolve);
 
     if (reliableCalories !== null) {
@@ -336,12 +354,20 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         caloriesOrigin: "strava_summary" as const,
       });
       summary.skipped += 1;
+      summary.notificationsSkipped += 1;
       logStravaImportEvent({
         userId,
         activityId: activity.id,
         status: "success",
         eventType: "strava.import.detail_skipped_redundant",
         detail: "exercício já possui calorias confiáveis do Strava; detalhe não solicitado novamente nesta janela de overlap.",
+      });
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "success",
+        eventType: "strava.import.notification_skipped_idempotent",
+        detail: "notificação WhatsApp ignorada porque a atividade já havia sido importada.",
       });
       continue;
     }
@@ -352,12 +378,20 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
     const exerciseInput = toStravaExerciseInput(resolvedActivity);
     if (!exerciseInput) {
       summary.skipped += 1;
+      summary.notificationsSkipped += 1;
       logStravaImportEvent({
         userId,
         activityId: activity.id,
         status: "warning",
         eventType: "strava.import.exercise_skipped",
         detail: "exercício não criado porque duração ou calorias ficaram abaixo do mínimo após os fallbacks.",
+      });
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "success",
+        eventType: "strava.import.notification_skipped_no_exercise",
+        detail: "notificação WhatsApp ignorada porque nenhum exercício foi persistido.",
       });
       continue;
     }
@@ -371,13 +405,19 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
       detail: `origem escolhida: ${metadata.caloriesOrigin ?? "sem_calorias"}; calorias: ${metadata.calories ?? 0} kcal.`,
     });
 
-    const existing = existingExercises.find(exercise => exercise.notes?.includes(externalReference));
-    if (existing) {
-      await updateExercise(userId, {
-        exerciseId: existing.id,
+    if (existingBeforeResolve) {
+      const updated = await updateExercise(userId, {
+        exerciseId: existingBeforeResolve.id,
         ...exerciseInput,
+        externalProvider: "strava",
+        externalId,
       });
+      const updatedIndex = existingExercises.findIndex(exercise => exercise.id === updated.id);
+      if (updatedIndex >= 0) {
+        existingExercises[updatedIndex] = updated;
+      }
       summary.updated += 1;
+      summary.notificationsSkipped += 1;
       logStravaImportEvent({
         userId,
         activityId: activity.id,
@@ -385,9 +425,30 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_updated",
         detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
+      logStravaImportEvent({
+        userId,
+        activityId: activity.id,
+        status: "success",
+        eventType: "strava.import.notification_skipped_idempotent",
+        detail: "notificação WhatsApp ignorada porque a atividade já possuía exercício persistido.",
+      });
+      continue;
+    }
+
+    const persisted = await createExercise(userId, {
+      ...exerciseInput,
+      externalProvider: "strava",
+      externalId,
+    });
+    const importStatus = persisted.externalImportStatus ?? "created";
+    const persistedIndex = existingExercises.findIndex(exercise => exercise.id === persisted.id);
+    if (persistedIndex >= 0) {
+      existingExercises[persistedIndex] = persisted;
     } else {
-      const created = await createExercise(userId, exerciseInput);
-      existingExercises.push(created);
+      existingExercises.push(persisted);
+    }
+
+    if (importStatus === "created") {
       summary.created += 1;
       logStravaImportEvent({
         userId,
@@ -396,8 +457,38 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_created",
         detail: `exercício criado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
-      await sendStravaExerciseImportedWhatsAppMessage(userId, created.id, exerciseInput);
+      const notificationStatus = await sendStravaExerciseImportedWhatsAppMessage(userId, persisted.id, exerciseInput);
+      if (notificationStatus === "sent") {
+        summary.notificationsSent += 1;
+        logStravaImportEvent({
+          userId,
+          activityId: activity.id,
+          status: "success",
+          eventType: "strava.import.notification_sent",
+          detail: "notificação WhatsApp enviada para o exercício recém-criado.",
+        });
+      } else {
+        summary.notificationsSkipped += 1;
+      }
+      continue;
     }
+
+    summary.updated += 1;
+    summary.notificationsSkipped += 1;
+    logStravaImportEvent({
+      userId,
+      activityId: activity.id,
+      status: "success",
+      eventType: "strava.import.exercise_updated",
+      detail: `exercício existente atualizado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
+    });
+    logStravaImportEvent({
+      userId,
+      activityId: activity.id,
+      status: "success",
+      eventType: "strava.import.notification_skipped_idempotent",
+      detail: "notificação WhatsApp ignorada porque a atividade já possuía exercício persistido.",
+    });
   }
 
   return summary;

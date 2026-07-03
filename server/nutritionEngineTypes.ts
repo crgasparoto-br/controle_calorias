@@ -20,6 +20,19 @@ export type HabitSnapshot = {
   occurrenceCount: number;
 };
 
+export type FoodProcessingLevelEstimate =
+  | "natural_or_minimally_processed"
+  | "processed_culinary_ingredient"
+  | "processed"
+  | "ultra_processed";
+
+export type FoodClassificationEstimate = {
+  processingLevel: FoodProcessingLevelEstimate;
+  isFruit: boolean;
+  isVegetable: boolean;
+  fiberGrams: number;
+};
+
 export type MealDraftItem = {
   foodId?: number;
   foodCatalogId?: number | null;
@@ -39,6 +52,7 @@ export type MealDraftItem = {
   fat: number;
   confidence: number;
   source: "catalog" | "hybrid" | "heuristic";
+  classification?: FoodClassificationEstimate | null;
 };
 
 /**
@@ -104,6 +118,7 @@ export type LlmItem = {
     fat: number;
   };
   confidence: number;
+  foodClassification?: FoodClassificationEstimate | null;
 };
 
 export type ParsedFoodText = {

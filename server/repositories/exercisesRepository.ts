@@ -1,8 +1,10 @@
-import { and, desc, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, like, lt } from "drizzle-orm";
 import { exercises } from "../../drizzle/schema";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
+
+export type ExternalExerciseImportStatus = "created" | "updated" | "skipped";
 
 export type ExerciseRecord = {
   id: number;
@@ -14,6 +16,9 @@ export type ExerciseRecord = {
   occurredAt: number;
   createdAt: number;
   updatedAt: Date;
+  externalProvider?: string | null;
+  externalId?: string | null;
+  externalImportStatus?: ExternalExerciseImportStatus;
 };
 
 export type ExercisesRepository = {
@@ -24,7 +29,16 @@ export type ExercisesRepository = {
   delete(userId: number, exerciseId: number): Promise<void>;
 };
 
-function getExternalExerciseReference(exercise: Pick<ExerciseRecord, "notes">) {
+function normalizeExternalId(value: string | number | null | undefined) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized || null;
+}
+
+function getExternalExerciseReference(exercise: Pick<ExerciseRecord, "notes" | "externalProvider" | "externalId">) {
+  const structuredProvider = exercise.externalProvider?.trim().toLowerCase();
+  const structuredId = normalizeExternalId(exercise.externalId);
+  if (structuredProvider && structuredId) return `${structuredProvider}:${structuredId}`;
+
   const reference = /\bstrava:([a-zA-Z0-9_-]+)\b/i.exec(exercise.notes ?? "")?.[1];
   return reference ? `strava:${reference.toLowerCase()}` : null;
 }
@@ -57,6 +71,20 @@ function mapExerciseRow(row: typeof exercises.$inferSelect): ExerciseRecord {
     createdAt: new Date(row.createdAt).getTime(),
     updatedAt: new Date(row.updatedAt),
   };
+}
+
+function applyPersistedExercise(target: ExerciseRecord, source: ExerciseRecord, status: ExternalExerciseImportStatus) {
+  Object.assign(target, source, { externalImportStatus: status });
+}
+
+function getMysqlAffectedRows(result: unknown) {
+  const candidate = Array.isArray(result) ? result[0] : result;
+  const affectedRows = Number((candidate as { affectedRows?: number })?.affectedRows ?? 0);
+  return Number.isFinite(affectedRows) ? affectedRows : 0;
+}
+
+function escapeLike(value: string) {
+  return value.replace(/[\\%_]/g, character => `\\${character}`);
 }
 
 export function createDrizzleExercisesRepository(deps: {
@@ -98,16 +126,62 @@ export function createDrizzleExercisesRepository(deps: {
       const db = await deps.getDb();
       if (!db) return;
 
-      try {
-        const insertResult = await db.insert(exercises).values({
-          userId: exercise.userId,
-          activityType: exercise.activityType,
-          durationMinutes: exercise.durationMinutes,
-          caloriesBurned: exercise.caloriesBurned,
-          notes: exercise.notes ?? null,
-          occurredAt: new Date(exercise.occurredAt),
-        });
+      const externalProvider = exercise.externalProvider?.trim().toLowerCase() || null;
+      const externalId = normalizeExternalId(exercise.externalId);
+      const values = {
+        userId: exercise.userId,
+        activityType: exercise.activityType,
+        durationMinutes: exercise.durationMinutes,
+        caloriesBurned: exercise.caloriesBurned,
+        notes: exercise.notes ?? null,
+        occurredAt: new Date(exercise.occurredAt),
+        externalProvider,
+        externalId,
+      };
 
+      try {
+        if (externalProvider && externalId) {
+          const legacyRows = await db
+            .select()
+            .from(exercises)
+            .where(and(eq(exercises.userId, exercise.userId), like(exercises.notes, `%${externalProvider}:${escapeLike(externalId)}%`)))
+            .limit(1);
+
+          if (legacyRows[0] && (!legacyRows[0].externalProvider || !legacyRows[0].externalId)) {
+            await db
+              .update(exercises)
+              .set(values)
+              .where(and(eq(exercises.userId, exercise.userId), eq(exercises.id, legacyRows[0].id)));
+            applyPersistedExercise(exercise, mapExerciseRow({ ...legacyRows[0], ...values, updatedAt: new Date() }), "updated");
+            return;
+          }
+
+          const insertResult = await db
+            .insert(exercises)
+            .values(values)
+            .onDuplicateKeyUpdate({
+              set: {
+                activityType: exercise.activityType,
+                durationMinutes: exercise.durationMinutes,
+                caloriesBurned: exercise.caloriesBurned,
+                notes: exercise.notes ?? null,
+                occurredAt: new Date(exercise.occurredAt),
+              },
+            });
+
+          const rows = await db
+            .select()
+            .from(exercises)
+            .where(and(eq(exercises.userId, exercise.userId), eq(exercises.externalProvider, externalProvider), eq(exercises.externalId, externalId)))
+            .limit(1);
+
+          if (rows[0]) {
+            applyPersistedExercise(exercise, mapExerciseRow(rows[0]), getMysqlAffectedRows(insertResult) === 1 ? "created" : "updated");
+          }
+          return;
+        }
+
+        const insertResult = await db.insert(exercises).values(values);
         const insertedId = Number((insertResult as any)?.[0]?.insertId ?? (insertResult as any)?.insertId ?? 0);
         if (insertedId) {
           exercise.id = insertedId;
@@ -130,6 +204,8 @@ export function createDrizzleExercisesRepository(deps: {
             caloriesBurned: exercise.caloriesBurned,
             notes: exercise.notes ?? null,
             occurredAt: new Date(exercise.occurredAt),
+            externalProvider: exercise.externalProvider?.trim().toLowerCase() || null,
+            externalId: normalizeExternalId(exercise.externalId),
           })
           .where(and(eq(exercises.userId, exercise.userId), eq(exercises.id, exercise.id)));
       } catch (error) {
