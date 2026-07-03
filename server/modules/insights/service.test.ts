@@ -28,7 +28,7 @@ vi.mock("./weeklyInsightService", () => ({
   },
 }));
 
-import { getPeriodReportBundle } from "./service";
+import { getPeriodReportBundle, getWeeklyReport, getWeeklyReportBundle } from "./service";
 
 type MealItemOverrides = Partial<{
   foodCatalogId: number | null;
@@ -72,14 +72,14 @@ function mealItem(overrides: MealItemOverrides = {}) {
   };
 }
 
-function meal(items: ReturnType<typeof mealItem>[]) {
+function meal(items: ReturnType<typeof mealItem>[], occurredAt = new Date("2026-06-01T12:00:00.000Z").getTime()) {
   return {
     id: 1,
     userId: 77,
     source: "web",
     mealLabel: "lanche",
     status: "confirmed",
-    occurredAt: new Date("2026-06-01T12:00:00.000Z").getTime(),
+    occurredAt,
     sourceText: "",
     confidence: 0.9,
     items,
@@ -124,6 +124,8 @@ function configureCommonMocks() {
   dbMocks.getDb.mockResolvedValue(null);
   dbMocks.getUserWaterGoal.mockResolvedValue({ dailyTargetMl: 2000 });
   dbMocks.getWeeklyProgress.mockResolvedValue({ weight: { entries: [] } });
+  dbMocks.getHabitSnapshots.mockResolvedValue([]);
+  dbMocks.getUserGamification.mockResolvedValue({});
   dbMocks.listUserExercises.mockResolvedValue([]);
   dbMocks.listUserExercisesByDate.mockResolvedValue([]);
   dbMocks.listUserMeals.mockResolvedValue([]);
@@ -210,5 +212,64 @@ describe("insights food quality report integration", () => {
     expect(dbMocks.searchFoods).not.toHaveBeenCalled();
     expect(report.quality.foodQuality.hasData).toBe(false);
     expect(report.quality.foodQuality.unclassifiedItems).toEqual([]);
+  });
+
+  it("não executa lookup detalhado de alimentos no resumo semanal leve", async () => {
+    dbMocks.listUserMeals.mockResolvedValue([
+      meal([
+        mealItem({
+          foodCatalogId: 501,
+          foodName: "Produto catalogado",
+          canonicalName: "Produto catalogado",
+          calories: 120,
+          protein: 5,
+        }),
+      ], Date.now()),
+    ]);
+    dbMocks.searchFoods.mockResolvedValue([foodSearchItem()]);
+
+    const weekly = await getWeeklyReport(77);
+    const dayWithMeal = weekly.find(day => day.calories > 0);
+
+    expect(dbMocks.searchFoods).not.toHaveBeenCalled();
+    expect(weekly).toHaveLength(7);
+    expect(dayWithMeal?.quality).toMatchObject({
+      proteinGrams: 5,
+      fiberGrams: 0,
+      fruitServings: 0,
+      vegetableServings: 0,
+      ultraProcessedServings: 0,
+      mealCount: 1,
+    });
+    expect(dayWithMeal?.quality.foodQualityItems).toEqual([]);
+  });
+
+  it("mantém lookup detalhado de alimentos no bundle semanal completo", async () => {
+    dbMocks.listUserMeals.mockResolvedValue([
+      meal([
+        mealItem({
+          foodCatalogId: 501,
+          foodName: "Produto catalogado",
+          canonicalName: "Produto catalogado",
+          calories: 120,
+          protein: 5,
+        }),
+      ], Date.now()),
+    ]);
+    dbMocks.searchFoods.mockImplementation(async (_userId: number, query: string) => {
+      if (query === "Produto catalogado") {
+        return [foodSearchItem({ name: "Produto catalogado" })];
+      }
+      return [];
+    });
+
+    const bundle = await getWeeklyReportBundle(77);
+
+    expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "Produto catalogado", expect.any(Number));
+    expect(bundle.quality.foodQuality).toMatchObject({
+      classifiedCalories: 120,
+      ultraProcessedCalories: 120,
+      unclassifiedCalories: 0,
+    });
   });
 });
