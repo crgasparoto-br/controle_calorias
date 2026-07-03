@@ -105,19 +105,6 @@ function filterByLogicalRange<T extends { occurredAt: number }>(items: T[], rang
   return items.filter(item => isInsideLogicalRange(Number(item.occurredAt), range));
 }
 
-async function recoverEmptyRangeRead<T extends { occurredAt: number }>(
-  rangeItems: T[],
-  range: ReportDateRange,
-  markFallback: () => void,
-  loadAllItems: () => Promise<T[]>,
-) {
-  if (rangeItems.length) return rangeItems;
-
-  markFallback();
-  const recoveredItems = sortByOccurredAtDesc(filterByLogicalRange(await loadAllItems(), range));
-  return recoveredItems.length ? recoveredItems : rangeItems;
-}
-
 export async function listReportMealsByDateRange(
   userId: number,
   range: ReportDateRange,
@@ -133,10 +120,7 @@ export async function listReportMealsByDateRange(
       });
 
       if (dbMeals) {
-        const rangeMeals = sortByOccurredAtDesc(filterByLogicalRange(dbMeals, range).map(meal => withMealTotals(meal as ReportMeal)));
-        return recoverEmptyRangeRead(rangeMeals, range, markFallback, async () =>
-          (await listUserMeals(userId)).map(withMealTotals),
-        );
+        return sortByOccurredAtDesc(filterByLogicalRange(dbMeals, range).map(meal => withMealTotals(meal as ReportMeal)));
       }
     }
 
@@ -153,8 +137,7 @@ export async function listReportExercisesByDateRange(userId: number, range: Repo
       const dbExercises = await exercisesRepository.findByUserIdAndRange(userId, occurredAtRange.startAt, occurredAtRange.endAt);
 
       if (dbExercises) {
-        const rangeExercises = sortByOccurredAtDesc(filterByLogicalRange(dbExercises, range));
-        return recoverEmptyRangeRead(rangeExercises, range, markFallback, () => listUserExercises(userId));
+        return sortByOccurredAtDesc(filterByLogicalRange(dbExercises, range));
       }
     }
 
@@ -171,8 +154,7 @@ export async function listReportWaterLogsByDateRange(userId: number, range: Repo
       const dbLogs = await waterRepository.findLogsByUserIdAndRange(userId, occurredAtRange.startAt, occurredAtRange.endAt);
 
       if (dbLogs) {
-        const rangeLogs = sortByOccurredAtDesc(filterByLogicalRange(dbLogs, range));
-        return recoverEmptyRangeRead(rangeLogs, range, markFallback, () => listUserWaterLogs(userId));
+        return sortByOccurredAtDesc(filterByLogicalRange(dbLogs, range));
       }
     }
 
