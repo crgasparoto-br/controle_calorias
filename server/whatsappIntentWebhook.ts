@@ -4,6 +4,7 @@ import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssis
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
+import { executeWhatsappGramsAdjustmentIntent } from "./modules/whatsapp/gramsAdjustmentIntent";
 import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
 import { executeWhatsappLlmIntent, type WhatsappLlmNutritionFallback } from "./modules/whatsapp/llmIntentActions";
 import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
@@ -629,6 +630,24 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: contextualReplacementResult.detail,
       status: contextualReplacementResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId(contextualReplacementResult.data),
+      occurredAtMs,
+    });
+    return true;
+  }
+
+  const gramsAdjustmentResult = await executeWhatsappGramsAdjustmentIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+  if (gramsAdjustmentResult) {
+    markTextIntentMessageHandled(message.id);
+    pendingTextIntentContexts.delete(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: gramsAdjustmentResult.reply,
+      eventType: gramsAdjustmentResult.eventType,
+      detail: gramsAdjustmentResult.detail,
+      status: gramsAdjustmentResult.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractMealId("data" in gramsAdjustmentResult ? gramsAdjustmentResult.data : undefined),
       occurredAtMs,
     });
     return true;
