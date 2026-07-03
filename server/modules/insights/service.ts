@@ -1,4 +1,5 @@
 import {
+  getFoodsByIds,
   getHabitSnapshots,
   getUserGamification,
   getUserWaterGoal,
@@ -307,22 +308,42 @@ async function mapFoodLookupNames(
   return results;
 }
 
+function collectFoodLookupCatalogIds(mealsByDay: ReportRangeData["mealsByDay"]) {
+  const ids = new Set<number>();
+
+  for (const meals of mealsByDay) {
+    for (const meal of meals) {
+      for (const item of meal.items) {
+        if (item.foodCatalogId) {
+          ids.add(item.foodCatalogId);
+        }
+      }
+    }
+  }
+
+  return Array.from(ids);
+}
+
 async function buildFoodLookupForMeals(userId: number, mealsByDay: ReportRangeData["mealsByDay"]) {
   const lookupNames = collectFoodQualityLookupNames(mealsByDay);
-  if (!lookupNames.length) {
+  const catalogIds = collectFoodLookupCatalogIds(mealsByDay);
+  if (!lookupNames.length && !catalogIds.length) {
     return createFoodLookup([]);
   }
 
-  const results = await mapFoodLookupNames(
-    lookupNames,
-    name => searchFoods(userId, name, FOOD_QUALITY_LOOKUP_QUERY_LIMIT),
-  );
+  const [nameResults, idResults] = await Promise.all([
+    mapFoodLookupNames(lookupNames, name => searchFoods(userId, name, FOOD_QUALITY_LOOKUP_QUERY_LIMIT)),
+    getFoodsByIds(userId, catalogIds),
+  ]);
   const foodsById = new Map<number, Awaited<ReturnType<typeof searchFoods>>[number]>();
 
-  for (const foods of results) {
+  for (const foods of nameResults) {
     for (const food of foods) {
       foodsById.set(food.id, food);
     }
+  }
+  for (const food of idResults) {
+    foodsById.set(food.id, food);
   }
 
   return createFoodLookup(Array.from(foodsById.values()));

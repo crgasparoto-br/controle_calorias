@@ -673,6 +673,7 @@ const foodsService = createFoodsService({
   onWarning: logPersistenceWarning,
 });
 export const searchFoods = foodsService.searchFoods;
+export const getFoodsByIds = foodsService.getFoodsByIds;
 export const listRecentFoods = foodsService.listRecentFoods;
 export const upsertFavoriteFood = foodsService.upsertFavoriteFood;
 export const createUserFood = foodsService.createUserFood;

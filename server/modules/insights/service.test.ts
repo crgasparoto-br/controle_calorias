@@ -3,6 +3,7 @@ import type { FoodProcessingLevel } from "../../../shared/reportsGoalAnalytics";
 
 const dbMocks = vi.hoisted(() => ({
   getDb: vi.fn(),
+  getFoodsByIds: vi.fn(),
   getHabitSnapshots: vi.fn(),
   getUserGamification: vi.fn(),
   getUserWaterGoal: vi.fn(),
@@ -132,6 +133,7 @@ function configureCommonMocks() {
   dbMocks.listUserMealsByDate.mockResolvedValue([]);
   dbMocks.listUserWaterLogs.mockResolvedValue([]);
   dbMocks.listUserWaterLogsByDate.mockResolvedValue([]);
+  dbMocks.getFoodsByIds.mockResolvedValue([]);
   goalMocks.getNutritionGoalForDate.mockResolvedValue({
     today: {
       calories: 2000,

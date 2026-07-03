@@ -207,6 +207,14 @@ export function createFoodsService(deps: {
       });
   }
 
+  async function getFoodsByIds(userId: number, ids: number[]) {
+    if (!ids.length) return [];
+
+    const uniqueIds = new Set(ids);
+    const foods = await getDbSearchFoods(userId);
+    return foods.filter(food => uniqueIds.has(food.id));
+  }
+
   async function getDbSearchFoods(userId: number) {
     if (dbSearchContext?.userId === userId) {
       return dbSearchContext.promise;
@@ -502,6 +510,7 @@ export function createFoodsService(deps: {
 
   return {
     searchFoods,
+    getFoodsByIds,
     listRecentFoods,
     upsertFavoriteFood,
     createUserFood,

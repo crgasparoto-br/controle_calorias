@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dbMocks = vi.hoisted(() => ({
   getDb: vi.fn(),
+  getFoodsByIds: vi.fn(),
   getHabitSnapshots: vi.fn(),
   getUserGamification: vi.fn(),
   getUserWaterGoal: vi.fn(),
@@ -90,6 +91,7 @@ function configureCommonMocks() {
   dbMocks.listUserWaterLogs.mockResolvedValue([]);
   dbMocks.listUserWaterLogsByDate.mockResolvedValue([]);
   dbMocks.searchFoods.mockResolvedValue([]);
+  dbMocks.getFoodsByIds.mockResolvedValue([]);
   goalMocks.getNutritionGoalForDate.mockResolvedValue({
     today: {
       calories: 2000,
