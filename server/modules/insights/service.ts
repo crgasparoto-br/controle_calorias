@@ -216,6 +216,7 @@ function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: n
 
 const FOOD_QUALITY_LOOKUP_QUERY_LIMIT = 8;
 const FOOD_QUALITY_LOOKUP_CONCURRENCY = 6;
+const REFERENCE_FOOD_LOOKUP = createFoodLookup([]);
 
 type ReportRangeData = {
   dates: string[];
@@ -351,18 +352,10 @@ function calculateLightQualityIndicators(
     return emptyQualityIndicators(waterMl);
   }
 
-  const proteinGrams = meals.reduce(
-    (mealTotal, meal) => mealTotal + meal.items.reduce((itemTotal, item) => itemTotal + Number(item.protein || 0), 0),
-    0,
-  );
+  const quality = calculateQualityIndicators(meals, waterMl, REFERENCE_FOOD_LOOKUP);
 
   return {
-    proteinGrams: roundNutritionValue(proteinGrams),
-    fiberGrams: 0,
-    waterMl: roundNutritionValue(waterMl),
-    fruitServings: 0,
-    vegetableServings: 0,
-    ultraProcessedServings: 0,
+    ...quality,
     mealCount: meals.length,
     regularityScore: calculateMealRegularityScore(meals),
     foodQualityItems: [] as FoodQualityDay["items"],
