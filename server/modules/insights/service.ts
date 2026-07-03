@@ -224,6 +224,10 @@ type ReportRangeData = {
   waterLogsByDay: Array<Awaited<ReturnType<typeof listReportWaterLogsByDateRange>>>;
 };
 
+type WeeklyReportSummaryOptions = {
+  includeFoodQualityDetails?: boolean;
+};
+
 function groupRangeItemsByDate<T>(dates: string[], items: T[], getDate: (item: T) => string) {
   const groups = new Map<string, T[]>();
 
@@ -323,6 +327,48 @@ async function buildFoodLookupForMeals(userId: number, mealsByDay: ReportRangeDa
   return createFoodLookup(Array.from(foodsById.values()));
 }
 
+function normalizeMealLabel(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function calculateMealRegularityScore(meals: Array<{ mealLabel: string }>) {
+  if (!meals.length) return 0;
+  const labels = new Set(meals.map(meal => normalizeMealLabel(meal.mealLabel)));
+  const hasMainMeal = ["cafe da manha", "almoco", "jantar"].filter(label => labels.has(label)).length;
+  return Math.min(Math.round(((Math.min(meals.length, 4) / 4) * 60) + ((hasMainMeal / 3) * 40)), 100);
+}
+
+function calculateLightQualityIndicators(
+  meals: Array<{ mealLabel: string; items: Array<{ protein?: number | null }> }>,
+  waterMl: number,
+) {
+  if (!meals.length) {
+    return emptyQualityIndicators(waterMl);
+  }
+
+  const proteinGrams = meals.reduce(
+    (mealTotal, meal) => mealTotal + meal.items.reduce((itemTotal, item) => itemTotal + Number(item.protein || 0), 0),
+    0,
+  );
+
+  return {
+    proteinGrams: roundNutritionValue(proteinGrams),
+    fiberGrams: 0,
+    waterMl: roundNutritionValue(waterMl),
+    fruitServings: 0,
+    vegetableServings: 0,
+    ultraProcessedServings: 0,
+    mealCount: meals.length,
+    regularityScore: calculateMealRegularityScore(meals),
+    foodQualityItems: [] as FoodQualityDay["items"],
+  };
+}
+
 function buildHabitAnalyticsFromRange(
   waterGoal: Awaited<ReturnType<typeof getUserWaterGoal>>,
   data: ReportRangeData,
@@ -401,14 +447,16 @@ function buildHabitAnalyticsFromRange(
   };
 }
 
-async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
+async function buildWeeklyReportSummary(userId: number, weekOffset = 0, options: WeeklyReportSummaryOptions = {}) {
   const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
   const [goalsByDate, waterGoal, rangeData] = await Promise.all([
     Promise.all(dateKeys.map(date => getNutritionGoalForDate(userId, date))),
     getUserWaterGoal(userId),
     loadReportRangeData(userId, dateKeys),
   ]);
-  const foodLookup = await buildFoodLookupForMeals(userId, rangeData.mealsByDay);
+  const foodLookup = options.includeFoodQualityDetails
+    ? await buildFoodLookupForMeals(userId, rangeData.mealsByDay)
+    : undefined;
 
   return rangeData.dates.map((date, index) => {
     const planned = goalsByDate[index]?.today ?? goalsByDate[0].today;
@@ -418,7 +466,9 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0) {
     const totals = calculateDayTotals(dailyMeals);
     const burnedCalories = dailyExercises.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned ?? 0), 0);
     const waterConsumedMl = dailyWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
-    const quality = calculateQualityIndicators(dailyMeals, waterConsumedMl, foodLookup);
+    const quality = options.includeFoodQualityDetails
+      ? calculateQualityIndicators(dailyMeals, waterConsumedMl, foodLookup)
+      : calculateLightQualityIndicators(dailyMeals, waterConsumedMl);
     const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, burnedCalories);
 
     return {
@@ -528,7 +578,7 @@ export async function getDashboardOverview(userId: number) {
   const { goal, today, meals, exercises, water } = todayOverview;
 
   const [weekly, habits] = await Promise.all([
-    buildWeeklyReportSummary(userId),
+    buildWeeklyReportSummary(userId, 0, { includeFoodQualityDetails: true }),
     getHabitSnapshots(userId),
   ]);
   const gamification = await getUserGamification(userId, weekly);
@@ -706,7 +756,7 @@ export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
   const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
   const range = { startDate: dateKeys[0], endDate: dateKeys[dateKeys.length - 1] };
   const [weekly, fallbackProgress, weeklyMeals] = await Promise.all([
-    buildWeeklyReportSummary(userId, weekOffset),
+    buildWeeklyReportSummary(userId, weekOffset, { includeFoodQualityDetails: true }),
     getWeeklyProgress(userId),
     listReportMealsByDateRange(userId, range, { includeMedia: false }),
   ]);
