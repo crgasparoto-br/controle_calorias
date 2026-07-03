@@ -37,6 +37,24 @@ describe("reports period schema", () => {
     expect(result.error?.issues[0]?.message).toBe("A data final deve ser igual ou posterior à data inicial.");
   });
 
+  it("rejeita datas malformadas", () => {
+    const result = reportsHabitAnalyticsSchema.safeParse({
+      startDate: "01/01/2026",
+      endDate: "2026-01-31",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map(issue => issue.message)).toContain("Use datas no formato YYYY-MM-DD.");
+  });
+
+  it("rejeita datas ausentes", () => {
+    const result = reportsHabitAnalyticsSchema.safeParse({
+      startDate: "2026-01-01",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("aceita deslocamento semanal histórico dentro do limite", () => {
     expect(reportsPeriodSchema.safeParse({ weekOffset: -120 }).success).toBe(true);
     expect(reportsPeriodSchema.safeParse({ weekOffset: 120 }).success).toBe(true);
