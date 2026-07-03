@@ -1,5 +1,4 @@
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -144,6 +143,20 @@ function bundleData(days = week(1900)) {
   };
 }
 
+function mockReportsRangeState(rangeStart: string, rangeEnd: string) {
+  const setState = vi.fn();
+  let stateIndex = 0;
+  return vi.spyOn(React, "useState").mockImplementation(((initialState: unknown) => {
+    const currentIndex = stateIndex;
+    stateIndex += 1;
+    const value = typeof initialState === "function" ? (initialState as () => unknown)() : initialState;
+    if (currentIndex === 0) return ["range", setState];
+    if (currentIndex === 3) return [rangeStart, setState];
+    if (currentIndex === 4) return [rangeEnd, setState];
+    return [value, setState];
+  }) as typeof React.useState);
+}
+
 describe("ReportsExperience weekly summary fallback", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -157,7 +170,7 @@ describe("ReportsExperience weekly summary fallback", () => {
   });
 
   afterEach(() => {
-    cleanup();
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -202,12 +215,12 @@ describe("ReportsExperience weekly summary fallback", () => {
   });
 
   it("exibe mensagem controlada e evita periodBundle para range acima de 90 dias", async () => {
-    reportQueryState.forcedScope = "range";
+    mockReportsRangeState("2026-01-01", "2026-04-01");
     const { default: ReportsExperience } = await import("./ReportsExperience");
 
-    render(React.createElement(ReportsExperience));
+    const html = renderToString(React.createElement(ReportsExperience));
 
-    expect(screen.getByText("Escolha um período de até 90 dias para carregar os relatórios.")).toBeTruthy();
+    expect(html).toContain("Escolha um período de até 90 dias para carregar os relatórios.");
     expect(reportQueryState.periodBundleCalls.at(-1)?.options.enabled).toBe(false);
   });
 });
