@@ -154,7 +154,7 @@ function mockReportsRangeState(rangeStart: string, rangeEnd: string) {
     if (currentIndex === 3) return [rangeStart, setState];
     if (currentIndex === 4) return [rangeEnd, setState];
     return [value, setState];
-  }) as typeof React.useState);
+  }) as unknown as typeof React.useState);
 }
 
 describe("ReportsExperience weekly summary fallback", () => {
