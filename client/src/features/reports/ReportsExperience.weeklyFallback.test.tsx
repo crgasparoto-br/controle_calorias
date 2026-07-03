@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -207,9 +207,7 @@ describe("ReportsExperience weekly summary fallback", () => {
 
     render(React.createElement(ReportsExperience));
 
-    await waitFor(() => {
-      expect(screen.getByText("Escolha um período de até 90 dias para carregar os relatórios.")).toBeTruthy();
-    });
+    expect(screen.getByText("Escolha um período de até 90 dias para carregar os relatórios.")).toBeTruthy();
     expect(reportQueryState.periodBundleCalls.at(-1)?.options.enabled).toBe(false);
   });
 });
