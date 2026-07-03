@@ -28,6 +28,7 @@ const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const RegisteredMealsPage = lazy(() => import("@/pages/RegisteredMealsPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const SubscriptionPage = lazy(() => import("@/pages/SubscriptionPage"));
 const SyncedHealthDataPage = lazy(() => import("@/pages/SyncedHealthDataPage"));
 const WhatsappOnboardingPage = lazy(() => import("@/pages/WhatsappOnboardingPage"));
 
@@ -73,6 +74,8 @@ function Router() {
         <Route path="/foods" component={FoodsPage} />
         <Route path="/goals" component={GoalsPage} />
         <Route path="/reports" component={ReportsPage} />
+        <Route path="/assinatura" component={SubscriptionPage} />
+        <Route path="/subscription" component={SubscriptionPage} />
         <Route path="/channels" component={ChannelsPage} />
         <Route path="/health-integrations" component={HealthIntegrationsPage} />
         <Route path="/synced-health-data" component={SyncedHealthDataPage} />
