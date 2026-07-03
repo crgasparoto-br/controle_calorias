@@ -344,6 +344,11 @@ function calculateMealRegularityScore(meals: Array<{ mealLabel: string }>) {
   return Math.min(Math.round(((Math.min(meals.length, 4) / 4) * 60) + ((hasMainMeal / 3) * 40)), 100);
 }
 
+function resolveItemServingCount(item: { servings?: number | null }) {
+  const servings = Number(item.servings ?? 0);
+  return Number.isFinite(servings) && servings > 0 ? servings : 0;
+}
+
 function calculateLightQualityIndicators(
   meals: Parameters<typeof calculateQualityIndicators>[0],
   waterMl: number,
@@ -353,9 +358,33 @@ function calculateLightQualityIndicators(
   }
 
   const quality = calculateQualityIndicators(meals, waterMl, REFERENCE_FOOD_LOOKUP);
+  let foodQualityItemIndex = 0;
+  let fruitServings = 0;
+  let vegetableServings = 0;
+  let ultraProcessedServings = 0;
+  let hasServingBasedClassification = false;
+
+  for (const meal of meals) {
+    for (const item of meal.items) {
+      const qualityItem = quality.foodQualityItems[foodQualityItemIndex];
+      foodQualityItemIndex += 1;
+      if (!qualityItem?.isClassified) continue;
+
+      const servings = resolveItemServingCount(item);
+      if (servings <= 0) continue;
+
+      hasServingBasedClassification = true;
+      if (qualityItem.isFruit) fruitServings += servings;
+      if (qualityItem.isVegetable) vegetableServings += servings;
+      if (qualityItem.isUltraProcessed) ultraProcessedServings += servings;
+    }
+  }
 
   return {
     ...quality,
+    fruitServings: hasServingBasedClassification ? roundNutritionValue(fruitServings) : quality.fruitServings,
+    vegetableServings: hasServingBasedClassification ? roundNutritionValue(vegetableServings) : quality.vegetableServings,
+    ultraProcessedServings: hasServingBasedClassification ? roundNutritionValue(ultraProcessedServings) : quality.ultraProcessedServings,
     mealCount: meals.length,
     regularityScore: calculateMealRegularityScore(meals),
     foodQualityItems: [] as FoodQualityDay["items"],
