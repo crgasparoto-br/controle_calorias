@@ -611,7 +611,10 @@ const exercisesService = createExercisesService({
 });
 export const listUserExercises = exercisesService.listExercises;
 export const listUserExercisesByDate = exercisesService.listExercisesByDate;
+<<<<<<< HEAD
 export const listUserExercisesInRange = exercisesService.listExercisesInRange;
+=======
+>>>>>>> origin/main
 export const createUserExercise = exercisesService.createExercise;
 export const updateUserExercise = exercisesService.updateExercise;
 export const removeUserExercise = exercisesService.removeExercise;
@@ -623,7 +626,10 @@ const waterService = createWaterService({
 export const getUserWaterGoal = waterService.getWaterGoal;
 export const listUserWaterLogs = waterService.listWaterLogs;
 export const listUserWaterLogsByDate = waterService.listWaterLogsByDate;
+<<<<<<< HEAD
 export const listUserWaterLogsInRange = waterService.listWaterLogsInRange;
+=======
+>>>>>>> origin/main
 export const updateUserWaterGoal = waterService.updateWaterGoal;
 export const createUserWaterLog = waterService.createWaterLog;
 export const removeUserWaterLog = waterService.removeWaterLog;
@@ -673,7 +679,10 @@ const foodsService = createFoodsService({
   onWarning: logPersistenceWarning,
 });
 export const searchFoods = foodsService.searchFoods;
+<<<<<<< HEAD
 export const getFoodsByIds = foodsService.getFoodsByIds;
+=======
+>>>>>>> origin/main
 export const listRecentFoods = foodsService.listRecentFoods;
 export const upsertFavoriteFood = foodsService.upsertFavoriteFood;
 export const createUserFood = foodsService.createUserFood;

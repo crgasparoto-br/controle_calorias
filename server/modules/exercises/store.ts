@@ -1,7 +1,11 @@
 import { roundNutritionValue } from "../../../shared/mealTotals";
 import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { canUseMemoryPersistenceFallback } from "../../repositories/memoryFallback";
+<<<<<<< HEAD
 import type { ExerciseRecord, ExercisesRepository, ExternalExerciseImportStatus } from "../../repositories/exercisesRepository";
+=======
+import type { ExerciseRecord, ExercisesRepository } from "../../repositories/exercisesRepository";
+>>>>>>> origin/main
 
 export type ExerciseEntry = ExerciseRecord;
 
@@ -9,6 +13,7 @@ export function sumExercises(items: ExerciseEntry[]) {
   return items.reduce((acc, item) => acc + Number(item.caloriesBurned ?? 0), 0);
 }
 
+<<<<<<< HEAD
 function normalizeExternalId(value: string | number | null | undefined) {
   const normalized = String(value ?? "").trim().toLowerCase();
   return normalized || null;
@@ -27,6 +32,8 @@ function withExternalImportStatus(exercise: ExerciseEntry, status: ExternalExerc
   return { ...exercise, externalImportStatus: status };
 }
 
+=======
+>>>>>>> origin/main
 export function createExercisesService(deps: {
   exercisesRepository: ExercisesRepository;
   buildOccurredAtRange: (date: string) => { startAt: Date; endAt: Date };
@@ -62,6 +69,7 @@ export function createExercisesService(deps: {
       .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
   }
 
+<<<<<<< HEAD
   async function listExercisesInRange(userId: number, startAt: Date, endAt: Date) {
     const dbExercises = await deps.exercisesRepository.findByUserIdAndRange(userId, startAt, endAt);
     const exercisesForUser = dbExercises ?? (canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : []);
@@ -71,12 +79,15 @@ export function createExercisesService(deps: {
       .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
   }
 
+=======
+>>>>>>> origin/main
   async function createExercise(userId: number, input: {
     activityType: string;
     durationMinutes: number;
     caloriesBurned: number;
     occurredAt: string;
     notes?: string;
+<<<<<<< HEAD
     externalProvider?: string;
     externalId?: string;
   }) {
@@ -122,6 +133,9 @@ export function createExercisesService(deps: {
       return updated;
     }
 
+=======
+  }) {
+>>>>>>> origin/main
     const created: ExerciseEntry = {
       id: exerciseIdSequence++,
       userId,
@@ -132,6 +146,7 @@ export function createExercisesService(deps: {
       occurredAt: new Date(input.occurredAt).getTime(),
       createdAt: Date.now(),
       updatedAt: new Date(),
+<<<<<<< HEAD
       externalProvider: input.externalProvider?.trim().toLowerCase() || null,
       externalId: normalizeExternalId(input.externalId),
       externalImportStatus: externalReference ? "created" : undefined,
@@ -143,14 +158,28 @@ export function createExercisesService(deps: {
       exerciseStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
     }
 
+=======
+    };
+
+    const current = await listExercises(userId);
+    if (canUseMemoryPersistenceFallback()) {
+      exerciseStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
+    }
+    await deps.exercisesRepository.insert(created);
+>>>>>>> origin/main
     deps.onEvent({
       userId,
       origin: "web",
       status: "success",
+<<<<<<< HEAD
       eventType: finalStatus === "updated" ? "exercise.updated" : "exercise.created",
       detail: finalStatus === "updated"
         ? `Exercício ${created.activityType} atualizado pelo usuário.`
         : `Exercício ${created.activityType} registrado com gasto de ${roundNutritionValue(created.caloriesBurned)} kcal.`,
+=======
+      eventType: "exercise.created",
+      detail: `Exercício ${created.activityType} registrado com gasto de ${roundNutritionValue(created.caloriesBurned)} kcal.`,
+>>>>>>> origin/main
     });
     return created;
   }
@@ -162,8 +191,11 @@ export function createExercisesService(deps: {
     caloriesBurned: number;
     occurredAt: string;
     notes?: string;
+<<<<<<< HEAD
     externalProvider?: string;
     externalId?: string;
+=======
+>>>>>>> origin/main
   }) {
     const current = await listExercises(userId);
     const existing = current.find(item => item.id === input.exerciseId);
@@ -178,8 +210,11 @@ export function createExercisesService(deps: {
       caloriesBurned: input.caloriesBurned,
       occurredAt: new Date(input.occurredAt).getTime(),
       notes: input.notes ?? null,
+<<<<<<< HEAD
       externalProvider: input.externalProvider?.trim().toLowerCase() || existing.externalProvider || null,
       externalId: normalizeExternalId(input.externalId) || existing.externalId || null,
+=======
+>>>>>>> origin/main
       updatedAt: new Date(),
     };
 
@@ -230,7 +265,10 @@ export function createExercisesService(deps: {
   return {
     listExercises,
     listExercisesByDate,
+<<<<<<< HEAD
     listExercisesInRange,
+=======
+>>>>>>> origin/main
     createExercise,
     updateExercise,
     removeExercise,
@@ -238,4 +276,8 @@ export function createExercisesService(deps: {
   };
 }
 
+<<<<<<< HEAD
 export type ExercisesService = ReturnType<typeof createExercisesService>;
+=======
+export type ExercisesService = ReturnType<typeof createExercisesService>;
+>>>>>>> origin/main

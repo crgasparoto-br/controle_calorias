@@ -2,17 +2,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoodProcessingLevel } from "../../../shared/reportsGoalAnalytics";
 
 const dbMocks = vi.hoisted(() => ({
+<<<<<<< HEAD
   getDb: vi.fn(),
   getFoodsByIds: vi.fn(),
+=======
+>>>>>>> origin/main
   getHabitSnapshots: vi.fn(),
   getUserGamification: vi.fn(),
   getUserWaterGoal: vi.fn(),
   getWeeklyProgress: vi.fn(),
+<<<<<<< HEAD
   listUserExercises: vi.fn(),
   listUserExercisesByDate: vi.fn(),
   listUserMeals: vi.fn(),
   listUserMealsByDate: vi.fn(),
   listUserWaterLogs: vi.fn(),
+=======
+  listUserExercisesByDate: vi.fn(),
+  listUserMeals: vi.fn(),
+  listUserMealsByDate: vi.fn(),
+>>>>>>> origin/main
   listUserWaterLogsByDate: vi.fn(),
   searchFoods: vi.fn(),
 }));
@@ -29,7 +38,11 @@ vi.mock("./weeklyInsightService", () => ({
   },
 }));
 
+<<<<<<< HEAD
 import { getPeriodReportBundle, getWeeklyReport, getWeeklyReportBundle } from "./service";
+=======
+import { getPeriodReportBundle } from "./service";
+>>>>>>> origin/main
 
 type MealItemOverrides = Partial<{
   foodCatalogId: number | null;
@@ -73,25 +86,36 @@ function mealItem(overrides: MealItemOverrides = {}) {
   };
 }
 
+<<<<<<< HEAD
 function meal(items: ReturnType<typeof mealItem>[], occurredAt = new Date("2026-06-01T12:00:00.000Z").getTime()) {
+=======
+function meal(items: ReturnType<typeof mealItem>[]) {
+>>>>>>> origin/main
   return {
     id: 1,
     userId: 77,
     source: "web",
     mealLabel: "lanche",
     status: "confirmed",
+<<<<<<< HEAD
     occurredAt,
+=======
+    occurredAt: new Date("2026-06-01T12:00:00.000Z").getTime(),
+>>>>>>> origin/main
     sourceText: "",
     confidence: 0.9,
     items,
     media: [],
     createdAt: Date.now(),
+<<<<<<< HEAD
     totals: items.reduce((totals, item) => ({
       calories: totals.calories + item.calories,
       protein: totals.protein + item.protein,
       carbs: totals.carbs + item.carbs,
       fat: totals.fat + item.fat,
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 }),
+=======
+>>>>>>> origin/main
   };
 }
 
@@ -122,6 +146,7 @@ function foodSearchItem(overrides: FoodSearchOverrides = {}) {
 }
 
 function configureCommonMocks() {
+<<<<<<< HEAD
   dbMocks.getDb.mockResolvedValue(null);
   dbMocks.getUserWaterGoal.mockResolvedValue({ dailyTargetMl: 2000 });
   dbMocks.getWeeklyProgress.mockResolvedValue({ weight: { entries: [] } });
@@ -134,6 +159,12 @@ function configureCommonMocks() {
   dbMocks.listUserWaterLogs.mockResolvedValue([]);
   dbMocks.listUserWaterLogsByDate.mockResolvedValue([]);
   dbMocks.getFoodsByIds.mockResolvedValue([]);
+=======
+  dbMocks.getUserWaterGoal.mockResolvedValue({ dailyTargetMl: 2000 });
+  dbMocks.getWeeklyProgress.mockResolvedValue({ weight: { entries: [] } });
+  dbMocks.listUserExercisesByDate.mockResolvedValue([]);
+  dbMocks.listUserWaterLogsByDate.mockResolvedValue([]);
+>>>>>>> origin/main
   goalMocks.getNutritionGoalForDate.mockResolvedValue({
     today: {
       calories: 2000,
@@ -153,6 +184,7 @@ describe("insights food quality report integration", () => {
   });
 
   it("usa lookup direcionado do período para classificar por foodCatalogId e manter diagnóstico", async () => {
+<<<<<<< HEAD
     dbMocks.listUserMeals.mockResolvedValue([
       meal([
         mealItem({
@@ -170,6 +202,28 @@ describe("insights food quality report integration", () => {
         }),
       ]),
     ]);
+=======
+    dbMocks.listUserMealsByDate.mockImplementation(async (_userId: number, date: string) => {
+      if (date !== "2026-06-01") return [];
+      return [
+        meal([
+          mealItem({
+            foodCatalogId: 501,
+            foodName: "texto sem alias",
+            canonicalName: "Alimento fora dos primeiros resultados",
+            portionText: "porção divergente",
+            calories: 120,
+          }),
+          mealItem({
+            foodName: "Item externo sem cadastro",
+            canonicalName: "Preparacao xpto isolada",
+            portionText: "1 pacote indefinido",
+            calories: 100,
+          }),
+        ]),
+      ];
+    });
+>>>>>>> origin/main
     dbMocks.searchFoods.mockImplementation(async (_userId: number, query: string) => {
       if (query === "Alimento fora dos primeiros resultados") {
         return [foodSearchItem()];
@@ -182,7 +236,10 @@ describe("insights food quality report integration", () => {
       endDate: "2026-06-02",
     });
 
+<<<<<<< HEAD
     expect(dbMocks.listUserMealsByDate).not.toHaveBeenCalled();
+=======
+>>>>>>> origin/main
     expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "Alimento fora dos primeiros resultados", expect.any(Number));
     expect(dbMocks.searchFoods).toHaveBeenCalledWith(77, "texto sem alias", expect.any(Number));
     expect(dbMocks.searchFoods).not.toHaveBeenCalledWith(77, "", expect.any(Number));
@@ -200,6 +257,7 @@ describe("insights food quality report integration", () => {
         reason: "missing_catalog_id",
       }),
     ]);
+<<<<<<< HEAD
     const ultraProcessedDistribution = report.quality.foodQuality.distribution.find(item => item.key === "ultraProcessed");
     expect(ultraProcessedDistribution?.items).toEqual([
       expect.objectContaining({
@@ -214,6 +272,12 @@ describe("insights food quality report integration", () => {
 
   it("não executa busca de alimentos quando o período não possui refeições", async () => {
     dbMocks.listUserMeals.mockResolvedValue([]);
+=======
+  });
+
+  it("não executa busca de alimentos quando o período não possui refeições", async () => {
+    dbMocks.listUserMealsByDate.mockResolvedValue([]);
+>>>>>>> origin/main
     dbMocks.searchFoods.mockResolvedValue([]);
 
     const report = await getPeriodReportBundle(77, {
@@ -225,6 +289,7 @@ describe("insights food quality report integration", () => {
     expect(report.quality.foodQuality.hasData).toBe(false);
     expect(report.quality.foodQuality.unclassifiedItems).toEqual([]);
   });
+<<<<<<< HEAD
 
   it("executa lookup detalhado de alimentos e retorna qualidade agregada no resumo semanal", async () => {
     dbMocks.listUserMeals.mockResolvedValue([
@@ -283,4 +348,6 @@ describe("insights food quality report integration", () => {
       unclassifiedCalories: 0,
     });
   });
+=======
+>>>>>>> origin/main
 });
