@@ -200,6 +200,16 @@ describe("insights food quality report integration", () => {
         reason: "missing_catalog_id",
       }),
     ]);
+    const ultraProcessedDistribution = report.quality.foodQuality.distribution.find(item => item.key === "ultraProcessed");
+    expect(ultraProcessedDistribution?.items).toEqual([
+      expect.objectContaining({
+        key: "alimento fora dos primeiros resultados",
+        foodName: "texto sem alias",
+        canonicalName: "Alimento fora dos primeiros resultados",
+        totalCalories: 120,
+        occurrences: 1,
+      }),
+    ]);
   });
 
   it("não executa busca de alimentos quando o período não possui refeições", async () => {
