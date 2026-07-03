@@ -216,7 +216,7 @@ describe("insights food quality report integration", () => {
     expect(report.quality.foodQuality.unclassifiedItems).toEqual([]);
   });
 
-  it("não executa lookup detalhado de alimentos no resumo semanal leve", async () => {
+  it("executa lookup detalhado de alimentos e retorna qualidade agregada no resumo semanal", async () => {
     dbMocks.listUserMeals.mockResolvedValue([
       meal([
         mealItem({
@@ -230,20 +230,19 @@ describe("insights food quality report integration", () => {
     ]);
     dbMocks.searchFoods.mockResolvedValue([foodSearchItem()]);
 
-    const { weekly } = await getWeeklyReport(77);
+    const { weekly, quality } = await getWeeklyReport(77);
     const dayWithMeal = weekly.find(day => day.calories > 0);
 
-    expect(dbMocks.searchFoods).not.toHaveBeenCalled();
+    expect(dbMocks.searchFoods).toHaveBeenCalled();
     expect(weekly).toHaveLength(7);
     expect(dayWithMeal?.quality).toMatchObject({
       proteinGrams: 5,
-      fiberGrams: 0,
       fruitServings: 0,
       vegetableServings: 0,
-      ultraProcessedServings: 0,
       mealCount: 1,
     });
-    expect(dayWithMeal?.quality.foodQualityItems).toEqual([]);
+    expect(dayWithMeal?.quality.foodQualityItems.length).toBeGreaterThan(0);
+    expect(quality.foodQuality.hasData).toBe(true);
   });
 
   it("mantém lookup detalhado de alimentos no bundle semanal completo", async () => {

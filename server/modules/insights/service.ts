@@ -774,13 +774,14 @@ export async function getDashboardTodayOverview(userId: number, options: { date?
 export async function getWeeklyReport(userId: number, weekOffset = 0) {
   const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
   const [weekly, fallbackProgress] = await Promise.all([
-    buildWeeklyReportSummary(userId, weekOffset),
+    buildWeeklyReportSummary(userId, weekOffset, { includeFoodQualityDetails: true }),
     getWeeklyProgress(userId),
   ]);
 
   return {
     weekly,
     weightTrend: buildWeightTrendForDates(fallbackProgress.weight.entries, dateKeys),
+    quality: buildAggregateQuality(weekly),
   };
 }
 
