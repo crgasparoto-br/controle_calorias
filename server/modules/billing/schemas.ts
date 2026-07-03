@@ -30,7 +30,7 @@ export const billingWebhookSchema = z.object({
   userId: z.number().int().positive().optional(),
   occurredAt: z.string().datetime().optional(),
   paymentMethodLabel: z.string().trim().min(1).max(80).optional(),
-  payload: z.record(z.unknown()).optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
   signature: z.string().trim().min(1).max(256).optional(),
   verificationPayload: z.string().optional(),
 });
