@@ -86,6 +86,7 @@ export default function FoodsPage() {
       setForm(emptyForm);
       setQuery(food.name);
       utils.nutrition.foods.search.invalidate();
+      utils.nutrition.foods.recent.invalidate();
     },
     onError: error => toast.error(error.message),
   });
