@@ -39,8 +39,18 @@ export type FoodCatalogRepository = {
   upsertFavorite(userId: number, foodId: number): Promise<void>;
   deleteFavorite(userId: number, foodId: number): Promise<void>;
   insert(input: FoodCatalogInsertInput): Promise<number>;
-  update(foodId: number, userId: number, input: FoodCatalogUpdateInput): Promise<void>;
+  update(foodId: number, userId: number, input: FoodCatalogUpdateInput): Promise<number>;
 };
+
+function extractAffectedRows(result: unknown) {
+  const candidate = Array.isArray(result) ? result[0] : result;
+  if (!candidate || typeof candidate !== "object" || !("affectedRows" in candidate)) {
+    return 0;
+  }
+
+  const affectedRows = Number((candidate as { affectedRows: unknown }).affectedRows);
+  return Number.isFinite(affectedRows) ? affectedRows : 0;
+}
 
 export function createDrizzleFoodCatalogRepository(deps: {
   getDb: DbProvider;
@@ -91,12 +101,14 @@ export function createDrizzleFoodCatalogRepository(deps: {
 
     async update(foodId, userId, input) {
       const db = await deps.getDb();
-      if (!db) return;
+      if (!db) return 0;
 
-      await db.update(foodCatalog).set({
+      const updated = await db.update(foodCatalog).set({
         ...input,
         updatedAt: new Date(),
       }).where(and(eq(foodCatalog.id, foodId), eq(foodCatalog.createdByUserId, userId)));
+
+      return extractAffectedRows(updated);
     },
   };
 }
