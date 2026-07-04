@@ -44,12 +44,19 @@ export type FoodCatalogRepository = {
 
 function extractAffectedRows(result: unknown) {
   const candidate = Array.isArray(result) ? result[0] : result;
-  if (!candidate || typeof candidate !== "object" || !("affectedRows" in candidate)) {
+  if (!candidate || typeof candidate !== "object") {
     return 0;
   }
 
-  const affectedRows = Number((candidate as { affectedRows: unknown }).affectedRows);
-  return Number.isFinite(affectedRows) ? affectedRows : 0;
+  const affectedRows = "affectedRows" in candidate
+    ? (candidate as { affectedRows: unknown }).affectedRows
+    : "rowsAffected" in candidate
+      ? (candidate as { rowsAffected: unknown }).rowsAffected
+      : "rowCount" in candidate
+        ? (candidate as { rowCount: unknown }).rowCount
+        : 0;
+  const parsed = Number(affectedRows);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function createDrizzleFoodCatalogRepository(deps: {
