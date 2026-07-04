@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFoodsService } from "./catalog";
-import type { FoodCatalogRepository } from "../../repositories/foodCatalogRepository";
+import { createFoodsService, type FoodUpsertInput } from "./catalog";
+import type {
+  FoodCatalogInsertInput,
+  FoodCatalogRepository,
+  FoodCatalogUpdateInput,
+} from "../../repositories/foodCatalogRepository";
 
 function createFakeFoodCatalogRepository(overrides: Partial<FoodCatalogRepository> = {}): FoodCatalogRepository {
   return {
@@ -9,7 +13,7 @@ function createFakeFoodCatalogRepository(overrides: Partial<FoodCatalogRepositor
     upsertFavorite: vi.fn(async () => undefined),
     deleteFavorite: vi.fn(async () => undefined),
     insert: vi.fn(async () => 0),
-    update: vi.fn(async () => undefined),
+    update: vi.fn(async () => 1),
     ...overrides,
   } as FoodCatalogRepository;
 }
@@ -50,6 +54,91 @@ function catalogRow(overrides: Record<string, unknown> = {}) {
     ...overrides,
   } as any;
 }
+
+function createMutableFoodCatalogRepository(options: { updateError?: Error } = {}) {
+  let nextId = 3000;
+  const rows: any[] = [];
+
+  const repository = createFakeFoodCatalogRepository({
+    findAll: vi.fn(async () => rows as any),
+    insert: vi.fn(async (input: FoodCatalogInsertInput) => {
+      const id = nextId++;
+      rows.unshift(catalogRow({
+        id,
+        slug: input.slug,
+        name: input.name,
+        aliases: input.aliases,
+        brandName: input.brandName,
+        foodType: input.foodType,
+        dataSource: input.dataSource,
+        servingLabel: input.servingLabel,
+        servingUnit: input.servingUnit,
+        gramsPerServing: input.gramsPerServing,
+        calories: input.calories,
+        protein: input.protein,
+        carbs: input.carbs,
+        fat: input.fat,
+        fiber: input.fiber,
+        isFruit: input.isFruit,
+        isVegetable: input.isVegetable,
+        isUltraProcessed: input.isUltraProcessed,
+        processingLevel: input.processingLevel ?? null,
+        classificationSource: input.classificationSource ?? null,
+        classificationConfidence: input.classificationConfidence ?? null,
+        isUserCreated: input.isUserCreated,
+        createdByUserId: input.createdByUserId,
+      }));
+      return id;
+    }),
+    update: vi.fn(async (foodId: number, userId: number, input: FoodCatalogUpdateInput) => {
+      if (options.updateError) {
+        throw options.updateError;
+      }
+
+      const row = rows.find(item => item.id === foodId && item.createdByUserId === userId);
+      if (!row) return 0;
+
+      Object.assign(row, {
+        name: input.name,
+        brandName: input.brandName,
+        foodType: input.foodType,
+        dataSource: input.dataSource,
+        servingLabel: input.servingLabel,
+        servingUnit: input.servingUnit,
+        gramsPerServing: input.gramsPerServing,
+        calories: input.calories,
+        protein: input.protein,
+        carbs: input.carbs,
+        fat: input.fat,
+        fiber: input.fiber,
+        isFruit: input.isFruit,
+        isVegetable: input.isVegetable,
+        isUltraProcessed: input.isUltraProcessed,
+      });
+
+      return 1;
+    }),
+  });
+
+  return { repository, rows };
+}
+
+const whatsappFood: FoodUpsertInput = {
+  name: "Panqueca criada pelo WhatsApp",
+  brandName: null,
+  servingSize: 120,
+  servingUnit: "g",
+  calories: 210,
+  protein: 11,
+  carbs: 28,
+  fat: 6,
+  fiber: 2,
+  isFruit: false,
+  isVegetable: false,
+  isUltraProcessed: false,
+  source: "whatsapp_ai",
+  foodType: "generic",
+};
 
 describe("foods catalog service", () => {
   it("finds a user-created food from memory when the database is unavailable", async () => {
@@ -137,6 +226,72 @@ describe("foods catalog service", () => {
     expect(resolved.get("sem id valido")).toBe(20);
     expect(resolved.get("flocos de aveia")).toBe(20);
     expect(resolved.has("catalog:999")).toBe(false);
+  });
+
+  it("persists edits to user-created WhatsApp/AI foods and returns updated data on a later search", async () => {
+    const { repository, rows } = createMutableFoodCatalogRepository();
+    const service = createService({ foodCatalogRepository: repository, getDb: async () => ({}) });
+
+    const created = await service.createUserFood(42, whatsappFood);
+
+    await service.updateUserFood(42, {
+      ...whatsappFood,
+      foodId: created.id,
+      name: "Panqueca ajustada pelo usuário",
+      calories: 188,
+      protein: 14,
+      source: "ai_estimated",
+    });
+
+    const searchResults = await service.searchFoods(42, "panqueca ajustada", 10);
+
+    expect(rows[0]).toMatchObject({
+      id: created.id,
+      name: "Panqueca ajustada pelo usuário",
+      calories: 188,
+      protein: 14,
+      dataSource: "ai_estimated",
+    });
+    expect(searchResults).toHaveLength(1);
+    expect(searchResults[0]).toMatchObject({
+      id: created.id,
+      name: "Panqueca ajustada pelo usuário",
+      calories: 188,
+      protein: 14,
+      isUserCreated: true,
+      createdByUserId: 42,
+    });
+  });
+
+  it("returns an error when update persistence fails and keeps later searches on persisted data", async () => {
+    const updateError = new Error("database unavailable");
+    const onWarning = vi.fn();
+    const { repository } = createMutableFoodCatalogRepository({ updateError });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+      onWarning,
+    });
+
+    const created = await service.createUserFood(43, whatsappFood);
+
+    await expect(service.updateUserFood(43, {
+      ...whatsappFood,
+      foodId: created.id,
+      name: "Panqueca que não deve aparecer",
+      calories: 300,
+    })).rejects.toThrow("Não foi possível salvar o alimento. Tente novamente.");
+
+    const failedSearch = await service.searchFoods(43, "não deve aparecer", 10);
+    const originalSearch = await service.searchFoods(43, "panqueca criada", 10);
+
+    expect(onWarning).toHaveBeenCalledWith("Food update persistence failed", updateError);
+    expect(failedSearch).toHaveLength(0);
+    expect(originalSearch[0]).toMatchObject({
+      id: created.id,
+      name: "Panqueca criada pelo WhatsApp",
+      calories: 210,
+    });
   });
 
   it("clears user-created foods and favorites from memory", async () => {
