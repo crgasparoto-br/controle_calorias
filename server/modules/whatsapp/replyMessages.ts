@@ -1,5 +1,6 @@
 import type { MealProcessingResult } from "../../nutritionEngine";
 import { getWhatsAppExerciseCaloriesForDateKey } from "./goalProgressContext";
+import { resolveFoodIcon } from "./foodIcons";
 
 export type WhatsAppMealGoalProgress = {
   consumedCalories: number;
@@ -63,31 +64,6 @@ function shouldShowApproximateGrams(item: MealProcessingResult["items"][number])
   return item.estimatedGrams > 0
     && !portionUsesWeightUnit(item.portionText)
     && !portionUsesVolumeUnit(item.portionText);
-}
-
-function getFoodIcon(item: MealProcessingResult["items"][number]) {
-  const text = `${item.foodName} ${item.canonicalName}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-  if (/\b(banana)\b/.test(text)) return "🍌";
-  if (/\b(maca|apple)\b/.test(text)) return "🍎";
-  if (/\b(laranja|orange)\b/.test(text)) return "🍊";
-  if (/\b(morango|strawberry)\b/.test(text)) return "🍓";
-  if (/\b(uva|grape)\b/.test(text)) return "🍇";
-  if (/\b(abacate|avocado)\b/.test(text)) return "🥑";
-  if (/\b(ovo|omelete)\b/.test(text)) return "🥚";
-  if (/\b(frango|chicken|carne|bife|steak)\b/.test(text)) return "🍗";
-  if (/\b(peixe|fish|salmao|atum|tilapia)\b/.test(text)) return "🐟";
-  if (/\b(arroz|rice|feijao|lentilha|grao de bico)\b/.test(text)) return "🍚";
-  if (/\b(macarrao|massa|pasta)\b/.test(text)) return "🍝";
-  if (/\b(pao|torrada|bisnaguinha|sandui?che)\b/.test(text)) return "🍞";
-  if (/\b(queijo|cheese)\b/.test(text)) return "🧀";
-  if (/\b(leite|iogurte|whey)\b/.test(text)) return "🥛";
-  if (/\b(cafe|coffee)\b/.test(text)) return "☕";
-  if (/\b(salada|alface|legume|brocolis|tomate|cenoura)\b/.test(text)) return "🥗";
-  if (/\b(batata|mandioca|aipim)\b/.test(text)) return "🥔";
-  if (/\b(chocolate|doce|bolo)\b/.test(text)) return "🍫";
-
-  return "🍽️";
 }
 
 function formatPortionText(item: MealProcessingResult["items"][number]) {
@@ -158,7 +134,7 @@ export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, o
   }
 
   const itemLines = processed.items.flatMap(item => [
-    `• ${getFoodIcon(item)} ${formatFoodDescription(item)}`,
+    `• ${resolveFoodIcon(item)} ${formatFoodDescription(item)}`,
     formatItemMacros(item),
     "",
   ]);
