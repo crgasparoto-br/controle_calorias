@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWhatsAppMealReplyMessage } from "./replyMessages";
+import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage } from "./replyMessages";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
 describe("buildWhatsAppMealReplyMessage", () => {
@@ -210,5 +210,55 @@ describe("buildWhatsAppMealReplyMessage", () => {
     expect(reply).toContain("Amendoim japonês");
     expect(reply).not.toContain("Editar:");
     expect(reply).not.toContain("quick-edit");
+  });
+
+  it("monta resposta consolidada com todos os alimentos da refeição atualizada", () => {
+    const reply = buildWhatsAppConsolidatedMealReplyMessage({
+      mealLabel: "Café da manhã",
+      occurredAt: new Date("2026-06-04T10:14:00.000Z"),
+      items: [
+        {
+          foodName: "Pêra William",
+          canonicalName: "Pêra",
+          portionText: "185 g",
+          estimatedGrams: 185,
+          calories: 105,
+          protein: 0.7,
+          carbs: 28,
+          fat: 0.2,
+          source: "catalog",
+        },
+        {
+          foodName: "Banana prata",
+          canonicalName: "Banana",
+          portionText: "139 g",
+          estimatedGrams: 139,
+          calories: 125,
+          protein: 1.5,
+          carbs: 32.3,
+          fat: 0.4,
+          source: "catalog",
+        },
+        {
+          foodName: "Iogurte grego light Danone",
+          canonicalName: "Iogurte grego light",
+          portionText: "80 g",
+          estimatedGrams: 80,
+          calories: 62,
+          protein: 6,
+          carbs: 7,
+          fat: 1,
+          source: "catalog",
+        },
+      ],
+    });
+
+    expect(reply).toContain("Café da manhã Atualizado às 07:14hs.");
+    expect(reply).toContain("• 🍽️ Pêra William, 185g - 105 Kcal");
+    expect(reply).toContain("• 🍌 Banana prata, 139g - 125 Kcal");
+    expect(reply).toContain("• 🥛 Iogurte grego light Danone, 80g - 62 Kcal");
+    expect(reply).toContain("Total da refeição:");
+    expect(reply).toContain("292 Kcal");
+    expect(reply).toContain("Prot. 8,2 g | Carb. 67,3 g | Gord. 1,6 g");
   });
 });
