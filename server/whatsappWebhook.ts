@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import type { GenerateImageResponse } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { transcribeAudio } from "./_core/voiceTranscription";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, relabelUserMeals, updateUserCurrentWeight } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, relabelUserMeals, removeUserMeal, updateUserCurrentWeight, updateUserMeal } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
@@ -12,7 +12,7 @@ import {
   type WhatsAppContentSafetyCheck,
   type WhatsAppUserContentModality,
 } from "./modules/whatsapp/promptInjectionGuard";
-import { buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
+import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
 import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
@@ -28,6 +28,7 @@ import {
   sendWhatsAppTextMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
+import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import { MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
 
@@ -923,6 +924,17 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         items: processedForPersistence.items,
       });
 
+      const consolidationResult = await consolidateWhatsAppMealAfterSave(
+        {
+          listUserMeals,
+          updateUserMeal,
+          removeUserMeal,
+        },
+        savedMeal,
+      );
+
+      const replyMeal = consolidationResult.meal;
+
       logInferenceEvent({
         userId,
         origin: "whatsapp",
@@ -931,11 +943,16 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         detail: `Mensagem ${prepared.summary} de ${sourcePhone} processada e refeição ${savedMeal.mealLabel} registrada automaticamente às ${formatReplyTime(occurredAt)}.`,
       });
 
-      const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: savedMeal.id });
-      const mealReplyText = buildWhatsAppMealReplyMessage(processedForPersistence, {
-        registeredAt: occurredAt,
-        goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
-      });
+      const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: replyMeal.id });
+      const mealReplyText = consolidationResult.action === "updated"
+        ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
+            registeredAt: occurredAt,
+            goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+          })
+        : buildWhatsAppMealReplyMessage(processedForPersistence, {
+            registeredAt: occurredAt,
+            goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+          });
       const replyResult = quickEditLink?.url
         ? await sendWhatsAppInteractiveUrlButtonMessage(sourcePhone, mealReplyText, "Editar refeição", quickEditLink.url)
         : await sendWhatsAppTextMessage(sourcePhone, mealReplyText);

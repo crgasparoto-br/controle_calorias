@@ -23,6 +23,8 @@ vi.mock("./db", () => ({
   listUserMeals: vi.fn(async () => []),
   logInferenceEvent: logInferenceEventMock,
   relabelUserMeals: vi.fn(async () => []),
+  updateUserMeal: vi.fn(),
+  removeUserMeal: vi.fn(),
 }));
 
 vi.mock("./nutritionEngine", () => ({
