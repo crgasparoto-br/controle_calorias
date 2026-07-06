@@ -52,7 +52,7 @@ export function isConversationalOnlyText(value: string) {
 
 export function fallbackFromText(sourceText: string): MealDraftItem[] {
   const parts = sourceText
-    .split(/,|\be\b|\+|\n/gi)
+    .split(/,|\be\b|\+(?!\s*\d)|\n/gi)
     .map(value => value.trim())
     .filter(value => value && !isConversationalOnlyText(value));
 
