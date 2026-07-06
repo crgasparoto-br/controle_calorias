@@ -3,7 +3,7 @@ import { findCatalogFood, sourceMentionsFood } from "./catalogMatching";
 import { extractWithAi } from "./mealAiExtraction";
 import { resolveMealLabel } from "./mealLabelResolver";
 import {
-  applyExplicitSingleGramQuantity,
+  applyExplicitQuantities,
   buildEstimatedNutritionFallbackItem,
   buildHybridItem,
   buildItemFromCatalog,
@@ -170,7 +170,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
       usedSourceTextFallback = true;
       rawItems = fallbackFromText(sourceText);
     } else {
-      rawItems = applyExplicitSingleGramQuantity(await buildItemsFromInference(
+      rawItems = applyExplicitQuantities(await buildItemsFromInference(
         inferenceItems,
         {
           preferInferredNutrition: Boolean(

@@ -56,6 +56,13 @@ export function buildPortionText(quantity: number, unit: string) {
   return `${formatQuantityForPortion(quantity)} ${unit}`;
 }
 
+export function splitFoodTextSegments(sourceText: string) {
+  return sourceText
+    .split(/,|;|\be\b|\+(?!\s*\d)|\n/gi)
+    .map(value => value.trim())
+    .filter(Boolean);
+}
+
 export function estimateGramsFromQuantity(quantity: number, unit: string) {
   switch (normalizeUnit(unit)) {
     case "kg":
@@ -263,7 +270,7 @@ function buildQuantityExpressionClarification(code: QuantityExpressionErrorCode)
   return "Não consegui entender a conta usada na quantidade do alimento. Pode reenviar a quantidade de um jeito mais simples?";
 }
 
-export function getQuantityExpressionClarification(value: string) {
+function getQuantityExpressionClarificationForSegment(value: string) {
   const match = findLeadingQuantityExpression(value);
   if (!match) {
     return null;
@@ -275,6 +282,20 @@ export function getQuantityExpressionClarification(value: string) {
   }
 
   return buildQuantityExpressionClarification(evaluation.ok ? "invalid_syntax" : evaluation.code);
+}
+
+export function getQuantityExpressionClarification(value: string) {
+  const segments = splitFoodTextSegments(value);
+  const candidates = segments.length > 1 ? segments : [value];
+
+  for (const candidate of candidates) {
+    const clarification = getQuantityExpressionClarificationForSegment(candidate);
+    if (clarification) {
+      return clarification;
+    }
+  }
+
+  return null;
 }
 
 export function parseFoodText(value: string): ParsedFoodText {
@@ -310,6 +331,29 @@ export function parseFoodText(value: string): ParsedFoodText {
     portionText: buildPortionText(roundNutritionValue(quantity), unit),
     estimatedGrams: estimatedGrams === undefined ? undefined : roundNutritionValue(estimatedGrams),
   };
+}
+
+export function extractExplicitQuantityFoodSegments(sourceText: string): Array<ExplicitQuantity & { foodName: string }> {
+  const items: Array<ExplicitQuantity & { foodName: string }> = [];
+
+  for (const segment of splitFoodTextSegments(sourceText)) {
+    const parsed = parseFoodText(segment);
+    if (!parsed.quantity || !parsed.unit) {
+      continue;
+    }
+
+    const item: ExplicitQuantity & { foodName: string } = {
+      foodName: parsed.foodName,
+      quantity: parsed.quantity,
+      unit: parsed.unit,
+    };
+    if (parsed.estimatedGrams !== undefined) {
+      item.estimatedGrams = parsed.estimatedGrams;
+    }
+    items.push(item);
+  }
+
+  return items;
 }
 
 export function extractExplicitQuantities(sourceText: string): ExplicitQuantity[] {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractExplicitQuantities, getQuantityExpressionClarification, parseFoodText } from "./mealTextParsing";
+import {
+  extractExplicitQuantities,
+  extractExplicitQuantityFoodSegments,
+  getQuantityExpressionClarification,
+  parseFoodText,
+} from "./mealTextParsing";
 
 describe("mealTextParsing arithmetic quantity expressions", () => {
   it.each([
@@ -35,9 +40,35 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
     }));
   });
 
+  it("aceita resultado decimal e formata conforme o padrão do projeto", () => {
+    expect(parseFoodText("1kg/2 de arroz")).toEqual(expect.objectContaining({
+      foodName: "arroz",
+      quantity: 0.5,
+      unit: "kg",
+      portionText: "0,5 kg",
+      estimatedGrams: 500,
+    }));
+  });
+
+  it("aceita expressão com unidade não convertida para gramas", () => {
+    expect(parseFoodText("2x1 un banana")).toEqual(expect.objectContaining({
+      foodName: "banana",
+      quantity: 2,
+      unit: "un",
+      portionText: "2 un",
+    }));
+  });
+
   it("extrai uma quantidade explícita calculada para reaplicar em item único", () => {
     expect(extractExplicitQuantities("2x176g de laranja pêra")).toEqual([
       { quantity: 352, unit: "g", estimatedGrams: 352 },
+    ]);
+  });
+
+  it("extrai quantidades explícitas calculadas por alimento", () => {
+    expect(extractExplicitQuantityFoodSegments("300g/2+20g de banana e 2x176g de laranja pêra")).toEqual([
+      { foodName: "banana", quantity: 170, unit: "g", estimatedGrams: 170 },
+      { foodName: "laranja pêra", quantity: 352, unit: "g", estimatedGrams: 352 },
     ]);
   });
 
@@ -52,6 +83,7 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
 
   it.each([
     ["300g/0 de banana", "divisão por zero"],
+    ["banana e 300g/0 de laranja", "divisão por zero"],
     ["100g-100g de banana", "zero ou negativo"],
     ["100g+20ml de banana", "mistura unidades diferentes"],
     ["1+1+1+1+1+1+1g de banana", "operações demais"],

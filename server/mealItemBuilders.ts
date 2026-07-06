@@ -1,16 +1,17 @@
 import { roundNutritionValue } from "../shared/mealTotals";
-import { detectKnownBrand, findCatalogFood, inferItemBrand } from "./catalogMatching";
+import { detectKnownBrand, findCatalogFood, inferItemBrand, sourceMentionsFood } from "./catalogMatching";
 import {
   buildPortionText,
   cleanFoodName,
   extractExplicitQuantities,
+  extractExplicitQuantityFoodSegments,
   normalizeText,
   normalizeUnit,
   parseFoodText,
   parseQuantityUnitFromPortionText,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
-import type { CatalogFood, LlmItem, MealDraftItem } from "./nutritionEngineTypes";
+import type { CatalogFood, ExplicitQuantity, LlmItem, MealDraftItem } from "./nutritionEngineTypes";
 
 const GENERIC_ESTIMATED_FOOD_REFERENCE: CatalogFood = {
   slug: "generic-food-estimate",
@@ -171,19 +172,12 @@ export function buildEstimatedNutritionFallbackItem(llmItem: LlmItem, similarFoo
   };
 }
 
-export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceText: string) {
-  const explicitQuantities = extractExplicitQuantities(sourceText);
-  if (items.length !== 1 || explicitQuantities.length !== 1) {
-    return items;
-  }
-
-  const [item] = items;
-  const [explicit] = explicitQuantities;
+function applyExplicitQuantityToItem(item: MealDraftItem, explicit: ExplicitQuantity) {
   const nextEstimatedGrams = explicit.estimatedGrams ?? item.estimatedGrams;
   const currentGrams = item.estimatedGrams > 0 ? item.estimatedGrams : nextEstimatedGrams;
   const factor = nextEstimatedGrams && currentGrams > 0 ? nextEstimatedGrams / currentGrams : 1;
 
-  return [{
+  return {
     ...item,
     quantity: explicit.quantity,
     unit: explicit.unit,
@@ -194,7 +188,53 @@ export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceTe
     protein: roundNutritionValue(item.protein * factor),
     carbs: roundNutritionValue(item.carbs * factor),
     fat: roundNutritionValue(item.fat * factor),
-  }];
+  };
+}
+
+function explicitSegmentMatchesItem(foodName: string, item: MealDraftItem) {
+  const normalizedFood = normalizeText(foodName);
+  const normalizedItem = normalizeText(item.foodName);
+  const normalizedCanonical = normalizeText(item.canonicalName);
+
+  return normalizedFood === normalizedItem
+    || normalizedFood === normalizedCanonical
+    || sourceMentionsFood(foodName, item.foodName)
+    || sourceMentionsFood(foodName, item.canonicalName)
+    || sourceMentionsFood(item.foodName, foodName)
+    || sourceMentionsFood(item.canonicalName, foodName);
+}
+
+export function applyExplicitQuantities(items: MealDraftItem[], sourceText: string) {
+  if (items.length === 1) {
+    const explicitQuantities = extractExplicitQuantities(sourceText);
+    return explicitQuantities.length === 1
+      ? [applyExplicitQuantityToItem(items[0], explicitQuantities[0])]
+      : items;
+  }
+
+  const explicitSegments = extractExplicitQuantityFoodSegments(sourceText);
+  if (!explicitSegments.length) {
+    return items;
+  }
+
+  const usedSegments = new Set<number>();
+  return items.map(item => {
+    const matches = explicitSegments
+      .map((segment, index) => ({ segment, index }))
+      .filter(({ index, segment }) => !usedSegments.has(index) && explicitSegmentMatchesItem(segment.foodName, item));
+    const match = matches.length === 1 ? matches[0] : null;
+
+    if (!match) {
+      return item;
+    }
+
+    usedSegments.add(match.index);
+    return applyExplicitQuantityToItem(item, match.segment);
+  });
+}
+
+export function applyExplicitSingleGramQuantity(items: MealDraftItem[], sourceText: string) {
+  return applyExplicitQuantities(items, sourceText);
 }
 
 export function buildHeuristicItem(foodName: string): MealDraftItem {
