@@ -413,6 +413,20 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       const prepared = await prepareMessageInput(message, sourcePhone);
+      if (prepared.audioTranscriptionFailure?.blockedMealProcessing) {
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, prepared.audioTranscriptionFailure.reply);
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar resposta de falha de transcrição para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
+        continue;
+      }
+
       const unsafeContent = inspectPreparedMessageSafety(message, prepared);
       if (unsafeContent.length) {
         logInferenceEvent({
@@ -434,6 +448,19 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           });
         }
         continue;
+      }
+
+      if (prepared.audioTranscriptionFailure && prepared.text?.trim()) {
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, prepared.audioTranscriptionFailure.partialTextReply);
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar aviso de transcrição parcial para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
       }
 
       if (canInterpretAudioTranscriptIntent(message, prepared)) {
