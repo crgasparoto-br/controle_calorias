@@ -34,7 +34,7 @@ import {
   sendWhatsAppTextMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
-import { MealProcessingResult, processMealInput } from "./nutritionEngine";
+import { MealInferenceError, MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
 
 type WhatsAppTextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
@@ -604,7 +604,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         detail: error instanceof Error ? error.message : "Falha desconhecida ao processar webhook.",
       });
 
-      const replyResult = await sendWhatsAppTextMessage(sourcePhone, PROCESSING_ERROR_REPLY);
+      const reply = error instanceof MealInferenceError ? error.message : PROCESSING_ERROR_REPLY;
+      const replyResult = await sendWhatsAppTextMessage(sourcePhone, reply);
       if (!replyResult.ok) {
         logInferenceEvent({
           userId,

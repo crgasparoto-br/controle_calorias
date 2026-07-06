@@ -27,6 +27,7 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./nutritionEngine", () => ({
+  MealInferenceError: class MealInferenceError extends Error {},
   processMealInput: processMealInputMock,
 }));
 

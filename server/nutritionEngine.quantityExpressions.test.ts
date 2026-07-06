@@ -74,4 +74,15 @@ describe("nutritionEngine quantity expressions", () => {
     }));
     expect(result.items[0].calories).toBeGreaterThan(80);
   });
+
+  it.each([
+    ["300g/0 de banana", "divisão por zero"],
+    ["100g-100g de banana", "zero ou negativo"],
+    ["100g+20ml de banana", "unidades diferentes"],
+  ])("rejeita %s antes de chamar a IA", async (text, expectedMessage) => {
+    const { processMealInput } = await import("./nutritionEngine");
+
+    await expect(processMealInput({ text })).rejects.toThrow(expectedMessage);
+    expect(createTextResponseMock).not.toHaveBeenCalled();
+  });
 });

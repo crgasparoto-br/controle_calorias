@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractExplicitQuantities, parseFoodText } from "./mealTextParsing";
+import { extractExplicitQuantities, getQuantityExpressionClarification, parseFoodText } from "./mealTextParsing";
 
 describe("mealTextParsing arithmetic quantity expressions", () => {
   it.each([
@@ -24,6 +24,7 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
       portionText: `${grams} g`,
       estimatedGrams: grams,
     }));
+    expect(getQuantityExpressionClarification(input)).toBeNull();
   });
 
   it("respeita precedência matemática padrão", () => {
@@ -47,5 +48,15 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
       unit: "g",
       estimatedGrams: 176,
     }));
+  });
+
+  it.each([
+    ["300g/0 de banana", "divisão por zero"],
+    ["100g-100g de banana", "zero ou negativo"],
+    ["100g+20ml de banana", "mistura unidades diferentes"],
+    ["1+1+1+1+1+1+1g de banana", "operações demais"],
+    ["1+1 de banana", "unidade da quantidade"],
+  ])("explica por que não consegue calcular %s", (input, expectedMessage) => {
+    expect(getQuantityExpressionClarification(input)).toContain(expectedMessage);
   });
 });
