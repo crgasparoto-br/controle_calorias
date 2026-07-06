@@ -447,4 +447,76 @@ describe("executeWhatsappTextIntent meal item target matching", () => {
       items: [expect.objectContaining({ foodName: "ricota", estimatedGrams: 80 })],
     }));
   });
+
+  it("encontra pera sem acento quando o item salvo usa acento", async () => {
+    const meal = {
+      id: 75,
+      userId: 42,
+      mealLabel: "Lanche",
+      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+      notes: null,
+      items: [
+        item("Pêra William", 100),
+        item("Pao frances", 50),
+      ],
+    };
+    listMealsMock.mockResolvedValue([meal]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Diminuir 15g da pera",
+      receivedAt: new Date("2026-06-09T16:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+      data: expect.objectContaining({
+        adjustments: [expect.objectContaining({ foodName: "Pêra William", previousGrams: 100, nextGrams: 85 })],
+      }),
+    }));
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 75,
+      items: [
+        expect.objectContaining({ foodName: "Pêra William", estimatedGrams: 85 }),
+        expect.objectContaining({ foodName: "Pao frances", estimatedGrams: 50 }),
+      ],
+    }));
+  });
+
+  it("ajusta alvo generico quando existe apenas um candidato compativel", async () => {
+    const meal = {
+      id: 76,
+      userId: 42,
+      mealLabel: "Lanche",
+      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+      notes: null,
+      items: [
+        item("Queijo Minas Padrao Fatiado", 80),
+        item("Pao frances", 50),
+      ],
+    };
+    listMealsMock.mockResolvedValue([meal]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Diminuir 10g do queijo",
+      receivedAt: new Date("2026-06-09T16:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+      data: expect.objectContaining({
+        adjustments: [expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 80, nextGrams: 70 })],
+      }),
+    }));
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 76,
+      items: [
+        expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 70 }),
+        expect.objectContaining({ foodName: "Pao frances", estimatedGrams: 50 }),
+      ],
+    }));
+  });
 });
