@@ -1,8 +1,18 @@
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
-import { findTargetMealItem, formatTotalsLine, replaceMealItemFood, toMealItemInput, toMealItemInputs } from "./mealItemHelpers";
+import { formatTargetMealItemOptions, formatTotalsLine, replaceMealItemFood, resolveTargetMealItem, toMealItemInput, toMealItemInputs } from "./mealItemHelpers";
 import { formatNumber } from "./textUtils";
 import type { FoodReplacementIntent, WhatsappIntentResult } from "./types";
+
+function ambiguousReplacementReply(targetFood: string, options: string) {
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: `Encontrei mais de um item para ${targetFood} na última refeição:\n${options}\nResponda com o número do item que devo trocar.`,
+    eventType: "whatsapp.intent.clarification_needed",
+    detail: "Pedido de substituição de alimento com mais de um item compatível na última refeição.",
+  } satisfies WhatsappIntentResult;
+}
 
 export async function handleFoodReplacementIntents(userId: number, replacements: FoodReplacementIntent[]): Promise<WhatsappIntentResult> {
   const latestMeal = (await listMeals(userId))[0];
@@ -22,8 +32,11 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
 
   for (const replacement of replacements) {
     const itemsAsInputs = toMealItemInputs(mutableItems as any);
-    const target = findTargetMealItem(itemsAsInputs, replacement.fromFood);
-    if (!target) {
+    const target = resolveTargetMealItem(itemsAsInputs, replacement.fromFood);
+    if (target.kind === "ambiguous") {
+      return ambiguousReplacementReply(replacement.fromFood, formatTargetMealItemOptions(target.candidates));
+    }
+    if (target.kind !== "matched") {
       notFound.push(replacement.fromFood);
       continue;
     }
