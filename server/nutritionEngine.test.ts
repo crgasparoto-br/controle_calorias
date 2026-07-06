@@ -80,7 +80,7 @@ describe("nutritionEngine.processMealInput", () => {
     expect(result.detectedMealLabel).toBe("Almoço");
     expect(result.items).toHaveLength(2);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Arroz branco cozido",
+      canonicalName: "Arroz Branco Cozido",
       calories: 130,
       protein: 2.7,
       carbs: 28,
@@ -88,7 +88,7 @@ describe("nutritionEngine.processMealInput", () => {
       source: "catalog",
     }));
     expect(result.items[1]).toEqual(expect.objectContaining({
-      canonicalName: "molho pesto",
+      canonicalName: "Molho Pesto",
       calories: 120,
       protein: 2,
       carbs: 3,
@@ -138,7 +138,7 @@ describe("nutritionEngine.processMealInput", () => {
     const request = createTextResponseMock.mock.calls[0][0];
     expect(request.format.schema.properties.items.maxItems).toBeUndefined();
     expect(result.items).toHaveLength(11);
-    expect(result.items.map(item => item.foodName)).toContain("alimento 11");
+    expect(result.items.map(item => item.foodName)).toContain("Alimento 11");
   });
 
   it("usa fallback heurístico quando a OpenAI falha para uma descrição em texto", async () => {
@@ -174,7 +174,7 @@ describe("nutritionEngine.processMealInput", () => {
     });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].foodName).toBe("banana");
+    expect(result.items[0].foodName).toBe("Banana");
   });
 
   it("interpreta gramas e nome do alimento no fallback textual", async () => {
@@ -187,7 +187,7 @@ describe("nutritionEngine.processMealInput", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Carne moída suína",
+      foodName: "Carne Moída Suína",
       portionText: "140 g",
       estimatedGrams: 140,
     }));
@@ -230,7 +230,7 @@ describe("nutritionEngine.processMealInput", () => {
     });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Carne moída suína",
+      foodName: "Carne Moída Suína",
       portionText: "140 g",
       estimatedGrams: 140,
     }));
@@ -292,7 +292,7 @@ describe("nutritionEngine.processMealInput", () => {
     });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].foodName).toBe("banana");
+    expect(result.items[0].foodName).toBe("Banana");
   });
 
   it("mantém alimento textual quando a IA usa o nome canônico do catálogo", async () => {
@@ -329,8 +329,8 @@ describe("nutritionEngine.processMealInput", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Arroz branco cozido",
-      canonicalName: "Arroz branco cozido",
+      foodName: "Arroz Branco Cozido",
+      canonicalName: "Arroz Branco Cozido",
     }));
   });
 
@@ -369,8 +369,8 @@ describe("nutritionEngine.processMealInput", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "banana",
-      canonicalName: "banana",
+      foodName: "Banana",
+      canonicalName: "Banana",
       portionText: "47 g",
       estimatedGrams: 47,
       calories: 188,
@@ -420,7 +420,7 @@ describe("nutritionEngine.processMealInput", () => {
     });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "pão de cenoura",
+      foodName: "Pão de Cenoura",
     }));
 
     const request = createTextResponseMock.mock.calls[0][0];
@@ -466,7 +466,7 @@ describe("nutritionEngine.processMealInput", () => {
     });
 
     expect(result.items).toHaveLength(11);
-    expect(result.items.map(item => item.foodName)).toContain("alimento 11");
+    expect(result.items.map(item => item.foodName)).toContain("Alimento 11");
   });
 
   it("não trata café como café da manhã quando o usuário menciona café como alimento", async () => {
