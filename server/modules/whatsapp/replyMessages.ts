@@ -33,6 +33,11 @@ export type WhatsAppMealActionReplyOptions = WhatsAppMealReplyOptions & {
   actionLines?: string[];
 };
 
+export type WhatsAppAuxiliaryReplyOptions = {
+  title: string;
+  lines?: Array<string | null | undefined>;
+};
+
 function formatDateKeyInSaoPaulo(date?: Date) {
   if (!date) {
     return undefined;
@@ -134,6 +139,68 @@ function buildMealReplyBody(input: {
     ...buildWhatsAppMealTotalLines(input.totals),
     ...(input.goalLines.length ? [buildWhatsAppSeparator(), ...input.goalLines] : []),
   ]);
+}
+
+export function buildWhatsAppAuxiliaryReplyMessage(options: WhatsAppAuxiliaryReplyOptions) {
+  return buildWhatsAppBlock([
+    buildWhatsAppTitle(options.title, { bold: true }),
+    buildWhatsAppSeparator(),
+    ...(options.lines ?? []),
+  ]);
+}
+
+export function buildWhatsAppClarificationReplyMessage(message: string) {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Preciso de uma informação",
+    lines: [message],
+  });
+}
+
+export function buildWhatsAppWaterLoggedReplyMessage(params: { amountLabel: string; occurredAtLabel: string }) {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Água registrada",
+    lines: [`Registrei ${params.amountLabel} ml de água em ${params.occurredAtLabel}.`],
+  });
+}
+
+export function buildWhatsAppSnackSuggestionReplyMessage() {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Sugestão para o lanche da tarde",
+    lines: [
+      "• Iogurte natural com banana e aveia",
+      "  Aproximadamente 280 kcal | boa proteína e energia para a tarde",
+      buildWhatsAppSeparator(),
+      "Outra opção:",
+      "• Pão integral com queijo branco e tomate",
+      "  Aproximadamente 300 kcal | simples, saciante e fácil de montar",
+      buildWhatsAppSeparator(),
+      "Se quiser, envie o que você tem em casa que eu sugiro uma opção mais certeira.",
+    ],
+  });
+}
+
+export function buildWhatsAppPeriodReportReplyMessage(params: {
+  periodLabel: string;
+  mealCount: number;
+  mealBreakdownLines: string[];
+  goalSummaryLines: string[];
+}) {
+  if (params.mealCount <= 0) {
+    return buildWhatsAppAuxiliaryReplyMessage({
+      title: `Resumo de ${params.periodLabel}`,
+      lines: ["Não encontrei refeições registradas nesse período."],
+    });
+  }
+
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: `Resumo de ${params.periodLabel}`,
+    lines: [
+      `Refeições registradas: ${params.mealCount}`,
+      buildWhatsAppSeparator(),
+      ...params.mealBreakdownLines,
+      ...(params.goalSummaryLines.length ? [buildWhatsAppSeparator(), ...params.goalSummaryLines] : []),
+    ],
+  });
 }
 
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
