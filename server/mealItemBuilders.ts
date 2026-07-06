@@ -1,5 +1,5 @@
 import { roundNutritionValue } from "../shared/mealTotals";
-import { detectKnownBrand, findCatalogFood, inferItemBrand, sourceMentionsFood } from "./catalogMatching";
+import { detectKnownBrand, findCatalogFood, inferItemBrand, normalizeBrandName, sourceMentionsFood } from "./catalogMatching";
 import {
   buildPortionText,
   cleanFoodName,
@@ -58,7 +58,7 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
     ? roundNutritionValue(llmQuantity)
     : quantityUnit.quantity;
   const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
-  const brand = inferItemBrand(food, llmItem.foodName);
+  const brand = inferItemBrand(food, llmItem.foodName, llmItem.brand);
   const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
 
   return {
@@ -94,7 +94,7 @@ export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
   return {
     foodName,
     canonicalName: foodName,
-    brand: detectKnownBrand(llmItem.foodName),
+    brand: normalizeBrandName(llmItem.brand) ?? detectKnownBrand(llmItem.foodName),
     portionText: llmItem.portionText,
     quantity,
     unit,
