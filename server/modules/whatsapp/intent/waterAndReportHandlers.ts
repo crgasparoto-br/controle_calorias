@@ -1,32 +1,22 @@
 import { getUserNutritionGoal } from "../../../db";
 import { listMeals } from "../../meals/service";
 import { createWaterLog } from "../../water/service";
+import {
+  buildWhatsAppPeriodReportReplyMessage,
+  buildWhatsAppSnackSuggestionReplyMessage,
+  buildWhatsAppWaterLoggedReplyMessage,
+} from "../replyMessages";
 import { countPeriodDays, formatReplyDateTime, isMealInsidePeriod, resolveRelativeOccurredAt } from "./dateTime";
 import { sumMealItems, toMealItemInputs } from "./mealItemHelpers";
 import { buildMealBreakdownLines, buildPeriodGoalSummaryLines } from "./report";
 import { formatNumber } from "./textUtils";
 import type { PeriodRange, WhatsappIntentResult } from "./types";
 
-function buildSnackSuggestionReply() {
-  return [
-    "Sugestão para o lanche da tarde:",
-    "",
-    "• Iogurte natural com banana e aveia",
-    "  Aproximadamente 280 kcal | boa proteína e energia para a tarde",
-    "",
-    "Outra opção:",
-    "• Pão integral com queijo branco e tomate",
-    "  Aproximadamente 300 kcal | simples, saciante e fácil de montar",
-    "",
-    "Se quiser, envie o que você tem em casa que eu sugiro uma opção mais certeira.",
-  ].join("\n");
-}
-
 export async function handleSnackSuggestionIntent(): Promise<WhatsappIntentResult> {
   return {
     handled: true,
     action: "meal_suggestion",
-    reply: buildSnackSuggestionReply(),
+    reply: buildWhatsAppSnackSuggestionReplyMessage(),
     eventType: "whatsapp.intent.meal_suggestion",
     detail: "Sugestão de lanche da tarde enviada pelo WhatsApp.",
   };
@@ -42,7 +32,10 @@ export async function handleWaterIntent(userId: number, text: string, receivedAt
   return {
     handled: true,
     action: "water_logged",
-    reply: `Registrei ${formatNumber(amountMl)} ml de água em ${formatReplyDateTime(occurredAt)}.`,
+    reply: buildWhatsAppWaterLoggedReplyMessage({
+      amountLabel: formatNumber(amountMl),
+      occurredAtLabel: formatReplyDateTime(occurredAt),
+    }),
     eventType: "whatsapp.intent.water_logged",
     detail: `Consumo de ${amountMl} ml de água registrado após interpretação de data relativa pelo WhatsApp.`,
     data: {
@@ -75,20 +68,12 @@ export async function handlePeriodReportIntent(userId: number, period: PeriodRan
   const diff = Math.round(totals.calories - goalCalories);
   const goalSummaryLines = buildPeriodGoalSummaryLines(goalCalories, diff);
 
-  const reply = mealsInPeriod.length
-    ? [
-        `Resumo de ${period.label}:`,
-        "",
-        `Refeições registradas: ${mealsInPeriod.length}`,
-        "",
-        ...buildMealBreakdownLines(mealsInPeriod),
-        ...(goalSummaryLines.length ? ["", ...goalSummaryLines] : []),
-      ].join("\n")
-    : [
-        `Resumo de ${period.label}:`,
-        "",
-        "Não encontrei refeições registradas nesse período.",
-      ].join("\n");
+  const reply = buildWhatsAppPeriodReportReplyMessage({
+    periodLabel: period.label,
+    mealCount: mealsInPeriod.length,
+    mealBreakdownLines: buildMealBreakdownLines(mealsInPeriod),
+    goalSummaryLines,
+  });
 
   return {
     handled: true,
