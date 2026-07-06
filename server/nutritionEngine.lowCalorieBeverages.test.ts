@@ -26,7 +26,7 @@ describe("nutritionEngine low-calorie beverage handling", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Café sem açúcar",
+      canonicalName: "Café Sem Açúcar",
       quantity: 3,
       unit: "xícara",
       portionText: "3 xícara",
@@ -45,7 +45,7 @@ describe("nutritionEngine low-calorie beverage handling", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Chá sem açúcar",
+      canonicalName: "Chá Sem Açúcar",
       quantity: 2,
       unit: "copo",
       portionText: "2 copo",
@@ -63,7 +63,7 @@ describe("nutritionEngine low-calorie beverage handling", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Água com gás",
+      canonicalName: "Água com Gás",
       quantity: 500,
       unit: "ml",
       portionText: "500 ml",
@@ -81,7 +81,7 @@ describe("nutritionEngine low-calorie beverage handling", () => {
     });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].canonicalName).not.toBe("Café sem açúcar");
+    expect(result.items[0].canonicalName).not.toBe("Café Sem Açúcar");
     expect(result.items[0].calories).toBeGreaterThan(2);
   });
 });
