@@ -47,12 +47,12 @@ describe("nutritionEngine composite text fallback", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "tahine com salsinha",
+      foodName: "Tahine com Salsinha",
       portionText: "50 g",
       estimatedGrams: 50,
       source: "heuristic",
     }));
-    expect(result.items[0].foodName).not.toBe("salsinha");
+    expect(result.items[0].foodName).not.toBe("Salsinha");
     expect(result.reasoning).toContain("descrição completa");
   });
 
@@ -89,8 +89,8 @@ describe("nutritionEngine composite text fallback", () => {
     });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].foodName).toBe("banana");
-    expect(result.items[0].foodName).not.toBe("whey protein");
+    expect(result.items[0].foodName).toBe("Banana");
+    expect(result.items[0].foodName).not.toBe("Whey Protein");
     expect(result.reasoning).toContain("heurística");
   });
 });
