@@ -27,6 +27,30 @@ describe("resolveMealItemTarget", () => {
     }));
   });
 
+  it("encontra alimento quando os tokens principais chegam em outra ordem", () => {
+    const result = resolveMealItemTarget([
+      item("Arroz branco"),
+      item("Queijo Minas Padrao Fatiado"),
+    ], "minas queijo");
+
+    expect(result).toEqual(expect.objectContaining({
+      kind: "matched",
+      index: 1,
+    }));
+  });
+
+  it("tolera pequeno erro de digitacao em token principal", () => {
+    const result = resolveMealItemTarget([
+      item("Pao frances"),
+      item("Queijo Minas Padrao Fatiado"),
+    ], "quejo minas");
+
+    expect(result).toEqual(expect.objectContaining({
+      kind: "matched",
+      index: 1,
+    }));
+  });
+
   it("normaliza acentos e caixa antes de comparar", () => {
     const result = resolveMealItemTarget([
       item("Banana prata"),
