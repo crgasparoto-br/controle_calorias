@@ -472,10 +472,12 @@ export function normalizeLlmItem(item: LlmItem): LlmItem {
   const estimatedFromQuantity = estimateGramsFromQuantity(quantity, unit);
   const estimatedGrams = parsed.estimatedGrams ?? (item.estimatedGrams > 0 ? item.estimatedGrams : (estimatedFromQuantity ?? 0));
   const foodName = formatFoodNameTitleCase(parsed.foodName || cleanFoodName(item.foodName));
+  const brand = item.brand == null ? item.brand : formatFoodNameTitleCase(item.brand);
 
   return {
     ...item,
     foodName,
+    brand,
     quantity,
     unit,
     portionText: parsed.portionText ?? item.portionText ?? buildPortionText(quantity, unit),

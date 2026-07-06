@@ -106,6 +106,7 @@ export type MealProcessingResult = {
 
 export type LlmItem = {
   foodName: string;
+  brand?: string | null;
   quantity?: number;
   unit?: string;
   portionText: string;

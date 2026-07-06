@@ -28,6 +28,7 @@ const mealExtractionSchema = z.object({
   reasoning: z.string().trim().min(1).max(2000),
   items: z.array(z.object({
     foodName: z.string().trim().min(1).max(160),
+    brand: z.string().trim().min(1).max(80).nullable().optional(),
     quantity: z.number().min(0.01).max(5000).optional(),
     unit: z.string().trim().min(1).max(40).optional(),
     portionText: z.string().trim().min(1).max(120),
@@ -64,6 +65,7 @@ const mealExtractionJsonSchema = {
         additionalProperties: false,
         properties: {
           foodName: { type: "string" },
+          brand: { type: ["string", "null"] },
           quantity: { type: "number", minimum: 0.01, maximum: 5000 },
           unit: { type: "string" },
           portionText: { type: "string" },
@@ -103,6 +105,7 @@ const mealExtractionJsonSchema = {
         },
         required: [
           "foodName",
+          "brand",
           "quantity",
           "unit",
           "portionText",
@@ -184,6 +187,10 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
         "Use o histórico apenas para calibrar porções de alimentos já mencionados ou claramente visíveis; nunca inclua alimentos apenas porque aparecem nos hábitos do usuário.",
         "Em fotos de embalagem, pote, rótulo, etiqueta ou balança, identifique no máximo os alimentos consumíveis claramente visíveis ou rotulados; não transforme a cena em uma refeição completa.",
         "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': quantity deve ser 140, unit deve ser 'g', foodName deve ser apenas 'Carne moída suína' e portionText deve ser derivado como '140 g'.",
+        "Separe marca em brand quando ela estiver explícita no texto, foto, rótulo ou etiqueta; use null quando não houver evidência clara de marca.",
+        "Não invente marca por inferência genérica. Não trate sabor, unidade, quantidade, tipo do alimento ou ingrediente como marca.",
+        "Para exemplos como '80g iogurte grego light Danone', '100ml leite integral Piracanjuba' e '18g whey proten doce de leite Growth', preencha brand com Danone, Piracanjuba e Growth respectivamente.",
+        "Para exemplos como 'pão com mel', 'banana' ou 'arroz e feijão', preencha brand como null.",
         "Para exemplos como '300g amendoim japonês', '330ml cerveja', '2 fatias pão' e '1 long neck', nunca coloque a quantidade ou unidade em foodName; preserve marcas no nome do produto quando forem parte da identidade.",
         "Normalize unidades comuns: grama/gramas/gr como g, mililitro/mililitros como ml, litro/litros como l, fatias como fatia e longneck como long neck.",
         "Não inclua prato, talheres, mesa, embalagem, rótulo, marca isolada, decoração ou itens inferidos apenas por hábito.",
@@ -227,7 +234,7 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
 
   const response = await getAiProvider().createTextResponse({
     model: ENV.visionModel,
-    instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado.",
+    instructions: "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado. Separe marcas explícitas em brand e use null quando a marca não estiver clara.",
     input: aiInput,
     format: {
       type: "json_schema",
