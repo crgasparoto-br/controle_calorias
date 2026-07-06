@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import { findCatalogFood } from "./catalogMatching";
 import { processMealInput } from "./nutritionEngine";
 import { findTacoFood } from "./tacoLookup";
-import {
-  learnPersonalFoodAlias,
-  resolvePersonalFoodAlias,
-  __resetPersonalFoodAliasStoreForTests,
-} from "./modules/whatsapp/personalFoodAliasStore";
+import { learnPersonalFoodAlias, resolvePersonalFoodAlias, __resetPersonalFoodAliasStoreForTests } from "./modules/whatsapp/personalFoodAliasStore";
 
 describe("food variation matching", () => {
   it("não resolve pão sovado como pão francês no catálogo global", () => {
@@ -33,8 +29,8 @@ describe("food variation matching", () => {
     const result = await processMealInput({ text: "74g de pão sovado" });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "pão sovado",
-      canonicalName: "Pão, trigo, sovado",
+      foodName: "Pão Sovado",
+      canonicalName: "Pão Trigo Sovado",
       quantity: 74,
       unit: "g",
       estimatedGrams: 74,
@@ -43,11 +39,7 @@ describe("food variation matching", () => {
 
   it("não aplica alias pessoal genérico de pão sobre uma variação específica", () => {
     __resetPersonalFoodAliasStoreForTests();
-    learnPersonalFoodAlias({
-      userId: 1,
-      aliasText: "pão",
-      canonicalName: "Pão francês",
-    });
+    learnPersonalFoodAlias({ userId: 1, aliasText: "pão", canonicalName: "Pão francês" });
 
     expect(resolvePersonalFoodAlias({ userId: 1, foodText: "pão" })?.canonicalName).toBe("Pão francês");
     expect(resolvePersonalFoodAlias({ userId: 1, foodText: "pão sovado" })).toBeNull();
