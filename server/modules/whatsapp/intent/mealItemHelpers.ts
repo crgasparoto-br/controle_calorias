@@ -7,6 +7,7 @@ import { findCatalogFood } from "./catalogLookup";
 import { endOfZonedDay, startOfZonedDay } from "./dateTime";
 import { formatNumber, normalizeIntentText } from "./textUtils";
 import type { NutritionTotals, QuantityCorrectionIntent } from "./types";
+import { formatMealItemTargetOptions, resolveMealItemTarget, type MealItemTargetMatch } from "../mealItemTargetMatcher";
 
 export const MIN_FOOD_GRAMS = 1;
 const UNSWEETENED_COFFEE_CUP_ML = 50;
@@ -19,6 +20,8 @@ const HEURISTIC_REPLACEMENT_NUTRITION_PER_100G = {
   carbs: 15,
   fat: 5,
 };
+
+type TargetMealItemResolution = MealItemTargetMatch<MealItemInput>;
 
 export function normalizeAdditionUnit(unit: string | null) {
   return unit ? normalizeMeasurementUnit(unit) : "g";
@@ -234,27 +237,17 @@ export function formatAddedItemsList(items: MealItemInput[]) {
   return `${labels.slice(0, -1).join(", ")} e ${labels[labels.length - 1]}`;
 }
 
+export function resolveTargetMealItem(items: MealItemInput[], targetFood: string | null): TargetMealItemResolution {
+  return resolveMealItemTarget(items, targetFood);
+}
+
+export function formatTargetMealItemOptions(candidates: Extract<TargetMealItemResolution, { kind: "ambiguous" }>["candidates"]) {
+  return formatMealItemTargetOptions(candidates);
+}
+
 export function findTargetMealItem(items: MealItemInput[], targetFood: string | null) {
-  if (!items.length) {
-    return null;
-  }
-
-  if (!targetFood) {
-    return { item: items[items.length - 1], index: items.length - 1 };
-  }
-
-  const normalizedTarget = normalizeIntentText(targetFood);
-  const index = items.findIndex(item => {
-    const foodName = normalizeIntentText(item.foodName);
-    const canonicalName = normalizeIntentText(item.canonicalName);
-    return foodName.includes(normalizedTarget) || canonicalName.includes(normalizedTarget) || normalizedTarget.includes(foodName);
-  });
-
-  if (index < 0) {
-    return null;
-  }
-
-  return { item: items[index], index };
+  const target = resolveTargetMealItem(items, targetFood);
+  return target.kind === "matched" ? { item: target.item, index: target.index } : null;
 }
 
 export function findMealByLabel<T extends { mealLabel: string; occurredAt: number | string | Date }>(meals: T[], mealLabel: string, referenceDate: Date) {
