@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage } from "./replyMessages";
+import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealActionReplyMessage, buildWhatsAppMealReplyMessage } from "./replyMessages";
 import type { MealProcessingResult } from "../../nutritionEngine";
+
+const frangoItem = {
+  foodName: "Frango grelhado",
+  canonicalName: "Frango grelhado",
+  portionText: "150 g",
+  servings: 1,
+  estimatedGrams: 150,
+  calories: 247.5,
+  protein: 46.5,
+  carbs: 0,
+  fat: 5.4,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
 
 describe("buildWhatsAppMealReplyMessage", () => {
   it("inclui horário no cabeçalho em negrito e alimento com ícone", () => {
@@ -13,21 +27,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
       confidence: 0.9,
       needsConfirmation: true,
       reasoning: "Teste de formatação.",
-      items: [
-        {
-          foodName: "Frango grelhado",
-          canonicalName: "Frango grelhado",
-          portionText: "150 g",
-          servings: 1,
-          estimatedGrams: 150,
-          calories: 247.5,
-          protein: 46.5,
-          carbs: 0,
-          fat: 5.4,
-          confidence: 0.9,
-          source: "catalog",
-        },
-      ],
+      items: [frangoItem],
       totals: {
         calories: 247.5,
         protein: 46.5,
@@ -132,21 +132,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
       confidence: 0.9,
       needsConfirmation: true,
       reasoning: "Teste de formatação.",
-      items: [
-        {
-          foodName: "Frango grelhado",
-          canonicalName: "Frango grelhado",
-          portionText: "150 g",
-          servings: 1,
-          estimatedGrams: 150,
-          calories: 247.5,
-          protein: 46.5,
-          carbs: 0,
-          fat: 5.4,
-          confidence: 0.9,
-          source: "catalog",
-        },
-      ],
+      items: [frangoItem],
       totals: {
         calories: 247.5,
         protein: 46.5,
@@ -259,5 +245,36 @@ describe("buildWhatsAppMealReplyMessage", () => {
     expect(reply).toContain("• 🥛 Iogurte grego light Danone — 80g");
     expect(reply).toContain("Total da refeição:");
     expect(reply).toContain("292 kcal | P 8,2 g | C 67,3 g | G 1,6 g");
+  });
+
+  it("monta resposta de ação com título, ação realizada e refeição resultante", () => {
+    const reply = buildWhatsAppMealActionReplyMessage({
+      mealLabel: "Almoço",
+      occurredAt: new Date("2026-06-04T15:00:00.000Z"),
+      items: [
+        frangoItem,
+        {
+          foodName: "Arroz branco",
+          canonicalName: "Arroz branco cozido",
+          portionText: "100 g",
+          estimatedGrams: 100,
+          calories: 130,
+          protein: 2.7,
+          carbs: 28,
+          fat: 0.3,
+          source: "catalog",
+        },
+      ],
+    }, {
+      title: "Alimento adicionado",
+      actionLines: ["Adicionei 100 g de Arroz branco à refeição Almoço."],
+    });
+
+    expect(reply).toContain("*Alimento adicionado*");
+    expect(reply).toContain("Adicionei 100 g de Arroz branco à refeição Almoço.");
+    expect(reply).toContain("Refeição atualizada:");
+    expect(reply).toContain("• 🍗 Frango grelhado — 150g");
+    expect(reply).toContain("• 🍚 Arroz branco — 100g");
+    expect(reply).toContain("377,5 kcal | P 49,2 g | C 28 g | G 5,7 g");
   });
 });
