@@ -7,6 +7,14 @@ export const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|
 const QUANTITY_EXPRESSION_OPERATOR_PATTERN = "x|X|\\*|/|÷|\\+|-|dividid[ao]\\s+por|dividir\\s+por";
 const MAX_QUANTITY_EXPRESSION_OPERATORS = 5;
 
+type QuantityExpressionErrorCode =
+  | "invalid_syntax"
+  | "too_many_operators"
+  | "conflicting_units"
+  | "missing_unit"
+  | "division_by_zero"
+  | "non_positive_result";
+
 export function normalizeText(value: string) {
   return value
     .normalize("NFD")
@@ -75,6 +83,14 @@ type QuantityExpression = {
   estimatedGrams?: number;
 };
 
+type QuantityExpressionTokenization =
+  | { ok: true; terms: QuantityExpressionTerm[]; operators: string[] }
+  | { ok: false; code: QuantityExpressionErrorCode };
+
+type QuantityExpressionEvaluation =
+  | { ok: true; expression: QuantityExpression }
+  | { ok: false; code: QuantityExpressionErrorCode };
+
 function normalizeArithmeticOperator(value: string) {
   const normalized = value
     .normalize("NFD")
@@ -90,7 +106,7 @@ function normalizeArithmeticOperator(value: string) {
   return null;
 }
 
-function tokenizeQuantityExpression(expressionText: string) {
+function tokenizeQuantityExpression(expressionText: string): QuantityExpressionTokenization {
   const tokenPattern = new RegExp(
     `(\\d+(?:[,.]\\d+)?)(?:\\s*(${QUANTITY_UNIT_PATTERN}))?|(${QUANTITY_EXPRESSION_OPERATOR_PATTERN})`,
     "giu",
@@ -104,7 +120,7 @@ function tokenizeQuantityExpression(expressionText: string) {
     if (match[1]) {
       const value = parseDecimalNumber(match[1]);
       if (!Number.isFinite(value)) {
-        return null;
+        return { ok: false, code: "invalid_syntax" };
       }
       terms.push({
         value,
@@ -115,31 +131,38 @@ function tokenizeQuantityExpression(expressionText: string) {
 
     const operator = normalizeArithmeticOperator(match[3] || "");
     if (!operator) {
-      return null;
+      return { ok: false, code: "invalid_syntax" };
     }
     operators.push(operator);
   }
 
   if (expressionText.replace(/\s+/g, "") !== consumed.replace(/\s+/g, "")) {
-    return null;
+    return { ok: false, code: "invalid_syntax" };
   }
 
-  if (terms.length < 2 || operators.length !== terms.length - 1 || operators.length > MAX_QUANTITY_EXPRESSION_OPERATORS) {
-    return null;
+  if (terms.length < 2 || operators.length !== terms.length - 1) {
+    return { ok: false, code: "invalid_syntax" };
   }
 
-  return { terms, operators };
+  if (operators.length > MAX_QUANTITY_EXPRESSION_OPERATORS) {
+    return { ok: false, code: "too_many_operators" };
+  }
+
+  return { ok: true, terms, operators };
 }
 
-function evaluateQuantityExpression(expressionText: string): QuantityExpression | null {
+function evaluateQuantityExpression(expressionText: string): QuantityExpressionEvaluation {
   const tokenized = tokenizeQuantityExpression(expressionText);
-  if (!tokenized) {
-    return null;
+  if (!tokenized.ok) {
+    return tokenized;
   }
 
   const units = Array.from(new Set(tokenized.terms.map(term => term.unit).filter((unit): unit is string => Boolean(unit))));
-  if (units.length !== 1) {
-    return null;
+  if (units.length === 0) {
+    return { ok: false, code: "missing_unit" };
+  }
+  if (units.length > 1) {
+    return { ok: false, code: "conflicting_units" };
   }
 
   const unit = units[0];
@@ -156,7 +179,7 @@ function evaluateQuantityExpression(expressionText: string): QuantityExpression 
     const left = values[index];
     const right = values[index + 1];
     if (operator === "/" && right === 0) {
-      return null;
+      return { ok: false, code: "division_by_zero" };
     }
 
     values.splice(index, 2, operator === "*" ? left * right : left / right);
@@ -171,22 +194,25 @@ function evaluateQuantityExpression(expressionText: string): QuantityExpression 
   }
 
   if (!Number.isFinite(result) || result <= 0) {
-    return null;
+    return { ok: false, code: "non_positive_result" };
   }
 
   const quantity = roundNutritionValue(result);
   const estimatedGrams = estimateGramsFromQuantity(quantity, unit);
   return {
-    quantity,
-    unit,
-    estimatedGrams: estimatedGrams === undefined ? undefined : roundNutritionValue(estimatedGrams),
+    ok: true,
+    expression: {
+      quantity,
+      unit,
+      estimatedGrams: estimatedGrams === undefined ? undefined : roundNutritionValue(estimatedGrams),
+    },
   };
 }
 
-function parseLeadingQuantityExpression(value: string) {
+function findLeadingQuantityExpression(value: string) {
   const numberWithOptionalUnit = `\\d+(?:[,.]\\d+)?\\s*(?:${QUANTITY_UNIT_PATTERN})?`;
   const expressionPattern = new RegExp(
-    `^((?:${numberWithOptionalUnit})(?:\\s*(?:${QUANTITY_EXPRESSION_OPERATOR_PATTERN})\\s*${numberWithOptionalUnit}){1,${MAX_QUANTITY_EXPRESSION_OPERATORS}})\\s+(?:de\\s+)?(.+)$`,
+    `^((?:${numberWithOptionalUnit})(?:\\s*(?:${QUANTITY_EXPRESSION_OPERATOR_PATTERN})\\s*${numberWithOptionalUnit})+)\\s+(?:de\\s+)?(.+)$`,
     "iu",
   );
   const match = value.trim().match(expressionPattern);
@@ -194,17 +220,61 @@ function parseLeadingQuantityExpression(value: string) {
     return null;
   }
 
-  const expression = evaluateQuantityExpression(match[1]);
-  const foodName = cleanFoodName(match[2]);
-  if (!expression || !foodName) {
+  return {
+    expressionText: match[1],
+    foodName: cleanFoodName(match[2]),
+  };
+}
+
+function parseLeadingQuantityExpression(value: string) {
+  const match = findLeadingQuantityExpression(value);
+  if (!match) {
+    return null;
+  }
+
+  const evaluation = evaluateQuantityExpression(match.expressionText);
+  if (!evaluation.ok || !match.foodName) {
     return null;
   }
 
   return {
-    foodName,
-    ...expression,
-    portionText: buildPortionText(expression.quantity, expression.unit),
+    foodName: match.foodName,
+    ...evaluation.expression,
+    portionText: buildPortionText(evaluation.expression.quantity, evaluation.expression.unit),
   };
+}
+
+function buildQuantityExpressionClarification(code: QuantityExpressionErrorCode) {
+  if (code === "division_by_zero") {
+    return "Não consegui calcular essa quantidade porque há divisão por zero. Pode reenviar a quantidade do alimento de outro jeito?";
+  }
+  if (code === "non_positive_result") {
+    return "Não consegui registrar essa quantidade porque o cálculo ficou zero ou negativo. Pode enviar uma quantidade maior que zero?";
+  }
+  if (code === "too_many_operators") {
+    return "Não consegui calcular essa quantidade porque a expressão tem operações demais. Pode simplificar a quantidade do alimento?";
+  }
+  if (code === "conflicting_units") {
+    return "Não consegui calcular essa quantidade porque a expressão mistura unidades diferentes. Pode enviar a quantidade usando uma única unidade?";
+  }
+  if (code === "missing_unit") {
+    return "Não consegui identificar a unidade da quantidade. Pode reenviar informando g, ml, unidade ou outra medida do alimento?";
+  }
+  return "Não consegui entender a conta usada na quantidade do alimento. Pode reenviar a quantidade de um jeito mais simples?";
+}
+
+export function getQuantityExpressionClarification(value: string) {
+  const match = findLeadingQuantityExpression(value);
+  if (!match) {
+    return null;
+  }
+
+  const evaluation = evaluateQuantityExpression(match.expressionText);
+  if (evaluation.ok && match.foodName) {
+    return null;
+  }
+
+  return buildQuantityExpressionClarification(evaluation.ok ? "invalid_syntax" : evaluation.code);
 }
 
 export function parseFoodText(value: string): ParsedFoodText {
