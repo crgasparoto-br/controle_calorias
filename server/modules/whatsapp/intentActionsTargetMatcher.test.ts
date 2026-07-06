@@ -335,6 +335,50 @@ describe("executeWhatsappTextIntent meal item target matching", () => {
     }));
   });
 
+  it("aplica troca clara e pede confirmacao apenas da troca ambigua", async () => {
+    const meal = {
+      id: 74,
+      userId: 42,
+      mealLabel: "Lanche",
+      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+      notes: null,
+      items: [
+        item("Banana prata", 100),
+        item("Queijo Minas Padrao Fatiado", 80),
+        item("Queijo mussarela", 70),
+      ],
+    };
+    listMealsMock.mockResolvedValue([meal]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "não é banana é pera e não é queijo é ricota",
+      receivedAt: new Date("2026-06-09T16:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_replaced",
+      data: expect.objectContaining({
+        previousFoodName: "Banana prata",
+        nextFoodName: "pera",
+      }),
+    }));
+    expect(result?.reply).toContain("Banana prata → pera");
+    expect(result?.reply).toContain("Preciso confirmar estes itens antes de trocar");
+    expect(result?.reply).toContain("1. Queijo Minas Padrao Fatiado (80 g)");
+    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(updateMealMock).toHaveBeenCalledTimes(1);
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 74,
+      items: [
+        expect.objectContaining({ foodName: "pera", estimatedGrams: 100 }),
+        expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 80 }),
+        expect.objectContaining({ foodName: "Queijo mussarela", estimatedGrams: 70 }),
+      ],
+    }));
+  });
+
   it("pede esclarecimento com opcoes quando substituicao tem alvo generico ambiguo", async () => {
     const meal = {
       id: 66,
