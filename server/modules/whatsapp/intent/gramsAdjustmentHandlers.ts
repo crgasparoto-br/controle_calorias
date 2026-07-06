@@ -5,6 +5,8 @@ import {
   findQuantityCorrectionTargets,
   findTargetMealItem,
   formatCorrectionOptions,
+  formatTargetMealItemOptions,
+  resolveTargetMealItem,
   scaleMealItem,
   scaleMealItemQuantity,
   toMealItemInput,
@@ -12,6 +14,16 @@ import {
 } from "./mealItemHelpers";
 import { formatNumber } from "./textUtils";
 import type { GramsAdjustmentItem, GramsIncrementItem, QuantityCorrectionIntent, WhatsappIntentResult } from "./types";
+
+function ambiguousTargetReply(targetFood: string | null, options: string, context = "última refeição") {
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: `Encontrei mais de um item para ${targetFood ?? "esse alimento"} na ${context}:\n${options}\nResponda com o número do item que devo ajustar.`,
+    eventType: "whatsapp.intent.clarification_needed",
+    detail: "Pedido de ajuste de gramas com mais de um alimento compatível.",
+  } satisfies WhatsappIntentResult;
+}
 
 export async function handleQuantityCorrectionIntent(userId: number, correction: QuantityCorrectionIntent): Promise<WhatsappIntentResult> {
   const latestMeal = (await listMeals(userId))[0];
@@ -104,8 +116,11 @@ async function updateLatestMealItemGrams(input: {
   }
 
   const latestItems = toMealItemInputs(latestMeal.items);
-  const target = findTargetMealItem(latestItems, input.targetFood);
-  if (!target) {
+  const target = resolveTargetMealItem(latestItems, input.targetFood);
+  if (target.kind === "ambiguous") {
+    return ambiguousTargetReply(input.targetFood, formatTargetMealItemOptions(target.candidates));
+  }
+  if (target.kind !== "matched") {
     return {
       handled: true,
       action: "clarification_needed",
@@ -159,8 +174,11 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
 
   for (const adjustment of adjustments) {
     const currentItems = toMealItemInputs(updatedItems);
-    const target = findTargetMealItem(currentItems, adjustment.targetFood);
-    if (!target) {
+    const target = resolveTargetMealItem(currentItems, adjustment.targetFood);
+    if (target.kind === "ambiguous") {
+      return ambiguousTargetReply(adjustment.targetFood, formatTargetMealItemOptions(target.candidates));
+    }
+    if (target.kind !== "matched") {
       if (adjustment.targetFood) {
         notFoundFoods.push(adjustment.targetFood);
       }
@@ -232,8 +250,11 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
 
   for (const increment of increments) {
     const currentItems = toMealItemInputs(updatedItems);
-    const target = findTargetMealItem(currentItems, increment.targetFood);
-    if (!target) {
+    const target = resolveTargetMealItem(currentItems, increment.targetFood);
+    if (target.kind === "ambiguous") {
+      return ambiguousTargetReply(increment.targetFood, formatTargetMealItemOptions(target.candidates));
+    }
+    if (target.kind !== "matched") {
       if (increment.targetFood) {
         notFoundFoods.push(increment.targetFood);
       }
