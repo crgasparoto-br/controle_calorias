@@ -23,7 +23,7 @@ describe("nutritionEngine quantity expressions", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "banana",
+      foodName: "Banana",
       quantity: 170,
       unit: "g",
       portionText: "170 g",
@@ -42,14 +42,14 @@ describe("nutritionEngine quantity expressions", () => {
 
     expect(result.items).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        foodName: "banana",
+        foodName: "Banana",
         quantity: 170,
         unit: "g",
         portionText: "170 g",
         estimatedGrams: 170,
       }),
       expect.objectContaining({
-        foodName: "laranja pêra",
+        foodName: "Laranja Pêra",
         quantity: 352,
         unit: "g",
         portionText: "352 g",
@@ -92,7 +92,7 @@ describe("nutritionEngine quantity expressions", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "laranja pêra",
+      foodName: "Laranja Pêra",
       quantity: 352,
       unit: "g",
       portionText: "352 g",
@@ -149,14 +149,14 @@ describe("nutritionEngine quantity expressions", () => {
 
     expect(result.items).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        foodName: "banana",
+        foodName: "Banana",
         quantity: 170,
         unit: "g",
         portionText: "170 g",
         estimatedGrams: 170,
       }),
       expect.objectContaining({
-        foodName: "laranja pêra",
+        foodName: "Laranja Pêra",
         quantity: 352,
         unit: "g",
         portionText: "352 g",
