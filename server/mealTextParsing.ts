@@ -4,6 +4,9 @@ import type { ExplicitQuantity, LlmItem, ParsedFoodText } from "./nutritionEngin
 
 export const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
 
+const QUANTITY_EXPRESSION_OPERATOR_PATTERN = "x|X|\\*|/|÷|\\+|-|dividid[ao]\\s+por|dividir\\s+por";
+const MAX_QUANTITY_EXPRESSION_OPERATORS = 5;
+
 export function normalizeText(value: string) {
   return value
     .normalize("NFD")
@@ -61,7 +64,155 @@ export function estimateGramsFromQuantity(quantity: number, unit: string) {
   }
 }
 
+type QuantityExpressionTerm = {
+  value: number;
+  unit?: string;
+};
+
+type QuantityExpression = {
+  quantity: number;
+  unit: string;
+  estimatedGrams?: number;
+};
+
+function normalizeArithmeticOperator(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalized === "x" || normalized === "*") return "*";
+  if (normalized === "/" || normalized === "÷" || normalized.startsWith("divid")) return "/";
+  if (normalized === "+") return "+";
+  if (normalized === "-") return "-";
+  return null;
+}
+
+function tokenizeQuantityExpression(expressionText: string) {
+  const tokenPattern = new RegExp(
+    `(\\d+(?:[,.]\\d+)?)(?:\\s*(${QUANTITY_UNIT_PATTERN}))?|(${QUANTITY_EXPRESSION_OPERATOR_PATTERN})`,
+    "giu",
+  );
+  const terms: QuantityExpressionTerm[] = [];
+  const operators: string[] = [];
+  let consumed = "";
+
+  for (const match of expressionText.matchAll(tokenPattern)) {
+    consumed += match[0];
+    if (match[1]) {
+      const value = parseDecimalNumber(match[1]);
+      if (!Number.isFinite(value)) {
+        return null;
+      }
+      terms.push({
+        value,
+        unit: match[2] ? normalizeUnit(match[2]) : undefined,
+      });
+      continue;
+    }
+
+    const operator = normalizeArithmeticOperator(match[3] || "");
+    if (!operator) {
+      return null;
+    }
+    operators.push(operator);
+  }
+
+  if (expressionText.replace(/\s+/g, "") !== consumed.replace(/\s+/g, "")) {
+    return null;
+  }
+
+  if (terms.length < 2 || operators.length !== terms.length - 1 || operators.length > MAX_QUANTITY_EXPRESSION_OPERATORS) {
+    return null;
+  }
+
+  return { terms, operators };
+}
+
+function evaluateQuantityExpression(expressionText: string): QuantityExpression | null {
+  const tokenized = tokenizeQuantityExpression(expressionText);
+  if (!tokenized) {
+    return null;
+  }
+
+  const units = Array.from(new Set(tokenized.terms.map(term => term.unit).filter((unit): unit is string => Boolean(unit))));
+  if (units.length !== 1) {
+    return null;
+  }
+
+  const unit = units[0];
+  const values = tokenized.terms.map(term => term.value);
+  const operators = [...tokenized.operators];
+
+  for (let index = 0; index < operators.length;) {
+    const operator = operators[index];
+    if (operator !== "*" && operator !== "/") {
+      index += 1;
+      continue;
+    }
+
+    const left = values[index];
+    const right = values[index + 1];
+    if (operator === "/" && right === 0) {
+      return null;
+    }
+
+    values.splice(index, 2, operator === "*" ? left * right : left / right);
+    operators.splice(index, 1);
+  }
+
+  let result = values[0];
+  for (let index = 0; index < operators.length; index += 1) {
+    const operator = operators[index];
+    const value = values[index + 1];
+    result = operator === "+" ? result + value : result - value;
+  }
+
+  if (!Number.isFinite(result) || result <= 0) {
+    return null;
+  }
+
+  const quantity = roundNutritionValue(result);
+  const estimatedGrams = estimateGramsFromQuantity(quantity, unit);
+  return {
+    quantity,
+    unit,
+    estimatedGrams: estimatedGrams === undefined ? undefined : roundNutritionValue(estimatedGrams),
+  };
+}
+
+function parseLeadingQuantityExpression(value: string) {
+  const numberWithOptionalUnit = `\\d+(?:[,.]\\d+)?\\s*(?:${QUANTITY_UNIT_PATTERN})?`;
+  const expressionPattern = new RegExp(
+    `^((?:${numberWithOptionalUnit})(?:\\s*(?:${QUANTITY_EXPRESSION_OPERATOR_PATTERN})\\s*${numberWithOptionalUnit}){1,${MAX_QUANTITY_EXPRESSION_OPERATORS}})\\s+(?:de\\s+)?(.+)$`,
+    "iu",
+  );
+  const match = value.trim().match(expressionPattern);
+  if (!match) {
+    return null;
+  }
+
+  const expression = evaluateQuantityExpression(match[1]);
+  const foodName = cleanFoodName(match[2]);
+  if (!expression || !foodName) {
+    return null;
+  }
+
+  return {
+    foodName,
+    ...expression,
+    portionText: buildPortionText(expression.quantity, expression.unit),
+  };
+}
+
 export function parseFoodText(value: string): ParsedFoodText {
+  const expression = parseLeadingQuantityExpression(value);
+  if (expression) {
+    return expression;
+  }
+
   const cleaned = cleanFoodName(value);
   const quantityPattern = `(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})`;
   const leadingMatch = cleaned.match(new RegExp(`^${quantityPattern}\\s+(?:de\\s+)?(.+)$`, "i"));
@@ -92,6 +243,15 @@ export function parseFoodText(value: string): ParsedFoodText {
 }
 
 export function extractExplicitQuantities(sourceText: string): ExplicitQuantity[] {
+  const expression = parseLeadingQuantityExpression(sourceText);
+  if (expression.quantity && expression.unit) {
+    return [{
+      quantity: expression.quantity,
+      unit: expression.unit,
+      estimatedGrams: expression.estimatedGrams,
+    }];
+  }
+
   const matches = Array.from(sourceText.matchAll(new RegExp(`(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "gi")));
   return matches
     .map(match => {
