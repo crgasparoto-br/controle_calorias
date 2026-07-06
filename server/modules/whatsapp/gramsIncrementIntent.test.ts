@@ -109,6 +109,35 @@ describe("executeWhatsappGramsIncrementIntent", () => {
     }));
   });
 
+  it("tolera erro leve de digitacao no alvo do incremento", async () => {
+    const meal = {
+      id: 54,
+      mealLabel: "Lanche",
+      occurredAt: "2026-06-29T23:00:00.000Z",
+      notes: null,
+      items: [
+        item("Pao frances", 50),
+        item("Queijo Minas Padrao Fatiado", 30),
+      ],
+    };
+    listMealsMock.mockResolvedValue([meal]);
+    updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
+
+    const result = await executeWhatsappGramsIncrementIntent(42, {
+      text: "Adicionar 20g ao quejo minas",
+      receivedAt: new Date("2026-06-29T23:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "meal_item_grams_adjusted",
+      data: expect.objectContaining({
+        increments: [
+          expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 30, nextGrams: 50 }),
+        ],
+      }),
+    }));
+  });
+
   it("ajusta alvo generico quando so existe um item compativel", async () => {
     const meal = {
       id: 52,
