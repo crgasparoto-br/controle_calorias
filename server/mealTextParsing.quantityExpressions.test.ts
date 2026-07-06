@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractExplicitQuantities, getQuantityExpressionClarification, parseFoodText } from "./mealTextParsing";
+import {
+  extractExplicitQuantities,
+  extractExplicitQuantityFoodSegments,
+  getQuantityExpressionClarification,
+  parseFoodText,
+} from "./mealTextParsing";
 
 describe("mealTextParsing arithmetic quantity expressions", () => {
   it.each([
@@ -41,6 +46,13 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
     ]);
   });
 
+  it("extrai quantidades explícitas calculadas por alimento", () => {
+    expect(extractExplicitQuantityFoodSegments("300g/2+20g de banana e 2x176g de laranja pêra")).toEqual([
+      { foodName: "banana", quantity: 170, unit: "g", estimatedGrams: 170 },
+      { foodName: "laranja pêra", quantity: 352, unit: "g", estimatedGrams: 352 },
+    ]);
+  });
+
   it("mantém o parser simples para mensagens sem operação", () => {
     expect(parseFoodText("176g de laranja pêra")).toEqual(expect.objectContaining({
       foodName: "laranja pêra",
@@ -52,6 +64,7 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
 
   it.each([
     ["300g/0 de banana", "divisão por zero"],
+    ["banana e 300g/0 de laranja", "divisão por zero"],
     ["100g-100g de banana", "zero ou negativo"],
     ["100g+20ml de banana", "mistura unidades diferentes"],
     ["1+1+1+1+1+1+1g de banana", "operações demais"],
