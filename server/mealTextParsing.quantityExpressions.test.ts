@@ -40,6 +40,25 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
     }));
   });
 
+  it("aceita resultado decimal e formata conforme o padrão do projeto", () => {
+    expect(parseFoodText("1kg/2 de arroz")).toEqual(expect.objectContaining({
+      foodName: "arroz",
+      quantity: 0.5,
+      unit: "kg",
+      portionText: "0,5 kg",
+      estimatedGrams: 500,
+    }));
+  });
+
+  it("aceita expressão com unidade não convertida para gramas", () => {
+    expect(parseFoodText("2x1 un banana")).toEqual(expect.objectContaining({
+      foodName: "banana",
+      quantity: 2,
+      unit: "un",
+      portionText: "2 un",
+    }));
+  });
+
   it("extrai uma quantidade explícita calculada para reaplicar em item único", () => {
     expect(extractExplicitQuantities("2x176g de laranja pêra")).toEqual([
       { quantity: 352, unit: "g", estimatedGrams: 352 },
