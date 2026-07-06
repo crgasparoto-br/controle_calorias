@@ -28,6 +28,11 @@ export type WhatsAppConsolidatedMealReplyInput = {
   items: WhatsAppFoodReplyItem[];
 };
 
+export type WhatsAppMealActionReplyOptions = WhatsAppMealReplyOptions & {
+  title: string;
+  actionLines?: string[];
+};
+
 function formatDateKeyInSaoPaulo(date?: Date) {
   if (!date) {
     return undefined;
@@ -95,6 +100,13 @@ function sumReplyItems(items: WhatsAppFoodReplyItem[]): WhatsAppNutritionTotals 
   );
 }
 
+function buildMealItemLines(items: WhatsAppFoodReplyItem[]) {
+  return items.flatMap((item, index) => [
+    ...buildWhatsAppFoodLines(item),
+    ...(index < items.length - 1 ? [buildWhatsAppSeparator()] : []),
+  ]);
+}
+
 function buildMealReplyBody(input: {
   title: string;
   sourceText?: string | null;
@@ -113,16 +125,11 @@ function buildMealReplyBody(input: {
     ]);
   }
 
-  const itemLines = input.items.flatMap((item, index) => [
-    ...buildWhatsAppFoodLines(item),
-    ...(index < input.items.length - 1 ? [buildWhatsAppSeparator()] : []),
-  ]);
-
   return buildWhatsAppBlock([
     input.title,
     buildWhatsAppSeparator(),
     "Itens:",
-    ...itemLines,
+    ...buildMealItemLines(input.items),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(input.totals),
     ...(input.goalLines.length ? [buildWhatsAppSeparator(), ...input.goalLines] : []),
@@ -153,4 +160,21 @@ export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolid
     totals: sumReplyItems(meal.items),
     goalLines,
   });
+}
+
+export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealActionReplyOptions) {
+  const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+  const actionLines = options.actionLines?.filter(Boolean) ?? [];
+
+  return buildWhatsAppBlock([
+    buildWhatsAppTitle(options.title, { bold: true }),
+    ...(actionLines.length ? [buildWhatsAppSeparator(), ...actionLines] : []),
+    buildWhatsAppSeparator(),
+    "Refeição atualizada:",
+    ...buildMealItemLines(meal.items),
+    buildWhatsAppSeparator(),
+    ...buildWhatsAppMealTotalLines(sumReplyItems(meal.items)),
+    ...(goalLines.length ? [buildWhatsAppSeparator(), ...goalLines] : []),
+  ]);
 }
