@@ -29,11 +29,11 @@ describe("replyTemplates", () => {
     expect(buildWhatsAppBlock(["A", buildWhatsAppSeparator(), "B"])).toBe("A\n\nB");
   });
 
-  it("formata alimento com ícone, porção, calorias e macros de forma reutilizável", () => {
-    expect(formatWhatsAppFoodLine(banana)).toBe("• 🍌 Banana prata, 1 unidade (aprox. 80g) - 72 Kcal");
+  it("formata alimento com ícone, porção e linha curta de macros de forma reutilizável", () => {
+    expect(formatWhatsAppFoodLine(banana)).toBe("• 🍌 Banana prata — 1 unidade (aprox. 80g)");
     expect(buildWhatsAppFoodLines(banana)).toEqual([
-      "• 🍌 Banana prata, 1 unidade (aprox. 80g) - 72 Kcal",
-      "Prot. 0,9 g | Carb. 18,6 g | Gord. 0,2 g",
+      "• 🍌 Banana prata — 1 unidade (aprox. 80g)",
+      "72 kcal | P 0,9 g | C 18,6 g | G 0,2 g",
     ]);
   });
 
@@ -42,10 +42,9 @@ describe("replyTemplates", () => {
 
     expect(buildWhatsAppMealTotalLines(totals)).toEqual([
       "Total da refeição:",
-      "247,5 Kcal",
-      "Prot. 46,5 g | Carb. 0 g | Gord. 5,4 g",
+      "247,5 kcal | P 46,5 g | C 0 g | G 5,4 g",
     ]);
-    expect(formatWhatsAppNutritionTotalsLine(totals)).toBe("247,5 kcal | Prot. 46,5 g | Carb. 0 g | Gord. 5,4 g");
+    expect(formatWhatsAppNutritionTotalsLine(totals)).toBe("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");
   });
 
   it("formata bloco de meta diária com déficit e exercício", () => {
