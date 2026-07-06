@@ -8,11 +8,11 @@ import type { FoodReplacementIntent, WhatsappIntentResult } from "./types";
 type MealRecord = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMealRecord = MealRecord & { items: MealItemInput[] };
 
-function ambiguousReplacementReply(targetFood: string, options: string, context = "última refeição") {
+function ambiguousReplacementReply(targetFood: string, options: string, context = "na última refeição") {
   return {
     handled: true,
     action: "clarification_needed",
-    reply: `Encontrei mais de um item para ${targetFood} na ${context}:\n${options}\nResponda com o número do item que devo trocar.`,
+    reply: `Encontrei mais de um item para ${targetFood} ${context}:\n${options}\nResponda com o número do item que devo trocar.`,
     eventType: "whatsapp.intent.clarification_needed",
     detail: "Pedido de substituição de alimento com mais de um item compatível.",
   } satisfies WhatsappIntentResult;
@@ -59,7 +59,7 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
   for (const replacement of replacements) {
     const target = resolveTargetMealItemInMeals(mutableMeals, replacement.fromFood);
     if (target.kind === "ambiguous") {
-      return ambiguousReplacementReply(replacement.fromFood, formatTargetMealItemOptions(target.candidates), target.scopeLabel);
+      return ambiguousReplacementReply(replacement.fromFood, formatTargetMealItemOptions(target.candidates), contextWithPreposition(target.scope));
     }
     if (target.kind !== "matched") {
       notFound.push(replacement.fromFood);
