@@ -1,5 +1,5 @@
 /**
- * Voice transcription helper using the backend AI provider.
+ * Voice transcription helper using the dedicated OpenAI audio provider.
  *
  * Frontend implementation guide:
  * 1. Capture audio using MediaRecorder API
@@ -23,8 +23,9 @@
  * });
  * ```
  */
-import { getAiProvider } from "./aiProvider";
+import { OpenAiProvider } from "./aiProvider";
 import { ENV } from "./env";
+import { createOpenAiClient } from "./openaiClient";
 
 const MAX_AUDIO_FILE_SIZE_BYTES = 16 * 1024 * 1024;
 const DEFAULT_AUDIO_MIME_TYPE = "audio/mpeg";
@@ -198,8 +199,12 @@ function toFileBuffer(buffer: Buffer) {
   ) as ArrayBuffer;
 }
 
+function createAudioTranscriptionProvider() {
+  return new OpenAiProvider(() => createOpenAiClient());
+}
+
 /**
- * Transcribe audio to text using the internal backend provider.
+ * Transcribe audio to text using OpenAI Whisper, independent of the text/vision provider.
  */
 export async function transcribeAudio(
   options: TranscribeOptions,
@@ -235,7 +240,7 @@ export async function transcribeAudio(
       { type: downloaded.mimeType },
     );
 
-    const transcription = await getAiProvider().createAudioTranscription({
+    const transcription = await createAudioTranscriptionProvider().createAudioTranscription({
       file: audioFile,
       model: ENV.openaiTranscriptionModel,
       language: options.language,
