@@ -57,7 +57,7 @@ describe("nutritionEngine estimated nutrition fallback", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
       foodName: "Pão da Fazenda",
-      canonicalName: "Pão de padaria",
+      canonicalName: "Pão de Padaria",
       quantity: 49,
       unit: "g",
       portionText: "49 g",
@@ -112,8 +112,8 @@ describe("nutritionEngine estimated nutrition fallback", () => {
     });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Bolinho caseiro",
-      canonicalName: "Bolinho caseiro",
+      foodName: "Bolinho Caseiro",
+      canonicalName: "Bolinho Caseiro",
       quantity: 80,
       unit: "g",
       portionText: "80 g",
@@ -176,8 +176,8 @@ describe("nutritionEngine estimated nutrition fallback", () => {
     });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Cookie caseiro especial",
-      canonicalName: "Biscoito de aveia",
+      foodName: "Cookie Caseiro Especial",
+      canonicalName: "Biscoito de Aveia",
       estimatedGrams: 30,
       calories: 129,
       protein: 2.1,
