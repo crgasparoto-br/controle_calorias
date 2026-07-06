@@ -222,14 +222,14 @@ export function applyExplicitQuantities(items: MealDraftItem[], sourceText: stri
     const matches = explicitSegments
       .map((segment, index) => ({ segment, index }))
       .filter(({ index, segment }) => !usedSegments.has(index) && explicitSegmentMatchesItem(segment.foodName, item));
+    const match = matches.length === 1 ? matches[0] : null;
 
-    if (matches.length !== 1) {
+    if (!match) {
       return item;
     }
 
-    const [{ segment, index }] = matches;
-    usedSegments.add(index);
-    return applyExplicitQuantityToItem(item, segment);
+    usedSegments.add(match.index);
+    return applyExplicitQuantityToItem(item, match.segment);
   });
 }
 
