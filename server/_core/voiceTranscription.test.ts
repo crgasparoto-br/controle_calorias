@@ -27,7 +27,14 @@ function createAudioFetchResponse(params: {
 async function loadModule(provider: { createAudioTranscription: ReturnType<typeof vi.fn> }) {
   vi.resetModules();
   vi.doMock("./aiProvider", () => ({
-    getAiProvider: () => provider,
+    OpenAiProvider: class {
+      constructor(_client: unknown) {}
+
+      createAudioTranscription = provider.createAudioTranscription;
+    },
+  }));
+  vi.doMock("./openaiClient", () => ({
+    createOpenAiClient: () => ({ mocked: true }),
   }));
 
   return import("./voiceTranscription");
@@ -39,10 +46,12 @@ describe("voiceTranscription", () => {
     vi.unstubAllEnvs();
     vi.resetModules();
     vi.doUnmock("./aiProvider");
+    vi.doUnmock("./openaiClient");
   });
 
   it("uses the configured transcription model and returns the existing whisper-compatible shape", async () => {
     vi.stubEnv("OPENAI_TRANSCRIPTION_MODEL", "whisper-test");
+    vi.stubEnv("AI_VISION_PROVIDER", "gemini");
 
     const createAudioTranscription = vi.fn().mockResolvedValue({
       task: "transcribe",
@@ -79,6 +88,40 @@ describe("voiceTranscription", () => {
       language: "pt",
       duration: 2.4,
       text: "arroz e feijao",
+      segments: [],
+    });
+  });
+
+  it("normalizes MIME parameters before validating and creating the audio file", async () => {
+    const createAudioTranscription = vi.fn().mockResolvedValue({
+      task: "transcribe",
+      language: "pt",
+      duration: 1,
+      text: "banana",
+      segments: [],
+      raw: { mocked: true },
+    });
+
+    const { transcribeAudio } = await loadModule({ createAudioTranscription });
+    const result = await transcribeAudio({
+      audioBase64: Buffer.from("inline-audio").toString("base64"),
+      mimeType: "audio/ogg; codecs=opus",
+      language: "pt",
+    });
+
+    expect(createAudioTranscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        file: expect.objectContaining({
+          name: "audio.ogg",
+          type: "audio/ogg",
+        }),
+      }),
+    );
+    expect(result).toEqual({
+      task: "transcribe",
+      language: "pt",
+      duration: 1,
+      text: "banana",
       segments: [],
     });
   });
