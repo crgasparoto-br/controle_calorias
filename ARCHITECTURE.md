@@ -32,6 +32,17 @@ drizzzle/schema.ts            -> fonte de verdade do modelo relacional
 shared/*                      -> tipos, cálculos e mensagens sem dependência de ambiente
 ```
 
+### Fronteiras do webhook do WhatsApp
+
+`server/whatsappWebhook.ts` é o orquestrador HTTP do canal (deduplicação, roteamento do fluxo por mensagem, chamada aos módulos de domínio) e deve continuar magro. Responsabilidades específicas ficam em módulos dedicados sob `server/modules/whatsapp/`:
+
+- `webhookTextCommands.ts` -> detecção e execução de comandos por texto (água, peso, reclassificação de refeição e confirmação pendente).
+- `webhookMediaPipeline.ts` -> download/persistência de mídia recebida (imagem/áudio) e preparo de texto/transcrição para inferência.
+- `replyFormatting.ts` -> formatação compartilhada de número e horário nas respostas do WhatsApp.
+- `mealConsolidationService.ts` / `mealConsolidation.ts` -> consolidação de refeições do mesmo dia/tipo (ver #663).
+
+A assinatura pública exportada por `server/whatsappWebhook.ts` (`handleWhatsAppWebhook`, `verifyWhatsAppWebhook`, `__resetWhatsAppWebhookDeduplicationForTests`) deve ser preservada ao mover código para esses módulos.
+
 ## Regras de dependência
 
 - `client/` pode importar de `shared/`, mas não deve importar de `server/`.
