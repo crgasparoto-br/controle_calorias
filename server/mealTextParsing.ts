@@ -244,7 +244,7 @@ export function parseFoodText(value: string): ParsedFoodText {
 
 export function extractExplicitQuantities(sourceText: string): ExplicitQuantity[] {
   const expression = parseLeadingQuantityExpression(sourceText);
-  if (expression.quantity && expression.unit) {
+  if (expression?.quantity && expression.unit) {
     return [{
       quantity: expression.quantity,
       unit: expression.unit,
