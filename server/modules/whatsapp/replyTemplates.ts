@@ -30,11 +30,11 @@ export function formatWhatsAppMacroValue(value: number) {
 }
 
 export function formatWhatsAppMacroLine(totals: WhatsAppNutritionTotals) {
-  return `Prot. ${formatWhatsAppMacroValue(totals.protein)} g | Carb. ${formatWhatsAppMacroValue(totals.carbs)} g | Gord. ${formatWhatsAppMacroValue(totals.fat)} g`;
+  return `${formatWhatsAppNumber(totals.calories)} kcal | P ${formatWhatsAppMacroValue(totals.protein)} g | C ${formatWhatsAppMacroValue(totals.carbs)} g | G ${formatWhatsAppMacroValue(totals.fat)} g`;
 }
 
 export function formatWhatsAppNutritionTotalsLine(totals: WhatsAppNutritionTotals) {
-  return `${formatWhatsAppNumber(totals.calories)} kcal | ${formatWhatsAppMacroLine(totals)}`;
+  return formatWhatsAppMacroLine(totals);
 }
 
 export function buildWhatsAppTitle(title: string, options: { bold?: boolean } = {}) {
@@ -77,7 +77,7 @@ export function formatWhatsAppPortionText(item: WhatsAppFoodReplyItem) {
 
 export function formatWhatsAppFoodDescription(item: WhatsAppFoodReplyItem) {
   const estimationLabel = item.source === "heuristic" ? " (estimado)" : "";
-  return `${item.foodName ?? "Alimento"}, ${formatWhatsAppPortionText(item)}${estimationLabel} - ${formatWhatsAppMacroValue(item.calories)} Kcal`.trim();
+  return `${item.foodName ?? "Alimento"} — ${formatWhatsAppPortionText(item)}${estimationLabel}`.trim();
 }
 
 export function formatWhatsAppFoodLine(item: WhatsAppFoodReplyItem) {
@@ -94,8 +94,7 @@ export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
 export function buildWhatsAppMealTotalLines(totals: WhatsAppNutritionTotals) {
   return [
     "Total da refeição:",
-    `${formatWhatsAppMacroValue(totals.calories)} Kcal`,
-    formatWhatsAppMacroLine(totals),
+    formatWhatsAppNutritionTotalsLine(totals),
   ];
 }
 
