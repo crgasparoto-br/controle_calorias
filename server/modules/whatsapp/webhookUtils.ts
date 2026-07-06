@@ -86,6 +86,10 @@ export function normalizeWhatsAppIntentText(value: string) {
     .trim();
 }
 
+export function getWhatsAppMessageTextBody(message: Pick<WhatsAppWebhookMessage, "text" | "image">) {
+  return message.text?.body?.trim() || message.image?.caption?.trim() || "";
+}
+
 export async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {
   let config;
   try {
