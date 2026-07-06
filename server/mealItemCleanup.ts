@@ -1,6 +1,6 @@
 import { calculateMealTotals } from "../shared/mealTotals";
 import { buildHeuristicItem } from "./mealItemBuilders";
-import { normalizeText } from "./mealTextParsing";
+import { normalizeText, splitFoodTextSegments } from "./mealTextParsing";
 import type { MealDraftItem } from "./nutritionEngineTypes";
 
 const NON_FOOD_TERMS = [
@@ -51,9 +51,7 @@ export function isConversationalOnlyText(value: string) {
 }
 
 export function fallbackFromText(sourceText: string): MealDraftItem[] {
-  const parts = sourceText
-    .split(/,|\be\b|\+(?!\s*\d)|\n/gi)
-    .map(value => value.trim())
+  const parts = splitFoodTextSegments(sourceText)
     .filter(value => value && !isConversationalOnlyText(value));
 
   if (parts.length === 0) {
