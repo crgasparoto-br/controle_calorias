@@ -334,21 +334,26 @@ export function parseFoodText(value: string): ParsedFoodText {
 }
 
 export function extractExplicitQuantityFoodSegments(sourceText: string): Array<ExplicitQuantity & { foodName: string }> {
-  return splitFoodTextSegments(sourceText)
-    .map(segment => {
-      const parsed = parseFoodText(segment);
-      if (!parsed.quantity || !parsed.unit) {
-        return null;
-      }
+  const items: Array<ExplicitQuantity & { foodName: string }> = [];
 
-      return {
-        foodName: parsed.foodName,
-        quantity: parsed.quantity,
-        unit: parsed.unit,
-        estimatedGrams: parsed.estimatedGrams,
-      };
-    })
-    .filter((item): item is ExplicitQuantity & { foodName: string } => Boolean(item));
+  for (const segment of splitFoodTextSegments(sourceText)) {
+    const parsed = parseFoodText(segment);
+    if (!parsed.quantity || !parsed.unit) {
+      continue;
+    }
+
+    const item: ExplicitQuantity & { foodName: string } = {
+      foodName: parsed.foodName,
+      quantity: parsed.quantity,
+      unit: parsed.unit,
+    };
+    if (parsed.estimatedGrams !== undefined) {
+      item.estimatedGrams = parsed.estimatedGrams;
+    }
+    items.push(item);
+  }
+
+  return items;
 }
 
 export function extractExplicitQuantities(sourceText: string): ExplicitQuantity[] {
