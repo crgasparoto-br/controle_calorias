@@ -152,6 +152,79 @@ describe("executeWhatsappTextIntent meal item target matching", () => {
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 
+  it("procura incremento em outra refeicao do mesmo dia quando nao encontra na ultima", async () => {
+    const latestMeal = {
+      id: 67,
+      userId: 42,
+      mealLabel: "Jantar",
+      occurredAt: new Date("2026-06-09T21:00:00.000Z").getTime(),
+      notes: null,
+      items: [item("Pao frances", 50)],
+    };
+    const lunchMeal = {
+      id: 68,
+      userId: 42,
+      mealLabel: "Almoco",
+      occurredAt: new Date("2026-06-09T15:00:00.000Z").getTime(),
+      notes: null,
+      items: [item("Queijo Minas Padrao Fatiado", 80)],
+    };
+    listMealsMock.mockResolvedValue([latestMeal, lunchMeal]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Adicionar 20g ao queijo Minas",
+      receivedAt: new Date("2026-06-09T21:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+    }));
+    expect(result?.reply).toContain("nas refeições do dia");
+    expect(updateMealMock).toHaveBeenCalledTimes(1);
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 68,
+      items: [expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 100 })],
+    }));
+  });
+
+  it("mantem ambiguidade da ultima refeicao antes de procurar no restante do dia", async () => {
+    const latestMeal = {
+      id: 69,
+      userId: 42,
+      mealLabel: "Jantar",
+      occurredAt: new Date("2026-06-09T21:00:00.000Z").getTime(),
+      notes: null,
+      items: [
+        item("Queijo Minas Padrao Fatiado", 80),
+        item("Queijo mussarela", 70),
+      ],
+    };
+    const lunchMeal = {
+      id: 70,
+      userId: 42,
+      mealLabel: "Almoco",
+      occurredAt: new Date("2026-06-09T15:00:00.000Z").getTime(),
+      notes: null,
+      items: [item("Queijo coalho", 60)],
+    };
+    listMealsMock.mockResolvedValue([latestMeal, lunchMeal]);
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Diminuir 10g do queijo",
+      receivedAt: new Date("2026-06-09T21:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "clarification_needed",
+      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado (80 g)"),
+    }));
+    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
   it("substitui alimento usando alvo parcial do item salvo com nome completo", async () => {
     const meal = {
       id: 64,
@@ -245,5 +318,46 @@ describe("executeWhatsappTextIntent meal item target matching", () => {
     }));
     expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
     expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
+  it("substitui alimento em outra refeicao do mesmo dia quando nao encontra na ultima", async () => {
+    const latestMeal = {
+      id: 71,
+      userId: 42,
+      mealLabel: "Jantar",
+      occurredAt: new Date("2026-06-09T21:00:00.000Z").getTime(),
+      notes: null,
+      items: [item("Pao frances", 50)],
+    };
+    const lunchMeal = {
+      id: 72,
+      userId: 42,
+      mealLabel: "Almoco",
+      occurredAt: new Date("2026-06-09T15:00:00.000Z").getTime(),
+      notes: null,
+      items: [item("Queijo Minas Padrao Fatiado", 80)],
+    };
+    listMealsMock.mockResolvedValue([latestMeal, lunchMeal]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "não é queijo minas é ricota",
+      receivedAt: new Date("2026-06-09T21:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_replaced",
+      data: expect.objectContaining({
+        mealId: 72,
+        previousFoodName: "Queijo Minas Padrao Fatiado",
+        nextFoodName: "ricota",
+      }),
+    }));
+    expect(result?.reply).toContain("nas refeições do dia");
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 72,
+      items: [expect.objectContaining({ foodName: "ricota", estimatedGrams: 80 })],
+    }));
   });
 });
