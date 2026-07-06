@@ -16,20 +16,52 @@ import type { GramsAdjustmentItem, GramsIncrementItem, QuantityCorrectionIntent,
 
 type MealRecord = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMealRecord = MealRecord & { items: MealItemInput[] };
-type AppliedGramsChange = { foodName: string; previousGrams: number; nextGrams: number; scope: string };
-type PendingGramsTarget = { targetFood: string | null; options: string; context: string };
+type AppliedGramsChange = { targetFood: string | null; foodName: string; previousGrams: number; nextGrams: number; scope: string; scopeLabel: string };
+type PendingGramsTarget = { targetFood: string | null; options: string; context: string; scopeLabel: string };
 
 function contextWithPreposition(scope: string) {
   return scope === "same_day_meals" ? "nas refeições do dia" : "na última refeição";
 }
 
-function ambiguousTargetReply(targetFood: string | null, options: string, context = "na última refeição") {
+function targetLabel(targetFood: string | null) {
+  return targetFood ?? "alvo não informado";
+}
+
+function formatAppliedDetails(applied: AppliedGramsChange[]) {
+  return applied
+    .map(item => `alvo "${targetLabel(item.targetFood)}" -> "${item.foodName}" (${item.scopeLabel})`)
+    .join("; ");
+}
+
+function formatPendingDetails(pendingTargets: PendingGramsTarget[]) {
+  return pendingTargets
+    .map(item => `alvo "${targetLabel(item.targetFood)}" (${item.scopeLabel})`)
+    .join("; ");
+}
+
+function targetMatchDetail(params: {
+  prefix: string;
+  targetFood: string | null;
+  selectedFoodName?: string;
+  scopeLabel: string;
+  ambiguous: boolean;
+}) {
+  const selected = params.selectedFoodName ? ` Item escolhido: ${params.selectedFoodName}.` : "";
+  return `${params.prefix} Alvo usado: ${targetLabel(params.targetFood)}.${selected} Escopo da busca: ${params.scopeLabel}. Ambiguidade: ${params.ambiguous ? "sim" : "não"}.`;
+}
+
+function ambiguousTargetReply(targetFood: string | null, options: string, context = "na última refeição", scopeLabel = "última refeição") {
   return {
     handled: true,
     action: "clarification_needed",
     reply: `Encontrei mais de um item para ${targetFood ?? "esse alimento"} ${context}:\n${options}\nResponda com o número do item que devo ajustar.`,
     eventType: "whatsapp.intent.clarification_needed",
-    detail: "Pedido de ajuste de gramas com mais de um alimento compatível.",
+    detail: targetMatchDetail({
+      prefix: "Pedido de ajuste de gramas com mais de um alimento compatível.",
+      targetFood,
+      scopeLabel,
+      ambiguous: true,
+    }),
   } satisfies WhatsappIntentResult;
 }
 
@@ -172,7 +204,7 @@ async function updateLatestMealItemGrams(input: {
   const mutableMeals = toMutableMeals(meals);
   const target = resolveTargetMealItemInMeals(mutableMeals, input.targetFood);
   if (target.kind === "ambiguous") {
-    return ambiguousTargetReply(input.targetFood, formatTargetMealItemOptions(target.candidates), contextWithPreposition(target.scope));
+    return ambiguousTargetReply(input.targetFood, formatTargetMealItemOptions(target.candidates), contextWithPreposition(target.scope), target.scopeLabel);
   }
   if (target.kind !== "matched") {
     return {
@@ -180,7 +212,12 @@ async function updateLatestMealItemGrams(input: {
       action: "clarification_needed",
       reply: "Não encontrei esse alimento nas refeições de hoje. Me diga qual item devo ajustar.",
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de ajuste de gramas sem alimento compatível nas refeições do dia.",
+      detail: targetMatchDetail({
+        prefix: "Pedido de ajuste de gramas sem alimento compatível nas refeições do dia.",
+        targetFood: input.targetFood,
+        scopeLabel: "refeições do dia",
+        ambiguous: false,
+      }),
     } satisfies WhatsappIntentResult;
   }
 
@@ -194,7 +231,13 @@ async function updateLatestMealItemGrams(input: {
     action: "meal_item_grams_adjusted",
     reply: `Ajustei ${target.item.foodName}: de ${formatNumber(previousGrams)} g para ${formatNumber(nextGrams)} g ${contextWithPreposition(target.scope)} e recalculei os macros.`,
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: `${input.detail} Escopo da busca: ${target.scopeLabel}.`,
+    detail: targetMatchDetail({
+      prefix: input.detail,
+      targetFood: input.targetFood,
+      selectedFoodName: target.item.foodName,
+      scopeLabel: target.scopeLabel,
+      ambiguous: false,
+    }),
     data: {
       mealId: updatedMeal.id,
       foodName: target.item.foodName,
@@ -229,6 +272,7 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
         targetFood: adjustment.targetFood,
         options: formatTargetMealItemOptions(target.candidates),
         context: contextWithPreposition(target.scope),
+        scopeLabel: target.scopeLabel,
       });
       continue;
     }
@@ -241,7 +285,7 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
 
     const previousGrams = Number(target.item.estimatedGrams || 0);
     const nextGrams = Math.max(previousGrams - adjustment.gramsDelta, MIN_FOOD_GRAMS);
-    appliedAdjustments.push({ foodName: target.item.foodName, previousGrams, nextGrams, scope: target.scope });
+    appliedAdjustments.push({ targetFood: adjustment.targetFood, foodName: target.item.foodName, previousGrams, nextGrams, scope: target.scope, scopeLabel: target.scopeLabel });
     target.meal.items = target.meal.items.map((item, index) =>
       index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item,
     );
@@ -250,7 +294,7 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
 
   if (!appliedAdjustments.length) {
     if (pendingTargets.length) {
-      return ambiguousTargetReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context);
+      return ambiguousTargetReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context, pendingTargets[0].scopeLabel);
     }
     const foods = adjustments.map(a => a.targetFood).filter(Boolean).join(", ");
     return {
@@ -258,21 +302,24 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
       action: "clarification_needed",
       reply: `Não encontrei ${foods || "esses alimentos"} nas refeições de hoje. Me diga quais itens devo ajustar.`,
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de ajuste de gramas sem alimentos compatíveis nas refeições do dia.",
+      detail: `Pedido de ajuste de gramas sem alimentos compatíveis nas refeições do dia. Alvos usados: ${foods || "não informados"}. Escopo da busca: refeições do dia. Ambiguidade: não.`,
     };
   }
 
   const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(userId, mutableMeals[index])));
+  const context = adjustmentContext(appliedAdjustments.map(adjustment => adjustment.scope));
+  const pendingDetail = pendingTargets.length ? ` Alvos ambíguos: ${formatPendingDetails(pendingTargets)}.` : "";
+  const notFoundDetail = notFoundFoods.length ? ` Alvos não encontrados: ${notFoundFoods.join(", ")}.` : "";
 
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
     reply: buildMultiAdjustmentReply({ applied: appliedAdjustments, notFoundFoods, pendingTargets }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: `${appliedAdjustments.length} item(ns) ajustado(s) via WhatsApp. Escopo da busca: ${adjustmentContext(appliedAdjustments.map(adjustment => adjustment.scope))}.`,
+    detail: `${appliedAdjustments.length} item(ns) ajustado(s) via WhatsApp. Matches: ${formatAppliedDetails(appliedAdjustments)}. Escopo da busca: ${context}. Ambiguidade: ${pendingTargets.length ? "sim" : "não"}.${pendingDetail}${notFoundDetail}`,
     data: {
       mealId: updatedMeals[0]?.id,
-      adjustments: appliedAdjustments.map(({ scope: _scope, ...adjustment }) => adjustment),
+      adjustments: appliedAdjustments.map(({ scope: _scope, scopeLabel: _scopeLabel, targetFood: _targetFood, ...adjustment }) => adjustment),
     },
   };
 }
@@ -302,6 +349,7 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
         targetFood: increment.targetFood,
         options: formatTargetMealItemOptions(target.candidates),
         context: contextWithPreposition(target.scope),
+        scopeLabel: target.scopeLabel,
       });
       continue;
     }
@@ -314,7 +362,7 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
 
     const previousGrams = Number(target.item.estimatedGrams || 0);
     const nextGrams = Math.max(previousGrams + increment.gramsDelta, MIN_FOOD_GRAMS);
-    appliedIncrements.push({ foodName: target.item.foodName, previousGrams, nextGrams, scope: target.scope });
+    appliedIncrements.push({ targetFood: increment.targetFood, foodName: target.item.foodName, previousGrams, nextGrams, scope: target.scope, scopeLabel: target.scopeLabel });
     target.meal.items = target.meal.items.map((item, index) =>
       index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item,
     );
@@ -323,7 +371,7 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
 
   if (!appliedIncrements.length) {
     if (pendingTargets.length) {
-      return ambiguousTargetReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context);
+      return ambiguousTargetReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context, pendingTargets[0].scopeLabel);
     }
     const foods = increments.map(i => i.targetFood).filter(Boolean).join(", ");
     return {
@@ -331,21 +379,24 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
       action: "clarification_needed",
       reply: `Não encontrei ${foods || "esses alimentos"} nas refeições de hoje. Me diga quais itens devo ajustar.`,
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de incremento de gramas sem alimentos compatíveis nas refeições do dia.",
+      detail: `Pedido de incremento de gramas sem alimentos compatíveis nas refeições do dia. Alvos usados: ${foods || "não informados"}. Escopo da busca: refeições do dia. Ambiguidade: não.`,
     };
   }
 
   const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(userId, mutableMeals[index])));
+  const context = adjustmentContext(appliedIncrements.map(increment => increment.scope));
+  const pendingDetail = pendingTargets.length ? ` Alvos ambíguos: ${formatPendingDetails(pendingTargets)}.` : "";
+  const notFoundDetail = notFoundFoods.length ? ` Alvos não encontrados: ${notFoundFoods.join(", ")}.` : "";
 
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
     reply: buildMultiAdjustmentReply({ applied: appliedIncrements, notFoundFoods, pendingTargets }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: `${appliedIncrements.length} item(ns) incrementado(s) via WhatsApp. Escopo da busca: ${adjustmentContext(appliedIncrements.map(increment => increment.scope))}.`,
+    detail: `${appliedIncrements.length} item(ns) incrementado(s) via WhatsApp. Matches: ${formatAppliedDetails(appliedIncrements)}. Escopo da busca: ${context}. Ambiguidade: ${pendingTargets.length ? "sim" : "não"}.${pendingDetail}${notFoundDetail}`,
     data: {
       mealId: updatedMeals[0]?.id,
-      increments: appliedIncrements.map(({ scope: _scope, ...increment }) => increment),
+      increments: appliedIncrements.map(({ scope: _scope, scopeLabel: _scopeLabel, targetFood: _targetFood, ...increment }) => increment),
     },
   };
 }
