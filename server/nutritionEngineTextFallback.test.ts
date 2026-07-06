@@ -37,7 +37,7 @@ describe("nutritionEngine.processMealInput text fallback", () => {
 
     expect(result.items).toEqual([
       expect.objectContaining({
-        foodName: "guaraná antártica",
+        foodName: "Guaraná Antártica",
         quantity: 200,
         unit: "ml",
         portionText: "200 ml",

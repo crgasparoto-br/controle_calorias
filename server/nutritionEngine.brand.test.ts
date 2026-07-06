@@ -26,8 +26,8 @@ describe("nutritionEngine branded catalog selection", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "comi um iogurte Nestlé natural",
-      canonicalName: "Iogurte natural Nestlé",
+      foodName: "Comi Um Iogurte Nestlé Natural",
+      canonicalName: "Iogurte Natural Nestlé",
       brand: "Nestlé",
       portionText: "170 g",
       estimatedGrams: 170,
@@ -44,7 +44,7 @@ describe("nutritionEngine branded catalog selection", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Coca-Cola zero lata",
+      canonicalName: "Coca-Cola Zero Lata",
       brand: "Coca-Cola",
       portionText: "1 lata",
       calories: 0,
@@ -61,7 +61,7 @@ describe("nutritionEngine branded catalog selection", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Iogurte natural integral",
+      canonicalName: "Iogurte Natural Integral",
       brand: "Danone",
       portionText: "170 g",
       source: "heuristic",
@@ -77,7 +77,7 @@ describe("nutritionEngine branded catalog selection", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Iogurte natural integral",
+      canonicalName: "Iogurte Natural Integral",
       brand: null,
       portionText: "170 g",
       source: "catalog",

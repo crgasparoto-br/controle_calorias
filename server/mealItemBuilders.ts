@@ -5,6 +5,7 @@ import {
   cleanFoodName,
   extractExplicitQuantities,
   extractExplicitQuantityFoodSegments,
+  formatFoodNameTitleCase,
   normalizeText,
   normalizeUnit,
   parseFoodText,
@@ -61,8 +62,8 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
   const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
 
   return {
-    foodName: llmItem.foodName,
-    canonicalName: food.name,
+    foodName: formatFoodNameTitleCase(llmItem.foodName),
+    canonicalName: formatFoodNameTitleCase(food.name),
     brand,
     portionText,
     quantity,
@@ -88,10 +89,11 @@ export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
     ? roundNutritionValue(llmQuantity)
     : quantityUnit.quantity;
   const unit = normalizeUnit(llmItem.unit || quantityUnit.unit);
+  const foodName = formatFoodNameTitleCase(llmItem.foodName);
 
   return {
-    foodName: llmItem.foodName,
-    canonicalName: llmItem.foodName,
+    foodName,
+    canonicalName: foodName,
     brand: detectKnownBrand(llmItem.foodName),
     portionText: llmItem.portionText,
     quantity,
@@ -246,10 +248,11 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
   const quantity = parsed.quantity ?? 1;
   const unit = parsed.unit ?? "porção";
   const estimatedGrams = parsed.estimatedGrams ?? 100;
+  const formattedFoodName = formatFoodNameTitleCase(parsed.foodName);
 
   if (catalog) {
     return buildItemFromCatalog(catalog, {
-      foodName: parsed.foodName,
+      foodName: formattedFoodName,
       quantity,
       unit,
       portionText: parsed.portionText ?? catalog.servingLabel,
@@ -268,8 +271,8 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
   const factor = estimatedGrams / 100;
 
   return {
-    foodName: parsed.foodName,
-    canonicalName: parsed.foodName,
+    foodName: formattedFoodName,
+    canonicalName: formattedFoodName,
     brand: detectKnownBrand(parsed.foodName),
     quantity,
     unit,

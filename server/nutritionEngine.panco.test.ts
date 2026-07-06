@@ -23,7 +23,7 @@ describe("nutritionEngine Panco bisnaguinha catalog support", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "1 bisnaguinha panco",
+      foodName: "1 Bisnaguinha Panco",
       canonicalName: "Bisnaguinha Panco",
       portionText: "1 unidade",
       estimatedGrams: 20,

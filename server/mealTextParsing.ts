@@ -6,6 +6,26 @@ export const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|
 
 const QUANTITY_EXPRESSION_OPERATOR_PATTERN = "x|X|\\*|/|÷|\\+|-|dividid[ao]\\s+por|dividir\\s+por";
 const MAX_QUANTITY_EXPRESSION_OPERATORS = 5;
+const FOOD_NAME_LOWERCASE_CONNECTORS = new Set([
+  "de",
+  "da",
+  "do",
+  "das",
+  "dos",
+  "com",
+  "e",
+  "em",
+  "no",
+  "na",
+  "nos",
+  "nas",
+  "ao",
+  "aos",
+  "à",
+  "às",
+  "para",
+  "por",
+]);
 
 type QuantityExpressionErrorCode =
   | "invalid_syntax"
@@ -37,6 +57,48 @@ export function cleanFoodName(value: string) {
     .replace(/[^\p{L}\p{N}\s-]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function hasLetters(value: string) {
+  return /\p{L}/u.test(value);
+}
+
+function isPreservedUppercaseToken(value: string) {
+  return hasLetters(value) && value === value.toLocaleUpperCase("pt-BR") && value !== value.toLocaleLowerCase("pt-BR");
+}
+
+function titleCaseFoodNameWord(value: string, isFirstWord: boolean) {
+  const lower = value.toLocaleLowerCase("pt-BR");
+  if (!isFirstWord && FOOD_NAME_LOWERCASE_CONNECTORS.has(lower)) {
+    return lower;
+  }
+  if (isPreservedUppercaseToken(value)) {
+    return value;
+  }
+
+  return lower.replace(/\p{L}[\p{L}\p{M}]*/gu, match => (
+    match.charAt(0).toLocaleUpperCase("pt-BR") + match.slice(1)
+  ));
+}
+
+export function formatFoodNameTitleCase(value: string) {
+  const cleaned = cleanFoodName(value);
+  if (!cleaned) {
+    return cleaned;
+  }
+
+  let wordIndex = 0;
+  return cleaned
+    .split(/\s+/)
+    .map(word => word.split("-").map(segment => {
+      if (!segment) {
+        return segment;
+      }
+      const formatted = titleCaseFoodNameWord(segment, wordIndex === 0);
+      wordIndex += 1;
+      return formatted;
+    }).join("-"))
+    .join(" ");
 }
 
 export function parseDecimalNumber(value: string) {
@@ -159,6 +221,9 @@ function tokenizeQuantityExpression(expressionText: string): QuantityExpressionT
 }
 
 function evaluateQuantityExpression(expressionText: string): QuantityExpressionEvaluation {
+  if (!expressionText.trim()) {
+    return { ok: false, code: "invalid_syntax" };
+  }
   const tokenized = tokenizeQuantityExpression(expressionText);
   if (!tokenized.ok) {
     return tokenized;
@@ -406,10 +471,11 @@ export function normalizeLlmItem(item: LlmItem): LlmItem {
   const unit = normalizeUnit(parsed.unit ?? item.unit ?? "porção");
   const estimatedFromQuantity = estimateGramsFromQuantity(quantity, unit);
   const estimatedGrams = parsed.estimatedGrams ?? (item.estimatedGrams > 0 ? item.estimatedGrams : (estimatedFromQuantity ?? 0));
+  const foodName = formatFoodNameTitleCase(parsed.foodName || cleanFoodName(item.foodName));
 
   return {
     ...item,
-    foodName: parsed.foodName || cleanFoodName(item.foodName),
+    foodName,
     quantity,
     unit,
     portionText: parsed.portionText ?? item.portionText ?? buildPortionText(quantity, unit),

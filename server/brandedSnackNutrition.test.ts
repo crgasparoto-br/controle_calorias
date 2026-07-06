@@ -50,13 +50,9 @@ describe("nutritionEngine branded snack photo nutrition", () => {
             servings: 1,
             estimatedGrams: 0,
             estimatedCalories: 100,
-            estimatedMacros: {
-              protein: 1,
-              carbs: 11,
-              fat: 5,
-            },
+            estimatedMacros: { protein: 1, carbs: 11, fat: 5 },
             confidence: 0.82,
-              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
+            foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
           {
             foodName: "Smash",
@@ -66,13 +62,9 @@ describe("nutritionEngine branded snack photo nutrition", () => {
             servings: 1,
             estimatedGrams: 0,
             estimatedCalories: 100,
-            estimatedMacros: {
-              protein: 1,
-              carbs: 10,
-              fat: 6,
-            },
+            estimatedMacros: { protein: 1, carbs: 10, fat: 6 },
             confidence: 0.78,
-              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
+            foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
           },
         ],
       }),
@@ -87,33 +79,10 @@ describe("nutritionEngine branded snack photo nutrition", () => {
     });
 
     expect(result.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        foodName: "Kit Kat",
-        canonicalName: "Kit Kat ao leite Nestlé",
-        brand: "Nestlé",
-        calories: 220,
-        protein: 3.3,
-        carbs: 24,
-        fat: 12,
-        source: "catalog",
-      }),
-      expect.objectContaining({
-        foodName: "Smash",
-        canonicalName: "Smash Original Nestlé",
-        brand: "Nestlé",
-        calories: 95,
-        protein: 0.7,
-        carbs: 14,
-        fat: 4,
-        source: "catalog",
-      }),
+      expect.objectContaining({ foodName: "Kit Kat", canonicalName: "Kit Kat ao Leite Nestlé", brand: "Nestlé", calories: 220, protein: 3.3, carbs: 24, fat: 12, source: "catalog" }),
+      expect.objectContaining({ foodName: "Smash", canonicalName: "Smash Original Nestlé", brand: "Nestlé", calories: 95, protein: 0.7, carbs: 14, fat: 4, source: "catalog" }),
     ]));
-    expect(result.totals).toEqual({
-      calories: 315,
-      protein: 4,
-      carbs: 38,
-      fat: 16,
-    });
+    expect(result.totals).toEqual({ calories: 315, protein: 4, carbs: 38, fat: 16 });
     expect(createTextResponseMock).toHaveBeenCalledTimes(1);
   });
 
@@ -125,24 +94,7 @@ describe("nutritionEngine branded snack photo nutrition", () => {
           mealLabel: "Lanche",
           confidence: 0.8,
           reasoning: "Embalagem de Trento visível, mas sem tabela nutricional legível.",
-          items: [
-            {
-              foodName: "Trento",
-              quantity: 1,
-              unit: "unidade",
-              portionText: "1 unidade",
-              servings: 1,
-              estimatedGrams: 0,
-              estimatedCalories: 100,
-              estimatedMacros: {
-                protein: 1,
-                carbs: 11,
-                fat: 5,
-              },
-              confidence: 0.76,
-              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
-            },
-          ],
+          items: [{ foodName: "Trento", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }],
         }),
         raw: { mocked: true },
       })
@@ -166,95 +118,27 @@ describe("nutritionEngine branded snack photo nutrition", () => {
       });
 
     const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({
-      imageUrl: "data:image/jpeg;base64,Zm90by10cmVudG8=",
-      occurredAt: "2026-06-20T16:10:00-03:00",
-      timeZone: "America/Sao_Paulo",
-    });
+    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,Zm90by10cmVudG8=", occurredAt: "2026-06-20T16:10:00-03:00", timeZone: "America/Sao_Paulo" });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Trento",
-      canonicalName: "Trento Chocolate Branco Dark 32 g",
-      brand: "Peccin",
-      calories: 128,
-      protein: 2.1,
-      carbs: 19,
-      fat: 5.2,
-      source: "catalog",
-    }));
+    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Trento", canonicalName: "Trento Chocolate Branco Dark 32 G", brand: "Peccin", calories: 128, protein: 2.1, carbs: 19, fat: 5.2, source: "catalog" }));
     expect(result.items[0].calories).not.toBe(100);
     expect(result.items[0].calories).not.toBe(212);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
-    expect(createTextResponseMock).toHaveBeenLastCalledWith(expect.objectContaining({
-      tools: [expect.objectContaining({ type: "web_search" })],
-    }));
+    expect(createTextResponseMock).toHaveBeenLastCalledWith(expect.objectContaining({ tools: [expect.objectContaining({ type: "web_search" })] }));
   });
 
   it("usa busca semântica local antes do fallback médio quando a busca web não encontra nutrição confiável", async () => {
-    embeddingsCreateMock
-      .mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] })
-      .mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] });
+    embeddingsCreateMock.mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] }).mockResolvedValueOnce({ data: [{ index: 0, embedding: [1, 0] }] });
     createTextResponseMock
-      .mockResolvedValueOnce({
-        id: "resp_unknown_packaged_chocolate",
-        outputText: JSON.stringify({
-          mealLabel: "Lanche",
-          confidence: 0.8,
-          reasoning: "Embalagem de Alpino visível, mas sem tabela nutricional legível.",
-          items: [
-            {
-              foodName: "Alpino",
-              quantity: 1,
-              unit: "unidade",
-              portionText: "1 unidade",
-              servings: 1,
-              estimatedGrams: 0,
-              estimatedCalories: 100,
-              estimatedMacros: {
-                protein: 1,
-                carbs: 11,
-                fat: 5,
-              },
-              confidence: 0.76,
-              foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 },
-            },
-          ],
-        }),
-        raw: { mocked: true },
-      })
-      .mockResolvedValueOnce({
-        id: "resp_web_nutrition_lookup_empty",
-        outputText: JSON.stringify({
-          found: false,
-          matchedProductName: "",
-          brandName: "",
-          servingLabel: "",
-          gramsPerServing: 0,
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          confidence: 0.2,
-          sourceUrl: "",
-          evidence: "Nenhuma fonte específica confiável encontrada.",
-        }),
-        raw: { mocked: true },
-      });
+      .mockResolvedValueOnce({ id: "resp_unknown_packaged_chocolate", outputText: JSON.stringify({ mealLabel: "Lanche", confidence: 0.8, reasoning: "Embalagem de Alpino visível, mas sem tabela nutricional legível.", items: [{ foodName: "Alpino", quantity: 1, unit: "unidade", portionText: "1 unidade", servings: 1, estimatedGrams: 0, estimatedCalories: 100, estimatedMacros: { protein: 1, carbs: 11, fat: 5 }, confidence: 0.76, foodClassification: { processingLevel: "processed", isFruit: false, isVegetable: false, fiberGrams: 0 } }] }), raw: { mocked: true } })
+      .mockResolvedValueOnce({ id: "resp_web_nutrition_lookup_empty", outputText: JSON.stringify({ found: false, matchedProductName: "", brandName: "", servingLabel: "", gramsPerServing: 0, calories: 0, protein: 0, carbs: 0, fat: 0, confidence: 0.2, sourceUrl: "", evidence: "Nenhuma fonte específica confiável encontrada." }), raw: { mocked: true } });
 
     const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({
-      imageUrl: "data:image/jpeg;base64,Zm90by1hbHBpbm8=",
-      occurredAt: "2026-06-20T16:10:00-03:00",
-      timeZone: "America/Sao_Paulo",
-    });
+    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,Zm90by1hbHBpbm8=", occurredAt: "2026-06-20T16:10:00-03:00", timeZone: "America/Sao_Paulo" });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Alpino",
-      canonicalName: expect.any(String),
-      source: "catalog",
-    }));
+    expect(result.items[0]).toEqual(expect.objectContaining({ foodName: "Alpino", canonicalName: expect.any(String), source: "catalog" }));
     expect(result.items[0].calories).not.toBe(100);
     expect(result.items[0].calories).not.toBe(212);
     expect(createTextResponseMock).toHaveBeenCalledTimes(2);
