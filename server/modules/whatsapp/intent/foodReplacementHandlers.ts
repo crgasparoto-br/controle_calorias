@@ -7,16 +7,44 @@ import type { FoodReplacementIntent, WhatsappIntentResult } from "./types";
 
 type MealRecord = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMealRecord = MealRecord & { items: MealItemInput[] };
-type AppliedFoodReplacement = { from: string; to: string; item: MealItemInput; scope: string };
-type PendingReplacementTarget = { targetFood: string; options: string; context: string };
+type AppliedFoodReplacement = { targetFood: string; from: string; to: string; item: MealItemInput; scope: string; scopeLabel: string };
+type PendingReplacementTarget = { targetFood: string; options: string; context: string; scopeLabel: string };
 
-function ambiguousReplacementReply(targetFood: string, options: string, context = "na última refeição") {
+function replacementMatchDetail(params: {
+  prefix: string;
+  targetFood: string;
+  selectedFoodName?: string;
+  scopeLabel: string;
+  ambiguous: boolean;
+}) {
+  const selected = params.selectedFoodName ? ` Item escolhido: ${params.selectedFoodName}.` : "";
+  return `${params.prefix} Alvo usado: ${params.targetFood}. Escopo da busca: ${params.scopeLabel}. Ambiguidade: ${params.ambiguous ? "sim" : "não"}.${selected}`;
+}
+
+function formatAppliedDetails(applied: AppliedFoodReplacement[]) {
+  return applied
+    .map(item => `alvo "${item.targetFood}" -> "${item.from}" (${item.scopeLabel})`)
+    .join("; ");
+}
+
+function formatPendingDetails(pendingTargets: PendingReplacementTarget[]) {
+  return pendingTargets
+    .map(pending => `alvo "${pending.targetFood}" (${pending.scopeLabel})`)
+    .join("; ");
+}
+
+function ambiguousReplacementReply(targetFood: string, options: string, context = "na última refeição", scopeLabel = "última refeição") {
   return {
     handled: true,
     action: "clarification_needed",
     reply: `Encontrei mais de um item para ${targetFood} ${context}:\n${options}\nResponda com o número do item que devo trocar.`,
     eventType: "whatsapp.intent.clarification_needed",
-    detail: "Pedido de substituição de alimento com mais de um item compatível.",
+    detail: replacementMatchDetail({
+      prefix: "Pedido de substituição de alimento com mais de um item compatível.",
+      targetFood,
+      scopeLabel,
+      ambiguous: true,
+    }),
   } satisfies WhatsappIntentResult;
 }
 
@@ -90,6 +118,7 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
         targetFood: replacement.fromFood,
         options: formatTargetMealItemOptions(target.candidates),
         context: contextWithPreposition(target.scope),
+        scopeLabel: target.scopeLabel,
       });
       continue;
     }
@@ -101,19 +130,31 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     const replacedItem = replaceMealItemFood(toMealItemInput(target.meal.items[target.index]), replacement.toFood);
     target.meal.items = target.meal.items.map((item, index) => index === target.index ? replacedItem : item);
     changedMealIndexes.add(target.mealIndex);
-    applied.push({ from: target.item.foodName, to: replacement.toFood, item: replacedItem, scope: target.scope });
+    applied.push({
+      targetFood: replacement.fromFood,
+      from: target.item.foodName,
+      to: replacement.toFood,
+      item: replacedItem,
+      scope: target.scope,
+      scopeLabel: target.scopeLabel,
+    });
   }
 
   if (applied.length === 0) {
     if (pendingTargets.length) {
-      return ambiguousReplacementReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context);
+      return ambiguousReplacementReply(
+        pendingTargets[0].targetFood,
+        pendingTargets[0].options,
+        pendingTargets[0].context,
+        pendingTargets[0].scopeLabel,
+      );
     }
     return {
       handled: true,
       action: "clarification_needed",
       reply: `Não encontrei ${notFound.join(", ")} nas refeições de hoje. Me diga qual alimento devo trocar.`,
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de substituição de alimento sem item compatível nas refeições do dia.",
+      detail: `Pedido de substituição de alimento sem item compatível nas refeições do dia. Alvos usados: ${notFound.join(", ")}. Escopo da busca: refeições do dia. Ambiguidade: não.`,
     };
   }
 
@@ -128,12 +169,16 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     reply = buildMultipleReplacementReply({ applied, notFound, pendingTargets });
   }
 
+  const context = replacementContext(applied.map(item => item.scope));
+  const pendingDetail = pendingTargets.length ? ` Alvos ambíguos: ${formatPendingDetails(pendingTargets)}.` : "";
+  const notFoundDetail = notFound.length ? ` Alvos não encontrados: ${notFound.join(", ")}.` : "";
+
   return {
     handled: true,
     action: "meal_item_replaced",
     reply,
     eventType: "whatsapp.intent.meal_item_replaced",
-    detail: `${applied.length} alimento(s) substituído(s) via WhatsApp com macros recalculados.`,
+    detail: `${applied.length} alimento(s) substituído(s) via WhatsApp com macros recalculados. Matches: ${formatAppliedDetails(applied)}. Escopo da busca: ${context}. Ambiguidade: ${pendingTargets.length ? "sim" : "não"}.${pendingDetail}${notFoundDetail}`,
     data: {
       mealId: updatedMeals[0]?.id,
       previousFoodName: applied[0].from,
