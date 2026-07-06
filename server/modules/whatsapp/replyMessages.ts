@@ -70,10 +70,10 @@ function buildMealTitle(mealLabel?: string | null, registeredAt?: Date, consolid
   const suffix = time ? ` às ${time}hs.` : ".";
 
   if (!label || label.toLowerCase() === "refeição") {
-    return buildWhatsAppTitle(`${consolidated ? "Refeição atualizada" : "Refeição registrada"}${suffix}`);
+    return buildWhatsAppTitle(`${consolidated ? "Refeição atualizada" : "Refeição registrada"}${suffix}`, { bold: true });
   }
 
-  return buildWhatsAppTitle(`${label} ${consolidated ? "Atualizado" : "Registrado"}${suffix}`);
+  return buildWhatsAppTitle(`${label} ${consolidated ? "Atualizado" : "Registrado"}${suffix}`, { bold: true });
 }
 
 function buildMealGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
