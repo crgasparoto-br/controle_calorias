@@ -1,3 +1,4 @@
+import { buildWhatsAppMealActionReplyMessage } from "../replyMessages";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { formatTargetMealItemOptions, formatTotalsLine, replaceMealItemFood, toMealItemInput } from "./mealItemHelpers";
@@ -160,14 +161,21 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
 
   const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(userId, mutableMeals[index])));
 
-  let reply: string;
+  let actionText: string;
   if (applied.length === 1 && !notFound.length && !pendingTargets.length) {
     const { from, to, item, scope } = applied[0];
     const recalculationSource = item.source === "catalog" ? "com base no catálogo" : "por estimativa";
-    reply = `Troquei ${from} por ${to} ${contextWithPreposition(scope)} e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g. Estimativa: ${formatTotalsLine(item)}.`;
+    actionText = `Troquei ${from} por ${to} ${contextWithPreposition(scope)} e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g. Estimativa: ${formatTotalsLine(item)}.`;
   } else {
-    reply = buildMultipleReplacementReply({ applied, notFound, pendingTargets });
+    actionText = buildMultipleReplacementReply({ applied, notFound, pendingTargets });
   }
+
+  const reply = updatedMeals.length === 1
+    ? buildWhatsAppMealActionReplyMessage(updatedMeals[0], {
+        title: applied.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
+        actionLines: [actionText],
+      })
+    : actionText;
 
   const context = replacementContext(applied.map(item => item.scope));
   const pendingDetail = pendingTargets.length ? ` Alvos ambíguos: ${formatPendingDetails(pendingTargets)}.` : "";
