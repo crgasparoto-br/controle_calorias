@@ -40,7 +40,7 @@ describe("buildWhatsAppMealReplyMessage estimated nutrition", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• 🍞 Pão da Fazenda, 49g (estimado) - 147 Kcal");
-    expect(reply).toContain("Prot. 3,9 g | Carb. 27,4 g | Gord. 2 g");
+    expect(reply).toContain("• 🍞 Pão da Fazenda — 49g (estimado)");
+    expect(reply).toContain("147 kcal | P 3,9 g | C 27,4 g | G 2 g");
   });
 });

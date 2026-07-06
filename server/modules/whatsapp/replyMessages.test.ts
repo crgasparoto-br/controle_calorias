@@ -3,7 +3,7 @@ import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessag
 import type { MealProcessingResult } from "../../nutritionEngine";
 
 describe("buildWhatsAppMealReplyMessage", () => {
-  it("inclui horário no cabeçalho e alimento com ícone e calorias na mesma linha", () => {
+  it("inclui horário no cabeçalho em negrito e alimento com ícone", () => {
     const processed: MealProcessingResult = {
       detectedMealLabel: "Almoço",
       sourceText: "frango grelhado",
@@ -40,9 +40,9 @@ describe("buildWhatsAppMealReplyMessage", () => {
       registeredAt: new Date("2026-06-04T16:00:00.000Z"),
     });
 
-    expect(reply).toContain("Almoço Registrado às 13:00hs.");
-    expect(reply).toContain("• 🍗 Frango grelhado, 150g - 247,5 Kcal");
-    expect(reply).toContain("Prot. 46,5 g | Carb. 0 g | Gord. 5,4 g");
+    expect(reply).toContain("*Almoço Registrado às 13:00hs.*");
+    expect(reply).toContain("• 🍗 Frango grelhado — 150g");
+    expect(reply).toContain("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");
   });
 
   it("não mostra equivalência aproximada em gramas para porções líquidas em ml", () => {
@@ -80,7 +80,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• 🥛 Leite integral, 100 ml - 61 Kcal");
+    expect(reply).toContain("• 🥛 Leite integral — 100 ml");
     expect(reply).not.toContain("aprox. 100g");
   });
 
@@ -119,7 +119,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• 🍌 Banana, 1 unidade (aprox. 80g) - 72 Kcal");
+    expect(reply).toContain("• 🍌 Banana — 1 unidade (aprox. 80g)");
   });
 
   it("resume meta com consumo total e bullets compatíveis com WhatsApp", () => {
@@ -253,12 +253,11 @@ describe("buildWhatsAppMealReplyMessage", () => {
       ],
     });
 
-    expect(reply).toContain("Café da manhã Atualizado às 07:14hs.");
-    expect(reply).toContain("• 🍽️ Pêra William, 185g - 105 Kcal");
-    expect(reply).toContain("• 🍌 Banana prata, 139g - 125 Kcal");
-    expect(reply).toContain("• 🥛 Iogurte grego light Danone, 80g - 62 Kcal");
+    expect(reply).toContain("*Café da manhã Atualizado às 07:14hs.*");
+    expect(reply).toContain("• 🍽️ Pêra William — 185g");
+    expect(reply).toContain("• 🍌 Banana prata — 139g");
+    expect(reply).toContain("• 🥛 Iogurte grego light Danone — 80g");
     expect(reply).toContain("Total da refeição:");
-    expect(reply).toContain("292 Kcal");
-    expect(reply).toContain("Prot. 8,2 g | Carb. 67,3 g | Gord. 1,6 g");
+    expect(reply).toContain("292 kcal | P 8,2 g | C 67,3 g | G 1,6 g");
   });
 });

@@ -184,15 +184,14 @@ describe("whatsappWebhook detailed replies", () => {
     const finalReply = replies.at(-1) ?? "";
 
     expect(res.statusCode).toBe(200);
-    expect(finalReply).toContain("Almoço Registrado às 11:14hs.");
+    expect(finalReply).toContain("*Almoço Registrado às 11:14hs.*");
     expect(finalReply).toContain("Itens:");
-    expect(finalReply).toContain("• 🍚 arroz, 100g - 130 Kcal");
-    expect(finalReply).toContain("Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g");
-    expect(finalReply).toContain("• 🍗 frango, 100g - 165 Kcal");
-    expect(finalReply).toContain("Prot. 31 g | Carb. 0 g | Gord. 3,6 g");
+    expect(finalReply).toContain("• 🍚 arroz — 100g");
+    expect(finalReply).toContain("130 kcal | P 2,7 g | C 28 g | G 0,3 g");
+    expect(finalReply).toContain("• 🍗 frango — 100g");
+    expect(finalReply).toContain("165 kcal | P 31 g | C 0 g | G 3,6 g");
     expect(finalReply).toContain("Total da refeição:");
-    expect(finalReply).toContain("295 Kcal");
-    expect(finalReply).toContain("Prot. 33,7 g | Carb. 28 g | Gord. 3,9 g");
+    expect(finalReply).toContain("295 kcal | P 33,7 g | C 28 g | G 3,9 g");
     expect(finalReply).toContain("Meta de hoje:");
     expect(finalReply).toContain("* Meta estimada: 2.200 kcal");
     expect(finalReply).toContain("* Meta ajustada: 2.200 kcal");
