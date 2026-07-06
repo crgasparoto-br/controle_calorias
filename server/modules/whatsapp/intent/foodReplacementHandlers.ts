@@ -21,7 +21,7 @@ function ambiguousReplacementReply(targetFood: string, options: string, context 
 function toMutableMeals(meals: MealRecord[]): MutableMealRecord[] {
   return meals.map(meal => ({
     ...meal,
-    items: toMealItemInputs(meal.items),
+    items: [...(meal.items ?? [])] as MealItemInput[],
   }));
 }
 
@@ -31,7 +31,7 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
     mealLabel: meal.mealLabel,
     occurredAt: new Date(meal.occurredAt).toISOString(),
     notes: meal.notes,
-    items: meal.items,
+    items: meal.items as MealItemInput[],
   });
 }
 
