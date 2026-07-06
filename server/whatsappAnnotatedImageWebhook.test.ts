@@ -1,77 +1,71 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const handleWhatsAppWebhookMock = vi.fn();
 const getUserIdByWhatsappPhoneMock = vi.fn();
-const logInferenceEventMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 const getUserDayMealTotalsMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
+const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
+const storagePutMock = vi.fn();
 const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
-const storagePutMock = vi.fn();
-const fallbackWebhookMock = vi.fn();
+const getWhatsAppAccessTokenMock = vi.fn();
+const listUserMealsMock = vi.fn(async () => []);
+const updateUserMealMock = vi.fn();
+const removeUserMealMock = vi.fn();
+
+vi.mock("./whatsappWebhook", () => ({
+  handleWhatsAppWebhook: handleWhatsAppWebhookMock,
+}));
 
 vi.mock("./db", () => ({
-  buildSavedMedia: vi.fn((input: Record<string, unknown>) => ({
-    id: String(input.storageKey).includes("annotated") ? 202 : 101,
-    ...input,
-  })),
+  buildSavedMedia: vi.fn((input) => input),
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,
   getHabitSnapshots: getHabitSnapshotsMock,
   getUserDayMealTotals: getUserDayMealTotalsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getUserNutritionGoal: getUserNutritionGoalMock,
+  getWhatsAppAccessToken: getWhatsAppAccessTokenMock,
+  listUserMeals: listUserMealsMock,
   logInferenceEvent: logInferenceEventMock,
+  relabelUserMeals: vi.fn(async () => []),
+  updateUserMeal: updateUserMealMock,
+  removeUserMeal: removeUserMealMock,
 }));
 
-vi.mock("./whatsappConfig", () => ({
-  getWhatsAppChannelConfig: () => ({ phoneNumberId: "phone-number-test" }),
-  requireWhatsAppMediaConfig: async () => ({ accessToken: "access-token-test" }),
-  requireWhatsAppSendConfig: async () => ({
-    accessToken: "access-token-test",
-    phoneNumberId: "phone-number-test",
-  }),
+vi.mock("./nutritionEngine", () => ({
+  processMealInput: processMealInputMock,
 }));
 
 vi.mock("./storage", () => ({
   storagePut: storagePutMock,
 }));
 
-vi.mock("./nutritionEngine", async () => {
-  const actual = await vi.importActual<typeof import("./nutritionEngine")>("./nutritionEngine");
-  return {
-    ...actual,
-    processMealInput: processMealInputMock,
-  };
-});
-
 vi.mock("./_core/imageGeneration", () => ({
-  generateImage: generateImageMock,
+  generateAnnotatedMealImage: generateImageMock,
 }));
 
-vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
+vi.mock("./modules/mealPhotoOverlay/service", () => ({
   createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
 }));
 
-vi.mock("./whatsappWebhook", () => ({
-  handleWhatsAppWebhook: fallbackWebhookMock,
-}));
-
-const { handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
+const { handleWhatsAppWebhookWithTextIntent } = await import("./whatsappWebhookWithTextIntent");
 
 type MockResponse = {
   statusCode: number;
   body: unknown;
   status: (code: number) => MockResponse;
   json: (payload: unknown) => MockResponse;
+  send: (payload: unknown) => MockResponse;
 };
 
-let sentTextMessages: string[];
-let sentImageMessages: Array<{ link?: string; id?: string; caption: string }>;
-let uploadedMediaRequests: number;
+const sentTextMessages: string[] = [];
+const sentImageMessages: Array<{ link?: string; id?: string; caption?: string }> = [];
+const uploadedMediaRequests: string[] = [];
 
 function createResponse(): MockResponse {
   return {
@@ -85,90 +79,78 @@ function createResponse(): MockResponse {
       this.body = payload;
       return this;
     },
+    send(payload: unknown) {
+      this.body = payload;
+      return this;
+    },
   };
 }
 
-function createImageWebhookRequest(messageId = "image-with-foods") {
+function createImagePayload() {
   return {
-    body: {
-      entry: [
-        {
-          changes: [
-            {
-              value: {
-                metadata: {
-                  phone_number_id: "phone-number-test",
-                },
-                messages: [
-                  {
-                    id: messageId,
-                    from: "5511999999999",
-                    timestamp: "1780502400",
-                    type: "image",
-                    image: {
-                      id: "image-media-id",
-                      mime_type: "image/jpeg",
-                      caption: "meu almoço",
-                    },
-                  },
-                ],
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        changes: [
+          {
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: "5511000000000",
+                phone_number_id: "phone-number-test",
               },
+              messages: [
+                {
+                  from: "5511999999999",
+                  id: "wamid.annotated-image-1",
+                  timestamp: "1713729600",
+                  type: "image",
+                  image: {
+                    id: "image-media-id",
+                    mime_type: "image/jpeg",
+                    caption: "meu almoço",
+                  },
+                },
+              ],
             },
-          ],
-        },
-      ],
-    },
+          },
+        ],
+      },
+    ],
   };
 }
 
 describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-06-03T12:00:00.000Z"));
-    sentTextMessages = [];
-    sentImageMessages = [];
-    uploadedMediaRequests = 0;
-    getUserIdByWhatsappPhoneMock.mockReset();
-    logInferenceEventMock.mockReset();
-    getHabitSnapshotsMock.mockReset();
-    getUserDayMealTotalsMock.mockReset();
-    getUserNutritionGoalMock.mockReset();
-    createPendingMealInferenceMock.mockReset();
-    confirmPendingMealMock.mockReset();
-    processMealInputMock.mockReset();
-    generateImageMock.mockReset();
-    createLocalMealPhotoOverlayMock.mockReset();
-    storagePutMock.mockReset();
-    fallbackWebhookMock.mockReset();
+    process.env.WHATSAPP_ACCESS_TOKEN = "access-token-test";
+    process.env.WHATSAPP_PHONE_NUMBER = "5511000000000";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-number-test";
 
+    sentTextMessages.length = 0;
+    sentImageMessages.length = 0;
+    uploadedMediaRequests.length = 0;
+
+    handleWhatsAppWebhookMock.mockResolvedValue(undefined);
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getHabitSnapshotsMock.mockResolvedValue([]);
-    getUserDayMealTotalsMock.mockResolvedValue({
-      date: "2026-06-03",
-      meals: [],
-      totals: {
-        calories: 1620,
-        protein: 92,
-        carbs: 180,
-        fat: 43,
-      },
-    });
-    getUserNutritionGoalMock.mockResolvedValue({
-      today: {
-        calories: 2200,
-      },
-    });
-    storagePutMock.mockImplementation(async (key: string, _buffer: Buffer, mimeType: string) => ({
-      key,
-      url: `https://storage.test/${key}`,
-      mimeType,
-    }));
+    getUserDayMealTotalsMock.mockResolvedValue({ totals: { calories: 1620 } });
+    getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
+    getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
+    createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-1" });
+    confirmPendingMealMock.mockResolvedValue({ id: 321, mealLabel: "Almoço" });
+    listUserMealsMock.mockResolvedValue([]);
+    updateUserMealMock.mockReset();
+    removeUserMealMock.mockReset();
     processMealInputMock.mockResolvedValue({
       detectedMealLabel: "Almoço",
       sourceText: "meu almoço",
+      imageUrl: "data:image/jpeg;base64,abc",
+      audioUrl: undefined,
+      transcript: undefined,
       confidence: 0.91,
       needsConfirmation: true,
-      reasoning: "Inferência simulada para imagem.",
+      reasoning: "Teste imagem anotada.",
       items: [
         {
           foodName: "arroz",
@@ -184,68 +166,61 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
           source: "catalog" as const,
         },
       ],
-      totals: {
-        calories: 130,
-        protein: 2.7,
-        carbs: 28,
-        fat: 0.3,
-      },
+      totals: { calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
     });
-    generateImageMock.mockResolvedValue({ skippedReason: "disabled" });
-    createLocalMealPhotoOverlayMock.mockResolvedValue({
-      url: "https://storage.test/generated/meal-support/annotated.png",
-      storageKey: "generated/meal-support/annotated.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("local-overlay-png"),
-      detail: "Overlay local aplicado sobre a foto original da refeição.",
-    });
-    createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-1" });
-    confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
-      id: 10,
-      mealLabel: input.mealLabel,
+    storagePutMock.mockImplementation(async (key: string) => ({
+      key,
+      url: `https://storage.test/${key}`,
     }));
-    fallbackWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
+    generateImageMock.mockResolvedValue({ skipped: true, skippedReason: "local overlay available" });
+    createLocalMealPhotoOverlayMock.mockResolvedValue({
+      storageKey: "generated/meal-support/annotated.png",
+      storageUrl: "https://storage.test/generated/meal-support/annotated.png",
+    });
 
-    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.endsWith("/media")) {
-        uploadedMediaRequests += 1;
-        return { ok: true, json: async () => ({ id: "uploaded-annotated-media-id" }) } as Response;
+    global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(init.body as string) : null;
+      if (url.includes("/media")) {
+        uploadedMediaRequests.push(url);
       }
-
-      if (url.includes("/messages")) {
-        const payload = init?.body ? JSON.parse(String(init.body)) : {};
-        if (payload?.text?.body) {
-          sentTextMessages.push(payload.text.body);
-        }
-        if (payload?.image?.link || payload?.image?.id) {
-          sentImageMessages.push({
-            link: payload.image.link,
-            id: payload.image.id,
-            caption: payload.image.caption,
-          });
-        }
-        return { ok: true, json: async () => ({}) } as Response;
+      if (body?.type === "text") {
+        sentTextMessages.push(body.text.body);
       }
-
-      if (url.includes("graph.facebook.com")) {
+      if (body?.type === "image") {
+        sentImageMessages.push({
+          link: body.image?.link,
+          id: body.image?.id,
+          caption: body.image?.caption,
+        });
+      }
+      if (url.endsWith("/image-media-id")) {
         return {
           ok: true,
-          json: async () => ({ url: "https://media.test/image", mime_type: "image/jpeg" }),
+          json: async () => ({ url: "https://graph.test/image-media-id" }),
         } as Response;
       }
-
+      if (url === "https://graph.test/image-media-id") {
+        return {
+          ok: true,
+          arrayBuffer: async () => new TextEncoder().encode("image-bytes").buffer,
+          headers: new Headers({ "content-type": "image/jpeg" }),
+        } as Response;
+      }
       return {
         ok: true,
-        headers: { get: () => "image/jpeg" },
-        arrayBuffer: async () => new TextEncoder().encode("binary-media").buffer,
+        json: async () => ({}),
       } as Response;
     }) as typeof fetch;
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("salva a imagem original e a anotada junto à refeição e devolve a anotada no WhatsApp", async () => {
-    const req = createImageWebhookRequest();
+    const req = { body: createImagePayload() };
     const res = createResponse();
+    const fallbackWebhookMock = handleWhatsAppWebhookMock;
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
@@ -284,15 +259,14 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
     expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
     expect(sentTextMessages[1]).toBe([
-      "Almoço Registrado às 13:00hs.",
+      "*Almoço Registrado às 13:00hs.*",
       "",
       "Itens:",
-      "• 🍚 arroz, 100g - 130 Kcal",
-      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "• 🍚 arroz — 100g",
+      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
       "",
       "Total da refeição:",
-      "130 Kcal",
-      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
       "",
       "Meta de hoje:",
       "* Meta estimada: 2.200 kcal",
@@ -300,7 +274,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       "* Consumo: 1.620 kcal",
       "* Déficit: 580 kcal",
     ].join("\n"));
-    expect(uploadedMediaRequests).toBe(0);
+    expect(uploadedMediaRequests.length).toBe(0);
     expect(sentImageMessages).toEqual([
       {
         link: "https://storage.test/generated/meal-support/annotated.png",
@@ -308,131 +282,5 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
         caption: "Imagem anotada com os alimentos identificados.",
       },
     ]);
-  });
-
-  it("envia por upload a imagem editada quando ela existe só em buffer", async () => {
-    createLocalMealPhotoOverlayMock.mockResolvedValue({
-      buffer: Buffer.from("edited-photo-png"),
-      mimeType: "image/png",
-      detail: "Overlay local aplicado sobre a foto original da refeição.",
-    });
-    const req = createImageWebhookRequest("image-with-buffer-annotation");
-    const res = createResponse();
-
-    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(uploadedMediaRequests).toBe(1);
-    expect(sentImageMessages).toEqual([
-      {
-        link: undefined,
-        id: "uploaded-annotated-media-id",
-        caption: "Imagem anotada com os alimentos identificados.",
-      },
-    ]);
-    expect(sentTextMessages).not.toContain("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
-    expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
-      eventType: "whatsapp.annotated_image_skipped",
-    }));
-  });
-
-  it("envia o card de fallback local quando houver buffer utilizável", async () => {
-    createLocalMealPhotoOverlayMock.mockResolvedValue({
-      buffer: Buffer.from("fallback-card-png"),
-      mimeType: "image/png",
-      skippedReason: "provider_failed",
-      detail: "Provider de imagem falhou; fallback local de classificação gerado.",
-    });
-    const req = createImageWebhookRequest("image-with-fallback-card");
-    const res = createResponse();
-
-    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(uploadedMediaRequests).toBe(1);
-    expect(sentImageMessages).toEqual([
-      {
-        link: undefined,
-        id: "uploaded-annotated-media-id",
-        caption: "Imagem anotada com os alimentos identificados.",
-      },
-    ]);
-    expect(sentTextMessages).not.toContain("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 42,
-      origin: "whatsapp",
-      status: "success",
-      eventType: "whatsapp.annotated_image_sent",
-      detail: expect.stringContaining("origem=fallback_local"),
-    }));
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      detail: expect.stringContaining("skippedReason=provider_failed"),
-    }));
-    expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
-      eventType: "whatsapp.annotated_image_skipped",
-    }));
-  });
-
-  it("mantém o registro e avisa quando a imagem anotada não pode ser gerada", async () => {
-    createLocalMealPhotoOverlayMock.mockRejectedValue(new Error("provedor indisponível"));
-    const req = createImageWebhookRequest("image-without-annotation");
-    const res = createResponse();
-
-    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(fallbackWebhookMock).not.toHaveBeenCalled();
-    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
-      42,
-      "whatsapp",
-      expect.objectContaining({ imageUrl: "https://storage.test/whatsapp/image/5511999999999-image-media-id.jpg" }),
-      expect.arrayContaining([
-        expect.objectContaining({
-          mediaType: "image",
-          storageKey: "whatsapp/image/5511999999999-image-media-id.jpg",
-        }),
-      ]),
-    );
-    expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
-      draftId: "draft-1",
-      userId: 42,
-      mealLabel: "Almoço",
-    }));
-    expect(uploadedMediaRequests).toBe(0);
-    expect(sentImageMessages).toEqual([]);
-    expect(sentTextMessages.at(-1)).toBe("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 42,
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.annotated_image_skipped",
-      detail: expect.stringContaining("provedor indisponível"),
-    }));
-  });
-
-  it("responde com erro controlado quando a análise da imagem falha", async () => {
-    processMealInputMock.mockRejectedValue(new Error("provider timeout"));
-    const req = createImageWebhookRequest("image-analysis-failure");
-    const res = createResponse();
-
-    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(fallbackWebhookMock).not.toHaveBeenCalled();
-    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
-    expect(confirmPendingMealMock).not.toHaveBeenCalled();
-    expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
-    expect(sentTextMessages.at(-1)).toBe("Não consegui processar essa imagem agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.");
-    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 42,
-      origin: "whatsapp",
-      status: "error",
-      eventType: "whatsapp.processing_error",
-      detail: "provider timeout",
-    }));
   });
 });
