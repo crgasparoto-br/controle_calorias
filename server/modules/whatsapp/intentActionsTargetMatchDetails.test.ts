@@ -64,9 +64,8 @@ describe("executeWhatsappTextIntent target matching details", () => {
       receivedAt: new Date("2026-06-09T16:30:00.000Z"),
     });
 
-    expect(result?.detail).toContain("Alvo usado: queijo minas");
-    expect(result?.detail).toContain("Item escolhido: Queijo Minas Padrao Fatiado");
-    expect(result?.detail).toContain("Escopo da busca: última refeição");
+    expect(result?.detail).toContain('Matches: alvo "queijo minas" -> "Queijo Minas Padrao Fatiado"');
+    expect(result?.detail).toContain("Escopo da busca: na última refeição");
     expect(result?.detail).toContain("Ambiguidade: não");
   });
 
@@ -119,8 +118,8 @@ describe("executeWhatsappTextIntent target matching details", () => {
       receivedAt: new Date("2026-06-09T21:30:00.000Z"),
     });
 
-    expect(result?.detail).toContain("Item escolhido: Queijo Minas Padrao Fatiado");
-    expect(result?.detail).toContain("Escopo da busca: refeições do dia");
+    expect(result?.detail).toContain('Matches: alvo "queijo minas" -> "Queijo Minas Padrao Fatiado"');
+    expect(result?.detail).toContain("Escopo da busca: nas refeições do dia");
   });
 
   it("registra matches aplicados e pendencias em ajuste multiplo parcial", async () => {
