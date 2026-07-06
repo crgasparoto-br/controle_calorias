@@ -152,6 +152,49 @@ describe("executeWhatsappTextIntent meal item target matching", () => {
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 
+  it("aplica item claro em ajuste multiplo e pede confirmacao apenas do alvo ambiguo", async () => {
+    const meal = {
+      id: 73,
+      userId: 42,
+      mealLabel: "Lanche",
+      occurredAt: new Date("2026-06-09T16:00:00.000Z").getTime(),
+      notes: null,
+      items: [
+        item("Banana prata", 100),
+        item("Queijo Minas Padrao Fatiado", 80),
+        item("Queijo mussarela", 70),
+      ],
+    };
+    listMealsMock.mockResolvedValue([meal]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+
+    const result = await executeWhatsappTextIntent(42, {
+      text: "Diminuir 10g da banana e 10g do queijo",
+      receivedAt: new Date("2026-06-09T16:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_grams_adjusted",
+      data: expect.objectContaining({
+        adjustments: [expect.objectContaining({ foodName: "Banana prata", previousGrams: 100, nextGrams: 90 })],
+      }),
+    }));
+    expect(result?.reply).toContain("Banana prata: de 100 g para 90 g");
+    expect(result?.reply).toContain("Preciso confirmar estes itens antes de ajustar");
+    expect(result?.reply).toContain("1. Queijo Minas Padrao Fatiado (80 g)");
+    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(updateMealMock).toHaveBeenCalledTimes(1);
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 73,
+      items: [
+        expect.objectContaining({ foodName: "Banana prata", estimatedGrams: 90 }),
+        expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 80 }),
+        expect.objectContaining({ foodName: "Queijo mussarela", estimatedGrams: 70 }),
+      ],
+    }));
+  });
+
   it("procura incremento em outra refeicao do mesmo dia quando nao encontra na ultima", async () => {
     const latestMeal = {
       id: 67,

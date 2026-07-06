@@ -16,6 +16,8 @@ import type { GramsAdjustmentItem, GramsIncrementItem, QuantityCorrectionIntent,
 
 type MealRecord = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMealRecord = MealRecord & { items: MealItemInput[] };
+type AppliedGramsChange = { foodName: string; previousGrams: number; nextGrams: number; scope: string };
+type PendingGramsTarget = { targetFood: string | null; options: string; context: string };
 
 function contextWithPreposition(scope: string) {
   return scope === "same_day_meals" ? "nas refeições do dia" : "na última refeição";
@@ -50,6 +52,31 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
 
 function adjustmentContext(scopes: string[]) {
   return scopes.some(scope => scope === "same_day_meals") ? "nas refeições do dia" : "na última refeição";
+}
+
+function formatPendingTargets(pendingTargets: PendingGramsTarget[]) {
+  return pendingTargets
+    .map(pending => `Para ${pending.targetFood ?? "esse alimento"} ${pending.context}:\n${pending.options}`)
+    .join("\n");
+}
+
+function buildMultiAdjustmentReply(params: {
+  applied: AppliedGramsChange[];
+  notFoundFoods: string[];
+  pendingTargets: PendingGramsTarget[];
+}) {
+  const context = adjustmentContext(params.applied.map(adjustment => adjustment.scope));
+  const adjustmentLines = params.applied
+    .map(a => `• ${a.foodName}: de ${formatNumber(a.previousGrams)} g para ${formatNumber(a.nextGrams)} g`)
+    .join("\n");
+  const notFoundSuffix = params.notFoundFoods.length
+    ? `\nNão encontrei nas refeições de hoje: ${params.notFoundFoods.join(", ")}.`
+    : "";
+  const pendingSuffix = params.pendingTargets.length
+    ? `\nPreciso confirmar estes itens antes de ajustar:\n${formatPendingTargets(params.pendingTargets)}\nResponda com o número do item que devo ajustar.`
+    : "";
+
+  return `Ajustes realizados ${context}:\n${adjustmentLines} e recalculei os macros.${notFoundSuffix}${pendingSuffix}`;
 }
 
 export async function handleQuantityCorrectionIntent(userId: number, correction: QuantityCorrectionIntent): Promise<WhatsappIntentResult> {
@@ -191,13 +218,19 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
 
   const mutableMeals = toMutableMeals(meals);
   const changedMealIndexes = new Set<number>();
-  const appliedAdjustments: Array<{ foodName: string; previousGrams: number; nextGrams: number; scope: string }> = [];
+  const appliedAdjustments: AppliedGramsChange[] = [];
+  const pendingTargets: PendingGramsTarget[] = [];
   const notFoundFoods: string[] = [];
 
   for (const adjustment of adjustments) {
     const target = resolveTargetMealItemInMeals(mutableMeals, adjustment.targetFood);
     if (target.kind === "ambiguous") {
-      return ambiguousTargetReply(adjustment.targetFood, formatTargetMealItemOptions(target.candidates), contextWithPreposition(target.scope));
+      pendingTargets.push({
+        targetFood: adjustment.targetFood,
+        options: formatTargetMealItemOptions(target.candidates),
+        context: contextWithPreposition(target.scope),
+      });
+      continue;
     }
     if (target.kind !== "matched") {
       if (adjustment.targetFood) {
@@ -216,6 +249,9 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
   }
 
   if (!appliedAdjustments.length) {
+    if (pendingTargets.length) {
+      return ambiguousTargetReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context);
+    }
     const foods = adjustments.map(a => a.targetFood).filter(Boolean).join(", ");
     return {
       handled: true,
@@ -227,21 +263,13 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
   }
 
   const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(userId, mutableMeals[index])));
-  const context = adjustmentContext(appliedAdjustments.map(adjustment => adjustment.scope));
-
-  const adjustmentLines = appliedAdjustments
-    .map(a => `• ${a.foodName}: de ${formatNumber(a.previousGrams)} g para ${formatNumber(a.nextGrams)} g`)
-    .join("\n");
-  const notFoundSuffix = notFoundFoods.length
-    ? `\nNão encontrei nas refeições de hoje: ${notFoundFoods.join(", ")}.`
-    : "";
 
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: `Ajustes realizados ${context}:\n${adjustmentLines} e recalculei os macros.${notFoundSuffix}`,
+    reply: buildMultiAdjustmentReply({ applied: appliedAdjustments, notFoundFoods, pendingTargets }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: `${appliedAdjustments.length} item(ns) ajustado(s) via WhatsApp. Escopo da busca: ${context}.`,
+    detail: `${appliedAdjustments.length} item(ns) ajustado(s) via WhatsApp. Escopo da busca: ${adjustmentContext(appliedAdjustments.map(adjustment => adjustment.scope))}.`,
     data: {
       mealId: updatedMeals[0]?.id,
       adjustments: appliedAdjustments.map(({ scope: _scope, ...adjustment }) => adjustment),
@@ -263,13 +291,19 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
 
   const mutableMeals = toMutableMeals(meals);
   const changedMealIndexes = new Set<number>();
-  const appliedIncrements: Array<{ foodName: string; previousGrams: number; nextGrams: number; scope: string }> = [];
+  const appliedIncrements: AppliedGramsChange[] = [];
+  const pendingTargets: PendingGramsTarget[] = [];
   const notFoundFoods: string[] = [];
 
   for (const increment of increments) {
     const target = resolveTargetMealItemInMeals(mutableMeals, increment.targetFood);
     if (target.kind === "ambiguous") {
-      return ambiguousTargetReply(increment.targetFood, formatTargetMealItemOptions(target.candidates), contextWithPreposition(target.scope));
+      pendingTargets.push({
+        targetFood: increment.targetFood,
+        options: formatTargetMealItemOptions(target.candidates),
+        context: contextWithPreposition(target.scope),
+      });
+      continue;
     }
     if (target.kind !== "matched") {
       if (increment.targetFood) {
@@ -288,6 +322,9 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
   }
 
   if (!appliedIncrements.length) {
+    if (pendingTargets.length) {
+      return ambiguousTargetReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context);
+    }
     const foods = increments.map(i => i.targetFood).filter(Boolean).join(", ");
     return {
       handled: true,
@@ -299,21 +336,13 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
   }
 
   const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(userId, mutableMeals[index])));
-  const context = adjustmentContext(appliedIncrements.map(increment => increment.scope));
-
-  const incrementLines = appliedIncrements
-    .map(a => `• ${a.foodName}: de ${formatNumber(a.previousGrams)} g para ${formatNumber(a.nextGrams)} g`)
-    .join("\n");
-  const notFoundSuffix = notFoundFoods.length
-    ? `\nNão encontrei nas refeições de hoje: ${notFoundFoods.join(", ")}.`
-    : "";
 
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: `Ajustes realizados ${context}:\n${incrementLines} e recalculei os macros.${notFoundSuffix}`,
+    reply: buildMultiAdjustmentReply({ applied: appliedIncrements, notFoundFoods, pendingTargets }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: `${appliedIncrements.length} item(ns) incrementado(s) via WhatsApp. Escopo da busca: ${context}.`,
+    detail: `${appliedIncrements.length} item(ns) incrementado(s) via WhatsApp. Escopo da busca: ${adjustmentContext(appliedIncrements.map(increment => increment.scope))}.`,
     data: {
       mealId: updatedMeals[0]?.id,
       increments: appliedIncrements.map(({ scope: _scope, ...increment }) => increment),
