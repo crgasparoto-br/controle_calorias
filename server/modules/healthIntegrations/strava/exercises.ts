@@ -21,6 +21,16 @@ import { ensureValidStravaToken } from "./oauth";
 import { StravaRateLimitError, getStravaGlobalCooldownError, setStravaUserCooldown } from "./rateLimit";
 import type { StravaActivity, StravaExerciseImportSummary } from "./types";
 
+const notifiedStravaActivityKeys = new Set<string>();
+
+function buildStravaNotificationKey(userId: number, externalId: string | number) {
+  return `${userId}:strava:${String(externalId).trim().toLowerCase()}`;
+}
+
+export function __resetStravaWhatsAppNotificationIdempotencyForTests() {
+  notifiedStravaActivityKeys.clear();
+}
+
 export function getStravaExerciseNote(activity: StravaActivity) {
   const metadata = getStravaActivityMetadata(activity);
   const activityType = getStravaActivityType(activity);
@@ -85,12 +95,27 @@ function buildStravaExerciseImportedWhatsAppMessage(input: {
   ].join("\n");
 }
 
-async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exerciseId: number, exercise: ReturnType<typeof toStravaExerciseInput>) {
+async function sendStravaExerciseImportedWhatsAppMessage(userId: number, externalId: string, exerciseId: number, exercise: ReturnType<typeof toStravaExerciseInput>) {
   if (!exercise) return "skipped" as const;
+
+  const notificationKey = buildStravaNotificationKey(userId, externalId);
+  if (notifiedStravaActivityKeys.has(notificationKey)) {
+    logInferenceEvent({
+      userId,
+      origin: "admin",
+      status: "success",
+      eventType: "strava.whatsapp_import_notification_skipped_idempotent",
+      detail: "Notificação de exercício Strava importado ignorada porque a atividade externa já foi notificada nesta execução.",
+    });
+    return "skipped" as const;
+  }
+
+  notifiedStravaActivityKeys.add(notificationKey);
 
   try {
     const connection = await getUserWhatsappConnection(userId);
     if (!connection || connection.status !== "active") {
+      notifiedStravaActivityKeys.delete(notificationKey);
       logInferenceEvent({
         userId,
         origin: "admin",
@@ -110,6 +135,10 @@ async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exercis
         `${message}\n\nAbra o app para revisar ou editar este exercício importado.`,
       );
 
+    if (!response.ok) {
+      notifiedStravaActivityKeys.delete(notificationKey);
+    }
+
     if (!response.ok || "usedFallback" in response && response.usedFallback) {
       logInferenceEvent({
         userId,
@@ -122,6 +151,7 @@ async function sendStravaExerciseImportedWhatsAppMessage(userId: number, exercis
 
     return response.ok ? "sent" as const : "failed" as const;
   } catch (error) {
+    notifiedStravaActivityKeys.delete(notificationKey);
     logInferenceEvent({
       userId,
       origin: "admin",
@@ -457,7 +487,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_created",
         detail: `exercício criado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
-      const notificationStatus = await sendStravaExerciseImportedWhatsAppMessage(userId, persisted.id, exerciseInput);
+      const notificationStatus = await sendStravaExerciseImportedWhatsAppMessage(userId, externalId, persisted.id, exerciseInput);
       if (notificationStatus === "sent") {
         summary.notificationsSent += 1;
         logStravaImportEvent({
