@@ -162,7 +162,7 @@ function normalizeKnownFoodTypos(text: string) {
 
 export function normalizeTextMeasurementUnits(text: string) {
   const normalizedUnits = text.replace(
-    new RegExp(`(\d+(?:[,.]\d+)?)\s*(${UNIT_TOKEN_PATTERN})(?=\b|\s|$)`, "giu"),
+    new RegExp("(\\d+(?:[,.]\\d+)?)\\s*(" + UNIT_TOKEN_PATTERN + ")(?=\\b|\\s|$)", "giu"),
     (_match, quantity: string, unit: string) => `${quantity} ${normalizeMeasurementUnit(unit)}`,
   );
 
