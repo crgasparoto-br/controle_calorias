@@ -159,6 +159,12 @@ function findFetchCallByBody(expectedBodyPart: string) {
   });
 }
 
+function expectOpaqueImageStorageUrl(value: unknown) {
+  expect(value).toEqual(expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/));
+  expect(value).not.toEqual(expect.stringContaining("5511999999999"));
+  expect(value).not.toEqual(expect.stringContaining("image-media-id"));
+}
+
 describe("whatsappWebhook image inbound", () => {
   beforeEach(() => {
     __resetWhatsAppWebhookDeduplicationForTests();
@@ -243,7 +249,6 @@ describe("whatsappWebhook image inbound", () => {
     await handleWhatsAppWebhook(req as never, res as never);
 
     const expectedDataUrl = `data:image/jpeg;base64,${Buffer.from("image-test").toString("base64")}`;
-    const expectedStorageUrl = "https://storage.test/whatsapp/image/5511999999999-image-media-id.jpg";
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
@@ -260,9 +265,14 @@ describe("whatsappWebhook image inbound", () => {
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",
-      expect.objectContaining({ imageUrl: expectedStorageUrl }),
-      [expect.objectContaining({ storageUrl: expectedStorageUrl, mediaType: "image" })],
+      expect.objectContaining({ imageUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/) }),
+      [expect.objectContaining({ storageUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/), mediaType: "image" })],
     );
+    const [, , processed, media] = createPendingMealInferenceMock.mock.calls[0];
+    expectOpaqueImageStorageUrl(processed.imageUrl);
+    expectOpaqueImageStorageUrl(media[0].storageUrl);
+    expect(media[0].storageKey).toEqual(expect.stringMatching(/^whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/));
+    expect(media[0].originalFileName).toEqual(expect.stringMatching(/^image-[0-9a-f-]{36}\.jpg$/));
     expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
       draftId: "draft-image",
       userId: 123,
@@ -330,11 +340,11 @@ describe("whatsappWebhook image inbound", () => {
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",
-      expect.objectContaining({ imageUrl: "https://storage.test/whatsapp/image/5511999999999-image-media-id.jpg" }),
+      expect.objectContaining({ imageUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/) }),
       [
         expect.objectContaining({
           mediaType: "image",
-          storageUrl: "https://storage.test/whatsapp/image/5511999999999-image-media-id.jpg",
+          storageUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/),
         }),
         expect.objectContaining({
           mediaType: "image",
@@ -345,6 +355,9 @@ describe("whatsappWebhook image inbound", () => {
         }),
       ],
     );
+    const [, , processed, media] = createPendingMealInferenceMock.mock.calls[0];
+    expectOpaqueImageStorageUrl(processed.imageUrl);
+    expectOpaqueImageStorageUrl(media[0].storageUrl);
     expect(processMealInputMock).toHaveBeenCalled();
   });
 
