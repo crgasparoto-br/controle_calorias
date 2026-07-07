@@ -4,14 +4,15 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 
 ## Fluxo obrigatorio
 
-1. Leia `ARCHITECTURE.md` para entender camadas, fronteiras e convencoes.
-2. Leia a especificacao de produto afetada em `docs/product-specs/`.
-3. Leia o design tecnico afetado em `docs/design-docs/` quando a mudanca tocar backend, banco, IA, WhatsApp, privacidade ou persistencia.
-4. Implemente a menor mudanca coerente com a arquitetura atual.
-5. Atualize docs geradas/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
-6. Siga o gate mínimo por tipo de mudança definido em `CONTRIBUTING.md`.
-7. Rode `pnpm agent:check` antes de propor merge quando a alteração tocar área sensível, documentação operacional ou instruções usadas por agentes.
-8. Quando a mudança depender de banco, migration ou dados, aplique o fluxo do projeto com `pnpm db:push` quando necessário e valide integridade com `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
+1. Leia `docs/README.md` para identificar a documentacao canonica da area afetada.
+2. Leia `ARCHITECTURE.md` para entender camadas, fronteiras e convencoes.
+3. Leia a especificacao de produto afetada em `docs/product-specs/`.
+4. Leia o design tecnico afetado em `docs/design-docs/` quando a mudanca tocar backend, banco, IA, WhatsApp, privacidade ou persistencia.
+5. Implemente a menor mudanca coerente com a arquitetura atual.
+6. Atualize docs geradas/manualizadas em `docs/generated/` quando alterar schema, router ou contratos.
+7. Siga o gate minimo por tipo de mudanca definido em `CONTRIBUTING.md`.
+8. Rode `pnpm agent:check` antes de propor merge quando a alteracao tocar area sensivel, documentacao operacional ou instrucoes usadas por agentes.
+9. Quando a mudanca depender de banco, migration ou dados, aplique o fluxo do projeto com `pnpm db:push` quando necessario e valide integridade com `pnpm db:check-integrity` quando houver `DATABASE_URL` disponivel.
 
 ## Mapas rapidos
 
@@ -23,6 +24,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 | Metas, dashboard ou relatorios | `docs/product-specs/goals-and-reports.md` |
 | Profissionais, pacientes e comentarios | `docs/product-specs/professionals.md` |
 | Exportacao, exclusao, logs, midia ou IA | `docs/product-specs/privacy-export-deletion.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` |
+| Strava, OAuth ou integracoes de saude | `docs/product-specs/health-integrations.md`, `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` |
 | Schema, migrations ou persistencia | `docs/design-docs/database-persistence.md`, `docs/generated/db-schema.md` |
 | tRPC e contratos de API | `docs/generated/trpc-routes.md` |
 
@@ -34,6 +36,7 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 - O router tRPC deve apenas compor autenticacao, schema, chamada de servico e eventos analiticos seguros.
 - Dados de saude, textos crus, transcricoes, midia e prompts sao sensiveis. Nao registrar valores crus em logs, analytics ou mensagens de erro.
 - Toda alteracao em IA, WhatsApp, storage, privacidade, banco ou autenticacao deve atualizar documentacao e avaliar riscos em `docs/RELIABILITY.md`, `docs/SECURITY.md` ou `docs/PRIVACY_LGPD.md`.
+- Nao crie documentos paralelos de planejamento quando a informacao puder ser incorporada a uma especificacao canonica, design doc, runbook ou plano ativo existente. Planos temporarios devem ser removidos ou arquivados quando forem implementados.
 
 ## Comando de validacao para agentes
 
@@ -41,4 +44,4 @@ Este repositorio deve ser tratado como uma base de produto versionada para human
 pnpm agent:check
 ```
 
-Esse comando combina TypeScript, testes, checks de arquitetura e checks de documentacao. Ele é obrigatório para áreas sensíveis e para mudanças que alterem documentação operacional usada por agentes. Para os demais tipos de mudança, use o gate mínimo por tipo descrito em `CONTRIBUTING.md` e registre na PR os comandos executados, validações manuais e limitações de ambiente.
+Esse comando combina TypeScript, testes, checks de arquitetura e checks de documentacao. Ele e obrigatorio para areas sensiveis e para mudancas que alterem documentacao operacional usada por agentes. Para os demais tipos de mudanca, use o gate minimo por tipo descrito em `CONTRIBUTING.md` e registre na PR os comandos executados, validacoes manuais e limitacoes de ambiente.
