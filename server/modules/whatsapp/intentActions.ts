@@ -1,3 +1,4 @@
+import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { handleCoffeeAdditionIntent, handleCoffeeLorCapsuleIntent, handleFoodAdditionIntent } from "./intent/foodAdditionHandlers";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import {
@@ -36,7 +37,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Entendi que você quer registrar água, mas preciso da quantidade. Exemplo: 500 ml de água ontem.",
+      reply: buildWhatsAppClarificationReplyMessage("Entendi que você quer registrar água, mas preciso da quantidade. Exemplo: 500 ml de água ontem."),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de água sem quantidade explícita.",
     };
@@ -97,7 +98,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Posso montar um resumo. Me diga o período, por exemplo: hoje, ontem, semana, mês ou 01/06 a 03/06.",
+      reply: buildWhatsAppClarificationReplyMessage("Posso montar um resumo. Me diga o período, por exemplo: hoje, ontem, semana, mês ou 01/06 a 03/06."),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de relatório sem período explícito.",
     };
