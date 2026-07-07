@@ -2,6 +2,7 @@ import { processMealInput, type MealDraftItem } from "../../nutritionEngine";
 import { createManualMeal, listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { parseMealCommandFromWhatsApp } from "./mealCommandParser";
+import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 
@@ -112,7 +113,10 @@ export async function executeWhatsappDatedFoodAdditionIntent(
     return {
       handled: true,
       action: "meal_item_added",
-      reply: `Adicionei ${items.length} item(ns) à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}.`,
+      reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
+        title: items.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
+        actionLines: [`Adicionei ${items.length} item(ns) à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}.`],
+      }),
       eventType: "whatsapp.intent.meal_item_added",
       detail: `${items.length} alimento(s) adicionados à refeição existente ${targetMeal.mealLabel} com data explícita pelo WhatsApp.`,
       data: {
@@ -133,7 +137,10 @@ export async function executeWhatsappDatedFoodAdditionIntent(
   return {
     handled: true,
     action: "meal_item_added",
-    reply: `Registrei ${items.length} item(ns) no ${parsed.mealType} de ${formatReplyDate(parsed.date)}.`,
+    reply: buildWhatsAppMealActionReplyMessage(createdMeal, {
+      title: "Refeição registrada",
+      actionLines: [`Registrei ${items.length} item(ns) no ${parsed.mealType} de ${formatReplyDate(parsed.date)}.`],
+    }),
     eventType: "whatsapp.intent.meal_item_added",
     detail: `${items.length} alimento(s) registrados em nova refeição ${parsed.mealType} com data explícita pelo WhatsApp.`,
     data: {

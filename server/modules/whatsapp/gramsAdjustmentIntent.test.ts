@@ -35,7 +35,7 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
     updateMealMock.mockReset();
   });
 
-  it("reduz gramas por nome parcial em item salvo com nome mais completo", async () => {
+  it("reduz gramas por nome parcial em item salvo com nome mais completo e responde com a refeição completa", async () => {
     const meal = {
       id: 10,
       mealLabel: "Lanche",
@@ -69,6 +69,11 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
         expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 60, portionText: "60 g" }),
       ],
     }));
+    expect(result?.reply).toContain("Alimento ajustado");
+    expect(result?.reply).toContain("Refeição atualizada:");
+    expect(result?.reply).toContain("Pao frances");
+    expect(result?.reply).toContain("Queijo Minas Padrao Fatiado");
+    expect(result?.reply).toContain("Total da refeição:");
   });
 
   it("tolera pequeno erro de digitacao no alvo da reducao", async () => {
