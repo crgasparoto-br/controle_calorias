@@ -34,8 +34,20 @@ describe("detectWhatsappDeleteIntent", () => {
     expect(detection?.reply).toContain("Não registrei nenhum alimento novo");
   });
 
+  it.each([
+    ["Exclua o bife entrecote", "bife entrecote"],
+    ["Remova a banana", "banana"],
+    ["Tire o queijo Minas", "queijo minas"],
+  ])("detecta comando com nome provavel de alimento: %s", (text, targetFoodName) => {
+    expect(detectWhatsappDeleteIntent(text)).toEqual(expect.objectContaining({
+      kind: "delete_food_from_meal",
+      targetFoodName,
+    }));
+  });
+
   it("nao captura ajuste parcial de quantidade como exclusao", () => {
     expect(detectWhatsappDeleteIntent("tirar 30g de arroz")).toBeNull();
+    expect(detectWhatsappDeleteIntent("Remova 20g do bife entrecote")).toBeNull();
   });
 
   it("nao captura registro alimentar normal", () => {
