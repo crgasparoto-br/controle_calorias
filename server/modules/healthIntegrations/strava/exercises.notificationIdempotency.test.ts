@@ -83,11 +83,11 @@ describe("upsertStravaActivitiesAsExercises WhatsApp notification idempotency", 
       notificationsSkipped: 0,
     }));
     expect(second).toEqual(expect.objectContaining({
-      created: 1,
+      skipped: 1,
       notificationsSent: 0,
       notificationsSkipped: 1,
     }));
-    expect(createExerciseMock).toHaveBeenCalledTimes(2);
+    expect(createExerciseMock).toHaveBeenCalledTimes(1);
     expect(sendWhatsAppInteractiveUrlButtonMessageMock).toHaveBeenCalledTimes(1);
     expect(sendWhatsAppInteractiveUrlButtonMessageMock).toHaveBeenCalledWith(
       "5511999999999",
@@ -96,7 +96,7 @@ describe("upsertStravaActivitiesAsExercises WhatsApp notification idempotency", 
       "https://app.example/exercise/quick-edit",
     );
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: "strava.whatsapp_import_notification_skipped_idempotent",
+      eventType: "strava.import.notification_skipped_idempotent",
     }));
   });
 
