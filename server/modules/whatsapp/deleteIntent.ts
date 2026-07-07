@@ -234,6 +234,10 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
     });
   }
 
+  if (shouldDeleteLastFood(detection.normalizedText)) {
+    return createPendingFoodDelete(userId, latestMeal, items.length - 1);
+  }
+
   if (detection.targetFoodName) {
     const matches = findFoodMatches(items, detection.targetFoodName);
     if (matches.length === 1) {
@@ -256,7 +260,7 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
     });
   }
 
-  if (items.length > 1 && !shouldDeleteLastFood(detection.normalizedText)) {
+  if (items.length > 1) {
     const options = items.map((item, index) => `${index + 1}. ${item.foodName}`).join("\n");
     return buildClarificationResult({
       ...detection,
@@ -348,7 +352,7 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
       kind: "delete_food_from_meal",
       text: trimmed,
       normalizedText,
-      targetFoodName: extractTargetFoodName(normalizedText) ?? undefined,
+      targetFoodName: shouldDeleteLastFood(normalizedText) ? undefined : extractTargetFoodName(normalizedText) ?? undefined,
       reply: DELETE_FOOD_REPLY,
       eventType: "whatsapp.intent.delete_food_clarification_needed",
       detail: "Comando destrutivo de alimento bloqueado antes do fallback nutricional.",
