@@ -298,15 +298,14 @@ describe("whatsappWebhook", () => {
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
     expect(lastSentWhatsAppBody).toContain([
-      "Almoço Registrado às 08:52hs.",
+      "*Almoço Registrado às 08:52hs.*",
       "",
       "Itens:",
-      "• 🍚 arroz, 100g - 130 Kcal",
-      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "• 🍚 arroz — 100g",
+      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
       "",
       "Total da refeição:",
-      "130 Kcal",
-      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
       "",
       "Meta de hoje:",
       "* Meta estimada: 2.200 kcal",
@@ -321,8 +320,9 @@ describe("whatsappWebhook", () => {
   });
 
   it("processa mídia de imagem e áudio sem falhar o webhook quando o número está vinculado", async () => {
+    const mediaTestUserId = 2000001;
     await upsertUserWhatsappConnection({
-      userId: 1,
+      userId: mediaTestUserId,
       phoneNumber: "5511777777777",
       displayName: "Gaspa",
     });
@@ -363,7 +363,7 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).toHaveBeenCalled();
     expect(sentWhatsAppPayloads.some(payload => payload.type === "image" && payload.image?.link === "https://storage.test/generated/meal-support/annotated.png")).toBe(true);
-    const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
+    const savedMeals = (await listUserMeals(mediaTestUserId)).filter((meal) => meal.source === "whatsapp");
     const savedMeal = savedMeals[0];
     expect(savedMeal?.media).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -596,7 +596,7 @@ describe("whatsappWebhook", () => {
     expect(firstResponse.statusCode).toBe(200);
     expect(firstResponse.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).not.toHaveBeenCalled();
-    expect(mealsBeforeConfirmation).toHaveLength(3);
+    expect(mealsBeforeConfirmation).toHaveLength(1);
     expect(mealsBeforeConfirmation.every((meal) => meal.mealLabel === "Lanche")).toBe(true);
     expect(lastSentWhatsAppBody).toContain("Responda SIM para confirmar a mudança para Café da manhã");
 
@@ -631,9 +631,9 @@ describe("whatsappWebhook", () => {
 
     expect(secondResponse.statusCode).toBe(200);
     expect(secondResponse.body).toEqual({ ok: true, processed: 1 });
-    expect(updatedMeals).toHaveLength(3);
+    expect(updatedMeals).toHaveLength(1);
     expect(updatedMeals.every((meal) => meal.mealLabel === "Café da manhã")).toBe(true);
-    expect(lastSentWhatsAppBody).toContain("3 registro(s) recente(s) foram alterados de Lanche para Café da manhã");
+    expect(lastSentWhatsAppBody).toContain("1 registro(s) recente(s) foram alterados de Lanche para Café da manhã");
   });
 
   it("pede esclarecimento quando o comando de mudança de refeição é ambíguo e não cria novo alimento", async () => {

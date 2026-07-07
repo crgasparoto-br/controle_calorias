@@ -1,5 +1,5 @@
 import { getCatalogCache } from "./catalogRuntime";
-import { cleanFoodName, normalizeForMatching, normalizedTokenIncludes, normalizeText } from "./mealTextParsing";
+import { cleanFoodName, formatFoodNameTitleCase, normalizeForMatching, normalizedTokenIncludes, normalizeText } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
@@ -15,6 +15,7 @@ const KNOWN_BRANDS = [
   "Danone",
   "Italac",
   "Piracanjuba",
+  "Growth",
 ];
 const CRITICAL_VARIATION_TERMS = [
   "zero",
@@ -62,6 +63,11 @@ const MATCHING_STOP_WORDS = new Set([
 export function detectKnownBrand(value: string) {
   const normalized = normalizeForMatching(value);
   return KNOWN_BRANDS.find(brand => normalizedTokenIncludes(normalized, brand)) ?? null;
+}
+
+export function normalizeBrandName(value: string | null | undefined) {
+  const cleaned = cleanFoodName(value ?? "");
+  return cleaned ? formatFoodNameTitleCase(cleaned) : null;
 }
 
 function detectCatalogBrand(food: CatalogFood, normalizedQuery: string) {
@@ -234,6 +240,6 @@ export function findCatalogFood(foodName: string, userId?: number): CatalogFood 
   return bestFood;
 }
 
-export function inferItemBrand(food: CatalogFood, foodName: string) {
-  return food.brandName?.trim() || detectKnownBrand(foodName);
+export function inferItemBrand(food: CatalogFood, foodName: string, explicitBrand?: string | null) {
+  return food.brandName?.trim() || normalizeBrandName(explicitBrand) || detectKnownBrand(foodName);
 }

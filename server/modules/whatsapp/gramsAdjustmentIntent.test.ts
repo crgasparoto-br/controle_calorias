@@ -10,10 +10,11 @@ vi.mock("../meals/service", () => ({
 
 import { executeWhatsappGramsAdjustmentIntent } from "./gramsAdjustmentIntent";
 
-function item(foodName: string, estimatedGrams: number) {
+function item(foodName: string, estimatedGrams: number, overrides: Partial<{ canonicalName: string; brand: string }> = {}) {
   return {
     foodName,
-    canonicalName: foodName,
+    canonicalName: overrides.canonicalName ?? foodName,
+    brand: overrides.brand ?? null,
     portionText: `${estimatedGrams} g`,
     quantity: estimatedGrams,
     unit: "g",
@@ -34,25 +35,22 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
     updateMealMock.mockReset();
   });
 
-  it("reduz gramas dos alimentos citados mesmo sem preposicao depois da quantidade", async () => {
+  it("reduz gramas por nome parcial em item salvo com nome mais completo", async () => {
     const meal = {
       id: 10,
       mealLabel: "Lanche",
       occurredAt: "2026-06-29T18:00:00.000Z",
       notes: null,
       items: [
-        item("Maçã fugi", 195),
-        item("Pêra William", 167),
-        item("Iogurte grego light Danone", 80),
-        item("Leite integral", 110),
-        item("Alimento da imagem", 50),
+        item("Pao frances", 50),
+        item("Queijo Minas Padrao Fatiado", 80),
       ],
     };
     listMealsMock.mockResolvedValue([meal]);
     updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
 
     const result = await executeWhatsappGramsAdjustmentIntent(42, {
-      text: "Diminuir 20g maçã e 16g da pê",
+      text: "Diminuir 20g do queijo Minas",
       receivedAt: new Date("2026-06-29T19:00:00.000Z"),
     });
 
@@ -60,22 +58,82 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
       action: "meal_item_grams_adjusted",
       data: expect.objectContaining({
         adjustments: [
-          expect.objectContaining({ foodName: "Maçã fugi", previousGrams: 195, nextGrams: 175 }),
-          expect.objectContaining({ foodName: "Pêra William", previousGrams: 167, nextGrams: 151 }),
+          expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 80, nextGrams: 60 }),
         ],
       }),
     }));
     expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       mealId: 10,
-      items: expect.arrayContaining([
-        expect.objectContaining({ foodName: "Maçã fugi", estimatedGrams: 175 }),
-        expect.objectContaining({ foodName: "Pêra William", estimatedGrams: 151 }),
-        expect.objectContaining({ foodName: "Alimento da imagem", estimatedGrams: 50 }),
-      ]),
+      items: [
+        expect.objectContaining({ foodName: "Pao frances", estimatedGrams: 50 }),
+        expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 60, portionText: "60 g" }),
+      ],
     }));
   });
 
-  it("reduz gramas de alimento registrado em refeição anterior à última", async () => {
+  it("tolera pequeno erro de digitacao no alvo da reducao", async () => {
+    const meal = {
+      id: 11,
+      mealLabel: "Lanche",
+      occurredAt: "2026-06-29T18:00:00.000Z",
+      notes: null,
+      items: [
+        item("Pao frances", 50),
+        item("Queijo Minas Padrao Fatiado", 80),
+      ],
+    };
+    listMealsMock.mockResolvedValue([meal]);
+    updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
+
+    const result = await executeWhatsappGramsAdjustmentIntent(42, {
+      text: "Reduzir 20g do quejo minas",
+      receivedAt: new Date("2026-06-29T19:00:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "meal_item_grams_adjusted",
+      data: expect.objectContaining({
+        adjustments: [
+          expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 80, nextGrams: 60 }),
+        ],
+      }),
+    }));
+  });
+
+  it("pede esclarecimento quando alvo generico encontra varios itens na ultima refeicao", async () => {
+    const latestMeal = {
+      id: 12,
+      mealLabel: "Lanche",
+      occurredAt: "2026-06-29T18:00:00.000Z",
+      notes: null,
+      items: [
+        item("Queijo Minas Padrao Fatiado", 80),
+        item("Queijo mussarela", 70),
+      ],
+    };
+    const previousMeal = {
+      id: 11,
+      mealLabel: "Almoco",
+      occurredAt: "2026-06-29T15:00:00.000Z",
+      notes: null,
+      items: [item("Queijo cottage", 60)],
+    };
+    listMealsMock.mockResolvedValue([latestMeal, previousMeal]);
+
+    const result = await executeWhatsappGramsAdjustmentIntent(42, {
+      text: "Diminuir 20g do queijo",
+      receivedAt: new Date("2026-06-29T19:00:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado (80 g)"),
+    }));
+    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
+  it("busca em refeicao anterior do dia quando a ultima nao tem candidato", async () => {
     listMealsMock.mockResolvedValue([
       { id: 3, mealLabel: "Lanche", occurredAt: "2026-06-29T18:20:00.000Z", notes: null, items: [item("Mel", 15)] },
       { id: 2, mealLabel: "Lanche", occurredAt: "2026-06-29T18:10:00.000Z", notes: null, items: [item("Iogurte grego light Danone", 80)] },
@@ -103,15 +161,15 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
     }));
   });
 
-  it("reduz gramas na refeição citada pelo nome mesmo quando não é a última", async () => {
+  it("reduz gramas na refeicao citada pelo nome mesmo quando nao e a ultima", async () => {
     listMealsMock.mockResolvedValue([
       { id: 21, mealLabel: "Lanche", occurredAt: "2026-06-29T18:00:00.000Z", notes: null, items: [item("Arroz branco", 90)] },
-      { id: 20, mealLabel: "Almoço", occurredAt: "2026-06-29T15:00:00.000Z", notes: null, items: [item("Arroz branco", 150)] },
+      { id: 20, mealLabel: "Almoco", occurredAt: "2026-06-29T15:00:00.000Z", notes: null, items: [item("Arroz branco", 150)] },
     ]);
     updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
 
     const result = await executeWhatsappGramsAdjustmentIntent(42, {
-      text: "Diminuir 30g do arroz do almoço",
+      text: "Diminuir 30g do arroz do almoco",
       receivedAt: new Date("2026-06-29T19:00:00.000Z"),
     });
 

@@ -77,8 +77,12 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "meal_item_grams_adjusted",
-      reply: "Atualizei de 330ml para 600ml.",
     }));
+    expect(result?.reply).toContain("*Quantidade corrigida*");
+    expect(result?.reply).toContain("Atualizei Cerveja Budweiser: de 330ml para 600ml.");
+    expect(result?.reply).toContain("Refeição atualizada:");
+    expect(result?.reply).toContain("• 🥤 Cerveja Budweiser — 600 ml (estimado)");
+    expect(result?.reply).toContain("Total da refeição:");
   });
 
   it("corrige ultimo item compativel com frase nao e", async () => {
@@ -110,7 +114,10 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
         estimatedGrams: 600,
       })],
     }));
-    expect(result?.reply).toBe("Atualizei de 330ml para 600ml.");
+    expect(result?.reply).toContain("*Quantidade corrigida*");
+    expect(result?.reply).toContain("Atualizei Cerveja Budweiser: de 330ml para 600ml.");
+    expect(result?.reply).toContain("Refeição atualizada:");
+    expect(result?.reply).toContain("Total da refeição:");
   });
 
   it("pede confirmacao quando dois itens possuem 330ml", async () => {

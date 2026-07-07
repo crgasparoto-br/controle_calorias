@@ -3,14 +3,14 @@ import { findCatalogFood, sourceMentionsFood } from "./catalogMatching";
 import { extractWithAi } from "./mealAiExtraction";
 import { resolveMealLabel } from "./mealLabelResolver";
 import {
-  applyExplicitSingleGramQuantity,
+  applyExplicitQuantities,
   buildEstimatedNutritionFallbackItem,
   buildHybridItem,
   buildItemFromCatalog,
   hasUsableNutrition,
 } from "./mealItemBuilders";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
-import { extractExplicitQuantities, normalizeForMatching, normalizeLlmItem } from "./mealTextParsing";
+import { extractExplicitQuantities, getQuantityExpressionClarification, normalizeForMatching, normalizeLlmItem } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type {
   BuildItemsOptions,
@@ -139,6 +139,11 @@ function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extrac
 
 export async function processMealInput(input: MealProcessingInput): Promise<MealProcessingResult> {
   const sourceText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n").trim();
+  const quantityClarification = getQuantityExpressionClarification(sourceText);
+  if (quantityClarification) {
+    throw new MealInferenceError(quantityClarification);
+  }
+
   const detectedMealLabel = resolveMealLabel(input, sourceText);
 
   let extraction: Awaited<ReturnType<typeof extractWithAi>> = null;
@@ -165,7 +170,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
       usedSourceTextFallback = true;
       rawItems = fallbackFromText(sourceText);
     } else {
-      rawItems = applyExplicitSingleGramQuantity(await buildItemsFromInference(
+      rawItems = applyExplicitQuantities(await buildItemsFromInference(
         inferenceItems,
         {
           preferInferredNutrition: Boolean(

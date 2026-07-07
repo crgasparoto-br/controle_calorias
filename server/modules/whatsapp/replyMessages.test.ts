@@ -1,9 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { buildWhatsAppMealReplyMessage } from "./replyMessages";
+import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealActionReplyMessage, buildWhatsAppMealReplyMessage } from "./replyMessages";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
+const frangoItem = {
+  foodName: "Frango grelhado",
+  canonicalName: "Frango grelhado",
+  portionText: "150 g",
+  servings: 1,
+  estimatedGrams: 150,
+  calories: 247.5,
+  protein: 46.5,
+  carbs: 0,
+  fat: 5.4,
+  confidence: 0.9,
+  source: "catalog" as const,
+};
+
 describe("buildWhatsAppMealReplyMessage", () => {
-  it("inclui horário no cabeçalho e alimento com ícone e calorias na mesma linha", () => {
+  it("inclui horário no cabeçalho em negrito e alimento com ícone", () => {
     const processed: MealProcessingResult = {
       detectedMealLabel: "Almoço",
       sourceText: "frango grelhado",
@@ -13,21 +27,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
       confidence: 0.9,
       needsConfirmation: true,
       reasoning: "Teste de formatação.",
-      items: [
-        {
-          foodName: "Frango grelhado",
-          canonicalName: "Frango grelhado",
-          portionText: "150 g",
-          servings: 1,
-          estimatedGrams: 150,
-          calories: 247.5,
-          protein: 46.5,
-          carbs: 0,
-          fat: 5.4,
-          confidence: 0.9,
-          source: "catalog",
-        },
-      ],
+      items: [frangoItem],
       totals: {
         calories: 247.5,
         protein: 46.5,
@@ -40,9 +40,9 @@ describe("buildWhatsAppMealReplyMessage", () => {
       registeredAt: new Date("2026-06-04T16:00:00.000Z"),
     });
 
-    expect(reply).toContain("Almoço Registrado às 13:00hs.");
-    expect(reply).toContain("• 🍗 Frango grelhado, 150g - 247,5 Kcal");
-    expect(reply).toContain("Prot. 46,5 g | Carb. 0 g | Gord. 5,4 g");
+    expect(reply).toContain("*Almoço Registrado às 13:00hs.*");
+    expect(reply).toContain("• 🍗 Frango grelhado — 150g");
+    expect(reply).toContain("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");
   });
 
   it("não mostra equivalência aproximada em gramas para porções líquidas em ml", () => {
@@ -80,7 +80,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• 🥛 Leite integral, 100 ml - 61 Kcal");
+    expect(reply).toContain("• 🥛 Leite integral — 100 ml");
     expect(reply).not.toContain("aprox. 100g");
   });
 
@@ -119,7 +119,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
 
     const reply = buildWhatsAppMealReplyMessage(processed);
 
-    expect(reply).toContain("• 🍌 Banana, 1 unidade (aprox. 80g) - 72 Kcal");
+    expect(reply).toContain("• 🍌 Banana — 1 unidade (aprox. 80g)");
   });
 
   it("resume meta com consumo total e bullets compatíveis com WhatsApp", () => {
@@ -132,21 +132,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
       confidence: 0.9,
       needsConfirmation: true,
       reasoning: "Teste de formatação.",
-      items: [
-        {
-          foodName: "Frango grelhado",
-          canonicalName: "Frango grelhado",
-          portionText: "150 g",
-          servings: 1,
-          estimatedGrams: 150,
-          calories: 247.5,
-          protein: 46.5,
-          carbs: 0,
-          fat: 5.4,
-          confidence: 0.9,
-          source: "catalog",
-        },
-      ],
+      items: [frangoItem],
       totals: {
         calories: 247.5,
         protein: 46.5,
@@ -210,5 +196,85 @@ describe("buildWhatsAppMealReplyMessage", () => {
     expect(reply).toContain("Amendoim japonês");
     expect(reply).not.toContain("Editar:");
     expect(reply).not.toContain("quick-edit");
+  });
+
+  it("monta resposta consolidada com todos os alimentos da refeição atualizada", () => {
+    const reply = buildWhatsAppConsolidatedMealReplyMessage({
+      mealLabel: "Café da manhã",
+      occurredAt: new Date("2026-06-04T10:14:00.000Z"),
+      items: [
+        {
+          foodName: "Pêra William",
+          canonicalName: "Pêra",
+          portionText: "185 g",
+          estimatedGrams: 185,
+          calories: 105,
+          protein: 0.7,
+          carbs: 28,
+          fat: 0.2,
+          source: "catalog",
+        },
+        {
+          foodName: "Banana prata",
+          canonicalName: "Banana",
+          portionText: "139 g",
+          estimatedGrams: 139,
+          calories: 125,
+          protein: 1.5,
+          carbs: 32.3,
+          fat: 0.4,
+          source: "catalog",
+        },
+        {
+          foodName: "Iogurte grego light Danone",
+          canonicalName: "Iogurte grego light",
+          portionText: "80 g",
+          estimatedGrams: 80,
+          calories: 62,
+          protein: 6,
+          carbs: 7,
+          fat: 1,
+          source: "catalog",
+        },
+      ],
+    });
+
+    expect(reply).toContain("*Café da manhã Atualizado às 07:14hs.*");
+    expect(reply).toContain("• 🍎 Pêra William — 185g");
+    expect(reply).toContain("• 🍌 Banana prata — 139g");
+    expect(reply).toContain("• 🥛 Iogurte grego light Danone — 80g");
+    expect(reply).toContain("Total da refeição:");
+    expect(reply).toContain("292 kcal | P 8,2 g | C 67,3 g | G 1,6 g");
+  });
+
+  it("monta resposta de ação com título, ação realizada e refeição resultante", () => {
+    const reply = buildWhatsAppMealActionReplyMessage({
+      mealLabel: "Almoço",
+      occurredAt: new Date("2026-06-04T15:00:00.000Z"),
+      items: [
+        frangoItem,
+        {
+          foodName: "Arroz branco",
+          canonicalName: "Arroz branco cozido",
+          portionText: "100 g",
+          estimatedGrams: 100,
+          calories: 130,
+          protein: 2.7,
+          carbs: 28,
+          fat: 0.3,
+          source: "catalog",
+        },
+      ],
+    }, {
+      title: "Alimento adicionado",
+      actionLines: ["Adicionei 100 g de Arroz branco à refeição Almoço."],
+    });
+
+    expect(reply).toContain("*Alimento adicionado*");
+    expect(reply).toContain("Adicionei 100 g de Arroz branco à refeição Almoço.");
+    expect(reply).toContain("Refeição atualizada:");
+    expect(reply).toContain("• 🍗 Frango grelhado — 150g");
+    expect(reply).toContain("• 🍚 Arroz branco — 100g");
+    expect(reply).toContain("377,5 kcal | P 49,2 g | C 28 g | G 5,7 g");
   });
 });

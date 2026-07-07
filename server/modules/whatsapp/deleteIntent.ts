@@ -11,6 +11,7 @@ export type WhatsappDeleteIntentDetection = {
   reply: string;
   detail: string;
   eventType: string;
+  targetFoodName?: string;
 };
 
 export type WhatsappDeleteIntentResult = {
@@ -76,6 +77,16 @@ function hasMealTarget(normalized: string) {
 
 function hasFoodTarget(normalized: string) {
   return /\b(?:alimento|alimentos|item|itens|comida|ingrediente)\b/.test(normalized);
+}
+
+function extractTargetFoodName(normalized: string) {
+  const value = normalized
+    .replace(/\b(?:excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete|deleta|tirar|tire|tira)\b/g, " ")
+    .replace(/\b(?:o|a|os|as|um|uma|do|da|dos|das|de|no|na|nos|nas)\b/g, " ")
+    .replace(/\b(?:alimento|alimentos|item|itens|comida|ingrediente)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return value.length >= 3 ? value : null;
 }
 
 function isConfirmationText(normalized: string) {
@@ -164,6 +175,30 @@ function shouldDeleteLastFood(normalized: string) {
     || /\b(?:esse|este|ultimo|ultima)\s+(?:alimento|item)\b/.test(normalized);
 }
 
+function findFoodMatches(items: Array<{ foodName?: string | null; canonicalName?: string | null }>, target: string) {
+  const query = normalizeDeleteIntentText(target);
+  const queryWords = query.split(/\s+/).filter(Boolean);
+  return items
+    .map((item, index) => ({ item, index, name: normalizeDeleteIntentText(`${item.foodName ?? ""} ${item.canonicalName ?? ""}`) }))
+    .filter(candidate => candidate.name.includes(query) || queryWords.every(word => candidate.name.includes(word)));
+}
+
+function createPendingFoodDelete(userId: number, meal: Awaited<ReturnType<typeof listMeals>>[number], itemIndex: number) {
+  const item = meal.items[itemIndex];
+  const pending: PendingDeleteIntent = {
+    kind: "delete_food_from_meal",
+    mealId: meal.id,
+    mealLabel: meal.mealLabel,
+    mealOccurredAt: new Date(meal.occurredAt).toISOString(),
+    itemIndex,
+    itemName: item.foodName,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + PENDING_DELETE_TTL_MS,
+  };
+  pendingDeleteIntents.set(userId, pending);
+  return buildPendingResult(pending);
+}
+
 async function requestDeleteConfirmation(userId: number, detection: WhatsappDeleteIntentDetection): Promise<WhatsappDeleteIntentResult> {
   const meals = await listMeals(userId);
   const latestMeal = findLatestMealForDelete(meals);
@@ -199,7 +234,33 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
     });
   }
 
-  if (items.length > 1 && !shouldDeleteLastFood(detection.normalizedText)) {
+  if (shouldDeleteLastFood(detection.normalizedText)) {
+    return createPendingFoodDelete(userId, latestMeal, items.length - 1);
+  }
+
+  if (detection.targetFoodName) {
+    const matches = findFoodMatches(items, detection.targetFoodName);
+    if (matches.length === 1) {
+      return createPendingFoodDelete(userId, latestMeal, matches[0].index);
+    }
+    if (matches.length > 1) {
+      const options = matches.map((match, index) => `${index + 1}. ${match.item.foodName}`).join("\n");
+      return buildClarificationResult({
+        ...detection,
+        reply: `Encontrei mais de um alimento parecido com "${detection.targetFoodName}". Qual deseja remover?\n${options}`,
+        eventType: "whatsapp.intent.delete_food_clarification_needed",
+        detail: "Comando destrutivo de alimento por nome com múltiplos candidatos compatíveis.",
+      });
+    }
+    return buildClarificationResult({
+      ...detection,
+      reply: `Não encontrei "${detection.targetFoodName}" na refeição mais recente. Qual item devo remover?`,
+      eventType: "whatsapp.intent.delete_food_clarification_needed",
+      detail: "Comando destrutivo de alimento por nome sem candidato compatível.",
+    });
+  }
+
+  if (items.length > 1) {
     const options = items.map((item, index) => `${index + 1}. ${item.foodName}`).join("\n");
     return buildClarificationResult({
       ...detection,
@@ -209,20 +270,7 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
     });
   }
 
-  const itemIndex = items.length - 1;
-  const item = items[itemIndex];
-  const pending: PendingDeleteIntent = {
-    kind: "delete_food_from_meal",
-    mealId: latestMeal.id,
-    mealLabel: latestMeal.mealLabel,
-    mealOccurredAt: new Date(latestMeal.occurredAt).toISOString(),
-    itemIndex,
-    itemName: item.foodName,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + PENDING_DELETE_TTL_MS,
-  };
-  pendingDeleteIntents.set(userId, pending);
-  return buildPendingResult(pending);
+  return createPendingFoodDelete(userId, latestMeal, items.length - 1);
 }
 
 async function confirmPendingDelete(userId: number, pending: PendingDeleteIntent): Promise<WhatsappDeleteIntentResult> {
@@ -304,6 +352,7 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
       kind: "delete_food_from_meal",
       text: trimmed,
       normalizedText,
+      targetFoodName: shouldDeleteLastFood(normalizedText) ? undefined : extractTargetFoodName(normalizedText) ?? undefined,
       reply: DELETE_FOOD_REPLY,
       eventType: "whatsapp.intent.delete_food_clarification_needed",
       detail: "Comando destrutivo de alimento bloqueado antes do fallback nutricional.",
@@ -318,6 +367,19 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
       reply: DELETE_MEAL_REPLY,
       eventType: "whatsapp.intent.delete_meal_clarification_needed",
       detail: "Comando destrutivo de refeição bloqueado antes do fallback nutricional.",
+    };
+  }
+
+  const targetFoodName = extractTargetFoodName(normalizedText);
+  if (targetFoodName) {
+    return {
+      kind: "delete_food_from_meal",
+      text: trimmed,
+      normalizedText,
+      targetFoodName,
+      reply: DELETE_FOOD_REPLY,
+      eventType: "whatsapp.intent.delete_food_clarification_needed",
+      detail: "Comando destrutivo com nome provável de alimento bloqueado antes do fallback nutricional.",
     };
   }
 

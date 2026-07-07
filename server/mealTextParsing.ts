@@ -4,6 +4,37 @@ import type { ExplicitQuantity, LlmItem, ParsedFoodText } from "./nutritionEngin
 
 export const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
 
+const QUANTITY_EXPRESSION_OPERATOR_PATTERN = "x|X|\\*|/|÷|\\+|-|dividid[ao]\\s+por|dividir\\s+por";
+const MAX_QUANTITY_EXPRESSION_OPERATORS = 5;
+const FOOD_NAME_LOWERCASE_CONNECTORS = new Set([
+  "de",
+  "da",
+  "do",
+  "das",
+  "dos",
+  "com",
+  "e",
+  "em",
+  "no",
+  "na",
+  "nos",
+  "nas",
+  "ao",
+  "aos",
+  "à",
+  "às",
+  "para",
+  "por",
+]);
+
+type QuantityExpressionErrorCode =
+  | "invalid_syntax"
+  | "too_many_operators"
+  | "conflicting_units"
+  | "missing_unit"
+  | "division_by_zero"
+  | "non_positive_result";
+
 export function normalizeText(value: string) {
   return value
     .normalize("NFD")
@@ -28,6 +59,48 @@ export function cleanFoodName(value: string) {
     .trim();
 }
 
+function hasLetters(value: string) {
+  return /\p{L}/u.test(value);
+}
+
+function isPreservedUppercaseToken(value: string) {
+  return hasLetters(value) && value === value.toLocaleUpperCase("pt-BR") && value !== value.toLocaleLowerCase("pt-BR");
+}
+
+function titleCaseFoodNameWord(value: string, isFirstWord: boolean) {
+  const lower = value.toLocaleLowerCase("pt-BR");
+  if (!isFirstWord && FOOD_NAME_LOWERCASE_CONNECTORS.has(lower)) {
+    return lower;
+  }
+  if (isPreservedUppercaseToken(value)) {
+    return value;
+  }
+
+  return lower.replace(/\p{L}[\p{L}\p{M}]*/gu, match => (
+    match.charAt(0).toLocaleUpperCase("pt-BR") + match.slice(1)
+  ));
+}
+
+export function formatFoodNameTitleCase(value: string) {
+  const cleaned = cleanFoodName(value);
+  if (!cleaned) {
+    return cleaned;
+  }
+
+  let wordIndex = 0;
+  return cleaned
+    .split(/\s+/)
+    .map(word => word.split("-").map(segment => {
+      if (!segment) {
+        return segment;
+      }
+      const formatted = titleCaseFoodNameWord(segment, wordIndex === 0);
+      wordIndex += 1;
+      return formatted;
+    }).join("-"))
+    .join(" ");
+}
+
 export function parseDecimalNumber(value: string) {
   return Number(value.replace(",", "."));
 }
@@ -43,6 +116,13 @@ export function formatQuantityForPortion(value: number) {
 
 export function buildPortionText(quantity: number, unit: string) {
   return `${formatQuantityForPortion(quantity)} ${unit}`;
+}
+
+export function splitFoodTextSegments(sourceText: string) {
+  return sourceText
+    .split(/,|;|\be\b|\+(?!\s*\d)|\n/gi)
+    .map(value => value.trim())
+    .filter(Boolean);
 }
 
 export function estimateGramsFromQuantity(quantity: number, unit: string) {
@@ -61,7 +141,234 @@ export function estimateGramsFromQuantity(quantity: number, unit: string) {
   }
 }
 
+type QuantityExpressionTerm = {
+  value: number;
+  unit?: string;
+};
+
+type QuantityExpression = {
+  quantity: number;
+  unit: string;
+  estimatedGrams?: number;
+};
+
+type QuantityExpressionTokenization =
+  | { ok: true; terms: QuantityExpressionTerm[]; operators: string[] }
+  | { ok: false; code: QuantityExpressionErrorCode };
+
+type QuantityExpressionEvaluation =
+  | { ok: true; expression: QuantityExpression }
+  | { ok: false; code: QuantityExpressionErrorCode };
+
+function normalizeArithmeticOperator(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalized === "x" || normalized === "*") return "*";
+  if (normalized === "/" || normalized === "÷" || normalized.startsWith("divid")) return "/";
+  if (normalized === "+") return "+";
+  if (normalized === "-") return "-";
+  return null;
+}
+
+function tokenizeQuantityExpression(expressionText: string): QuantityExpressionTokenization {
+  const tokenPattern = new RegExp(
+    `(\\d+(?:[,.]\\d+)?)(?:\\s*(${QUANTITY_UNIT_PATTERN}))?|(${QUANTITY_EXPRESSION_OPERATOR_PATTERN})`,
+    "giu",
+  );
+  const terms: QuantityExpressionTerm[] = [];
+  const operators: string[] = [];
+  let consumed = "";
+
+  for (const match of expressionText.matchAll(tokenPattern)) {
+    consumed += match[0];
+    if (match[1]) {
+      const value = parseDecimalNumber(match[1]);
+      if (!Number.isFinite(value)) {
+        return { ok: false, code: "invalid_syntax" };
+      }
+      terms.push({
+        value,
+        unit: match[2] ? normalizeUnit(match[2]) : undefined,
+      });
+      continue;
+    }
+
+    const operator = normalizeArithmeticOperator(match[3] || "");
+    if (!operator) {
+      return { ok: false, code: "invalid_syntax" };
+    }
+    operators.push(operator);
+  }
+
+  if (expressionText.replace(/\s+/g, "") !== consumed.replace(/\s+/g, "")) {
+    return { ok: false, code: "invalid_syntax" };
+  }
+
+  if (terms.length < 2 || operators.length !== terms.length - 1) {
+    return { ok: false, code: "invalid_syntax" };
+  }
+
+  if (operators.length > MAX_QUANTITY_EXPRESSION_OPERATORS) {
+    return { ok: false, code: "too_many_operators" };
+  }
+
+  return { ok: true, terms, operators };
+}
+
+function evaluateQuantityExpression(expressionText: string): QuantityExpressionEvaluation {
+  if (!expressionText.trim()) {
+    return { ok: false, code: "invalid_syntax" };
+  }
+  const tokenized = tokenizeQuantityExpression(expressionText);
+  if (!tokenized.ok) {
+    return tokenized;
+  }
+
+  const units = Array.from(new Set(tokenized.terms.map(term => term.unit).filter((unit): unit is string => Boolean(unit))));
+  if (units.length === 0) {
+    return { ok: false, code: "missing_unit" };
+  }
+  if (units.length > 1) {
+    return { ok: false, code: "conflicting_units" };
+  }
+
+  const unit = units[0];
+  const values = tokenized.terms.map(term => term.value);
+  const operators = [...tokenized.operators];
+
+  for (let index = 0; index < operators.length;) {
+    const operator = operators[index];
+    if (operator !== "*" && operator !== "/") {
+      index += 1;
+      continue;
+    }
+
+    const left = values[index];
+    const right = values[index + 1];
+    if (operator === "/" && right === 0) {
+      return { ok: false, code: "division_by_zero" };
+    }
+
+    values.splice(index, 2, operator === "*" ? left * right : left / right);
+    operators.splice(index, 1);
+  }
+
+  let result = values[0];
+  for (let index = 0; index < operators.length; index += 1) {
+    const operator = operators[index];
+    const value = values[index + 1];
+    result = operator === "+" ? result + value : result - value;
+  }
+
+  if (!Number.isFinite(result) || result <= 0) {
+    return { ok: false, code: "non_positive_result" };
+  }
+
+  const quantity = roundNutritionValue(result);
+  const estimatedGrams = estimateGramsFromQuantity(quantity, unit);
+  return {
+    ok: true,
+    expression: {
+      quantity,
+      unit,
+      estimatedGrams: estimatedGrams === undefined ? undefined : roundNutritionValue(estimatedGrams),
+    },
+  };
+}
+
+function findLeadingQuantityExpression(value: string) {
+  const numberWithOptionalUnit = `\\d+(?:[,.]\\d+)?\\s*(?:${QUANTITY_UNIT_PATTERN})?`;
+  const expressionPattern = new RegExp(
+    `^((?:${numberWithOptionalUnit})(?:\\s*(?:${QUANTITY_EXPRESSION_OPERATOR_PATTERN})\\s*${numberWithOptionalUnit})+)\\s+(?:de\\s+)?(.+)$`,
+    "iu",
+  );
+  const match = value.trim().match(expressionPattern);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    expressionText: match[1],
+    foodName: cleanFoodName(match[2]),
+  };
+}
+
+function parseLeadingQuantityExpression(value: string) {
+  const match = findLeadingQuantityExpression(value);
+  if (!match) {
+    return null;
+  }
+
+  const evaluation = evaluateQuantityExpression(match.expressionText);
+  if (!evaluation.ok || !match.foodName) {
+    return null;
+  }
+
+  return {
+    foodName: match.foodName,
+    ...evaluation.expression,
+    portionText: buildPortionText(evaluation.expression.quantity, evaluation.expression.unit),
+  };
+}
+
+function buildQuantityExpressionClarification(code: QuantityExpressionErrorCode) {
+  if (code === "division_by_zero") {
+    return "Não consegui calcular essa quantidade porque há divisão por zero. Pode reenviar a quantidade do alimento de outro jeito?";
+  }
+  if (code === "non_positive_result") {
+    return "Não consegui registrar essa quantidade porque o cálculo ficou zero ou negativo. Pode enviar uma quantidade maior que zero?";
+  }
+  if (code === "too_many_operators") {
+    return "Não consegui calcular essa quantidade porque a expressão tem operações demais. Pode simplificar a quantidade do alimento?";
+  }
+  if (code === "conflicting_units") {
+    return "Não consegui calcular essa quantidade porque a expressão mistura unidades diferentes. Pode enviar a quantidade usando uma única unidade?";
+  }
+  if (code === "missing_unit") {
+    return "Não consegui identificar a unidade da quantidade. Pode reenviar informando g, ml, unidade ou outra medida do alimento?";
+  }
+  return "Não consegui entender a conta usada na quantidade do alimento. Pode reenviar a quantidade de um jeito mais simples?";
+}
+
+function getQuantityExpressionClarificationForSegment(value: string) {
+  const match = findLeadingQuantityExpression(value);
+  if (!match) {
+    return null;
+  }
+
+  const evaluation = evaluateQuantityExpression(match.expressionText);
+  if (evaluation.ok && match.foodName) {
+    return null;
+  }
+
+  return buildQuantityExpressionClarification(evaluation.ok ? "invalid_syntax" : evaluation.code);
+}
+
+export function getQuantityExpressionClarification(value: string) {
+  const segments = splitFoodTextSegments(value);
+  const candidates = segments.length > 1 ? segments : [value];
+
+  for (const candidate of candidates) {
+    const clarification = getQuantityExpressionClarificationForSegment(candidate);
+    if (clarification) {
+      return clarification;
+    }
+  }
+
+  return null;
+}
+
 export function parseFoodText(value: string): ParsedFoodText {
+  const expression = parseLeadingQuantityExpression(value);
+  if (expression) {
+    return expression;
+  }
+
   const cleaned = cleanFoodName(value);
   const quantityPattern = `(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})`;
   const leadingMatch = cleaned.match(new RegExp(`^${quantityPattern}\\s+(?:de\\s+)?(.+)$`, "i"));
@@ -91,7 +398,39 @@ export function parseFoodText(value: string): ParsedFoodText {
   };
 }
 
+export function extractExplicitQuantityFoodSegments(sourceText: string): Array<ExplicitQuantity & { foodName: string }> {
+  const items: Array<ExplicitQuantity & { foodName: string }> = [];
+
+  for (const segment of splitFoodTextSegments(sourceText)) {
+    const parsed = parseFoodText(segment);
+    if (!parsed.quantity || !parsed.unit) {
+      continue;
+    }
+
+    const item: ExplicitQuantity & { foodName: string } = {
+      foodName: parsed.foodName,
+      quantity: parsed.quantity,
+      unit: parsed.unit,
+    };
+    if (parsed.estimatedGrams !== undefined) {
+      item.estimatedGrams = parsed.estimatedGrams;
+    }
+    items.push(item);
+  }
+
+  return items;
+}
+
 export function extractExplicitQuantities(sourceText: string): ExplicitQuantity[] {
+  const expression = parseLeadingQuantityExpression(sourceText);
+  if (expression?.quantity && expression.unit) {
+    return [{
+      quantity: expression.quantity,
+      unit: expression.unit,
+      estimatedGrams: expression.estimatedGrams,
+    }];
+  }
+
   const matches = Array.from(sourceText.matchAll(new RegExp(`(\\d+(?:[,.]\\d+)?)\\s*(${QUANTITY_UNIT_PATTERN})\\b`, "gi")));
   return matches
     .map(match => {
@@ -132,10 +471,13 @@ export function normalizeLlmItem(item: LlmItem): LlmItem {
   const unit = normalizeUnit(parsed.unit ?? item.unit ?? "porção");
   const estimatedFromQuantity = estimateGramsFromQuantity(quantity, unit);
   const estimatedGrams = parsed.estimatedGrams ?? (item.estimatedGrams > 0 ? item.estimatedGrams : (estimatedFromQuantity ?? 0));
+  const foodName = formatFoodNameTitleCase(parsed.foodName || cleanFoodName(item.foodName));
+  const brand = item.brand == null ? item.brand : formatFoodNameTitleCase(item.brand);
 
   return {
     ...item,
-    foodName: parsed.foodName || cleanFoodName(item.foodName),
+    foodName,
+    brand,
     quantity,
     unit,
     portionText: parsed.portionText ?? item.portionText ?? buildPortionText(quantity, unit),

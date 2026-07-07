@@ -109,6 +109,23 @@ function setResolvedCatalogId(resolved: Map<string, number>, key: string | null 
   }
 }
 
+function foodAlreadyMatchesInput(food: FoodSearchItem, input: FoodUpsertInput) {
+  return food.name === input.name
+    && (food.brandName ?? null) === (input.brandName ?? null)
+    && food.servingSize === input.servingSize
+    && food.servingUnit === input.servingUnit
+    && food.calories === input.calories
+    && food.protein === input.protein
+    && food.carbs === input.carbs
+    && food.fat === input.fat
+    && (food.fiber ?? null) === (input.fiber ?? null)
+    && food.isFruit === (input.isFruit ?? false)
+    && food.isVegetable === (input.isVegetable ?? false)
+    && food.isUltraProcessed === (input.isUltraProcessed ?? false)
+    && food.source === (input.source || "manual")
+    && food.foodType === input.foodType;
+}
+
 export function createFoodsService(deps: {
   foodCatalogRepository: FoodCatalogRepository;
   findMealItemsWithDates: (userId: number) => Promise<Array<{ canonicalName?: string | null; foodName: string; occurredAt: number }>>;
@@ -345,17 +362,17 @@ export function createFoodsService(deps: {
 
   async function updateUserFood(userId: number, input: FoodUpsertInput & { foodId: number }) {
     const current = userFoodStore.get(userId) ?? [];
-    const existing = current.find(food => food.id === input.foodId);
+    let existing = current.find(food => food.id === input.foodId);
     if (!existing) {
       const dbFoods = await searchFoods(userId, "", 200);
-      const dbExisting = dbFoods.find(food => food.id === input.foodId && food.isUserCreated && food.createdByUserId === userId);
-      if (!dbExisting) {
+      existing = dbFoods.find(food => food.id === input.foodId && food.isUserCreated && food.createdByUserId === userId);
+      if (!existing) {
         throw new Error("Alimento criado pelo usuário não encontrado.");
       }
     }
 
     const updated: FoodSearchItem = {
-      ...(existing ?? { id: input.foodId, isFavorite: false, lastUsedAt: null }),
+      ...existing,
       id: input.foodId,
       name: input.name,
       brandName: input.brandName ?? null,
@@ -378,7 +395,7 @@ export function createFoodsService(deps: {
     const db = await deps.getDb();
     if (db) {
       try {
-        await deps.foodCatalogRepository.update(input.foodId, userId, {
+        const updatedRows = await deps.foodCatalogRepository.update(input.foodId, userId, {
           name: input.name,
           brandName: input.brandName ?? null,
           foodType: input.foodType,
@@ -395,8 +412,17 @@ export function createFoodsService(deps: {
           isVegetable: input.isVegetable ? 1 : 0,
           isUltraProcessed: input.isUltraProcessed ? 1 : 0,
         });
+
+        if (updatedRows < 1 && !foodAlreadyMatchesInput(existing, input)) {
+          throw new Error("Alimento criado pelo usuário não encontrado.");
+        }
       } catch (error) {
-        deps.onWarning("Food update persistence skipped", error);
+        if (error instanceof Error && error.message === "Alimento criado pelo usuário não encontrado.") {
+          throw error;
+        }
+
+        deps.onWarning("Food update persistence failed", error);
+        throw new Error("Não foi possível salvar o alimento. Tente novamente.");
       }
     }
 
@@ -519,5 +545,3 @@ export function createFoodsService(deps: {
     clearMemory,
   };
 }
-
-export type FoodsService = ReturnType<typeof createFoodsService>;

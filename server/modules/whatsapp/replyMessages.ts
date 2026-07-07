@@ -1,5 +1,15 @@
 import type { MealProcessingResult } from "../../nutritionEngine";
 import { getWhatsAppExerciseCaloriesForDateKey } from "./goalProgressContext";
+import {
+  buildWhatsAppBlock,
+  buildWhatsAppFoodLines,
+  buildWhatsAppGoalProgressLines,
+  buildWhatsAppMealTotalLines,
+  buildWhatsAppSeparator,
+  buildWhatsAppTitle,
+  type WhatsAppFoodReplyItem,
+  type WhatsAppNutritionTotals,
+} from "./replyTemplates";
 
 export type WhatsAppMealGoalProgress = {
   consumedCalories: number;
@@ -12,15 +22,21 @@ export type WhatsAppMealReplyOptions = {
   goalProgress?: WhatsAppMealGoalProgress | null;
 };
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    maximumFractionDigits: Number.isInteger(value) ? 0 : 1,
-  }).format(value);
-}
+export type WhatsAppConsolidatedMealReplyInput = {
+  mealLabel?: string | null;
+  occurredAt?: number | string | Date | null;
+  items: WhatsAppFoodReplyItem[];
+};
 
-function formatMacro(value: number) {
-  return formatNumber(value);
-}
+export type WhatsAppMealActionReplyOptions = WhatsAppMealReplyOptions & {
+  title: string;
+  actionLines?: string[];
+};
+
+export type WhatsAppAuxiliaryReplyOptions = {
+  title: string;
+  lines?: Array<string | null | undefined>;
+};
 
 function formatDateKeyInSaoPaulo(date?: Date) {
   if (!date) {
@@ -50,131 +66,182 @@ function formatTimeInSaoPaulo(date?: Date) {
   }).format(date);
 }
 
-function portionUsesWeightUnit(portionText: string) {
-  return /\d\s*(?:g|gramas?|kg|quilogramas?)\b/i.test(portionText);
+function normalizeReplyDate(date?: Date | number | string | null) {
+  if (!date) {
+    return undefined;
+  }
+  const parsed = date instanceof Date ? date : new Date(date);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
-function portionUsesVolumeUnit(portionText: string) {
-  return /\d\s*(?:ml|m\s*l|l|litros?)\b/i.test(portionText)
-    || /\b(?:copo|copos|xicara|xicaras|xícara|xícaras|colher|colheres|dose|doses)\b/i.test(portionText);
-}
-
-function shouldShowApproximateGrams(item: MealProcessingResult["items"][number]) {
-  return item.estimatedGrams > 0
-    && !portionUsesWeightUnit(item.portionText)
-    && !portionUsesVolumeUnit(item.portionText);
-}
-
-function getFoodIcon(item: MealProcessingResult["items"][number]) {
-  const text = `${item.foodName} ${item.canonicalName}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-  if (/\b(banana)\b/.test(text)) return "🍌";
-  if (/\b(maca|apple)\b/.test(text)) return "🍎";
-  if (/\b(laranja|orange)\b/.test(text)) return "🍊";
-  if (/\b(morango|strawberry)\b/.test(text)) return "🍓";
-  if (/\b(uva|grape)\b/.test(text)) return "🍇";
-  if (/\b(abacate|avocado)\b/.test(text)) return "🥑";
-  if (/\b(ovo|omelete)\b/.test(text)) return "🥚";
-  if (/\b(frango|chicken|carne|bife|steak)\b/.test(text)) return "🍗";
-  if (/\b(peixe|fish|salmao|atum|tilapia)\b/.test(text)) return "🐟";
-  if (/\b(arroz|rice|feijao|lentilha|grao de bico)\b/.test(text)) return "🍚";
-  if (/\b(macarrao|massa|pasta)\b/.test(text)) return "🍝";
-  if (/\b(pao|torrada|bisnaguinha|sandui?che)\b/.test(text)) return "🍞";
-  if (/\b(queijo|cheese)\b/.test(text)) return "🧀";
-  if (/\b(leite|iogurte|whey)\b/.test(text)) return "🥛";
-  if (/\b(cafe|coffee)\b/.test(text)) return "☕";
-  if (/\b(salada|alface|legume|brocolis|tomate|cenoura)\b/.test(text)) return "🥗";
-  if (/\b(batata|mandioca|aipim)\b/.test(text)) return "🥔";
-  if (/\b(chocolate|doce|bolo)\b/.test(text)) return "🍫";
-
-  return "🍽️";
-}
-
-function formatPortionText(item: MealProcessingResult["items"][number]) {
-  const gramsLabel = shouldShowApproximateGrams(item) ? ` (aprox. ${formatMacro(item.estimatedGrams)}g)` : "";
-  const compactPortion = item.portionText.replace(/(\d+(?:[,.]\d+)?)\s+g\b/gi, "$1g");
-  return `${compactPortion}${gramsLabel}`;
-}
-
-function formatFoodDescription(item: MealProcessingResult["items"][number]) {
-  const estimationLabel = item.source === "heuristic" ? " (estimado)" : "";
-  return `${item.foodName}, ${formatPortionText(item)}${estimationLabel} - ${formatMacro(item.calories)} Kcal`.trim();
-}
-
-function formatItemMacros(item: MealProcessingResult["items"][number]) {
-  return `Prot. ${formatMacro(item.protein)} g | Carb. ${formatMacro(item.carbs)} g | Gord. ${formatMacro(item.fat)} g`;
-}
-
-function buildMealTitle(mealLabel?: string, registeredAt?: Date) {
+function buildMealTitle(mealLabel?: string | null, registeredAt?: Date, consolidated = false) {
   const label = mealLabel?.trim();
   const time = formatTimeInSaoPaulo(registeredAt);
   const suffix = time ? ` às ${time}hs.` : ".";
 
   if (!label || label.toLowerCase() === "refeição") {
-    return `Refeição registrada${suffix}`;
+    return buildWhatsAppTitle(`${consolidated ? "Refeição atualizada" : "Refeição registrada"}${suffix}`, { bold: true });
   }
 
-  return `${label} Registrado${suffix}`;
+  return buildWhatsAppTitle(`${label} ${consolidated ? "Atualizado" : "Registrado"}${suffix}`, { bold: true });
 }
 
-function buildGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
-  if (!progress || progress.goalCalories <= 0) {
-    return [];
+function buildMealGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
+  const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
+  return buildWhatsAppGoalProgressLines(progress
+    ? { ...progress, exerciseCalories: progress.exerciseCalories ?? contextualExerciseCalories ?? 0 }
+    : null);
+}
+
+function sumReplyItems(items: WhatsAppFoodReplyItem[]): WhatsAppNutritionTotals {
+  return items.reduce(
+    (totals, item) => ({
+      calories: totals.calories + Number(item.calories || 0),
+      protein: totals.protein + Number(item.protein || 0),
+      carbs: totals.carbs + Number(item.carbs || 0),
+      fat: totals.fat + Number(item.fat || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+}
+
+function buildMealItemLines(items: WhatsAppFoodReplyItem[]) {
+  return items.flatMap((item, index) => [
+    ...buildWhatsAppFoodLines(item),
+    ...(index < items.length - 1 ? [buildWhatsAppSeparator()] : []),
+  ]);
+}
+
+function buildMealReplyBody(input: {
+  title: string;
+  sourceText?: string | null;
+  items: WhatsAppFoodReplyItem[];
+  totals: WhatsAppNutritionTotals;
+  goalLines: string[];
+}) {
+  if (!input.items.length) {
+    return buildWhatsAppBlock([
+      input.title,
+      buildWhatsAppSeparator(),
+      input.sourceText || "Não consegui identificar os alimentos com segurança.",
+      buildWhatsAppSeparator(),
+      ...buildWhatsAppMealTotalLines(input.totals),
+      ...(input.goalLines.length ? [buildWhatsAppSeparator(), ...input.goalLines] : []),
+    ]);
   }
 
-  const consumedCalories = Math.max(0, Math.round(progress.consumedCalories));
-  const goalCalories = Math.round(progress.goalCalories);
-  const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
-  const exerciseCalories = Math.max(0, Math.round(progress.exerciseCalories ?? contextualExerciseCalories ?? 0));
-  const adjustedGoalCalories = goalCalories + exerciseCalories;
-  const balanceCalories = adjustedGoalCalories - consumedCalories;
-  const balanceLabel = balanceCalories >= 0 ? "Déficit" : "Superávit";
+  return buildWhatsAppBlock([
+    input.title,
+    buildWhatsAppSeparator(),
+    "Itens:",
+    ...buildMealItemLines(input.items),
+    buildWhatsAppSeparator(),
+    ...buildWhatsAppMealTotalLines(input.totals),
+    ...(input.goalLines.length ? [buildWhatsAppSeparator(), ...input.goalLines] : []),
+  ]);
+}
 
-  return [
-    "Meta de hoje:",
-    `* Meta estimada: ${formatNumber(goalCalories)} kcal`,
-    ...(exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(exerciseCalories)} kcal`] : []),
-    `* Meta ajustada: ${formatNumber(adjustedGoalCalories)} kcal`,
-    `* Consumo: ${formatNumber(consumedCalories)} kcal`,
-    `* ${balanceLabel}: ${formatNumber(Math.abs(balanceCalories))} kcal`,
-  ];
+export function buildWhatsAppAuxiliaryReplyMessage(options: WhatsAppAuxiliaryReplyOptions) {
+  return buildWhatsAppBlock([
+    buildWhatsAppTitle(options.title, { bold: true }),
+    buildWhatsAppSeparator(),
+    ...(options.lines ?? []),
+  ]);
+}
+
+export function buildWhatsAppClarificationReplyMessage(message: string) {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Preciso de uma informação",
+    lines: [message],
+  });
+}
+
+export function buildWhatsAppWaterLoggedReplyMessage(params: { amountLabel: string; occurredAtLabel: string }) {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Água registrada",
+    lines: [`Registrei ${params.amountLabel} ml de água em ${params.occurredAtLabel}.`],
+  });
+}
+
+export function buildWhatsAppSnackSuggestionReplyMessage() {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Sugestão para o lanche da tarde",
+    lines: [
+      "• Iogurte natural com banana e aveia",
+      "  Aproximadamente 280 kcal | boa proteína e energia para a tarde",
+      buildWhatsAppSeparator(),
+      "Outra opção:",
+      "• Pão integral com queijo branco e tomate",
+      "  Aproximadamente 300 kcal | simples, saciante e fácil de montar",
+      buildWhatsAppSeparator(),
+      "Se quiser, envie o que você tem em casa que eu sugiro uma opção mais certeira.",
+    ],
+  });
+}
+
+export function buildWhatsAppPeriodReportReplyMessage(params: {
+  periodLabel: string;
+  mealCount: number;
+  mealBreakdownLines: string[];
+  goalSummaryLines: string[];
+}) {
+  if (params.mealCount <= 0) {
+    return buildWhatsAppAuxiliaryReplyMessage({
+      title: `Resumo de ${params.periodLabel}`,
+      lines: ["Não encontrei refeições registradas nesse período."],
+    });
+  }
+
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: `Resumo de ${params.periodLabel}`,
+    lines: [
+      `Refeições registradas: ${params.mealCount}`,
+      buildWhatsAppSeparator(),
+      ...params.mealBreakdownLines,
+      ...(params.goalSummaryLines.length ? [buildWhatsAppSeparator(), ...params.goalSummaryLines] : []),
+    ],
+  });
 }
 
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
   const title = buildMealTitle(processed.detectedMealLabel, options.registeredAt);
-  const goalLines = buildGoalProgressLines(options.goalProgress, options.registeredAt);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, options.registeredAt);
 
-  if (!processed.items.length) {
-    return [
-      title,
-      "",
-      processed.sourceText || "Não consegui identificar os alimentos com segurança.",
-      "",
-      "Total da refeição:",
-      `${formatMacro(processed.totals.calories)} Kcal`,
-      `Prot. ${formatMacro(processed.totals.protein)} g | Carb. ${formatMacro(processed.totals.carbs)} g | Gord. ${formatMacro(processed.totals.fat)} g`,
-      ...(goalLines.length ? ["", ...goalLines] : []),
-    ].join("\n");
-  }
-
-  const itemLines = processed.items.flatMap(item => [
-    `• ${getFoodIcon(item)} ${formatFoodDescription(item)}`,
-    formatItemMacros(item),
-    "",
-  ]);
-  if (itemLines.at(-1) === "") {
-    itemLines.pop();
-  }
-
-  return [
+  return buildMealReplyBody({
     title,
-    "",
-    "Itens:",
-    ...itemLines,
-    "",
-    "Total da refeição:",
-    `${formatMacro(processed.totals.calories)} Kcal`,
-    `Prot. ${formatMacro(processed.totals.protein)} g | Carb. ${formatMacro(processed.totals.carbs)} g | Gord. ${formatMacro(processed.totals.fat)} g`,
-    ...(goalLines.length ? ["", ...goalLines] : []),
-  ].join("\n");
+    sourceText: processed.sourceText,
+    items: processed.items,
+    totals: processed.totals,
+    goalLines,
+  });
+}
+
+export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
+  const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
+  const title = buildMealTitle(meal.mealLabel, registeredAt, true);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+
+  return buildMealReplyBody({
+    title,
+    items: meal.items,
+    totals: sumReplyItems(meal.items),
+    goalLines,
+  });
+}
+
+export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealActionReplyOptions) {
+  const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+  const actionLines = options.actionLines?.filter(Boolean) ?? [];
+
+  return buildWhatsAppBlock([
+    buildWhatsAppTitle(options.title, { bold: true }),
+    ...(actionLines.length ? [buildWhatsAppSeparator(), ...actionLines] : []),
+    buildWhatsAppSeparator(),
+    "Refeição atualizada:",
+    ...buildMealItemLines(meal.items),
+    buildWhatsAppSeparator(),
+    ...buildWhatsAppMealTotalLines(sumReplyItems(meal.items)),
+    ...(goalLines.length ? [buildWhatsAppSeparator(), ...goalLines] : []),
+  ]);
 }

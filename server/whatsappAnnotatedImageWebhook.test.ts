@@ -284,15 +284,14 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
     expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
     expect(sentTextMessages[1]).toBe([
-      "Almoço Registrado às 13:00hs.",
+      "*Almoço Registrado às 13:00hs.*",
       "",
       "Itens:",
-      "• 🍚 arroz, 100g - 130 Kcal",
-      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "• 🍚 arroz — 100g",
+      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
       "",
       "Total da refeição:",
-      "130 Kcal",
-      "Prot. 2,7 g | Carb. 28 g | Gord. 0,3 g",
+      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
       "",
       "Meta de hoje:",
       "* Meta estimada: 2.200 kcal",
