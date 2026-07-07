@@ -42,11 +42,13 @@ vi.mock("./foodAssistant", () => ({
 }));
 
 const { clearWhatsappConversationContext } = await import("./conversationContext");
+const { __resetWhatsappInboundIdempotencyForTests } = await import("./inboundIdempotencyGuard");
 const { simulateWhatsappInbound } = await import("./service");
 
 describe("simulateWhatsappInbound food typo routing", () => {
   beforeEach(() => {
     clearWhatsappConversationContext();
+    __resetWhatsappInboundIdempotencyForTests();
     getAdminWhatsAppTokenStatusMock.mockReset();
     getUserWhatsappConnectionMock.mockReset();
     logInferenceEventMock.mockReset();
@@ -79,6 +81,7 @@ describe("simulateWhatsappInbound food typo routing", () => {
     ["case-banana", "1 banana prata", "1 un banana prata"],
     ["case-eggs", "2 ovos cozido", "2 un ovos cozidos"],
   ])("encaminha %s para o fallback nutricional", async (messageId, text, normalizedText) => {
+    __resetWhatsappInboundIdempotencyForTests();
     const result = await simulateWhatsappInbound(42, { text, messageId });
 
     expect(processMealDraftMock).toHaveBeenCalledWith(42, {
@@ -93,6 +96,7 @@ describe("simulateWhatsappInbound food typo routing", () => {
     ["control-good-morning", "bom dia"],
     ["control-test", "teste"],
   ])("não cria refeição para %s", async (messageId, text) => {
+    __resetWhatsappInboundIdempotencyForTests();
     const result = await simulateWhatsappInbound(42, { text, messageId });
 
     expect(processMealDraftMock).not.toHaveBeenCalled();
