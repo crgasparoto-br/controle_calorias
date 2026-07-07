@@ -1,4 +1,10 @@
-import { buildWhatsAppMealActionReplyMessage } from "../replyMessages";
+import {
+  buildWhatsAppAmbiguousItemReplyMessage,
+  buildWhatsAppAuxiliaryReplyMessage,
+  buildWhatsAppClarificationReplyMessage,
+  buildWhatsAppItemNotFoundReplyMessage,
+  buildWhatsAppMealActionReplyMessage,
+} from "../replyMessages";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { formatTargetMealItemOptions, formatTotalsLine, replaceMealItemFood, toMealItemInput } from "./mealItemHelpers";
@@ -38,7 +44,12 @@ function ambiguousReplacementReply(targetFood: string, options: string, context 
   return {
     handled: true,
     action: "clarification_needed",
-    reply: `Encontrei mais de um item para ${targetFood} ${context}:\n${options}\nResponda com o número do item que devo trocar.`,
+    reply: buildWhatsAppAmbiguousItemReplyMessage({
+      target: targetFood,
+      context,
+      options,
+      instruction: "Responda com o número do item que devo trocar.",
+    }),
     eventType: "whatsapp.intent.clarification_needed",
     detail: replacementMatchDetail({
       prefix: "Pedido de substituição de alimento com mais de um item compatível.",
@@ -80,18 +91,23 @@ function formatPendingTargets(pendingTargets: PendingReplacementTarget[]) {
     .join("\n");
 }
 
-function buildMultipleReplacementReply(params: {
+function buildMultipleReplacementLines(params: {
   applied: AppliedFoodReplacement[];
   notFound: string[];
   pendingTargets: PendingReplacementTarget[];
 }) {
   const context = replacementContext(params.applied.map(item => item.scope));
-  const lines = params.applied.map(({ from, to, item }) => `• ${from} → ${to}: ${formatNumber(item.estimatedGrams)} g | ${formatTotalsLine(item)}`);
-  const notFoundNote = params.notFound.length ? `\nNão encontrei nas refeições de hoje: ${params.notFound.join(", ")}.` : "";
-  const pendingNote = params.pendingTargets.length
-    ? `\nPreciso confirmar estes itens antes de trocar:\n${formatPendingTargets(params.pendingTargets)}\nResponda com o número do item que devo trocar.`
-    : "";
-  return `Troquei os seguintes alimentos ${context} e recalculei os macros:\n${lines.join("\n")}${notFoundNote}${pendingNote}`;
+  const lines = [
+    `Troquei os seguintes alimentos ${context} e recalculei os macros:`,
+    ...params.applied.map(({ from, to, item }) => `• ${from} → ${to}: ${formatNumber(item.estimatedGrams)} g | ${formatTotalsLine(item)}`),
+  ];
+  if (params.notFound.length) {
+    lines.push(`Não encontrei nas refeições de hoje: ${params.notFound.join(", ")}.`);
+  }
+  if (params.pendingTargets.length) {
+    lines.push("Preciso confirmar estes itens antes de trocar:", formatPendingTargets(params.pendingTargets), "Responda com o número do item que devo trocar.");
+  }
+  return lines;
 }
 
 export async function handleFoodReplacementIntents(userId: number, replacements: FoodReplacementIntent[]): Promise<WhatsappIntentResult> {
@@ -100,7 +116,7 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Não encontrei uma refeição recente para corrigir. Me diga qual alimento devo trocar.",
+      reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para corrigir. Me diga qual alimento devo trocar."),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de substituição de alimento sem refeição recente disponível.",
     };
@@ -153,7 +169,11 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Não encontrei ${notFound.join(", ")} nas refeições de hoje. Me diga qual alimento devo trocar.`,
+      reply: buildWhatsAppItemNotFoundReplyMessage({
+        target: notFound.join(", ") || "esse alimento",
+        context: "nas refeições de hoje",
+        instruction: "Me diga qual alimento devo trocar.",
+      }),
       eventType: "whatsapp.intent.clarification_needed",
       detail: `Pedido de substituição de alimento sem item compatível nas refeições do dia. Alvos usados: ${notFound.join(", ")}. Escopo da busca: refeições do dia. Ambiguidade: não.`,
     };
@@ -161,21 +181,22 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
 
   const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(userId, mutableMeals[index])));
 
-  let actionText: string;
+  let actionLines: string[];
   if (applied.length === 1 && !notFound.length && !pendingTargets.length) {
     const { from, to, item, scope } = applied[0];
     const recalculationSource = item.source === "catalog" ? "com base no catálogo" : "por estimativa";
-    actionText = `Troquei ${from} por ${to} ${contextWithPreposition(scope)} e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g. Estimativa: ${formatTotalsLine(item)}.`;
+    actionLines = [`Troquei ${from} por ${to} ${contextWithPreposition(scope)} e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g. Estimativa: ${formatTotalsLine(item)}.`];
   } else {
-    actionText = buildMultipleReplacementReply({ applied, notFound, pendingTargets });
+    actionLines = buildMultipleReplacementLines({ applied, notFound, pendingTargets });
   }
 
+  const title = applied.length === 1 ? "Alimento substituído" : "Alimentos substituídos";
   const reply = updatedMeals.length === 1
     ? buildWhatsAppMealActionReplyMessage(updatedMeals[0], {
-        title: applied.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
-        actionLines: [actionText],
+        title,
+        actionLines,
       })
-    : actionText;
+    : buildWhatsAppAuxiliaryReplyMessage({ title, lines: actionLines });
 
   const context = replacementContext(applied.map(item => item.scope));
   const pendingDetail = pendingTargets.length ? ` Alvos ambíguos: ${formatPendingDetails(pendingTargets)}.` : "";
