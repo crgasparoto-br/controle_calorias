@@ -43,8 +43,8 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     updateMealMock.mockReset();
     listMealsMock.mockResolvedValue([]);
     processMealInputMock.mockResolvedValue({ items: [buildItem()] });
-    createManualMealMock.mockResolvedValue({ id: 99 });
-    updateMealMock.mockResolvedValue({ id: 10 });
+    createManualMealMock.mockImplementation(async (_userId, input) => ({ id: 99, ...input }));
+    updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
   });
 
   it("cria nova refeição na data de ontem quando o jantar ainda não existe", async () => {
@@ -71,9 +71,12 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
         occurredAt: expect.stringMatching(/^2026-06-29T/),
       }),
     }));
+    expect(result?.reply).toContain("Refeição atualizada");
+    expect(result?.reply).toContain("Canelone");
+    expect(result?.reply).toContain("Total da refeição:");
   });
 
-  it("adiciona itens à refeição existente do dia interpretado", async () => {
+  it("adiciona itens à refeição existente do dia interpretado e responde com a refeição completa", async () => {
     listMealsMock.mockResolvedValue([{
       id: 10,
       mealLabel: "Jantar",
@@ -104,5 +107,10 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
       action: "meal_item_added",
       data: expect.objectContaining({ mealId: 10 }),
     }));
+    expect(result?.reply).toContain("Alimento adicionado");
+    expect(result?.reply).toContain("Refeição atualizada:");
+    expect(result?.reply).toContain("Arroz");
+    expect(result?.reply).toContain("Pão sovado");
+    expect(result?.reply).toContain("Total da refeição:");
   });
 });

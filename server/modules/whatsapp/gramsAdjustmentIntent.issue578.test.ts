@@ -94,7 +94,14 @@ describe("executeWhatsappGramsAdjustmentIntent issue #578", () => {
     }));
     expect(result?.reply).toContain("Maçã Fuji");
     expect(result?.reply).toContain("Pêra William");
-    expect(result?.reply).not.toContain("Iogurte natural");
+    expect(result?.reply).toContain("Iogurte natural");
+    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.data).toEqual(expect.objectContaining({
+      adjustments: [
+        expect.objectContaining({ foodName: "Maçã Fuji", nextGrams: 79 }),
+        expect.objectContaining({ foodName: "Pêra William", nextGrams: 104 }),
+      ],
+    }));
   });
 
   it("mantem fallback para o último item apenas quando o comando simples não informa alimento", async () => {

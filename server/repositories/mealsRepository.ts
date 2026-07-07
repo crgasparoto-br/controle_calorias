@@ -39,21 +39,26 @@ export type MealLoadRange = {
 
 export type MealsRepository = {
   findConfirmedByUserId(userId: number, options?: MealLoadRange): Promise<SavedMealRecord[] | null>;
-  insertMeal(meal: {
-    userId: number;
-    source: "web" | "whatsapp";
-    status: "confirmed";
-    mealLabel: string;
-    notes?: string;
-    sourceText: string;
-    transcript?: string;
-    confidence: number;
-    occurredAt: number;
+  persistMeal(input: {
+    meal: {
+      userId: number;
+      source: "web" | "whatsapp";
+      mealLabel: string;
+      notes?: string;
+      sourceText: string;
+      transcript?: string;
+      confidence: number;
+      occurredAt: number;
+    };
+    items: MealDraftItem[];
+    media: SavedMediaRecord[];
+    resolvedCatalogIds: Map<string, number>;
   }): Promise<number>;
-  insertMealItems(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>): Promise<void>;
-  insertMealMedia(mealId: number, media: SavedMediaRecord[]): Promise<void>;
-  updateMeal(meal: { id: number; userId: number; mealLabel: string; notes?: string; confidence: number; occurredAt: number }): Promise<void>;
-  replaceMealItems(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>): Promise<void>;
+  persistMealUpdate(input: {
+    meal: { id: number; userId: number; mealLabel: string; notes?: string; confidence: number; occurredAt: number };
+    items: MealDraftItem[];
+    resolvedCatalogIds: Map<string, number>;
+  }): Promise<void>;
   deleteMeal(userId: number, mealId: number): Promise<void>;
   findItemsWithMealDates(userId: number): Promise<Array<{ canonicalName: string; foodName: string; foodCatalogId: number | null; occurredAt: number }>>;
   insertInference(draft: {
@@ -101,6 +106,25 @@ function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCat
     fat: item.fat,
     source: item.source,
   }));
+}
+
+// Falls back to running directly against `db` when the connection doesn't
+// expose `.transaction` (e.g. some memory-backed test doubles); the draft ->
+// confirmed status flip below still prevents partial rows from surfacing.
+async function runInTransaction<T>(db: any, fn: (tx: any) => Promise<T>): Promise<T> {
+  if (typeof db.transaction === "function") {
+    return db.transaction(fn);
+  }
+  return fn(db);
+}
+
+async function assertMealBelongsToUser(tx: any, userId: number, mealId: number) {
+  const rows = await tx
+    .select({ id: meals.id })
+    .from(meals)
+    .where(and(eq(meals.userId, userId), eq(meals.id, mealId)))
+    .limit(1);
+  return rows.length > 0;
 }
 
 export function createDrizzleMealsRepository(deps: {
@@ -189,83 +213,91 @@ export function createDrizzleMealsRepository(deps: {
       }
     },
 
-    async insertMeal(meal) {
+    async persistMeal({ meal, items, media, resolvedCatalogIds }) {
       const db = await deps.getDb();
       if (!db) return 0;
 
-      const mealInsert = await db.insert(meals).values({
-        userId: meal.userId,
-        source: meal.source,
-        status: meal.status,
-        mealLabel: meal.mealLabel,
-        notes: meal.notes ?? null,
-        sourceText: meal.sourceText || null,
-        transcript: meal.transcript ?? null,
-        confidence: meal.confidence,
-        occurredAt: new Date(meal.occurredAt),
-      });
-
-      return Number((mealInsert as any)?.[0]?.insertId ?? (mealInsert as any)?.insertId ?? 0);
-    },
-
-    async insertMealItems(mealId, items, resolvedCatalogIds) {
-      if (!items.length) return;
-      const db = await deps.getDb();
-      if (!db) return;
-
-      await db.insert(mealItems).values(buildMealItemValues(mealId, items, resolvedCatalogIds));
-    },
-
-    async insertMealMedia(mealId, media) {
-      if (!media.length) return;
-      const db = await deps.getDb();
-      if (!db) return;
-
-      await db.insert(mealMedia).values(
-        media.map(item => ({
-          mealId,
-          mediaType: item.mediaType,
-          storageKey: item.storageKey,
-          storageUrl: item.storageUrl,
-          mimeType: item.mimeType,
-          originalFileName: item.originalFileName ?? null,
-        })),
-      );
-    },
-
-    async updateMeal(meal) {
-      const db = await deps.getDb();
-      if (!db) return;
-
-      await db
-        .update(meals)
-        .set({
+      return runInTransaction(db, async tx => {
+        const mealInsert = await tx.insert(meals).values({
+          userId: meal.userId,
+          source: meal.source,
+          status: "draft",
           mealLabel: meal.mealLabel,
           notes: meal.notes ?? null,
+          sourceText: meal.sourceText || null,
+          transcript: meal.transcript ?? null,
           confidence: meal.confidence,
           occurredAt: new Date(meal.occurredAt),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)));
+        });
+        const mealId = Number((mealInsert as any)?.[0]?.insertId ?? (mealInsert as any)?.insertId ?? 0);
+
+        if (items.length) {
+          await tx.insert(mealItems).values(buildMealItemValues(mealId, items, resolvedCatalogIds));
+        }
+
+        if (media.length) {
+          await tx.insert(mealMedia).values(
+            media.map(item => ({
+              mealId,
+              mediaType: item.mediaType,
+              storageKey: item.storageKey,
+              storageUrl: item.storageUrl,
+              mimeType: item.mimeType,
+              originalFileName: item.originalFileName ?? null,
+            })),
+          );
+        }
+
+        await tx.update(meals).set({ status: "confirmed" }).where(eq(meals.id, mealId));
+
+        return mealId;
+      });
     },
 
-    async replaceMealItems(mealId, items, resolvedCatalogIds) {
+    async persistMealUpdate({ meal, items, resolvedCatalogIds }) {
       const db = await deps.getDb();
       if (!db) return;
 
-      await db.delete(mealItems).where(eq(mealItems.mealId, mealId));
-      if (items.length) {
-        await db.insert(mealItems).values(buildMealItemValues(mealId, items, resolvedCatalogIds));
-      }
+      await runInTransaction(db, async tx => {
+        const ownsMeal = await assertMealBelongsToUser(tx, meal.userId, meal.id);
+        if (!ownsMeal) return;
+
+        await tx
+          .update(meals)
+          .set({ status: "draft" })
+          .where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)));
+
+        await tx.delete(mealItems).where(eq(mealItems.mealId, meal.id));
+        if (items.length) {
+          await tx.insert(mealItems).values(buildMealItemValues(meal.id, items, resolvedCatalogIds));
+        }
+
+        await tx
+          .update(meals)
+          .set({
+            mealLabel: meal.mealLabel,
+            notes: meal.notes ?? null,
+            confidence: meal.confidence,
+            occurredAt: new Date(meal.occurredAt),
+            updatedAt: new Date(),
+            status: "confirmed",
+          })
+          .where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)));
+      });
     },
 
     async deleteMeal(userId, mealId) {
       const db = await deps.getDb();
       if (!db) return;
 
-      await db.delete(mealItems).where(eq(mealItems.mealId, mealId));
-      await db.delete(mealMedia).where(eq(mealMedia.mealId, mealId));
-      await db.delete(meals).where(and(eq(meals.userId, userId), eq(meals.id, mealId)));
+      await runInTransaction(db, async tx => {
+        const ownsMeal = await assertMealBelongsToUser(tx, userId, mealId);
+        if (!ownsMeal) return;
+
+        await tx.delete(mealItems).where(eq(mealItems.mealId, mealId));
+        await tx.delete(mealMedia).where(eq(mealMedia.mealId, mealId));
+        await tx.delete(meals).where(and(eq(meals.userId, userId), eq(meals.id, mealId)));
+      });
     },
 
     async findItemsWithMealDates(userId) {

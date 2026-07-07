@@ -368,7 +368,9 @@ describe("whatsappWebhook", () => {
     expect(savedMeal?.media).toEqual(expect.arrayContaining([
       expect.objectContaining({
         mediaType: "image",
-        storageUrl: "https://storage.test/whatsapp/image/5511777777777-image-media-id.jpg",
+        storageKey: expect.stringMatching(/^whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/),
+        storageUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/image\/image-[0-9a-f-]{36}\.jpg$/),
+        originalFileName: expect.stringMatching(/^image-[0-9a-f-]{36}\.jpg$/),
       }),
       expect.objectContaining({
         mediaType: "image",
@@ -376,6 +378,9 @@ describe("whatsappWebhook", () => {
         originalFileName: "whatsapp-annotated-meal.png",
       }),
     ]));
+    const originalImageMedia = savedMeal?.media.find((media) => media.mediaType === "image" && media.storageKey.startsWith("whatsapp/image/"));
+    expect(originalImageMedia?.storageUrl).not.toContain("5511777777777");
+    expect(originalImageMedia?.storageUrl).not.toContain("image-media-id");
   });
 
   it("registra warning explícito quando a resposta automática do WhatsApp falha", async () => {

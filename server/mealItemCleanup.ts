@@ -1,4 +1,5 @@
 import { calculateMealTotals } from "../shared/mealTotals";
+import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
 import { normalizeText, splitFoodTextSegments } from "./mealTextParsing";
 import type { MealDraftItem } from "./nutritionEngineTypes";
@@ -58,7 +59,7 @@ export function fallbackFromText(sourceText: string): MealDraftItem[] {
     return [];
   }
 
-  return parts.map(buildHeuristicItem);
+  return parts.map(value => buildHeuristicItem(normalizeKnownFoodText(value)));
 }
 
 export function sumTotals(items: MealDraftItem[]) {

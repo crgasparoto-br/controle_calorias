@@ -1,6 +1,7 @@
 import { listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { formatMealItemTargetOptions, resolveMealItemTarget } from "./mealItemTargetMatcher";
+import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 
 type Meal = Awaited<ReturnType<typeof listMeals>>[number];
 type Item = NonNullable<Meal["items"]>[number];
@@ -13,11 +14,11 @@ function norm(value: string) {
 function fmt(value: number) { return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value); }
 function itemName(item: Item) { return item.foodName || item.canonicalName || "item"; }
 function labelRx(label: string) { return label.replace(/\s+/g, "\\s+"); }
-function mealFromText(text: string) { return MEALS.find(label => new RegExp(`\\b(?:do|da|de|no|na|ao|a|para)\\s+(?:refeicao\\s+)?${labelRx(label)}\\b`).test(text)) ?? null; }
+function mealFromText(text: string) { return MEALS.find(label => new RegExp(`\b(?:do|da|de|no|na|ao|a|para)\s+(?:refeicao\s+)?${labelRx(label)}\b`).test(text)) ?? null; }
 function cleanFood(value: string | null, mealLabel: string | null) {
   if (!value) return null;
   let cleaned = value.replace(/^\s*(?:o|a|os|as|ao|aos|no|na|do|da|de|dos|das)\s+/i, "").trim();
-  if (mealLabel) cleaned = cleaned.replace(new RegExp(`\\s+(?:do|da|de|no|na|ao|a|para)\\s+(?:refeicao\\s+)?${labelRx(mealLabel)}\\s*$`, "i"), "").trim();
+  if (mealLabel) cleaned = cleaned.replace(new RegExp(`\s+(?:do|da|de|no|na|ao|a|para)\s+(?:refeicao\s+)?${labelRx(mealLabel)}\s*$`, "i"), "").trim();
   return cleaned || null;
 }
 function parse(text: string) {
@@ -80,6 +81,16 @@ export async function executeWhatsappGramsIncrementIntent(userId: number, input:
   }
   if (!applied.length) return { handled: true, action: "clarification_needed" as const, reply: `Nao encontrei ${intent.increments.map(x => x.targetFood).filter(Boolean).join(", ") || "esses alimentos"} na ${context}. Me diga quais itens devo ajustar.`, eventType: "whatsapp.intent.clarification_needed", detail: "Pedido de incremento de gramas sem alimento compativel." };
   const updated = await updateMeal(userId, { mealId: meal.id, mealLabel: meal.mealLabel, occurredAt: new Date(meal.occurredAt).toISOString(), notes: meal.notes, items: items as MealItemInput[] });
-  const lines = applied.map(x => `• ${x.foodName}: de ${fmt(x.previousGrams)} g para ${fmt(x.nextGrams)} g`).join("\n");
-  return { handled: true, action: "meal_item_grams_adjusted" as const, reply: `Ajustes realizados na ${context}:\n${lines}\nRecalculei os macros.`, eventType: "whatsapp.intent.meal_item_grams_adjusted", detail: `${applied.length} item(ns) incrementado(s) por comando do WhatsApp em ${context}.`, data: { mealId: updated.id, mealLabel: meal.mealLabel, increments: applied } };
+  const lines = applied.map(x => `• ${x.foodName}: de ${fmt(x.previousGrams)} g para ${fmt(x.nextGrams)} g`);
+  return {
+    handled: true,
+    action: "meal_item_grams_adjusted" as const,
+    reply: buildWhatsAppMealActionReplyMessage(updated, {
+      title: applied.length === 1 ? "Alimento ajustado" : "Alimentos ajustados",
+      actionLines: [...lines, `Recalculei os macros da ${context}.`],
+    }),
+    eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    detail: `${applied.length} item(ns) incrementado(s) por comando do WhatsApp em ${context}.`,
+    data: { mealId: updated.id, mealLabel: meal.mealLabel, increments: applied },
+  };
 }
