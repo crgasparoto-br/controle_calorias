@@ -1,6 +1,14 @@
 import { listUserMeals, relabelUserMeals } from "../../db";
 import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./replyFormatting";
 import {
+  buildWhatsAppActionCancelledReplyMessage,
+  buildWhatsAppActionConfirmationRequestReplyMessage,
+  buildWhatsAppActionConfirmedReplyMessage,
+  buildWhatsAppClarificationReplyMessage,
+  buildWhatsAppWaterLoggedReplyMessage,
+  buildWhatsAppWeightLoggedReplyMessage,
+} from "./replyMessages";
+import {
   getWhatsAppMessageTextBody,
   normalizeWhatsAppIntentText,
   type WhatsAppWebhookMessage,
@@ -114,7 +122,7 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
     pendingWhatsAppConfirmations.delete(userId);
     return {
       handled: true,
-      reply: "A solicitação anterior expirou. Se ainda quiser alterar a classificação das refeições, envie o comando novamente.",
+      reply: buildWhatsAppClarificationReplyMessage("A solicitação anterior expirou. Se ainda quiser alterar a classificação das refeições, envie o comando novamente."),
       eventType: "whatsapp.action_confirmation_expired",
       detail: `Confirmação expirada para ${pending.summary}.`,
     };
@@ -124,7 +132,7 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
     pendingWhatsAppConfirmations.delete(userId);
     return {
       handled: true,
-      reply: "Tudo certo. Não alterei nenhum registro histórico.",
+      reply: buildWhatsAppActionCancelledReplyMessage("Tudo certo. Não alterei nenhum registro histórico."),
       eventType: "whatsapp.action_cancelled",
       detail: `Confirmação cancelada para ${pending.summary}.`,
     };
@@ -144,7 +152,7 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
 
   return {
     handled: true,
-    reply: `${updatedMeals.length} registro(s) recente(s) foram alterados de ${pending.action.fromMealLabel} para ${pending.action.toMealLabel}.`,
+    reply: buildWhatsAppActionConfirmedReplyMessage(`${updatedMeals.length} registro(s) recente(s) foram alterados de ${pending.action.fromMealLabel} para ${pending.action.toMealLabel}.`),
     eventType: "whatsapp.action_applied",
     detail: `Comando confirmado e executado com sucesso: ${pending.summary} em ${updatedMeals.length} registro(s).`,
   };
@@ -161,7 +169,7 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
   if (!recentMeals.length || !matchingMeals.length) {
     return {
       handled: true,
-      reply: `Não encontrei refeições recentes no WhatsApp marcadas como ${action.fromMealLabel}. Me diga quais alimentos você quer mover para ${action.toMealLabel}.`,
+      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei refeições recentes no WhatsApp marcadas como ${action.fromMealLabel}. Me diga quais alimentos você quer mover para ${action.toMealLabel}.`),
       eventType: "whatsapp.action_clarification_needed",
       detail: `Comando de reclassificação sem refeições recentes compatíveis: ${action.fromMealLabel} → ${action.toMealLabel}.`,
     };
@@ -174,7 +182,7 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
 
     return {
       handled: true,
-      reply: `Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer que eu mova apenas os itens marcados como ${action.fromMealLabel} ou todos os últimos ${recentMeals.length} registros para ${action.toMealLabel}?`,
+      reply: buildWhatsAppClarificationReplyMessage(`Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer que eu mova apenas os itens marcados como ${action.fromMealLabel} ou todos os últimos ${recentMeals.length} registros para ${action.toMealLabel}?`),
       eventType: "whatsapp.action_clarification_needed",
       detail: `Comando ambíguo de reclassificação para ${action.toMealLabel}. Registros recentes: ${recentSummary}.`,
     };
@@ -191,7 +199,11 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
 
   return {
     handled: true,
-    reply: `Encontrei ${matchingMeals.length} registro(s) recente(s) marcados como ${action.fromMealLabel}. Responda SIM para confirmar a mudança para ${action.toMealLabel} ou CANCELAR para desistir.`,
+    reply: buildWhatsAppActionConfirmationRequestReplyMessage({
+      summary: `Encontrei ${matchingMeals.length} registro(s) recente(s) marcados como ${action.fromMealLabel}.`,
+      confirmInstruction: `Responda SIM para confirmar a mudança para ${action.toMealLabel}.`,
+      cancelInstruction: "Responda CANCELAR para desistir.",
+    }),
     eventType: "whatsapp.action_confirmation_requested",
     detail: `Confirmação solicitada para ${summary} em ${matchingMeals.length} registro(s).`,
   };
@@ -286,9 +298,15 @@ export function detectWeightLogFromMessage(message: WhatsAppWebhookMessage) {
 }
 
 export function buildWaterLogReply(amountMl: number, occurredAt: Date) {
-  return `Registrei ${formatWhatsAppMacro(amountMl)} ml de água às ${formatWhatsAppReplyTime(occurredAt)}.`;
+  return buildWhatsAppWaterLoggedReplyMessage({
+    amountLabel: formatWhatsAppMacro(amountMl),
+    occurredAtLabel: formatWhatsAppReplyTime(occurredAt),
+  });
 }
 
 export function buildWeightLogReply(weightKg: number, occurredAt: Date) {
-  return `Atualizei seu peso atual para ${formatWhatsAppMacro(weightKg)} kg às ${formatWhatsAppReplyTime(occurredAt)}.`;
+  return buildWhatsAppWeightLoggedReplyMessage({
+    weightLabel: formatWhatsAppMacro(weightKg),
+    occurredAtLabel: formatWhatsAppReplyTime(occurredAt),
+  });
 }
