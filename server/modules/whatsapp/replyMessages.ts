@@ -137,6 +137,10 @@ function normalizeActionLine(line: string) {
   return line === "Recalculei os macros." ? "recalculei os macros." : line;
 }
 
+function auxiliaryTimePreposition(label: string) {
+  return /\d{1,2}\/\d{1,2}\/\d{4}/.test(label) ? "em" : "às";
+}
+
 export function buildWhatsAppAuxiliaryReplyMessage(options: WhatsAppAuxiliaryReplyOptions) {
   return buildWhatsAppBlock([
     buildWhatsAppTitle(options.title, { bold: true }),
@@ -224,14 +228,14 @@ export function buildWhatsAppPartialAudioTranscriptionReplyMessage() {
 export function buildWhatsAppWaterLoggedReplyMessage(params: { amountLabel: string; occurredAtLabel: string }) {
   return buildWhatsAppAuxiliaryReplyMessage({
     title: "Água registrada",
-    lines: [`Registrei ${params.amountLabel} ml de água às ${params.occurredAtLabel}.`],
+    lines: [`Registrei ${params.amountLabel} ml de água ${auxiliaryTimePreposition(params.occurredAtLabel)} ${params.occurredAtLabel}.`],
   });
 }
 
 export function buildWhatsAppWeightLoggedReplyMessage(params: { weightLabel: string; occurredAtLabel: string }) {
   return buildWhatsAppAuxiliaryReplyMessage({
     title: "Peso atualizado",
-    lines: [`Atualizei seu peso atual para ${params.weightLabel} kg às ${params.occurredAtLabel}.`],
+    lines: [`Atualizei seu peso atual para ${params.weightLabel} kg ${auxiliaryTimePreposition(params.occurredAtLabel)} ${params.occurredAtLabel}.`],
   });
 }
 
