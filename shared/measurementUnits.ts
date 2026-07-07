@@ -150,11 +150,23 @@ export function normalizeMeasurementUnit(value: string) {
   return UNIT_ALIASES.get(normalizeKey(cleaned)) ?? cleaned;
 }
 
+function normalizeKnownFoodTypos(text: string) {
+  return text
+    .replace(/^\s*(\d+(?:[,.]\d+)?\s+(?:g|gr|kg|mg|ml|l|un|unidade|unidades))\s+(?:de\s+)?ma[çc]a\s+fugi\s*$/i, "$1 maçã fuji")
+    .replace(/^\s*(\d+(?:[,.]\d+)?)\s+ma[çc]a\s+fugi\s*$/i, "$1 un maçã fuji")
+    .replace(/^\s*(\d+(?:[,.]\d+)?)\s+maca\s+fuji\s*$/i, "$1 un maçã fuji")
+    .replace(/^\s*uma\s+maca\s*$/i, "1 un maçã")
+    .replace(/^\s*(\d+(?:[,.]\d+)?)\s+ovos\s+cozido\s*$/i, "$1 un ovos cozidos")
+    .replace(/^\s*(\d+(?:[,.]\d+)?)\s+banana\s+prata\s*$/i, "$1 un banana prata");
+}
+
 export function normalizeTextMeasurementUnits(text: string) {
-  return text.replace(
-    new RegExp(`(\\d+(?:[,.]\\d+)?)\\s*(${UNIT_TOKEN_PATTERN})(?=\\b|\\s|$)`, "giu"),
+  const normalizedUnits = text.replace(
+    new RegExp("(\\d+(?:[,.]\\d+)?)\\s*(" + UNIT_TOKEN_PATTERN + ")(?=\\b|\\s|$)", "giu"),
     (_match, quantity: string, unit: string) => `${quantity} ${normalizeMeasurementUnit(unit)}`,
   );
+
+  return normalizeKnownFoodTypos(normalizedUnits);
 }
 
 export function getFoodDensityGPerMl(foodName: string) {
