@@ -80,7 +80,7 @@ describe("webhookTextCommands", () => {
   });
 
   describe("handleWhatsAppAction", () => {
-    it("retorna null quando não há refeições recentes compatíveis", async () => {
+    it("pede esclarecimento quando não há refeições recentes compatíveis", async () => {
       listUserMealsMock.mockResolvedValueOnce([]);
       const result = await handleWhatsAppAction({ kind: "reclassify_recent_meals", fromMealLabel: "Lanche", toMealLabel: "Café da manhã" }, 42);
       expect(result).toEqual(expect.objectContaining({
