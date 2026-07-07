@@ -35,7 +35,7 @@ describe("executeWhatsappGramsIncrementIntent", () => {
     updateMealMock.mockReset();
   });
 
-  it("soma gramas ao alimento citado com artigo antes do nome", async () => {
+  it("soma gramas ao alimento citado com artigo antes do nome e responde com a refeição completa", async () => {
     const meal = {
       id: 36,
       mealLabel: "Jantar",
@@ -71,6 +71,12 @@ describe("executeWhatsappGramsIncrementIntent", () => {
         expect.objectContaining({ foodName: "Feijao carioca", estimatedGrams: 90 }),
       ],
     }));
+    expect(result?.reply).toContain("Alimento ajustado");
+    expect(result?.reply).toContain("Refeição atualizada:");
+    expect(result?.reply).toContain("Arroz branco");
+    expect(result?.reply).toContain("Mandioca cozida");
+    expect(result?.reply).toContain("Feijao carioca");
+    expect(result?.reply).toContain("Total da refeição:");
   });
 
   it("usa tokens parciais para ajustar o item salvo com nome mais completo", async () => {
