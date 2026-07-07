@@ -27,11 +27,22 @@ function createMutationChain(op: string, table: unknown, operations: DbOperation
   return chain;
 }
 
-function createFakeDb(options: { insertResponse?: unknown; failOn?: string; supportsTransaction?: boolean } = {}) {
+function createFakeDb(options: { insertResponse?: unknown; failOn?: string; supportsTransaction?: boolean; ownsMeal?: boolean } = {}) {
   const committedOperations: DbOperation[] = [];
+  const ownsMeal = options.ownsMeal ?? true;
 
   function buildClient(operations: DbOperation[]) {
     return {
+      select: vi.fn(() => ({
+        from: vi.fn((table: unknown) => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              operations.push({ op: "select.limit", table });
+              return ownsMeal ? [{ id: 7 }] : [];
+            }),
+          })),
+        })),
+      })),
       insert: vi.fn((table: unknown) => {
         const chain = createMutationChain("insert", table, operations, options.insertResponse);
         if (options.failOn === "insert" && table === mealItems) {
@@ -71,6 +82,22 @@ function createFakeDb(options: { insertResponse?: unknown; failOn?: string; supp
 }
 
 const warning = vi.fn();
+const chickenItem = {
+  foodCatalogId: null,
+  foodName: "Frango",
+  canonicalName: "frango",
+  portionText: "1 filé",
+  quantity: 1,
+  unit: "filé",
+  servings: 1,
+  estimatedGrams: 120,
+  calories: 250,
+  protein: 30,
+  carbs: 0,
+  fat: 10,
+  confidence: 0.9,
+  source: "text" as const,
+};
 
 describe("createDrizzleMealsRepository persistMeal", () => {
   it("inserts the meal as draft, writes items/media, then confirms", async () => {
@@ -202,38 +229,36 @@ describe("createDrizzleMealsRepository persistMeal", () => {
 });
 
 describe("createDrizzleMealsRepository persistMealUpdate", () => {
-  it("flips to draft, replaces items, then confirms with updated metadata", async () => {
+  it("validates ownership, flips to draft, replaces items, then confirms with updated metadata", async () => {
     const db = createFakeDb();
     const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
 
     await repository.persistMealUpdate({
       meal: { id: 7, userId: 1, mealLabel: "Jantar", confidence: 0.8, occurredAt: Date.now() },
-      items: [
-        {
-          foodCatalogId: null,
-          foodName: "Frango",
-          canonicalName: "frango",
-          portionText: "1 filé",
-          quantity: 1,
-          unit: "filé",
-          servings: 1,
-          estimatedGrams: 120,
-          calories: 250,
-          protein: 30,
-          carbs: 0,
-          fat: 10,
-          confidence: 0.9,
-          source: "text",
-        },
-      ],
+      items: [chickenItem],
       resolvedCatalogIds: new Map(),
     });
 
     const ops = db.committedOperations.map((o: DbOperation) => o.op);
-    expect(ops).toEqual(["update.set", "update.where", "delete.where", "insert.values", "update.set", "update.where"]);
+    expect(ops).toEqual(["select.limit", "update.set", "update.where", "delete.where", "insert.values", "update.set", "update.where"]);
 
-    const [draftSet, , , , confirmSet] = db.committedOperations.filter((o: DbOperation) => o.op === "update.set" || o.op === "delete.where" || o.op === "insert.values");
+    const [draftSet] = db.committedOperations.filter((o: DbOperation) => o.op === "update.set");
     expect(draftSet.payload).toEqual({ status: "draft" });
+  });
+
+  it("does not delete or insert items when the meal belongs to another user", async () => {
+    const db = createFakeDb({ ownsMeal: false });
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    await repository.persistMealUpdate({
+      meal: { id: 7, userId: 1, mealLabel: "Jantar", confidence: 0.8, occurredAt: Date.now() },
+      items: [chickenItem],
+      resolvedCatalogIds: new Map(),
+    });
+
+    const ops = db.committedOperations.map((o: DbOperation) => o.op);
+    expect(ops).toEqual(["select.limit"]);
+    expect(db.committedOperations.some((o: DbOperation) => o.table === mealItems || o.table === mealMedia)).toBe(false);
   });
 
   it("rolls back item replacement without leaving the meal confirmed when it fails mid-transaction", async () => {
@@ -243,28 +268,35 @@ describe("createDrizzleMealsRepository persistMealUpdate", () => {
     await expect(
       repository.persistMealUpdate({
         meal: { id: 7, userId: 1, mealLabel: "Jantar", confidence: 0.8, occurredAt: Date.now() },
-        items: [
-          {
-            foodCatalogId: null,
-            foodName: "Frango",
-            canonicalName: "frango",
-            portionText: "1 filé",
-            quantity: 1,
-            unit: "filé",
-            servings: 1,
-            estimatedGrams: 120,
-            calories: 250,
-            protein: 30,
-            carbs: 0,
-            fat: 10,
-            confidence: 0.9,
-            source: "text",
-          },
-        ],
+        items: [chickenItem],
         resolvedCatalogIds: new Map(),
       }),
     ).rejects.toThrow("insert failed");
 
     expect(db.committedOperations).toEqual([]);
+  });
+});
+
+describe("createDrizzleMealsRepository deleteMeal", () => {
+  it("validates ownership before deleting child rows and meal", async () => {
+    const db = createFakeDb();
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    await repository.deleteMeal(1, 7);
+
+    expect(db.committedOperations.map((o: DbOperation) => o.op)).toEqual(["select.limit", "delete.where", "delete.where", "delete.where"]);
+    expect(db.committedOperations[1].table).toBe(mealItems);
+    expect(db.committedOperations[2].table).toBe(mealMedia);
+    expect(db.committedOperations[3].table).toBe(meals);
+  });
+
+  it("does not delete child rows when the meal belongs to another user", async () => {
+    const db = createFakeDb({ ownsMeal: false });
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    await repository.deleteMeal(1, 7);
+
+    expect(db.committedOperations.map((o: DbOperation) => o.op)).toEqual(["select.limit"]);
+    expect(db.committedOperations.some((o: DbOperation) => o.table === mealItems || o.table === mealMedia || o.table === meals && o.op.startsWith("delete"))).toBe(false);
   });
 });

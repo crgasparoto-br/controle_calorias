@@ -118,6 +118,15 @@ async function runInTransaction<T>(db: any, fn: (tx: any) => Promise<T>): Promis
   return fn(db);
 }
 
+async function assertMealBelongsToUser(tx: any, userId: number, mealId: number) {
+  const rows = await tx
+    .select({ id: meals.id })
+    .from(meals)
+    .where(and(eq(meals.userId, userId), eq(meals.id, mealId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export function createDrizzleMealsRepository(deps: {
   getDb: DbProvider;
   onWarning: PersistenceWarningHandler;
@@ -250,6 +259,9 @@ export function createDrizzleMealsRepository(deps: {
       if (!db) return;
 
       await runInTransaction(db, async tx => {
+        const ownsMeal = await assertMealBelongsToUser(tx, meal.userId, meal.id);
+        if (!ownsMeal) return;
+
         await tx
           .update(meals)
           .set({ status: "draft" })
@@ -278,9 +290,14 @@ export function createDrizzleMealsRepository(deps: {
       const db = await deps.getDb();
       if (!db) return;
 
-      await db.delete(mealItems).where(eq(mealItems.mealId, mealId));
-      await db.delete(mealMedia).where(eq(mealMedia.mealId, mealId));
-      await db.delete(meals).where(and(eq(meals.userId, userId), eq(meals.id, mealId)));
+      await runInTransaction(db, async tx => {
+        const ownsMeal = await assertMealBelongsToUser(tx, userId, mealId);
+        if (!ownsMeal) return;
+
+        await tx.delete(mealItems).where(eq(mealItems.mealId, mealId));
+        await tx.delete(mealMedia).where(eq(mealMedia.mealId, mealId));
+        await tx.delete(meals).where(and(eq(meals.userId, userId), eq(meals.id, mealId)));
+      });
     },
 
     async findItemsWithMealDates(userId) {
