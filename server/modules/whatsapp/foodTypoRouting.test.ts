@@ -72,14 +72,14 @@ describe("simulateWhatsappInbound food typo routing", () => {
   });
 
   it.each([
-    ["1 maça fugi", "1 un maçã fuji"],
-    ["1 maca fuji", "1 un maçã fuji"],
-    ["uma maca", "1 un maçã"],
-    ["100g maça fugi", "100 g maçã fuji"],
-    ["1 banana prata", "1 un banana prata"],
-    ["2 ovos cozido", "2 un ovos cozidos"],
-  ])("encaminha %s para o fallback nutricional como %s", async (text, normalizedText) => {
-    const result = await simulateWhatsappInbound(42, { text });
+    ["case-apple-typo", "1 maça fugi", "1 un maçã fuji"],
+    ["case-apple-no-accent", "1 maca fuji", "1 un maçã fuji"],
+    ["case-apple-word-qty", "uma maca", "1 un maçã"],
+    ["case-apple-grams", "100g maça fugi", "100 g maçã fuji"],
+    ["case-banana", "1 banana prata", "1 un banana prata"],
+    ["case-eggs", "2 ovos cozido", "2 un ovos cozidos"],
+  ])("encaminha %s para o fallback nutricional", async (messageId, text, normalizedText) => {
+    const result = await simulateWhatsappInbound(42, { text, messageId });
 
     expect(processMealDraftMock).toHaveBeenCalledWith(42, {
       source: "whatsapp",
@@ -88,8 +88,12 @@ describe("simulateWhatsappInbound food typo routing", () => {
     expect(result).toEqual(expect.objectContaining({ draftId: "draft-food-typo" }));
   });
 
-  it.each(["olá", "bom dia", "teste"])("não cria refeição para %s", async text => {
-    const result = await simulateWhatsappInbound(42, { text });
+  it.each([
+    ["control-hello", "olá"],
+    ["control-good-morning", "bom dia"],
+    ["control-test", "teste"],
+  ])("não cria refeição para %s", async (messageId, text) => {
+    const result = await simulateWhatsappInbound(42, { text, messageId });
 
     expect(processMealDraftMock).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({
