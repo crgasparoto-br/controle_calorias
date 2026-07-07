@@ -230,7 +230,13 @@ function ChartFallback() {
 }
 
 function MacroValueTile({ label, grams, perKg }: { label: string; grams: number; perKg: number | null }) {
-  return <div className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight">{formatMacro(grams)} g</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{formatPerKgDay(perKg)}</p></div>;
+  return (
+    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{formatMacro(grams)} g</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{formatPerKgDay(perKg)}</p>
+    </div>
+  );
 }
 
 function MacroDistributionSection({ consumed, planned, dailyMacros, weightPoints }: { consumed: MacroTotals; planned: MacroTotals; dailyMacros: MacroGoalDayWithDate[]; weightPoints: WeightPoint[] }) {
@@ -239,7 +245,44 @@ function MacroDistributionSection({ consumed, planned, dailyMacros, weightPoints
   const hasMacroGoal = planned.protein > 0 || planned.carbs > 0 || planned.fat > 0;
   const chartData = analysis.items.map(item => ({ macro: item.label, planejado: item.plannedPercent, realizado: item.consumedPercent }));
   const macroDetails = analysis.items.map(item => ({ item, perKg: calculateMacroPerKg(item.key, dailyMacros, weightPoints) }));
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Macronutrientes planejados vs realizados</CardTitle><CardDescription>Mostra gramas, g/kg/dia e distribuição percentual para avaliar a composição do período, não apenas o total de calorias.</CardDescription></CardHeader><CardContent className="space-y-5">{!hasMacroGoal ? <ReportEmptyState text="Configure metas de proteínas, carboidratos e gorduras para liberar a comparação percentual de macros." /> : <><div className="grid gap-3 md:grid-cols-3"><ReportStatusTile label="Aderência da distribuição" value={formatPercent(analysis.distributionAdherencePercent)} /><ReportStatusTile label="Macro mais distante" value={analysis.mostDistantMacro?.label ?? "-"} /><ReportStatusTile label="Dias com macros" value={daySummary.daysWithMacroRecords} /></div><div className="h-[280px] rounded-2xl border bg-background p-4 shadow-sm"><React.Suspense fallback={<ChartFallback />}><ReportsMacroDistributionChart data={chartData} /></React.Suspense></div><div className="grid gap-3 md:grid-cols-3">{macroDetails.map(({ item, perKg }) => <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm"><p className="text-sm font-medium">{item.label}</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><MacroValueTile label="Planejado" grams={item.plannedGrams} perKg={perKg.planned} /><MacroValueTile label="Realizado" grams={item.consumedGrams} perKg={perKg.realized} /></div><p className="mt-3 text-sm text-muted-foreground">Distribuição: {formatPercent(item.plannedPercent)} planejado vs {formatPercent(item.consumedPercent)} realizado.</p></div>)}</div></>}</CardContent></Card>;
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Macronutrientes planejados vs realizados</CardTitle>
+        <CardDescription>Mostra gramas, g/kg/dia e distribuição percentual para avaliar a composição do período, não apenas o total de calorias.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {!hasMacroGoal ? (
+          <ReportEmptyState text="Configure metas de proteínas, carboidratos e gorduras para liberar a comparação percentual de macros." />
+        ) : (
+          <>
+            <div className="grid gap-3 md:grid-cols-3">
+              <ReportStatusTile label="Aderência da distribuição" value={formatPercent(analysis.distributionAdherencePercent)} />
+              <ReportStatusTile label="Macro mais distante" value={analysis.mostDistantMacro?.label ?? "-"} />
+              <ReportStatusTile label="Dias com macros" value={daySummary.daysWithMacroRecords} />
+            </div>
+            <div className="h-[280px] rounded-2xl border bg-background p-4 shadow-sm">
+              <React.Suspense fallback={<ChartFallback />}>
+                <ReportsMacroDistributionChart data={chartData} />
+              </React.Suspense>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {macroDetails.map(({ item, perKg }) => (
+                <div key={item.key} className="rounded-2xl border bg-background p-4 shadow-sm">
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <MacroValueTile label="Planejado" grams={item.plannedGrams} perKg={perKg.planned} />
+                    <MacroValueTile label="Realizado" grams={item.consumedGrams} perKg={perKg.realized} />
+                  </div>
+                  <p className="mt-3 text-sm text-muted-foreground">Distribuição: {formatPercent(item.plannedPercent)} planejado vs {formatPercent(item.consumedPercent)} realizado.</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function foodQualityItemLabel(item: FoodQualityCategoryItem) {
@@ -248,24 +291,136 @@ function foodQualityItemLabel(item: FoodQualityCategoryItem) {
 
 function FoodQualityItemsDialog({ category, onOpenChange }: { category: FoodQualityDistributionItem | null; onOpenChange: (open: boolean) => void }) {
   const items = category?.items ?? [];
-  return <Dialog open={Boolean(category)} onOpenChange={onOpenChange}><DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>{category?.label ?? ""}</DialogTitle><DialogDescription>{category ? `${formatCalories(category.calories)} no período, distribuídos entre ${items.length} alimento${items.length === 1 ? "" : "s"}.` : ""}</DialogDescription></DialogHeader>{items.length ? <ul className="space-y-2">{items.map(item => <li key={item.key} className="rounded-xl border bg-muted/10 p-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">{foodQualityItemLabel(item)}</p><span className="shrink-0 text-sm text-muted-foreground">{formatCalories(item.totalCalories)}</span></div><p className="mt-1 text-xs text-muted-foreground">{item.occurrences} ocorrência{item.occurrences === 1 ? "" : "s"} no período{item.portionText ? ` · ${item.portionText}` : ""}</p></li>)}</ul> : <ReportEmptyState text="Nenhum alimento encontrado para esta categoria." />}</DialogContent></Dialog>;
+  return (
+    <Dialog open={Boolean(category)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{category?.label ?? ""}</DialogTitle>
+          <DialogDescription>{category ? `${formatCalories(category.calories)} no período, distribuídos entre ${items.length} alimento${items.length === 1 ? "" : "s"}.` : ""}</DialogDescription>
+        </DialogHeader>
+        {items.length ? (
+          <ul className="space-y-2">
+            {items.map(item => (
+              <li key={item.key} className="rounded-xl border bg-muted/10 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{foodQualityItemLabel(item)}</p>
+                  <span className="shrink-0 text-sm text-muted-foreground">{formatCalories(item.totalCalories)}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{item.occurrences} ocorrência{item.occurrences === 1 ? "" : "s"} no período{item.portionText ? ` · ${item.portionText}` : ""}</p>
+              </li>
+            ))}
+          </ul>
+        ) : <ReportEmptyState text="Nenhum alimento encontrado para esta categoria." />}
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function FoodQualitySection({ quality, simpleQuality, dayCount }: { quality?: FoodQualitySummary; simpleQuality: typeof EMPTY_QUALITY; dayCount: number }) {
   const distribution = quality?.distribution ?? [];
   const [selectedCategory, setSelectedCategory] = React.useState<FoodQualityDistributionItem | null>(null);
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Leaf className="h-5 w-5 text-primary" />Qualidade alimentar</CardTitle><CardDescription>Indicadores de processamento, fibras, frutas, legumes e regularidade entram como parte central do diagnóstico.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReportStatusTile label="Índice de qualidade" value={quality?.qualityIndex == null ? "-" : formatPercent(quality.qualityIndex)} /><ReportStatusTile label="Ultraprocessados" value={formatPercent(quality?.ultraProcessedCaloriesPercent ?? 0)} /><ReportStatusTile label="In natura/minimamente" value={formatPercent(quality?.naturalOrMinimallyProcessedCaloriesPercent ?? 0)} /><ReportStatusTile label="Não classificados" value={formatPercent(quality?.unclassifiedCaloriesPercent ?? 0)} /></div>{distribution.length ? <div className="grid gap-3 md:grid-cols-3">{distribution.map(item => <button key={item.key} type="button" disabled={!item.items.length} onClick={() => setSelectedCategory(item)} className="rounded-2xl border bg-background p-4 text-left shadow-sm transition-colors enabled:hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"><div className="mb-3 flex items-center justify-between gap-3"><p className="text-sm font-medium">{item.label}</p><span className="rounded-full border px-3 py-1 text-xs">{formatPercent(item.percent)}</span></div><Progress className="h-2" value={item.percent} /><p className="mt-3 text-sm text-muted-foreground">{formatCalories(item.calories)} no período{item.items.length ? ` · ${item.items.length} alimento${item.items.length === 1 ? "" : "s"}` : ""}.</p></button>)}</div> : <ReportEmptyState text="Ainda não há classificação suficiente para montar a distribuição por processamento neste período." />}<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReportStatusTile label="Dias com frutas" value={`${quality?.fruitDays ?? 0}/${quality?.dayCount ?? dayCount}`} /><ReportStatusTile label="Dias com legumes/verduras" value={`${quality?.vegetableDays ?? 0}/${quality?.dayCount ?? dayCount}`} /><ReportStatusTile label="Fibras" value={`${formatMacro(simpleQuality.fiberGrams)} g`} /><ReportStatusTile label="Regularidade" value={formatPercent(simpleQuality.regularityScore)} /></div></CardContent><FoodQualityItemsDialog category={selectedCategory} onOpenChange={open => !open && setSelectedCategory(null)} /></Card>;
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Leaf className="h-5 w-5 text-primary" />Qualidade alimentar</CardTitle>
+        <CardDescription>Indicadores de processamento, fibras, frutas, legumes e regularidade entram como parte central do diagnóstico.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ReportStatusTile label="Índice de qualidade" value={quality?.qualityIndex == null ? "-" : formatPercent(quality.qualityIndex)} />
+          <ReportStatusTile label="Ultraprocessados" value={formatPercent(quality?.ultraProcessedCaloriesPercent ?? 0)} />
+          <ReportStatusTile label="In natura/minimamente" value={formatPercent(quality?.naturalOrMinimallyProcessedCaloriesPercent ?? 0)} />
+          <ReportStatusTile label="Não classificados" value={formatPercent(quality?.unclassifiedCaloriesPercent ?? 0)} />
+        </div>
+        {distribution.length ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {distribution.map(item => (
+              <button key={item.key} type="button" disabled={!item.items.length} onClick={() => setSelectedCategory(item)} className="rounded-2xl border bg-background p-4 text-left shadow-sm transition-colors enabled:hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <span className="rounded-full border px-3 py-1 text-xs">{formatPercent(item.percent)}</span>
+                </div>
+                <Progress className="h-2" value={item.percent} />
+                <p className="mt-3 text-sm text-muted-foreground">{formatCalories(item.calories)} no período{item.items.length ? ` · ${item.items.length} alimento${item.items.length === 1 ? "" : "s"}` : ""}.</p>
+              </button>
+            ))}
+          </div>
+        ) : <ReportEmptyState text="Ainda não há classificação suficiente para montar a distribuição por processamento neste período." />}
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ReportStatusTile label="Dias com frutas" value={`${quality?.fruitDays ?? 0}/${quality?.dayCount ?? dayCount}`} />
+          <ReportStatusTile label="Dias com legumes/verduras" value={`${quality?.vegetableDays ?? 0}/${quality?.dayCount ?? dayCount}`} />
+          <ReportStatusTile label="Fibras" value={`${formatMacro(simpleQuality.fiberGrams)} g`} />
+          <ReportStatusTile label="Regularidade" value={formatPercent(simpleQuality.regularityScore)} />
+        </div>
+      </CardContent>
+      <FoodQualityItemsDialog category={selectedCategory} onOpenChange={open => !open && setSelectedCategory(null)} />
+    </Card>
+  );
 }
 
 function CalorieAdherenceSection({ trendData, dayCount }: { trendData: TrendDay[]; dayCount: number }) {
   const summary = calculateCalorieAdherence(trendData, dayCount);
   const totalExerciseCalories = trendData.reduce((total, day) => total + day.exerciseCalories, 0);
   const totalBaseGoalCalories = trendData.reduce((total, day) => total + day.baseGoalCalories, 0);
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-primary" />Indicadores da meta ajustada</CardTitle><CardDescription>Consolida consumo, meta ajustada, saldo, exercícios e dias fora ou dentro da faixa no período selecionado.</CardDescription></CardHeader><CardContent className="space-y-5"><div className="rounded-3xl border bg-muted/20 p-4"><div className="mb-3 flex items-center justify-between gap-3"><p className="text-sm font-medium tracking-tight">Aderência média do período</p><p className="text-sm text-muted-foreground">{formatPercent(summary.adherencePercent)}</p></div><Progress className="h-2" value={Math.min(summary.adherencePercent, 100)} /></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReportStatusTile label="Consumido" value={formatCalories(summary.totalCalories)} /><ReportStatusTile label="Meta ajustada" value={formatCalories(summary.totalGoalCalories)} /><ReportStatusTile label="Saldo ajustado" value={formatCalories(summary.totalCalories - summary.totalGoalCalories)} /><ReportStatusTile label="Meta base" value={formatCalories(totalBaseGoalCalories)} /></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReportStatusTile label="Exercícios adicionaram" value={formatCalories(totalExerciseCalories)} /><ReportStatusTile label="Dentro da faixa" value={`${summary.daysWithinRange}/${dayCount}`} /><ReportStatusTile label="Acima da faixa" value={summary.daysAboveRange} /><ReportStatusTile label="Abaixo da faixa" value={summary.daysBelowRange} /></div></CardContent></Card>;
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-primary" />Indicadores da meta ajustada</CardTitle>
+        <CardDescription>Consolida consumo, meta ajustada, saldo, exercícios e dias fora ou dentro da faixa no período selecionado.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="rounded-3xl border bg-muted/20 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium tracking-tight">Aderência média do período</p>
+            <p className="text-sm text-muted-foreground">{formatPercent(summary.adherencePercent)}</p>
+          </div>
+          <Progress className="h-2" value={Math.min(summary.adherencePercent, 100)} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ReportStatusTile label="Consumido" value={formatCalories(summary.totalCalories)} />
+          <ReportStatusTile label="Meta ajustada" value={formatCalories(summary.totalGoalCalories)} />
+          <ReportStatusTile label="Saldo ajustado" value={formatCalories(summary.totalCalories - summary.totalGoalCalories)} />
+          <ReportStatusTile label="Meta base" value={formatCalories(totalBaseGoalCalories)} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ReportStatusTile label="Exercícios adicionaram" value={formatCalories(totalExerciseCalories)} />
+          <ReportStatusTile label="Dentro da faixa" value={`${summary.daysWithinRange}/${dayCount}`} />
+          <ReportStatusTile label="Acima da faixa" value={summary.daysAboveRange} />
+          <ReportStatusTile label="Abaixo da faixa" value={summary.daysBelowRange} />
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function DailyDetailsSections({ groups, userTimeZone }: { groups: DateGroupedRegisteredMealsViewModel[]; userTimeZone: string }) {
-  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5 text-primary" />Detalhamento de dias e refeições</CardTitle><CardDescription>Abra apenas os dias que precisar investigar; o diagnóstico principal fica acima.</CardDescription></CardHeader><CardContent className="space-y-4">{groups.length ? groups.map(group => <details key={group.date} className="group rounded-3xl border bg-muted/10 p-4"><summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-base font-semibold tracking-tight capitalize">{formatDateHeading(group.date)}</p><p className="text-sm text-muted-foreground">{group.mealCount} refeições no dia</p></div><div className="flex items-center gap-3"><span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{formatCalories(group.totals.calories)}</span><ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" /></div></summary><div className="pt-4"><RegisteredMealGroups groups={group.groups} userTimeZone={userTimeZone} emptyMessage="Nenhuma refeição encontrada para este dia." /></div></details>) : <ReportEmptyState text="Nenhuma refeição confirmada foi encontrada para detalhamento neste intervalo." />}</CardContent></Card>;
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5 text-primary" />Detalhamento de dias e refeições</CardTitle>
+        <CardDescription>Abra apenas os dias que precisar investigar; o diagnóstico principal fica acima.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {groups.length ? groups.map(group => (
+          <details key={group.date} className="group rounded-3xl border bg-muted/10 p-4">
+            <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-base font-semibold tracking-tight capitalize">{formatDateHeading(group.date)}</p>
+                <p className="text-sm text-muted-foreground">{group.mealCount} refeições no dia</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{formatCalories(group.totals.calories)}</span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+              </div>
+            </summary>
+            <div className="pt-4">
+              <RegisteredMealGroups groups={group.groups} userTimeZone={userTimeZone} emptyMessage="Nenhuma refeição encontrada para este dia." />
+            </div>
+          </details>
+        )) : <ReportEmptyState text="Nenhuma refeição confirmada foi encontrada para detalhamento neste intervalo." />}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function ReportsExperience({ context = "self", subjectUserId }: ReportsExperienceProps) {
@@ -352,20 +507,121 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const exerciseActiveDays = isWeek ? metricDays.filter(day => day.exerciseCalories > 0).length : numberValue(bundleData?.habitAnalytics?.exercise?.activeDays);
   const exerciseCalories = isWeek ? metricDays.reduce((total, day) => total + day.exerciseCalories, 0) : numberValue(bundleData?.habitAnalytics?.exercise?.totalCalories);
   const highestExerciseDay = findExtreme(metricDays, day => day.exerciseCalories, "max");
-  const mealDateGroups = React.useMemo(() => normalizeMealDateGroups(detailData?.mealsByDate ?? detailData?.mealsByDay ?? detailData?.dailyMealsByDate, activeRange), [activeRange, detailData]);
-  const periodMeals = React.useMemo(() => extractMeals(detailData, mealDateGroups, activeRange, userTimeZone), [activeRange, detailData, mealDateGroups, userTimeZone]);
-  const mealGroupsAsc = React.useMemo(() => buildMealsByDate(mealDateGroups, periodMeals, userTimeZone), [mealDateGroups, periodMeals, userTimeZone]);
-  const mealGroupsDesc = React.useMemo(() => [...mealGroupsAsc].reverse(), [mealGroupsAsc]);
   const scopeLabel = periodScope === "day" ? "Dia" : periodScope === "week" ? "Semana" : periodScope === "month" ? "Mês" : "Período";
   const shouldShowDetailsPrompt = !isProfessional && isWeek && useWeeklySummaryAsPrimary && !showDetails;
   const shouldRenderDetails = isProfessional || !isWeek || showDetails || weeklyDetailsLoadedByFallback;
   const shouldShowDetailsState = showDetails || weeklyDetailsLoadedByFallback;
 
+  const mealDateGroups = React.useMemo(() => {
+    if (!shouldRenderDetails) return [];
+    return normalizeMealDateGroups(detailData?.mealsByDate ?? detailData?.mealsByDay ?? detailData?.dailyMealsByDate, activeRange);
+  }, [activeRange, detailData, shouldRenderDetails]);
+  const periodMeals = React.useMemo(() => {
+    if (!shouldRenderDetails) return [];
+    return extractMeals(detailData, mealDateGroups, activeRange, userTimeZone);
+  }, [activeRange, detailData, mealDateGroups, shouldRenderDetails, userTimeZone]);
+  const mealGroupsAsc = React.useMemo(() => {
+    if (!shouldRenderDetails) return [];
+    return buildMealsByDate(mealDateGroups, periodMeals, userTimeZone);
+  }, [mealDateGroups, periodMeals, shouldRenderDetails, userTimeZone]);
+  const mealGroupsDesc = React.useMemo(() => {
+    if (!shouldRenderDetails) return [];
+    return [...mealGroupsAsc].reverse();
+  }, [mealGroupsAsc, shouldRenderDetails]);
+
   if (isProfessional && !subjectUserId) {
     return <ReportEmptyState text="Escolha uma pessoa autorizada para revisar relatórios, metas e evolução no período selecionado." />;
   }
 
-  return <div className="space-y-6"><PageIntro eyebrow="Relatórios" title="Diagnóstico nutricional do período" description={`${diagnosis} Intervalo ativo: ${formatRangeLabel(activeRange)}.`} actions={<PeriodScopeSelector scope={periodScope} onScopeChange={setPeriodScope} selectedDay={selectedDay} onSelectedDayChange={setSelectedDay} selectedMonth={selectedMonth} onSelectedMonthChange={setSelectedMonth} rangeStart={rangeStart} onRangeStartChange={setRangeStart} rangeEnd={rangeEnd} onRangeEndChange={setRangeEnd} />} />{activeRangeLimitMessage ? <ReportEmptyState text={activeRangeLimitMessage} /> : <>{activeBundle.isLoading ? <div className="grid gap-4 lg:grid-cols-3"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></div> : null}{activeBundle.isError ? <ReportEmptyState text={isProfessional ? "Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." : "Não foi possível carregar os relatórios agora. Tente novamente em instantes."} /> : null}{!activeBundle.isLoading && !activeBundle.isError ? <><CalorieAdherenceSection trendData={trendData} dayCount={dayCount} /><ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={trendData} /><FoodQualitySection quality={foodQuality} simpleQuality={simpleQuality} dayCount={dayCount} /><MacroDistributionSection consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} weightPoints={weightPoints} /><ReportsSupportInsightsSection scopeLabel={scopeLabel} trendData={trendData} dayCount={dayCount} weight={supportWeight} /><div className="grid gap-6 xl:grid-cols-2"><ReportWaterAnalyticsCard title="Hidratação como contexto" scopeLabel={isWeek ? "Semanal" : "Período"} description="Mostra consistência de água sem competir com o diagnóstico calórico." totalConsumedMl={waterConsumedMl} totalGoalMl={waterGoalMl} goalHitDays={waterHitDays} totalDays={dayCount} averageDailyMl={averageValue(waterConsumedMl, Math.max(dayCount, 1))} lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"} reading={waterHitDays > 0 ? `${waterHitDays} de ${dayCount} dias bateram a meta de água.` : "Ainda não há dias com meta de água batida neste intervalo."} /><ReportExerciseAnalyticsCard title="Exercícios e meta ajustada" scopeLabel={isWeek ? "Semanal" : "Período"} description="Explica quanto os exercícios adicionaram à meta e como se distribuíram no período." activeDays={exerciseActiveDays} totalDays={dayCount} totalCalories={exerciseCalories} detailLabel="Impacto na meta" detailValue={formatCalories(exerciseCalories)} averageCaloriesPerActiveDay={exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0} highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"} reading={exerciseActiveDays > 0 ? `Os exercícios apareceram em ${exerciseActiveDays} de ${dayCount} dias e foram incorporados à meta ajustada.` : "Nenhum exercício foi registrado neste intervalo."} /></div>{shouldShowDetailsPrompt ? <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5 text-primary" />Detalhamento de dias e refeições</CardTitle><CardDescription>O detalhamento completo é carregado apenas quando você precisar investigar as refeições.</CardDescription></CardHeader><CardContent><Button className="rounded-full" onClick={() => setShowDetails(true)}>Carregar detalhamento</Button></CardContent></Card> : null}{detailsBundle.isLoading && shouldShowDetailsState ? <Skeleton className="h-40 rounded-2xl" /> : null}{detailsBundle.isError && shouldShowDetailsState ? <ReportEmptyState text="Não foi possível carregar o detalhamento de refeições agora." /> : null}{shouldRenderDetails && !detailsBundle.isLoading && !detailsBundle.isError ? <DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} /> : null}</> : null}</>}</div>;
+  return (
+    <div className="space-y-6">
+      <PageIntro
+        eyebrow="Relatórios"
+        title="Diagnóstico nutricional do período"
+        description={`${diagnosis} Intervalo ativo: ${formatRangeLabel(activeRange)}.`}
+        actions={(
+          <PeriodScopeSelector
+            scope={periodScope}
+            onScopeChange={setPeriodScope}
+            selectedDay={selectedDay}
+            onSelectedDayChange={setSelectedDay}
+            selectedMonth={selectedMonth}
+            onSelectedMonthChange={setSelectedMonth}
+            rangeStart={rangeStart}
+            onRangeStartChange={setRangeStart}
+            rangeEnd={rangeEnd}
+            onRangeEndChange={setRangeEnd}
+          />
+        )}
+      />
+      {activeRangeLimitMessage ? (
+        <ReportEmptyState text={activeRangeLimitMessage} />
+      ) : (
+        <>
+          {activeBundle.isLoading ? (
+            <div className="grid gap-4 lg:grid-cols-3">
+              <Skeleton className="h-32 rounded-2xl" />
+              <Skeleton className="h-32 rounded-2xl" />
+              <Skeleton className="h-32 rounded-2xl" />
+            </div>
+          ) : null}
+          {activeBundle.isError ? (
+            <ReportEmptyState text={isProfessional ? "Não foi possível carregar os relatórios autorizados. Tente novamente em instantes." : "Não foi possível carregar os relatórios agora. Tente novamente em instantes."} />
+          ) : null}
+          {!activeBundle.isLoading && !activeBundle.isError ? (
+            <>
+              <CalorieAdherenceSection trendData={trendData} dayCount={dayCount} />
+              <ReportTrendSection title="Consumo diário vs meta ajustada" description="Cada dia usa a meta ajustada como referência; a meta base fica apenas no resumo explicativo acima." days={trendData} />
+              <FoodQualitySection quality={foodQuality} simpleQuality={simpleQuality} dayCount={dayCount} />
+              <MacroDistributionSection consumed={consumedMacros} planned={plannedMacros} dailyMacros={dailyMacros} weightPoints={weightPoints} />
+              <ReportsSupportInsightsSection scopeLabel={scopeLabel} trendData={trendData} dayCount={dayCount} weight={supportWeight} />
+              <div className="grid gap-6 xl:grid-cols-2">
+                <ReportWaterAnalyticsCard
+                  title="Hidratação como contexto"
+                  scopeLabel={isWeek ? "Semanal" : "Período"}
+                  description="Mostra consistência de água sem competir com o diagnóstico calórico."
+                  totalConsumedMl={waterConsumedMl}
+                  totalGoalMl={waterGoalMl}
+                  goalHitDays={waterHitDays}
+                  totalDays={dayCount}
+                  averageDailyMl={averageValue(waterConsumedMl, Math.max(dayCount, 1))}
+                  lowestDay={lowestWaterDay ? `${lowestWaterDay.label} · ${formatCountPtBr(lowestWaterDay.waterConsumedMl, " ml")}` : "-"}
+                  reading={waterHitDays > 0 ? `${waterHitDays} de ${dayCount} dias bateram a meta de água.` : "Ainda não há dias com meta de água batida neste intervalo."}
+                />
+                <ReportExerciseAnalyticsCard
+                  title="Exercícios e meta ajustada"
+                  scopeLabel={isWeek ? "Semanal" : "Período"}
+                  description="Explica quanto os exercícios adicionaram à meta e como se distribuíram no período."
+                  activeDays={exerciseActiveDays}
+                  totalDays={dayCount}
+                  totalCalories={exerciseCalories}
+                  detailLabel="Impacto na meta"
+                  detailValue={formatCalories(exerciseCalories)}
+                  averageCaloriesPerActiveDay={exerciseActiveDays ? averageValue(exerciseCalories, exerciseActiveDays) : 0}
+                  highestDay={highestExerciseDay && highestExerciseDay.exerciseCalories > 0 ? `${highestExerciseDay.label} · ${formatCalories(highestExerciseDay.exerciseCalories)}` : "Sem exercício"}
+                  reading={exerciseActiveDays > 0 ? `Os exercícios apareceram em ${exerciseActiveDays} de ${dayCount} dias e foram incorporados à meta ajustada.` : "Nenhum exercício foi registrado neste intervalo."}
+                />
+              </div>
+              {shouldShowDetailsPrompt ? (
+                <Card className="border-0 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5 text-primary" />Detalhamento de dias e refeições</CardTitle>
+                    <CardDescription>O detalhamento completo é carregado apenas quando você precisar investigar as refeições.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="rounded-full" onClick={() => setShowDetails(true)}>Carregar detalhamento</Button>
+                  </CardContent>
+                </Card>
+              ) : null}
+              {detailsBundle.isLoading && shouldShowDetailsState ? <Skeleton className="h-40 rounded-2xl" /> : null}
+              {detailsBundle.isError && shouldShowDetailsState ? <ReportEmptyState text="Não foi possível carregar o detalhamento de refeições agora." /> : null}
+              {shouldRenderDetails && !detailsBundle.isLoading && !detailsBundle.isError ? <DailyDetailsSections groups={mealGroupsDesc} userTimeZone={userTimeZone} /> : null}
+            </>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
 }
 
 export default ReportsExperience;
