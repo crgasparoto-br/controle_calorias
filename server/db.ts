@@ -721,29 +721,27 @@ async function persistMealToDb(meal: SavedMeal) {
   if (!db) return;
 
   try {
-    const insertedMealId = await mealsRepository.insertMeal({
-      userId: meal.userId,
-      source: meal.source,
-      status: meal.status,
-      mealLabel: meal.mealLabel,
-      notes: meal.notes,
-      sourceText: meal.sourceText,
-      transcript: meal.transcript,
-      confidence: meal.confidence,
-      occurredAt: meal.occurredAt,
+    const resolvedCatalogIds = meal.items.length
+      ? await resolveFoodCatalogIds(meal.items, meal.userId)
+      : new Map<string, number>();
+
+    const insertedMealId = await mealsRepository.persistMeal({
+      meal: {
+        userId: meal.userId,
+        source: meal.source,
+        mealLabel: meal.mealLabel,
+        notes: meal.notes,
+        sourceText: meal.sourceText,
+        transcript: meal.transcript,
+        confidence: meal.confidence,
+        occurredAt: meal.occurredAt,
+      },
+      items: meal.items,
+      media: meal.media,
+      resolvedCatalogIds,
     });
 
-    const resolvedMealId = insertedMealId || meal.id;
-    meal.id = resolvedMealId;
-
-    if (meal.items.length) {
-      const resolvedCatalogIds = await resolveFoodCatalogIds(meal.items, meal.userId);
-      await mealsRepository.insertMealItems(resolvedMealId, meal.items, resolvedCatalogIds);
-    }
-
-    if (meal.media.length) {
-      await mealsRepository.insertMealMedia(resolvedMealId, meal.media);
-    }
+    meal.id = insertedMealId || meal.id;
   } catch (error) {
     logPersistenceWarning("Meal persistence skipped", error);
   }
@@ -754,17 +752,20 @@ async function updateMealInDb(meal: SavedMeal) {
   if (!db) return;
 
   try {
-    await mealsRepository.updateMeal({
-      id: meal.id,
-      userId: meal.userId,
-      mealLabel: meal.mealLabel,
-      notes: meal.notes,
-      confidence: meal.confidence,
-      occurredAt: meal.occurredAt,
-    });
-
     const resolvedCatalogIds = meal.items.length ? await resolveFoodCatalogIds(meal.items, meal.userId) : new Map<string, number>();
-    await mealsRepository.replaceMealItems(meal.id, meal.items, resolvedCatalogIds);
+
+    await mealsRepository.persistMealUpdate({
+      meal: {
+        id: meal.id,
+        userId: meal.userId,
+        mealLabel: meal.mealLabel,
+        notes: meal.notes,
+        confidence: meal.confidence,
+        occurredAt: meal.occurredAt,
+      },
+      items: meal.items,
+      resolvedCatalogIds,
+    });
   } catch (error) {
     logPersistenceWarning("Meal update skipped", error);
   }
