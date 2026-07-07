@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { transcribeAudio, type TranscriptionError } from "../../_core/voiceTranscription";
 import { buildSavedMedia, getUserIdByWhatsappPhone, logInferenceEvent } from "../../db";
 import { storagePut } from "../../storage";
@@ -51,11 +52,15 @@ type PersistedIncomingMedia = {
   storageWarning?: string;
 };
 
+function buildOpaqueIncomingMediaFileName(mediaType: "image" | "audio", extension: string) {
+  return `${mediaType}-${randomUUID()}.${extension}`;
+}
+
 async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string): Promise<PersistedIncomingMedia> {
   const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
   const analysisDataUrl = buildMediaDataUrl(downloaded.buffer, downloaded.mimeType);
   const extension = extensionFromMimeType(downloaded.mimeType);
-  const fileName = `${sourcePhone}-${mediaId}.${extension}`;
+  const fileName = buildOpaqueIncomingMediaFileName(mediaType, extension);
 
   try {
     const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType);
