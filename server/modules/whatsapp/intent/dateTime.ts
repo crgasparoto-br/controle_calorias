@@ -135,6 +135,10 @@ function buildDateFromMatch(day: string, month: string, year: string | undefined
   });
 }
 
+function formatPeriodRangeLabel(start: Date, end: Date) {
+  return `${formatReplyDate(start)} a ${formatReplyDate(end)}`;
+}
+
 function parseExplicitPeriodRange(normalized: string, receivedAt: Date): PeriodRange | null {
   const match = normalized.match(/(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\s*(?:a|ate)\s*(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?/);
   if (!match) {
@@ -148,15 +152,15 @@ function parseExplicitPeriodRange(normalized: string, receivedAt: Date): PeriodR
   }
 
   return {
-    label: `${formatReplyDate(start)} a ${formatReplyDate(end)}`,
+    label: formatPeriodRangeLabel(start, end),
     start,
     end,
   };
 }
 
-function buildPeriodRange(start: Date, end: Date): PeriodRange {
+function buildPeriodRange(label: string, start: Date, end: Date): PeriodRange {
   return {
-    label: `${formatReplyDate(start)} a ${formatReplyDate(end)}`,
+    label,
     start,
     end,
   };
@@ -171,11 +175,11 @@ function parseRelativeWeekPeriod(normalized: string, receivedAt: Date, timeZone:
   if (/\b(passad[ao]s?|anterior(?:es)?)\b/.test(normalized)) {
     const start = makeDateInTimeZone(addDaysToZonedDate(getZonedParts(currentWeekStart, timeZone), -7), timeZone);
     const end = endOfZonedDay(makeDateInTimeZone(addDaysToZonedDate(getZonedParts(start, timeZone), 6), timeZone), timeZone);
-    return buildPeriodRange(start, end);
+    return buildPeriodRange(`semana passada (${formatPeriodRangeLabel(start, end)})`, start, end);
   }
 
   const end = endOfZonedWeek(receivedAt, timeZone);
-  return buildPeriodRange(currentWeekStart, end);
+  return buildPeriodRange("semana", currentWeekStart, end);
 }
 
 function parseRelativeMonthPeriod(normalized: string, receivedAt: Date, timeZone: string) {
@@ -187,10 +191,11 @@ function parseRelativeMonthPeriod(normalized: string, receivedAt: Date, timeZone
   if (/\b(passad[ao]s?|anterior(?:es)?)\b/.test(normalized)) {
     const currentParts = getZonedParts(currentMonthStart, timeZone);
     const start = makeDateInTimeZone({ ...currentParts, month: currentParts.month - 1, day: 1, hour: 0, minute: 0, second: 0 }, timeZone);
-    return buildPeriodRange(start, endOfZonedMonth(start, timeZone));
+    const end = endOfZonedMonth(start, timeZone);
+    return buildPeriodRange(`mês passado (${formatPeriodRangeLabel(start, end)})`, start, end);
   }
 
-  return buildPeriodRange(currentMonthStart, endOfZonedMonth(receivedAt, timeZone));
+  return buildPeriodRange("mês", currentMonthStart, endOfZonedMonth(receivedAt, timeZone));
 }
 
 export function parseReportPeriod(text: string, receivedAt: Date, timeZone = SAO_PAULO_TIME_ZONE) {
@@ -205,17 +210,17 @@ export function parseReportPeriod(text: string, receivedAt: Date, timeZone = SAO
   }
 
   if (/\bhoje\b/.test(normalized)) {
-    return buildPeriodRange(startOfZonedDay(receivedAt, timeZone), endOfZonedDay(receivedAt, timeZone));
+    return buildPeriodRange("hoje", startOfZonedDay(receivedAt, timeZone), endOfZonedDay(receivedAt, timeZone));
   }
 
   if (/\bontem\b/.test(normalized)) {
     const yesterday = makeDateInTimeZone(addDaysToZonedDate(getZonedParts(receivedAt, timeZone), -1), timeZone);
-    return buildPeriodRange(startOfZonedDay(yesterday, timeZone), endOfZonedDay(yesterday, timeZone));
+    return buildPeriodRange("ontem", startOfZonedDay(yesterday, timeZone), endOfZonedDay(yesterday, timeZone));
   }
 
   if (/\b(ultimos 7 dias|ultimos sete dias)\b/.test(normalized)) {
     const start = startOfZonedDay(makeDateInTimeZone(addDaysToZonedDate(getZonedParts(receivedAt, timeZone), -6), timeZone), timeZone);
-    return buildPeriodRange(start, endOfZonedDay(receivedAt, timeZone));
+    return buildPeriodRange("últimos 7 dias", start, endOfZonedDay(receivedAt, timeZone));
   }
 
   const weekPeriod = parseRelativeWeekPeriod(normalized, receivedAt, timeZone);
