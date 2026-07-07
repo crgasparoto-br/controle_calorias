@@ -18,9 +18,13 @@ describe("WHATSAPP_TEXT_INTENT_PIPELINE_POLICY", () => {
   });
 
   it("documenta todos os passos como fluxo compartilhado ou adaptador explícito", () => {
-    expect(WHATSAPP_TEXT_INTENT_PIPELINE_POLICY).toSatisfyAll(step => {
-      return Boolean(step.key && step.description && ["webhook", "simulation", "shared"].includes(step.owner));
-    });
+    expect(
+      WHATSAPP_TEXT_INTENT_PIPELINE_POLICY.every(step => (
+        Boolean(step.key)
+        && Boolean(step.description)
+        && ["webhook", "simulation", "shared"].includes(step.owner)
+      )),
+    ).toBe(true);
   });
 
   it("mantém o fallback nutricional como última decisão", () => {
