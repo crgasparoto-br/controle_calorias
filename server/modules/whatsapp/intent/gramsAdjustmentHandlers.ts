@@ -1,4 +1,10 @@
-import { buildWhatsAppMealActionReplyMessage } from "../replyMessages";
+import {
+  buildWhatsAppAmbiguousItemReplyMessage,
+  buildWhatsAppAuxiliaryReplyMessage,
+  buildWhatsAppClarificationReplyMessage,
+  buildWhatsAppItemNotFoundReplyMessage,
+  buildWhatsAppMealActionReplyMessage,
+} from "../replyMessages";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import {
@@ -55,7 +61,12 @@ function ambiguousTargetReply(targetFood: string | null, options: string, contex
   return {
     handled: true,
     action: "clarification_needed",
-    reply: `Encontrei mais de um item para ${targetFood ?? "esse alimento"} ${context}:\n${options}\nResponda com o número do item que devo ajustar.`,
+    reply: buildWhatsAppAmbiguousItemReplyMessage({
+      target: targetFood,
+      context,
+      options,
+      instruction: "Responda com o número do item que devo ajustar.",
+    }),
     eventType: "whatsapp.intent.clarification_needed",
     detail: targetMatchDetail({
       prefix: "Pedido de ajuste de gramas com mais de um alimento compatível.",
@@ -93,23 +104,26 @@ function formatPendingTargets(pendingTargets: PendingGramsTarget[]) {
     .join("\n");
 }
 
-function buildMultiAdjustmentReply(params: {
+function buildMultiAdjustmentLines(params: {
   applied: AppliedGramsChange[];
   notFoundFoods: string[];
   pendingTargets: PendingGramsTarget[];
 }) {
   const context = adjustmentContext(params.applied.map(adjustment => adjustment.scope));
   const adjustmentLines = params.applied
-    .map(a => `• ${a.foodName}: de ${formatNumber(a.previousGrams)} g para ${formatNumber(a.nextGrams)} g`)
-    .join("\n");
-  const notFoundSuffix = params.notFoundFoods.length
-    ? `\nNão encontrei nas refeições de hoje: ${params.notFoundFoods.join(", ")}.`
-    : "";
-  const pendingSuffix = params.pendingTargets.length
-    ? `\nPreciso confirmar estes itens antes de ajustar:\n${formatPendingTargets(params.pendingTargets)}\nResponda com o número do item que devo ajustar.`
-    : "";
-
-  return `Ajustes realizados ${context}:\n${adjustmentLines} e recalculei os macros.${notFoundSuffix}${pendingSuffix}`;
+    .map(a => `• ${a.foodName}: de ${formatNumber(a.previousGrams)} g para ${formatNumber(a.nextGrams)} g`);
+  const lines = [
+    `Ajustes realizados ${context}:`,
+    ...adjustmentLines,
+    "Recalculei os macros.",
+  ];
+  if (params.notFoundFoods.length) {
+    lines.push(`Não encontrei nas refeições de hoje: ${params.notFoundFoods.join(", ")}.`);
+  }
+  if (params.pendingTargets.length) {
+    lines.push("Preciso confirmar estes itens antes de ajustar:", formatPendingTargets(params.pendingTargets), "Responda com o número do item que devo ajustar.");
+  }
+  return lines;
 }
 
 function buildGramsAdjustmentMealReply(input: {
@@ -126,17 +140,20 @@ function buildGramsAdjustmentMealReply(input: {
 function buildUpdatedMealsAdjustmentReply(input: {
   updatedMeals: MealRecord[];
   title: string;
-  actionText: string;
+  actionLines: string[];
 }) {
   if (input.updatedMeals.length === 1) {
     return buildGramsAdjustmentMealReply({
       meal: input.updatedMeals[0],
       title: input.title,
-      actionLines: [input.actionText],
+      actionLines: input.actionLines,
     });
   }
 
-  return input.actionText;
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: input.title,
+    lines: input.actionLines,
+  });
 }
 
 export async function handleQuantityCorrectionIntent(userId: number, correction: QuantityCorrectionIntent): Promise<WhatsappIntentResult> {
@@ -145,7 +162,7 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Não encontrei um item recente para corrigir. Qual item devo corrigir?",
+      reply: buildWhatsAppClarificationReplyMessage("Não encontrei um item recente para corrigir. Qual item devo corrigir?"),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de correção de quantidade sem item recente disponível.",
     };
@@ -160,7 +177,11 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Não encontrei um item recente com ${previous}. Qual item devo corrigir?`,
+      reply: buildWhatsAppItemNotFoundReplyMessage({
+        target: `um item recente com ${previous}`,
+        context: "",
+        instruction: "Qual item devo corrigir?",
+      }),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de correção de quantidade sem item compatível na refeição recente.",
     };
@@ -173,7 +194,12 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Encontrei mais de um item com ${previous}. Qual deseja alterar? ${formatCorrectionOptions(targets)}`,
+      reply: buildWhatsAppAmbiguousItemReplyMessage({
+        target: `item com ${previous}`,
+        context: "na refeição recente",
+        options: formatCorrectionOptions(targets),
+        instruction: "Qual deseja alterar?",
+      }),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de correção de quantidade com mais de um item compatível.",
     };
@@ -227,7 +253,7 @@ async function updateLatestMealItemGrams(input: {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada.",
+      reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada."),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de ajuste de gramas sem refeição recente disponível.",
     } satisfies WhatsappIntentResult;
@@ -242,7 +268,11 @@ async function updateLatestMealItemGrams(input: {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Não encontrei esse alimento nas refeições de hoje. Me diga qual item devo ajustar.",
+      reply: buildWhatsAppItemNotFoundReplyMessage({
+        target: input.targetFood,
+        context: "nas refeições de hoje",
+        instruction: "Me diga qual item devo ajustar.",
+      }),
       eventType: "whatsapp.intent.clarification_needed",
       detail: targetMatchDetail({
         prefix: "Pedido de ajuste de gramas sem alimento compatível nas refeições do dia.",
@@ -289,7 +319,7 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada.",
+      reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada."),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de ajuste de gramas sem refeição recente disponível.",
     };
@@ -336,7 +366,11 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Não encontrei ${foods || "esses alimentos"} nas refeições de hoje. Me diga quais itens devo ajustar.`,
+      reply: buildWhatsAppItemNotFoundReplyMessage({
+        target: foods || "esses alimentos",
+        context: "nas refeições de hoje",
+        instruction: "Me diga quais itens devo ajustar.",
+      }),
       eventType: "whatsapp.intent.clarification_needed",
       detail: `Pedido de ajuste de gramas sem alimentos compatíveis nas refeições do dia. Alvos usados: ${foods || "não informados"}. Escopo da busca: refeições do dia. Ambiguidade: não.`,
     };
@@ -346,7 +380,7 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
   const context = adjustmentContext(appliedAdjustments.map(adjustment => adjustment.scope));
   const pendingDetail = pendingTargets.length ? ` Alvos ambíguos: ${formatPendingDetails(pendingTargets)}.` : "";
   const notFoundDetail = notFoundFoods.length ? ` Alvos não encontrados: ${notFoundFoods.join(", ")}.` : "";
-  const actionText = buildMultiAdjustmentReply({ applied: appliedAdjustments, notFoundFoods, pendingTargets });
+  const actionLines = buildMultiAdjustmentLines({ applied: appliedAdjustments, notFoundFoods, pendingTargets });
 
   return {
     handled: true,
@@ -354,7 +388,7 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
     reply: buildUpdatedMealsAdjustmentReply({
       updatedMeals,
       title: appliedAdjustments.length === 1 ? "Alimento ajustado" : "Alimentos ajustados",
-      actionText,
+      actionLines,
     }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${appliedAdjustments.length} item(ns) ajustado(s) via WhatsApp. Matches: ${formatAppliedDetails(appliedAdjustments)}. Escopo da busca: ${context}. Ambiguidade: ${pendingTargets.length ? "sim" : "não"}.${pendingDetail}${notFoundDetail}`,
@@ -371,7 +405,7 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada.",
+      reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada."),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de incremento de gramas sem refeição recente disponível.",
     };
@@ -418,7 +452,11 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Não encontrei ${foods || "esses alimentos"} nas refeições de hoje. Me diga quais itens devo ajustar.`,
+      reply: buildWhatsAppItemNotFoundReplyMessage({
+        target: foods || "esses alimentos",
+        context: "nas refeições de hoje",
+        instruction: "Me diga quais itens devo ajustar.",
+      }),
       eventType: "whatsapp.intent.clarification_needed",
       detail: `Pedido de incremento de gramas sem alimentos compatíveis nas refeições do dia. Alvos usados: ${foods || "não informados"}. Escopo da busca: refeições do dia. Ambiguidade: não.`,
     };
@@ -428,7 +466,7 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
   const context = adjustmentContext(appliedIncrements.map(increment => increment.scope));
   const pendingDetail = pendingTargets.length ? ` Alvos ambíguos: ${formatPendingDetails(pendingTargets)}.` : "";
   const notFoundDetail = notFoundFoods.length ? ` Alvos não encontrados: ${notFoundFoods.join(", ")}.` : "";
-  const actionText = buildMultiAdjustmentReply({ applied: appliedIncrements, notFoundFoods, pendingTargets });
+  const actionLines = buildMultiAdjustmentLines({ applied: appliedIncrements, notFoundFoods, pendingTargets });
 
   return {
     handled: true,
@@ -436,7 +474,7 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
     reply: buildUpdatedMealsAdjustmentReply({
       updatedMeals,
       title: appliedIncrements.length === 1 ? "Alimento ajustado" : "Alimentos ajustados",
-      actionText,
+      actionLines,
     }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${appliedIncrements.length} item(ns) incrementado(s) via WhatsApp. Matches: ${formatAppliedDetails(appliedIncrements)}. Escopo da busca: ${context}. Ambiguidade: ${pendingTargets.length ? "sim" : "não"}.${pendingDetail}${notFoundDetail}`,

@@ -2,6 +2,10 @@ import { transcribeAudio, type TranscriptionError } from "../../_core/voiceTrans
 import { buildSavedMedia, getUserIdByWhatsappPhone, logInferenceEvent } from "../../db";
 import { storagePut } from "../../storage";
 import {
+  buildWhatsAppAudioTranscriptionFailureReplyMessage,
+  buildWhatsAppPartialAudioTranscriptionReplyMessage,
+} from "./replyMessages";
+import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
   extensionFromMimeType,
@@ -91,26 +95,6 @@ async function logMediaStorageWarning(sourcePhone: string, warning?: string) {
   });
 }
 
-function buildAudioTranscriptionFailureReply(code: AudioTranscriptionFailureCode) {
-  if (code === "INVALID_FORMAT") {
-    return "Não consegui ouvir seu áudio com segurança porque o formato não pôde ser lido. Pode reenviar o áudio ou escrever a refeição em texto?";
-  }
-
-  if (code === "FILE_TOO_LARGE") {
-    return "Não consegui ouvir seu áudio com segurança porque o arquivo está grande demais. Pode enviar um áudio menor ou escrever a refeição em texto?";
-  }
-
-  if (code === "EMPTY_TRANSCRIPT") {
-    return "Não consegui ouvir seu áudio com segurança porque não identifiquei uma fala útil. Pode reenviar o áudio ou escrever a refeição em texto?";
-  }
-
-  return "Não consegui ouvir/transcrever seu áudio com segurança porque ocorreu uma falha na transcrição. Pode reenviar o áudio ou escrever a refeição em texto?";
-}
-
-function buildPartialAudioFailureReply() {
-  return "Vou considerar o texto que você enviou, mas não consegui transcrever o áudio com segurança. Se faltou alguma informação do áudio, pode enviar em texto depois.";
-}
-
 function buildAudioTranscriptionFailure(input: {
   code: AudioTranscriptionFailureCode;
   detail: string;
@@ -122,8 +106,8 @@ function buildAudioTranscriptionFailure(input: {
   return {
     ...input,
     provider: AUDIO_TRANSCRIPTION_PROVIDER,
-    reply: buildAudioTranscriptionFailureReply(input.code),
-    partialTextReply: buildPartialAudioFailureReply(),
+    reply: buildWhatsAppAudioTranscriptionFailureReplyMessage(input.code),
+    partialTextReply: buildWhatsAppPartialAudioTranscriptionReplyMessage(),
   };
 }
 

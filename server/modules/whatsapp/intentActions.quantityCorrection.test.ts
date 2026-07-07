@@ -143,8 +143,11 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "clarification_needed",
-      reply: "Encontrei mais de um item com 330ml. Qual deseja alterar? 1. Cerveja Budweiser 2. Coca-Cola",
     }));
+    expect(result?.reply).toContain("*Preciso confirmar o item*");
+    expect(result?.reply).toContain("Encontrei mais de um item para item com 330ml");
+    expect(result?.reply).toContain("1. Cerveja Budweiser 2. Coca-Cola");
+    expect(result?.reply).toContain("Qual deseja alterar?");
   });
 
   it("pede esclarecimento quando nao encontra item recente com 330ml", async () => {
@@ -170,7 +173,9 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "clarification_needed",
-      reply: "Não encontrei um item recente com 330ml. Qual item devo corrigir?",
     }));
+    expect(result?.reply).toContain("*Item não encontrado*");
+    expect(result?.reply).toContain("Não encontrei um item recente com 330ml.");
+    expect(result?.reply).toContain("Qual item devo corrigir?");
   });
 });

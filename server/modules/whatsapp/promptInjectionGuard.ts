@@ -1,3 +1,5 @@
+import { buildWhatsAppSecurityBlockedReplyMessage } from "./replyMessages";
+
 export type WhatsAppUserContentModality = "text" | "image_caption" | "audio_transcript" | "multimodal";
 
 export type WhatsAppContentSafetyCategory =
@@ -84,7 +86,7 @@ export function inspectWhatsAppUserContentSafety(
 }
 
 export function buildSuspiciousWhatsAppContentReply() {
-  return "Não posso executar instruções para alterar regras, permissões, validações ou acessar dados de outras pessoas. Se quiser registrar uma refeição, corrigir um item ou consultar seus próprios registros, envie o pedido normalmente.";
+  return buildWhatsAppSecurityBlockedReplyMessage();
 }
 
 export function buildUntrustedWhatsAppUserContent(value: string, modality: WhatsAppUserContentModality) {

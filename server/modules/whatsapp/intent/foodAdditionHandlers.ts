@@ -1,4 +1,4 @@
-import { buildWhatsAppMealActionReplyMessage } from "../replyMessages";
+import { buildWhatsAppClarificationReplyMessage, buildWhatsAppMealActionReplyMessage } from "../replyMessages";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { formatReplyDate, resolveRelativeOccurredAt } from "./dateTime";
@@ -19,7 +19,7 @@ export async function handleFoodAdditionIntent(userId: number, addition: FoodAdd
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(addition.date)}. Me diga em qual refeição devo adicionar ${addition.items[0]?.foodName ?? "o alimento"}.`,
+      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(addition.date)}. Me diga em qual refeição devo adicionar ${addition.items[0]?.foodName ?? "o alimento"}.`),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido para adicionar alimento sem refeição compatível no dia indicado.",
     };
@@ -99,7 +99,7 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Entendi que você quer adicionar café sem açúcar. Me diga a quantidade e a refeição. Exemplo: adicionar 3 xícaras de café sem açúcar à refeição café da manhã.",
+      reply: buildWhatsAppClarificationReplyMessage("Entendi que você quer adicionar café sem açúcar. Me diga a quantidade e a refeição. Exemplo: adicionar 3 xícaras de café sem açúcar à refeição café da manhã."),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido para adicionar café sem açúcar sem quantidade ou refeição explícita.",
     };
@@ -112,7 +112,7 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Não encontrei a refeição ${addition.mealLabel}. Me diga em qual refeição devo adicionar o café.`,
+      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel}. Me diga em qual refeição devo adicionar o café.`),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido para adicionar café sem açúcar sem refeição compatível.",
     };
@@ -161,7 +161,7 @@ export async function handleCoffeeLorCapsuleIntent(userId: number, text: string,
       return {
         handled: true,
         action: "clarification_needed",
-        reply: `Não encontrei a refeição ${intent.mealLabel}. Me diga em qual refeição devo adicionar o café.`,
+        reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${intent.mealLabel}. Me diga em qual refeição devo adicionar o café.`),
         eventType: "whatsapp.intent.clarification_needed",
         detail: "Pedido para adicionar café em cápsula L'Or sem refeição compatível.",
       };
@@ -172,7 +172,7 @@ export async function handleCoffeeLorCapsuleIntent(userId: number, text: string,
       return {
         handled: true,
         action: "clarification_needed",
-        reply: "Não encontrei uma refeição recente. Me diga em qual refeição devo adicionar o café.",
+        reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente. Me diga em qual refeição devo adicionar o café."),
         eventType: "whatsapp.intent.clarification_needed",
         detail: "Pedido para adicionar café em cápsula L'Or sem refeição recente.",
       };
