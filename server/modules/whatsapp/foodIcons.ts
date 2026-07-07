@@ -1,9 +1,9 @@
 export type FoodIconInput = {
   foodName?: string | null;
   canonicalName?: string | null;
-  category?: string | null;
-  classification?: string | null;
-  tags?: string[] | null;
+  category?: unknown;
+  classification?: unknown;
+  tags?: unknown;
 };
 
 export const DEFAULT_FOOD_ICON = "🍽️";
@@ -27,7 +27,7 @@ const FOOD_ICON_RULES: Array<{ pattern: RegExp; icon: string }> = [
   { pattern: /\b(cafe|coffee|capuccino|cappuccino|cha|tea)\b/, icon: "☕" },
   { pattern: /\b(agua|water|suco|juice|refrigerante|coca|guarana|cerveja|beer|vinho|wine)\b/, icon: "🥤" },
   { pattern: /\b(salada|alface|legume|brocolis|tomate|cenoura|pepino|abobrinha|berinjela|couve|espinafre|rucula|repolho)\b/, icon: "🥗" },
-  { pattern: /\b(batata|mandioca|aipim|inhame|car\s*a|batata doce)\b/, icon: "🥔" },
+  { pattern: /\b(batata|mandioca|aipim|inhame|batata doce)\b/, icon: "🥔" },
   { pattern: /\b(chocolate|doce|bolo|cookie|biscoito|bolacha|sorvete|brigadeiro|pudim)\b/, icon: "🍫" },
   { pattern: /\b(amendoim|castanha|nozes|amendoa|pistache|nuts?)\b/, icon: "🥜" },
   { pattern: /\b(azeite|oleo|manteiga|margarina|maionese)\b/, icon: "🧈" },
@@ -56,15 +56,25 @@ function normalizeFoodIconText(input: string | null | undefined) {
     .toLowerCase();
 }
 
+function metadataToText(input: unknown): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (Array.isArray(input)) {
+    return input.map(metadataToText).join(" ");
+  }
+  return "";
+}
+
 function normalizeFoodSearchText(input: FoodIconInput) {
   return normalizeFoodIconText(`${input.foodName ?? ""} ${input.canonicalName ?? ""}`);
 }
 
 function normalizeCategorySearchText(input: FoodIconInput) {
   return normalizeFoodIconText([
-    input.category,
-    input.classification,
-    ...(input.tags ?? []),
+    metadataToText(input.category),
+    metadataToText(input.classification),
+    metadataToText(input.tags),
   ].filter(Boolean).join(" "));
 }
 
