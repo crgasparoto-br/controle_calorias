@@ -240,7 +240,7 @@ describe("buildWhatsAppMealReplyMessage", () => {
     });
 
     expect(reply).toContain("*Café da manhã Atualizado às 07:14hs.*");
-    expect(reply).toContain("• 🍽️ Pêra William — 185g");
+    expect(reply).toContain("• 🍎 Pêra William — 185g");
     expect(reply).toContain("• 🍌 Banana prata — 139g");
     expect(reply).toContain("• 🥛 Iogurte grego light Danone — 80g");
     expect(reply).toContain("Total da refeição:");
