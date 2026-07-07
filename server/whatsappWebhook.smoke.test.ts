@@ -427,9 +427,12 @@ describe("whatsappWebhook smoke", () => {
       text: undefined,
       transcript: "arroz e feijão",
       imageUrl: undefined,
-      audioUrl: expect.stringContaining("/whatsapp/audio/5511999999999-audio-media-id.ogg"),
+      audioUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/audio\/audio-[0-9a-f-]{36}\.ogg$/),
       habits: [],
     });
+    const audioUrl = processMealInputMock.mock.calls[0][0].audioUrl;
+    expect(audioUrl).not.toContain("5511999999999");
+    expect(audioUrl).not.toContain("audio-media-id");
     expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
       draftId: "draft-smoke-text",
       userId: 123,
