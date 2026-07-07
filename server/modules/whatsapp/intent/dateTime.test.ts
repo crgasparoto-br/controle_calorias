@@ -21,16 +21,16 @@ describe("parseReportPeriod", () => {
     expectConcretePeriod(period);
     expect(period.start.toISOString()).toBe("2026-06-29T03:00:00.000Z");
     expect(period.end.toISOString()).toBe("2026-07-06T02:59:59.000Z");
-    expect(period.label).toBe("29/06/2026 a 05/07/2026");
+    expect(period.label).toBe("semana passada (29/06/2026 a 05/07/2026)");
   });
 
-  it("resolve esta semana para a semana calendário atual", () => {
+  it("resolve esta semana para a semana calendário atual preservando o rótulo de resposta", () => {
     const period = parseReportPeriod("Relatório esta semana", receivedAt, "America/Sao_Paulo");
 
     expectConcretePeriod(period);
     expect(period.start.toISOString()).toBe("2026-07-06T03:00:00.000Z");
     expect(period.end.toISOString()).toBe("2026-07-13T02:59:59.000Z");
-    expect(period.label).toBe("06/07/2026 a 12/07/2026");
+    expect(period.label).toBe("semana");
   });
 
   it("mantém últimos 7 dias como janela móvel diferente de semana passada", () => {
@@ -39,7 +39,7 @@ describe("parseReportPeriod", () => {
     expectConcretePeriod(period);
     expect(period.start.toISOString()).toBe("2026-07-01T03:00:00.000Z");
     expect(period.end.toISOString()).toBe("2026-07-08T02:59:59.000Z");
-    expect(period.label).toBe("01/07/2026 a 07/07/2026");
+    expect(period.label).toBe("últimos 7 dias");
   });
 
   it("resolve mês passado como mês calendário anterior completo", () => {
@@ -48,7 +48,7 @@ describe("parseReportPeriod", () => {
     expectConcretePeriod(period);
     expect(period.start.toISOString()).toBe("2026-06-01T03:00:00.000Z");
     expect(period.end.toISOString()).toBe("2026-07-01T02:59:59.000Z");
-    expect(period.label).toBe("01/06/2026 a 30/06/2026");
+    expect(period.label).toBe("mês passado (01/06/2026 a 30/06/2026)");
   });
 
   it("pede esclarecimento quando o relatório não informa período", () => {
