@@ -1,10 +1,14 @@
-import mysql, { type ResultSetHeader } from "mysql2/promise";
+import mysql, { type ConnectionOptions, type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 
 import { generateAliases } from "./generate_aliases.ts";
 import { normalizeFoodName } from "./normalize_food_name.ts";
 import type { ImportFood, ImportPayload, ImportReport } from "./types.ts";
 
 type DbConnection = mysql.Connection;
+
+type FoodIdRow = RowDataPacket & {
+  id: number;
+};
 
 function requireDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -14,7 +18,7 @@ function requireDatabaseUrl() {
   return databaseUrl;
 }
 
-function createConnectionOptions(databaseUrl: string): string | mysql.ConnectionOptions {
+function createConnectionOptions(databaseUrl: string): string | ConnectionOptions {
   if (process.env.TIDB_ENABLE_SSL !== "true") {
     return databaseUrl;
   }
@@ -30,6 +34,15 @@ function createConnectionOptions(databaseUrl: string): string | mysql.Connection
       minVersion: "TLSv1.2",
     },
   };
+}
+
+async function createImportConnection() {
+  const connectionOptions = createConnectionOptions(requireDatabaseUrl());
+  if (typeof connectionOptions === "string") {
+    return mysql.createConnection(connectionOptions);
+  }
+
+  return mysql.createConnection(connectionOptions);
 }
 
 function numberOrNull(value: number | undefined) {
@@ -66,7 +79,7 @@ async function ensureSource(connection: DbConnection, payload: ImportPayload) {
     [source.slug, source.name, source.version, source.countryCode ?? null, source.sourceUrl ?? null, source.notes ?? null],
   );
 
-  const [rows] = await connection.execute<Array<{ id: number }>>(
+  const [rows] = await connection.execute<FoodIdRow[]>(
     "SELECT id FROM food_sources WHERE slug = ? AND version = ? LIMIT 1",
     [source.slug, source.version],
   );
@@ -77,7 +90,7 @@ async function ensureSource(connection: DbConnection, payload: ImportPayload) {
 
 async function findPossibleDuplicates(connection: DbConnection, sourceId: number, food: ImportFood) {
   const normalizedName = normalizeFoodName(food.name);
-  const [rows] = await connection.execute<Array<{ id: number }>>(
+  const [rows] = await connection.execute<FoodIdRow[]>(
     `SELECT id FROM foods
      WHERE owner_user_id IS NULL
        AND normalized_name = ?
@@ -133,7 +146,7 @@ async function upsertFood(connection: DbConnection, sourceId: number, food: Impo
     ],
   );
 
-  const [rows] = await connection.execute<Array<{ id: number }>>(
+  const [rows] = await connection.execute<FoodIdRow[]>(
     "SELECT id FROM foods WHERE source_id = ? AND source_food_code = ? LIMIT 1",
     [sourceId, food.sourceFoodCode],
   );
@@ -196,7 +209,7 @@ export async function importFoods(payload: ImportPayload): Promise<ImportReport>
     errors: [],
   };
 
-  const connection = await mysql.createConnection(createConnectionOptions(requireDatabaseUrl()));
+  const connection = await createImportConnection();
   try {
     await connection.beginTransaction();
     const sourceId = await ensureSource(connection, payload);
