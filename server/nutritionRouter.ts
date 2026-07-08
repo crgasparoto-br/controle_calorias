@@ -16,8 +16,8 @@ import {
   confirmFoodPhotoAnalysisSchema,
   rejectFoodPhotoAnalysisSchema,
 } from "./modules/photoAnalysis/schemas";
-import { getAdminOverview, getWhatsappTokenStatus, updateWhatsappToken } from "./modules/admin/service";
-import { updateWhatsappTokenSchema } from "./modules/admin/schemas";
+import { getAdminOverview, getWhatsappTokenStatus, runFoodImportJob, updateWhatsappToken } from "./modules/admin/service";
+import { runFoodImportJobSchema, updateWhatsappTokenSchema } from "./modules/admin/schemas";
 import {
   createExercise,
   listExercises,
@@ -669,6 +669,9 @@ export const nutritionRouter = router({
     updateWhatsappToken: adminProcedure
       .input(updateWhatsappTokenSchema)
       .mutation(async ({ ctx, input }) => updateWhatsappToken(ctx.user.id, input)),
+    runFoodImportJob: adminProcedure
+      .input(runFoodImportJobSchema)
+      .mutation(async ({ ctx, input }) => runFoodImportJob(ctx.user.id, input)),
     curateGlobalFood: adminProcedure
       .input(adminCatalogFoodCurationSchema)
       .mutation(async ({ ctx, input }) => curateGlobalFood(ctx.user.id, input)),
