@@ -6,11 +6,43 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { Database, KeyRound, Save, Search, Shield, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Database, KeyRound, Save, Search, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
+
+const FOOD_CATALOG_PAGE_SIZE = 25;
+
+type FoodCatalogItem = {
+  id: number;
+  scope: string;
+  source: {
+    slug: string | null;
+    name: string | null;
+    version: string | null;
+    foodCode: string | null;
+  } | null;
+  name: string;
+  brandName: string | null;
+  category: string | null;
+  status: "active" | "deprecated" | "merged";
+  nutrientsPer100g: {
+    caloriesKcal: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatGrams: number;
+    fiberGrams: number | null;
+    sugarGrams: number | null;
+    sodiumMg: number | null;
+  };
+  userSignals: {
+    favorite: boolean;
+    usageCount: number;
+    lastUsedAt: string | null;
+  };
+};
 
 export default function AdminPage() {
   const utils = trpc.useUtils();
@@ -23,10 +55,11 @@ export default function AdminPage() {
 
   const [accessToken, setAccessToken] = useState("");
   const [foodCatalogQuery, setFoodCatalogQuery] = useState("");
+  const [foodCatalogPage, setFoodCatalogPage] = useState(1);
 
   const foodCatalog = trpc.nutrition.foods.catalogSearch?.useQuery?.({
     query: foodCatalogQuery,
-    limit: 50,
+    limit: 500,
     includeInactive: true,
   }, {
     retry: false,
@@ -40,6 +73,10 @@ export default function AdminPage() {
   useEffect(() => {
     setAccessToken("");
   }, [whatsappTokenStatus.data?.updatedAt, whatsappTokenStatus.data?.source]);
+
+  useEffect(() => {
+    setFoodCatalogPage(1);
+  }, [foodCatalogQuery]);
 
   const updateWhatsappToken = trpc.nutrition.admin.updateWhatsappToken.useMutation({
     onSuccess: async () => {
@@ -58,10 +95,21 @@ export default function AdminPage() {
 
   const tokenStatus = whatsappTokenStatus.data ?? admin.data?.whatsappToken;
   const canSaveToken = accessToken.trim().length >= 20 && !updateWhatsappToken.isPending;
-  const foodCatalogItems = foodCatalog.data ?? [];
+  const foodCatalogItems = (foodCatalog.data ?? []) as FoodCatalogItem[];
   const globalFoodCount = useMemo(() => foodCatalogItems.filter(food => food.scope === "global").length, [foodCatalogItems]);
   const customFoodCount = useMemo(() => foodCatalogItems.filter(food => food.scope === "user").length, [foodCatalogItems]);
   const inactiveFoodCount = useMemo(() => foodCatalogItems.filter(food => food.status !== "active").length, [foodCatalogItems]);
+  const foodCatalogTotalPages = Math.max(1, Math.ceil(foodCatalogItems.length / FOOD_CATALOG_PAGE_SIZE));
+  const foodCatalogPageStart = foodCatalogItems.length ? (foodCatalogPage - 1) * FOOD_CATALOG_PAGE_SIZE + 1 : 0;
+  const foodCatalogPageEnd = Math.min(foodCatalogPage * FOOD_CATALOG_PAGE_SIZE, foodCatalogItems.length);
+  const paginatedFoodCatalogItems = useMemo(() => {
+    const start = (foodCatalogPage - 1) * FOOD_CATALOG_PAGE_SIZE;
+    return foodCatalogItems.slice(start, start + FOOD_CATALOG_PAGE_SIZE);
+  }, [foodCatalogItems, foodCatalogPage]);
+
+  useEffect(() => {
+    setFoodCatalogPage(currentPage => Math.min(Math.max(currentPage, 1), foodCatalogTotalPages));
+  }, [foodCatalogTotalPages]);
 
   return (
     <DashboardLayout>
@@ -240,7 +288,7 @@ export default function AdminPage() {
 
           <TabsContent value="foods" className="space-y-6">
             <div className="grid gap-3 md:grid-cols-3">
-              <IntroStat label="Itens listados" value={formatCountPtBr(foodCatalogItems.length)} supporting="resultado atual da consulta" />
+              <IntroStat label="Itens carregados" value={formatCountPtBr(foodCatalogItems.length)} supporting="resultado atual da consulta" />
               <IntroStat label="Globais" value={formatCountPtBr(globalFoodCount)} supporting="itens compartilhados pelo sistema" />
               <IntroStat label="Personalizados/inativos" value={`${formatCountPtBr(customFoodCount)} / ${formatCountPtBr(inactiveFoodCount)}`} supporting="usuário / status não ativo" />
             </div>
@@ -252,7 +300,7 @@ export default function AdminPage() {
                   Base de alimentos usada pelo sistema
                 </CardTitle>
                 <CardDescription>
-                  Consulte alimentos globais, personalizados e registros inativos usados nas buscas nutricionais. A consulta mostra até 50 itens por vez; use o filtro para localizar marcas, nomes, categorias ou alimentos específicos.
+                  Consulte alimentos globais, personalizados e registros inativos usados nas buscas nutricionais. A consulta carrega até 500 itens e exibe 25 por página; use o filtro para localizar marcas, nomes, categorias ou alimentos específicos.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -275,8 +323,38 @@ export default function AdminPage() {
                     {foodCatalog.error?.message || "Não foi possível consultar a base de alimentos agora."}
                   </div>
                 ) : foodCatalogItems.length ? (
-                  <div className="grid gap-3">
-                    {foodCatalogItems.map(food => <FoodCatalogCard key={food.id} food={food} />)}
+                  <div className="space-y-4">
+                    <FoodCatalogTable foods={paginatedFoodCatalogItems} />
+                    <div className="flex flex-col gap-3 rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                      <p>
+                        Exibindo {formatCountPtBr(foodCatalogPageStart)}-{formatCountPtBr(foodCatalogPageEnd)} de {formatCountPtBr(foodCatalogItems.length)} itens carregados.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          disabled={foodCatalogPage <= 1}
+                          onClick={() => setFoodCatalogPage(page => Math.max(1, page - 1))}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Anterior
+                        </Button>
+                        <span className="min-w-[120px] text-center font-medium text-foreground">
+                          Página {foodCatalogPage} de {foodCatalogTotalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          disabled={foodCatalogPage >= foodCatalogTotalPages}
+                          onClick={() => setFoodCatalogPage(page => Math.min(foodCatalogTotalPages, page + 1))}
+                        >
+                          Próxima
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
@@ -330,81 +408,76 @@ function StatusPill({
   );
 }
 
-function FoodCatalogCard({
-  food,
-}: {
-  food: {
-    id: number;
-    scope: string;
-    source: {
-      slug: string | null;
-      name: string | null;
-      version: string | null;
-      foodCode: string | null;
-    } | null;
-    name: string;
-    brandName: string | null;
-    category: string | null;
-    status: "active" | "deprecated" | "merged";
-    nutrientsPer100g: {
-      caloriesKcal: number;
-      proteinGrams: number;
-      carbsGrams: number;
-      fatGrams: number;
-      fiberGrams: number | null;
-      sugarGrams: number | null;
-      sodiumMg: number | null;
-    };
-    userSignals: {
-      favorite: boolean;
-      usageCount: number;
-      lastUsedAt: string | null;
-    };
-  };
-}) {
+function FoodCatalogTable({ foods }: { foods: FoodCatalogItem[] }) {
   return (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold tracking-tight text-foreground">{food.name}</p>
-            {food.brandName ? <Badge variant="secondary">{food.brandName}</Badge> : null}
-            {food.category ? <Badge variant="outline">{food.category}</Badge> : null}
-            <Badge variant={food.scope === "global" ? "default" : "secondary"}>{food.scope === "global" ? "Global" : "Usuário"}</Badge>
-            <Badge variant={food.status === "active" ? "outline" : "secondary"}>{food.status}</Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Fonte: {food.source?.name || food.source?.slug || "personalizada/manual"}
-            {food.source?.foodCode ? ` · código ${food.source.foodCode}` : ""}
-            {food.source?.version ? ` · versão ${food.source.version}` : ""}
-          </p>
-        </div>
-        <div className="text-right text-xs text-muted-foreground">
-          <p>ID #{food.id}</p>
-          <p>{food.userSignals.usageCount ? `${formatCountPtBr(food.userSignals.usageCount)} usos` : "sem uso recente"}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 xl:grid-cols-7">
-        <NutritionValue label="Kcal" value={food.nutrientsPer100g.caloriesKcal} />
-        <NutritionValue label="Proteínas" value={food.nutrientsPer100g.proteinGrams} unit="g" />
-        <NutritionValue label="Carboidratos" value={food.nutrientsPer100g.carbsGrams} unit="g" />
-        <NutritionValue label="Gorduras" value={food.nutrientsPer100g.fatGrams} unit="g" />
-        <NutritionValue label="Fibras" value={food.nutrientsPer100g.fiberGrams} unit="g" />
-        <NutritionValue label="Açúcares" value={food.nutrientsPer100g.sugarGrams} unit="g" />
-        <NutritionValue label="Sódio" value={food.nutrientsPer100g.sodiumMg} unit="mg" />
-      </div>
+    <div className="rounded-2xl border bg-background">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="min-w-[260px]">Alimento</TableHead>
+            <TableHead>Origem</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Nutrientes / 100g</TableHead>
+            <TableHead>Uso</TableHead>
+            <TableHead className="text-right">ID</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {foods.map(food => (
+            <TableRow key={food.id}>
+              <TableCell className="whitespace-normal align-top">
+                <div className="space-y-2">
+                  <p className="font-medium leading-snug text-foreground">{food.name}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {food.brandName ? <Badge variant="secondary">{food.brandName}</Badge> : null}
+                    {food.category ? <Badge variant="outline">{food.category}</Badge> : null}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell className="max-w-[240px] whitespace-normal align-top text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">{food.source?.name || food.source?.slug || "personalizada/manual"}</p>
+                {food.source?.foodCode ? <p className="text-xs">Código: {food.source.foodCode}</p> : null}
+                {food.source?.version ? <p className="text-xs">Versão: {food.source.version}</p> : null}
+              </TableCell>
+              <TableCell className="align-top">
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant={food.scope === "global" ? "default" : "secondary"}>{food.scope === "global" ? "Global" : "Usuário"}</Badge>
+                  <Badge variant={food.status === "active" ? "outline" : "secondary"}>{formatFoodStatus(food.status)}</Badge>
+                </div>
+              </TableCell>
+              <TableCell className="align-top text-sm">
+                <p>{formatNutritionValue(food.nutrientsPer100g.caloriesKcal)} kcal</p>
+                <p className="text-xs text-muted-foreground">
+                  P {formatNutritionValue(food.nutrientsPer100g.proteinGrams)}g · C {formatNutritionValue(food.nutrientsPer100g.carbsGrams)}g · G {formatNutritionValue(food.nutrientsPer100g.fatGrams)}g
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Fibra {formatNullableNutritionValue(food.nutrientsPer100g.fiberGrams)}g · Sódio {formatNullableNutritionValue(food.nutrientsPer100g.sodiumMg)}mg
+                </p>
+              </TableCell>
+              <TableCell className="align-top text-sm text-muted-foreground">
+                <p>{food.userSignals.usageCount ? `${formatCountPtBr(food.userSignals.usageCount)} usos` : "sem uso recente"}</p>
+                {food.userSignals.favorite ? <p className="text-xs text-foreground">Favorito</p> : null}
+                {food.userSignals.lastUsedAt ? <p className="text-xs">Último: {new Date(food.userSignals.lastUsedAt).toLocaleDateString("pt-BR")}</p> : null}
+              </TableCell>
+              <TableCell className="text-right align-top font-mono text-xs text-muted-foreground">#{food.id}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
-function NutritionValue({ label, value, unit = "" }: { label: string; value: number | null; unit?: string }) {
-  return (
-    <div className="rounded-xl bg-muted/50 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-semibold">
-        {value == null ? "-" : `${Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}${unit}`}
-      </p>
-    </div>
-  );
+function formatFoodStatus(status: FoodCatalogItem["status"]) {
+  if (status === "active") return "Ativo";
+  if (status === "deprecated") return "Inativo";
+  return "Mesclado";
+}
+
+function formatNutritionValue(value: number) {
+  return Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+}
+
+function formatNullableNutritionValue(value: number | null) {
+  return value == null ? "-" : formatNutritionValue(value);
 }
