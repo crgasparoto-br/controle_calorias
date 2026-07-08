@@ -4,7 +4,8 @@ import {
   logInferenceEvent,
   upsertAdminWhatsAppAccessToken,
 } from "../../db";
-import { UpdateWhatsappTokenInput } from "./schemas";
+import { runFoodImportJob as runFoodImportJobService } from "./foodImportJobs";
+import type { RunFoodImportJobInput, UpdateWhatsappTokenInput } from "./schemas";
 
 export async function getAdminOverview() {
   return getAdminSnapshot();
@@ -29,4 +30,18 @@ export async function updateWhatsappToken(userId: number, input: UpdateWhatsappT
   });
 
   return status;
+}
+
+export async function runFoodImportJob(userId: number, input: RunFoodImportJobInput) {
+  const report = await runFoodImportJobService(input);
+
+  logInferenceEvent({
+    userId,
+    origin: "admin",
+    status: report.errors.length ? "warning" : "success",
+    eventType: "foods.import_job_executed",
+    detail: `Job ${input.job} executado via painel administrativo: ${report.inserted} inseridos, ${report.updated} atualizados, ${report.ignored} ignorados, ${report.errors.length} erros.`,
+  });
+
+  return report;
 }
