@@ -382,7 +382,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       items: [...existingLunch.items, ...savedImageMeal.items],
     }));
     expect(removeUserMealMock).toHaveBeenCalledWith(42, 10);
-    expect(sentTextMessages[1]).toContain("*Almoço atualizado às 13:00hs.*");
+    expect(sentTextMessages[1]).toContain("*Almoço Atualizado às 13:00hs.*");
   });
 
   it("envia por upload a imagem editada quando ela existe só em buffer", async () => {
