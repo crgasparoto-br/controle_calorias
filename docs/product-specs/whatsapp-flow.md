@@ -30,6 +30,10 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O interpretador estruturado pode usar LLM, mas o LLM só pode retornar intenção JSON validada; a execução continua controlada pelo backend.
 - Mensagens de consulta como `refeições registradas` não devem cair na resposta de alimento incompleto.
 - Quando o usuário informar alimentos junto de uma refeição válida ainda inexistente, o backend pode criar a refeição automaticamente se a intenção validada permitir `createIfMissing`.
+- Envios de imagem e áudio pelo WhatsApp devem tentar usar o contexto ativo e a refeição lógica compatível do mesmo dia antes de criar um novo bloco de refeição.
+- O horário da mensagem deve permanecer como metadado para exibição, ordenação, auditoria e interpretação temporal, mas não deve ser usado sozinho como chave de identidade ou agrupamento da refeição.
+- Comandos posteriores, como ajustes e exclusões por alimento, devem procurar primeiro no contexto lógico seguro do dia/refeição, não apenas no último bloco criado pela última mensagem.
+- Quando o usuário informar nome específico de produto ou marca em texto, o registro exibido deve preservar esse nome sempre que ele for compatível com a referência nutricional usada internamente.
 
 ## Entradas suportadas
 
@@ -63,3 +67,6 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Payload inválido do interpretador LLM não executa ação e cai no classificador determinístico/fallback seguro.
 - Baixa confiança ou ambiguidade gera pergunta contextual antes de alterar dados.
 - Casos reais como troca de alimento, inclusão em refeição inexistente e consulta de refeições registradas ficam cobertos por testes de regressão.
+- Imagem ou áudio enviado após uma refeição compatível no mesmo dia não cria novo bloco apenas porque chegou em outro horário; o conteúdo deve ser consolidado ou associado à refeição lógica segura.
+- Exclusão por alimento, como `Excluir o chocolate`, busca candidatos no contexto lógico do dia/refeição e pede confirmação quando houver ambiguidade.
+- Nome específico informado pelo usuário, como produto/marca, é preservado na exibição mesmo quando a referência nutricional/canônica usada internamente for genérica.
