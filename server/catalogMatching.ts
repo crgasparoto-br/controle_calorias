@@ -15,18 +15,34 @@ const KNOWN_BRANDS = [
   "Danone",
   "Italac",
   "Piracanjuba",
-  "Growth",
+  "Catupiry",
+  "Elma Chips",
+  "Elma",
+  "Bauducco",
+  "Vigor",
+  "Tirolez",
+  "Qualy",
 ];
 const CRITICAL_VARIATION_TERMS = [
+  "zero lactose",
+  "sem lactose",
+  "semi desnatado",
+  "semidesnatado",
+  "desnatado",
+  "integral",
   "zero",
   "diet",
   "light",
-  "integral",
-  "desnatado",
   "sem acucar",
   "sem açúcar",
+  "sem adicao de acucar",
+  "sem adição de açúcar",
   "tradicional",
   "proteico",
+  "grego",
+  "natural",
+  "frescal",
+  "cremoso",
   "frances",
   "francês",
   "sovado",
@@ -74,7 +90,7 @@ function detectCatalogBrand(food: CatalogFood, normalizedQuery: string) {
   return food.brandName && normalizedTokenIncludes(normalizedQuery, food.brandName) ? food.brandName : null;
 }
 
-function detectCriticalVariations(value: string) {
+export function detectCriticalVariations(value: string) {
   const normalized = normalizeForMatching(value);
   return CRITICAL_VARIATION_TERMS.filter(term => normalizedTokenIncludes(normalized, term));
 }
