@@ -24,13 +24,18 @@ export default function AdminPage() {
   const [accessToken, setAccessToken] = useState("");
   const [foodCatalogQuery, setFoodCatalogQuery] = useState("");
 
-  const foodCatalog = trpc.nutrition.foods.catalogSearch.useQuery({
+  const foodCatalog = trpc.nutrition.foods.catalogSearch?.useQuery?.({
     query: foodCatalogQuery,
     limit: 50,
     includeInactive: true,
   }, {
     retry: false,
-  });
+  }) ?? {
+    data: [],
+    isLoading: false,
+    isError: false,
+    error: null,
+  };
 
   useEffect(() => {
     setAccessToken("");
@@ -267,7 +272,7 @@ export default function AdminPage() {
                   </div>
                 ) : foodCatalog.isError ? (
                   <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-sm leading-6 text-destructive">
-                    {foodCatalog.error.message || "Não foi possível consultar a base de alimentos agora."}
+                    {foodCatalog.error?.message || "Não foi possível consultar a base de alimentos agora."}
                   </div>
                 ) : foodCatalogItems.length ? (
                   <div className="grid gap-3">
