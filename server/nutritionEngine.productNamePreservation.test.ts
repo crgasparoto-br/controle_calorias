@@ -48,6 +48,8 @@ describe("nutritionEngine product name preservation", () => {
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
       text: "15g sleepy koala chocolate",
+      occurredAt: "2026-07-07T22:40:00-03:00",
+      timeZone: "America/Sao_Paulo",
     });
 
     expect(result.detectedMealLabel).toBe("Jantar");
