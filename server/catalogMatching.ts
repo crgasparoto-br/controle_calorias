@@ -15,6 +15,7 @@ const KNOWN_BRANDS = [
   "Danone",
   "Italac",
   "Piracanjuba",
+  "Growth",
   "Catupiry",
   "Elma Chips",
   "Elma",
