@@ -10,7 +10,14 @@ import {
   hasUsableNutrition,
 } from "./mealItemBuilders";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
-import { extractExplicitQuantities, getQuantityExpressionClarification, normalizeForMatching, normalizeLlmItem } from "./mealTextParsing";
+import {
+  extractExplicitQuantities,
+  extractExplicitQuantityFoodSegments,
+  formatFoodNameTitleCase,
+  getQuantityExpressionClarification,
+  normalizeForMatching,
+  normalizeLlmItem,
+} from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type {
   BuildItemsOptions,
@@ -113,6 +120,89 @@ function filterAiItemsBySourceText(items: LlmItem[], sourceText: string) {
   });
 }
 
+function sourceSegmentOnlyAddsStructuredBrand(input: {
+  item: MealDraftItem;
+  segmentFoodName: string;
+  normalizedSegment: string;
+  normalizedItem: string;
+  normalizedCanonical: string;
+}) {
+  const normalizedBrand = input.item.brand ? normalizeForMatching(input.item.brand).trim() : "";
+  if (!normalizedBrand) {
+    return false;
+  }
+
+  const segmentWithoutBrand = input.normalizedSegment
+    .replace(new RegExp(`(^| )${normalizedBrand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`, "g"), " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return Boolean(segmentWithoutBrand)
+    && (segmentWithoutBrand === input.normalizedItem || segmentWithoutBrand === input.normalizedCanonical);
+}
+
+function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: string, usedSegments: Set<number>) {
+  const explicitSegments = extractExplicitQuantityFoodSegments(sourceText);
+  if (!explicitSegments.length) {
+    return null;
+  }
+
+  const normalizedItem = normalizeForMatching(item.foodName).trim();
+  const normalizedCanonical = normalizeForMatching(item.canonicalName).trim();
+
+  for (const [index, segment] of explicitSegments.entries()) {
+    if (usedSegments.has(index)) {
+      continue;
+    }
+
+    const normalizedSegment = normalizeForMatching(segment.foodName).trim();
+    if (!normalizedSegment || normalizedSegment === normalizedItem || normalizedSegment === normalizedCanonical) {
+      continue;
+    }
+
+    if (sourceSegmentOnlyAddsStructuredBrand({
+      item,
+      segmentFoodName: segment.foodName,
+      normalizedSegment,
+      normalizedItem,
+      normalizedCanonical,
+    })) {
+      continue;
+    }
+
+    const segmentMatchesItem = sourceMentionsFood(segment.foodName, item.foodName)
+      || sourceMentionsFood(segment.foodName, item.canonicalName)
+      || Boolean(normalizedItem && normalizedSegment.includes(normalizedItem))
+      || Boolean(normalizedCanonical && normalizedSegment.includes(normalizedCanonical));
+
+    if (segmentMatchesItem) {
+      usedSegments.add(index);
+      return segment.foodName;
+    }
+  }
+
+  return null;
+}
+
+function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: string) {
+  if (!sourceText.trim()) {
+    return items;
+  }
+
+  const usedSegments = new Set<number>();
+  return items.map(item => {
+    const sourceFoodName = findSpecificSourceFoodNameForItem(item, sourceText, usedSegments);
+    if (!sourceFoodName) {
+      return item;
+    }
+
+    return {
+      ...item,
+      foodName: formatFoodNameTitleCase(sourceFoodName),
+    };
+  });
+}
+
 function reasoningMentionsNutritionLabel(reasoning?: string) {
   if (!reasoning) {
     return false;
@@ -182,7 +272,10 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     }
   }
 
-  const items = cleanMealItems(rawItems);
+  const cleanedItems = cleanMealItems(rawItems);
+  const items = shouldConstrainAiItemsToText(input, sourceText)
+    ? preserveSpecificSourceFoodNames(cleanedItems, sourceText)
+    : cleanedItems;
 
   if (!items.length) {
     throw new MealInferenceError();
