@@ -35,8 +35,7 @@ function parseLine(line: string) {
   return values;
 }
 
-export async function readCsv(filePath: string) {
-  const content = await readFile(filePath, "utf8");
+export function parseCsvContent(content: string) {
   const lines = content.split(/\r?\n/).filter(line => line.trim());
   const headers = parseLine(lines[0] ?? "").map(header => header.trim());
 
@@ -47,6 +46,11 @@ export async function readCsv(filePath: string) {
       return row;
     }, {});
   });
+}
+
+export async function readCsv(filePath: string) {
+  const content = await readFile(filePath, "utf8");
+  return parseCsvContent(content);
 }
 
 export function pick(row: CsvRow, candidates: string[]) {
