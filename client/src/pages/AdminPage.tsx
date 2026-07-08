@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, ChevronRight, Database, KeyRound, Save, Search, Shield, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Database, KeyRound, PlayCircle, Save, Search, Shield, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
 
 const FOOD_CATALOG_PAGE_SIZE = 25;
@@ -44,6 +44,20 @@ type FoodCatalogItem = {
   };
 };
 
+type FoodImportJob = "import_taco" | "import_tbca";
+
+type FoodImportReport = {
+  sourceSlug: string;
+  sourceVersion: string;
+  inserted: number;
+  updated: number;
+  ignored: number;
+  aliasesInserted: number;
+  portionsInserted: number;
+  possibleDuplicates: Array<{ sourceFoodCode: string; normalizedName: string; existingFoodIds: number[] }>;
+  errors: Array<{ sourceFoodCode?: string; name?: string; reason: string }>;
+};
+
 export default function AdminPage() {
   const utils = trpc.useUtils();
   const admin = trpc.nutrition.admin.overview.useQuery(undefined, {
@@ -56,6 +70,10 @@ export default function AdminPage() {
   const [accessToken, setAccessToken] = useState("");
   const [foodCatalogQuery, setFoodCatalogQuery] = useState("");
   const [foodCatalogPage, setFoodCatalogPage] = useState(1);
+  const [foodImportJob, setFoodImportJob] = useState<FoodImportJob>("import_taco");
+  const [foodImportFile, setFoodImportFile] = useState<File | null>(null);
+  const [foodImportSourceVersion, setFoodImportSourceVersion] = useState("");
+  const [foodImportReport, setFoodImportReport] = useState<FoodImportReport | null>(null);
 
   const foodCatalog = trpc.nutrition.foods.catalogSearch?.useQuery?.({
     query: foodCatalogQuery,
@@ -68,6 +86,7 @@ export default function AdminPage() {
     isLoading: false,
     isError: false,
     error: null,
+    refetch: undefined,
   };
 
   useEffect(() => {
@@ -92,6 +111,32 @@ export default function AdminPage() {
       toast.error(error.message || "Não foi possível atualizar o token do WhatsApp agora.");
     },
   });
+
+  const runFoodImportJob = trpc.nutrition.admin.runFoodImportJob.useMutation({
+    onSuccess: async report => {
+      setFoodImportReport(report as FoodImportReport);
+      toast.success(`Carga concluída: ${formatCountPtBr(report.inserted)} inseridos e ${formatCountPtBr(report.updated)} atualizados.`);
+      await foodCatalog.refetch?.();
+    },
+    onError: error => {
+      toast.error(error.message || "Não foi possível executar a carga de alimentos agora.");
+    },
+  });
+
+  async function handleRunCsvImport() {
+    if (!foodImportFile) {
+      toast.error("Selecione um arquivo CSV antes de executar a importação.");
+      return;
+    }
+
+    const csvContent = await foodImportFile.text();
+    runFoodImportJob.mutate({
+      job: foodImportJob,
+      csvContent,
+      fileName: foodImportFile.name,
+      sourceVersion: foodImportSourceVersion.trim() || undefined,
+    });
+  }
 
   const tokenStatus = whatsappTokenStatus.data ?? admin.data?.whatsappToken;
   const canSaveToken = accessToken.trim().length >= 20 && !updateWhatsappToken.isPending;
@@ -296,6 +341,89 @@ export default function AdminPage() {
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-primary" />
+                  Cargas e atualizações da base alimentar
+                </CardTitle>
+                <CardDescription>
+                  Execute o seed curado ou importe arquivos CSV TACO/TBCA selecionados do seu computador. A importação é idempotente por fonte, versão e código do alimento.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr),minmax(0,1.2fr)]">
+                  <div className="space-y-3 rounded-2xl border bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <p className="font-medium tracking-tight">Seed curado Brasil</p>
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        Executa a base comum inicial versionada no repositório.
+                      </p>
+                    </div>
+                    <Button
+                      className="gap-2"
+                      disabled={runFoodImportJob.isPending}
+                      onClick={() => runFoodImportJob.mutate({ job: "seed_common_br" })}
+                    >
+                      <PlayCircle className="h-4 w-4" />
+                      {runFoodImportJob.isPending ? "Executando..." : "Executar seed comum"}
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4 rounded-2xl border bg-muted/20 p-4">
+                    <div className="grid gap-3 lg:grid-cols-[180px,1fr,220px]">
+                      <div className="space-y-2">
+                        <Label htmlFor="admin-food-import-job">Tipo</Label>
+                        <select
+                          id="admin-food-import-job"
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={foodImportJob}
+                          onChange={event => setFoodImportJob(event.target.value as FoodImportJob)}
+                        >
+                          <option value="import_taco">TACO CSV</option>
+                          <option value="import_tbca">TBCA CSV</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="admin-food-import-file">Arquivo CSV</Label>
+                        <Input
+                          id="admin-food-import-file"
+                          type="file"
+                          accept=".csv,text/csv"
+                          onChange={event => setFoodImportFile(event.target.files?.[0] ?? null)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="admin-food-import-version">Versão da fonte</Label>
+                        <Input
+                          id="admin-food-import-version"
+                          value={foodImportSourceVersion}
+                          onChange={event => setFoodImportSourceVersion(event.target.value)}
+                          placeholder="ex.: 2026-07"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        {foodImportFile ? `Selecionado: ${foodImportFile.name}` : "Escolha o arquivo local para enviar e processar no servidor."}
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="gap-2"
+                        disabled={runFoodImportJob.isPending || !foodImportFile}
+                        onClick={handleRunCsvImport}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {runFoodImportJob.isPending ? "Importando..." : "Importar CSV"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {foodImportReport ? <FoodImportReportSummary report={foodImportReport} /> : null}
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <Database className="h-5 w-5 text-primary" />
                   Base de alimentos usada pelo sistema
                 </CardTitle>
@@ -404,6 +532,40 @@ function StatusPill({
       <p className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-medium ${toneClassName} ${mono ? "font-mono text-xs sm:text-sm" : ""}`}>
         {value}
       </p>
+    </div>
+  );
+}
+
+function FoodImportReportSummary({ report }: { report: FoodImportReport }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-medium tracking-tight">Última execução: {report.sourceSlug}@{report.sourceVersion}</p>
+          <p className="text-sm text-muted-foreground">
+            {formatCountPtBr(report.inserted)} inseridos · {formatCountPtBr(report.updated)} atualizados · {formatCountPtBr(report.ignored)} ignorados · {formatCountPtBr(report.aliasesInserted)} aliases · {formatCountPtBr(report.portionsInserted)} porções
+          </p>
+        </div>
+        <Badge variant={report.errors.length ? "secondary" : "outline"}>{report.errors.length ? "Com alertas" : "Concluído"}</Badge>
+      </div>
+      {report.possibleDuplicates.length ? (
+        <p className="mt-3 text-sm text-amber-700">
+          {formatCountPtBr(report.possibleDuplicates.length)} possíveis duplicidades encontradas para revisão de curadoria.
+        </p>
+      ) : null}
+      {report.errors.length ? (
+        <div className="mt-3 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">
+          <p className="font-medium">Erros/itens ignorados</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {report.errors.slice(0, 5).map((error, index) => (
+              <li key={`${error.sourceFoodCode ?? error.name ?? "erro"}-${index}`}>
+                {error.sourceFoodCode || error.name || "Item"}: {error.reason}
+              </li>
+            ))}
+          </ul>
+          {report.errors.length > 5 ? <p className="mt-2">Há mais erros no relatório completo do job.</p> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
