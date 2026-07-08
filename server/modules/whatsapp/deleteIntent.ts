@@ -1,5 +1,6 @@
 import { listMeals, removeMeal, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
+import { formatWhatsAppConsolidationDateKey } from "./mealConsolidation";
 import type { WhatsappInterpretedIntent } from "./intentSchema";
 
 export type WhatsappDeleteIntentKind = "delete_food_from_meal" | "delete_meal" | "unknown_delete";
@@ -34,6 +35,14 @@ type PendingDeleteIntent = {
   expiresAt: number;
 };
 
+type ListedMeal = Awaited<ReturnType<typeof listMeals>>[number];
+
+type FoodMatch = {
+  meal: ListedMeal;
+  item: ListedMeal["items"][number];
+  itemIndex: number;
+};
+
 const PENDING_DELETE_TTL_MS = 10 * 60 * 1000;
 const pendingDeleteIntents = new Map<number, PendingDeleteIntent>();
 
@@ -60,6 +69,21 @@ function normalizeDeleteIntentText(value: string) {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeMealLabelForDelete(label: string) {
+  const normalized = normalizeDeleteIntentText(label);
+  if (normalized.includes("cafe") || normalized.includes("manha")) return "cafe da manha";
+  if (normalized.includes("almoco")) return "almoco";
+  if (normalized.includes("janta")) return "jantar";
+  if (normalized.includes("lanche")) return "lanche";
+  if (normalized.includes("ceia")) return "ceia";
+  return normalized;
+}
+
+function isGenericMealLabel(label: string) {
+  const normalized = normalizeMealLabelForDelete(label);
+  return !normalized || ["refeicao", "refeicao registrada", "refeicao fotografada"].includes(normalized);
 }
 
 function hasDestructiveVerb(normalized: string) {
@@ -175,15 +199,71 @@ function shouldDeleteLastFood(normalized: string) {
     || /\b(?:esse|este|ultimo|ultima)\s+(?:alimento|item)\b/.test(normalized);
 }
 
-function findFoodMatches(items: Array<{ foodName?: string | null; canonicalName?: string | null }>, target: string) {
-  const query = normalizeDeleteIntentText(target);
-  const queryWords = query.split(/\s+/).filter(Boolean);
-  return items
-    .map((item, index) => ({ item, index, name: normalizeDeleteIntentText(`${item.foodName ?? ""} ${item.canonicalName ?? ""}`) }))
-    .filter(candidate => candidate.name.includes(query) || queryWords.every(word => candidate.name.includes(word)));
+function getMealDateKey(meal: ListedMeal) {
+  return formatWhatsAppConsolidationDateKey(meal.occurredAt);
 }
 
-function createPendingFoodDelete(userId: number, meal: Awaited<ReturnType<typeof listMeals>>[number], itemIndex: number) {
+function getFoodSearchName(item: ListedMeal["items"][number]) {
+  const extraNames = [
+    "originalFoodName",
+    "originalName",
+    "displayName",
+    "sourceFoodName",
+    "inferredFoodName",
+  ].map(key => {
+    const value = (item as Record<string, unknown>)[key];
+    return typeof value === "string" ? value : "";
+  });
+
+  return normalizeDeleteIntentText([
+    item.foodName ?? "",
+    item.canonicalName ?? "",
+    ...extraNames,
+  ].join(" "));
+}
+
+function itemMatchesFoodTarget(item: ListedMeal["items"][number], target: string) {
+  const query = normalizeDeleteIntentText(target);
+  const queryWords = query.split(/\s+/).filter(Boolean);
+  const name = getFoodSearchName(item);
+  return Boolean(query) && (name.includes(query) || queryWords.every(word => name.includes(word)));
+}
+
+function findFoodMatches(items: ListedMeal["items"], target: string) {
+  return items
+    .map((item, index) => ({ item, index }))
+    .filter(candidate => itemMatchesFoodTarget(candidate.item, target));
+}
+
+function buildFoodSearchContext(meals: ListedMeal[], referenceMeal: ListedMeal) {
+  const referenceDateKey = getMealDateKey(referenceMeal);
+  const referenceLabel = normalizeMealLabelForDelete(referenceMeal.mealLabel);
+  const sameDayMeals = meals.filter(meal => getMealDateKey(meal) === referenceDateKey);
+
+  if (!sameDayMeals.length) {
+    return [referenceMeal];
+  }
+
+  if (!isGenericMealLabel(referenceMeal.mealLabel)) {
+    const sameLogicalMeal = sameDayMeals.filter(meal => normalizeMealLabelForDelete(meal.mealLabel) === referenceLabel);
+    if (sameLogicalMeal.length) {
+      return sameLogicalMeal;
+    }
+  }
+
+  return sameDayMeals;
+}
+
+function findFoodMatchesInLogicalContext(meals: ListedMeal[], referenceMeal: ListedMeal, target: string): FoodMatch[] {
+  const contextMeals = buildFoodSearchContext(meals, referenceMeal);
+  return contextMeals.flatMap(meal => findFoodMatches(meal.items ?? [], target).map(match => ({
+    meal,
+    item: match.item,
+    itemIndex: match.index,
+  })));
+}
+
+function createPendingFoodDelete(userId: number, meal: ListedMeal, itemIndex: number) {
   const item = meal.items[itemIndex];
   const pending: PendingDeleteIntent = {
     kind: "delete_food_from_meal",
@@ -197,6 +277,13 @@ function createPendingFoodDelete(userId: number, meal: Awaited<ReturnType<typeof
   };
   pendingDeleteIntents.set(userId, pending);
   return buildPendingResult(pending);
+}
+
+function buildAmbiguousFoodMatchesReply(targetFoodName: string, matches: FoodMatch[]) {
+  const options = matches
+    .map((match, index) => `${index + 1}. ${match.item.foodName} em ${match.meal.mealLabel}`)
+    .join("\n");
+  return `Encontrei mais de um alimento parecido com "${targetFoodName}" no contexto do dia. Qual deseja remover?\n${options}`;
 }
 
 async function requestDeleteConfirmation(userId: number, detection: WhatsappDeleteIntentDetection): Promise<WhatsappDeleteIntentResult> {
@@ -225,7 +312,7 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
   }
 
   const items = latestMeal.items ?? [];
-  if (!items.length) {
+  if (!items.length && !detection.targetFoodName) {
     return buildClarificationResult({
       ...detection,
       reply: "Encontrei a refeição recente, mas ela não tem alimentos detalhados para remover. Me diga qual registro você quer revisar.",
@@ -235,28 +322,35 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
   }
 
   if (shouldDeleteLastFood(detection.normalizedText)) {
+    if (!items.length) {
+      return buildClarificationResult({
+        ...detection,
+        reply: "Encontrei a refeição recente, mas ela não tem alimentos detalhados para remover. Me diga qual registro você quer revisar.",
+        eventType: "whatsapp.intent.delete_food_clarification_needed",
+        detail: "Comando destrutivo de último alimento sem itens na refeição recente.",
+      });
+    }
     return createPendingFoodDelete(userId, latestMeal, items.length - 1);
   }
 
   if (detection.targetFoodName) {
-    const matches = findFoodMatches(items, detection.targetFoodName);
+    const matches = findFoodMatchesInLogicalContext(meals, latestMeal, detection.targetFoodName);
     if (matches.length === 1) {
-      return createPendingFoodDelete(userId, latestMeal, matches[0].index);
+      return createPendingFoodDelete(userId, matches[0].meal, matches[0].itemIndex);
     }
     if (matches.length > 1) {
-      const options = matches.map((match, index) => `${index + 1}. ${match.item.foodName}`).join("\n");
       return buildClarificationResult({
         ...detection,
-        reply: `Encontrei mais de um alimento parecido com "${detection.targetFoodName}". Qual deseja remover?\n${options}`,
+        reply: buildAmbiguousFoodMatchesReply(detection.targetFoodName, matches),
         eventType: "whatsapp.intent.delete_food_clarification_needed",
-        detail: "Comando destrutivo de alimento por nome com múltiplos candidatos compatíveis.",
+        detail: "Comando destrutivo de alimento por nome com múltiplos candidatos compatíveis no contexto lógico do dia.",
       });
     }
     return buildClarificationResult({
       ...detection,
-      reply: `Não encontrei "${detection.targetFoodName}" na refeição mais recente. Qual item devo remover?`,
+      reply: `Não encontrei "${detection.targetFoodName}" nas refeições do dia. Qual item devo remover?`,
       eventType: "whatsapp.intent.delete_food_clarification_needed",
-      detail: "Comando destrutivo de alimento por nome sem candidato compatível.",
+      detail: "Comando destrutivo de alimento por nome sem candidato compatível no contexto lógico do dia.",
     });
   }
 
