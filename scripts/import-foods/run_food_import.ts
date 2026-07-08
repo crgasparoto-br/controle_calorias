@@ -10,6 +10,10 @@ type FoodIdRow = RowDataPacket & {
   id: number;
 };
 
+export type ImportFoodsOptions = {
+  transactionBatchSize?: number;
+};
+
 function requireDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -63,6 +67,28 @@ function validateFood(food: ImportFood) {
     return "macros principais invalidos";
   }
   return null;
+}
+
+function createImportReport(payload: ImportPayload): ImportReport {
+  return {
+    sourceSlug: payload.source.slug,
+    sourceVersion: payload.source.version,
+    inserted: 0,
+    updated: 0,
+    ignored: 0,
+    aliasesInserted: 0,
+    portionsInserted: 0,
+    possibleDuplicates: [],
+    errors: [],
+  };
+}
+
+function chunkFoods(foods: ImportFood[], batchSize: number) {
+  const chunks: ImportFood[][] = [];
+  for (let index = 0; index < foods.length; index += batchSize) {
+    chunks.push(foods.slice(index, index + batchSize));
+  }
+  return chunks;
 }
 
 async function ensureSource(connection: DbConnection, payload: ImportPayload) {
@@ -196,54 +222,56 @@ async function insertPortions(connection: DbConnection, sourceId: number, foodId
   return inserted;
 }
 
-export async function importFoods(payload: ImportPayload): Promise<ImportReport> {
-  const report: ImportReport = {
-    sourceSlug: payload.source.slug,
-    sourceVersion: payload.source.version,
-    inserted: 0,
-    updated: 0,
-    ignored: 0,
-    aliasesInserted: 0,
-    portionsInserted: 0,
-    possibleDuplicates: [],
-    errors: [],
-  };
+async function importFoodBatch(connection: DbConnection, sourceId: number, foods: ImportFood[], report: ImportReport) {
+  for (const food of foods) {
+    const error = validateFood(food);
+    if (error) {
+      report.ignored += 1;
+      report.errors.push({ sourceFoodCode: food.sourceFoodCode, name: food.name, reason: error });
+      continue;
+    }
+
+    const duplicateInfo = await findPossibleDuplicates(connection, sourceId, food);
+    if (duplicateInfo.existingFoodIds.length > 0) {
+      report.possibleDuplicates.push({
+        sourceFoodCode: food.sourceFoodCode,
+        normalizedName: duplicateInfo.normalizedName,
+        existingFoodIds: duplicateInfo.existingFoodIds,
+      });
+    }
+
+    const { foodId, affectedRows } = await upsertFood(connection, sourceId, food);
+    if (affectedRows === 1) report.inserted += 1;
+    else report.updated += 1;
+
+    report.aliasesInserted += await insertAliases(connection, sourceId, foodId, food);
+    report.portionsInserted += await insertPortions(connection, sourceId, foodId, food);
+  }
+}
+
+export async function importFoods(payload: ImportPayload, options: ImportFoodsOptions = {}): Promise<ImportReport> {
+  const report = createImportReport(payload);
+  const batchSize = options.transactionBatchSize && options.transactionBatchSize > 0
+    ? Math.floor(options.transactionBatchSize)
+    : payload.foods.length;
+  const batches = chunkFoods(payload.foods, Math.max(1, batchSize));
 
   const connection = await createImportConnection();
   try {
-    await connection.beginTransaction();
     const sourceId = await ensureSource(connection, payload);
 
-    for (const food of payload.foods) {
-      const error = validateFood(food);
-      if (error) {
-        report.ignored += 1;
-        report.errors.push({ sourceFoodCode: food.sourceFoodCode, name: food.name, reason: error });
-        continue;
+    for (const batch of batches) {
+      await connection.beginTransaction();
+      try {
+        await importFoodBatch(connection, sourceId, batch, report);
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
       }
-
-      const duplicateInfo = await findPossibleDuplicates(connection, sourceId, food);
-      if (duplicateInfo.existingFoodIds.length > 0) {
-        report.possibleDuplicates.push({
-          sourceFoodCode: food.sourceFoodCode,
-          normalizedName: duplicateInfo.normalizedName,
-          existingFoodIds: duplicateInfo.existingFoodIds,
-        });
-      }
-
-      const { foodId, affectedRows } = await upsertFood(connection, sourceId, food);
-      if (affectedRows === 1) report.inserted += 1;
-      else report.updated += 1;
-
-      report.aliasesInserted += await insertAliases(connection, sourceId, foodId, food);
-      report.portionsInserted += await insertPortions(connection, sourceId, foodId, food);
     }
 
-    await connection.commit();
     return report;
-  } catch (error) {
-    await connection.rollback();
-    throw error;
   } finally {
     await connection.end();
   }
