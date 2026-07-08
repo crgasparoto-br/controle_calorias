@@ -53,17 +53,99 @@ function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+function addCatalogCandidate(candidates: string[], value: string | null | undefined) {
+  const normalized = normalizeForMatching(value ?? "").trim();
+  if (!normalized) {
+    return;
+  }
+  if (candidates.some(candidate => normalizeForMatching(candidate).trim() === normalized)) {
+    return;
+  }
+  candidates.push(value!.trim());
+}
+
+function sourceSegmentMatchesInferenceItem(segmentFoodName: string, item: LlmItem) {
+  const normalizedSegment = normalizeForMatching(segmentFoodName).trim();
+  const normalizedItem = normalizeForMatching(item.foodName).trim();
+  const normalizedBrand = item.brand ? normalizeForMatching(item.brand).trim() : "";
+
+  if (!normalizedSegment || !normalizedItem) {
+    return false;
+  }
+
+  const foodMatches = sourceMentionsFood(segmentFoodName, item.foodName)
+    || normalizedSegment.includes(normalizedItem)
+    || normalizedItem.split(/\s+/).filter(word => word.length >= 3).every(word => normalizedSegment.includes(word));
+
+  if (!foodMatches) {
+    return false;
+  }
+
+  return !normalizedBrand || normalizedSegment.includes(normalizedBrand);
+}
+
+function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: string) {
+  const source = sourceText?.trim();
+  if (!source) {
+    return null;
+  }
+
+  const explicitSegments = extractExplicitQuantityFoodSegments(source);
+  if (!explicitSegments.length) {
+    return null;
+  }
+
+  const matches = explicitSegments.filter(segment => sourceSegmentMatchesInferenceItem(segment.foodName, item));
+  if (matches.length === 1) {
+    return matches[0].foodName;
+  }
+
+  if (!item.brand && explicitSegments.length === 1 && sourceSegmentMatchesInferenceItem(explicitSegments[0].foodName, item)) {
+    return explicitSegments[0].foodName;
+  }
+
+  return null;
+}
+
+function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
+  const candidates: string[] = [];
+  const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
+
+  addCatalogCandidate(candidates, sourceFoodName);
+  if (item.brand) {
+    addCatalogCandidate(candidates, `${item.foodName} ${item.brand}`);
+    addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
+  }
+  addCatalogCandidate(candidates, item.foodName);
+
+  return candidates;
+}
+
+async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
+  const candidates = buildCatalogSearchCandidates(item, options.sourceText);
+
+  for (const candidate of candidates) {
+    const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
+    if (catalog) {
+      return catalog;
+    }
+  }
+
+  for (const candidate of candidates) {
+    const catalog = await findCatalogFoodSemantic(candidate) ?? undefined;
+    if (catalog) {
+      return catalog;
+    }
+  }
+
+  return undefined;
+}
+
 async function buildItemsFromInference(items: LlmItem[], options: BuildItemsOptions = {}): Promise<MealDraftItem[]> {
   const results: MealDraftItem[] = [];
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
-    let catalog = findCatalogFood(normalizedItem.foodName);
-    if (!catalog) {
-      catalog = findTacoFood(normalizedItem.foodName) ?? undefined;
-    }
-    if (!catalog) {
-      catalog = await findCatalogFoodSemantic(normalizedItem.foodName) ?? undefined;
-    }
+    const catalog = await findMostSpecificCatalogForInferenceItem(normalizedItem, options);
     if (catalog && !options.preferInferredNutrition) {
       results.push(buildItemFromCatalog(catalog, normalizedItem));
     } else if (!hasUsableNutrition(normalizedItem)) {
@@ -156,7 +238,7 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
     }
 
     const normalizedSegment = normalizeForMatching(segment.foodName).trim();
-    if (!normalizedSegment || normalizedSegment === normalizedItem || normalizedSegment === normalizedCanonical) {
+    if (!normalizedSegment || normalizedSegment === normalizedItem) {
       continue;
     }
 
@@ -267,6 +349,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
             input.imageUrl
             && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(confirmedExtraction.reasoning))
           ),
+          sourceText,
         },
       ), sourceText);
     }

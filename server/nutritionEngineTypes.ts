@@ -138,4 +138,6 @@ export type ExplicitQuantity = {
 
 export type BuildItemsOptions = {
   preferInferredNutrition?: boolean;
+  /** Texto/transcrição original usado para montar candidatos de busca mais específicos. */
+  sourceText?: string;
 };

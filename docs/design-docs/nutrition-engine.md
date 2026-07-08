@@ -22,6 +22,8 @@ entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> re
 - Quando peso líquido, porção declarada ou etiqueta de balança estiver visível, a inferência deve usar esse valor como porção estimada quando compatível com o item identificado.
 - Alimentos consumíveis reconhecidos com segurança, mas sem tabela nutricional, correspondência exata de catálogo ou macros confiáveis, podem usar fallback nutricional estimado para evitar rascunhos com calorias e macronutrientes zerados.
 - Presença de embalagem transparente, brilho ou reflexo não é evidência suficiente para classificar automaticamente como água; água só deve ser sugerida com evidência explícita.
+- Em entradas textuais com quantidade explícita, o texto original do segmento alimentar deve ser usado como candidato de busca nutricional antes do nome canônico retornado pela IA. Isso preserva e prioriza marca, linha, versão e tipo/qualificador, por exemplo `requeijão catupiry light`, `leite piracanjuba zero lactose` ou `iogurte grego light danone`.
+- A busca nutricional deve preferir a referência mais específica disponível: alimento + marca + tipo/qualificador, depois alimento + marca, depois alimento + tipo/qualificador e somente então alimento genérico. Quando houver fallback menos específico, o nome original completo deve continuar preservado para exibição, auditoria e comandos posteriores.
 
 ## Pontos de atenção para agentes
 

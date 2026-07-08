@@ -33,7 +33,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Envios de imagem e áudio pelo WhatsApp devem tentar usar o contexto ativo e a refeição lógica compatível do mesmo dia antes de criar um novo bloco de refeição.
 - O horário da mensagem deve permanecer como metadado para exibição, ordenação, auditoria e interpretação temporal, mas não deve ser usado sozinho como chave de identidade ou agrupamento da refeição.
 - Comandos posteriores, como ajustes e exclusões por alimento, devem procurar primeiro no contexto lógico seguro do dia/refeição, não apenas no último bloco criado pela última mensagem.
-- Quando o usuário informar nome específico de produto ou marca em texto, o registro exibido deve preservar esse nome sempre que ele for compatível com a referência nutricional usada internamente.
+- Quando o usuário informar nome específico de produto, marca, linha, versão ou tipo/qualificador em texto, o registro exibido deve preservar esse nome sempre que ele for compatível com a referência nutricional usada internamente.
+- Marca e tipo/qualificador informados no texto devem participar da busca da referência nutricional. A ordem de preferência é: alimento + marca + tipo, alimento + marca, alimento + tipo e, por último, alimento genérico quando não houver match mais específico confiável.
 
 ## Entradas suportadas
 
@@ -69,4 +70,5 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Casos reais como troca de alimento, inclusão em refeição inexistente e consulta de refeições registradas ficam cobertos por testes de regressão.
 - Imagem ou áudio enviado após uma refeição compatível no mesmo dia não cria novo bloco apenas porque chegou em outro horário; o conteúdo deve ser consolidado ou associado à refeição lógica segura.
 - Exclusão por alimento, como `Excluir o chocolate`, busca candidatos no contexto lógico do dia/refeição e pede confirmação quando houver ambiguidade.
-- Nome específico informado pelo usuário, como produto/marca, é preservado na exibição mesmo quando a referência nutricional/canônica usada internamente for genérica.
+- Nome específico informado pelo usuário, como produto, marca ou tipo/qualificador, é preservado na exibição mesmo quando a referência nutricional/canônica usada internamente for genérica.
+- Marca e tipo/qualificador informados no texto influenciam o match nutricional antes do fallback para alimento genérico.
