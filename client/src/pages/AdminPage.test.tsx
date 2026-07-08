@@ -8,9 +8,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const invalidateAdminOverviewMock = vi.fn(async () => undefined);
 const invalidateAdminWhatsappTokenStatusMock = vi.fn(async () => undefined);
 const invalidateWhatsappStatusMock = vi.fn(async () => undefined);
+const refetchFoodCatalogMock = vi.fn(async () => undefined);
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
 const mutateUpdateWhatsappTokenMock = vi.fn();
+const mutateRunFoodImportJobMock = vi.fn();
 
 vi.mock("@/components/DashboardLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
@@ -44,6 +46,7 @@ vi.mock("@/lib/trpc", () => ({
             isLoading: false,
             isError: false,
             error: null,
+            refetch: refetchFoodCatalogMock,
           }),
         },
       },
@@ -86,6 +89,27 @@ vi.mock("@/lib/trpc", () => ({
             }),
           }),
         },
+        runFoodImportJob: {
+          useMutation: (options?: {
+            onSuccess?: (report: unknown) => Promise<void> | void;
+            onError?: (error: Error) => void;
+          }) => ({
+            isPending: false,
+            mutate: mutateRunFoodImportJobMock.mockImplementation(async () => {
+              await options?.onSuccess?.({
+                sourceSlug: "taco",
+                sourceVersion: "test",
+                inserted: 1,
+                updated: 0,
+                ignored: 0,
+                aliasesInserted: 1,
+                portionsInserted: 1,
+                possibleDuplicates: [],
+                errors: [],
+              });
+            }),
+          }),
+        },
       },
     },
   },
@@ -94,6 +118,8 @@ vi.mock("@/lib/trpc", () => ({
 describe("AdminPage", () => {
   beforeEach(() => {
     mutateUpdateWhatsappTokenMock.mockReset();
+    mutateRunFoodImportJobMock.mockReset();
+    refetchFoodCatalogMock.mockClear();
     invalidateAdminOverviewMock.mockClear();
     invalidateAdminWhatsappTokenStatusMock.mockClear();
     invalidateWhatsappStatusMock.mockClear();
