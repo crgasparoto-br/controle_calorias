@@ -131,6 +131,58 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
     expect(request?.reply).not.toContain("quantidade");
   });
 
+  it("procura alimento no contexto logico do mesmo dia quando a ultima mensagem foi uma foto", async () => {
+    const imageMeal = {
+      id: 99,
+      mealLabel: "Refeição fotografada",
+      occurredAt: "2026-07-07T23:15:00.000Z",
+      notes: "foto Koala",
+      items: [],
+    };
+    const dinnerMeal = {
+      id: 98,
+      mealLabel: "Jantar",
+      occurredAt: "2026-07-07T22:40:00.000Z",
+      notes: "texto",
+      items: [
+        { foodName: "Sleepy Koala Chocolate", canonicalName: "Chocolate", portionText: "15 g", calories: 80, protein: 1, carbs: 10, fat: 4 },
+        { foodName: "Pêra", canonicalName: "Pêra", portionText: "120 g", calories: 70, protein: 0.4, carbs: 18, fat: 0.2 },
+      ],
+    };
+    listMealsMock.mockResolvedValue([imageMeal, dinnerMeal]);
+    updateMealMock.mockImplementation(async (_userId, input) => ({ ...dinnerMeal, ...input }));
+
+    const request = await executeWhatsappDeleteIntent(42, { text: "Excluir o chocolate" });
+    const confirmation = await executeWhatsappDeleteIntent(42, { text: "sim" });
+
+    expect(request?.reply).toContain("Encontrei o item Sleepy Koala Chocolate em Jantar");
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 98,
+      items: [dinnerMeal.items[1]],
+    }));
+    expect(confirmation).toEqual(expect.objectContaining({
+      action: "meal_item_deleted",
+      data: expect.objectContaining({ mealId: 98, removedFoodName: "Sleepy Koala Chocolate" }),
+    }));
+  });
+
+  it("considera canonicalName e nomes preservados na busca por alimento", async () => {
+    const dinnerMeal = {
+      id: 77,
+      mealLabel: "Jantar",
+      occurredAt: "2026-07-07T22:40:00.000Z",
+      notes: "texto",
+      items: [
+        { foodName: "Sleepy Koala Chocolate", canonicalName: "Chocolate", portionText: "15 g", calories: 80, protein: 1, carbs: 10, fat: 4 },
+      ],
+    };
+    listMealsMock.mockResolvedValue([dinnerMeal]);
+
+    const request = await executeWhatsappDeleteIntent(42, { text: "Remover koala" });
+
+    expect(request?.reply).toContain("Encontrei o item Sleepy Koala Chocolate");
+  });
+
   it("pede esclarecimento quando o nome combina com multiplos candidatos", async () => {
     listMealsMock.mockResolvedValue([{
       ...latestMeal,
