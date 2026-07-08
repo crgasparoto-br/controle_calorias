@@ -1,13 +1,14 @@
 import { Request, Response } from "express";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, logInferenceEvent } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import {
   buildSuspiciousWhatsAppContentReply,
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
-import { buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
+import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
 import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
@@ -544,6 +545,16 @@ async function tryHandleAnnotatedImageMessage(
       items: processedForPersistence.items,
     });
 
+    const consolidationResult = await consolidateWhatsAppMealAfterSave(
+      {
+        listUserMeals,
+        updateUserMeal,
+        removeUserMeal,
+      },
+      savedMeal,
+    );
+    const replyMeal = consolidationResult.meal;
+
     logInferenceEvent({
       userId,
       origin: "whatsapp",
@@ -552,11 +563,16 @@ async function tryHandleAnnotatedImageMessage(
       detail: `Mensagem imagem de ${sourcePhone} processada e refeição ${savedMeal.mealLabel} registrada automaticamente às ${formatReplyTime(occurredAt)}.`,
     });
 
-    const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: savedMeal.id });
-    const mealReplyText = buildWhatsAppMealReplyMessage(processedForPersistence, {
-      registeredAt: occurredAt,
-      goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
-    });
+    const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: replyMeal.id });
+    const mealReplyText = consolidationResult.action === "updated"
+      ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
+          registeredAt: occurredAt,
+          goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+        })
+      : buildWhatsAppMealReplyMessage(processedForPersistence, {
+          registeredAt: occurredAt,
+          goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+        });
     const replyResult = quickEditLink?.url
       ? await sendWhatsAppInteractiveUrlButtonMessage(sourcePhone, mealReplyText, "Editar refeição", quickEditLink.url)
       : await sendWhatsAppTextMessage(sourcePhone, mealReplyText);

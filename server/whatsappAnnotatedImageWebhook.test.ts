@@ -7,6 +7,9 @@ const getUserDayMealTotalsMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
+const listUserMealsMock = vi.fn();
+const removeUserMealMock = vi.fn();
+const updateUserMealMock = vi.fn();
 const processMealInputMock = vi.fn();
 const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
@@ -24,7 +27,10 @@ vi.mock("./db", () => ({
   getUserDayMealTotals: getUserDayMealTotalsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getUserNutritionGoal: getUserNutritionGoalMock,
+  listUserMeals: listUserMealsMock,
   logInferenceEvent: logInferenceEventMock,
+  removeUserMeal: removeUserMealMock,
+  updateUserMeal: updateUserMealMock,
 }));
 
 vi.mock("./whatsappConfig", () => ({
@@ -121,6 +127,30 @@ function createImageWebhookRequest(messageId = "image-with-foods") {
   };
 }
 
+const savedImageMeal = {
+  id: 10,
+  userId: 42,
+  source: "whatsapp",
+  mealLabel: "Almoço",
+  occurredAt: "2026-06-03T13:00:00.000Z",
+  notes: "meu almoço",
+  items: [
+    {
+      foodName: "arroz",
+      canonicalName: "Arroz branco cozido",
+      portionText: "100 g",
+      servings: 1,
+      estimatedGrams: 100,
+      calories: 130,
+      protein: 2.7,
+      carbs: 28,
+      fat: 0.3,
+      confidence: 0.92,
+      source: "catalog" as const,
+    },
+  ],
+};
+
 describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -135,6 +165,9 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     getUserNutritionGoalMock.mockReset();
     createPendingMealInferenceMock.mockReset();
     confirmPendingMealMock.mockReset();
+    listUserMealsMock.mockReset();
+    removeUserMealMock.mockReset();
+    updateUserMealMock.mockReset();
     processMealInputMock.mockReset();
     generateImageMock.mockReset();
     createLocalMealPhotoOverlayMock.mockReset();
@@ -169,21 +202,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       confidence: 0.91,
       needsConfirmation: true,
       reasoning: "Inferência simulada para imagem.",
-      items: [
-        {
-          foodName: "arroz",
-          canonicalName: "Arroz branco cozido",
-          portionText: "100 g",
-          servings: 1,
-          estimatedGrams: 100,
-          calories: 130,
-          protein: 2.7,
-          carbs: 28,
-          fat: 0.3,
-          confidence: 0.92,
-          source: "catalog" as const,
-        },
-      ],
+      items: savedImageMeal.items,
       totals: {
         calories: 130,
         protein: 2.7,
@@ -201,9 +220,22 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     });
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-1" });
     confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
-      id: 10,
-      mealLabel: input.mealLabel,
+      ...savedImageMeal,
+      mealLabel: input.mealLabel as string,
+      occurredAt: input.occurredAt as string,
+      notes: input.notes as string | undefined,
+      items: input.items as typeof savedImageMeal.items,
     }));
+    listUserMealsMock.mockResolvedValue([savedImageMeal]);
+    updateUserMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
+      ...savedImageMeal,
+      id: input.mealId,
+      mealLabel: input.mealLabel,
+      occurredAt: input.occurredAt,
+      notes: input.notes,
+      items: input.items,
+    }));
+    removeUserMealMock.mockResolvedValue(undefined);
     fallbackWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
 
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -307,6 +339,50 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
         caption: "Imagem anotada com os alimentos identificados.",
       },
     ]);
+  });
+
+  it("consolida a foto na refeição lógica existente do mesmo dia", async () => {
+    const existingLunch = {
+      ...savedImageMeal,
+      id: 7,
+      mealLabel: "Almoço",
+      occurredAt: "2026-06-03T12:30:00.000Z",
+      items: [
+        {
+          foodName: "Feijão",
+          canonicalName: "Feijão cozido",
+          portionText: "100 g",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 90,
+          protein: 5,
+          carbs: 15,
+          fat: 1,
+          confidence: 0.9,
+          source: "catalog" as const,
+        },
+      ],
+    };
+    listUserMealsMock.mockResolvedValue([savedImageMeal, existingLunch]);
+    updateUserMealMock.mockImplementation(async input => ({
+      ...existingLunch,
+      id: input.mealId,
+      items: input.items,
+    }));
+
+    const req = createImageWebhookRequest("image-consolidated-with-lunch");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(updateUserMealMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      mealId: 7,
+      mealLabel: "Almoço",
+      items: [...existingLunch.items, ...savedImageMeal.items],
+    }));
+    expect(removeUserMealMock).toHaveBeenCalledWith(42, 10);
+    expect(sentTextMessages[1]).toContain("*Almoço Atualizado às 13:00hs.*");
   });
 
   it("envia por upload a imagem editada quando ela existe só em buffer", async () => {

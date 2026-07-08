@@ -70,6 +70,10 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - A URL persistida da mídia deve continuar sendo a URL do storage quando o storage estiver disponível, não a data URL inline usada apenas durante inferência ou transcrição.
 - Falha ao persistir mídia no storage deve gerar aviso operacional, mas não deve bloquear análise de imagem, transcrição de áudio ou registro de refeição quando a mídia já tiver sido baixada da Meta.
 - Quando o processamento da mídia falhar, a resposta automática deve ser genérica e não deve expor token, URL assinada, telefone completo, conteúdo cru ou detalhe interno do provider.
+- Refeições criadas por texto, imagem ou áudio no WhatsApp devem passar pela mesma consolidação lógica por usuário, dia, origem `whatsapp` e rótulo de refeição antes de serem tratadas como blocos separados.
+- O wrapper de imagem anotada deve usar a mesma consolidação pós-salvamento do webhook principal para evitar que uma foto enviada depois de uma refeição abra bloco separado apenas pelo horário.
+- Comandos destrutivos por alimento devem procurar no contexto lógico seguro do dia/refeição e considerar `foodName`, `canonicalName` e nomes originais/preservados quando existirem, pedindo confirmação quando houver múltiplos candidatos.
+- O campo `occurredAt` deve continuar disponível como metadado de ocorrência para horário exibido, ordenação, auditoria e interpretação temporal, mas não deve ser usado sozinho como identidade da refeição lógica.
 
 ## Validação recomendada
 
@@ -109,6 +113,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que imagem inbound pode gerar resposta visual anotada com a foto original, alimentos identificados, calorias e macros por item.
 - Testar que a imagem anotada gerada é vinculada à refeição em `mealMedia`, junto com a imagem original recebida pelo WhatsApp.
 - Testar que falha ao gerar, persistir ou enviar a imagem anotada não impede o registro da refeição nem a resposta textual.
+- Testar que imagem enviada após refeição compatível no mesmo dia é consolidada na refeição lógica existente, e não mantida como novo bloco apenas pelo `occurredAt`.
+- Testar que comando `Excluir o chocolate` após uma foto encontra o item compatível no contexto lógico do dia/refeição, mesmo quando a foto foi a última mensagem processada.
+- Testar que nomes específicos informados pelo usuário em texto são preservados quando a IA ou catálogo usa uma referência nutricional genérica.
 - Testar que áudio inbound é enviado inline para transcrição e que apenas a URL do storage é persistida no rascunho/refeição quando o storage estiver disponível.
 - Testar que falha de leitura, confirmação inicial ou storage não bloqueia o processamento quando a mensagem é válida.
 - Testar token ausente, telefone oficial usado como telefone de usuário e vínculo inexistente.
