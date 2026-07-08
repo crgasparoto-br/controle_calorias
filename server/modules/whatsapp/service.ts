@@ -18,6 +18,7 @@ import {
   registerWhatsappConversationPendingContext,
   resolveWhatsappConversationContext,
 } from "./conversationContext";
+import { executeWhatsappAiQuestionIntent } from "./aiQuestionAssistant";
 import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import {
@@ -235,6 +236,22 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       detail: duplicateResult.detail,
     });
     return duplicateResult;
+  }
+
+  const aiQuestion = await executeWhatsappAiQuestionIntent(userId, {
+    text,
+    receivedAt,
+    userTimezone: input.userTimezone,
+  });
+  if (aiQuestion) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: aiQuestion.action === "ai_question_answered" ? "success" : "warning",
+      eventType: aiQuestion.eventType,
+      detail: aiQuestion.detail,
+    });
+    return aiQuestion;
   }
 
   const contextResult = await logAndReturnInterpretedIntent(userId, resolveWhatsappConversationContext(userId, {
