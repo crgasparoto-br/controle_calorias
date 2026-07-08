@@ -268,7 +268,7 @@ export async function searchGlobalFoodCatalog(userId: number, input: CatalogFood
   const limit = input.limit ?? 20;
 
   const rows = extractRows<CatalogFoodRow>(await db.execute(sql`
-    SELECT DISTINCT
+    SELECT
       f.id AS id,
       f.owner_user_id AS ownerUserId,
       f.source_id AS sourceId,
@@ -296,23 +296,31 @@ export async function searchGlobalFoodCatalog(userId: number, input: CatalogFood
       COALESCE(ufus.usage_count, 0) AS usageCount,
       ufus.last_used_at AS lastUsedAt
     FROM foods f
-    LEFT JOIN food_aliases fa ON fa.food_id = f.id
     LEFT JOIN food_sources fs ON fs.id = f.source_id
     LEFT JOIN user_food_favorites uff ON uff.food_id = f.id AND uff.user_id = ${userId}
     LEFT JOIN user_food_usage_stats ufus ON ufus.food_id = f.id AND ufus.user_id = ${userId}
     WHERE (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
       AND (${input.includeInactive} = TRUE OR f.status = 'active')
-      AND (${normalizedQuery} = '' OR f.normalized_name LIKE ${likeQuery} OR fa.normalized_alias LIKE ${likeQuery})
+      AND (
+        ${normalizedQuery} = ''
+        OR f.normalized_name LIKE ${likeQuery}
+        OR EXISTS (
+          SELECT 1
+          FROM food_aliases fa
+          WHERE fa.food_id = f.id
+            AND fa.normalized_alias LIKE ${likeQuery}
+        )
+      )
     ORDER BY
       CASE f.status WHEN 'active' THEN 0 WHEN 'deprecated' THEN 1 ELSE 2 END,
-      isFavorite DESC,
+      CASE WHEN uff.id IS NULL THEN 0 ELSE 1 END DESC,
       CASE WHEN ufus.last_used_at IS NULL THEN 1 ELSE 0 END,
       ufus.last_used_at DESC,
-      ufus.usage_count DESC,
+      COALESCE(ufus.usage_count, 0) DESC,
       CASE WHEN f.normalized_name = ${normalizedQuery} THEN 0 ELSE 1 END,
       CASE WHEN f.normalized_name LIKE ${prefixQuery} THEN 0 ELSE 1 END,
       CASE WHEN f.source_id IS NOT NULL THEN 0 ELSE 1 END,
-      isGlobal DESC,
+      CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END DESC,
       f.name ASC
     LIMIT ${limit}
   `));
