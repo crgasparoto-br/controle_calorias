@@ -23,7 +23,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
-| `admin` | 4 | 2 | 2 | admin | Visão operacional administrativa |
+| `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
 
 ## Procedures por grupo
@@ -191,6 +191,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `overview` | query | admin |
 | `whatsappTokenStatus` | query | admin |
 | `updateWhatsappToken` | mutation | admin |
+| `runFoodImportJob` | mutation | admin |
 | `curateGlobalFood` | mutation | admin |
 
 ### whatsapp
@@ -208,4 +209,3 @@ Fonte: `server/nutritionRouter.ts`.
 - Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.
 - Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.
 - Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde.
-
