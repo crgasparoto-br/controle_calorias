@@ -37,6 +37,16 @@ vi.mock("@/lib/trpc", () => ({
       },
     }),
     nutrition: {
+      foods: {
+        catalogSearch: {
+          useQuery: () => ({
+            data: [],
+            isLoading: false,
+            isError: false,
+            error: null,
+          }),
+        },
+      },
       admin: {
         overview: {
           useQuery: () => ({
