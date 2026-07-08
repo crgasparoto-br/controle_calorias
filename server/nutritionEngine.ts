@@ -120,6 +120,27 @@ function filterAiItemsBySourceText(items: LlmItem[], sourceText: string) {
   });
 }
 
+function sourceSegmentOnlyAddsStructuredBrand(input: {
+  item: MealDraftItem;
+  segmentFoodName: string;
+  normalizedSegment: string;
+  normalizedItem: string;
+  normalizedCanonical: string;
+}) {
+  const normalizedBrand = input.item.brand ? normalizeForMatching(input.item.brand).trim() : "";
+  if (!normalizedBrand) {
+    return false;
+  }
+
+  const segmentWithoutBrand = input.normalizedSegment
+    .replace(new RegExp(`(^| )${normalizedBrand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`, "g"), " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return Boolean(segmentWithoutBrand)
+    && (segmentWithoutBrand === input.normalizedItem || segmentWithoutBrand === input.normalizedCanonical);
+}
+
 function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: string, usedSegments: Set<number>) {
   const explicitSegments = extractExplicitQuantityFoodSegments(sourceText);
   if (!explicitSegments.length) {
@@ -136,6 +157,16 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
 
     const normalizedSegment = normalizeForMatching(segment.foodName).trim();
     if (!normalizedSegment || normalizedSegment === normalizedItem || normalizedSegment === normalizedCanonical) {
+      continue;
+    }
+
+    if (sourceSegmentOnlyAddsStructuredBrand({
+      item,
+      segmentFoodName: segment.foodName,
+      normalizedSegment,
+      normalizedItem,
+      normalizedCanonical,
+    })) {
       continue;
     }
 
