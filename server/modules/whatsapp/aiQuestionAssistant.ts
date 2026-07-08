@@ -10,9 +10,24 @@ const AI_QUESTION_PREFIX = "/";
 const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
 const MAX_REPLY_LENGTH = 1_500;
 
-type DashboardTodayOverview = Awaited<ReturnType<typeof import("../insights/service").getDashboardTodayOverview>>;
-type WeeklyReportBundle = Awaited<ReturnType<typeof import("../insights/service").getWeeklyReportBundle>>;
-type PeriodReportBundle = Awaited<ReturnType<typeof import("../insights/service").getPeriodReportBundle>>;
+type InsightsService = typeof import("../insights/service");
+type DashboardTodayOverview = Awaited<ReturnType<InsightsService["getDashboardTodayOverview"]>>;
+type WeeklyReportBundle = Awaited<ReturnType<InsightsService["getWeeklyReportBundle"]>>;
+type PeriodReportBundle = Awaited<ReturnType<InsightsService["getPeriodReportBundle"]>>;
+type CompactMealInput = {
+  id: number;
+  mealLabel: string;
+  occurredAt: number | string;
+  items: Array<{
+    foodName: string;
+    canonicalName?: string | null;
+    portionText?: string | null;
+    calories?: number | null;
+    protein?: number | null;
+    carbs?: number | null;
+    fat?: number | null;
+  }>;
+};
 
 export type WhatsappAiQuestionResult = {
   handled: true;
@@ -64,7 +79,7 @@ function limitText(value: string, limit = MAX_REPLY_LENGTH) {
   return `${normalized.slice(0, limit - 1).trim()}…`;
 }
 
-function compactMeal(meal: UserKnowledgeBase["today"]["meals"][number]) {
+function compactMeal(meal: CompactMealInput) {
   return {
     id: meal.id,
     label: meal.mealLabel,
@@ -185,7 +200,7 @@ async function answerWithOpenAi(question: string, knowledgeBase: UserKnowledgeBa
     model: ENV.openaiModel,
     stream: false,
     instructions: buildInstructions(),
-    tools: [{ type: "web_search_preview" }] as never,
+    tools: [{ type: "web_search_preview" }] as any,
     input: [{
       role: "user",
       content: [{
