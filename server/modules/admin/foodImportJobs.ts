@@ -7,6 +7,8 @@ import { importFoods } from "../../../scripts/import-foods/run_food_import.ts";
 import type { ImportFood, ImportPayload, ImportReport } from "../../../scripts/import-foods/types.ts";
 import type { RunFoodImportJobInput } from "./schemas";
 
+type CsvFoodImportJobInput = Extract<RunFoodImportJobInput, { job: "import_taco" | "import_tbca" }>;
+
 const COMMON_BRAZIL_FOODS_SEED_PATH = path.join(process.cwd(), "scripts", "import-foods", "common_brazil_foods.seed.json");
 
 function mapTacoFood(row: Record<string, string>, index: number): ImportFood {
@@ -53,8 +55,8 @@ async function runCommonBrazilSeed() {
   return importFoods(payload);
 }
 
-async function runCsvImport(input: RunFoodImportJobInput) {
-  const csvContent = input.csvContent?.trim();
+async function runCsvImport(input: CsvFoodImportJobInput) {
+  const csvContent = input.csvContent.trim();
   if (!csvContent) {
     throw new Error("Envie um arquivo CSV para executar esta importação.");
   }
