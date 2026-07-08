@@ -5,15 +5,14 @@ import {
   isOpenAiConfigured,
 } from "../../_core/openaiClient";
 import { logInferenceEvent } from "../../db";
-import {
-  getDashboardTodayOverview,
-  getPeriodReportBundle,
-  getWeeklyReportBundle,
-} from "../insights/service";
 
 const AI_QUESTION_PREFIX = "/";
 const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
 const MAX_REPLY_LENGTH = 1_500;
+
+type DashboardTodayOverview = Awaited<ReturnType<typeof import("../insights/service").getDashboardTodayOverview>>;
+type WeeklyReportBundle = Awaited<ReturnType<typeof import("../insights/service").getWeeklyReportBundle>>;
+type PeriodReportBundle = Awaited<ReturnType<typeof import("../insights/service").getPeriodReportBundle>>;
 
 export type WhatsappAiQuestionResult = {
   handled: true;
@@ -27,9 +26,9 @@ export type WhatsappAiQuestionResult = {
 type UserKnowledgeBase = {
   generatedAt: string;
   timeZone: string;
-  today: Awaited<ReturnType<typeof getDashboardTodayOverview>>;
-  currentWeek: Awaited<ReturnType<typeof getWeeklyReportBundle>>;
-  last30Days: Awaited<ReturnType<typeof getPeriodReportBundle>>;
+  today: DashboardTodayOverview;
+  currentWeek: WeeklyReportBundle;
+  last30Days: PeriodReportBundle;
 };
 
 function getDateKeyInTimeZone(date: Date, timeZone = DEFAULT_TIME_ZONE) {
@@ -144,6 +143,11 @@ function compactKnowledgeBase(knowledgeBase: UserKnowledgeBase) {
 }
 
 async function buildUserKnowledgeBase(userId: number, receivedAt: Date, timeZone = DEFAULT_TIME_ZONE): Promise<UserKnowledgeBase> {
+  const {
+    getDashboardTodayOverview,
+    getPeriodReportBundle,
+    getWeeklyReportBundle,
+  } = await import("../insights/service");
   const endDate = getDateKeyInTimeZone(receivedAt, timeZone);
   const startDate = getDateKeyInTimeZone(addDays(receivedAt, -29), timeZone);
   const [today, currentWeek, last30Days] = await Promise.all([
