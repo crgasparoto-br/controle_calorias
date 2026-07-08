@@ -10,6 +10,7 @@ import type { RunFoodImportJobInput } from "./schemas";
 type CsvFoodImportJobInput = Extract<RunFoodImportJobInput, { job: "import_taco" | "import_tbca" }>;
 
 const COMMON_BRAZIL_FOODS_SEED_PATH = path.join(process.cwd(), "scripts", "import-foods", "common_brazil_foods.seed.json");
+const ADMIN_CSV_IMPORT_TRANSACTION_BATCH_SIZE = 50;
 
 function mapTacoFood(row: Record<string, string>, index: number): ImportFood {
   const name = pick(row, ["nome", "alimento", "descricao", "description", "name"]);
@@ -89,7 +90,7 @@ async function runCsvImport(input: CsvFoodImportJobInput) {
         foods: rows.map(mapTbcaFood),
       };
 
-  return importFoods(payload);
+  return importFoods(payload, { transactionBatchSize: ADMIN_CSV_IMPORT_TRANSACTION_BATCH_SIZE });
 }
 
 export async function runFoodImportJob(input: RunFoodImportJobInput): Promise<ImportReport> {
