@@ -238,7 +238,7 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
     }
 
     const normalizedSegment = normalizeForMatching(segment.foodName).trim();
-    if (!normalizedSegment || normalizedSegment === normalizedItem || normalizedSegment === normalizedCanonical) {
+    if (!normalizedSegment || normalizedSegment === normalizedItem) {
       continue;
     }
 
