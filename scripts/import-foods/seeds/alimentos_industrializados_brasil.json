@@ -1,0 +1,192 @@
+{
+  "source": {
+    "slug": "marcas_oficiais_br",
+    "name": "Sites Oficiais de Marcas Brasileiras",
+    "version": "1.0",
+    "countryCode": "BR",
+    "sourceUrl": "https://www.joypepsico.com.br, https://www.nestle.com.br, etc.",
+    "notes": "Dados extraídos diretamente dos sites oficiais e tabelas nutricionais das embalagens em 2026."
+  },
+  "foods": [
+    {
+      "sourceFoodCode": "MO_001",
+      "name": "Farelo de Aveia Oat Bran",
+      "brandName": "Quaker",
+      "category": "Cereais",
+      "caloriesKcalPer100g": 370,
+      "proteinGramsPer100g": 19,
+      "carbsGramsPer100g": 45,
+      "fatGramsPer100g": 9.5,
+      "fiberGramsPer100g": 14,
+      "sugarGramsPer100g": 1.5,
+      "sodiumMgPer100g": 0,
+      "portions": [
+        {
+          "label": "1 colher de sopa",
+          "grams": 10,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "sourceFoodCode": "MO_002",
+      "name": "Farinha de Aveia Integral",
+      "brandName": "Quaker",
+      "category": "Farinhas",
+      "caloriesKcalPer100g": 379,
+      "proteinGramsPer100g": 15,
+      "carbsGramsPer100g": 59,
+      "fatGramsPer100g": 7.2,
+      "fiberGramsPer100g": 8.9,
+      "sugarGramsPer100g": 1.5,
+      "sodiumMgPer100g": 0,
+      "portions": [
+        {
+          "label": "1/2 xícara",
+          "grams": 50,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "sourceFoodCode": "MO_003",
+      "name": "Achocolatado em Pó",
+      "brandName": "Nescau",
+      "category": "Achocolatados",
+      "caloriesKcalPer100g": 380,
+      "proteinGramsPer100g": 3,
+      "carbsGramsPer100g": 85,
+      "fatGramsPer100g": 2,
+      "fiberGramsPer100g": 4.5,
+      "sugarGramsPer100g": 75,
+      "sodiumMgPer100g": 530,
+      "portions": [
+        {
+          "label": "2 colheres de sopa",
+          "grams": 20,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "sourceFoodCode": "MO_004",
+      "name": "Leite Condensado Lata",
+      "brandName": "Moça",
+      "category": "Laticínios e Derivados",
+      "caloriesKcalPer100g": 328,
+      "proteinGramsPer100g": 7,
+      "carbsGramsPer100g": 56,
+      "fatGramsPer100g": 8.4,
+      "fiberGramsPer100g": 0,
+      "sugarGramsPer100g": 56,
+      "sodiumMgPer100g": 109,
+      "portions": [
+        {
+          "label": "1 colher de sopa",
+          "grams": 20,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "sourceFoodCode": "MO_005",
+      "name": "Amido de Milho",
+      "brandName": "Maizena",
+      "category": "Farinhas",
+      "caloriesKcalPer100g": 350,
+      "proteinGramsPer100g": 0,
+      "carbsGramsPer100g": 85,
+      "fatGramsPer100g": 0,
+      "fiberGramsPer100g": 0,
+      "sugarGramsPer100g": 0,
+      "sodiumMgPer100g": 25,
+      "portions": [
+        {
+          "label": "1 colher de sopa",
+          "grams": 20,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "sourceFoodCode": "MO_006",
+      "name": "Leite em Pó Integral",
+      "brandName": "Ninho",
+      "category": "Laticínios",
+      "caloriesKcalPer100g": 496,
+      "proteinGramsPer100g": 25.6,
+      "carbsGramsPer100g": 37.6,
+      "fatGramsPer100g": 26.8,
+      "fiberGramsPer100g": 0,
+      "sugarGramsPer100g": 36,
+      "sodiumMgPer100g": 392,
+      "portions": [
+        {
+          "label": "2 colheres de sopa",
+          "grams": 25,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "sourceFoodCode": "MO_007",
+      "name": "Biscoito Cream Cracker Manteiga",
+      "brandName": "Marilan",
+      "category": "Biscoitos",
+      "caloriesKcalPer100g": 392,
+      "proteinGramsPer100g": 8.6,
+      "carbsGramsPer100g": 67,
+      "fatGramsPer100g": 10,
+      "fiberGramsPer100g": 2.9,
+      "sugarGramsPer100g": 6,
+      "sodiumMgPer100g": 551,
+      "portions": [
+        {
+          "label": "6 biscoitos",
+          "grams": 30,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "sourceFoodCode": "MO_008",
+      "name": "Iogurte Natural Integral",
+      "brandName": "Danone",
+      "category": "Laticínios",
+      "caloriesKcalPer100g": 75,
+      "proteinGramsPer100g": 4.69,
+      "carbsGramsPer100g": 6.25,
+      "fatGramsPer100g": 3.56,
+      "fiberGramsPer100g": 0,
+      "sugarGramsPer100g": 6.25,
+      "sodiumMgPer100g": 54,
+      "portions": [
+        {
+          "label": "1 copo",
+          "grams": 160,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "sourceFoodCode": "MO_009",
+      "name": "Pão de Forma Tradicional",
+      "brandName": "Pullman",
+      "category": "Pães",
+      "caloriesKcalPer100g": 244,
+      "proteinGramsPer100g": 7.6,
+      "carbsGramsPer100g": 48,
+      "fatGramsPer100g": 2.6,
+      "fiberGramsPer100g": 2.6,
+      "sugarGramsPer100g": 3.2,
+      "sodiumMgPer100g": 400,
+      "portions": [
+        {
+          "label": "2 fatias",
+          "grams": 50,
+          "isDefault": true
+        }
+      ]
+    }
+  ]
+}
