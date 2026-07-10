@@ -35,6 +35,14 @@ Exemplos principais:
 - `design-docs/manual-meal-catalog-search.md`
 - `design-docs/food-portions-household-measures.md`
 - `design-docs/custom-foods.md`
+- `design-docs/whatsapp-conversation-context.md`
+- `design-docs/whatsapp-ingestion.md`
+
+## Testes e regressão
+
+Use `docs/testing/` para matrizes e roteiros de validação que precisam permanecer reproduzíveis.
+
+- `testing/whatsapp-conversation-context-regression.md` — matriz multicanal, profundidade, reinício, múltiplas instâncias, rollout e rollback do contexto persistente.
 
 ## Documentação operacional e sensível
 
