@@ -55,6 +55,20 @@ export type WhatsappIntentContext = {
   truncated: boolean;
 };
 
+/**
+ * Declaração leve de quais partes do contexto um intent consome/ignora (issue #766,
+ * clarificação #7). Metadado apenas — não é imposto em runtime, só inspecionado por
+ * um teste de inventário que garante que intents destrutivas sempre revalidam o banco.
+ */
+export type IntentContextUsage = {
+  usesRecentWindow: boolean;
+  usesSummary: boolean;
+  usesPendingOperation: boolean;
+  usesLongTermMemory: boolean;
+  /** true para qualquer intent que altera ou exclui um registro persistido. */
+  requiresFreshDbQuery: boolean;
+};
+
 export type WhatsappContextMeal = {
   id: number;
   mealLabel: string;

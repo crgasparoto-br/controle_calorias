@@ -41,6 +41,7 @@ Fonte: `drizzle/schema.ts`.
 | `whatsappConversationMessages` | `whatsappConversationMessages` | 22 | Requer atenção |
 | `whatsappMessageDomainLinks` | `whatsappMessageDomainLinks` | 8 | Requer atenção |
 | `whatsappConversationSummaries` | `whatsappConversationSummaries` | 9 | Requer atenção |
+| `whatsappPendingOperations` | `whatsappPendingOperations` | 10 | Requer atenção |
 | `appSecrets` | `appSecrets` | 6 | Baixa |
 | `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
@@ -72,6 +73,7 @@ Fonte: `drizzle/schema.ts`.
 - `whatsappConversationMessages` via export `whatsappConversationMessages`.
 - `whatsappMessageDomainLinks` via export `whatsappMessageDomainLinks`.
 - `whatsappConversationSummaries` via export `whatsappConversationSummaries`.
+- `whatsappPendingOperations` via export `whatsappPendingOperations`.
 - `inferenceLogs` via export `inferenceLogs`.
 
 ## Campos sensíveis conhecidos
