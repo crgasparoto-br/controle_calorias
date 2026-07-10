@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { transcribeAudio, type TranscriptionError } from "../../_core/voiceTranscription";
-import { buildSavedMedia, getUserIdByWhatsappPhone, logInferenceEvent } from "../../db";
+import {
+  buildSavedMedia,
+  getDb,
+  getUserIdByWhatsappPhone,
+  logInferenceEvent,
+  logPersistenceWarning,
+} from "../../db";
+import { createDrizzleWhatsAppConversationMessageEnrichmentRepository } from "../../repositories/whatsappConversationMessageEnrichmentRepository";
 import { storagePut } from "../../storage";
 import {
   buildWhatsAppAudioTranscriptionFailureReplyMessage,
@@ -16,6 +23,10 @@ import {
 
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 const AUDIO_TRANSCRIPTION_PROVIDER = "openai-whisper";
+const conversationMessageEnrichmentRepository = createDrizzleWhatsAppConversationMessageEnrichmentRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
 
 type AudioTranscriptionFailureCode = TranscriptionError["code"] | "EMPTY_TRANSCRIPT";
 
@@ -134,6 +145,25 @@ async function logAudioTranscriptionFailure(sourcePhone: string, failure: AudioT
   });
 }
 
+async function enrichPersistedConversationMessage(
+  message: WhatsAppWebhookMessage,
+  prepared: PreparedMessageInput,
+) {
+  if (!message.id) return;
+
+  // A tabela de conversa mantém uma referência primária segura. Todas as mídias
+  // continuam vinculadas à refeição em mealMedia pelo fluxo de persistência normal.
+  const primaryMedia = prepared.media[0];
+  if (!prepared.transcript?.trim() && !primaryMedia) return;
+
+  await conversationMessageEnrichmentRepository.enrichInboundMessageByExternalId(message.id, {
+    transcript: prepared.transcript,
+    mediaStorageKey: primaryMedia?.storageKey,
+    mediaMimeType: primaryMedia?.mimeType,
+    allowRawContentStorage: true,
+  });
+}
+
 export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedMessageInput> {
   const text = getWhatsAppMessageTextBody(message) || undefined;
   const prepared: PreparedMessageInput = {
@@ -201,5 +231,6 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
     }
   }
 
+  await enrichPersistedConversationMessage(message, prepared);
   return prepared;
 }
