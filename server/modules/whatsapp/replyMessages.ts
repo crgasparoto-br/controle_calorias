@@ -233,6 +233,13 @@ export function buildWhatsAppWaterLoggedReplyMessage(params: { amountLabel: stri
   });
 }
 
+export function buildWhatsAppWaterVolumeNeededReplyMessage() {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Preciso do volume da água",
+    lines: ["Identifiquei água na imagem, mas não consegui identificar o volume consumido. Pode me dizer quantos ml ou litros foram, por favor?"],
+  });
+}
+
 export function buildWhatsAppWeightLoggedReplyMessage(params: { weightLabel: string; occurredAtLabel: string }) {
   return buildWhatsAppAuxiliaryReplyMessage({
     title: "Peso atualizado",

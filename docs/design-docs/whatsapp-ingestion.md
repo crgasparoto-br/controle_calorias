@@ -40,6 +40,9 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Textos que descrevem apenas consumo de água com quantidade explícita devem atualizar hidratação, não criar refeição ou item alimentar.
 - Textos de hidratação com data relativa, como `ontem` ou `anteontem`, devem registrar o consumo no dia interpretado em `America/Sao_Paulo`.
 - Textos de hidratação sem quantidade explícita devem pedir esclarecimento, não criar refeição.
+- Itens identificados por análise de imagem como água potável (`água`, `água mineral`, com ou sem gás, com marca, `garrafa de água`) devem ser separados do resultado de `processMealInput` em `server/modules/whatsapp/waterItemClassification.ts` antes de `createPendingMealInference`/`confirmPendingMeal`, e registrados como hidratação via `createUserWaterLog` em vez de item de refeição. `água de coco`, `água tônica` e `água saborizada` não entram nessa classificação.
+- A separação de água só ocorre quando o item tiver volume resolvível em `ml` (via `quantity`/`unit` ou `portionText`); água sem volume válido não gera hidratação, não é inventada como 0 ml e não é persistida como alimento — o usuário deve ser questionado sobre o volume consumido.
+- Quando a imagem tiver apenas água com volume válido, nenhuma refeição ou rascunho é criado. Quando houver água e alimentos na mesma imagem, a água é registrada como hidratação e removida da lista de itens antes do recálculo dos totais e da criação da refeição com os itens restantes. Múltiplos recipientes de água na mesma mensagem são somados em um único registro de hidratação.
 - Textos que pedem redução de gramas devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Textos que pedem incremento de gramas, como `somar 45 g ao arroz`, devem ajustar uma refeição existente quando houver contexto suficiente, preservando proporção nutricional do item ajustado.
 - Quando o ajuste de gramas não citar alimento, o sistema pode usar o último item da refeição mais recente; quando citar alimento, deve buscar item compatível na última refeição.
@@ -87,6 +90,12 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar que texto como `300mo água` é normalizado para `300 ml de água` antes da interpretação e registra hidratação corretamente.
 - Testar que texto como `500 ml de água ontem` registra o consumo no dia anterior em `America/Sao_Paulo`.
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
+- Testar que imagem com apenas água e volume válido (`ml` ou `L`, com ou sem gás, com marca) registra hidratação e não cria rascunho nem refeição.
+- Testar que imagem com água e alimentos registra hidratação separadamente, remove a água da lista de itens e recalcula os totais da refeição apenas com os itens restantes.
+- Testar que imagem com água sem volume válido não cria hidratação nem refeição e pede o volume ao usuário.
+- Testar que múltiplos recipientes de água na mesma imagem somam os volumes em um único registro de hidratação.
+- Testar que `água de coco`, `água tônica` e `água saborizada` identificadas em imagem permanecem como item de refeição, não como hidratação.
+- Testar que falha ao registrar hidratação de água identificada em imagem não gera resposta de sucesso nem cria a refeição associada.
 - Testar que texto como `211g de leite integral` não troca `g` por `ml` diretamente; quando convertido, deve usar densidade confiável e informar a medida interpretada ao usuário.
 - Testar que alimento sólido sem densidade confiável não é convertido automaticamente de `g` para `ml`.
 - Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
