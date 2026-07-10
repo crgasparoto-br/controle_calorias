@@ -17,6 +17,8 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
 }));
 
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => null),
+  logPersistenceWarning: vi.fn(),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getUserNutritionGoal: getUserNutritionGoalMock,
   listUserExercises: listUserExercisesMock,

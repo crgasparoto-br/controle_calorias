@@ -3,6 +3,7 @@ import { asc, desc, eq } from "drizzle-orm";
 import {
   whatsappConversationMessages,
   whatsappConversations,
+  whatsappConversationSummaries,
   whatsappMessageDomainLinks,
 } from "../../drizzle/schema";
 import { sanitizeSampleForLearning } from "../modules/aiLearningPrivacy";
@@ -16,6 +17,17 @@ const DUPLICATE_ENTRY_ERROR_CODE = "ER_DUP_ENTRY";
 export type WhatsAppConversationRecord = typeof whatsappConversations.$inferSelect;
 export type WhatsAppConversationMessageRecord = typeof whatsappConversationMessages.$inferSelect;
 export type WhatsAppMessageDomainLinkRecord = typeof whatsappMessageDomainLinks.$inferSelect;
+export type WhatsAppConversationSummaryRecord = typeof whatsappConversationSummaries.$inferSelect;
+
+export type InsertConversationSummaryInput = {
+  userId: number;
+  conversationId: number;
+  summaryText: string;
+  fromMessageId: number;
+  toMessageId: number;
+  promptVersion: string;
+  algorithmVersion: string;
+};
 
 export type AppendMessageInput = {
   conversationId: number;
@@ -58,6 +70,8 @@ export type WhatsAppConversationRepository = {
   findRecentMessagesByUser(userId: number, limit?: number): Promise<WhatsAppConversationMessageRecord[]>;
   findDomainLinksForMessage(messageId: number): Promise<WhatsAppMessageDomainLinkRecord[]>;
   markProcessed(messageId: number, processedAt?: Date): Promise<void>;
+  insertConversationSummary(input: InsertConversationSummaryInput): Promise<void>;
+  findLatestConversationSummary(conversationId: number): Promise<WhatsAppConversationSummaryRecord | null>;
 };
 
 function buildIdempotencyKey(input: AppendMessageInput): string {
@@ -328,6 +342,43 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
           .where(eq(whatsappConversationMessages.id, messageId));
       } catch (error) {
         deps.onWarning("WhatsApp conversation message mark-processed skipped", error);
+      }
+    },
+
+    async insertConversationSummary(input) {
+      const db = await deps.getDb();
+      if (!db) return;
+
+      try {
+        await db.insert(whatsappConversationSummaries).values({
+          userId: input.userId,
+          conversationId: input.conversationId,
+          summaryText: input.summaryText,
+          fromMessageId: input.fromMessageId,
+          toMessageId: input.toMessageId,
+          promptVersion: input.promptVersion,
+          algorithmVersion: input.algorithmVersion,
+        });
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation summary insert skipped", error);
+      }
+    },
+
+    async findLatestConversationSummary(conversationId) {
+      const db = await deps.getDb();
+      if (!db) return null;
+
+      try {
+        const [row] = await db
+          .select()
+          .from(whatsappConversationSummaries)
+          .where(eq(whatsappConversationSummaries.conversationId, conversationId))
+          .orderBy(desc(whatsappConversationSummaries.id))
+          .limit(1);
+        return row ?? null;
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation summary read skipped", error);
+        return null;
       }
     },
   };
