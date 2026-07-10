@@ -551,7 +551,7 @@ function isMissingTableError(error: unknown) {
   return code === "ER_NO_SUCH_TABLE" || causeCode === "ER_NO_SUCH_TABLE";
 }
 
-function logPersistenceWarning(scope: string, error: unknown) {
+export function logPersistenceWarning(scope: string, error: unknown) {
   if (isMissingTableError(error)) {
     return;
   }

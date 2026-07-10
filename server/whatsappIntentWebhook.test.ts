@@ -10,6 +10,19 @@ const updateUserCurrentWeightMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
+const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock } = vi.hoisted(() => ({
+  beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  recordOutboundReplyMock: vi.fn(async () => undefined),
+  recordDomainLinkMock: vi.fn(async () => undefined),
+  markMessageProcessedMock: vi.fn(async () => undefined),
+}));
+
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: beginInboundMessageMock,
+  recordOutboundReply: recordOutboundReplyMock,
+  recordDomainLink: recordDomainLinkMock,
+  markMessageProcessed: markMessageProcessedMock,
+}));
 
 vi.mock("./db", () => ({
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
@@ -159,6 +172,11 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     tryCreateQuickEditLinkForMealMock.mockReset();
+    beginInboundMessageMock.mockReset();
+    recordOutboundReplyMock.mockReset();
+    recordDomainLinkMock.mockReset();
+    markMessageProcessedMock.mockReset();
+    beginInboundMessageMock.mockResolvedValue({ conversationId: 1, messageId: 1 });
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
@@ -207,6 +225,16 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.water_logged",
     }));
     expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
+    expect(beginInboundMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      externalMessageId: "water-yesterday",
+      contentType: "text",
+    }));
+    expect(recordOutboundReplyMock).toHaveBeenCalledWith(
+      { conversationId: 1, messageId: 1 },
+      expect.objectContaining({ userId: 42, text: expect.stringContaining("Registrei 500 ml de água") }),
+    );
+    expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
   });
 
   it("registra peso pela intenção textual e não delega para criação de refeição", async () => {

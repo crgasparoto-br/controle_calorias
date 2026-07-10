@@ -19,6 +19,13 @@ vi.mock("./modules/meals/service", () => ({
   updateMeal: updateMealMock,
 }));
 
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: vi.fn(async () => null),
+  recordOutboundReply: vi.fn(async () => undefined),
+  recordDomainLink: vi.fn(async () => undefined),
+  markMessageProcessed: vi.fn(async () => undefined),
+}));
+
 vi.mock("./db", () => ({
   buildSavedMedia: vi.fn((input: Record<string, unknown>) => input),
   confirmPendingMeal: confirmPendingMealMock,
