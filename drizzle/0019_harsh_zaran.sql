@@ -1,1 +1,5 @@
-ALTER TABLE `nutritionGoals` ADD `includeExerciseCalories` boolean DEFAULT true NOT NULL;
+-- Baseline migration: the target database already contains the schema
+-- represented by drizzle/meta/0019_snapshot.json (nutritionGoals.includeExerciseCalories
+-- was already applied out-of-band). This no-op aligns Drizzle's migration
+-- history without replaying DDL for an existing column. See
+-- drizzle/0016_warm_the_executioner.sql for precedent.

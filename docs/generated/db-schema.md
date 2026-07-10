@@ -37,6 +37,9 @@ Fonte: `drizzle/schema.ts`.
 | `userPreferences` | `userPreferences` | 6 | Requer atenção |
 | `userRestrictions` | `userRestrictions` | 8 | Requer atenção |
 | `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
+| `whatsappConversations` | `whatsappConversations` | 10 | Requer atenção |
+| `whatsappConversationMessages` | `whatsappConversationMessages` | 22 | Requer atenção |
+| `whatsappMessageDomainLinks` | `whatsappMessageDomainLinks` | 8 | Requer atenção |
 | `appSecrets` | `appSecrets` | 6 | Baixa |
 | `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
@@ -64,6 +67,9 @@ Fonte: `drizzle/schema.ts`.
 - `userPreferences` via export `userPreferences`.
 - `userRestrictions` via export `userRestrictions`.
 - `whatsappConnections` via export `whatsappConnections`.
+- `whatsappConversations` via export `whatsappConversations`.
+- `whatsappConversationMessages` via export `whatsappConversationMessages`.
+- `whatsappMessageDomainLinks` via export `whatsappMessageDomainLinks`.
 - `inferenceLogs` via export `inferenceLogs`.
 
 ## Campos sensíveis conhecidos
@@ -94,6 +100,9 @@ Fonte: `drizzle/schema.ts`.
 | `userPreferences` | `preferenceKey`, `preferenceValue` |
 | `userRestrictions` | `restrictionType`, `label`, `severity`, `notes` |
 | `whatsappConnections` | `displayName` |
+| `whatsappConversations` | `lastActivityAt` |
+| `whatsappConversationMessages` | `externalMessageId`, `text`, `sanitizedText`, `transcript`, `sanitizedTranscript`, `mediaStorageKey`, `mediaMimeType`, `captionText`, `respondsToMessageId`, `occurredAt` |
+| `whatsappMessageDomainLinks` | `messageId`, `weightEntryId` |
 | `inferenceLogs` | `detail` |
 
 ## Relações críticas

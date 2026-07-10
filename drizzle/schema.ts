@@ -1,4 +1,4 @@
-import { type AnyMySqlColumn, boolean, double, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { type AnyMySqlColumn, boolean, double, foreignKey, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -506,6 +506,99 @@ export const whatsappConnections = mysqlTable("whatsappConnections", {
   userIdIdx: index("whatsappConnections_userId_idx").on(table.userId),
   phoneNumberIdx: index("whatsappConnections_phoneNumber_idx").on(table.phoneNumber),
 }));
+
+export const whatsappConversations = mysqlTable("whatsappConversations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  whatsappConnectionId: int("whatsappConnectionId"),
+  phoneNumber: varchar("phoneNumber", { length: 32 }).notNull(),
+  status: mysqlEnum("status", ["active", "expired", "closed"]).default("active").notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  lastActivityAt: timestamp("lastActivityAt").defaultNow().notNull(),
+  endedAt: timestamp("endedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  userStatusIdx: index("whatsappConversations_user_status_idx").on(table.userId, table.status),
+  userLastActivityIdx: index("whatsappConversations_user_lastActivityAt_idx").on(table.userId, table.lastActivityAt),
+  whatsappConnectionFk: foreignKey({
+    name: "whatsappConversations_whatsappConnectionId_fk",
+    columns: [table.whatsappConnectionId],
+    foreignColumns: [whatsappConnections.id],
+  }).onDelete("set null"),
+}));
+
+export type WhatsAppConversation = typeof whatsappConversations.$inferSelect;
+export type InsertWhatsAppConversation = typeof whatsappConversations.$inferInsert;
+
+export const whatsappConversationMessages = mysqlTable("whatsappConversationMessages", {
+  id: int("id").autoincrement().primaryKey(),
+  conversationId: int("conversationId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
+  channel: mysqlEnum("channel", ["whatsapp"]).default("whatsapp").notNull(),
+  externalMessageId: varchar("externalMessageId", { length: 128 }),
+  idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+  contentType: mysqlEnum("contentType", ["text", "image", "audio", "multimodal", "system"]).notNull(),
+  rawTextStored: boolean("rawTextStored").default(false).notNull(),
+  text: text("text"),
+  sanitizedText: text("sanitizedText"),
+  transcript: text("transcript"),
+  sanitizedTranscript: text("sanitizedTranscript"),
+  mediaStorageKey: varchar("mediaStorageKey", { length: 255 }),
+  mediaMimeType: varchar("mediaMimeType", { length: 120 }),
+  captionText: text("captionText"),
+  privacyPolicyVersion: varchar("privacyPolicyVersion", { length: 32 }),
+  retentionExpiresAt: timestamp("retentionExpiresAt"),
+  respondsToMessageId: int("respondsToMessageId"),
+  occurredAt: timestamp("occurredAt").notNull(),
+  processedAt: timestamp("processedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  conversationOccurredIdx: index("whatsappConversationMessages_conversation_occurredAt_idx").on(table.conversationId, table.occurredAt, table.id),
+  userOccurredIdx: index("whatsappConversationMessages_user_occurredAt_idx").on(table.userId, table.occurredAt, table.id),
+  idempotencyKeyUniqueIdx: uniqueIndex("whatsappConversationMessages_idempotencyKey_unique_idx").on(table.idempotencyKey),
+  respondsToIdx: index("whatsappConversationMessages_respondsTo_idx").on(table.respondsToMessageId),
+  conversationFk: foreignKey({
+    name: "whatsappConversationMessages_conversationId_fk",
+    columns: [table.conversationId],
+    foreignColumns: [whatsappConversations.id],
+  }).onDelete("cascade"),
+  respondsToFk: foreignKey({
+    name: "whatsappConversationMessages_respondsToMessageId_fk",
+    columns: [table.respondsToMessageId],
+    foreignColumns: [table.id],
+  }).onDelete("set null"),
+}));
+
+export type WhatsAppConversationMessage = typeof whatsappConversationMessages.$inferSelect;
+export type InsertWhatsAppConversationMessage = typeof whatsappConversationMessages.$inferInsert;
+
+export const whatsappMessageDomainLinks = mysqlTable("whatsappMessageDomainLinks", {
+  id: int("id").autoincrement().primaryKey(),
+  messageId: int("messageId").notNull(),
+  mealId: int("mealId").references(() => meals.id, { onDelete: "set null" }),
+  mealItemId: int("mealItemId").references(() => mealItems.id, { onDelete: "set null" }),
+  waterLogId: int("waterLogId").references(() => waterLogs.id, { onDelete: "set null" }),
+  weightEntryId: int("weightEntryId").references(() => weightEntries.id, { onDelete: "set null" }),
+  exerciseId: int("exerciseId").references(() => exercises.id, { onDelete: "set null" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  messageIdIdx: index("whatsappMessageDomainLinks_messageId_idx").on(table.messageId),
+  mealIdIdx: index("whatsappMessageDomainLinks_mealId_idx").on(table.mealId),
+  waterLogIdIdx: index("whatsappMessageDomainLinks_waterLogId_idx").on(table.waterLogId),
+  weightEntryIdIdx: index("whatsappMessageDomainLinks_weightEntryId_idx").on(table.weightEntryId),
+  exerciseIdIdx: index("whatsappMessageDomainLinks_exerciseId_idx").on(table.exerciseId),
+  messageFk: foreignKey({
+    name: "whatsappMessageDomainLinks_messageId_fk",
+    columns: [table.messageId],
+    foreignColumns: [whatsappConversationMessages.id],
+  }).onDelete("cascade"),
+}));
+
+export type WhatsAppMessageDomainLink = typeof whatsappMessageDomainLinks.$inferSelect;
+export type InsertWhatsAppMessageDomainLink = typeof whatsappMessageDomainLinks.$inferInsert;
 
 export const appSecrets = mysqlTable("appSecrets", {
   id: int("id").autoincrement().primaryKey(),
