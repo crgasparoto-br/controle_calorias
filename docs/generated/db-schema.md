@@ -40,6 +40,7 @@ Fonte: `drizzle/schema.ts`.
 | `whatsappConversations` | `whatsappConversations` | 10 | Requer atenção |
 | `whatsappConversationMessages` | `whatsappConversationMessages` | 22 | Requer atenção |
 | `whatsappMessageDomainLinks` | `whatsappMessageDomainLinks` | 8 | Requer atenção |
+| `whatsappConversationSummaries` | `whatsappConversationSummaries` | 9 | Requer atenção |
 | `appSecrets` | `appSecrets` | 6 | Baixa |
 | `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
@@ -70,6 +71,7 @@ Fonte: `drizzle/schema.ts`.
 - `whatsappConversations` via export `whatsappConversations`.
 - `whatsappConversationMessages` via export `whatsappConversationMessages`.
 - `whatsappMessageDomainLinks` via export `whatsappMessageDomainLinks`.
+- `whatsappConversationSummaries` via export `whatsappConversationSummaries`.
 - `inferenceLogs` via export `inferenceLogs`.
 
 ## Campos sensíveis conhecidos
@@ -103,6 +105,7 @@ Fonte: `drizzle/schema.ts`.
 | `whatsappConversations` | `lastActivityAt` |
 | `whatsappConversationMessages` | `externalMessageId`, `text`, `sanitizedText`, `transcript`, `sanitizedTranscript`, `mediaStorageKey`, `mediaMimeType`, `captionText`, `respondsToMessageId`, `occurredAt` |
 | `whatsappMessageDomainLinks` | `messageId`, `weightEntryId` |
+| `whatsappConversationSummaries` | `summaryText`, `fromMessageId`, `toMessageId` |
 | `inferenceLogs` | `detail` |
 
 ## Relações críticas

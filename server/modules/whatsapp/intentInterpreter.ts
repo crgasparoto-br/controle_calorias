@@ -361,14 +361,22 @@ function parseJson(value: string) {
 }
 
 function buildRecentConversationSection(context: WhatsappIntentContext): string {
-  if (!context.recentConversation || context.recentConversation.length === 0) {
-    return "Historico recente da conversa: nenhum turno anterior disponivel.";
+  const summarySection = context.conversationSummary
+    ? `Resumo de trocas anteriores fora da janela recente (nunca trate valores nutricionais aqui como atuais; consulte sempre o contexto de refeicoes/dados atuais para isso):\n  ${context.conversationSummary.summaryText}`
+    : null;
+
+  if (!context.recentTurns || context.recentTurns.length === 0) {
+    return summarySection ?? "Historico recente da conversa: nenhum turno anterior disponivel.";
   }
-  const lines = context.recentConversation.map((turn, i) => {
-    const botLine = turn.botReply ? `  Bot: ${turn.botReply.slice(0, 200)}` : "  Bot: (sem resposta textual)";
-    return `  Turno ${i + 1}:\n  Usuario: ${turn.userMessage}\n${botLine}`;
+
+  const lines = context.recentTurns.map((turn, i) => {
+    const label = turn.direction === "outbound" ? "Bot" : "Usuario";
+    const text = turn.text ?? (turn.direction === "outbound" ? "(sem resposta textual)" : "(sem texto)");
+    return `  Turno ${i + 1} [${label}]: ${text.slice(0, 200)}`;
   });
-  return `Historico recente da conversa (do mais antigo ao mais recente):\n${lines.join("\n")}`;
+
+  const recentSection = `Historico recente da conversa (do mais antigo ao mais recente):\n${lines.join("\n")}`;
+  return summarySection ? `${summarySection}\n${recentSection}` : recentSection;
 }
 
 function buildInstructions(context: WhatsappIntentContext) {
@@ -391,7 +399,7 @@ function buildInstructions(context: WhatsappIntentContext) {
     "Use o historico recente da conversa para resolver ambiguidades referenciais. Exemplos: se o usuario perguntou sobre um alimento e agora diz 'registra', entenda como registro daquele alimento; se a mensagem for 'e o almoco?' apos uma troca sobre cafe da manha, interprete como consulta ou registro do almoco.",
     "Perguntas nutricionais como 'quanto tem de proteina no X?' ou 'X tem muita caloria?' devem ser classificadas como meal_suggestion (informacao consultiva), nao como add_foods_to_meal.",
     buildRecentConversationSection(context),
-    `Contexto seguro do usuario (refeicoes, alimentos recentes, memorias): ${JSON.stringify({ ...context, recentConversation: undefined })}`,
+    `Contexto seguro do usuario (refeicoes, alimentos recentes, memorias): ${JSON.stringify({ ...context, recentTurns: undefined, conversationSummary: undefined })}`,
   ].join("\n");
 }
 

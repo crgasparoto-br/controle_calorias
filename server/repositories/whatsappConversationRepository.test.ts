@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   whatsappConversationMessages,
   whatsappConversations,
+  whatsappConversationSummaries,
   whatsappMessageDomainLinks,
 } from "../../drizzle/schema";
 import { WHATSAPP_CONVERSATION_ACTIVE_TTL_MS } from "../modules/whatsapp/conversationPolicy";
@@ -468,5 +469,64 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     await expect(repository.linkResponse(1, 2)).resolves.toBeUndefined();
     await expect(repository.linkDomainRecord(1, { mealId: 1 })).resolves.toBeUndefined();
     await expect(repository.markProcessed(1)).resolves.toBeUndefined();
+    await expect(
+      repository.insertConversationSummary({
+        userId: 1,
+        conversationId: 1,
+        summaryText: "resumo",
+        fromMessageId: 1,
+        toMessageId: 2,
+        promptVersion: "v1",
+        algorithmVersion: "v1",
+      }),
+    ).resolves.toBeUndefined();
+    await expect(repository.findLatestConversationSummary(1)).resolves.toBeNull();
+  });
+
+  it("insere um resumo de conversa e recupera o mais recente por conversationId", async () => {
+    const { repository } = createRepository();
+    const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+    const first = await repository.appendMessage({
+      conversationId: conversation!.id,
+      userId: 1,
+      direction: "inbound",
+      externalMessageId: "wamid.s1",
+      contentType: "text",
+      text: "primeira mensagem",
+      occurredAt: new Date("2026-07-11T12:00:00Z"),
+    });
+    const second = await repository.appendMessage({
+      conversationId: conversation!.id,
+      userId: 1,
+      direction: "inbound",
+      externalMessageId: "wamid.s2",
+      contentType: "text",
+      text: "segunda mensagem",
+      occurredAt: new Date("2026-07-11T12:05:00Z"),
+    });
+
+    await repository.insertConversationSummary({
+      userId: 1,
+      conversationId: conversation!.id,
+      summaryText: "resumo antigo",
+      fromMessageId: first!.id,
+      toMessageId: first!.id,
+      promptVersion: "v1",
+      algorithmVersion: "v1",
+    });
+    await repository.insertConversationSummary({
+      userId: 1,
+      conversationId: conversation!.id,
+      summaryText: "resumo mais recente",
+      fromMessageId: first!.id,
+      toMessageId: second!.id,
+      promptVersion: "v1",
+      algorithmVersion: "v1",
+    });
+
+    const latest = await repository.findLatestConversationSummary(conversation!.id);
+    expect(latest?.summaryText).toBe("resumo mais recente");
+    expect(latest?.fromMessageId).toBe(first!.id);
+    expect(latest?.toMessageId).toBe(second!.id);
   });
 });

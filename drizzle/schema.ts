@@ -600,6 +600,38 @@ export const whatsappMessageDomainLinks = mysqlTable("whatsappMessageDomainLinks
 export type WhatsAppMessageDomainLink = typeof whatsappMessageDomainLinks.$inferSelect;
 export type InsertWhatsAppMessageDomainLink = typeof whatsappMessageDomainLinks.$inferInsert;
 
+export const whatsappConversationSummaries = mysqlTable("whatsappConversationSummaries", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  conversationId: int("conversationId").notNull(),
+  summaryText: text("summaryText").notNull(),
+  fromMessageId: int("fromMessageId"),
+  toMessageId: int("toMessageId"),
+  promptVersion: varchar("promptVersion", { length: 32 }).notNull(),
+  algorithmVersion: varchar("algorithmVersion", { length: 32 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  conversationIdx: index("whatsappConversationSummaries_conversation_createdAt_idx").on(table.conversationId, table.createdAt),
+  conversationFk: foreignKey({
+    name: "whatsappConversationSummaries_conversationId_fk",
+    columns: [table.conversationId],
+    foreignColumns: [whatsappConversations.id],
+  }).onDelete("cascade"),
+  fromMessageFk: foreignKey({
+    name: "whatsappConversationSummaries_fromMessageId_fk",
+    columns: [table.fromMessageId],
+    foreignColumns: [whatsappConversationMessages.id],
+  }).onDelete("set null"),
+  toMessageFk: foreignKey({
+    name: "whatsappConversationSummaries_toMessageId_fk",
+    columns: [table.toMessageId],
+    foreignColumns: [whatsappConversationMessages.id],
+  }).onDelete("set null"),
+}));
+
+export type WhatsAppConversationSummary = typeof whatsappConversationSummaries.$inferSelect;
+export type InsertWhatsAppConversationSummary = typeof whatsappConversationSummaries.$inferInsert;
+
 export const appSecrets = mysqlTable("appSecrets", {
   id: int("id").autoincrement().primaryKey(),
   secretKey: varchar("secretKey", { length: 64 }).notNull().unique(),

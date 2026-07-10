@@ -30,6 +30,8 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
 }));
 
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => null),
+  logPersistenceWarning: vi.fn(),
   buildSavedMedia: vi.fn((input: Record<string, unknown>) => ({
     id: String(input.storageKey).includes("annotated") ? 202 : 101,
     ...input,
