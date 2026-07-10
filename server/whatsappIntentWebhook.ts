@@ -15,7 +15,9 @@ import {
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
-import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, updateUserCurrentWeight } from "./db";
+import { getDb, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, logPersistenceWarning, updateUserCurrentWeight } from "./db";
+import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
+import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
 import { listMeals } from "./modules/meals/service";
 import {
   extractWhatsAppWebhookMessages,
@@ -53,8 +55,13 @@ type NutritionTotals = {
 };
 
 const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
-const pendingTextIntentContexts = new Map<number, { kind: "period_report"; expiresAt: number }>();
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
+const PERIOD_REPORT_PENDING_TYPE = "period_report_clarification";
+const PERIOD_REPORT_PENDING_ORIGIN = "whatsappIntentWebhook";
+const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
 const SIMPLE_FOOD_QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|m\\s*l|mililitros?|l|litros?|un|unidades?|fatias?|pedacos?|xicaras?|copos?|colheres?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|porcoes?|porcao";
 const MIN_WEIGHT_LOG_KG = 25;
 const MAX_WEIGHT_LOG_KG = 350;
@@ -378,26 +385,34 @@ function markTextIntentMessageHandled(messageId?: string) {
   textIntentMessageDeduplicationCache.markHandled(messageId);
 }
 
-function getPendingTextIntentContext(userId: number) {
-  const pending = pendingTextIntentContexts.get(userId);
-  if (!pending) return null;
-  if (pending.expiresAt <= Date.now()) {
-    pendingTextIntentContexts.delete(userId);
-    return null;
-  }
-  return pending;
+async function getPendingTextIntentContext(userId: number) {
+  const pending = await pendingOperationRepository.getActivePendingOperation(userId);
+  if (!pending || pending.type !== PERIOD_REPORT_PENDING_TYPE) return null;
+  return { kind: "period_report" as const, id: pending.id };
 }
 
-function rememberPendingTextIntentContext(userId: number, result: TextIntentResult) {
+async function clearPendingTextIntentContext(userId: number) {
+  const pending = await pendingOperationRepository.getActivePendingOperation(userId);
+  if (pending && pending.type === PERIOD_REPORT_PENDING_TYPE) {
+    await pendingOperationRepository.cancelPendingOperation(pending.id);
+  }
+}
+
+async function rememberPendingTextIntentContext(userId: number, result: TextIntentResult) {
   if (result.action === "clarification_needed" && result.detail === "Pedido de relatório sem período explícito.") {
-    pendingTextIntentContexts.set(userId, { kind: "period_report", expiresAt: Date.now() + TEXT_INTENT_CONTEXT_TTL_MS });
+    await pendingOperationRepository.createPendingOperation({
+      userId,
+      type: PERIOD_REPORT_PENDING_TYPE,
+      origin: PERIOD_REPORT_PENDING_ORIGIN,
+      ttlMs: TEXT_INTENT_CONTEXT_TTL_MS,
+      target: { kind: "period_report" },
+    });
     return;
   }
-  pendingTextIntentContexts.delete(userId);
+  await clearPendingTextIntentContext(userId);
 }
 
 export function __resetWhatsAppTextIntentContextForTests() {
-  pendingTextIntentContexts.clear();
   textIntentMessageDeduplicationCache.clear();
   __resetConversationHistoryForTests();
 }
@@ -494,7 +509,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const safety = inspectWhatsAppUserContentSafety(text, "text");
   if (!safety.safe) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -503,6 +518,27 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       eventType: "whatsapp.security_guard_blocked",
       detail: `Conteudo bloqueado por seguranca antes do roteamento textual: ${safety.categories.join(", ") || "security_guard"}.`,
       status: "warning",
+      occurredAtMs,
+      lifecycleHandle,
+    });
+    return true;
+  }
+
+  // Precedência obrigatória (issue #766): comando explícito `/` e pendência operacional
+  // ativa são resolvidos em um único ponto compartilhado, antes de qualquer classificação
+  // de intenção (exclusão, ajuste, substituição, LLM etc).
+  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt });
+  if (precedenceGate.step !== "continue_pipeline") {
+    markTextIntentMessageHandled(message.id);
+    await clearPendingTextIntentContext(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: precedenceGate.result.reply,
+      eventType: precedenceGate.result.eventType,
+      detail: precedenceGate.result.detail,
+      status: "success",
       occurredAtMs,
       lifecycleHandle,
     });
@@ -518,7 +554,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
     if (professionalAccessResponse) {
       markTextIntentMessageHandled(message.id);
-      pendingTextIntentContexts.delete(userId);
+      await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
         userId,
         sourcePhone,
@@ -536,7 +572,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const weightLog = detectWeightLogFromText(text);
   if (weightLog?.kind === "clarification") {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -559,7 +595,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     });
 
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -611,13 +647,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     return { passthroughText: mixedWaterFood.foodText };
   }
 
-  const pendingContext = getPendingTextIntentContext(userId);
+  const pendingContext = await getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
   const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent });
   if (deleteIntentResult) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -635,7 +671,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const mealListResult = await executeWhatsappMealListIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (mealListResult) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -654,7 +690,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const contextualReplacementResult = await executeWhatsappContextualFoodReplacementIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (contextualReplacementResult) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -673,7 +709,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const gramsAdjustmentResult = await executeWhatsappGramsAdjustmentIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (gramsAdjustmentResult) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -711,13 +747,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     const unknownFoodReply = buildUnknownFoodReply(text);
     if (!unknownFoodReply) return false;
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({ userId, sourcePhone, userMessage: text, reply: unknownFoodReply, eventType: "whatsapp.intent.food_not_found", detail: "Alimento simples informado por texto não encontrado no catálogo antes da inferência nutricional.", status: "warning", occurredAtMs, lifecycleHandle });
     return true;
   }
 
   markTextIntentMessageHandled(message.id);
-  rememberPendingTextIntentContext(userId, result);
+  await rememberPendingTextIntentContext(userId, result);
   await sendAndLogTextReply({
     userId,
     sourcePhone,

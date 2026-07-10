@@ -1,4 +1,4 @@
-import { type AnyMySqlColumn, boolean, double, foreignKey, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { type AnyMySqlColumn, boolean, double, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -631,6 +631,30 @@ export const whatsappConversationSummaries = mysqlTable("whatsappConversationSum
 
 export type WhatsAppConversationSummary = typeof whatsappConversationSummaries.$inferSelect;
 export type InsertWhatsAppConversationSummary = typeof whatsappConversationSummaries.$inferInsert;
+
+export const whatsappPendingOperations = mysqlTable("whatsappPendingOperations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: varchar("type", { length: 64 }).notNull(),
+  target: json("target").notNull(),
+  origin: varchar("origin", { length: 64 }).notNull(),
+  state: varchar("state", { length: 16 }).default("active").notNull(),
+  version: int("version").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  consumedAt: timestamp("consumedAt"),
+}, table => ({
+  userStateIdx: index("wa_pending_op_user_state_idx").on(table.userId, table.state),
+  userFk: foreignKey({
+    name: "wa_pending_op_user_fk",
+    columns: [table.userId],
+    foreignColumns: [users.id],
+  }).onDelete("cascade"),
+}));
+
+export type WhatsAppPendingOperation = typeof whatsappPendingOperations.$inferSelect;
+export type InsertWhatsAppPendingOperation = typeof whatsappPendingOperations.$inferInsert;
 
 export const appSecrets = mysqlTable("appSecrets", {
   id: int("id").autoincrement().primaryKey(),

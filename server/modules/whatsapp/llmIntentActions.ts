@@ -8,6 +8,8 @@ import { buildWhatsappAiToolTrace, runWhatsappAiTool, type WhatsappAiToolTrace }
 import { learnWhatsappIntentAliasFromConfirmation } from "./intentAliasLearning";
 import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
+import { getDb, logPersistenceWarning } from "../../db";
+import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
 import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
@@ -670,6 +672,11 @@ function isPersistentIntent(intentName: WhatsappIntentName) {
   return PERSISTENT_INTENTS.includes(intentName as (typeof PERSISTENT_INTENTS)[number]);
 }
 
+const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+
 export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLlmIntentInput): Promise<WhatsappLlmIntentResult | WhatsappLlmNutritionFallback | null> {
   const text = input.text?.trim();
   if (!text) {
@@ -678,7 +685,13 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
 
   const receivedAt = input.receivedAt ?? new Date();
   const idempotencyKey = buildIdempotencyKey(userId, text, receivedAt, input.messageId);
-  const context = await buildWhatsappIntentContext(userId, { receivedAt });
+  // Passa a pendência operacional ativa (se houver) para o classificador saber que uma
+  // resposta pode estar resolvendo uma seleção/confirmação/exclusão em aberto (issue #766).
+  const activePendingOperation = await pendingOperationRepository.getActivePendingOperation(userId, receivedAt);
+  const pendingClarification = activePendingOperation
+    ? { kind: activePendingOperation.type, originalIntent: activePendingOperation.origin }
+    : null;
+  const context = await buildWhatsappIntentContext(userId, { receivedAt, pendingClarification });
   const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
   const intent = interpretation.intent;
   learnWhatsappIntentAliasFromConfirmation({ userId, text, intent, receivedAt });

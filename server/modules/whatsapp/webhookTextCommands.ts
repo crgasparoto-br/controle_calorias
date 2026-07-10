@@ -1,4 +1,5 @@
-import { listUserMeals, relabelUserMeals } from "../../db";
+import { getDb, listUserMeals, logPersistenceWarning, relabelUserMeals } from "../../db";
+import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./replyFormatting";
 import {
   buildWhatsAppActionCancelledReplyMessage,
@@ -23,13 +24,17 @@ export type WhatsAppAction = {
 export type PendingWhatsAppConfirmation = {
   action: WhatsAppAction;
   mealIds: number[];
-  createdAt: number;
-  expiresAt: number;
   summary: string;
 };
 
-const pendingWhatsAppConfirmations = new Map<number, PendingWhatsAppConfirmation>();
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
+const PENDING_CONFIRMATION_ORIGIN = "webhookTextCommands";
+const PENDING_CONFIRMATION_TYPE = "confirmation";
+
+const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
 const MIN_WEIGHT_LOG_KG = 25;
 const MAX_WEIGHT_LOG_KG = 350;
@@ -112,24 +117,25 @@ export function detectWhatsAppAction(message: WhatsAppWebhookMessage): WhatsAppA
   };
 }
 
+async function resolveMatchingRecentMeals(action: WhatsAppAction, userId: number) {
+  const recentMeals = (await listUserMeals(userId))
+    .filter(meal => meal.source === "whatsapp")
+    .slice(0, 3);
+  const matchingMeals = recentMeals.filter(
+    meal => canonicalMealLabel(meal.mealLabel) === action.fromMealLabel,
+  );
+  return { recentMeals, matchingMeals };
+}
+
 export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhookMessage, userId: number) {
-  const pending = pendingWhatsAppConfirmations.get(userId);
-  if (!pending) {
+  const pendingRow = await pendingOperationRepository.getActivePendingOperation(userId);
+  if (!pendingRow || pendingRow.type !== PENDING_CONFIRMATION_TYPE) {
     return null;
   }
-
-  if (pending.expiresAt < Date.now()) {
-    pendingWhatsAppConfirmations.delete(userId);
-    return {
-      handled: true,
-      reply: buildWhatsAppClarificationReplyMessage("A solicitação anterior expirou. Se ainda quiser alterar a classificação das refeições, envie o comando novamente."),
-      eventType: "whatsapp.action_confirmation_expired",
-      detail: `Confirmação expirada para ${pending.summary}.`,
-    };
-  }
+  const pending = pendingRow.target as PendingWhatsAppConfirmation;
 
   if (isCancellationMessage(message)) {
-    pendingWhatsAppConfirmations.delete(userId);
+    await pendingOperationRepository.cancelPendingOperation(pendingRow.id);
     return {
       handled: true,
       reply: buildWhatsAppActionCancelledReplyMessage("Tudo certo. Não alterei nenhum registro histórico."),
@@ -142,13 +148,29 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
     return null;
   }
 
+  const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });
+  if (!claim.claimed) {
+    // Outra requisição/instância já consumiu esta pendência (issue #766: consumo atômico, no máximo uma execução).
+    return null;
+  }
+
+  // Revalida o alvo contra o estado atual do banco em vez de confiar cegamente no target persistido (issue #766).
+  const { matchingMeals } = await resolveMatchingRecentMeals(pending.action, userId);
+  if (!matchingMeals.length) {
+    return {
+      handled: true,
+      reply: buildWhatsAppClarificationReplyMessage("Os registros que essa confirmação alteraria não estão mais disponíveis. Envie o comando novamente se ainda quiser reclassificar refeições."),
+      eventType: "whatsapp.action_confirmation_target_stale",
+      detail: `Confirmação consumida, mas alvo (${pending.summary}) não foi mais encontrado no estado atual.`,
+    };
+  }
+
   const updatedMeals = await relabelUserMeals({
     userId,
-    mealIds: pending.mealIds,
+    mealIds: matchingMeals.map(meal => meal.id),
     mealLabel: pending.action.toMealLabel,
     origin: "whatsapp",
   });
-  pendingWhatsAppConfirmations.delete(userId);
 
   return {
     handled: true,
@@ -159,12 +181,7 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
 }
 
 export async function handleWhatsAppAction(action: WhatsAppAction, userId: number) {
-  const recentMeals = (await listUserMeals(userId))
-    .filter(meal => meal.source === "whatsapp")
-    .slice(0, 3);
-  const matchingMeals = recentMeals.filter(
-    meal => canonicalMealLabel(meal.mealLabel) === action.fromMealLabel,
-  );
+  const { recentMeals, matchingMeals } = await resolveMatchingRecentMeals(action, userId);
 
   if (!recentMeals.length || !matchingMeals.length) {
     return {
@@ -189,12 +206,16 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
   }
 
   const summary = `${action.fromMealLabel} → ${action.toMealLabel}`;
-  pendingWhatsAppConfirmations.set(userId, {
-    action,
-    mealIds: matchingMeals.map(meal => meal.id),
-    createdAt: Date.now(),
-    expiresAt: Date.now() + PENDING_CONFIRMATION_TTL_MS,
-    summary,
+  await pendingOperationRepository.createPendingOperation({
+    userId,
+    type: PENDING_CONFIRMATION_TYPE,
+    origin: PENDING_CONFIRMATION_ORIGIN,
+    ttlMs: PENDING_CONFIRMATION_TTL_MS,
+    target: {
+      action,
+      mealIds: matchingMeals.map(meal => meal.id),
+      summary,
+    } satisfies PendingWhatsAppConfirmation,
   });
 
   return {

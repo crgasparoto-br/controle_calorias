@@ -343,3 +343,11 @@ export async function executeWhatsappMealListIntent(userId: number, input: { tex
     },
   };
 }
+
+export const contextUsage: import("./intentContext").IntentContextUsage = {
+  usesRecentWindow: false,
+  usesSummary: false,
+  usesPendingOperation: false,
+  usesLongTermMemory: false,
+  requiresFreshDbQuery: true,
+};

@@ -10,7 +10,83 @@ vi.mock("../meals/service", () => ({
   updateMeal: updateMealMock,
 }));
 
-const { __resetWhatsappDeleteIntentsForTests, executeWhatsappDeleteIntent } = await import("./deleteIntent");
+vi.mock("drizzle-orm", () => ({
+  eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  desc: (col: { name: string }) => ({ __op: "desc", col }),
+  and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
+}));
+
+type FakeDbRow = Record<string, unknown>;
+type FakeDbCondition =
+  | { __op: "eq"; col: { name: string }; val: unknown }
+  | { __op: "and"; conditions: FakeDbCondition[] }
+  | { __op: "desc"; col: { name: string } };
+
+function createFakePendingOperationDb() {
+  let rows: FakeDbRow[] = [];
+  let nextId = 1;
+
+  function matches(row: FakeDbRow, condition?: FakeDbCondition): boolean {
+    if (!condition) return true;
+    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
+    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    return true;
+  }
+
+  function createSelectChain() {
+    let whereCondition: FakeDbCondition | undefined;
+    let limitValue: number | undefined;
+    const resolve = () => {
+      let result = rows.filter(row => matches(row, whereCondition));
+      result = [...result].sort((a, b) => (b.id as number) - (a.id as number));
+      if (limitValue !== undefined) result = result.slice(0, limitValue);
+      return result.map(row => ({ ...row }));
+    };
+    const chain: any = {
+      from: vi.fn(() => chain),
+      where: vi.fn((condition: FakeDbCondition) => { whereCondition = condition; return chain; }),
+      orderBy: vi.fn(() => chain),
+      limit: vi.fn((value: number) => { limitValue = value; return Promise.resolve(resolve()); }),
+    };
+    return chain;
+  }
+
+  return {
+    select: vi.fn(() => ({ from: vi.fn(() => createSelectChain()) })),
+    insert: vi.fn(() => ({
+      values: vi.fn((payload: FakeDbRow) => {
+        const id = nextId++;
+        rows.push({ id, ...payload });
+        return Promise.resolve({ insertId: id });
+      }),
+    })),
+    update: vi.fn(() => {
+      let setPayload: FakeDbRow = {};
+      const chain: any = {
+        set: vi.fn((payload: FakeDbRow) => { setPayload = payload; return chain; }),
+        where: vi.fn((condition: FakeDbCondition) => {
+          const matching = rows.filter(row => matches(row, condition));
+          for (const row of matching) Object.assign(row, setPayload);
+          return Promise.resolve({ affectedRows: matching.length });
+        }),
+      };
+      return chain;
+    }),
+    reset() {
+      rows = [];
+      nextId = 1;
+    },
+  };
+}
+
+const fakePendingOperationDb = createFakePendingOperationDb();
+
+vi.mock("../../db", () => ({
+  getDb: vi.fn(async () => fakePendingOperationDb),
+  logPersistenceWarning: vi.fn(),
+}));
+
+const { executeWhatsappDeleteIntent } = await import("./deleteIntent");
 
 const latestMeal = {
   id: 10,
@@ -34,7 +110,7 @@ const namedMeal = {
 
 describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
   beforeEach(() => {
-    __resetWhatsappDeleteIntentsForTests();
+    fakePendingOperationDb.reset();
     listMealsMock.mockReset();
     removeMealMock.mockReset();
     updateMealMock.mockReset();
@@ -227,5 +303,34 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       action: "meal_deleted",
       eventType: "whatsapp.intent.meal_deleted_after_last_item_removed",
     }));
+  });
+
+  it("apenas uma de duas confirmacoes concorrentes exclui a refeicao (issue #766)", async () => {
+    listMealsMock.mockResolvedValue([latestMeal]);
+    removeMealMock.mockResolvedValue(undefined);
+
+    await executeWhatsappDeleteIntent(42, { text: "exclua refeição fotografada" });
+
+    const [first, second] = await Promise.all([
+      executeWhatsappDeleteIntent(42, { text: "SIM" }),
+      executeWhatsappDeleteIntent(42, { text: "SIM" }),
+    ]);
+
+    const applied = [first, second].filter(result => result?.action === "meal_deleted");
+    expect(applied).toHaveLength(1);
+    expect(removeMealMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("item excluido entre a pergunta e a confirmacao retorna resposta graciosa", async () => {
+    listMealsMock.mockResolvedValueOnce([latestMeal]);
+    await executeWhatsappDeleteIntent(42, { text: "remover esse alimento" });
+
+    // No momento da confirmação, o item já não existe mais na refeição (excluído por outro fluxo).
+    listMealsMock.mockResolvedValueOnce([{ ...latestMeal, items: [] }]);
+    const confirmation = await executeWhatsappDeleteIntent(42, { text: "pode remover" });
+
+    expect(confirmation).toEqual(expect.objectContaining({ action: "clarification_needed" }));
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(removeMealMock).not.toHaveBeenCalled();
   });
 });

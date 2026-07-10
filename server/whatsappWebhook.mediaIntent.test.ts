@@ -27,6 +27,8 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
 }));
 
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => null),
+  logPersistenceWarning: vi.fn(),
   buildSavedMedia: vi.fn((input: Record<string, unknown>) => input),
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,

@@ -141,6 +141,13 @@
       "when": 1783718624918,
       "tag": "0021_brown_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1783721385939,
+      "tag": "0022_noisy_gamora",
+      "breakpoints": true
     }
   ]
 }

@@ -111,3 +111,11 @@ export async function executeWhatsappGramsAdjustmentIntent(userId: number, input
     data: { mealId: updated.id, mealLabel: meal.mealLabel, adjustments: applied },
   };
 }
+
+export const contextUsage: import("./intentContext").IntentContextUsage = {
+  usesRecentWindow: false,
+  usesSummary: false,
+  usesPendingOperation: false,
+  usesLongTermMemory: false,
+  requiresFreshDbQuery: true,
+};
