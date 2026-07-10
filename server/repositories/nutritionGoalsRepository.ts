@@ -20,6 +20,7 @@ function toInsertValues(goals: NutritionGoal[]) {
     proteinGrams: goal.proteinGrams,
     carbsGrams: goal.carbsGrams,
     fatGrams: goal.fatGrams,
+    includeExerciseCalories: goal.includeExerciseCalories,
     effectiveFrom: goal.effectiveFrom,
     effectiveUntil: goal.effectiveUntil,
   }));
@@ -84,6 +85,7 @@ export function createDrizzleNutritionGoalsRepository(deps: {
               proteinGrams: goal.proteinGrams,
               carbsGrams: goal.carbsGrams,
               fatGrams: goal.fatGrams,
+              includeExerciseCalories: goal.includeExerciseCalories,
               effectiveUntil: goal.effectiveUntil,
               updatedAt: now,
             })

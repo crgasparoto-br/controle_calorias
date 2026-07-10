@@ -13,6 +13,7 @@ import {
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
+import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, updateUserCurrentWeight } from "./db";
 import { listMeals } from "./modules/meals/service";
@@ -329,7 +330,7 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
   const consumedCalories = Math.round(totals.calories);
   const exerciseCalories = Math.round(exercisesInPeriod.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0));
   const goalCalories = Math.round(Number(goal.today?.calories || 0) * countPeriodDays(start, end));
-  const adjustedGoalCalories = goalCalories + exerciseCalories;
+  const adjustedGoalCalories = calculateAdjustedGoalCalories(goalCalories, exerciseCalories, goal.today?.includeExerciseCalories ?? true);
   const balanceCalories = adjustedGoalCalories - consumedCalories;
   const goalSummaryLines = buildPeriodGoalSummaryLines({
     goalCalories,

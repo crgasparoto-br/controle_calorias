@@ -13,7 +13,7 @@ import {
 import { calculateDayTotals, roundNutritionValue } from "../../../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../../../shared/safeMessages";
 import { getDateKeyInTimeZone, getWeekdayIndexInTimeZone, toLogicalDateInTimeZone } from "../../../shared/timeZone";
-import { calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
+import { calculateAdjustedGoalCalories, calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
 import { getNutritionGoalForDate } from "../goals/service";
 import { calculateQualityIndicators, createFoodLookup } from "./foodQuality";
 import {
@@ -209,10 +209,6 @@ function buildWeightTrendForDates(entries: WeightEntryForTrend[] | undefined, da
 function averageValue(total: number, count: number) {
   if (!count) return 0;
   return total / count;
-}
-
-function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: number) {
-  return roundNutritionValue(baseCalories + Math.max(exerciseCalories, 0));
 }
 
 const FOOD_QUALITY_LOOKUP_QUERY_LIMIT = 8;
@@ -512,7 +508,7 @@ async function buildWeeklyReportSummary(userId: number, weekOffset = 0, options:
     const quality = options.includeFoodQualityDetails
       ? calculateQualityIndicators(dailyMeals, waterConsumedMl, foodLookup)
       : calculateLightQualityIndicators(dailyMeals, waterConsumedMl);
-    const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, burnedCalories);
+    const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, burnedCalories, planned.includeExerciseCalories);
 
     return {
       date,
@@ -722,6 +718,7 @@ export async function getDashboardTodayOverview(userId: number, options: { date?
   const todayWaterMl = todaysWaterLogs.reduce((acc, log) => acc + Number(log.amountMl ?? 0), 0);
   const foodLookup = options.includeQualityDetails ? await buildFoodLookupForMeals(userId, [todaysMeals]) : undefined;
   const todayQuality = calculateQualityIndicators(todaysMeals, todayWaterMl, foodLookup);
+  const adjustedGoalCalories = calculateAdjustedGoalCalories(plannedGoal.calories, todayBurnedCalories, plannedGoal.includeExerciseCalories);
 
   return {
     goal,
@@ -729,7 +726,7 @@ export async function getDashboardTodayOverview(userId: number, options: { date?
       date: selectedDate,
       goal: {
         calories: plannedGoal.calories,
-        adjustedCalories: calculateAdjustedGoalCalories(plannedGoal.calories, todayBurnedCalories),
+        adjustedCalories: adjustedGoalCalories,
         protein: plannedGoal.proteinGrams,
         carbs: plannedGoal.carbsGrams,
         fat: plannedGoal.fatGrams,
@@ -752,7 +749,7 @@ export async function getDashboardTodayOverview(userId: number, options: { date?
       quality: todayQuality,
       net: {
         calories: roundNutritionValue(todayTotals.calories - todayBurnedCalories),
-        remainingToGoal: roundNutritionValue(plannedGoal.calories - (todayTotals.calories - todayBurnedCalories)),
+        remainingToGoal: roundNutritionValue(adjustedGoalCalories - todayTotals.calories),
       },
       remaining: {
         calories: roundNutritionValue(plannedGoal.calories - todayTotals.calories),
@@ -849,7 +846,7 @@ export async function getPeriodReportBundle(
     const waterConsumedMl = dailyWaterLogs.reduce((total, log) => total + Number(log.amountMl ?? 0), 0);
     const dailyQuality = calculateQualityIndicators(dailyMeals, waterConsumedMl, foodLookup);
     const exerciseCalories = dailyExercises.reduce((total, exercise) => total + Number(exercise.caloriesBurned ?? 0), 0);
-    const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, exerciseCalories);
+    const adjustedGoalCalories = calculateAdjustedGoalCalories(planned.calories, exerciseCalories, planned.includeExerciseCalories);
 
     return {
       date,

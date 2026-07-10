@@ -1,4 +1,4 @@
-import { type AnyMySqlColumn, double, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { type AnyMySqlColumn, boolean, double, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -50,6 +50,7 @@ export const nutritionGoals = mysqlTable(
     proteinGrams: double("proteinGrams").notNull(),
     carbsGrams: double("carbsGrams").notNull(),
     fatGrams: double("fatGrams").notNull(),
+    includeExerciseCalories: boolean("includeExerciseCalories").default(true).notNull(),
     effectiveFrom: timestamp("effectiveFrom").defaultNow().notNull(),
     effectiveUntil: timestamp("effectiveUntil"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

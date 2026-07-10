@@ -1,3 +1,4 @@
+import { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";
 import { resolveFoodIcon, type FoodIconInput } from "./foodIcons";
 
 export type WhatsAppNutritionTotals = {
@@ -17,6 +18,7 @@ export type WhatsAppGoalProgressInput = {
   consumedCalories: number;
   goalCalories: number;
   exerciseCalories?: number;
+  includeExerciseCalories?: boolean;
 };
 
 export function formatWhatsAppNumber(value: number) {
@@ -106,7 +108,7 @@ export function buildWhatsAppGoalProgressLines(progress: WhatsAppGoalProgressInp
   const consumedCalories = Math.max(0, Math.round(progress.consumedCalories));
   const goalCalories = Math.round(progress.goalCalories);
   const exerciseCalories = Math.max(0, Math.round(progress.exerciseCalories ?? 0));
-  const adjustedGoalCalories = goalCalories + exerciseCalories;
+  const adjustedGoalCalories = calculateAdjustedGoalCalories(goalCalories, exerciseCalories, progress.includeExerciseCalories ?? true);
   const balanceCalories = adjustedGoalCalories - consumedCalories;
   const balanceLabel = balanceCalories >= 0 ? "Déficit" : "Superávit";
 

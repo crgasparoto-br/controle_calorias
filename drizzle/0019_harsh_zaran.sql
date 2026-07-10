@@ -1,0 +1,1 @@
+ALTER TABLE `nutritionGoals` ADD `includeExerciseCalories` boolean DEFAULT true NOT NULL;

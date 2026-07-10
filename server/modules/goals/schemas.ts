@@ -32,6 +32,7 @@ export const goalExceptionSchema = goalTargetSchema.extend({
 
 export const goalSchema = z.object({
   startDate: dateKeySchema.optional(),
+  includeExerciseCalories: z.boolean().default(true),
   defaultGoal: goalTargetSchema,
   exceptions: z.array(goalExceptionSchema),
 }).superRefine((goal, ctx) => {
