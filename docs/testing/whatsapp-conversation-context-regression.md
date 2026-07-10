@@ -10,6 +10,22 @@ Issue: #768. Esta matriz é o gate de promoção do contexto persistente criado 
 - A resposta esperada deve ser verificada junto com mensagens, vínculos de domínio, pendências, logs e ausência de duplicação.
 - Conteúdo de mensagem, telefone, URL temporária, token ou segredo não pode aparecer em métricas/logs de observabilidade.
 
+## Evidências automatizadas
+
+| Contrato | Testes principais |
+|---|---|
+| Entrypoint real de texto e áudio | `server/whatsappWebhook.smoke.test.ts` |
+| Entrypoint real de imagem, legenda e persistência opaca | `server/whatsappWebhook.image.test.ts` |
+| Precedência de intenções e fallback do webhook real | `server/whatsappIntentWebhook.test.ts`, `server/whatsappIntentWebhook.llm.test.ts`, `server/whatsappIntentWebhook.delete.test.ts` |
+| Captura da resposta visual e vínculo com a refeição | `server/whatsappAnnotatedImageWebhook.test.ts` |
+| Enriquecimento da mensagem inbound após download/transcrição | `server/modules/whatsapp/webhookMediaPipeline.test.ts`, `server/repositories/whatsappConversationMessageEnrichmentRepository.test.ts` |
+| Persistência, reentrega, ordenação, isolamento, reinício e duas instâncias | `server/repositories/whatsappConversationRepository.test.ts`, `server/modules/whatsapp/messageLifecycle.test.ts` |
+| Janela, profundidade e resumo progressivo | `server/modules/whatsapp/conversationContextBudget.test.ts`, `server/modules/whatsapp/conversationSummaryService.test.ts`, `server/modules/whatsapp/intentContext.test.ts` |
+| Pendências e consumo concorrente | `server/repositories/whatsappPendingOperationRepository.test.ts`, `server/modules/whatsapp/messageRouter.test.ts` |
+| Retenção sem apagar dados nutricionais | `server/modules/whatsapp/conversationRetentionService.test.ts`, `server/repositories/accountRepository.test.ts` |
+
+Os testes automatizados são o gate de regressão do código. O checklist de staging continua obrigatório para validar credenciais, payloads e comportamento operacional da Meta/TiDB no ambiente de destino.
+
 ## Matriz funcional
 
 | Cenário | Entrada | Continuação | Evidência obrigatória |
@@ -25,7 +41,7 @@ Issue: #768. Esta matriz é o gate de promoção do contexto persistente criado 
 | Pergunta `/` | registro alimentar | `/como está minha proteína hoje?` | pergunta participa do histórico e não persiste alteração |
 | Consulta → correção | consulta de refeição | correção explícita | revalidação do alvo no banco antes da mutação |
 | Correção → consulta | correção de quantidade | `agora quanto ficou?` | resposta usa valor corrigido, não valor antigo do resumo |
-| Seleção/confirmação | dois itens semelhantes | `o segundo` → `sim` | pendência persistente e consumo único |
+| Seleção/confirmação | dois itens semelhantes | `o segundo` → `sim` | pendência persistente e consumo único |
 | Expiração | contexto antigo | `exclua o segundo` | pede esclarecimento, não executa ação |
 | Sem contexto | primeira mensagem referencial | `e a proteína?` | clarificação segura, sem fallback alimentar |
 | Imagem não reconhecida | mídia inválida/sem itens | nova pergunta | erro controlado e histórico auditável |
