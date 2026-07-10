@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import type { GenerateImageResponse } from "./_core/imageGeneration";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, removeUserMeal, updateUserCurrentWeight, updateUserMeal } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
+import { executeWhatsappAiQuestionIntent } from "./modules/whatsapp/aiQuestionAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
@@ -296,6 +297,32 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
     }
 
     try {
+      const aiQuestionResult = await executeWhatsappAiQuestionIntent(userId, {
+        text: message.text?.body,
+        receivedAt: resolveWhatsAppMessageOccurredAt(message),
+      });
+      if (aiQuestionResult) {
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: aiQuestionResult.action === "ai_question_answered" ? "success" : "warning",
+          eventType: aiQuestionResult.eventType,
+          detail: aiQuestionResult.detail,
+        });
+
+        const replyResult = await sendWhatsAppTextMessage(sourcePhone, aiQuestionResult.reply);
+        if (!replyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+          });
+        }
+        continue;
+      }
+
       const pendingConfirmationResult = await handlePendingWhatsAppConfirmation(message, userId);
       if (pendingConfirmationResult) {
         logInferenceEvent({
