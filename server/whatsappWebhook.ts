@@ -13,7 +13,7 @@ import {
   type WhatsAppUserContentModality,
 } from "./modules/whatsapp/promptInjectionGuard";
 import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./modules/whatsapp/replyFormatting";
-import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
+import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage, buildWhatsAppWaterVolumeNeededReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
 import {
   buildWaterLogReply,
   buildWeightLogReply,
@@ -24,6 +24,7 @@ import {
   handleWhatsAppAction,
 } from "./modules/whatsapp/webhookTextCommands";
 import { prepareMessageInput, type PreparedMessageInput } from "./modules/whatsapp/webhookMediaPipeline";
+import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
 import {
   extractWhatsAppWebhookMessages,
   formatDateKeyInSaoPaulo,
@@ -37,6 +38,7 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import { MealInferenceError, MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
+import { calculateMealTotals } from "../shared/mealTotals";
 
 type WhatsAppTextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
 
@@ -513,11 +515,75 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         audioUrl: prepared.audioUrl,
         habits: await getHabitSnapshots(userId),
       });
+      const occurredAt = resolveWhatsAppMessageOccurredAt(message);
+
+      if (message.image?.id) {
+        const waterSplit = splitMealItemsForWaterHydration(processed.items);
+
+        if (waterSplit.waterVolumeMl > 0) {
+          await createUserWaterLog(userId, {
+            amountMl: waterSplit.waterVolumeMl,
+            occurredAt: occurredAt.toISOString(),
+          });
+
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "success",
+            eventType: "whatsapp.water_logged",
+            detail: `Consumo de ${waterSplit.waterVolumeMl} ml de água identificado em imagem e registrado pelo WhatsApp às ${formatWhatsAppReplyTime(occurredAt)}.`,
+          });
+        }
+
+        processed.items = waterSplit.remainingItems;
+        processed.totals = calculateMealTotals(waterSplit.remainingItems);
+
+        if (!waterSplit.remainingItems.length) {
+          if (waterSplit.waterVolumeMl > 0) {
+            const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWaterLogReply(waterSplit.waterVolumeMl, occurredAt));
+            if (!replyResult.ok) {
+              logInferenceEvent({
+                userId,
+                origin: "whatsapp",
+                status: "warning",
+                eventType: "whatsapp.reply_failed",
+                detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+              });
+            }
+            continue;
+          }
+
+          if (waterSplit.hasWaterWithoutVolume) {
+            const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWhatsAppWaterVolumeNeededReplyMessage());
+            if (!replyResult.ok) {
+              logInferenceEvent({
+                userId,
+                origin: "whatsapp",
+                status: "warning",
+                eventType: "whatsapp.reply_failed",
+                detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+              });
+            }
+            continue;
+          }
+        } else if (waterSplit.waterVolumeMl > 0) {
+          const waterReplyResult = await sendWhatsAppTextMessage(sourcePhone, buildWaterLogReply(waterSplit.waterVolumeMl, occurredAt));
+          if (!waterReplyResult.ok) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.reply_failed",
+              detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${waterReplyResult.detail}`,
+            });
+          }
+        }
+      }
+
       const processedForPersistence = {
         ...processed,
         imageUrl: prepared.imageUrl,
       };
-      const occurredAt = resolveWhatsAppMessageOccurredAt(message);
       const mediaForPersistence = [...prepared.media];
       let annotatedImage: GenerateImageResponse | null = null;
 
