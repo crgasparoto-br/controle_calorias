@@ -61,6 +61,7 @@ async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date): Pr
     return {
       consumedCalories: dayTotals.totals.calories,
       goalCalories: goalSummary.today.calories,
+      includeExerciseCalories: goalSummary.today.includeExerciseCalories,
     };
   } catch (error) {
     logInferenceEvent({

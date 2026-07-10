@@ -1,11 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateAdjustedGoalCalories,
   calculateCalorieAdherence,
   calculateFoodQualitySummary,
   calculateMacroAdherence,
   calculateMacroDaySummary,
   calculateWeightTrendSummary,
 } from "./reportsGoalAnalytics";
+
+describe("calculateAdjustedGoalCalories", () => {
+  it("soma calorias de exercícios à meta quando habilitado (padrão)", () => {
+    expect(calculateAdjustedGoalCalories(2000, 300)).toBe(2300);
+    expect(calculateAdjustedGoalCalories(2000, 300, true)).toBe(2300);
+  });
+
+  it("não soma calorias de exercícios quando desabilitado", () => {
+    expect(calculateAdjustedGoalCalories(2000, 300, false)).toBe(2000);
+  });
+
+  it("ignora calorias de exercícios negativas", () => {
+    expect(calculateAdjustedGoalCalories(2000, -50)).toBe(2000);
+  });
+});
 
 describe("reportsGoalAnalytics", () => {
   it("calcula aderência calórica e classifica dias por faixa", () => {

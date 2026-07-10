@@ -15,6 +15,7 @@ export type WhatsAppMealGoalProgress = {
   consumedCalories: number;
   goalCalories: number;
   exerciseCalories?: number;
+  includeExerciseCalories?: boolean;
 };
 
 export type WhatsAppMealReplyOptions = {

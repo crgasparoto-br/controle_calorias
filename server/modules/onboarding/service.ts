@@ -94,6 +94,7 @@ export async function completeOnboarding(userId: number, input: OnboardingInput)
   const calculation = shouldRecalculateGoals ? calculateOnboardingNutritionGoal(input) : null;
   const goal = calculation
     ? await updateNutritionGoal(userId, {
+        includeExerciseCalories: true,
         defaultGoal: calculation.calculatedGoal,
         exceptions: [],
       })

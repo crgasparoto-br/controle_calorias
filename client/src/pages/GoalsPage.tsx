@@ -287,6 +287,37 @@ function normalizeExceptionsForEditing(exceptions: GoalExceptionQuery[], fallbac
   });
 }
 
+function Switch({ id, checked, onChange }: { id: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      id={id}
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted"}`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-background shadow transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} />
+    </button>
+  );
+}
+
+function ExerciseCaloriesToggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <div className="rounded-2xl border bg-background p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <Label htmlFor="include-exercise-calories">Adicionar calorias dos exercícios à meta diária</Label>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Ative esta opção quando sua meta não considerar os exercícios. Se a meta informada já incluir sua rotina de atividades físicas, mantenha esta opção desativada.
+          </p>
+        </div>
+        <Switch id="include-exercise-calories" checked={checked} onChange={onChange} />
+      </div>
+    </div>
+  );
+}
+
 export default function GoalsPage() {
   const utils = trpc.useUtils();
   const goalQuery = trpc.nutrition.goals.get.useQuery();
@@ -308,6 +339,7 @@ export default function GoalsPage() {
   });
 
   const [startDate, setStartDate] = useState(() => goalQuery.data?.startDate ?? toDateInputValue());
+  const [includeExerciseCalories, setIncludeExerciseCalories] = useState(() => goalQuery.data?.today.includeExerciseCalories ?? true);
   const [defaultGoal, setDefaultGoal] = useState<GoalTargetForm>(() => goalQuery.data ? createGoalTargetForm({
     calories: goalQuery.data.defaultGoal.calories,
     proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
@@ -335,6 +367,7 @@ export default function GoalsPage() {
 
     const fallbackStartDate = goalQuery.data.startDate ?? toDateInputValue();
     setStartDate(fallbackStartDate);
+    setIncludeExerciseCalories(goalQuery.data.today.includeExerciseCalories ?? true);
     setDefaultGoal(createGoalTargetForm({
       calories: goalQuery.data.defaultGoal.calories,
       proteinGrams: goalQuery.data.defaultGoal.proteinGrams,
@@ -529,6 +562,7 @@ export default function GoalsPage() {
 
     updateGoal.mutate({
       startDate,
+      includeExerciseCalories,
       defaultGoal: toGoalPayload(defaultGoal),
       exceptions: exceptions.map(exception => ({
         weekday: exception.weekday,
@@ -601,6 +635,7 @@ export default function GoalsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <VersionStartField value={startDate} onChange={setStartDate} />
+                <ExerciseCaloriesToggle checked={includeExerciseCalories} onChange={setIncludeExerciseCalories} />
                 <ModeSelector mode={defaultGoal.inputMode} onChange={updateDefaultInputMode} />
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <FormattedField label="Calorias" value={defaultGoal.calories} onChange={value => updateDefaultGoal("calories", value)} suffix="kcal" />

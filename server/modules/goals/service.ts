@@ -138,6 +138,7 @@ function buildDefaultVersionRow(userId: number, input: GoalInput, startDate: str
     proteinGrams: input.defaultGoal.proteinGrams,
     carbsGrams: input.defaultGoal.carbsGrams,
     fatGrams: input.defaultGoal.fatGrams,
+    includeExerciseCalories: input.includeExerciseCalories,
     effectiveFrom: startOfUtcDate(startDate),
     effectiveUntil: null,
     createdAt: now,
@@ -159,6 +160,7 @@ function buildExceptionVersionRows(userId: number, input: GoalInput, defaultStar
       proteinGrams: exception.proteinGrams,
       carbsGrams: exception.carbsGrams,
       fatGrams: exception.fatGrams,
+      includeExerciseCalories: input.includeExerciseCalories,
       effectiveFrom: exceptionEffectiveFrom,
       effectiveUntil: buildExceptionEndDate(exceptionEffectiveFrom, exception.durationType),
       createdAt: now,
@@ -167,11 +169,12 @@ function buildExceptionVersionRows(userId: number, input: GoalInput, defaultStar
   });
 }
 
-function hasSameGoalTargets(row: NutritionGoal, target: GoalInput["defaultGoal"]) {
+function hasSameGoalTargets(row: NutritionGoal, target: GoalInput["defaultGoal"], includeExerciseCalories: boolean) {
   return row.calories === target.calories
     && row.proteinGrams === target.proteinGrams
     && row.carbsGrams === target.carbsGrams
-    && row.fatGrams === target.fatGrams;
+    && row.fatGrams === target.fatGrams
+    && row.includeExerciseCalories === includeExerciseCalories;
 }
 
 function hasSameExceptionVersion(row: NutritionGoal, version: NutritionGoal) {
@@ -180,13 +183,13 @@ function hasSameExceptionVersion(row: NutritionGoal, version: NutritionGoal) {
     && row.weekday === version.weekday
     && row.durationType === version.durationType
     && dateKeyFromDate(row.effectiveFrom) === dateKeyFromDate(version.effectiveFrom)
-    && hasSameGoalTargets(row, version);
+    && hasSameGoalTargets(row, version, version.includeExerciseCalories);
 }
 
 function buildVersionRows(userId: number, input: GoalInput, defaultStartDate: string, rows: NutritionGoal[]): NutritionGoal[] {
   const now = new Date();
   const existingDefaultVersion = rows.find(row => row.ruleType === "default" && dateKeyFromDate(row.effectiveFrom) === defaultStartDate);
-  const defaultVersionRows = existingDefaultVersion && hasSameGoalTargets(existingDefaultVersion, input.defaultGoal)
+  const defaultVersionRows = existingDefaultVersion && hasSameGoalTargets(existingDefaultVersion, input.defaultGoal, input.includeExerciseCalories)
     ? []
     : [buildDefaultVersionRow(userId, input, defaultStartDate, now)];
   const exceptionVersionRows = buildExceptionVersionRows(userId, input, defaultStartDate, now)
