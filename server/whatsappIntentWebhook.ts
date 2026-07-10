@@ -28,6 +28,7 @@ import {
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
+import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
 
@@ -44,9 +45,8 @@ type NutritionTotals = {
   fat: number;
 };
 
-const recentlyHandledTextIntentMessageIds = new Map<string, number>();
+const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
 const pendingTextIntentContexts = new Map<number, { kind: "period_report"; expiresAt: number }>();
-const TEXT_INTENT_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
 const SIMPLE_FOOD_QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|m\\s*l|mililitros?|l|litros?|un|unidades?|fatias?|pedacos?|xicaras?|copos?|colheres?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|porcoes?|porcao";
 const MIN_WEIGHT_LOG_KG = 25;
@@ -363,21 +363,12 @@ async function buildMealAdditionAwareReply(userId: number, result: TextIntentRes
   return [baseReply, "", buildMealFullSummary(meal)].join("\n");
 }
 
-function pruneRecentlyHandledTextIntentMessageIds(now = Date.now()) {
-  for (const [messageId, expiresAt] of recentlyHandledTextIntentMessageIds) {
-    if (expiresAt <= now) recentlyHandledTextIntentMessageIds.delete(messageId);
-  }
-}
-
 function wasTextIntentMessageAlreadyHandled(messageId?: string) {
-  if (!messageId) return false;
-  const now = Date.now();
-  pruneRecentlyHandledTextIntentMessageIds(now);
-  return recentlyHandledTextIntentMessageIds.has(messageId);
+  return textIntentMessageDeduplicationCache.wasAlreadyHandled(messageId);
 }
 
 function markTextIntentMessageHandled(messageId?: string) {
-  if (messageId) recentlyHandledTextIntentMessageIds.set(messageId, Date.now() + TEXT_INTENT_DEDUPLICATION_TTL_MS);
+  textIntentMessageDeduplicationCache.markHandled(messageId);
 }
 
 function getPendingTextIntentContext(userId: number) {
@@ -400,7 +391,7 @@ function rememberPendingTextIntentContext(userId: number, result: TextIntentResu
 
 export function __resetWhatsAppTextIntentContextForTests() {
   pendingTextIntentContexts.clear();
-  recentlyHandledTextIntentMessageIds.clear();
+  textIntentMessageDeduplicationCache.clear();
   __resetConversationHistoryForTests();
 }
 

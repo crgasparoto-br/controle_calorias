@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
+import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import {
   buildSuspiciousWhatsAppContentReply,
@@ -14,7 +16,6 @@ import {
   downloadWhatsAppMedia,
   extensionFromMimeType,
   extractWhatsAppWebhookMessages,
-  formatDateKeyInSaoPaulo,
   getExtractedWhatsAppMessageKey,
   isWhatsAppMessageForConfiguredChannel,
   markWhatsAppMessageAsRead,
@@ -49,8 +50,7 @@ type PreparedImageMessage = {
   storageWarning?: string;
 };
 
-const recentlyHandledAnnotatedImageMessageIds = new Map<string, number>();
-const ANNOTATED_IMAGE_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const annotatedImageMessageDeduplicationCache = createMessageDeduplicationCache();
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa imagem agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 const ANNOTATED_IMAGE_UNAVAILABLE_REPLY = "A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.";
@@ -64,28 +64,12 @@ function canHandleAnnotatedImageMessage(message: WhatsAppWebhookMessage) {
   return Boolean(message.image?.id && !message.audio?.id);
 }
 
-function pruneRecentlyHandledAnnotatedImageMessageIds(now = Date.now()) {
-  for (const [messageId, expiresAt] of recentlyHandledAnnotatedImageMessageIds) {
-    if (expiresAt <= now) {
-      recentlyHandledAnnotatedImageMessageIds.delete(messageId);
-    }
-  }
-}
-
 function wasAnnotatedImageMessageAlreadyHandled(messageId?: string) {
-  if (!messageId) {
-    return false;
-  }
-
-  const now = Date.now();
-  pruneRecentlyHandledAnnotatedImageMessageIds(now);
-  return recentlyHandledAnnotatedImageMessageIds.has(messageId);
+  return annotatedImageMessageDeduplicationCache.wasAlreadyHandled(messageId);
 }
 
 function markAnnotatedImageMessageHandled(messageId?: string) {
-  if (messageId) {
-    recentlyHandledAnnotatedImageMessageIds.set(messageId, Date.now() + ANNOTATED_IMAGE_DEDUPLICATION_TTL_MS);
-  }
+  annotatedImageMessageDeduplicationCache.markHandled(messageId);
 }
 
 function formatReplyTime(date: Date) {
@@ -94,30 +78,6 @@ function formatReplyTime(date: Date) {
     minute: "2-digit",
     timeZone: "America/Sao_Paulo",
   });
-}
-
-async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date) {
-  try {
-    const [goalSummary, dayTotals] = await Promise.all([
-      getUserNutritionGoal(userId),
-      getUserDayMealTotals(userId, formatDateKeyInSaoPaulo(occurredAt)),
-    ]);
-
-    return {
-      consumedCalories: dayTotals.totals.calories,
-      goalCalories: goalSummary.today.calories,
-      includeExerciseCalories: goalSummary.today.includeExerciseCalories,
-    };
-  } catch (error) {
-    logInferenceEvent({
-      userId,
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.goal_progress_warning",
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao calcular progresso da meta para resposta do WhatsApp.",
-    });
-    return null;
-  }
 }
 
 async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedImageMessage> {
