@@ -31,6 +31,13 @@ import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedIma
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
+import {
+  beginInboundMessage,
+  markMessageProcessed,
+  recordDomainLink,
+  recordOutboundReply,
+  type MessageLifecycleHandle,
+} from "./modules/whatsapp/messageLifecycle";
 
 type TextIntentResult =
   | NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>
@@ -405,6 +412,7 @@ async function sendAndLogTextReply(input: {
   status: WhatsAppIntentLogStatus;
   mealId?: number | null;
   occurredAtMs?: number;
+  lifecycleHandle?: MessageLifecycleHandle;
 }) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
 
@@ -426,6 +434,14 @@ async function sendAndLogTextReply(input: {
     replyResult.ok ? input.reply : null,
     input.occurredAtMs ?? Date.now(),
   );
+
+  if (replyResult.ok) {
+    await recordOutboundReply(input.lifecycleHandle ?? null, { userId: input.userId, text: input.reply });
+  }
+  if (input.mealId) {
+    await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
+  }
+  await markMessageProcessed(input.lifecycleHandle ?? null);
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
@@ -456,6 +472,25 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const text = getTextBody(message);
   const occurredAt = resolveWhatsAppMessageOccurredAt(message);
   const occurredAtMs = occurredAt.getTime();
+  const lifecycleHandle = await beginInboundMessage({
+    userId,
+    whatsappConnectionId: null,
+    phoneNumber: sourcePhone,
+    externalMessageId: message.id,
+    contentType: "text",
+    text,
+    occurredAt,
+    allowRawContentStorage: true,
+  });
+
+  try {
+    return await handleTextIntentAfterLifecycleBegin(userId);
+  } catch (error) {
+    await markMessageProcessed(lifecycleHandle);
+    throw error;
+  }
+
+  async function handleTextIntentAfterLifecycleBegin(userId: number): Promise<TextIntentHandlingResult> {
   const safety = inspectWhatsAppUserContentSafety(text, "text");
   if (!safety.safe) {
     markTextIntentMessageHandled(message.id);
@@ -469,6 +504,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: `Conteudo bloqueado por seguranca antes do roteamento textual: ${safety.categories.join(", ") || "security_guard"}.`,
       status: "warning",
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -510,6 +546,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: "Pedido de peso sem valor explícito válido.",
       status: "warning",
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -532,6 +569,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: `Peso de ${formatNumber(weightLog.weightKg)} kg registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.`,
       status: "success",
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -551,6 +589,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
           detail: "Falha ao registrar hidratação em mensagem multi-linha com alimentos.",
           status: "warning",
           occurredAtMs,
+          lifecycleHandle,
         });
         markTextIntentMessageHandled(message.id);
         return true;
@@ -567,6 +606,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional após separar mensagem multi-linha.",
       status: "success",
       occurredAtMs,
+      lifecycleHandle,
     });
     return { passthroughText: mixedWaterFood.foodText };
   }
@@ -587,6 +627,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: deleteIntentResult.detail,
       status: "warning",
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -605,6 +646,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       status: mealListResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId(mealListResult.data),
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -623,6 +665,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       status: contextualReplacementResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId(contextualReplacementResult.data),
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -641,6 +684,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       status: gramsAdjustmentResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId("data" in gramsAdjustmentResult ? gramsAdjustmentResult.data : undefined),
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -668,7 +712,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     if (!unknownFoodReply) return false;
     markTextIntentMessageHandled(message.id);
     pendingTextIntentContexts.delete(userId);
-    await sendAndLogTextReply({ userId, sourcePhone, userMessage: text, reply: unknownFoodReply, eventType: "whatsapp.intent.food_not_found", detail: "Alimento simples informado por texto não encontrado no catálogo antes da inferência nutricional.", status: "warning", occurredAtMs });
+    await sendAndLogTextReply({ userId, sourcePhone, userMessage: text, reply: unknownFoodReply, eventType: "whatsapp.intent.food_not_found", detail: "Alimento simples informado por texto não encontrado no catálogo antes da inferência nutricional.", status: "warning", occurredAtMs, lifecycleHandle });
     return true;
   }
 
@@ -684,8 +728,10 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     status: getWhatsAppIntentLogStatus(result.action),
     mealId: extractMealId(result.data),
     occurredAtMs,
+    lifecycleHandle,
   });
   return true;
+  }
 }
 
 function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Set<string>, textOverrides = new Map<string, string>()) {

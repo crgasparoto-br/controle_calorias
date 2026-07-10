@@ -9,6 +9,13 @@ const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const createWaterLogMock = vi.fn();
 
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: vi.fn(async () => null),
+  recordOutboundReply: vi.fn(async () => undefined),
+  recordDomainLink: vi.fn(async () => undefined),
+  markMessageProcessed: vi.fn(async () => undefined),
+}));
+
 vi.mock("./db", () => ({
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getUserNutritionGoal: getUserNutritionGoalMock,
