@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import type { GenerateImageResponse } from "./_core/imageGeneration";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, removeUserMeal, updateUserCurrentWeight, updateUserMeal } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserCurrentWeight, updateUserMeal } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappAiQuestionIntent } from "./modules/whatsapp/aiQuestionAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
@@ -12,8 +12,10 @@ import {
   type WhatsAppContentSafetyCheck,
   type WhatsAppUserContentModality,
 } from "./modules/whatsapp/promptInjectionGuard";
+import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
+import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
 import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./modules/whatsapp/replyFormatting";
-import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage, buildWhatsAppWaterVolumeNeededReplyMessage, type WhatsAppMealGoalProgress } from "./modules/whatsapp/replyMessages";
+import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage, buildWhatsAppWaterVolumeNeededReplyMessage } from "./modules/whatsapp/replyMessages";
 import {
   buildWaterLogReply,
   buildWeightLogReply,
@@ -27,7 +29,6 @@ import { prepareMessageInput, type PreparedMessageInput } from "./modules/whatsa
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
 import {
   extractWhatsAppWebhookMessages,
-  formatDateKeyInSaoPaulo,
   isWhatsAppMessageForConfiguredChannel,
   markWhatsAppMessageAsRead,
   resolveWhatsAppMessageOccurredAt,
@@ -42,8 +43,7 @@ import { calculateMealTotals } from "../shared/mealTotals";
 
 type WhatsAppTextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
 
-const recentlyHandledWhatsAppMessageIds = new Map<string, number>();
-const MESSAGE_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const whatsAppMessageDeduplicationCache = createMessageDeduplicationCache();
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 
 async function resolveUserIdFromPhone(sourcePhone: string) {
@@ -52,30 +52,6 @@ async function resolveUserIdFromPhone(sourcePhone: string) {
 
 function getVerifyToken() {
   return getWhatsAppChannelConfig().verifyToken;
-}
-
-async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date): Promise<WhatsAppMealGoalProgress | null> {
-  try {
-    const [goalSummary, dayTotals] = await Promise.all([
-      getUserNutritionGoal(userId),
-      getUserDayMealTotals(userId, formatDateKeyInSaoPaulo(occurredAt)),
-    ]);
-
-    return {
-      consumedCalories: dayTotals.totals.calories,
-      goalCalories: goalSummary.today.calories,
-      includeExerciseCalories: goalSummary.today.includeExerciseCalories,
-    };
-  } catch (error) {
-    logInferenceEvent({
-      userId,
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.goal_progress_warning",
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao calcular progresso da meta para resposta do WhatsApp.",
-    });
-    return null;
-  }
 }
 
 function getPreparedTextModality(message: WhatsAppWebhookMessage): WhatsAppUserContentModality {
@@ -200,32 +176,21 @@ function isSupportedMessage(message: WhatsAppWebhookMessage) {
   return Boolean(message.text?.body || message.image?.id || message.audio?.id);
 }
 
-function pruneRecentlyHandledMessageIds(now = Date.now()) {
-  for (const [messageId, expiresAt] of recentlyHandledWhatsAppMessageIds) {
-    if (expiresAt <= now) {
-      recentlyHandledWhatsAppMessageIds.delete(messageId);
-    }
-  }
-}
-
 function reserveWhatsAppMessageForProcessing(messageId?: string) {
   if (!messageId) {
     return true;
   }
 
-  const now = Date.now();
-  pruneRecentlyHandledMessageIds(now);
-
-  if (recentlyHandledWhatsAppMessageIds.has(messageId)) {
+  if (whatsAppMessageDeduplicationCache.wasAlreadyHandled(messageId)) {
     return false;
   }
 
-  recentlyHandledWhatsAppMessageIds.set(messageId, now + MESSAGE_DEDUPLICATION_TTL_MS);
+  whatsAppMessageDeduplicationCache.markHandled(messageId);
   return true;
 }
 
 export function __resetWhatsAppWebhookDeduplicationForTests() {
-  recentlyHandledWhatsAppMessageIds.clear();
+  whatsAppMessageDeduplicationCache.clear();
 }
 
 export function verifyWhatsAppWebhook(req: Request, res: Response) {

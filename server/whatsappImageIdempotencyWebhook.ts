@@ -13,9 +13,9 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import { requireWhatsAppMediaConfig } from "./whatsappConfig";
 import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
+import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 
-const reservedImageMessageIds = new Map<string, number>();
-const IMAGE_MESSAGE_TTL_MS = 24 * 60 * 60 * 1000;
+const imageMessageDeduplicationCache = createMessageDeduplicationCache();
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
 
 function formatReplyTime(date: Date) {
@@ -258,18 +258,8 @@ async function buildExerciseCaloriesContext(messages: IndexedWhatsAppWebhookMess
   return { exerciseCaloriesByDateKey: context };
 }
 
-function pruneReservations(now = Date.now()) {
-  for (const [messageId, expiresAt] of reservedImageMessageIds) {
-    if (expiresAt <= now) {
-      reservedImageMessageIds.delete(messageId);
-    }
-  }
-}
-
 function reserveImageMessages(messages: IndexedWhatsAppWebhookMessage[]) {
   const duplicateKeys = new Set<string>();
-  const now = Date.now();
-  pruneReservations(now);
 
   for (const item of messages) {
     const messageId = item.message.id;
@@ -277,12 +267,12 @@ function reserveImageMessages(messages: IndexedWhatsAppWebhookMessage[]) {
       continue;
     }
 
-    if (reservedImageMessageIds.has(messageId)) {
+    if (imageMessageDeduplicationCache.wasAlreadyHandled(messageId)) {
       duplicateKeys.add(item.key);
       continue;
     }
 
-    reservedImageMessageIds.set(messageId, now + IMAGE_MESSAGE_TTL_MS);
+    imageMessageDeduplicationCache.markHandled(messageId);
   }
 
   return duplicateKeys;
@@ -323,7 +313,7 @@ function clonePayloadWithoutKeys(payload: any, handledKeys: Set<string>) {
 }
 
 export function __resetWhatsAppImageIdempotencyForTests() {
-  reservedImageMessageIds.clear();
+  imageMessageDeduplicationCache.clear();
 }
 
 export async function handleWhatsAppWebhookWithImageIdempotency(req: Request, res: Response) {
