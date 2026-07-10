@@ -43,7 +43,7 @@ const PHONE_PATTERN = /\+?\d[\d\s().-]{8,}\d/;
 const CPF_PATTERN = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/;
 const ADDRESS_HINT_PATTERN = /\b(rua|avenida|av\.?|alameda|travessa|rodovia)\s+[\p{L}\d\s.-]{3,}/iu;
 
-const RETENTION_DAYS: Record<AiLearningRetentionClass, number> = {
+export const RETENTION_DAYS: Record<AiLearningRetentionClass, number> = {
   ephemeral: 7,
   operational: 30,
   audit: 365,

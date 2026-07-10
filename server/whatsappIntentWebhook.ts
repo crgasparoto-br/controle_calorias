@@ -38,6 +38,7 @@ import {
   markMessageProcessed,
   recordDomainLink,
   recordOutboundReply,
+  wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 
@@ -497,6 +498,22 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     occurredAt,
     allowRawContentStorage: true,
   });
+
+  // Idempotência de domínio (issue #767): se esta mensagem (mesmo externalMessageId) já
+  // tinha um registro de domínio vinculado, é uma reentrega — não repete a ação nem gera
+  // nova resposta funcional, só confirma o recebimento.
+  if (await wasMessageAlreadyProcessed(lifecycleHandle)) {
+    markTextIntentMessageHandled(message.id);
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.idempotency.duplicate_detected",
+      detail: JSON.stringify({ source: "db_unique_constraint" }),
+    });
+    await markMessageProcessed(lifecycleHandle);
+    return true;
+  }
 
   try {
     return await handleTextIntentAfterLifecycleBegin(userId);

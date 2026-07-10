@@ -21,7 +21,7 @@ const repository: WhatsAppConversationRepository = createDrizzleWhatsAppConversa
   onWarning: logPersistenceWarning,
 });
 
-export type MessageLifecycleHandle = { conversationId: number; messageId: number } | null;
+export type MessageLifecycleHandle = { conversationId: number; messageId: number; wasNewInsert: boolean } | null;
 
 export type BeginInboundMessageInput = {
   userId: number;
@@ -51,7 +51,7 @@ export async function beginInboundMessage(input: BeginInboundMessageInput): Prom
   );
   if (!conversation) return null;
 
-  const message = await repository.appendMessage({
+  const appended = await repository.appendMessage({
     conversationId: conversation.id,
     userId: input.userId,
     direction: "inbound",
@@ -65,9 +65,21 @@ export async function beginInboundMessage(input: BeginInboundMessageInput): Prom
     occurredAt: input.occurredAt,
     allowRawContentStorage: input.allowRawContentStorage,
   });
-  if (!message) return null;
+  if (!appended) return null;
 
-  return { conversationId: conversation.id, messageId: message.id };
+  return { conversationId: conversation.id, messageId: appended.message.id, wasNewInsert: appended.wasNewInsert };
+}
+
+/**
+ * true quando esta mensagem de entrada já havia sido processada por completo antes
+ * (reentrega do mesmo externalMessageId com processedAt já preenchido) — issue #767.
+ * Callers devem tratar isso como "já respondido": não recriar registro de domínio nem
+ * reenviar resposta, apenas confirmar o recebimento.
+ */
+export async function wasMessageAlreadyProcessed(handle: MessageLifecycleHandle): Promise<boolean> {
+  if (!handle || handle.wasNewInsert) return false;
+  const links = await repository.findDomainLinksForMessage(handle.messageId);
+  return links.length > 0;
 }
 
 /**
@@ -81,7 +93,7 @@ export async function recordOutboundReply(
 ): Promise<void> {
   if (!handle) return;
 
-  const reply = await repository.appendMessage({
+  const appended = await repository.appendMessage({
     conversationId: handle.conversationId,
     userId: input.userId,
     direction: "outbound",
@@ -91,9 +103,9 @@ export async function recordOutboundReply(
     occurredAt: input.occurredAt ?? new Date(),
     allowRawContentStorage: true,
   });
-  if (!reply) return;
+  if (!appended) return;
 
-  await repository.linkResponse(handle.messageId, reply.id);
+  await repository.linkResponse(handle.messageId, appended.message.id);
 }
 
 /** Vincula a mensagem de entrada a um registro de domínio já persistido (refeição, água, peso, exercício). */

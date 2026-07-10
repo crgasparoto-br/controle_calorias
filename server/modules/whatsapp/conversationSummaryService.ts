@@ -116,6 +116,15 @@ export async function getOrRefreshConversationSummary(input: {
       algorithmVersion: CONVERSATION_SUMMARY_ALGORITHM_VERSION,
     });
 
+    // Observabilidade (issue #767): confirma que um resumo foi usado, sem conteúdo do resumo.
+    logInferenceEvent({
+      userId: input.userId,
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.history.summary_used",
+      detail: JSON.stringify({ conversationId: input.conversationId, fromMessageId, toMessageId }),
+    });
+
     return { summaryText: summaryTextString, fromMessageId, toMessageId };
   } catch (error) {
     logInferenceEvent({

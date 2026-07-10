@@ -1,0 +1,2 @@
+ALTER TABLE `whatsappConversations` ADD `version` int DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE `whatsappConversationSummaries` ADD CONSTRAINT `wa_conv_summary_conv_to_msg_unique_idx` UNIQUE(`conversationId`,`toMessageId`);

@@ -2,7 +2,7 @@ import { listMeals } from "../meals/service";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { retrieveWhatsappContextMemory, type WhatsappMemoryRetrievalContext } from "./contextMemory";
 import { createDrizzleWhatsAppConversationRepository, type WhatsAppConversationRepository } from "../../repositories/whatsappConversationRepository";
-import { getDb, logPersistenceWarning } from "../../db";
+import { getDb, logInferenceEvent, logPersistenceWarning } from "../../db";
 import { WHATSAPP_CONVERSATION_ACTIVE_TTL_MS } from "./conversationPolicy";
 import {
   CONTEXT_BUDGETS,
@@ -158,6 +158,34 @@ export async function buildWhatsappIntentContext(
       userId,
       conversationId: overflow[0].conversationId,
       messagesBeyondWindow: overflow,
+    });
+  }
+
+  // Observabilidade (issue #767): registra origem/tamanho do contexto e truncamento sem
+  // nunca incluir texto de mensagem — só contagens, enums e ids já tipados em outra coluna.
+  logInferenceEvent({
+    userId,
+    origin: "whatsapp",
+    status: "success",
+    eventType: persistedMessages.length === 0 ? "whatsapp.history.context_missing" : "whatsapp.history.context_found",
+    detail: JSON.stringify({
+      messageCount: persistedMessages.length,
+      contextSource: conversationSummary ? "summary" : window.length > 0 ? "recent_window" : "db_fallback",
+      contextVersion: "whatsapp-intent-context/v2",
+      conversationActive,
+    }),
+  });
+  if (truncated) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.history.context_truncated",
+      detail: JSON.stringify({
+        originalCount: persistedMessages.length,
+        truncatedCount: window.length,
+        reason: "message_budget",
+      }),
     });
   }
 

@@ -10,12 +10,23 @@ import { createDrizzleWhatsAppConversationRepository } from "./whatsappConversat
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
+  isNotNull: (col: { name: string }) => ({ __op: "isNotNull", col }),
+  isNull: (col: { name: string }) => ({ __op: "isNull", col }),
   asc: (col: { name: string }) => ({ __op: "asc", col }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
+  and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
+  or: (...conditions: unknown[]) => ({ __op: "or", conditions }),
 }));
 
 type Row = Record<string, unknown>;
-type Condition = { __op: "eq"; col: { name: string }; val: unknown } | { __op: "asc" | "desc"; col: { name: string } };
+type Condition =
+  | { __op: "eq"; col: { name: string }; val: unknown }
+  | { __op: "lt"; col: { name: string }; val: unknown }
+  | { __op: "isNotNull" | "isNull"; col: { name: string } }
+  | { __op: "and"; conditions: Condition[] }
+  | { __op: "or"; conditions: Condition[] }
+  | { __op: "asc" | "desc"; col: { name: string } };
 
 /**
  * Fake DB em memória que realmente filtra/ordena/gera id autoincrementado,
@@ -25,6 +36,7 @@ type Condition = { __op: "eq"; col: { name: string }; val: unknown } | { __op: "
 function createFakeDb() {
   const tables = new Map<unknown, Row[]>();
   const uniqueColumns = new Map<unknown, Set<string>>();
+  const uniqueCompositeColumns = new Map<unknown, string[][]>();
   let nextId = 1;
 
   function tableRows(table: unknown): Row[] {
@@ -32,9 +44,23 @@ function createFakeDb() {
     return tables.get(table)!;
   }
 
+  function matches(row: Row, condition?: Condition): boolean {
+    if (!condition) return true;
+    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
+    if (condition.__op === "lt") {
+      const value = row[condition.col.name] instanceof Date ? (row[condition.col.name] as Date).getTime() : row[condition.col.name];
+      const compareTo = condition.val instanceof Date ? condition.val.getTime() : condition.val;
+      return (value as number) < (compareTo as number);
+    }
+    if (condition.__op === "isNotNull") return row[condition.col.name] !== null && row[condition.col.name] !== undefined;
+    if (condition.__op === "isNull") return row[condition.col.name] === null || row[condition.col.name] === undefined;
+    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    if (condition.__op === "or") return condition.conditions.some(inner => matches(row, inner));
+    return true;
+  }
+
   function applyWhere(rows: Row[], condition?: Condition): Row[] {
-    if (!condition || condition.__op !== "eq") return rows;
-    return rows.filter(row => row[condition.col.name] === condition.val);
+    return rows.filter(row => matches(row, condition));
   }
 
   function applyOrder(rows: Row[], conditions: Condition[]): Row[] {
@@ -102,6 +128,19 @@ function createFakeDb() {
           }
         }
 
+        const compositeSets = uniqueCompositeColumns.get(table);
+        if (compositeSets) {
+          for (const columnNames of compositeSets) {
+            if (columnNames.some(columnName => payload[columnName] === undefined || payload[columnName] === null)) continue;
+            const clash = tableRows(table).some(row => columnNames.every(columnName => row[columnName] === payload[columnName]));
+            if (clash) {
+              const error = new Error("Duplicate entry") as Error & { code?: string };
+              error.code = "ER_DUP_ENTRY";
+              throw error;
+            }
+          }
+        }
+
         const id = nextId++;
         const row: Row = { id, ...payload };
         tableRows(table).push(row);
@@ -120,10 +159,22 @@ function createFakeDb() {
       where: vi.fn((condition: Condition) => {
         const rows = applyWhere(tableRows(table), condition);
         for (const row of rows) Object.assign(row, setPayload);
-        return Promise.resolve(undefined);
+        return Promise.resolve({ affectedRows: rows.length });
       }),
     };
     return chain;
+  }
+
+  function createDeleteChain(table: unknown) {
+    return {
+      where: vi.fn((condition: Condition) => {
+        const rows = tableRows(table);
+        const remaining = rows.filter(row => !matches(row, condition));
+        const deletedCount = rows.length - remaining.length;
+        tables.set(table, remaining);
+        return Promise.resolve({ affectedRows: deletedCount });
+      }),
+    };
   }
 
   return {
@@ -131,15 +182,21 @@ function createFakeDb() {
       if (!uniqueColumns.has(table)) uniqueColumns.set(table, new Set());
       uniqueColumns.get(table)!.add(columnName);
     },
+    markUniqueComposite(table: unknown, columnNames: string[]) {
+      if (!uniqueCompositeColumns.has(table)) uniqueCompositeColumns.set(table, []);
+      uniqueCompositeColumns.get(table)!.push(columnNames);
+    },
     select: vi.fn(() => ({ from: vi.fn((table: unknown) => createSelectChain(table)) })),
     insert: vi.fn((table: unknown) => createInsertChain(table)),
     update: vi.fn((table: unknown) => createUpdateChain(table)),
+    delete: vi.fn((table: unknown) => createDeleteChain(table)),
   };
 }
 
 function createRepository() {
   const db = createFakeDb();
   db.markUnique(whatsappConversationMessages, "idempotencyKey");
+  db.markUniqueComposite(whatsappConversationSummaries, ["conversationId", "toMessageId"]);
   const onWarning = vi.fn();
   const repository = createDrizzleWhatsAppConversationRepository({ getDb: async () => db, onWarning });
   return { db, onWarning, repository };
@@ -211,7 +268,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     const { repository } = createRepository();
     const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
 
-    const message = await repository.appendMessage({
+    const { message } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "inbound",
@@ -231,7 +288,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     const { repository } = createRepository();
     const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
 
-    const message = await repository.appendMessage({
+    const { message } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "inbound",
@@ -252,7 +309,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     const { repository } = createRepository();
     const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
 
-    const message = await repository.appendMessage({
+    const { message } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "inbound",
@@ -271,7 +328,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     const { repository } = createRepository();
     const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
 
-    const message = await repository.appendMessage({
+    const { message } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "inbound",
@@ -293,7 +350,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     const { repository } = createRepository();
     const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
 
-    const inbound = await repository.appendMessage({
+    const { message: inbound } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "inbound",
@@ -302,7 +359,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
       text: "quanto deu de proteína?",
       occurredAt: new Date("2026-07-10T12:10:00Z"),
     });
-    const outbound = await repository.appendMessage({
+    const { message: outbound } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "outbound",
@@ -321,7 +378,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
   it("vincula uma mensagem a um registro de domínio (refeição)", async () => {
     const { repository } = createRepository();
     const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
-    const message = await repository.appendMessage({
+    const { message } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "inbound",
@@ -351,8 +408,8 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
       occurredAt: new Date("2026-07-10T12:00:00Z"),
     };
 
-    const first = await repository.appendMessage(input);
-    const redelivered = await repository.appendMessage(input);
+    const { message: first } = await repository.appendMessage(input);
+    const { message: redelivered } = await repository.appendMessage(input);
 
     expect(redelivered?.id).toBe(first?.id);
 
@@ -486,7 +543,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
   it("insere um resumo de conversa e recupera o mais recente por conversationId", async () => {
     const { repository } = createRepository();
     const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
-    const first = await repository.appendMessage({
+    const { message: first } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "inbound",
@@ -495,7 +552,7 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
       text: "primeira mensagem",
       occurredAt: new Date("2026-07-11T12:00:00Z"),
     });
-    const second = await repository.appendMessage({
+    const { message: second } = await repository.appendMessage({
       conversationId: conversation!.id,
       userId: 1,
       direction: "inbound",
@@ -528,5 +585,184 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     expect(latest?.summaryText).toBe("resumo mais recente");
     expect(latest?.fromMessageId).toBe(first!.id);
     expect(latest?.toMessageId).toBe(second!.id);
+  });
+
+  it("supera o resumo anterior imediatamente ao inserir um novo (retenção issue #767: mantém só o mais recente)", async () => {
+    const { repository, db } = createRepository();
+    const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+
+    await repository.insertConversationSummary({
+      userId: 1, conversationId: conversation!.id, summaryText: "primeiro",
+      fromMessageId: 1, toMessageId: 1, promptVersion: "v1", algorithmVersion: "v1",
+    });
+    await repository.insertConversationSummary({
+      userId: 1, conversationId: conversation!.id, summaryText: "segundo",
+      fromMessageId: 1, toMessageId: 2, promptVersion: "v1", algorithmVersion: "v1",
+    });
+
+    const allRows = await (db.select() as any).from(whatsappConversationSummaries);
+    const rowsForConversation = allRows.filter((row: Row) => row.conversationId === conversation!.id);
+    expect(rowsForConversation).toHaveLength(1);
+    expect(rowsForConversation[0].summaryText).toBe("segundo");
+  });
+
+  it("ignora resumo redundante quando outra chamada já cobriu faixa igual ou mais avançada (corrida de regeneração concorrente, issue #767)", async () => {
+    const { repository, db } = createRepository();
+    const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+
+    const [first, second] = await Promise.all([
+      repository.insertConversationSummary({
+        userId: 1, conversationId: conversation!.id, summaryText: "resumo A",
+        fromMessageId: 1, toMessageId: 5, promptVersion: "v1", algorithmVersion: "v1",
+      }),
+      repository.insertConversationSummary({
+        userId: 1, conversationId: conversation!.id, summaryText: "resumo B",
+        fromMessageId: 1, toMessageId: 5, promptVersion: "v1", algorithmVersion: "v1",
+      }),
+    ]);
+    void first;
+    void second;
+
+    const allRows = await (db.select() as any).from(whatsappConversationSummaries);
+    const rowsForConversation = allRows.filter((row: Row) => row.conversationId === conversation!.id);
+    expect(rowsForConversation).toHaveLength(1);
+  });
+
+  it("CAS em createOrGetActiveConversation: duas atualizações concorrentes de lastActivityAt não corrompem a versão", async () => {
+    const { repository } = createRepository();
+    const now = new Date("2026-07-11T12:00:00Z");
+    await repository.createOrGetActiveConversation(1, null, "5511999999999", now);
+
+    const laterA = new Date(now.getTime() + 1000);
+    const laterB = new Date(now.getTime() + 2000);
+    const [resultA, resultB] = await Promise.all([
+      repository.createOrGetActiveConversation(1, null, "5511999999999", laterA),
+      repository.createOrGetActiveConversation(1, null, "5511999999999", laterB),
+    ]);
+
+    expect(resultA?.id).toBe(resultB?.id);
+    expect(resultA).not.toBeNull();
+    expect(resultB).not.toBeNull();
+  });
+
+  describe("retenção (issue #767)", () => {
+    it("zera texto/transcript bruto cujo retentionExpiresAt já passou, mantendo sanitizado e a linha", async () => {
+      const { repository, db } = createRepository();
+      const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+      const { message } = await repository.appendMessage({
+        conversationId: conversation!.id,
+        userId: 1,
+        direction: "inbound",
+        externalMessageId: "wamid.raw-expiry",
+        contentType: "text",
+        text: "150g de frango",
+        allowRawContentStorage: true,
+        occurredAt: new Date("2026-01-01T12:00:00Z"),
+      });
+      // A política de privacidade atual nunca permite armazenar texto bruto de raw_message
+      // (anonymizationRequired sempre true para esse kind) — simula o cenário em que a
+      // coluna bruta está preenchida (ex.: mudança futura de política) para exercitar a
+      // mecânica da query de purge isoladamente.
+      await (db.update(whatsappConversationMessages) as any)
+        .set({ text: "150g de frango" })
+        .where({ __op: "eq", col: { name: "id" }, val: message!.id });
+
+      const affected = await repository.purgeExpiredRawText(new Date(message!.retentionExpiresAt!.getTime() + 1000));
+      expect(affected).toBe(1);
+
+      const [reread] = await repository.findRecentMessages(conversation!.id);
+      expect(reread.text).toBeNull();
+      expect(reread.sanitizedText).toBeTruthy();
+    });
+
+    it("zera texto/transcript sanitizado de mensagens mais antigas que o limite operacional", async () => {
+      const { repository } = createRepository();
+      const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+      await repository.appendMessage({
+        conversationId: conversation!.id,
+        userId: 1,
+        direction: "inbound",
+        externalMessageId: "wamid.sanitized-expiry",
+        contentType: "text",
+        text: "150g de frango",
+        occurredAt: new Date("2026-01-01T12:00:00Z"),
+      });
+
+      const affected = await repository.purgeExpiredSanitizedText(30, new Date("2026-03-01T12:00:00Z"));
+      expect(affected).toBe(1);
+
+      const [reread] = await repository.findRecentMessages(conversation!.id);
+      expect(reread.sanitizedText).toBeNull();
+    });
+
+    it("apaga a linha inteira só depois que bruto e sanitizado já estão nulos e o prazo de auditoria passou", async () => {
+      const { repository } = createRepository();
+      const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+      await repository.appendMessage({
+        conversationId: conversation!.id,
+        userId: 1,
+        direction: "inbound",
+        externalMessageId: "wamid.audit-expiry",
+        contentType: "text",
+        text: "150g de frango",
+        occurredAt: new Date("2025-01-01T12:00:00Z"),
+      });
+
+      const farFuture = new Date("2027-01-01T12:00:00Z");
+      // Ainda não zerou bruto/sanitizado: apagar por auditoria não deve remover a linha.
+      const deletedTooEarly = await repository.purgeExpiredAuditRows(365, farFuture);
+      expect(deletedTooEarly).toBe(0);
+
+      await repository.purgeExpiredRawText(farFuture);
+      await repository.purgeExpiredSanitizedText(30, farFuture);
+      const deleted = await repository.purgeExpiredAuditRows(365, farFuture);
+      expect(deleted).toBe(1);
+
+      const remaining = await repository.findRecentMessages(conversation!.id);
+      expect(remaining).toHaveLength(0);
+    });
+  });
+
+  describe("histórico volumoso e paginação por cursor (issue #767)", () => {
+    it("pagina por cursor por milhares de mensagens sem pular ou duplicar linhas", async () => {
+      const { repository } = createRepository();
+      const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+      const totalMessages = 3000;
+      const baseTime = new Date("2026-01-01T00:00:00Z").getTime();
+
+      for (let i = 0; i < totalMessages; i++) {
+        await repository.appendMessage({
+          conversationId: conversation!.id,
+          userId: 1,
+          direction: "inbound",
+          externalMessageId: `wamid.volume-${i}`,
+          contentType: "text",
+          text: `mensagem ${i}`,
+          occurredAt: new Date(baseTime + i * 1000),
+        });
+      }
+
+      const recent = await repository.findRecentMessages(conversation!.id, 20);
+      expect(recent).toHaveLength(20);
+      expect(recent[recent.length - 1].sanitizedText).toBe(`mensagem ${totalMessages - 1}`);
+
+      const seenIds = new Set<number>();
+      let cursor = recent[0];
+      let pages = 0;
+      while (cursor) {
+        const page = await repository.findMessagesBefore(conversation!.id, cursor.occurredAt, cursor.id, 250);
+        if (page.length === 0) break;
+        for (const message of page) {
+          expect(seenIds.has(message.id)).toBe(false);
+          seenIds.add(message.id);
+        }
+        cursor = page[0];
+        pages++;
+        expect(pages).toBeLessThan(50); // salvaguarda contra loop infinito
+      }
+
+      // 20 já recuperadas via findRecentMessages + o restante paginado devem cobrir tudo, sem gaps/duplicatas.
+      expect(seenIds.size).toBe(totalMessages - 20);
+    }, 15_000);
   });
 });

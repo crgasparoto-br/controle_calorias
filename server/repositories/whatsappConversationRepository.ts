@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, or } from "drizzle-orm";
 import {
   whatsappConversationMessages,
   whatsappConversations,
@@ -55,6 +55,12 @@ export type DomainLinkInput = {
   exerciseId?: number;
 };
 
+export type AppendMessageResult = {
+  message: WhatsAppConversationMessageRecord;
+  /** false quando a mensagem já existia (reentrega do mesmo externalMessageId) — issue #767. */
+  wasNewInsert: boolean;
+};
+
 export type WhatsAppConversationRepository = {
   createOrGetActiveConversation(
     userId: number,
@@ -62,16 +68,29 @@ export type WhatsAppConversationRepository = {
     phoneNumber: string,
     now?: Date,
   ): Promise<WhatsAppConversationRecord | null>;
-  appendMessage(input: AppendMessageInput): Promise<WhatsAppConversationMessageRecord | null>;
+  appendMessage(input: AppendMessageInput): Promise<AppendMessageResult | null>;
   findByIdempotencyKey(idempotencyKey: string): Promise<WhatsAppConversationMessageRecord | null>;
   linkResponse(inboundMessageId: number, outboundMessageId: number): Promise<void>;
   linkDomainRecord(messageId: number, link: DomainLinkInput): Promise<void>;
   findRecentMessages(conversationId: number, limit?: number): Promise<WhatsAppConversationMessageRecord[]>;
   findRecentMessagesByUser(userId: number, limit?: number): Promise<WhatsAppConversationMessageRecord[]>;
+  /** Paginação por cursor para histórico volumoso (issue #767) — ordem cronológica decrescente. */
+  findMessagesBefore(
+    conversationId: number,
+    beforeOccurredAt: Date,
+    beforeId: number,
+    limit?: number,
+  ): Promise<WhatsAppConversationMessageRecord[]>;
   findDomainLinksForMessage(messageId: number): Promise<WhatsAppMessageDomainLinkRecord[]>;
   markProcessed(messageId: number, processedAt?: Date): Promise<void>;
   insertConversationSummary(input: InsertConversationSummaryInput): Promise<void>;
   findLatestConversationSummary(conversationId: number): Promise<WhatsAppConversationSummaryRecord | null>;
+  /** Retenção (issue #767): zera texto/transcript bruto cujo retentionExpiresAt já passou. Retorna quantas linhas foram afetadas. */
+  purgeExpiredRawText(now?: Date): Promise<number>;
+  /** Retenção: zera texto/transcript sanitizado de mensagens mais antigas que `operationalDays`. */
+  purgeExpiredSanitizedText(operationalDays: number, now?: Date): Promise<number>;
+  /** Retenção: apaga a linha inteira quando bruto e sanitizado já estão nulos e `auditDays` já passaram (nunca toca refeições/água/peso). */
+  purgeExpiredAuditRows(auditDays: number, now?: Date): Promise<number>;
 };
 
 function buildIdempotencyKey(input: AppendMessageInput): string {
@@ -84,6 +103,12 @@ function buildIdempotencyKey(input: AppendMessageInput): string {
 
 function isDuplicateEntryError(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && (error as { code?: string }).code === DUPLICATE_ENTRY_ERROR_CODE);
+}
+
+function getMysqlAffectedRows(result: unknown) {
+  const candidate = Array.isArray(result) ? result[0] : result;
+  const affectedRows = Number((candidate as { affectedRows?: number })?.affectedRows ?? 0);
+  return Number.isFinite(affectedRows) ? affectedRows : 0;
 }
 
 function buildTextFields(input: AppendMessageInput, occurredAtIso: string) {
@@ -143,18 +168,29 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
           .limit(1);
 
         if (existing && isConversationActive(existing, now)) {
-          await db
+          // CAS (issue #767): evita que duas requisições concorrentes do mesmo usuário
+          // corrompam lastActivityAt/version com um UPDATE cego. Uma corrida perdida aqui
+          // não é um erro — a outra requisição já tocou lastActivityAt, o que é suficiente.
+          const result = await db
             .update(whatsappConversations)
-            .set({ lastActivityAt: now })
-            .where(eq(whatsappConversations.id, existing.id));
-          return { ...existing, lastActivityAt: now };
+            .set({ lastActivityAt: now, version: existing.version + 1 })
+            .where(and(eq(whatsappConversations.id, existing.id), eq(whatsappConversations.version, existing.version)));
+          if (getMysqlAffectedRows(result) === 0) {
+            const [reread] = await db
+              .select()
+              .from(whatsappConversations)
+              .where(eq(whatsappConversations.id, existing.id))
+              .limit(1);
+            return reread ?? { ...existing, lastActivityAt: now };
+          }
+          return { ...existing, lastActivityAt: now, version: existing.version + 1 };
         }
 
         if (existing && existing.status === "active") {
           await db
             .update(whatsappConversations)
-            .set({ status: "expired", endedAt: now })
-            .where(eq(whatsappConversations.id, existing.id));
+            .set({ status: "expired", endedAt: now, version: existing.version + 1 })
+            .where(and(eq(whatsappConversations.id, existing.id), eq(whatsappConversations.version, existing.version)));
         }
 
         const inserted = await db.insert(whatsappConversations).values({
@@ -164,6 +200,7 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
           status: "active",
           startedAt: now,
           lastActivityAt: now,
+          version: 0,
         });
         const insertedId = Number((inserted as { insertId?: number }).insertId ?? 0);
 
@@ -219,11 +256,11 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
           .where(eq(whatsappConversationMessages.id, insertedId))
           .limit(1);
 
-        return created ?? null;
+        return created ? { message: created, wasNewInsert: true } : null;
       } catch (error) {
         if (isDuplicateEntryError(error)) {
           const existing = await this.findByIdempotencyKey(idempotencyKey);
-          if (existing) return existing;
+          if (existing) return { message: existing, wasNewInsert: false };
         }
         deps.onWarning("WhatsApp conversation message append skipped", error);
         return null;
@@ -315,6 +352,30 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
       }
     },
 
+    async findMessagesBefore(conversationId, beforeOccurredAt, beforeId, limit = 20) {
+      const db = await deps.getDb();
+      if (!db) return [];
+
+      try {
+        const rows = await db
+          .select()
+          .from(whatsappConversationMessages)
+          .where(and(
+            eq(whatsappConversationMessages.conversationId, conversationId),
+            or(
+              lt(whatsappConversationMessages.occurredAt, beforeOccurredAt),
+              and(eq(whatsappConversationMessages.occurredAt, beforeOccurredAt), lt(whatsappConversationMessages.id, beforeId)),
+            ),
+          ))
+          .orderBy(desc(whatsappConversationMessages.occurredAt), desc(whatsappConversationMessages.id))
+          .limit(limit);
+        return [...rows].reverse();
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation cursor page read skipped", error);
+        return [];
+      }
+    },
+
     async findDomainLinksForMessage(messageId) {
       const db = await deps.getDb();
       if (!db) return [];
@@ -350,15 +411,44 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
       if (!db) return;
 
       try {
-        await db.insert(whatsappConversationSummaries).values({
-          userId: input.userId,
-          conversationId: input.conversationId,
-          summaryText: input.summaryText,
-          fromMessageId: input.fromMessageId,
-          toMessageId: input.toMessageId,
-          promptVersion: input.promptVersion,
-          algorithmVersion: input.algorithmVersion,
-        });
+        // Fast-path (issue #767): se outra chamada já resumiu uma faixa mais avançada desta
+        // conversa, esta é redundante — evita trabalho, mas não é a garantia de correção
+        // (essa vem da restrição de unicidade abaixo, não deste check-then-act).
+        const [latest] = await db
+          .select()
+          .from(whatsappConversationSummaries)
+          .where(eq(whatsappConversationSummaries.conversationId, input.conversationId))
+          .orderBy(desc(whatsappConversationSummaries.id))
+          .limit(1);
+        if (latest && latest.toMessageId !== null && latest.toMessageId >= input.toMessageId) {
+          return;
+        }
+
+        try {
+          await db.insert(whatsappConversationSummaries).values({
+            userId: input.userId,
+            conversationId: input.conversationId,
+            summaryText: input.summaryText,
+            fromMessageId: input.fromMessageId,
+            toMessageId: input.toMessageId,
+            promptVersion: input.promptVersion,
+            algorithmVersion: input.algorithmVersion,
+          });
+        } catch (insertError) {
+          if (isDuplicateEntryError(insertError)) {
+            // Corrida de regeneração concorrente (issue #767): outra chamada já inseriu um
+            // resumo para exatamente esta faixa (conversationId+toMessageId) — restrição de
+            // banco, não lock em memória. Perdedor não escreve, não é um erro.
+            return;
+          }
+          throw insertError;
+        }
+
+        // Retenção (issue #767): mantém só o resumo mais recente por conversa — o anterior
+        // é imediatamente superado, não expira por tempo.
+        if (latest) {
+          await db.delete(whatsappConversationSummaries).where(eq(whatsappConversationSummaries.id, latest.id));
+        }
       } catch (error) {
         deps.onWarning("WhatsApp conversation summary insert skipped", error);
       }
@@ -379,6 +469,67 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
       } catch (error) {
         deps.onWarning("WhatsApp conversation summary read skipped", error);
         return null;
+      }
+    },
+
+    async purgeExpiredRawText(now = new Date()) {
+      const db = await deps.getDb();
+      if (!db) return 0;
+
+      try {
+        const result = await db
+          .update(whatsappConversationMessages)
+          .set({ text: null, transcript: null })
+          .where(and(
+            lt(whatsappConversationMessages.retentionExpiresAt, now),
+            or(isNotNull(whatsappConversationMessages.text), isNotNull(whatsappConversationMessages.transcript)),
+          ));
+        return getMysqlAffectedRows(result);
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation raw text purge skipped", error);
+        return 0;
+      }
+    },
+
+    async purgeExpiredSanitizedText(operationalDays, now = new Date()) {
+      const db = await deps.getDb();
+      if (!db) return 0;
+
+      const cutoff = new Date(now.getTime() - operationalDays * 24 * 60 * 60 * 1000);
+      try {
+        const result = await db
+          .update(whatsappConversationMessages)
+          .set({ sanitizedText: null, sanitizedTranscript: null })
+          .where(and(
+            lt(whatsappConversationMessages.occurredAt, cutoff),
+            or(isNotNull(whatsappConversationMessages.sanitizedText), isNotNull(whatsappConversationMessages.sanitizedTranscript)),
+          ));
+        return getMysqlAffectedRows(result);
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation sanitized text purge skipped", error);
+        return 0;
+      }
+    },
+
+    async purgeExpiredAuditRows(auditDays, now = new Date()) {
+      const db = await deps.getDb();
+      if (!db) return 0;
+
+      const cutoff = new Date(now.getTime() - auditDays * 24 * 60 * 60 * 1000);
+      try {
+        const result = await db
+          .delete(whatsappConversationMessages)
+          .where(and(
+            lt(whatsappConversationMessages.occurredAt, cutoff),
+            isNull(whatsappConversationMessages.text),
+            isNull(whatsappConversationMessages.transcript),
+            isNull(whatsappConversationMessages.sanitizedText),
+            isNull(whatsappConversationMessages.sanitizedTranscript),
+          ));
+        return getMysqlAffectedRows(result);
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation audit row purge skipped", error);
+        return 0;
       }
     },
   };

@@ -37,7 +37,7 @@ Fonte: `drizzle/schema.ts`.
 | `userPreferences` | `userPreferences` | 6 | Requer atenção |
 | `userRestrictions` | `userRestrictions` | 8 | Requer atenção |
 | `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
-| `whatsappConversations` | `whatsappConversations` | 10 | Requer atenção |
+| `whatsappConversations` | `whatsappConversations` | 11 | Requer atenção |
 | `whatsappConversationMessages` | `whatsappConversationMessages` | 22 | Requer atenção |
 | `whatsappMessageDomainLinks` | `whatsappMessageDomainLinks` | 8 | Requer atenção |
 | `whatsappConversationSummaries` | `whatsappConversationSummaries` | 9 | Requer atenção |

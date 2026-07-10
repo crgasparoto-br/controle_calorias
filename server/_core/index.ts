@@ -15,6 +15,7 @@ import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdemp
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
 import { RuntimeSchemaCompatibilityError, ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
+import { startConversationRetentionScheduler } from "../modules/whatsapp/conversationRetentionScheduler";
 
 const MEDIA_TRPC_PATHS = [
   "/api/trpc/nutrition.foodPhotoAnalysis.analyze",
@@ -144,6 +145,8 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  startConversationRetentionScheduler();
 }
 
 startServer().catch(console.error);
