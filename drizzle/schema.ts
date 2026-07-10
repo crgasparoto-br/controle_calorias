@@ -516,6 +516,7 @@ export const whatsappConversations = mysqlTable("whatsappConversations", {
   startedAt: timestamp("startedAt").defaultNow().notNull(),
   lastActivityAt: timestamp("lastActivityAt").defaultNow().notNull(),
   endedAt: timestamp("endedAt"),
+  version: int("version").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
@@ -612,6 +613,10 @@ export const whatsappConversationSummaries = mysqlTable("whatsappConversationSum
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => ({
   conversationIdx: index("whatsappConversationSummaries_conversation_createdAt_idx").on(table.conversationId, table.createdAt),
+  // Restrição de banco (issue #767): impede que duas regenerações concorrentes do
+  // mesmo intervalo (conversationId+toMessageId) insiram resumos duplicados —
+  // sem depender de lock em memória.
+  conversationToMessageUniqueIdx: uniqueIndex("wa_conv_summary_conv_to_msg_unique_idx").on(table.conversationId, table.toMessageId),
   conversationFk: foreignKey({
     name: "whatsappConversationSummaries_conversationId_fk",
     columns: [table.conversationId],

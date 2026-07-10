@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WhatsAppConversationMessageRecord } from "../../repositories/whatsappConversationRepository";
 import { WHATSAPP_CONVERSATION_ACTIVE_TTL_MS } from "./conversationPolicy";
 
-const { listMealsMock, retrieveWhatsappContextMemoryMock, findRecentMessagesByUserMock, getOrRefreshConversationSummaryMock } = vi.hoisted(() => ({
+const { listMealsMock, retrieveWhatsappContextMemoryMock, findRecentMessagesByUserMock, getOrRefreshConversationSummaryMock, logInferenceEventMock } = vi.hoisted(() => ({
   listMealsMock: vi.fn(async () => []),
   retrieveWhatsappContextMemoryMock: vi.fn(() => ({ llmContext: [] })),
   findRecentMessagesByUserMock: vi.fn(async () => []),
   getOrRefreshConversationSummaryMock: vi.fn(async () => null),
+  logInferenceEventMock: vi.fn(),
 }));
 
 vi.mock("../meals/service", () => ({
@@ -34,6 +35,7 @@ vi.mock("./conversationSummaryService", () => ({
 vi.mock("../../db", () => ({
   getDb: vi.fn(async () => null),
   logPersistenceWarning: vi.fn(),
+  logInferenceEvent: logInferenceEventMock,
 }));
 
 import { buildWhatsappIntentContext } from "./intentContext";
@@ -78,6 +80,7 @@ describe("buildWhatsappIntentContext", () => {
     findRecentMessagesByUserMock.mockResolvedValue([]);
     getOrRefreshConversationSummaryMock.mockReset();
     getOrRefreshConversationSummaryMock.mockResolvedValue(null);
+    logInferenceEventMock.mockReset();
   });
 
   it("retorna contexto v2 vazio quando não há histórico persistido", async () => {
@@ -185,5 +188,37 @@ describe("buildWhatsappIntentContext", () => {
     const context = await buildWhatsappIntentContext(1, { receivedAt });
 
     expect(context.recentTurns.map(t => t.text)).toEqual(["150g de arroz", "minha refeição", "no jantar comi frango"]);
+  });
+
+  describe("observabilidade (issue #767)", () => {
+    it("registra whatsapp.history.context_missing sem histórico, sem conteúdo de mensagem no detail", async () => {
+      await buildWhatsappIntentContext(1, { receivedAt });
+
+      const call = logInferenceEventMock.mock.calls.find(([entry]) => entry.eventType === "whatsapp.history.context_missing");
+      expect(call).toBeDefined();
+      const detail = JSON.parse(call![0].detail);
+      expect(detail).toEqual(expect.objectContaining({ messageCount: 0 }));
+      expect(call![0].detail).not.toMatch(/arroz|frango|refeição/);
+    });
+
+    it("registra whatsapp.history.context_found e whatsapp.history.context_truncated quando o histórico excede o orçamento", async () => {
+      findRecentMessagesByUserMock.mockResolvedValue(
+        Array.from({ length: 20 }, (_, i) =>
+          buildMessage({ id: i + 1, sanitizedText: `mensagem ${i + 1}`, occurredAt: new Date(receivedAt.getTime() - (20 - i) * 1000) }),
+        ),
+      );
+
+      await buildWhatsappIntentContext(1, { receivedAt });
+
+      const foundCall = logInferenceEventMock.mock.calls.find(([entry]) => entry.eventType === "whatsapp.history.context_found");
+      expect(foundCall).toBeDefined();
+      expect(JSON.parse(foundCall![0].detail)).toEqual(expect.objectContaining({ messageCount: 20 }));
+
+      const truncatedCall = logInferenceEventMock.mock.calls.find(([entry]) => entry.eventType === "whatsapp.history.context_truncated");
+      expect(truncatedCall).toBeDefined();
+      const truncatedDetail = JSON.parse(truncatedCall![0].detail);
+      expect(truncatedDetail.originalCount).toBe(20);
+      expect(truncatedDetail.truncatedCount).toBeLessThan(20);
+    });
   });
 });

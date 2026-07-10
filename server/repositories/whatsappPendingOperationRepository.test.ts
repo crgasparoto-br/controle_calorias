@@ -4,15 +4,18 @@ import { createDrizzleWhatsAppPendingOperationRepository } from "./whatsappPendi
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  ne: (col: { name: string }, val: unknown) => ({ __op: "ne", col, val }),
+  lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
 }));
 
 type Row = Record<string, unknown>;
-type EqCondition = { __op: "eq"; col: { name: string }; val: unknown };
+type EqCondition = { __op: "eq" | "ne"; col: { name: string }; val: unknown };
+type LtCondition = { __op: "lt"; col: { name: string }; val: unknown };
 type AndCondition = { __op: "and"; conditions: Condition[] };
 type OrderCondition = { __op: "desc"; col: { name: string } };
-type Condition = EqCondition | AndCondition | OrderCondition;
+type Condition = EqCondition | LtCondition | AndCondition | OrderCondition;
 
 /**
  * Fake DB que suporta `and()` combinando `eq()` e reporta `affectedRows` no
@@ -27,6 +30,12 @@ function createFakeDb() {
   function matches(row: Row, condition?: Condition): boolean {
     if (!condition) return true;
     if (condition.__op === "eq") return row[condition.col.name] === condition.val;
+    if (condition.__op === "ne") return row[condition.col.name] !== condition.val;
+    if (condition.__op === "lt") {
+      const value = row[condition.col.name] instanceof Date ? (row[condition.col.name] as Date).getTime() : row[condition.col.name];
+      const compareTo = condition.val instanceof Date ? condition.val.getTime() : condition.val;
+      return (value as number) < (compareTo as number);
+    }
     if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
     return true;
   }
@@ -90,6 +99,14 @@ function createFakeDb() {
       };
       return chain;
     }),
+    delete: vi.fn(() => ({
+      where: vi.fn((condition: Condition) => {
+        const remaining = rows.filter(row => !matches(row, condition));
+        const deletedCount = rows.length - remaining.length;
+        rows = remaining;
+        return Promise.resolve({ affectedRows: deletedCount });
+      }),
+    })),
   };
 }
 
@@ -215,5 +232,73 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
 
     const active = await repository.getActivePendingOperation(1);
     expect(active).toBeNull();
+  });
+
+  describe("retenção (issue #767)", () => {
+    it("apaga pendências não ativas mais antigas que o limite operacional", async () => {
+      const { repository } = createRepository();
+
+      const created = await repository.createPendingOperation({
+        userId: 1, type: "delete", target: {}, origin: "deleteIntent", ttlMs: 60_000,
+      });
+      // cancelPendingOperation grava updatedAt com o relógio real — as janelas de
+      // comparação abaixo usam Date.now() como base para permanecerem coerentes com isso.
+      await repository.cancelPendingOperation(created!.id);
+      const cancelledAt = Date.now();
+
+      const tooEarly = await repository.purgeInactiveOperations(30, new Date(cancelledAt + 10 * 24 * 60 * 60 * 1000));
+      expect(tooEarly).toBe(0);
+
+      const purged = await repository.purgeInactiveOperations(30, new Date(cancelledAt + 31 * 24 * 60 * 60 * 1000));
+      expect(purged).toBe(1);
+    });
+
+    it("nunca apaga uma pendência ativa, mesmo além do limite operacional", async () => {
+      const { repository } = createRepository();
+
+      await repository.createPendingOperation({
+        userId: 1, type: "delete", target: {}, origin: "deleteIntent", ttlMs: 60_000,
+      });
+
+      const purged = await repository.purgeInactiveOperations(30, new Date(Date.now() + 60 * 24 * 60 * 60 * 1000));
+      expect(purged).toBe(0);
+    });
+  });
+
+  describe("isolamento entre usuários (issue #767)", () => {
+    it("nunca retorna a pendência ativa de outro usuário", async () => {
+      const { repository } = createRepository();
+
+      const opA = await repository.createPendingOperation({
+        userId: 1, type: "delete", target: { mealId: 1 }, origin: "deleteIntent", ttlMs: 60_000,
+      });
+      await repository.createPendingOperation({
+        userId: 2, type: "confirmation", target: { mealId: 2 }, origin: "webhookTextCommands", ttlMs: 60_000,
+      });
+
+      const activeForA = await repository.getActivePendingOperation(1);
+      const activeForB = await repository.getActivePendingOperation(2);
+
+      expect(activeForA?.id).toBe(opA!.id);
+      expect(activeForA?.userId).toBe(1);
+      expect(activeForB?.userId).toBe(2);
+      expect(activeForA?.id).not.toBe(activeForB?.id);
+    });
+
+    it("claim de um id não afeta a pendência ativa de outro usuário", async () => {
+      const { repository } = createRepository();
+
+      const opA = await repository.createPendingOperation({
+        userId: 1, type: "delete", target: {}, origin: "deleteIntent", ttlMs: 60_000,
+      });
+      const opB = await repository.createPendingOperation({
+        userId: 2, type: "delete", target: {}, origin: "deleteIntent", ttlMs: 60_000,
+      });
+
+      await repository.claimPendingOperation({ id: opA!.id, expectedVersion: opA!.version });
+
+      const stillActiveForB = await repository.getActivePendingOperation(2);
+      expect(stillActiveForB?.id).toBe(opB!.id);
+    });
   });
 });

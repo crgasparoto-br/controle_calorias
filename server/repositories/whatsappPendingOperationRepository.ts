@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, ne } from "drizzle-orm";
 import { whatsappPendingOperations } from "../../drizzle/schema";
 
 type DbProvider = () => Promise<any | null>;
@@ -28,6 +28,8 @@ export type WhatsAppPendingOperationRepository = {
   claimPendingOperation(input: ClaimPendingOperationInput): Promise<{ claimed: boolean }>;
   cancelPendingOperation(id: number): Promise<{ cancelled: boolean }>;
   supersedePendingOperation(id: number): Promise<{ superseded: boolean }>;
+  /** Retenção (issue #767): apaga pendências não ativas (consumidas/canceladas/expiradas/substituídas) além de `operationalDays`. */
+  purgeInactiveOperations(operationalDays: number, now?: Date): Promise<number>;
 };
 
 function getMysqlAffectedRows(result: unknown) {
@@ -43,7 +45,7 @@ async function transitionFromActive(
 ): Promise<boolean> {
   const result = await db
     .update(whatsappPendingOperations)
-    .set({ state: nextState })
+    .set({ state: nextState, updatedAt: new Date() })
     .where(and(eq(whatsappPendingOperations.id, id), eq(whatsappPendingOperations.state, "active")));
   return getMysqlAffectedRows(result) > 0;
 }
@@ -96,6 +98,17 @@ function createFallbackStore() {
       if (!row || row.state !== "active") return false;
       Object.assign(row, { state: nextState });
       return true;
+    },
+    purgeInactive(operationalDays: number, now: Date): number {
+      const cutoff = now.getTime() - operationalDays * 24 * 60 * 60 * 1000;
+      let purged = 0;
+      for (const [id, row] of fallbackStore.entries()) {
+        if (row.state !== "active" && new Date(row.updatedAt).getTime() < cutoff) {
+          fallbackStore.delete(id);
+          purged++;
+        }
+      }
+      return purged;
     },
   };
 }
@@ -167,7 +180,7 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
       try {
         const result = await db
           .update(whatsappPendingOperations)
-          .set({ state: "consumed", version: expectedVersion + 1, consumedAt: new Date() })
+          .set({ state: "consumed", version: expectedVersion + 1, consumedAt: new Date(), updatedAt: new Date() })
           .where(and(
             eq(whatsappPendingOperations.id, id),
             eq(whatsappPendingOperations.state, "active"),
@@ -204,6 +217,22 @@ export function createDrizzleWhatsAppPendingOperationRepository(deps: {
       } catch (error) {
         deps.onWarning("WhatsApp pending operation supersede skipped", error);
         return { superseded: false };
+      }
+    },
+
+    async purgeInactiveOperations(operationalDays, now = new Date()) {
+      const db = await deps.getDb();
+      if (!db) return fallback.purgeInactive(operationalDays, now);
+
+      const cutoff = new Date(now.getTime() - operationalDays * 24 * 60 * 60 * 1000);
+      try {
+        const result = await db
+          .delete(whatsappPendingOperations)
+          .where(and(ne(whatsappPendingOperations.state, "active"), lt(whatsappPendingOperations.updatedAt, cutoff)));
+        return getMysqlAffectedRows(result);
+      } catch (error) {
+        deps.onWarning("WhatsApp pending operation purge skipped", error);
+        return 0;
       }
     },
   };

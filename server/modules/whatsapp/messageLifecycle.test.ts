@@ -21,7 +21,7 @@ vi.mock("../../db", () => ({
   logPersistenceWarning: vi.fn(),
 }));
 
-import { beginInboundMessage, markMessageProcessed, recordDomainLink, recordOutboundReply } from "./messageLifecycle";
+import { beginInboundMessage, markMessageProcessed, recordDomainLink, recordOutboundReply, wasMessageAlreadyProcessed } from "./messageLifecycle";
 
 describe("whatsapp messageLifecycle", () => {
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe("whatsapp messageLifecycle", () => {
 
   it("cria a conversa e grava a mensagem de entrada, retornando o handle", async () => {
     repositoryMock.createOrGetActiveConversation.mockResolvedValue({ id: 10 });
-    repositoryMock.appendMessage.mockResolvedValue({ id: 100 });
+    repositoryMock.appendMessage.mockResolvedValue({ message: { id: 100 }, wasNewInsert: true });
 
     const handle = await beginInboundMessage({
       userId: 1,
@@ -42,7 +42,7 @@ describe("whatsapp messageLifecycle", () => {
       occurredAt: new Date("2026-07-11T12:00:00Z"),
     });
 
-    expect(handle).toEqual({ conversationId: 10, messageId: 100 });
+    expect(handle).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true });
     expect(repositoryMock.createOrGetActiveConversation).toHaveBeenCalledWith(1, null, "5511999999999");
     expect(repositoryMock.appendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: 10, userId: 1, direction: "inbound", externalMessageId: "wamid.abc" }),
@@ -66,7 +66,9 @@ describe("whatsapp messageLifecycle", () => {
 
   it("reentrega do mesmo externalMessageId retorna o mesmo handle (idempotência delegada ao repositório)", async () => {
     repositoryMock.createOrGetActiveConversation.mockResolvedValue({ id: 10 });
-    repositoryMock.appendMessage.mockResolvedValue({ id: 100 });
+    repositoryMock.appendMessage
+      .mockResolvedValueOnce({ message: { id: 100 }, wasNewInsert: true })
+      .mockResolvedValueOnce({ message: { id: 100 }, wasNewInsert: false });
 
     const input = {
       userId: 1,
@@ -81,8 +83,8 @@ describe("whatsapp messageLifecycle", () => {
     const first = await beginInboundMessage(input);
     const second = await beginInboundMessage(input);
 
-    expect(first).toEqual({ conversationId: 10, messageId: 100 });
-    expect(second).toEqual(first);
+    expect(first).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true });
+    expect(second).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: false });
   });
 
   it("isola conversas/mensagens entre usuários diferentes", async () => {
@@ -90,8 +92,8 @@ describe("whatsapp messageLifecycle", () => {
       .mockResolvedValueOnce({ id: 10 })
       .mockResolvedValueOnce({ id: 20 });
     repositoryMock.appendMessage
-      .mockResolvedValueOnce({ id: 100 })
-      .mockResolvedValueOnce({ id: 200 });
+      .mockResolvedValueOnce({ message: { id: 100 }, wasNewInsert: true })
+      .mockResolvedValueOnce({ message: { id: 200 }, wasNewInsert: true });
 
     const handleA = await beginInboundMessage({
       userId: 1, whatsappConnectionId: null, phoneNumber: "5511111111111",
@@ -102,14 +104,26 @@ describe("whatsapp messageLifecycle", () => {
       contentType: "text", text: "b", occurredAt: new Date(),
     });
 
-    expect(handleA).toEqual({ conversationId: 10, messageId: 100 });
-    expect(handleB).toEqual({ conversationId: 20, messageId: 200 });
+    expect(handleA).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true });
+    expect(handleB).toEqual({ conversationId: 20, messageId: 200, wasNewInsert: true });
+  });
+
+  it("detecta mensagem já processada (reentrega com domínio já vinculado) — issue #767", async () => {
+    repositoryMock.findDomainLinksForMessage.mockResolvedValue([{ id: 1, messageId: 100, mealId: 42 }]);
+
+    const alreadyProcessed = await wasMessageAlreadyProcessed({ conversationId: 10, messageId: 100, wasNewInsert: false });
+    expect(alreadyProcessed).toBe(true);
+
+    const freshInsert = await wasMessageAlreadyProcessed({ conversationId: 10, messageId: 100, wasNewInsert: true });
+    expect(freshInsert).toBe(false);
+
+    expect(await wasMessageAlreadyProcessed(null)).toBe(false);
   });
 
   it("grava a resposta de saída e vincula à mensagem de entrada", async () => {
-    repositoryMock.appendMessage.mockResolvedValue({ id: 101 });
+    repositoryMock.appendMessage.mockResolvedValue({ message: { id: 101 }, wasNewInsert: true });
 
-    await recordOutboundReply({ conversationId: 10, messageId: 100 }, { userId: 1, text: "Registrado!" });
+    await recordOutboundReply({ conversationId: 10, messageId: 100, wasNewInsert: true }, { userId: 1, text: "Registrado!" });
 
     expect(repositoryMock.appendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -132,20 +146,20 @@ describe("whatsapp messageLifecycle", () => {
   });
 
   it("vincula a mensagem a um registro de domínio (refeição)", async () => {
-    await recordDomainLink({ conversationId: 10, messageId: 100 }, { mealId: 42 });
+    await recordDomainLink({ conversationId: 10, messageId: 100, wasNewInsert: true }, { mealId: 42 });
 
     expect(repositoryMock.linkDomainRecord).toHaveBeenCalledWith(100, { mealId: 42 });
   });
 
   it("não vincula domínio quando nenhum id de domínio é informado", async () => {
-    await recordDomainLink({ conversationId: 10, messageId: 100 }, {});
+    await recordDomainLink({ conversationId: 10, messageId: 100, wasNewInsert: true }, {});
 
     expect(repositoryMock.linkDomainRecord).not.toHaveBeenCalled();
   });
 
   it("marca a mensagem como processada", async () => {
     const processedAt = new Date("2026-07-11T12:05:00Z");
-    await markMessageProcessed({ conversationId: 10, messageId: 100 }, processedAt);
+    await markMessageProcessed({ conversationId: 10, messageId: 100, wasNewInsert: true }, processedAt);
 
     expect(repositoryMock.markProcessed).toHaveBeenCalledWith(100, processedAt);
   });
