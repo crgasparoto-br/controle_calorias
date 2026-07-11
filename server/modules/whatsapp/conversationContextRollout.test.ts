@@ -10,6 +10,17 @@ afterEach(() => {
 });
 
 describe("conversationContextRollout", () => {
+  it("começa em write_only sem ativar leitura persistente implicitamente", () => {
+    delete process.env.WHATSAPP_CONTEXT_READ_MODE;
+    delete process.env.WHATSAPP_CONTEXT_READ_MODE_TEXT;
+    delete process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT;
+    delete process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT_TEXT;
+    const selected = selectWhatsappConversationContext({ userId: 7, flow: "text", legacyTurns: legacy, persistentTurns: persistent });
+    expect(selected.mode).toBe("write_only");
+    expect(selected.source).toBe("legacy");
+    expect(selected.persistentEligible).toBe(false);
+  });
+
   it("mantém shadow somente em observação", () => {
     process.env.WHATSAPP_CONTEXT_READ_MODE_TEXT = "shadow";
     const selected = selectWhatsappConversationContext({ userId: 7, flow: "text", legacyTurns: legacy, persistentTurns: persistent });
@@ -29,6 +40,7 @@ describe("conversationContextRollout", () => {
 
   it("faz fallback seguro quando a persistência não fornece turnos", () => {
     process.env.WHATSAPP_CONTEXT_READ_MODE = "persistent";
+    process.env.WHATSAPP_CONTEXT_ROLLOUT_PERCENT = "100";
     const selected = selectWhatsappConversationContext({ userId: 7, flow: "text", legacyTurns: legacy, persistentTurns: [] });
     expect(selected.source).toBe("legacy");
     expect(selected.turns).toEqual(legacy);
