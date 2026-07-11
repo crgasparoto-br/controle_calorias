@@ -11,14 +11,20 @@ import {
   type ConversationContextConsumer,
 } from "./conversationContextBudget";
 import { getOrRefreshConversationSummary } from "./conversationSummaryService";
+import { getRecentConversationTurns } from "./conversationHistory";
+import {
+  getActiveWhatsappContextFlow,
+  selectWhatsappConversationContext,
+  type WhatsappContextFlow,
+  type WhatsappContextReadMode,
+} from "./conversationContextRollout";
 
 const MAX_CONTEXT_MEALS = 6;
 const MAX_CONTEXT_ITEMS_PER_MEAL = 8;
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
-/** Mensagens buscadas do banco antes de aplicar o orçamento — folga suficiente para janela + overflow razoável. */
 const RECENT_MESSAGES_FETCH_LIMIT = 50;
 
-const conversationRepository: WhatsAppConversationRepository = createDrizzleWhatsAppConversationRepository({
+const defaultConversationRepository: WhatsAppConversationRepository = createDrizzleWhatsAppConversationRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
@@ -38,34 +44,30 @@ export type WhatsappIntentContext = {
     kind: string;
     originalIntent?: string;
   } | null;
-  /**
-   * Janela recente de mensagens persistidas (usuário e assistente), dentro do
-   * orçamento do consumidor. Substitui o limite fixo de 3 turnos efêmeros.
-   */
   recentTurns: Array<{
     direction: "inbound" | "outbound";
     text: string | null;
     occurredAtIso: string;
   }>;
-  /** Síntese do que ficou fora da janela recente, com proveniência. Nunca contém valores nutricionais/quantidades como fato atual. */
   conversationSummary: { summaryText: string; fromMessageId: number; toMessageId: number } | null;
-  /** false quando a última mensagem é mais antiga que a janela de conversa ativa — referências vagas devem ser tratadas com cautela. */
   conversationActive: boolean;
-  /** true quando havia mais mensagens do que o orçamento comportou (parte foi resumida ou omitida). */
   truncated: boolean;
+  contextRead: {
+    mode: WhatsappContextReadMode;
+    flow: WhatsappContextFlow;
+    source: "legacy" | "persistent";
+    persistentEligible: boolean;
+    equivalent: boolean | null;
+    legacyCount: number;
+    persistentCount: number;
+  };
 };
 
-/**
- * Declaração leve de quais partes do contexto um intent consome/ignora (issue #766,
- * clarificação #7). Metadado apenas — não é imposto em runtime, só inspecionado por
- * um teste de inventário que garante que intents destrutivas sempre revalidam o banco.
- */
 export type IntentContextUsage = {
   usesRecentWindow: boolean;
   usesSummary: boolean;
   usesPendingOperation: boolean;
   usesLongTermMemory: boolean;
-  /** true para qualquer intent que altera ou exclui um registro persistido. */
   requiresFreshDbQuery: boolean;
 };
 
@@ -119,17 +121,38 @@ function compactMeal(meal: {
   };
 }
 
+function buildLegacyTurns(userId: number, receivedAt: Date) {
+  return getRecentConversationTurns(userId, receivedAt.getTime()).flatMap(turn => [
+    {
+      direction: "inbound" as const,
+      text: turn.userMessage || null,
+      occurredAtIso: new Date(turn.occurredAtMs).toISOString(),
+    },
+    ...(turn.botReply
+      ? [{
+          direction: "outbound" as const,
+          text: turn.botReply,
+          occurredAtIso: new Date(turn.occurredAtMs).toISOString(),
+        }]
+      : []),
+  ]);
+}
+
 export async function buildWhatsappIntentContext(
   userId: number,
   options: {
     receivedAt?: Date;
     pendingClarification?: WhatsappIntentContext["pendingClarification"];
     consumer?: ConversationContextConsumer;
+    flow?: WhatsappContextFlow;
+    conversationRepository?: WhatsAppConversationRepository;
   } = {},
 ): Promise<WhatsappIntentContext> {
   const receivedAt = options.receivedAt ?? new Date();
   const consumer = options.consumer ?? "intent_classifier";
   const budget = CONTEXT_BUDGETS[consumer];
+  const flow = options.flow ?? getActiveWhatsappContextFlow("text");
+  const conversationRepository = options.conversationRepository ?? defaultConversationRepository;
 
   const meals = (await listMeals(userId)).slice(0, MAX_CONTEXT_MEALS);
   const compactMeals = meals.map(compactMeal);
@@ -146,6 +169,17 @@ export async function buildWhatsappIntentContext(
 
   const persistedMessages = await conversationRepository.findRecentMessagesByUser(userId, RECENT_MESSAGES_FETCH_LIMIT);
   const { window, overflow, truncated } = selectRecentWindow(persistedMessages, budget);
+  const persistentTurns = window.map(message => ({
+    direction: message.direction,
+    text: getEffectiveMessageText(message) || null,
+    occurredAtIso: new Date(message.occurredAt).toISOString(),
+  }));
+  const rolloutSelection = selectWhatsappConversationContext({
+    userId,
+    flow,
+    legacyTurns: buildLegacyTurns(userId, receivedAt),
+    persistentTurns,
+  });
 
   const lastMessage = persistedMessages[persistedMessages.length - 1];
   const conversationActive = Boolean(
@@ -153,7 +187,7 @@ export async function buildWhatsappIntentContext(
   );
 
   let conversationSummary: WhatsappIntentContext["conversationSummary"] = null;
-  if (overflow.length > 0) {
+  if (overflow.length > 0 && rolloutSelection.source === "persistent") {
     conversationSummary = await getOrRefreshConversationSummary({
       userId,
       conversationId: overflow[0].conversationId,
@@ -161,8 +195,6 @@ export async function buildWhatsappIntentContext(
     });
   }
 
-  // Observabilidade (issue #767): registra origem/tamanho do contexto e truncamento sem
-  // nunca incluir texto de mensagem — só contagens, enums e ids já tipados em outra coluna.
   logInferenceEvent({
     userId,
     origin: "whatsapp",
@@ -170,11 +202,30 @@ export async function buildWhatsappIntentContext(
     eventType: persistedMessages.length === 0 ? "whatsapp.history.context_missing" : "whatsapp.history.context_found",
     detail: JSON.stringify({
       messageCount: persistedMessages.length,
-      contextSource: conversationSummary ? "summary" : window.length > 0 ? "recent_window" : "db_fallback",
+      contextSource: rolloutSelection.source,
+      contextMode: rolloutSelection.mode,
+      contextFlow: rolloutSelection.flow,
+      persistentEligible: rolloutSelection.persistentEligible,
+      equivalent: rolloutSelection.equivalent,
+      legacyCount: rolloutSelection.legacyCount,
+      persistentCount: rolloutSelection.persistentCount,
       contextVersion: "whatsapp-intent-context/v2",
       conversationActive,
     }),
   });
+  if (rolloutSelection.mode === "shadow" && rolloutSelection.equivalent === false) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.history.shadow_divergence",
+      detail: JSON.stringify({
+        flow: rolloutSelection.flow,
+        legacyCount: rolloutSelection.legacyCount,
+        persistentCount: rolloutSelection.persistentCount,
+      }),
+    });
+  }
   if (truncated) {
     logInferenceEvent({
       userId,
@@ -185,6 +236,7 @@ export async function buildWhatsappIntentContext(
         originalCount: persistedMessages.length,
         truncatedCount: window.length,
         reason: "message_budget",
+        flow,
       }),
     });
   }
@@ -207,13 +259,18 @@ export async function buildWhatsappIntentContext(
     },
     contextualMemories: memoryContext.llmContext,
     pendingClarification: options.pendingClarification ?? null,
-    recentTurns: window.map(message => ({
-      direction: message.direction,
-      text: getEffectiveMessageText(message) || null,
-      occurredAtIso: new Date(message.occurredAt).toISOString(),
-    })),
+    recentTurns: rolloutSelection.turns,
     conversationSummary,
     conversationActive,
     truncated,
+    contextRead: {
+      mode: rolloutSelection.mode,
+      flow: rolloutSelection.flow,
+      source: rolloutSelection.source,
+      persistentEligible: rolloutSelection.persistentEligible,
+      equivalent: rolloutSelection.equivalent,
+      legacyCount: rolloutSelection.legacyCount,
+      persistentCount: rolloutSelection.persistentCount,
+    },
   };
 }
