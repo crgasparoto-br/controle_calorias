@@ -44,11 +44,18 @@ export type BeginInboundMessageInput = {
 
 export type MessageLifecycleService = ReturnType<typeof createMessageLifecycleService>;
 
+type PendingProcessedMessage = {
+  service: MessageLifecycleService;
+  handle: NonNullable<MessageLifecycleHandle>;
+  processedAt: Date;
+};
+
 type MessageLifecycleScope = {
   service: MessageLifecycleService;
   claimedMessageIds: Set<number>;
   externalMessageIdByMessageId: Map<number, string>;
   claimedExternalMessageIds: Set<string>;
+  pendingProcessedMessages: Map<number, PendingProcessedMessage>;
 };
 
 export function createMessageLifecycleService(input: {
@@ -172,6 +179,7 @@ function createScope(service: MessageLifecycleService, current?: MessageLifecycl
     claimedMessageIds: current?.claimedMessageIds ?? new Set<number>(),
     externalMessageIdByMessageId: current?.externalMessageIdByMessageId ?? new Map<number, string>(),
     claimedExternalMessageIds: current?.claimedExternalMessageIds ?? new Set<string>(),
+    pendingProcessedMessages: current?.pendingProcessedMessages ?? new Map<number, PendingProcessedMessage>(),
   };
 }
 
@@ -179,16 +187,35 @@ function getActiveService() {
   return lifecycleScope.getStore()?.service ?? defaultService;
 }
 
+async function flushProcessedMessages(scope: MessageLifecycleScope) {
+  const pending = [...scope.pendingProcessedMessages.values()];
+  scope.pendingProcessedMessages.clear();
+  for (const entry of pending) {
+    await entry.service.markMessageProcessed(entry.handle, entry.processedAt);
+  }
+}
+
+async function runOwnedScope<T>(scope: MessageLifecycleScope, operation: () => Promise<T>): Promise<T> {
+  return lifecycleScope.run(scope, async () => {
+    const result = await operation();
+    await flushProcessedMessages(scope);
+    return result;
+  });
+}
+
 export async function withMessageLifecycleService<T>(
   service: MessageLifecycleService,
   operation: () => Promise<T>,
 ): Promise<T> {
-  return lifecycleScope.run(createScope(service, lifecycleScope.getStore()), operation);
+  const current = lifecycleScope.getStore();
+  const scope = createScope(service, current);
+  if (current) return lifecycleScope.run(scope, operation);
+  return runOwnedScope(scope, operation);
 }
 
 export async function runWithMessageLifecycleRequestScope<T>(operation: () => Promise<T>): Promise<T> {
   if (lifecycleScope.getStore()) return operation();
-  return lifecycleScope.run(createScope(defaultService), operation);
+  return runOwnedScope(createScope(defaultService), operation);
 }
 
 export async function beginInboundMessage(input: BeginInboundMessageInput): Promise<MessageLifecycleHandle> {
@@ -235,7 +262,18 @@ export async function recordDomainLink(handle: MessageLifecycleHandle, link: Dom
 }
 
 export async function markMessageProcessed(handle: MessageLifecycleHandle, processedAt = new Date()): Promise<void> {
-  await getActiveService().markMessageProcessed(handle, processedAt);
+  if (!handle) return;
+  const scope = lifecycleScope.getStore();
+  if (!scope) {
+    await getActiveService().markMessageProcessed(handle, processedAt);
+    return;
+  }
+
+  scope.pendingProcessedMessages.set(handle.messageId, {
+    service: getActiveService(),
+    handle,
+    processedAt,
+  });
 }
 
 export async function enrichInboundMessage(
