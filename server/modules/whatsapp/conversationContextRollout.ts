@@ -30,7 +30,7 @@ function parseMode(value: string | undefined): WhatsappContextReadMode | null {
 
 function parsePercentage(value: string | undefined) {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 100;
+  if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, Math.min(100, parsed));
 }
 
@@ -68,7 +68,7 @@ export async function withWhatsappContextFlow<T>(flow: WhatsappContextFlow, oper
 export function resolveWhatsappContextRollout(flow: WhatsappContextFlow, userId: number) {
   const flowMode = parseMode(process.env[flowEnvKey("WHATSAPP_CONTEXT_READ_MODE", flow)]);
   const globalMode = parseMode(process.env.WHATSAPP_CONTEXT_READ_MODE);
-  const mode = flowMode ?? globalMode ?? "persistent";
+  const mode = flowMode ?? globalMode ?? "write_only";
 
   const percentage = parsePercentage(
     process.env[flowEnvKey("WHATSAPP_CONTEXT_ROLLOUT_PERCENT", flow)]
