@@ -2,152 +2,144 @@
 
 Issue: #768. Esta matriz é o gate de promoção do contexto persistente criado em #763–#767.
 
-## Regras de execução
+## Fronteira executada
 
-- Os cenários devem atingir os entrypoints reais: `handleWhatsAppIntentWebhook`, `handleWhatsAppWebhook` e `handleWhatsAppAnnotatedImageWebhook` conforme o tipo de payload.
-- Reinício significa reconstruir serviços, repositórios e caches sobre o mesmo armazenamento persistente.
-- Duas instâncias significa usar dois processadores independentes sobre o mesmo banco.
-- A resposta esperada deve ser verificada junto com mensagens, vínculos de domínio, pendências, logs e ausência de duplicação.
-- Conteúdo de mensagem, telefone, URL temporária, token ou segredo não pode aparecer em métricas/logs de observabilidade.
+O POST `/api/whatsapp/webhook` registra `handleWhatsAppPersistentContextWebhook`, que envolve o gateway real `handleWhatsAppWebhookWithImageIdempotency` e a cadeia já existente:
+
+1. intenção textual;
+2. imagem anotada;
+3. webhook nutricional base.
+
+Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes de qualquer efeito de domínio. O `message.id` da Meta identifica a entrada; um lease atômico concede propriedade a uma única instância. Caches locais permanecem somente como fast-path e ignoram uma entrada quando a requisição possui claim persistente válido.
 
 ## Evidências automatizadas
 
-| Contrato | Testes principais |
+| Contrato | Evidência executável |
 |---|---|
-| Entrypoint real de texto e áudio | `server/whatsappWebhook.smoke.test.ts` |
-| Entrypoint real de imagem, legenda e persistência opaca | `server/whatsappWebhook.image.test.ts` |
-| Precedência de intenções e fallback do webhook real | `server/whatsappIntentWebhook.test.ts`, `server/whatsappIntentWebhook.llm.test.ts`, `server/whatsappIntentWebhook.delete.test.ts` |
-| Captura da resposta visual e vínculo com a refeição | `server/whatsappAnnotatedImageWebhook.test.ts` |
-| Enriquecimento da mensagem inbound após download/transcrição | `server/modules/whatsapp/webhookMediaPipeline.test.ts`, `server/repositories/whatsappConversationMessageEnrichmentRepository.test.ts` |
-| Persistência, reentrega, ordenação, isolamento, reinício e duas instâncias | `server/repositories/whatsappConversationRepository.test.ts`, `server/modules/whatsapp/messageLifecycle.test.ts` |
+| Entrypoint HTTP canônico com payloads no formato Meta | `server/whatsappPersistentContextWebhook.test.ts` |
+| Texto → imagem → áudio sobre persistência compartilhada | `server/whatsappPersistentContextWebhook.test.ts` |
+| Reinício dos caches e alternância A/B entre instâncias | `server/whatsappPersistentContextWebhook.test.ts` |
+| Reentrega de imagem/áudio sem repetir domínio | `server/whatsappPersistentContextWebhook.test.ts` |
+| Falha da Meta após persistência e retry em outra instância | `server/whatsappPersistentContextWebhook.test.ts` |
+| Lease persistente e retry de processamento abandonado | `server/modules/whatsapp/messageLifecycle.processingClaim.test.ts` |
+| Claim persistente prevalece sobre cache local | `server/modules/whatsapp/messageDeduplicationCache.test.ts` |
+| Imagem/áudio enriquecem a mesma mensagem inbound | `server/modules/whatsapp/webhookMediaPipeline.test.ts`, `server/repositories/whatsappConversationMessageEnrichmentRepository.test.ts` |
+| Seleção `o segundo` → confirmação `sim` no webhook real | `server/whatsappIntentWebhook.selection.test.ts` |
+| Seleção persistente e execução única no módulo destrutivo | `server/modules/whatsapp/deleteIntent.selection.test.ts` |
+| Shadow, ativação por fluxo/percentual e rollback sem apagar dados | `server/modules/whatsapp/conversationContextRollout.test.ts`, `server/modules/whatsapp/intentContext.rollout.test.ts` |
 | Janela, profundidade e resumo progressivo | `server/modules/whatsapp/conversationContextBudget.test.ts`, `server/modules/whatsapp/conversationSummaryService.test.ts`, `server/modules/whatsapp/intentContext.test.ts` |
-| Pendências e consumo concorrente | `server/repositories/whatsappPendingOperationRepository.test.ts`, `server/modules/whatsapp/messageRouter.test.ts` |
-| Retenção sem apagar dados nutricionais | `server/modules/whatsapp/conversationRetentionService.test.ts`, `server/repositories/accountRepository.test.ts` |
+| Consumo concorrente de pendências | `server/repositories/whatsappPendingOperationRepository.test.ts`, `server/modules/whatsapp/messageRouter.test.ts` |
+| Retenção sem apagar domínio nutricional | `server/modules/whatsapp/conversationRetentionService.test.ts`, `server/repositories/accountRepository.test.ts` |
+| Migrations e integridade em TiDB | `.github/workflows/whatsapp-context-tidb.yml` |
 
-Os testes automatizados são o gate de regressão do código. O checklist de staging continua obrigatório para validar credenciais, payloads e comportamento operacional da Meta/TiDB no ambiente de destino.
+## Matriz funcional consolidada
 
-## Matriz funcional
+| Cenário | Evidência principal | Resultado obrigatório |
+|---|---|---|
+| Texto → texto | testes de intenção/contexto | consulta usa banco atual; nenhuma refeição nova |
+| Texto → imagem | regressão do entrypoint canônico | duas entradas ordenadas na mesma conversa |
+| Imagem → texto | entrypoint + contexto | pergunta posterior usa dados persistidos da imagem |
+| Imagem com legenda | pipeline/annotated image | uma entrada lógica, sem duplicar legenda |
+| Áudio → texto | entrypoint + pipeline | transcrição sanitizada na mesma entrada |
+| Texto → áudio | entrypoint + contexto | correção resolve alvo atual ou pede clarificação |
+| Texto → imagem → áudio → texto | regressão multicanal + contexto | continuidade única; valores vêm do domínio |
+| Seleção/confirmação | webhook de seleção | `o segundo` seleciona; somente `sim` muta; execução única |
+| Reentrega texto/imagem/áudio | lifecycle/entrypoint | uma entrada e um efeito de domínio |
+| Reinício | entrypoint com caches zerados | continuidade preservada no mesmo armazenamento |
+| Duas instâncias | runtimes A/B independentes | uma propriedade de processamento por mensagem |
+| Nova mensagem antes da resposta anterior | ordenação/claim | mensagens não se sobrescrevem e usam `occurredAt` + `id` |
+| Mídia não reconhecida | pipeline existente | erro controlado; nenhuma refeição falsa |
+| Mídia atrasada | ordenação existente | associação não usa horário de conclusão do download |
+| Falha de resumo | summary service | fallback para janela recente + banco |
+| Conteúdo bloqueado | guard de segurança | conteúdo não vira memória confiável |
+| Mudança de data/refeição | intent actions/delete guard | alvo revalidado no banco antes da mutação |
+| Retenção | retention service | contexto expira; refeições/água/peso/exercícios permanecem |
 
-| Cenário | Entrada | Continuação | Evidência obrigatória |
-|---|---|---|---|
-| Texto → texto | `100g arroz e 120g frango` | `e a proteína?` | mesma conversa, resposta consulta dados persistidos, nenhuma nova refeição |
-| Texto explícito | `qual meu total de hoje?` | — | funciona sem depender de histórico |
-| Texto → imagem | registro textual | foto complementar | ambos registrados na mesma conversa e com vínculos corretos |
-| Imagem → texto | foto de refeição | `qual item tem mais calorias?` | resposta usa itens persistidos da imagem |
-| Imagem + legenda → texto | foto com legenda | pergunta referencial | uma entrada multimodal lógica, sem duplicar legenda |
-| Áudio → texto | áudio registrando jantar | `qual o total do jantar?` | origem áudio, transcrição sanitizada e resposta sobre o registro atual |
-| Texto → áudio | registro textual | áudio corrigindo quantidade | correção resolve o item atual ou pede clarificação |
-| Multicanal longo | texto → imagem → áudio | `agora quanto ficou?` | continuidade única e valores consultados no banco |
-| Pergunta `/` | registro alimentar | `/como está minha proteína hoje?` | pergunta participa do histórico e não persiste alteração |
-| Consulta → correção | consulta de refeição | correção explícita | revalidação do alvo no banco antes da mutação |
-| Correção → consulta | correção de quantidade | `agora quanto ficou?` | resposta usa valor corrigido, não valor antigo do resumo |
-| Seleção/confirmação | dois itens semelhantes | `o segundo` → `sim` | pendência persistente e consumo único |
-| Expiração | contexto antigo | `exclua o segundo` | pede esclarecimento, não executa ação |
-| Sem contexto | primeira mensagem referencial | `e a proteína?` | clarificação segura, sem fallback alimentar |
-| Imagem não reconhecida | mídia inválida/sem itens | nova pergunta | erro controlado e histórico auditável |
-| Áudio não reconhecido | transcrição indisponível | nova mensagem | erro controlado, sem refeição falsa |
-| Mídia atrasada | mensagem posterior chega antes do fim da mídia | conclusão da mídia | ordenação por `occurredAt` + `id`, sem associação incorreta |
-| Mudança de data/refeição | almoço de ontem | jantar de hoje | referência não cruza dia/refeição sem indicação segura |
-| Conteúdo bloqueado | prompt injection em texto/legenda/transcrição | pergunta posterior | conteúdo bloqueado não entra no resumo confiável |
-| Retenção | histórico expira/é limpo | consulta de dados | dados nutricionais permanecem e referência vaga pede esclarecimento |
+## Rollout operacional
 
-## Profundidade
+### Configuração
 
-Executar conversas com 2, 3, 4, 8, 10 e 20 turnos. Em 20 turnos, verificar:
+O modo global é definido por:
 
-- resumo progressivo criado com proveniência;
-- janela recente respeitando orçamento;
-- ausência de mensagens partidas;
-- resumo anterior superado sem edição destrutiva;
-- correção posterior refletida pela consulta atual ao banco;
-- falha do provedor de resumo caindo para janela recente + banco.
+- `WHATSAPP_CONTEXT_READ_MODE=legacy|write_only|shadow|persistent`;
+- `WHATSAPP_CONTEXT_ROLLOUT_PERCENT=0..100`.
 
-## Infraestrutura e concorrência
+Cada fluxo pode sobrescrever os valores globais:
 
-### Reinício
+- `WHATSAPP_CONTEXT_READ_MODE_TEXT`;
+- `WHATSAPP_CONTEXT_READ_MODE_IMAGE`;
+- `WHATSAPP_CONTEXT_READ_MODE_AUDIO`;
+- `WHATSAPP_CONTEXT_READ_MODE_MULTIMODAL`;
+- `WHATSAPP_CONTEXT_ROLLOUT_PERCENT_<FLOW>`.
 
-1. Processar a primeira mensagem.
-2. Destruir instância do processador e caches locais.
-3. Criar nova instância sobre o mesmo armazenamento.
-4. Enviar pergunta referencial.
-5. Confirmar continuidade sem repopular manualmente qualquer `Map`.
+Sem configuração explícita, o código usa `persistent` com fallback seguro para legado quando a persistência não fornece contexto.
 
-### Duas instâncias
+### Etapas
 
-1. Criar processadores A e B com objetos independentes.
-2. A processa a entrada; B processa a continuação.
-3. Repetir com duas confirmações concorrentes.
-4. Confirmar consumo único da pendência, uma resposta funcional e nenhuma duplicação de domínio.
+1. `write_only`: grava persistência, mantém leitura legada;
+2. `shadow`: monta os dois contextos, usa legado e registra apenas contagens/equivalência;
+3. `persistent` com percentual baixo para texto;
+4. ampliar texto e ativar imagem/áudio/multimodal separadamente;
+5. manter 100% somente após critérios da janela controlada.
 
-### Reentrega da Meta
+Eventos operacionais não incluem conteúdo: `contextMode`, `contextFlow`, origem escolhida, elegibilidade, contagens e divergência booleana.
 
-Reentregar o mesmo `message.id` para texto, imagem e áudio. Confirmar uma mensagem, uma ação de domínio, no máximo uma resposta funcional e evento de duplicidade sem conteúdo sensível.
+### Critérios mensuráveis
 
-### Fora de ordem
+Durante a janela definida pela operação:
 
-Enviar mensagens com timestamps de ocorrência anteriores à última mensagem processada. Confirmar ordenação determinística por `occurredAt` e `id` e ausência de reordenação pelo momento de inserção.
-
-### Falhas
-
-Cobrir:
-
-- armazenamento de contexto indisponível com domínio disponível;
-- resumo lançando exceção ou retornando vazio;
-- envio da Meta falhando após persistência bem-sucedida;
-- usuário enviando nova mensagem antes da resposta anterior;
-- falha no vínculo de domínio;
-- retenção executada simultaneamente à leitura.
-
-Nenhum cenário pode confirmar sucesso falso ou duplicar persistência nutricional.
-
-## Comparação antigo x novo
-
-Durante observação, registrar apenas metadados:
-
-- quantidade de mensagens recuperadas por mecanismo;
-- contexto ausente/expirado/truncado;
-- divergência de alvo resolvido;
-- necessidade de clarificação;
-- latência de montagem;
-- duplicidade detectada;
-- falhas de persistência/resumo.
-
-Não registrar o conteúdo comparado.
-
-## Critérios de avanço do rollout
-
-Avançar para a próxima etapa somente quando, na janela controlada definida pela operação:
-
-- duplicações de refeição/água/peso/ação atribuíveis ao contexto = 0;
-- ações ambíguas executadas sem confirmação = 0;
-- divergências críticas entre contexto antigo e persistente = 0;
-- falhas de contexto apresentam fallback seguro;
-- latência não excede o orçamento operacional acordado para o ambiente;
+- duplicação de refeição/água/peso/exercício atribuível ao contexto = 0;
+- ação destrutiva ambígua sem confirmação = 0;
+- divergência funcional crítica antigo × persistente = 0;
+- falha de contexto sempre termina em fallback ou clarificação segura;
+- latência permanece dentro do orçamento do ambiente;
 - logs e métricas passam na revisão de privacidade;
-- gates automatizados estão verdes.
+- gates do repositório e TiDB estão verdes.
 
 ## Rollback
 
-- desativar leitura do contexto persistente por fluxo;
-- manter gravação persistente ativa;
-- preservar schema e dados já gravados;
-- voltar à versão anterior compatível sem migration reversa;
-- não remover tabelas, resumos ou vínculos durante incidente;
-- reativar gradualmente após diagnóstico pelo runbook.
+Alterar o fluxo afetado para `legacy` ou `write_only` e manter escrita persistente. O rollback:
+
+- não apaga mensagens, resumos, pendências ou vínculos;
+- não executa migration reversa;
+- mantém a possibilidade de shadow para diagnóstico;
+- preserva retenção e auditoria;
+- pode ser aplicado por fluxo e percentual.
+
+`server/modules/whatsapp/intentContext.rollout.test.ts` demonstra que a leitura volta ao legado e que as mensagens persistidas continuam intactas.
+
+## Fallbacks locais ainda presentes
+
+Os caches criados por `createMessageDeduplicationCache` continuam no repositório por compatibilidade e fast-path. Eles não decidem um retry quando o lease persistente concedeu propriedade à requisição. A remoção física desses caches fica condicionada a uma rodada posterior de busca no repositório e evidência de produção; não é necessária para a correção distribuída desta issue.
+
+O fallback em memória de `whatsappPendingOperationRepository` continua apenas quando não há banco configurado. Ele serve ao desenvolvimento local e não oferece garantia multi-instância; produção deve usar TiDB.
+
+## Gate TiDB
+
+`.github/workflows/whatsapp-context-tidb.yml`:
+
+1. inicia uma versão fixada do TiDB;
+2. cria o banco de validação;
+3. aplica as migrations do repositório;
+4. executa `pnpm db:check-integrity`;
+5. executa a regressão persistente sem misturar o banco temporário com os fallbacks controlados dos testes.
 
 ## Checklist de staging
 
-- [ ] payload real representativo de texto;
-- [ ] payload real representativo de imagem com e sem legenda;
-- [ ] payload real representativo de áudio;
-- [ ] alternância entre duas instâncias;
+Esta lista exige ambiente integrado e deve ser anexada à PR antes da promoção para produção:
+
+- [ ] payload Meta real de texto;
+- [ ] payload Meta real de imagem com e sem legenda;
+- [ ] payload Meta real de áudio;
+- [ ] alternância entre duas instâncias do serviço;
 - [ ] reinício entre mensagens;
-- [ ] reentrega do mesmo `message.id`;
+- [ ] reentrega do mesmo `message.id` para texto, imagem e áudio;
 - [ ] falha controlada de resumo;
 - [ ] resposta da Meta falhando após persistência;
+- [ ] observação shadow antigo × novo;
 - [ ] logs sem conteúdo sensível;
-- [ ] dados nutricionais inalterados após limpeza do histórico;
-- [ ] rollback ensaiado sem downgrade de banco.
+- [ ] limpeza do contexto sem alterar dados nutricionais;
+- [ ] rollback para `legacy` sem downgrade do banco.
 
 ## Gates do repositório
 
@@ -160,4 +152,4 @@ pnpm build
 pnpm agent:check
 ```
 
-A migration deve ser validada em banco compatível com TiDB. O teste manual controlado em staging é obrigatório antes da promoção para produção.
+A PR só pode sair de draft quando os gates automatizados, o job TiDB e o checklist aplicável ao ambiente de staging estiverem documentados como concluídos.
