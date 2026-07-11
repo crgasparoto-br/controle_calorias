@@ -10,7 +10,7 @@ O POST `/api/whatsapp/webhook` registra `handleWhatsAppPersistentContextWebhook`
 2. imagem anotada;
 3. webhook nutricional base.
 
-Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes de qualquer efeito de domínio. O `message.id` da Meta identifica a entrada; um lease atômico concede propriedade a uma única instância. Caches locais permanecem somente como fast-path e ignoram uma entrada quando a requisição possui claim persistente válido.
+Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes de qualquer efeito de domínio. O `message.id` da Meta identifica a entrada; um lease atômico concede propriedade a uma única instância. Caches locais permanecem somente como fast-path e ignoram uma entrada quando a requisição possui claim persistente válido. `processedAt` é finalizado apenas quando todo o escopo do entrypoint termina com sucesso; exceções preservam a possibilidade de retry pelo lease.
 
 ## Evidências automatizadas
 
@@ -21,7 +21,7 @@ Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes
 | Reinício dos caches e alternância A/B entre instâncias | `server/whatsappPersistentContextWebhook.test.ts` |
 | Reentrega de imagem/áudio sem repetir domínio | `server/whatsappPersistentContextWebhook.test.ts` |
 | Falha da Meta após persistência e retry em outra instância | `server/whatsappPersistentContextWebhook.test.ts` |
-| Lease persistente e retry de processamento abandonado | `server/modules/whatsapp/messageLifecycle.processingClaim.test.ts` |
+| Lease persistente, retry abandonado e finalização somente após sucesso | `server/modules/whatsapp/messageLifecycle.processingClaim.test.ts`, `server/whatsappImageIdempotencyWebhook.failure.test.ts` |
 | Claim persistente prevalece sobre cache local | `server/modules/whatsapp/messageDeduplicationCache.test.ts` |
 | Imagem/áudio enriquecem a mesma mensagem inbound | `server/modules/whatsapp/webhookMediaPipeline.test.ts`, `server/repositories/whatsappConversationMessageEnrichmentRepository.test.ts` |
 | Seleção `o segundo` → confirmação `sim` no webhook real | `server/whatsappIntentWebhook.selection.test.ts` |
@@ -72,7 +72,7 @@ Cada fluxo pode sobrescrever os valores globais:
 - `WHATSAPP_CONTEXT_READ_MODE_MULTIMODAL`;
 - `WHATSAPP_CONTEXT_ROLLOUT_PERCENT_<FLOW>`.
 
-Sem configuração explícita, o código usa `persistent` com fallback seguro para legado quando a persistência não fornece contexto.
+Sem configuração explícita, o código usa `write_only` e 0% de leitura persistente. A persistência continua sendo alimentada, mas a ativação da leitura nova exige configuração consciente. Quando o modo `persistent` está ativo e não há turnos persistidos disponíveis, a leitura cai com segurança para o contexto legado.
 
 ### Etapas
 
