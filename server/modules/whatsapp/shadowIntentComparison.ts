@@ -39,8 +39,7 @@ function buildTargetShape(intent: WhatsappInterpretedIntent) {
 function hashTarget(intent: WhatsappInterpretedIntent) {
   return createHash("sha256")
     .update(JSON.stringify(buildTargetShape(intent)))
-    .digest("hex")
-    .slice(0, 16);
+    .digest("hex");
 }
 
 export function isShadowIntentComparisonEnabled() {
@@ -59,10 +58,8 @@ export async function compareWhatsappIntentInShadow(input: {
       interpretWhatsappMessageWithDiagnostics(input.text, input.legacyContext),
       interpretWhatsappMessageWithDiagnostics(input.text, input.persistentContext),
     ]);
-    const legacyTargetHash = hashTarget(legacy.intent);
-    const persistentTargetHash = hashTarget(persistent.intent);
     const sameIntent = legacy.intent.intent === persistent.intent.intent;
-    const sameTarget = legacyTargetHash === persistentTargetHash;
+    const sameTarget = hashTarget(legacy.intent) === hashTarget(persistent.intent);
     const sameConfirmation = legacy.intent.requiresConfirmation === persistent.intent.requiresConfirmation;
     const equivalent = sameIntent && sameTarget && sameConfirmation;
 
@@ -80,8 +77,6 @@ export async function compareWhatsappIntentInShadow(input: {
         sameConfirmation,
         legacyIntent: legacy.intent.intent,
         persistentIntent: persistent.intent.intent,
-        legacyTargetHash,
-        persistentTargetHash,
         legacySource: legacy.source,
         persistentSource: persistent.source,
         legacyValidationStatus: legacy.validationStatus,
