@@ -1,3 +1,5 @@
+import { isExternalMessageClaimedInCurrentScope } from "./messageLifecycle";
+
 export type MessageDeduplicationCache = {
   wasAlreadyHandled: (messageId?: string) => boolean;
   markHandled: (messageId?: string) => void;
@@ -21,6 +23,7 @@ export function createMessageDeduplicationCache(ttlMs = DEFAULT_TTL_MS): Message
   const cache: MessageDeduplicationCache = {
     wasAlreadyHandled(messageId) {
       if (!messageId) return false;
+      if (isExternalMessageClaimedInCurrentScope(messageId)) return false;
 
       const now = Date.now();
       prune(now);
