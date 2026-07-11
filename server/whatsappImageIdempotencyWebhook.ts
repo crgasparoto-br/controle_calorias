@@ -11,7 +11,6 @@ import {
   type IndexedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
-import { requireWhatsAppMediaConfig } from "./whatsappConfig";
 import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import {
@@ -50,14 +49,10 @@ function formatNumber(value: number) {
 function parseWaterAmountMl(text: string) {
   const normalized = normalizeWhatsAppIntentText(text);
   const mlMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m\s*l|ml|mililitros?)\b/);
-  if (mlMatch) {
-    return Math.round(Number(mlMatch[1].replace(",", ".")));
-  }
+  if (mlMatch) return Math.round(Number(mlMatch[1].replace(",", ".")));
 
   const literMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:l|litros?)\b/);
-  if (literMatch) {
-    return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
-  }
+  if (literMatch) return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
 
   return null;
 }
@@ -127,9 +122,7 @@ async function claimIndexedMessage(item: IndexedWhatsAppWebhookMessage): Promise
     allowRawContentStorage: true,
   });
 
-  if (!lifecycleHandle && locallySeen) {
-    return "duplicate";
-  }
+  if (!lifecycleHandle && locallySeen) return "duplicate";
 
   if (!await claimMessageForProcessing(lifecycleHandle)) {
     logInferenceEvent({
@@ -267,7 +260,10 @@ function getStravaExerciseReference(exercise: { notes?: string | null }) {
   return match?.[1] ? `strava:${match[1]}` : null;
 }
 
-function sumExerciseCaloriesForDate(exercises: Array<{ occurredAt: number | string | Date; caloriesBurned?: number | null; notes?: string | null }>, dateKey: string) {
+function sumExerciseCaloriesForDate(
+  exercises: Array<{ occurredAt: number | string | Date; caloriesBurned?: number | null; notes?: string | null }>,
+  dateKey: string,
+) {
   const seenExternalReferences = new Set<string>();
 
   return exercises
@@ -382,23 +378,19 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
   const remainingMessages = extractIndexedWhatsAppWebhookMessages(req.body);
   const context = await buildExerciseCaloriesContext(remainingMessages);
   const flow = resolveBatchContextFlow(remainingMessages);
+  const result = await withWhatsappContextFlow(flow, () =>
+    runWithWhatsAppGoalProgressContext(context, () => handleWhatsAppWebhookWithTextIntent(req, res)),
+  );
 
-  try {
-    return await withWhatsappContextFlow(flow, () =>
-      runWithWhatsAppGoalProgressContext(context, () => handleWhatsAppWebhookWithTextIntent(req, res)),
-    );
-  } finally {
-    const remainingKeys = new Set(remainingMessages.map(item => item.key));
-    await Promise.all(
-      claimedMessages
-        .filter(claim => remainingKeys.has(claim.item.key))
-        .map(claim => markMessageProcessed(claim.lifecycleHandle)),
-    );
-  }
+  const remainingKeys = new Set(remainingMessages.map(item => item.key));
+  await Promise.all(
+    claimedMessages
+      .filter(claim => remainingKeys.has(claim.item.key))
+      .map(claim => markMessageProcessed(claim.lifecycleHandle)),
+  );
+  return result;
 }
 
 export async function handleWhatsAppWebhookWithImageIdempotency(req: Request, res: Response) {
   return runWithMessageLifecycleRequestScope(() => handleWhatsAppWebhookWithImageIdempotencyInternal(req, res));
 }
-
-void requireWhatsAppMediaConfig;
