@@ -2,17 +2,15 @@ import { randomUUID } from "node:crypto";
 import { transcribeAudio, type TranscriptionError } from "../../_core/voiceTranscription";
 import {
   buildSavedMedia,
-  getDb,
   getUserIdByWhatsappPhone,
   logInferenceEvent,
-  logPersistenceWarning,
 } from "../../db";
-import { createDrizzleWhatsAppConversationMessageEnrichmentRepository } from "../../repositories/whatsappConversationMessageEnrichmentRepository";
 import { storagePut } from "../../storage";
 import {
   buildWhatsAppAudioTranscriptionFailureReplyMessage,
   buildWhatsAppPartialAudioTranscriptionReplyMessage,
 } from "./replyMessages";
+import { enrichInboundMessage } from "./messageLifecycle";
 import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
@@ -23,10 +21,6 @@ import {
 
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 const AUDIO_TRANSCRIPTION_PROVIDER = "openai-whisper";
-const conversationMessageEnrichmentRepository = createDrizzleWhatsAppConversationMessageEnrichmentRepository({
-  getDb,
-  onWarning: logPersistenceWarning,
-});
 
 type AudioTranscriptionFailureCode = TranscriptionError["code"] | "EMPTY_TRANSCRIPT";
 
@@ -98,9 +92,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
 }
 
 async function logMediaStorageWarning(sourcePhone: string, warning?: string) {
-  if (!warning) {
-    return;
-  }
+  if (!warning) return;
 
   logInferenceEvent({
     userId: await getUserIdByWhatsappPhone(sourcePhone),
@@ -145,18 +137,13 @@ async function logAudioTranscriptionFailure(sourcePhone: string, failure: AudioT
   });
 }
 
-async function enrichPersistedConversationMessage(
-  message: WhatsAppWebhookMessage,
-  prepared: PreparedMessageInput,
-) {
+async function enrichPersistedConversationMessage(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
   if (!message.id) return;
 
-  // A tabela de conversa mantém uma referência primária segura. Todas as mídias
-  // continuam vinculadas à refeição em mealMedia pelo fluxo de persistência normal.
   const primaryMedia = prepared.media[0];
   if (!prepared.transcript?.trim() && !primaryMedia) return;
 
-  await conversationMessageEnrichmentRepository.enrichInboundMessageByExternalId(message.id, {
+  await enrichInboundMessage(message.id, {
     transcript: prepared.transcript,
     mediaStorageKey: primaryMedia?.storageKey,
     mediaMimeType: primaryMedia?.mimeType,
