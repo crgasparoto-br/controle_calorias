@@ -1,10 +1,10 @@
 /**
  * Camada central de captura e idempotência das mensagens do WhatsApp.
  *
- * Os três entrypoints usam o mesmo serviço. A chave única no banco impede linhas
+ * Os entrypoints usam o mesmo serviço. A chave única no banco impede linhas
  * duplicadas e um lease atômico permite retry após crash, sem depender de Map local.
  * O escopo AsyncLocalStorage preserva a propriedade da mesma mensagem quando o
- * roteamento passa por intent -> imagem anotada -> webhook base na mesma requisição.
+ * roteamento passa por wrappers e handlers encadeados na mesma requisição.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
@@ -17,6 +17,10 @@ import {
   type EnrichWhatsAppConversationMessageInput,
   type WhatsAppConversationMessageEnrichmentRepository,
 } from "../../repositories/whatsappConversationMessageEnrichmentRepository";
+import {
+  createDrizzleWhatsAppProcessingClaimRepository,
+  type WhatsAppProcessingClaimRepository,
+} from "../../repositories/whatsappProcessingClaimRepository";
 import { getDb, logPersistenceWarning } from "../../db";
 
 const DEFAULT_PROCESSING_LEASE_MS = 15 * 60 * 1000;
@@ -48,6 +52,7 @@ type MessageLifecycleScope = {
 export function createMessageLifecycleService(input: {
   conversationRepository: WhatsAppConversationRepository;
   enrichmentRepository?: WhatsAppConversationMessageEnrichmentRepository;
+  processingClaimRepository?: WhatsAppProcessingClaimRepository;
   processingLeaseMs?: number;
 }) {
   const processingLeaseMs = input.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
@@ -83,8 +88,9 @@ export function createMessageLifecycleService(input: {
     async claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
       if (!handle) return true;
       if (handle.wasNewInsert) return true;
+      if (!input.processingClaimRepository) return false;
 
-      return input.conversationRepository.claimStaleUnprocessedMessage(
+      return input.processingClaimRepository.claimStaleUnprocessedMessage(
         handle.messageId,
         new Date(now.getTime() - processingLeaseMs),
         now,
@@ -147,9 +153,14 @@ const defaultEnrichmentRepository = createDrizzleWhatsAppConversationMessageEnri
   getDb,
   onWarning: logPersistenceWarning,
 });
+const defaultProcessingClaimRepository = createDrizzleWhatsAppProcessingClaimRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
 const defaultService = createMessageLifecycleService({
   conversationRepository: defaultConversationRepository,
   enrichmentRepository: defaultEnrichmentRepository,
+  processingClaimRepository: defaultProcessingClaimRepository,
 });
 const lifecycleScope = new AsyncLocalStorage<MessageLifecycleScope>();
 
