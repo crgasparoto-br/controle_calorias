@@ -1,4 +1,6 @@
 import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
+import { normalizeWhatsAppIntentText, stripDiacritics } from "./webhookUtils";
+import { joinUnitWords } from "./quantityUnitVocabulary";
 
 export type MealCommandIntent =
   | "add_items_to_meal"
@@ -46,7 +48,25 @@ export type MealCommandContext = {
 };
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
-const QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres? de sopa|colheres? de ch[aá]|x[ií]caras?|copos?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|por[cç][oõ]es?|por[cç][aã]o";
+const QUANTITY_UNIT_PATTERN = joinUnitWords([
+  "gramas",
+  "quilos",
+  "miligramas",
+  "mililitros",
+  "litros",
+  "unidades",
+  "fatias",
+  "colheresSopa",
+  "colheresCha",
+  "xicarasAccented",
+  "copos",
+  "doses",
+  "scoops",
+  "longNeck",
+  "latas",
+  "garrafas",
+  "porcoesAccented",
+]);
 const DECIMAL_NUMBER_PATTERN = "\\d+(?:[,.]\\d+)?";
 const QUANTITY_VALUE_PATTERN = `${DECIMAL_NUMBER_PATTERN}|uma?|um`;
 const MEAL_PATTERN_SOURCE = "(?:caf[eé]\\s+da\\s+manh[aã]|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia|pr[eé][\\s-]?treino|p[oó]s[\\s-]?treino)";
@@ -119,11 +139,7 @@ function emptyCommand(intent: MealCommandIntent, missingFields: string[] = []): 
 }
 
 function normalizeText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+  return normalizeWhatsAppIntentText(value);
 }
 
 function normalizeSpaces(value: string) {
@@ -224,7 +240,7 @@ function findMealType(input: string, context: MealCommandContext) {
 }
 
 function normalizeUnit(unit: string) {
-  return normalizeMeasurementUnit(unit.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+  return normalizeMeasurementUnit(stripDiacritics(unit));
 }
 
 function parseDecimalQuantity(value: string) {

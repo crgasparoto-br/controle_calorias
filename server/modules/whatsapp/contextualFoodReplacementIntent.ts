@@ -464,3 +464,10 @@ export async function executeWhatsappContextualFoodReplacementIntent(
     },
   };
 }
+export const contextUsage: import("./intentContext").IntentContextUsage = {
+  usesRecentWindow: false,
+  usesSummary: false,
+  usesPendingOperation: false,
+  usesLongTermMemory: false,
+  requiresFreshDbQuery: true,
+};

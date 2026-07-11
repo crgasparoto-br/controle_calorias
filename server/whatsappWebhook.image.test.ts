@@ -12,7 +12,18 @@ const storagePutMock = vi.fn();
 const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
 
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: vi.fn(async () => null),
+  recordOutboundReply: vi.fn(async () => undefined),
+  recordDomainLink: vi.fn(async () => undefined),
+  markMessageProcessed: vi.fn(async () => undefined),
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  enrichInboundMessage: vi.fn(async () => true),
+}));
+
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => null),
+  logPersistenceWarning: vi.fn(),
   buildSavedMedia: vi.fn((input) => input),
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,
@@ -29,6 +40,7 @@ vi.mock("./db", () => ({
 
 vi.mock("./nutritionEngine", () => ({
   processMealInput: processMealInputMock,
+  MealInferenceError: class MealInferenceError extends Error {},
 }));
 
 vi.mock("./storage", () => ({

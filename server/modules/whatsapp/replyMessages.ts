@@ -15,6 +15,7 @@ export type WhatsAppMealGoalProgress = {
   consumedCalories: number;
   goalCalories: number;
   exerciseCalories?: number;
+  includeExerciseCalories?: boolean;
 };
 
 export type WhatsAppMealReplyOptions = {
@@ -229,6 +230,13 @@ export function buildWhatsAppWaterLoggedReplyMessage(params: { amountLabel: stri
   return buildWhatsAppAuxiliaryReplyMessage({
     title: "Água registrada",
     lines: [`Registrei ${params.amountLabel} ml de água ${auxiliaryTimePreposition(params.occurredAtLabel)} ${params.occurredAtLabel}.`],
+  });
+}
+
+export function buildWhatsAppWaterVolumeNeededReplyMessage() {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Preciso do volume da água",
+    lines: ["Identifiquei água na imagem, mas não consegui identificar o volume consumido. Pode me dizer quantos ml ou litros foram, por favor?"],
   });
 }
 

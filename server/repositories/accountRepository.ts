@@ -58,6 +58,11 @@ export function createDrizzleAccountRepository(deps: { getDb: DbProvider }): Acc
       await db.update(appSecrets).set({ updatedByUserId: null }).where(eq(appSecrets.updatedByUserId, userId));
       await db.delete(userProfiles).where(eq(userProfiles.userId, userId));
       await db.delete(meals).where(eq(meals.userId, userId));
+      // Não apaga explicitamente whatsappConversations/whatsappConversationMessages/
+      // whatsappConversationSummaries/whatsappMessageDomainLinks/whatsappPendingOperations
+      // (issue #767): todas têm FK com ON DELETE CASCADE até users.id, garantido e
+      // testado estaticamente em accountRepository.test.ts. Duplicar os deletes aqui
+      // adicionaria manutenção sem adicionar segurança.
       await db.delete(users).where(eq(users.id, userId));
     },
   };

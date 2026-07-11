@@ -8,6 +8,9 @@ import { buildWhatsappAiToolTrace, runWhatsappAiTool, type WhatsappAiToolTrace }
 import { learnWhatsappIntentAliasFromConfirmation } from "./intentAliasLearning";
 import { recordWhatsappIntentAuditLog } from "./intentAuditLog";
 import { buildWhatsappIntentContext } from "./intentContext";
+import { getDb, logPersistenceWarning } from "../../db";
+import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
+import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
 import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
@@ -68,14 +71,9 @@ type ResolvedIntentDate = {
 };
 
 function normalizeText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[-_]/g, " ")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return collapseWhitespace(
+    stripDiacritics(value).toLowerCase().replace(/[-_]/g, " ").replace(/[^\p{L}\p{N}\s]/gu, " "),
+  );
 }
 
 function formatNumber(value: number) {
@@ -670,6 +668,11 @@ function isPersistentIntent(intentName: WhatsappIntentName) {
   return PERSISTENT_INTENTS.includes(intentName as (typeof PERSISTENT_INTENTS)[number]);
 }
 
+const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+
 export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLlmIntentInput): Promise<WhatsappLlmIntentResult | WhatsappLlmNutritionFallback | null> {
   const text = input.text?.trim();
   if (!text) {
@@ -678,7 +681,13 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
 
   const receivedAt = input.receivedAt ?? new Date();
   const idempotencyKey = buildIdempotencyKey(userId, text, receivedAt, input.messageId);
-  const context = await buildWhatsappIntentContext(userId, { receivedAt });
+  // Passa a pendência operacional ativa (se houver) para o classificador saber que uma
+  // resposta pode estar resolvendo uma seleção/confirmação/exclusão em aberto (issue #766).
+  const activePendingOperation = await pendingOperationRepository.getActivePendingOperation(userId, receivedAt);
+  const pendingClarification = activePendingOperation
+    ? { kind: activePendingOperation.type, originalIntent: activePendingOperation.origin }
+    : null;
+  const context = await buildWhatsappIntentContext(userId, { receivedAt, pendingClarification });
   const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
   const intent = interpretation.intent;
   learnWhatsappIntentAliasFromConfirmation({ userId, text, intent, receivedAt });

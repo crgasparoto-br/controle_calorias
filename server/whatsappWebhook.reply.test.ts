@@ -11,7 +11,18 @@ const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
 
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: vi.fn(async () => null),
+  recordOutboundReply: vi.fn(async () => undefined),
+  recordDomainLink: vi.fn(async () => undefined),
+  markMessageProcessed: vi.fn(async () => undefined),
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  enrichInboundMessage: vi.fn(async () => true),
+}));
+
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => null),
+  logPersistenceWarning: vi.fn(),
   buildSavedMedia: vi.fn((input) => input),
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,

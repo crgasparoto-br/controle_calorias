@@ -325,6 +325,13 @@ function addUnclassifiedDiagnostic(
   mergeCategoryItemFields(existing, item, date, calories);
 }
 
+export function calculateAdjustedGoalCalories(baseCalories: number, exerciseCalories: number, includeExerciseCalories = true): number {
+  if (!includeExerciseCalories) {
+    return roundMetric(baseCalories);
+  }
+  return roundMetric(baseCalories + Math.max(exerciseCalories, 0));
+}
+
 export function calculateCalorieAdherence(days: CalorieGoalDay[], expectedDayCount = days.length): CalorieAdherenceSummary {
   const totalCalories = days.reduce((total, day) => total + day.calories, 0);
   const totalGoalCalories = days.reduce((total, day) => total + day.goalCalories, 0);

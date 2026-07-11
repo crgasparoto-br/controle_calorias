@@ -5,6 +5,7 @@ import { InsertUser, NutritionGoal, User, WeightEntry } from "../drizzle/schema"
 import { ENV } from "./_core/env";
 import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
+import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
 import { getDateKeyInTimeZone } from "../shared/timeZone";
 import { HabitSnapshot, MealDraftItem, MealProcessingResult } from "./nutritionEngine";
 import { createDrizzleAccountRepository } from "./repositories/accountRepository";
@@ -550,7 +551,7 @@ function isMissingTableError(error: unknown) {
   return code === "ER_NO_SUCH_TABLE" || causeCode === "ER_NO_SUCH_TABLE";
 }
 
-function logPersistenceWarning(scope: string, error: unknown) {
+export function logPersistenceWarning(scope: string, error: unknown) {
   if (isMissingTableError(error)) {
     return;
   }
@@ -1577,6 +1578,7 @@ export async function getDashboardSnapshot(userId: number) {
   const todayBurnedCalories = sumExercises(todaysExercises);
   const todayWaterMl = sumWater(todaysWaterLogs);
   const todayQuality = await calculateQualityIndicators(userId, todaysMeals, todayWaterMl);
+  const todayAdjustedGoalCalories = calculateAdjustedGoalCalories(goal.today.calories, todayBurnedCalories, goal.today.includeExerciseCalories);
 
   const [weekly, habits] = await Promise.all([
     getWeeklySummary(userId),
@@ -1610,7 +1612,7 @@ export async function getDashboardSnapshot(userId: number) {
       quality: todayQuality,
       net: {
         calories: round(todayTotals.calories - todayBurnedCalories),
-        remainingToGoal: round(goal.today.calories - (todayTotals.calories - todayBurnedCalories)),
+        remainingToGoal: round(todayAdjustedGoalCalories - todayTotals.calories),
       },
       remaining: {
         calories: round(goal.today.calories - todayTotals.calories),

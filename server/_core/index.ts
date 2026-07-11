@@ -11,10 +11,11 @@ import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
 import { handleStravaWebhookVerification, handleStravaWebhookEvent } from "../modules/healthIntegrations/stravaWebhookHandler";
-import { handleWhatsAppWebhookWithImageIdempotency } from "../whatsappImageIdempotencyWebhook";
+import { handleWhatsAppPersistentContextWebhook } from "../whatsappPersistentContextWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
 import { RuntimeSchemaCompatibilityError, ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
+import { startConversationRetentionScheduler } from "../modules/whatsapp/conversationRetentionScheduler";
 
 const MEDIA_TRPC_PATHS = [
   "/api/trpc/nutrition.foodPhotoAnalysis.analyze",
@@ -102,7 +103,6 @@ async function startServer() {
   app.get("/api/health-integrations/strava/callback", (req, res) => {
     void handleStravaOAuthCallback(req, res);
   });
-  // Strava Webhook: verificação de subscription (GET) e recebimento de eventos (POST)
   app.get("/api/health-integrations/strava/webhook", (req, res) => {
     handleStravaWebhookVerification(req, res);
   });
@@ -116,18 +116,16 @@ async function startServer() {
     express.json({ limit: PAYLOAD_LIMITS.webhookJson }),
     express.urlencoded({ limit: PAYLOAD_LIMITS.webhookJson, extended: true }),
     (req, res) => {
-      void handleWhatsAppWebhookWithImageIdempotency(req, res);
-    }
+      void handleWhatsAppPersistentContextWebhook(req, res);
+    },
   );
-  // tRPC API
   app.use(
     "/api/trpc",
     createExpressMiddleware({
       router: appRouter,
       createContext,
-    })
+    }),
   );
-  // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
@@ -144,6 +142,8 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  startConversationRetentionScheduler();
 }
 
 startServer().catch(console.error);

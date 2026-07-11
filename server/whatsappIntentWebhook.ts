@@ -13,22 +13,37 @@ import {
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
+import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
-import { getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, updateUserCurrentWeight } from "./db";
+import { getDb, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, logPersistenceWarning, updateUserCurrentWeight } from "./db";
+import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
+import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
 import { listMeals } from "./modules/meals/service";
 import {
+  collapseWhitespace,
   extractWhatsAppWebhookMessages,
   getExtractedWhatsAppMessageKey,
   isWhatsAppMessageForConfiguredChannel,
   resolveWhatsAppMessageOccurredAt,
   sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppTextMessage,
+  stripDiacritics,
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
+import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
+import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
+import {
+  beginInboundMessage,
+  markMessageProcessed,
+  recordDomainLink,
+  recordOutboundReply,
+  wasMessageAlreadyProcessed,
+  type MessageLifecycleHandle,
+} from "./modules/whatsapp/messageLifecycle";
 
 type TextIntentResult =
   | NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>
@@ -43,11 +58,33 @@ type NutritionTotals = {
   fat: number;
 };
 
-const recentlyHandledTextIntentMessageIds = new Map<string, number>();
-const pendingTextIntentContexts = new Map<number, { kind: "period_report"; expiresAt: number }>();
-const TEXT_INTENT_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
-const SIMPLE_FOOD_QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|m\\s*l|mililitros?|l|litros?|un|unidades?|fatias?|pedacos?|xicaras?|copos?|colheres?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|porcoes?|porcao";
+const PERIOD_REPORT_PENDING_TYPE = "period_report_clarification";
+const PERIOD_REPORT_PENDING_ORIGIN = "whatsappIntentWebhook";
+const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
+const SIMPLE_FOOD_QUANTITY_UNIT_PATTERN = joinUnitWords([
+  "gramas",
+  "quilos",
+  "miligramas",
+  "mililitrosCompact",
+  "litros",
+  "unidades",
+  "fatias",
+  "pedacos",
+  "xicarasPlain",
+  "copos",
+  "colheresGeneric",
+  "doses",
+  "scoops",
+  "longNeck",
+  "latas",
+  "garrafas",
+  "porcoesPlain",
+]);
 const MIN_WEIGHT_LOG_KG = 25;
 const MAX_WEIGHT_LOG_KG = 350;
 const UNKNOWN_FOOD_REPLY = [
@@ -65,13 +102,7 @@ function canInterpretTextIntent(message: WhatsAppWebhookMessage) {
 }
 
 function normalizeText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return collapseWhitespace(stripDiacritics(value).toLowerCase().replace(/[^a-z0-9\s]/g, " "));
 }
 
 function looksLikeTonicWaterFood(text: string) {
@@ -80,10 +111,7 @@ function looksLikeTonicWaterFood(text: string) {
 }
 
 function normalizeTextPreservingQuantities(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+  return stripDiacritics(value).toLowerCase();
 }
 
 function formatNumber(value: number) {
@@ -329,7 +357,7 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
   const consumedCalories = Math.round(totals.calories);
   const exerciseCalories = Math.round(exercisesInPeriod.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0));
   const goalCalories = Math.round(Number(goal.today?.calories || 0) * countPeriodDays(start, end));
-  const adjustedGoalCalories = goalCalories + exerciseCalories;
+  const adjustedGoalCalories = calculateAdjustedGoalCalories(goalCalories, exerciseCalories, goal.today?.includeExerciseCalories ?? true);
   const balanceCalories = adjustedGoalCalories - consumedCalories;
   const goalSummaryLines = buildPeriodGoalSummaryLines({
     goalCalories,
@@ -362,44 +390,43 @@ async function buildMealAdditionAwareReply(userId: number, result: TextIntentRes
   return [baseReply, "", buildMealFullSummary(meal)].join("\n");
 }
 
-function pruneRecentlyHandledTextIntentMessageIds(now = Date.now()) {
-  for (const [messageId, expiresAt] of recentlyHandledTextIntentMessageIds) {
-    if (expiresAt <= now) recentlyHandledTextIntentMessageIds.delete(messageId);
-  }
-}
-
 function wasTextIntentMessageAlreadyHandled(messageId?: string) {
-  if (!messageId) return false;
-  const now = Date.now();
-  pruneRecentlyHandledTextIntentMessageIds(now);
-  return recentlyHandledTextIntentMessageIds.has(messageId);
+  return textIntentMessageDeduplicationCache.wasAlreadyHandled(messageId);
 }
 
 function markTextIntentMessageHandled(messageId?: string) {
-  if (messageId) recentlyHandledTextIntentMessageIds.set(messageId, Date.now() + TEXT_INTENT_DEDUPLICATION_TTL_MS);
+  textIntentMessageDeduplicationCache.markHandled(messageId);
 }
 
-function getPendingTextIntentContext(userId: number) {
-  const pending = pendingTextIntentContexts.get(userId);
-  if (!pending) return null;
-  if (pending.expiresAt <= Date.now()) {
-    pendingTextIntentContexts.delete(userId);
-    return null;
+async function getPendingTextIntentContext(userId: number) {
+  const pending = await pendingOperationRepository.getActivePendingOperation(userId);
+  if (!pending || pending.type !== PERIOD_REPORT_PENDING_TYPE) return null;
+  return { kind: "period_report" as const, id: pending.id };
+}
+
+async function clearPendingTextIntentContext(userId: number) {
+  const pending = await pendingOperationRepository.getActivePendingOperation(userId);
+  if (pending && pending.type === PERIOD_REPORT_PENDING_TYPE) {
+    await pendingOperationRepository.cancelPendingOperation(pending.id);
   }
-  return pending;
 }
 
-function rememberPendingTextIntentContext(userId: number, result: TextIntentResult) {
+async function rememberPendingTextIntentContext(userId: number, result: TextIntentResult) {
   if (result.action === "clarification_needed" && result.detail === "Pedido de relatório sem período explícito.") {
-    pendingTextIntentContexts.set(userId, { kind: "period_report", expiresAt: Date.now() + TEXT_INTENT_CONTEXT_TTL_MS });
+    await pendingOperationRepository.createPendingOperation({
+      userId,
+      type: PERIOD_REPORT_PENDING_TYPE,
+      origin: PERIOD_REPORT_PENDING_ORIGIN,
+      ttlMs: TEXT_INTENT_CONTEXT_TTL_MS,
+      target: { kind: "period_report" },
+    });
     return;
   }
-  pendingTextIntentContexts.delete(userId);
+  await clearPendingTextIntentContext(userId);
 }
 
 export function __resetWhatsAppTextIntentContextForTests() {
-  pendingTextIntentContexts.clear();
-  recentlyHandledTextIntentMessageIds.clear();
+  textIntentMessageDeduplicationCache.clear();
   __resetConversationHistoryForTests();
 }
 
@@ -413,6 +440,7 @@ async function sendAndLogTextReply(input: {
   status: WhatsAppIntentLogStatus;
   mealId?: number | null;
   occurredAtMs?: number;
+  lifecycleHandle?: MessageLifecycleHandle;
 }) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
 
@@ -434,6 +462,14 @@ async function sendAndLogTextReply(input: {
     replyResult.ok ? input.reply : null,
     input.occurredAtMs ?? Date.now(),
   );
+
+  if (replyResult.ok) {
+    await recordOutboundReply(input.lifecycleHandle ?? null, { userId: input.userId, text: input.reply });
+  }
+  if (input.mealId) {
+    await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
+  }
+  await markMessageProcessed(input.lifecycleHandle ?? null);
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
@@ -464,10 +500,45 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const text = getTextBody(message);
   const occurredAt = resolveWhatsAppMessageOccurredAt(message);
   const occurredAtMs = occurredAt.getTime();
+  const lifecycleHandle = await beginInboundMessage({
+    userId,
+    whatsappConnectionId: null,
+    phoneNumber: sourcePhone,
+    externalMessageId: message.id,
+    contentType: "text",
+    text,
+    occurredAt,
+    allowRawContentStorage: true,
+  });
+
+  // Idempotência de domínio (issue #767): se esta mensagem (mesmo externalMessageId) já
+  // tinha um registro de domínio vinculado, é uma reentrega — não repete a ação nem gera
+  // nova resposta funcional, só confirma o recebimento.
+  if (await wasMessageAlreadyProcessed(lifecycleHandle)) {
+    markTextIntentMessageHandled(message.id);
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.idempotency.duplicate_detected",
+      detail: JSON.stringify({ source: "db_unique_constraint" }),
+    });
+    await markMessageProcessed(lifecycleHandle);
+    return true;
+  }
+
+  try {
+    return await handleTextIntentAfterLifecycleBegin(userId);
+  } catch (error) {
+    await markMessageProcessed(lifecycleHandle);
+    throw error;
+  }
+
+  async function handleTextIntentAfterLifecycleBegin(userId: number): Promise<TextIntentHandlingResult> {
   const safety = inspectWhatsAppUserContentSafety(text, "text");
   if (!safety.safe) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -477,6 +548,28 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: `Conteudo bloqueado por seguranca antes do roteamento textual: ${safety.categories.join(", ") || "security_guard"}.`,
       status: "warning",
       occurredAtMs,
+      lifecycleHandle,
+    });
+    return true;
+  }
+
+  // Precedência obrigatória (issue #766): comando explícito `/` e pendência operacional
+  // ativa são resolvidos em um único ponto compartilhado, antes de qualquer classificação
+  // de intenção (exclusão, ajuste, substituição, LLM etc).
+  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt });
+  if (precedenceGate.step !== "continue_pipeline") {
+    markTextIntentMessageHandled(message.id);
+    await clearPendingTextIntentContext(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: precedenceGate.result.reply,
+      eventType: precedenceGate.result.eventType,
+      detail: precedenceGate.result.detail,
+      status: "success",
+      occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -490,7 +583,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     const professionalAccessResponse = await processProfessionalAccessWhatsappResponse(userId, text);
     if (professionalAccessResponse) {
       markTextIntentMessageHandled(message.id);
-      pendingTextIntentContexts.delete(userId);
+      await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
         userId,
         sourcePhone,
@@ -508,7 +601,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const weightLog = detectWeightLogFromText(text);
   if (weightLog?.kind === "clarification") {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -518,6 +611,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: "Pedido de peso sem valor explícito válido.",
       status: "warning",
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -530,7 +624,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     });
 
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -540,6 +634,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: `Peso de ${formatNumber(weightLog.weightKg)} kg registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.`,
       status: "success",
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -559,6 +654,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
           detail: "Falha ao registrar hidratação em mensagem multi-linha com alimentos.",
           status: "warning",
           occurredAtMs,
+          lifecycleHandle,
         });
         markTextIntentMessageHandled(message.id);
         return true;
@@ -575,17 +671,18 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional após separar mensagem multi-linha.",
       status: "success",
       occurredAtMs,
+      lifecycleHandle,
     });
     return { passthroughText: mixedWaterFood.foodText };
   }
 
-  const pendingContext = getPendingTextIntentContext(userId);
+  const pendingContext = await getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
   const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent });
   if (deleteIntentResult) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -595,6 +692,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       detail: deleteIntentResult.detail,
       status: "warning",
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -602,7 +700,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const mealListResult = await executeWhatsappMealListIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (mealListResult) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -613,6 +711,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       status: mealListResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId(mealListResult.data),
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -620,7 +719,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const contextualReplacementResult = await executeWhatsappContextualFoodReplacementIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (contextualReplacementResult) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -631,6 +730,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       status: contextualReplacementResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId(contextualReplacementResult.data),
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -638,7 +738,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const gramsAdjustmentResult = await executeWhatsappGramsAdjustmentIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (gramsAdjustmentResult) {
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
+    await clearPendingTextIntentContext(userId);
     await sendAndLogTextReply({
       userId,
       sourcePhone,
@@ -649,6 +749,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       status: gramsAdjustmentResult.action === "clarification_needed" ? "warning" : "success",
       mealId: extractMealId("data" in gramsAdjustmentResult ? gramsAdjustmentResult.data : undefined),
       occurredAtMs,
+      lifecycleHandle,
     });
     return true;
   }
@@ -675,13 +776,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     const unknownFoodReply = buildUnknownFoodReply(text);
     if (!unknownFoodReply) return false;
     markTextIntentMessageHandled(message.id);
-    pendingTextIntentContexts.delete(userId);
-    await sendAndLogTextReply({ userId, sourcePhone, userMessage: text, reply: unknownFoodReply, eventType: "whatsapp.intent.food_not_found", detail: "Alimento simples informado por texto não encontrado no catálogo antes da inferência nutricional.", status: "warning", occurredAtMs });
+    await clearPendingTextIntentContext(userId);
+    await sendAndLogTextReply({ userId, sourcePhone, userMessage: text, reply: unknownFoodReply, eventType: "whatsapp.intent.food_not_found", detail: "Alimento simples informado por texto não encontrado no catálogo antes da inferência nutricional.", status: "warning", occurredAtMs, lifecycleHandle });
     return true;
   }
 
   markTextIntentMessageHandled(message.id);
-  rememberPendingTextIntentContext(userId, result);
+  await rememberPendingTextIntentContext(userId, result);
   await sendAndLogTextReply({
     userId,
     sourcePhone,
@@ -692,8 +793,10 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     status: getWhatsAppIntentLogStatus(result.action),
     mealId: extractMealId(result.data),
     occurredAtMs,
+    lifecycleHandle,
   });
   return true;
+  }
 }
 
 function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Set<string>, textOverrides = new Map<string, string>()) {

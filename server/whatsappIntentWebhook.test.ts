@@ -10,8 +10,97 @@ const updateUserCurrentWeightMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
+const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock } = vi.hoisted(() => ({
+  beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  recordOutboundReplyMock: vi.fn(async () => undefined),
+  recordDomainLinkMock: vi.fn(async () => undefined),
+  markMessageProcessedMock: vi.fn(async () => undefined),
+}));
+
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: beginInboundMessageMock,
+  recordOutboundReply: recordOutboundReplyMock,
+  recordDomainLink: recordDomainLinkMock,
+  markMessageProcessed: markMessageProcessedMock,
+  wasMessageAlreadyProcessed: vi.fn(async () => false),
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  enrichInboundMessage: vi.fn(async () => true),
+}));
+
+vi.mock("drizzle-orm", () => ({
+  eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  desc: (col: { name: string }) => ({ __op: "desc", col }),
+  and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
+}));
+
+type FakeDbRow = Record<string, unknown>;
+type FakeDbCondition =
+  | { __op: "eq"; col: { name: string }; val: unknown }
+  | { __op: "and"; conditions: FakeDbCondition[] }
+  | { __op: "desc"; col: { name: string } };
+
+function createFakePendingOperationDb() {
+  let rows: FakeDbRow[] = [];
+  let nextId = 1;
+
+  function matches(row: FakeDbRow, condition?: FakeDbCondition): boolean {
+    if (!condition) return true;
+    if (condition.__op === "eq") return row[condition.col.name] === condition.val;
+    if (condition.__op === "and") return condition.conditions.every(inner => matches(row, inner));
+    return true;
+  }
+
+  function createSelectChain() {
+    let whereCondition: FakeDbCondition | undefined;
+    let limitValue: number | undefined;
+    const resolve = () => {
+      let result = rows.filter(row => matches(row, whereCondition));
+      result = [...result].sort((a, b) => (b.id as number) - (a.id as number));
+      if (limitValue !== undefined) result = result.slice(0, limitValue);
+      return result.map(row => ({ ...row }));
+    };
+    const chain: any = {
+      from: vi.fn(() => chain),
+      where: vi.fn((condition: FakeDbCondition) => { whereCondition = condition; return chain; }),
+      orderBy: vi.fn(() => chain),
+      limit: vi.fn((value: number) => { limitValue = value; return Promise.resolve(resolve()); }),
+    };
+    return chain;
+  }
+
+  return {
+    select: vi.fn(() => ({ from: vi.fn(() => createSelectChain()) })),
+    insert: vi.fn(() => ({
+      values: vi.fn((payload: FakeDbRow) => {
+        const id = nextId++;
+        rows.push({ id, ...payload });
+        return Promise.resolve({ insertId: id });
+      }),
+    })),
+    update: vi.fn(() => {
+      let setPayload: FakeDbRow = {};
+      const chain: any = {
+        set: vi.fn((payload: FakeDbRow) => { setPayload = payload; return chain; }),
+        where: vi.fn((condition: FakeDbCondition) => {
+          const matching = rows.filter(row => matches(row, condition));
+          for (const row of matching) Object.assign(row, setPayload);
+          return Promise.resolve({ affectedRows: matching.length });
+        }),
+      };
+      return chain;
+    }),
+    reset() {
+      rows = [];
+      nextId = 1;
+    },
+  };
+}
+
+const fakePendingOperationDb = createFakePendingOperationDb();
 
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => fakePendingOperationDb),
+  logPersistenceWarning: vi.fn(),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getUserNutritionGoal: getUserNutritionGoalMock,
   listUserExercises: listUserExercisesMock,
@@ -147,6 +236,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-03T12:00:00.000Z"));
     __resetWhatsAppTextIntentContextForTests();
+    fakePendingOperationDb.reset();
     sentMessages = [];
     sentPayloads = [];
     getUserIdByWhatsappPhoneMock.mockReset();
@@ -159,6 +249,11 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     tryCreateQuickEditLinkForMealMock.mockReset();
+    beginInboundMessageMock.mockReset();
+    recordOutboundReplyMock.mockReset();
+    recordDomainLinkMock.mockReset();
+    markMessageProcessedMock.mockReset();
+    beginInboundMessageMock.mockResolvedValue({ conversationId: 1, messageId: 1 });
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
@@ -207,6 +302,16 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.water_logged",
     }));
     expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
+    expect(beginInboundMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      externalMessageId: "water-yesterday",
+      contentType: "text",
+    }));
+    expect(recordOutboundReplyMock).toHaveBeenCalledWith(
+      { conversationId: 1, messageId: 1 },
+      expect.objectContaining({ userId: 42, text: expect.stringContaining("Registrei 500 ml de água") }),
+    );
+    expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
   });
 
   it("registra peso pela intenção textual e não delega para criação de refeição", async () => {

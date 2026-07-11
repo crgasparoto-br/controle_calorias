@@ -11,7 +11,19 @@ const annotatedWebhookMock = vi.fn();
 const listMealsMock = vi.fn();
 const processProfessionalAccessWhatsappResponseMock = vi.fn();
 
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: vi.fn(async () => null),
+  recordOutboundReply: vi.fn(async () => undefined),
+  recordDomainLink: vi.fn(async () => undefined),
+  markMessageProcessed: vi.fn(async () => undefined),
+  wasMessageAlreadyProcessed: vi.fn(async () => false),
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  enrichInboundMessage: vi.fn(async () => true),
+}));
+
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => null),
+  logPersistenceWarning: vi.fn(),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getUserNutritionGoal: getUserNutritionGoalMock,
   listUserExercises: listUserExercisesMock,

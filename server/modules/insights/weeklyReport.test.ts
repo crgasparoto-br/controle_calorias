@@ -139,6 +139,31 @@ describe("weekly report summary contract", () => {
     }));
   });
 
+  it("não soma exercícios na meta ajustada quando includeExerciseCalories está desativado", async () => {
+    goalMocks.getNutritionGoalForDate.mockResolvedValue({
+      today: {
+        calories: 2000,
+        proteinGrams: 150,
+        carbsGrams: 220,
+        fatGrams: 65,
+        label: "Meta padrão",
+        shortLabel: "Meta",
+        includeExerciseCalories: false,
+      },
+    });
+    dbMocks.listUserExercises.mockResolvedValue([exercise()]);
+
+    const { weekly: report } = await getWeeklyReport(77, 0);
+    const exercisedDay = report.find(day => day.exerciseCalories === 300);
+
+    expect(exercisedDay).toEqual(expect.objectContaining({
+      exerciseCalories: 300,
+      goalCalories: 2000,
+      adjustedGoalCalories: 2000,
+      netCalories: -300,
+    }));
+  });
+
   it("inclui exercícios no progresso semanal consolidado", async () => {
     dbMocks.listUserExercises.mockResolvedValue([exercise()]);
 

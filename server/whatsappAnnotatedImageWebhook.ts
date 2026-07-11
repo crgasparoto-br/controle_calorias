@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserDayMealTotals, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
 import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
+import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import {
   buildSuspiciousWhatsAppContentReply,
@@ -14,7 +16,6 @@ import {
   downloadWhatsAppMedia,
   extensionFromMimeType,
   extractWhatsAppWebhookMessages,
-  formatDateKeyInSaoPaulo,
   getExtractedWhatsAppMessageKey,
   isWhatsAppMessageForConfiguredChannel,
   markWhatsAppMessageAsRead,
@@ -29,6 +30,13 @@ import {
 import { MealInferenceError, processMealInput, type MealProcessingResult } from "./nutritionEngine";
 import { storagePut } from "./storage";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
+import {
+  beginInboundMessage,
+  markMessageProcessed,
+  recordDomainLink,
+  recordOutboundReply,
+  type MessageLifecycleHandle,
+} from "./modules/whatsapp/messageLifecycle";
 
 type SavedMedia = ReturnType<typeof buildSavedMedia>;
 
@@ -49,8 +57,7 @@ type PreparedImageMessage = {
   storageWarning?: string;
 };
 
-const recentlyHandledAnnotatedImageMessageIds = new Map<string, number>();
-const ANNOTATED_IMAGE_DEDUPLICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const annotatedImageMessageDeduplicationCache = createMessageDeduplicationCache();
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
 const PROCESSING_ERROR_REPLY = "Não consegui processar essa imagem agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 const ANNOTATED_IMAGE_UNAVAILABLE_REPLY = "A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.";
@@ -64,28 +71,12 @@ function canHandleAnnotatedImageMessage(message: WhatsAppWebhookMessage) {
   return Boolean(message.image?.id && !message.audio?.id);
 }
 
-function pruneRecentlyHandledAnnotatedImageMessageIds(now = Date.now()) {
-  for (const [messageId, expiresAt] of recentlyHandledAnnotatedImageMessageIds) {
-    if (expiresAt <= now) {
-      recentlyHandledAnnotatedImageMessageIds.delete(messageId);
-    }
-  }
-}
-
 function wasAnnotatedImageMessageAlreadyHandled(messageId?: string) {
-  if (!messageId) {
-    return false;
-  }
-
-  const now = Date.now();
-  pruneRecentlyHandledAnnotatedImageMessageIds(now);
-  return recentlyHandledAnnotatedImageMessageIds.has(messageId);
+  return annotatedImageMessageDeduplicationCache.wasAlreadyHandled(messageId);
 }
 
 function markAnnotatedImageMessageHandled(messageId?: string) {
-  if (messageId) {
-    recentlyHandledAnnotatedImageMessageIds.set(messageId, Date.now() + ANNOTATED_IMAGE_DEDUPLICATION_TTL_MS);
-  }
+  annotatedImageMessageDeduplicationCache.markHandled(messageId);
 }
 
 function formatReplyTime(date: Date) {
@@ -94,29 +85,6 @@ function formatReplyTime(date: Date) {
     minute: "2-digit",
     timeZone: "America/Sao_Paulo",
   });
-}
-
-async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date) {
-  try {
-    const [goalSummary, dayTotals] = await Promise.all([
-      getUserNutritionGoal(userId),
-      getUserDayMealTotals(userId, formatDateKeyInSaoPaulo(occurredAt)),
-    ]);
-
-    return {
-      consumedCalories: dayTotals.totals.calories,
-      goalCalories: goalSummary.today.calories,
-    };
-  } catch (error) {
-    logInferenceEvent({
-      userId,
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.goal_progress_warning",
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao calcular progresso da meta para resposta do WhatsApp.",
-    });
-    return null;
-  }
 }
 
 async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedImageMessage> {
@@ -404,6 +372,7 @@ async function sendAnnotatedImageFallbackText(input: {
   userId: number;
   sourcePhone: string;
   reply: string;
+  lifecycleHandle?: MessageLifecycleHandle;
 }) {
   const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
   if (!replyResult.ok) {
@@ -414,6 +383,8 @@ async function sendAnnotatedImageFallbackText(input: {
       eventType: "whatsapp.reply_failed",
       detail: `Falha ao enviar fallback da imagem anotada para ${input.sourcePhone}: ${replyResult.detail}`,
     });
+  } else {
+    await recordOutboundReply(input.lifecycleHandle ?? null, { userId: input.userId, text: input.reply });
   }
 }
 
@@ -431,12 +402,24 @@ async function tryHandleAnnotatedImageMessage(
   }
 
   let userId: number | null = null;
+  let lifecycleHandle: MessageLifecycleHandle = null;
 
   try {
     userId = await getUserIdByWhatsappPhone(sourcePhone);
     if (!userId) {
       return false;
     }
+
+    lifecycleHandle = await beginInboundMessage({
+      userId,
+      whatsappConnectionId: null,
+      phoneNumber: sourcePhone,
+      externalMessageId: message.id,
+      contentType: message.audio?.id ? "multimodal" : "image",
+      captionText: getTextBody(message) || null,
+      occurredAt: resolveWhatsAppMessageOccurredAt(message),
+      allowRawContentStorage: true,
+    });
 
     const readResult = await markWhatsAppMessageAsRead(message.id);
     if (!readResult.ok) {
@@ -480,6 +463,7 @@ async function tryHandleAnnotatedImageMessage(
         userId,
         sourcePhone,
         reply: buildSuspiciousWhatsAppContentReply(),
+        lifecycleHandle,
       });
       markAnnotatedImageMessageHandled(message.id);
       return true;
@@ -491,7 +475,7 @@ async function tryHandleAnnotatedImageMessage(
     if (captionText) {
       const deleteResult = await executeWhatsappDeleteIntent(userId, { text: captionText });
       if (deleteResult) {
-        await sendAnnotatedImageFallbackText({ userId, sourcePhone, reply: deleteResult.reply });
+        await sendAnnotatedImageFallbackText({ userId, sourcePhone, reply: deleteResult.reply, lifecycleHandle });
         markAnnotatedImageMessageHandled(message.id);
         return true;
       }
@@ -511,7 +495,7 @@ async function tryHandleAnnotatedImageMessage(
       const notRecognizedReply = prepared.text?.trim()
         ? `Não consegui identificar alimentos na imagem com segurança suficiente. Tente descrever o que você comeu em texto para eu registrar corretamente.`
         : `Não consegui identificar alimentos nessa foto. Tente tirar uma foto com melhor iluminação ou descreva o que você comeu em texto.`;
-      await sendAnnotatedImageFallbackText({ userId, sourcePhone, reply: notRecognizedReply });
+      await sendAnnotatedImageFallbackText({ userId, sourcePhone, reply: notRecognizedReply, lifecycleHandle });
       markAnnotatedImageMessageHandled(message.id);
       return true;
     }
@@ -554,6 +538,7 @@ async function tryHandleAnnotatedImageMessage(
       savedMeal,
     );
     const replyMeal = consolidationResult.meal;
+    await recordDomainLink(lifecycleHandle, { mealId: replyMeal.id });
 
     logInferenceEvent({
       userId,
@@ -586,6 +571,9 @@ async function tryHandleAnnotatedImageMessage(
         detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
       });
     }
+    if (replyResult.ok) {
+      await recordOutboundReply(lifecycleHandle, { userId, text: mealReplyText });
+    }
 
     const imageSource = getAnnotatedImageSource(annotatedImage);
     const imageReplyResult = await sendAnnotatedImageToWhatsApp({ sourcePhone, annotatedImage });
@@ -612,6 +600,7 @@ async function tryHandleAnnotatedImageMessage(
           userId,
           sourcePhone,
           reply: ANNOTATED_IMAGE_SEND_FAILED_REPLY,
+          lifecycleHandle,
         });
       } else {
         logInferenceEvent({
@@ -645,6 +634,7 @@ async function tryHandleAnnotatedImageMessage(
         userId,
         sourcePhone,
         reply: ANNOTATED_IMAGE_UNAVAILABLE_REPLY,
+        lifecycleHandle,
       });
     }
 
@@ -672,10 +662,14 @@ async function tryHandleAnnotatedImageMessage(
         eventType: "whatsapp.reply_failed",
         detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
       });
+    } else if (userId) {
+      await recordOutboundReply(lifecycleHandle, { userId, text: PROCESSING_ERROR_REPLY });
     }
 
     markAnnotatedImageMessageHandled(message.id);
     return true;
+  } finally {
+    await markMessageProcessed(lifecycleHandle);
   }
 }
 

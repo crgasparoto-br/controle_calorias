@@ -290,3 +290,11 @@ export async function executeWhatsappAiQuestionIntent(
     };
   }
 }
+
+export const contextUsage: import("./intentContext").IntentContextUsage = {
+  usesRecentWindow: false,
+  usesSummary: false,
+  usesPendingOperation: false,
+  usesLongTermMemory: false,
+  requiresFreshDbQuery: false,
+};

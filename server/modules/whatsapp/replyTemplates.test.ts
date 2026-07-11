@@ -61,4 +61,20 @@ describe("replyTemplates", () => {
       "* Déficit: 1.035 kcal",
     ]);
   });
+
+  it("mostra exercícios sem somá-los à meta ajustada quando includeExerciseCalories está desativado", () => {
+    expect(buildWhatsAppGoalProgressLines({
+      consumedCalories: 1165,
+      goalCalories: 2000,
+      exerciseCalories: 200,
+      includeExerciseCalories: false,
+    })).toEqual([
+      "Meta de hoje:",
+      "* Meta estimada: 2.000 kcal",
+      "* Exercícios: 200 kcal",
+      "* Meta ajustada: 2.000 kcal",
+      "* Consumo: 1.165 kcal",
+      "* Déficit: 835 kcal",
+    ]);
+  });
 });

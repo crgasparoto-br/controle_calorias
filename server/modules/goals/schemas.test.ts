@@ -21,6 +21,21 @@ const validException = {
 };
 
 describe("goalSchema", () => {
+  it("assume includeExerciseCalories habilitado quando não informado", () => {
+    const parsed = goalSchema.parse(validGoalInput);
+
+    expect(parsed.includeExerciseCalories).toBe(true);
+  });
+
+  it("aceita includeExerciseCalories desabilitado explicitamente", () => {
+    const parsed = goalSchema.parse({
+      ...validGoalInput,
+      includeExerciseCalories: false,
+    });
+
+    expect(parsed.includeExerciseCalories).toBe(false);
+  });
+
   it("aceita data de início explícita para versionar a meta geral", () => {
     const parsed = goalSchema.parse({
       ...validGoalInput,

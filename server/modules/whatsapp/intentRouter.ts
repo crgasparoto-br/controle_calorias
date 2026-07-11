@@ -1,4 +1,6 @@
 import type { CanonicalWhatsappIntentName } from "./canonicalIntentSchema";
+import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
+import { joinUnitWords } from "./quantityUnitVocabulary";
 
 export type WhatsappPendingContextKind = "selection" | "quantity" | "confirmation" | "professional_decision";
 
@@ -43,15 +45,23 @@ type NumericAdjustmentCommand = {
 
 const FOOD_REGISTRATION_WORDS = /\b(?:comi|almocei|jantei|lanchei|ceei|tomei|bebi|registre|registrar|adicionar|adicione|inclua|incluir)\b/;
 const FOOD_OR_MEAL_WORDS = /\b(?:arroz|feijao|feijao|banana|frango|carne|ovo|ovos|pao|cafe|leite|iogurte|aveia|salada|macarrao|batata|refeicao|almoco|jantar|lanche|ceia|agua|hidratacao)\b/;
-const QUANTITY_WITH_UNIT = /\b\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|mg|ml|l|litros?|un|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?|porcao)\b/;
+const QUANTITY_WITH_UNIT = new RegExp(
+  `\\b\\d+(?:[,.]\\d+)?\\s*(?:${joinUnitWords(["gramas", "quilosOnly", "miligramas", "mililitrosOnly", "litros", "unidades", "fatias", "xicarasPlain", "copos", "colheresGeneric", "porcoesPlain"])})\\b`,
+);
 const SHORT_CONFIRMATION = /^(?:s|sim|nao|não|ok|certo|confirmo|cancelar|cancela)$/i;
 const ISOLATED_NUMBER = /^\d+(?:[,.]\d+)?$/;
 const OPTION_SELECTION = /^(?:opcao\s*)?\d+$/;
-const MATH_WITH_UNIT = /^\s*\d+(?:[,.]\d+)?(?:\s*[+\-*/]\s*\d+(?:[,.]\d+)?)+\s*(?:g|gr|gramas?|kg|mg|ml|l|litros?)\s*$/i;
+const MATH_WITH_UNIT = new RegExp(
+  `^\\s*\\d+(?:[,.]\\d+)?(?:\\s*[+\\-*/]\\s*\\d+(?:[,.]\\d+)?)+\\s*(?:${joinUnitWords(["gramas", "quilosOnly", "miligramas", "mililitrosOnly", "litros"])})\\s*$`,
+  "i",
+);
 const QUESTION_WORDS = /\b(?:por que|porque|como|qual|quais|posso|devo|vale a pena|faz mal|faz bem)\b/;
 const FOOD_QUESTION_WORDS = /\b(?:tem muita caloria|tem poucas calorias|quantas calorias|calorico|calorica|engorda|e bom|e ruim|vale a pena)\b/;
 const ANALYSIS_CONTEXT_QUESTION_WORDS = /\b(?:meta|objetivo|caloria alvo|deficit|superavit|evolucao|progresso|resultado|estou indo bem|como estou|qualidade|ultraprocessado|ultra processado|saudavel|balanceado|bom ou ruim|melhorar alimentacao)\b/;
-const NUMERIC_ADJUSTMENT_WITH_UNIT = /^\s*(somar|soma|some|adicionar|adicione|adiciona|acrescentar|acrescente|aumentar|aumente|corrigir|corrija|ajustar|ajuste|alterar|altere)\s+(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|mg|ml|l|litros?|un|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?|porcao)\b(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
+const NUMERIC_ADJUSTMENT_WITH_UNIT = new RegExp(
+  `^\\s*(somar|soma|some|adicionar|adicione|adiciona|acrescentar|acrescente|aumentar|aumente|corrigir|corrija|ajustar|ajuste|alterar|altere)\\s+(\\d+(?:[,.]\\d+)?)\\s*(${joinUnitWords(["gramas", "quilosOnly", "miligramas", "mililitrosOnly", "litros", "unidades", "fatias", "xicarasPlain", "copos", "colheresGeneric", "porcoesPlain"])})\\b(?:\\s+(?:de\\s+|do\\s+|da\\s+|no\\s+|na\\s+)?(.+))?\\s*$`,
+  "i",
+);
 const NUMERIC_REMOVAL_COMMAND = /^\s*(excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete)\s+(\d+(?:[,.]\d+)?)(?:\s+(?:de\s+|do\s+|da\s+|no\s+|na\s+)?(.+))?\s*$/i;
 const ANALYSIS_REQUEST_WORDS = /\b(?:analise|analisar|avalie|avaliar|resuma|resumo|relatorio|historico|grafico|visualizacao|sugira|sugestao|meta|objetivo|evolucao|progresso|qualidade|consulta)\b/;
 const HEALTH_URGENCY_WORDS = /\b(?:passando mal|passei mal|desmaio|desmaiando|desmaiei|dor no peito|falta de ar|nao consigo respirar|pressao alta|pressao esta alta|pressao muito alta|hipoglicemia|convulsao|sangramento|emergencia|urgencia|socorro)\b/;
@@ -60,12 +70,8 @@ const DIET_CARE_WORDS = /\b(?:jejum|dieta cetogenica|low carb|suplemento|creatin
 const PROFESSIONAL_OR_PRESCRIPTION_WORDS = /\b(?:nutricionista|medico|profissional|prescrever|prescricao|receita|tratamento|plano terapeutico|conduta)\b/;
 
 function normalizeText(value?: string | null) {
-  return value
-    ?.normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim() ?? "";
+  if (!value) return "";
+  return collapseWhitespace(stripDiacritics(value).toLowerCase());
 }
 
 function routeDecision(input: Omit<WhatsappIntentRouteDecision, "eventType" | "detail">): WhatsappIntentRouteDecision {
@@ -210,7 +216,10 @@ function evaluateArithmeticExpression(expression: string) {
 }
 
 function parseMathWithUnit(text: string) {
-  const match = text.match(/^\s*((?:\d+(?:[,.]\d+)?\s*[+\-*/]\s*)+\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|mg|ml|l|litros?)\s*$/i);
+  const match = text.match(new RegExp(
+    `^\\s*((?:\\d+(?:[,.]\\d+)?\\s*[+\\-*/]\\s*)+\\d+(?:[,.]\\d+)?)\\s*(${joinUnitWords(["gramas", "quilosOnly", "miligramas", "mililitrosOnly", "litros"])})\\s*$`,
+    "i",
+  ));
   if (!match) return null;
   const expression = match[1].replace(/,/g, ".");
   if (!/^[\d.+\-*/\s]+$/.test(expression)) return null;

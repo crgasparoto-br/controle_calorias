@@ -11,8 +11,25 @@ const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
 const transcribeAudioMock = vi.fn();
 const storagePutMock = vi.fn();
+const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock } = vi.hoisted(() => ({
+  beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  recordOutboundReplyMock: vi.fn(async () => undefined),
+  recordDomainLinkMock: vi.fn(async () => undefined),
+  markMessageProcessedMock: vi.fn(async () => undefined),
+}));
+
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: beginInboundMessageMock,
+  recordOutboundReply: recordOutboundReplyMock,
+  recordDomainLink: recordDomainLinkMock,
+  markMessageProcessed: markMessageProcessedMock,
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  enrichInboundMessage: vi.fn(async () => true),
+}));
 
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => null),
+  logPersistenceWarning: vi.fn(),
   buildSavedMedia: vi.fn((input) => input),
   confirmPendingMeal: confirmPendingMealMock,
   createPendingMealInference: createPendingMealInferenceMock,
@@ -223,6 +240,11 @@ describe("whatsappWebhook smoke", () => {
       ],
       totals: { calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
     });
+    beginInboundMessageMock.mockReset();
+    recordOutboundReplyMock.mockReset();
+    recordDomainLinkMock.mockReset();
+    markMessageProcessedMock.mockReset();
+    beginInboundMessageMock.mockResolvedValue({ conversationId: 1, messageId: 1 });
     transcribeAudioMock.mockReset();
     transcribeAudioMock.mockResolvedValue({
       task: "transcribe",
@@ -268,6 +290,11 @@ describe("whatsappWebhook smoke", () => {
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({ method: "POST" }),
     );
+    expect(beginInboundMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 123,
+      contentType: "text",
+    }));
+    expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
   });
 
   it("registra água como hidratação sem criar refeição", async () => {
@@ -293,6 +320,7 @@ describe("whatsappWebhook smoke", () => {
         body: expect.stringContaining("Registrei 250 ml de água"),
       }),
     );
+    expect(recordDomainLinkMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 }, { waterLogId: 789 });
   });
 
   it("registra peso atual sem criar refeição", async () => {

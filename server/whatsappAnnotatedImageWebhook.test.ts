@@ -15,8 +15,25 @@ const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
 const storagePutMock = vi.fn();
 const fallbackWebhookMock = vi.fn();
+const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock } = vi.hoisted(() => ({
+  beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  recordOutboundReplyMock: vi.fn(async () => undefined),
+  recordDomainLinkMock: vi.fn(async () => undefined),
+  markMessageProcessedMock: vi.fn(async () => undefined),
+}));
+
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: beginInboundMessageMock,
+  recordOutboundReply: recordOutboundReplyMock,
+  recordDomainLink: recordDomainLinkMock,
+  markMessageProcessed: markMessageProcessedMock,
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  enrichInboundMessage: vi.fn(async () => true),
+}));
 
 vi.mock("./db", () => ({
+  getDb: vi.fn(async () => null),
+  logPersistenceWarning: vi.fn(),
   buildSavedMedia: vi.fn((input: Record<string, unknown>) => ({
     id: String(input.storageKey).includes("annotated") ? 202 : 101,
     ...input,
@@ -173,6 +190,11 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     createLocalMealPhotoOverlayMock.mockReset();
     storagePutMock.mockReset();
     fallbackWebhookMock.mockReset();
+    beginInboundMessageMock.mockReset();
+    recordOutboundReplyMock.mockReset();
+    recordDomainLinkMock.mockReset();
+    markMessageProcessedMock.mockReset();
+    beginInboundMessageMock.mockResolvedValue({ conversationId: 1, messageId: 1 });
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getHabitSnapshotsMock.mockResolvedValue([]);
@@ -339,6 +361,17 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
         caption: "Imagem anotada com os alimentos identificados.",
       },
     ]);
+    expect(beginInboundMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      contentType: "image",
+      captionText: "meu almoço",
+    }));
+    expect(recordDomainLinkMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 }, { mealId: 10 });
+    expect(recordOutboundReplyMock).toHaveBeenCalledWith(
+      { conversationId: 1, messageId: 1 },
+      expect.objectContaining({ userId: 42, text: expect.stringContaining("Almoço Registrado") }),
+    );
+    expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
   });
 
   it("consolida a foto na refeição lógica existente do mesmo dia", async () => {

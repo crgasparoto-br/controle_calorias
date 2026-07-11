@@ -31,6 +31,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Mensagens de consulta como `refeições registradas` não devem cair na resposta de alimento incompleto.
 - Quando o usuário informar alimentos junto de uma refeição válida ainda inexistente, o backend pode criar a refeição automaticamente se a intenção validada permitir `createIfMissing`.
 - Envios de imagem e áudio pelo WhatsApp devem tentar usar o contexto ativo e a refeição lógica compatível do mesmo dia antes de criar um novo bloco de refeição.
+- A mensagem inbound deve permanecer única pelo `message.id` da Meta; depois do download ou da transcrição, a mesma entrada persistida deve ser enriquecida com transcrição sanitizada e referência opaca de mídia, sem criar outro turno.
+- Falha ao enriquecer o contexto persistente não pode bloquear o processamento nutricional já possível; o sistema deve seguir com o fallback seguro e registrar somente metadados operacionais.
 - O horário da mensagem deve permanecer como metadado para exibição, ordenação, auditoria e interpretação temporal, mas não deve ser usado sozinho como chave de identidade ou agrupamento da refeição.
 - Comandos posteriores, como ajustes e exclusões por alimento, devem procurar primeiro no contexto lógico seguro do dia/refeição, não apenas no último bloco criado pela última mensagem.
 - Quando o usuário informar nome específico de produto, marca, linha, versão ou tipo/qualificador em texto, o registro exibido deve preservar esse nome sempre que ele for compatível com a referência nutricional usada internamente.
@@ -69,6 +71,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Baixa confiança ou ambiguidade gera pergunta contextual antes de alterar dados.
 - Casos reais como troca de alimento, inclusão em refeição inexistente e consulta de refeições registradas ficam cobertos por testes de regressão.
 - Imagem ou áudio enviado após uma refeição compatível no mesmo dia não cria novo bloco apenas porque chegou em outro horário; o conteúdo deve ser consolidado ou associado à refeição lógica segura.
+- Imagem persistida e áudio transcrito enriquecem a mesma mensagem inbound capturada pelo webhook, mantendo uma única chave idempotente e sem duplicar turno, resposta ou registro de domínio.
 - Exclusão por alimento, como `Excluir o chocolate`, busca candidatos no contexto lógico do dia/refeição e pede confirmação quando houver ambiguidade.
 - Nome específico informado pelo usuário, como produto, marca ou tipo/qualificador, é preservado na exibição mesmo quando a referência nutricional/canônica usada internamente for genérica.
 - Marca e tipo/qualificador informados no texto influenciam o match nutricional antes do fallback para alimento genérico.
