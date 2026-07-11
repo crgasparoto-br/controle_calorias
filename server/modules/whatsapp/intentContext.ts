@@ -18,6 +18,7 @@ import {
   type WhatsappContextFlow,
   type WhatsappContextReadMode,
 } from "./conversationContextRollout";
+import { compareWhatsappIntentInShadow, isShadowIntentComparisonEnabled } from "./shadowIntentComparison";
 
 const MAX_CONTEXT_MEALS = 6;
 const MAX_CONTEXT_ITEMS_PER_MEAL = 8;
@@ -138,7 +139,7 @@ function buildLegacyTurns(userId: number, receivedAt: Date) {
   ]);
 }
 
-function excludeCurrentInboundMessage(
+function splitCurrentInboundMessage(
   messages: WhatsAppConversationMessageRecord[],
   receivedAt: Date,
 ) {
@@ -151,9 +152,13 @@ function excludeCurrentInboundMessage(
       break;
     }
   }
+
   return currentIndex < 0
-    ? messages
-    : messages.filter((_message, index) => index !== currentIndex);
+    ? { messages, currentInbound: null }
+    : {
+        messages: messages.filter((_message, index) => index !== currentIndex),
+        currentInbound: messages[currentIndex],
+      };
 }
 
 export async function buildWhatsappIntentContext(
@@ -186,17 +191,18 @@ export async function buildWhatsappIntentContext(
   });
 
   const persistedMessages = await conversationRepository.findRecentMessagesByUser(userId, RECENT_MESSAGES_FETCH_LIMIT);
-  const contextMessages = excludeCurrentInboundMessage(persistedMessages, receivedAt);
+  const { messages: contextMessages, currentInbound } = splitCurrentInboundMessage(persistedMessages, receivedAt);
   const { window, overflow, truncated } = selectRecentWindow(contextMessages, budget);
   const persistentTurns = window.map(message => ({
     direction: message.direction,
     text: getEffectiveMessageText(message) || null,
     occurredAtIso: new Date(message.occurredAt).toISOString(),
   }));
+  const legacyTurns = buildLegacyTurns(userId, receivedAt);
   const rolloutSelection = selectWhatsappConversationContext({
     userId,
     flow,
-    legacyTurns: buildLegacyTurns(userId, receivedAt),
+    legacyTurns,
     persistentTurns,
   });
 
@@ -205,14 +211,53 @@ export async function buildWhatsappIntentContext(
     lastMessage && receivedAt.getTime() - new Date(lastMessage.occurredAt).getTime() < WHATSAPP_CONVERSATION_ACTIVE_TTL_MS,
   );
 
-  let conversationSummary: WhatsappIntentContext["conversationSummary"] = null;
-  if (overflow.length > 0 && rolloutSelection.source === "persistent") {
-    conversationSummary = await getOrRefreshConversationSummary({
+  const compareStructuredIntent = rolloutSelection.mode === "shadow"
+    && rolloutSelection.persistentEligible
+    && isShadowIntentComparisonEnabled();
+  let persistentSummary: WhatsappIntentContext["conversationSummary"] = null;
+  if (overflow.length > 0 && (rolloutSelection.source === "persistent" || compareStructuredIntent)) {
+    persistentSummary = await getOrRefreshConversationSummary({
       userId,
       conversationId: overflow[0].conversationId,
       messagesBeyondWindow: overflow,
     });
   }
+
+  const commonContext = {
+    version: "whatsapp-intent-context/v2" as const,
+    nowIso: receivedAt.toISOString(),
+    timezone: SAO_PAULO_TIME_ZONE,
+    mealAliases: {
+      "café da manhã": ["cafe da manha", "café", "cafe", "manha", "manhã", "desjejum"],
+      "almoço": ["almoco"],
+      jantar: ["janta"],
+      lanche: ["lanche da tarde", "lanche da manha", "lanche da manhã"],
+      ceia: [],
+    },
+    currentDomainSnapshot: {
+      latestMeal: compactMeals[0] ?? null,
+      mealsToday,
+      recentFoodNames,
+    },
+    contextualMemories: memoryContext.llmContext,
+    pendingClarification: options.pendingClarification ?? null,
+    conversationActive,
+    truncated,
+  };
+  const contextRead = {
+    mode: rolloutSelection.mode,
+    flow: rolloutSelection.flow,
+    persistentEligible: rolloutSelection.persistentEligible,
+    equivalent: rolloutSelection.equivalent,
+    legacyCount: rolloutSelection.legacyCount,
+    persistentCount: rolloutSelection.persistentCount,
+  };
+  const selectedContext: WhatsappIntentContext = {
+    ...commonContext,
+    recentTurns: rolloutSelection.turns,
+    conversationSummary: rolloutSelection.source === "persistent" ? persistentSummary : null,
+    contextRead: { ...contextRead, source: rolloutSelection.source },
+  };
 
   logInferenceEvent({
     userId,
@@ -222,7 +267,7 @@ export async function buildWhatsappIntentContext(
     detail: JSON.stringify({
       messageCount: contextMessages.length,
       capturedMessageCount: persistedMessages.length,
-      currentInboundExcluded: contextMessages.length !== persistedMessages.length,
+      currentInboundExcluded: Boolean(currentInbound),
       contextSource: rolloutSelection.source,
       contextMode: rolloutSelection.mode,
       contextFlow: rolloutSelection.flow,
@@ -230,6 +275,7 @@ export async function buildWhatsappIntentContext(
       equivalent: rolloutSelection.equivalent,
       legacyCount: rolloutSelection.legacyCount,
       persistentCount: rolloutSelection.persistentCount,
+      structuredShadowComparison: compareStructuredIntent,
       contextVersion: "whatsapp-intent-context/v2",
       conversationActive,
     }),
@@ -262,36 +308,26 @@ export async function buildWhatsappIntentContext(
     });
   }
 
-  return {
-    version: "whatsapp-intent-context/v2",
-    nowIso: receivedAt.toISOString(),
-    timezone: SAO_PAULO_TIME_ZONE,
-    mealAliases: {
-      "café da manhã": ["cafe da manha", "café", "cafe", "manha", "manhã", "desjejum"],
-      "almoço": ["almoco"],
-      jantar: ["janta"],
-      lanche: ["lanche da tarde", "lanche da manha", "lanche da manhã"],
-      ceia: [],
-    },
-    currentDomainSnapshot: {
-      latestMeal: compactMeals[0] ?? null,
-      mealsToday,
-      recentFoodNames,
-    },
-    contextualMemories: memoryContext.llmContext,
-    pendingClarification: options.pendingClarification ?? null,
-    recentTurns: rolloutSelection.turns,
-    conversationSummary,
-    conversationActive,
-    truncated,
-    contextRead: {
-      mode: rolloutSelection.mode,
-      flow: rolloutSelection.flow,
-      source: rolloutSelection.source,
-      persistentEligible: rolloutSelection.persistentEligible,
-      equivalent: rolloutSelection.equivalent,
-      legacyCount: rolloutSelection.legacyCount,
-      persistentCount: rolloutSelection.persistentCount,
-    },
-  };
+  const currentText = currentInbound ? getEffectiveMessageText(currentInbound).trim() : "";
+  if (compareStructuredIntent && currentText && persistentTurns.length > 0) {
+    await compareWhatsappIntentInShadow({
+      userId,
+      text: currentText,
+      flow,
+      legacyContext: {
+        ...commonContext,
+        recentTurns: legacyTurns,
+        conversationSummary: null,
+        contextRead: { ...contextRead, source: "legacy" },
+      },
+      persistentContext: {
+        ...commonContext,
+        recentTurns: persistentTurns,
+        conversationSummary: persistentSummary,
+        contextRead: { ...contextRead, source: "persistent" },
+      },
+    });
+  }
+
+  return selectedContext;
 }
