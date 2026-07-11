@@ -24,6 +24,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   markMessageProcessed: markMessageProcessedMock,
   runWithMessageLifecycleRequestScope: async (operation: () => Promise<unknown>) => operation(),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  enrichInboundMessage: vi.fn(async () => true),
 }));
 
 vi.mock("./whatsappIntentWebhook", () => ({

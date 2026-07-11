@@ -23,6 +23,8 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,
   wasMessageAlreadyProcessed: vi.fn(async () => false),
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  enrichInboundMessage: vi.fn(async () => true),
 }));
 
 vi.mock("drizzle-orm", () => ({
