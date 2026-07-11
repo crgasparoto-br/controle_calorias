@@ -10,9 +10,12 @@ import { withWhatsAppMediaPersistenceCorrelations } from "./modules/whatsapp/med
 function buildMediaCorrelations(payload: unknown) {
   return extractIndexedWhatsAppWebhookMessages(payload).flatMap(({ message }) => {
     if (!message.id) return [];
-    const mediaIds = [message.image?.id, message.audio?.id].filter((value): value is string => Boolean(value));
-    return mediaIds.map(mediaId => ({
-      mediaId,
+
+    return ([
+      ...(message.image?.id ? ["image" as const] : []),
+      ...(message.audio?.id ? ["audio" as const] : []),
+    ]).map(mediaType => ({
+      mediaType,
       externalMessageId: message.id as string,
       onStored: async (stored: { externalMessageId: string; storageKey: string; mimeType: string }) => {
         await enrichInboundMessage(stored.externalMessageId, {
