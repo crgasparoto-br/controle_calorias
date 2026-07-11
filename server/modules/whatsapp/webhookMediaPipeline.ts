@@ -10,7 +10,7 @@ import {
   buildWhatsAppAudioTranscriptionFailureReplyMessage,
   buildWhatsAppPartialAudioTranscriptionReplyMessage,
 } from "./replyMessages";
-import { enrichInboundMessage } from "./messageLifecycle";
+import * as messageLifecycle from "./messageLifecycle";
 import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
@@ -143,7 +143,9 @@ async function enrichPersistedConversationMessage(message: WhatsAppWebhookMessag
   const primaryMedia = prepared.media[0];
   if (!prepared.transcript?.trim() && !primaryMedia) return;
 
-  await enrichInboundMessage(message.id, {
+  const enrich = (messageLifecycle as Partial<typeof messageLifecycle>).enrichInboundMessage;
+  if (!enrich) return;
+  await enrich(message.id, {
     transcript: prepared.transcript,
     mediaStorageKey: primaryMedia?.storageKey,
     mediaMimeType: primaryMedia?.mimeType,
