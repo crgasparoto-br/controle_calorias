@@ -73,11 +73,16 @@ jobs:
         run: |
           pnpm exec vitest run \
             server/whatsappPersistentContextWebhook.test.ts \
+            server/whatsappImageIdempotencyWebhook.failure.test.ts \
             server/whatsappIntentWebhook.selection.test.ts \
             server/modules/whatsapp/deleteIntent.selection.test.ts \
             server/modules/whatsapp/conversationContextRollout.test.ts \
             server/modules/whatsapp/intentContext.rollout.test.ts \
+            server/modules/whatsapp/intentContext.currentMessage.test.ts \
+            server/modules/whatsapp/intentContext.shadowComparison.test.ts \
+            server/modules/whatsapp/shadowIntentComparison.test.ts \
             server/modules/whatsapp/messageLifecycle.processingClaim.test.ts \
+            server/modules/whatsapp/messageDeduplicationCache.test.ts \
             server/modules/whatsapp/webhookMediaPipeline.test.ts \
             server/repositories/whatsappConversationMessageEnrichmentRepository.test.ts
 
