@@ -1,0 +1,91 @@
+name: WhatsApp context TiDB gate
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/**"
+      - "server/modules/whatsapp/**"
+      - "server/repositories/whatsapp**"
+      - "server/whatsapp*Webhook*.ts"
+      - ".github/workflows/whatsapp-context-tidb.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tidb-context-regression:
+    name: TiDB context regression
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+      WHATSAPP_CONTEXT_READ_MODE: persistent
+      WHATSAPP_CONTEXT_ROLLOUT_PERCENT: "100"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start TiDB
+        run: |
+          docker run -d --name whatsapp-context-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if (echo > /dev/tcp/127.0.0.1/4000) >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs whatsapp-context-tidb
+          exit 1
+
+      - name: Create validation database
+        run: |
+          node --input-type=module <<'NODE'
+          import mysql from "mysql2/promise";
+          const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" });
+          await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias");
+          await connection.end();
+          NODE
+
+      - name: Apply repository migrations
+        run: pnpm exec drizzle-kit migrate
+
+      - name: Validate referential integrity
+        run: pnpm db:check-integrity
+
+      - name: Run persistent context regression
+        env:
+          DATABASE_URL: ""
+        run: |
+          pnpm exec vitest run \
+            server/whatsappPersistentContextWebhook.test.ts \
+            server/whatsappImageIdempotencyWebhook.failure.test.ts \
+            server/whatsappIntentWebhook.selection.test.ts \
+            server/modules/whatsapp/deleteIntent.selection.test.ts \
+            server/modules/whatsapp/conversationContextRollout.test.ts \
+            server/modules/whatsapp/intentContext.rollout.test.ts \
+            server/modules/whatsapp/intentContext.currentMessage.test.ts \
+            server/modules/whatsapp/intentContext.shadowComparison.test.ts \
+            server/modules/whatsapp/shadowIntentComparison.test.ts \
+            server/modules/whatsapp/messageLifecycle.processingClaim.test.ts \
+            server/modules/whatsapp/messageDeduplicationCache.test.ts \
+            server/modules/whatsapp/webhookMediaPipeline.test.ts \
+            server/repositories/whatsappConversationMessageEnrichmentRepository.test.ts
+
+      - name: Show TiDB logs on failure
+        if: failure()
+        run: docker logs whatsapp-context-tidb

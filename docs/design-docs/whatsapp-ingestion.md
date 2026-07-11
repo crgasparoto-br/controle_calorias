@@ -18,6 +18,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Normalização compartilhada de unidades em `shared/measurementUnits.ts`, aplicada antes da interpretação textual do WhatsApp.
 - Configuração por variáveis `WHATSAPP_*`.
 - Persistência de vínculo em `whatsappConnections`.
+- Enriquecimento pós-download/transcrição em `server/modules/whatsapp/webhookMediaPipeline.ts`, que atualiza a mesma mensagem inbound pelo `message.id` da Meta.
 
 ## Invariantes
 
@@ -35,6 +36,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Apenas mensagens de texto puro, sem imagem e sem áudio, podem ser tratadas pelo interpretador de ações antes do acknowledgement e antes do fluxo nutricional.
 - Áudios sem imagem podem ser transcritos e, depois da resposta inicial de processamento, a transcrição pode ser tratada pelo mesmo interpretador de ações antes da inferência nutricional.
 - Captions de imagem continuam no caminho multimodal normal e não devem ser interceptadas como intenção, para não perder a análise visual da foto.
+- Depois do download ou da transcrição, a linha inbound já criada deve ser enriquecida pela chave idempotente `whatsapp:inbound:<message.id>` com transcrição sanitizada e referência opaca da mídia persistida; esse enriquecimento não cria um segundo turno.
+- Quando o storage falhar, a transcrição válida ainda deve enriquecer a mensagem persistida. Falha no banco de contexto não bloqueia inferência ou domínio e não pode gerar confirmação falsa de persistência contextual.
 - Textos recebidos pelo WhatsApp devem passar por normalização segura de unidades antes da interpretação estruturada, do interpretador determinístico e do fallback nutricional. Exemplos: `mo` com quantidade numérica pode ser corrigido para `ml`, `grs` para `g` e `kgs` para `kg`.
 - Conversões massa-volume só devem ser automáticas quando houver densidade confiável para o alimento ou bebida. Exemplo: leite integral pode converter `g` para `ml` usando densidade documentada; alimentos sólidos sem densidade não devem ser convertidos silenciosamente.
 - Textos que descrevem apenas consumo de água com quantidade explícita devem atualizar hidratação, não criar refeição ou item alimentar.
@@ -82,6 +85,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 
 - Testar texto, imagem e áudio mockados.
 - Testar que texto, imagem e áudio inbound são marcados como lidos e recebem resposta inicial de processamento quando seguem para o fluxo nutricional normal.
+- Testar que imagem persistida e áudio transcrito enriquecem a mesma mensagem inbound identificada pelo `message.id`, sem criar nova mensagem ou vínculo de domínio.
+- Testar que a transcrição enriquece o contexto mesmo quando o upload da mídia falha, sem persistir data URL ou token temporário.
 - Testar que uma reentrega do mesmo `message.id` de imagem não reenvia acknowledgement nem delega novamente ao fluxo nutricional.
 - Testar que resposta final de refeição pode incluir link de edição rápida opaco quando o token é gerado com sucesso.
 - Testar que falha na geração do link de edição rápida não impede registro nem resposta principal.

@@ -272,7 +272,11 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
 
     expect(request).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      eventType: "whatsapp.intent.delete_food_clarification_needed",
+      eventType: "whatsapp.intent.delete_food_selection_requested",
+      data: expect.objectContaining({
+        candidateCount: 2,
+        destructiveActionBlocked: true,
+      }),
     }));
     expect(request?.reply).toContain("mais de um alimento parecido");
     expect(request?.reply).toContain("1. Queijo Minas");

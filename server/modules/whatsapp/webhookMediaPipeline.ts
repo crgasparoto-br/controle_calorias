@@ -1,11 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { transcribeAudio, type TranscriptionError } from "../../_core/voiceTranscription";
-import { buildSavedMedia, getUserIdByWhatsappPhone, logInferenceEvent } from "../../db";
+import {
+  buildSavedMedia,
+  getUserIdByWhatsappPhone,
+  logInferenceEvent,
+} from "../../db";
 import { storagePut } from "../../storage";
 import {
   buildWhatsAppAudioTranscriptionFailureReplyMessage,
   buildWhatsAppPartialAudioTranscriptionReplyMessage,
 } from "./replyMessages";
+import * as messageLifecycle from "./messageLifecycle";
 import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
@@ -87,9 +92,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
 }
 
 async function logMediaStorageWarning(sourcePhone: string, warning?: string) {
-  if (!warning) {
-    return;
-  }
+  if (!warning) return;
 
   logInferenceEvent({
     userId: await getUserIdByWhatsappPhone(sourcePhone),
@@ -131,6 +134,22 @@ async function logAudioTranscriptionFailure(sourcePhone: string, failure: AudioT
       blockedMealProcessing: failure.blockedMealProcessing,
       detail: failure.detail,
     }),
+  });
+}
+
+async function enrichPersistedConversationMessage(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
+  if (!message.id) return;
+
+  const primaryMedia = prepared.media[0];
+  if (!prepared.transcript?.trim() && !primaryMedia) return;
+
+  const enrich = (messageLifecycle as Partial<typeof messageLifecycle>).enrichInboundMessage;
+  if (!enrich) return;
+  await enrich(message.id, {
+    transcript: prepared.transcript,
+    mediaStorageKey: primaryMedia?.storageKey,
+    mediaMimeType: primaryMedia?.mimeType,
+    allowRawContentStorage: true,
   });
 }
 
@@ -201,5 +220,6 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
     }
   }
 
+  await enrichPersistedConversationMessage(message, prepared);
   return prepared;
 }
