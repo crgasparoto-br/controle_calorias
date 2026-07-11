@@ -8,7 +8,7 @@ on:
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   agent-check:
@@ -28,11 +28,15 @@ jobs:
           python3 scripts/apply_issue_768_idempotency.py
           python3 scripts/apply_issue_768_rollout.py
           python3 scripts/apply_issue_768_selection.py
-          rm scripts/apply_issue_768_idempotency.py
-          rm scripts/apply_issue_768_rollout.py
-          rm scripts/apply_issue_768_selection.py
-          rm -f .github/workflows/apply-issue-768-fixes.yml
-          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+
+      - name: Capture applied patch
+        run: git diff --binary > issue-768-applied.patch
+
+      - name: Upload applied patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-768-applied-patch
+          path: issue-768-applied.patch
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -73,11 +77,6 @@ jobs:
         if: ${{ env.DATABASE_URL != '' }}
         run: pnpm db:check-integrity
 
-      - name: Commit validated issue 768 fixes
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "fix(whatsapp): resolve persistent context rollout blockers"
-          git push origin HEAD:${{ github.head_ref }}
+      - name: Database integrity check skipped
+        if: ${{ env.DATABASE_URL == '' }}
+        run: echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
