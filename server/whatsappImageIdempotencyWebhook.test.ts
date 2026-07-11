@@ -8,9 +8,18 @@ const logInferenceEventMock = vi.fn();
 
 vi.mock("./db", () => ({
   createUserWaterLog: createUserWaterLogMock,
+  getDb: vi.fn(async () => null),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   listUserExercises: listUserExercisesMock,
   logInferenceEvent: logInferenceEventMock,
+  logPersistenceWarning: vi.fn(),
+}));
+
+vi.mock("./modules/whatsapp/messageLifecycle", () => ({
+  beginInboundMessage: vi.fn(async () => null),
+  claimMessageForProcessing: vi.fn(async () => true),
+  markMessageProcessed: vi.fn(async () => undefined),
+  runWithMessageLifecycleRequestScope: async (operation: () => Promise<unknown>) => operation(),
 }));
 
 vi.mock("./whatsappConfig", () => ({
