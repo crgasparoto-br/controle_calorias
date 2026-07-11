@@ -47,6 +47,8 @@ export type MessageLifecycleService = ReturnType<typeof createMessageLifecycleSe
 type MessageLifecycleScope = {
   service: MessageLifecycleService;
   claimedMessageIds: Set<number>;
+  externalMessageIdByMessageId: Map<number, string>;
+  claimedExternalMessageIds: Set<string>;
 };
 
 export function createMessageLifecycleService(input: {
@@ -164,6 +166,15 @@ const defaultService = createMessageLifecycleService({
 });
 const lifecycleScope = new AsyncLocalStorage<MessageLifecycleScope>();
 
+function createScope(service: MessageLifecycleService, current?: MessageLifecycleScope): MessageLifecycleScope {
+  return {
+    service,
+    claimedMessageIds: current?.claimedMessageIds ?? new Set<number>(),
+    externalMessageIdByMessageId: current?.externalMessageIdByMessageId ?? new Map<number, string>(),
+    claimedExternalMessageIds: current?.claimedExternalMessageIds ?? new Set<string>(),
+  };
+}
+
 function getActiveService() {
   return lifecycleScope.getStore()?.service ?? defaultService;
 }
@@ -172,20 +183,20 @@ export async function withMessageLifecycleService<T>(
   service: MessageLifecycleService,
   operation: () => Promise<T>,
 ): Promise<T> {
-  const current = lifecycleScope.getStore();
-  return lifecycleScope.run({
-    service,
-    claimedMessageIds: current?.claimedMessageIds ?? new Set<number>(),
-  }, operation);
+  return lifecycleScope.run(createScope(service, lifecycleScope.getStore()), operation);
 }
 
 export async function runWithMessageLifecycleRequestScope<T>(operation: () => Promise<T>): Promise<T> {
   if (lifecycleScope.getStore()) return operation();
-  return lifecycleScope.run({ service: defaultService, claimedMessageIds: new Set<number>() }, operation);
+  return lifecycleScope.run(createScope(defaultService), operation);
 }
 
 export async function beginInboundMessage(input: BeginInboundMessageInput): Promise<MessageLifecycleHandle> {
-  return getActiveService().beginInboundMessage(input);
+  const handle = await getActiveService().beginInboundMessage(input);
+  if (handle && input.externalMessageId) {
+    lifecycleScope.getStore()?.externalMessageIdByMessageId.set(handle.messageId, input.externalMessageId);
+  }
+  return handle;
 }
 
 export async function claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
@@ -195,8 +206,17 @@ export async function claimMessageForProcessing(handle: MessageLifecycleHandle, 
   if (scope?.claimedMessageIds.has(handle.messageId)) return true;
 
   const claimed = await getActiveService().claimMessageForProcessing(handle, now);
-  if (claimed) scope?.claimedMessageIds.add(handle.messageId);
+  if (claimed && scope) {
+    scope.claimedMessageIds.add(handle.messageId);
+    const externalMessageId = scope.externalMessageIdByMessageId.get(handle.messageId);
+    if (externalMessageId) scope.claimedExternalMessageIds.add(externalMessageId);
+  }
   return claimed;
+}
+
+/** Permite que caches locais reconheçam um retry legitimamente assumido pelo lease persistente. */
+export function isExternalMessageClaimedInCurrentScope(externalMessageId?: string | null) {
+  return Boolean(externalMessageId && lifecycleScope.getStore()?.claimedExternalMessageIds.has(externalMessageId));
 }
 
 export async function wasMessageAlreadyProcessed(handle: MessageLifecycleHandle): Promise<boolean> {
