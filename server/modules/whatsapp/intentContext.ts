@@ -1,7 +1,7 @@
 import { listMeals } from "../meals/service";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { retrieveWhatsappContextMemory, type WhatsappMemoryRetrievalContext } from "./contextMemory";
-import { createDrizzleWhatsAppConversationRepository, type WhatsAppConversationRepository } from "../../repositories/whatsappConversationRepository";
+import { createDrizzleWhatsAppConversationRepository, type WhatsAppConversationMessageRecord, type WhatsAppConversationRepository } from "../../repositories/whatsappConversationRepository";
 import { getDb, logInferenceEvent, logPersistenceWarning } from "../../db";
 import { WHATSAPP_CONVERSATION_ACTIVE_TTL_MS } from "./conversationPolicy";
 import {
@@ -138,6 +138,24 @@ function buildLegacyTurns(userId: number, receivedAt: Date) {
   ]);
 }
 
+function excludeCurrentInboundMessage(
+  messages: WhatsAppConversationMessageRecord[],
+  receivedAt: Date,
+) {
+  const currentTimestamp = receivedAt.getTime();
+  let currentIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.direction === "inbound" && new Date(message.occurredAt).getTime() === currentTimestamp) {
+      currentIndex = index;
+      break;
+    }
+  }
+  return currentIndex < 0
+    ? messages
+    : messages.filter((_message, index) => index !== currentIndex);
+}
+
 export async function buildWhatsappIntentContext(
   userId: number,
   options: {
@@ -168,7 +186,8 @@ export async function buildWhatsappIntentContext(
   });
 
   const persistedMessages = await conversationRepository.findRecentMessagesByUser(userId, RECENT_MESSAGES_FETCH_LIMIT);
-  const { window, overflow, truncated } = selectRecentWindow(persistedMessages, budget);
+  const contextMessages = excludeCurrentInboundMessage(persistedMessages, receivedAt);
+  const { window, overflow, truncated } = selectRecentWindow(contextMessages, budget);
   const persistentTurns = window.map(message => ({
     direction: message.direction,
     text: getEffectiveMessageText(message) || null,
@@ -199,9 +218,11 @@ export async function buildWhatsappIntentContext(
     userId,
     origin: "whatsapp",
     status: "success",
-    eventType: persistedMessages.length === 0 ? "whatsapp.history.context_missing" : "whatsapp.history.context_found",
+    eventType: contextMessages.length === 0 ? "whatsapp.history.context_missing" : "whatsapp.history.context_found",
     detail: JSON.stringify({
-      messageCount: persistedMessages.length,
+      messageCount: contextMessages.length,
+      capturedMessageCount: persistedMessages.length,
+      currentInboundExcluded: contextMessages.length !== persistedMessages.length,
       contextSource: rolloutSelection.source,
       contextMode: rolloutSelection.mode,
       contextFlow: rolloutSelection.flow,
@@ -233,7 +254,7 @@ export async function buildWhatsappIntentContext(
       status: "success",
       eventType: "whatsapp.history.context_truncated",
       detail: JSON.stringify({
-        originalCount: persistedMessages.length,
+        originalCount: contextMessages.length,
         truncatedCount: window.length,
         reason: "message_budget",
         flow,
