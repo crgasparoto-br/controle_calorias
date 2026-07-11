@@ -1,4 +1,4 @@
-import { isExternalMessageClaimedInCurrentScope } from "./messageLifecycle";
+import * as messageLifecycle from "./messageLifecycle";
 
 export type MessageDeduplicationCache = {
   wasAlreadyHandled: (messageId?: string) => boolean;
@@ -9,24 +9,25 @@ export type MessageDeduplicationCache = {
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const registeredCaches = new Set<MessageDeduplicationCache>();
 
+function hasPersistentClaim(messageId: string) {
+  const checker = (messageLifecycle as Partial<typeof messageLifecycle>).isExternalMessageClaimedInCurrentScope;
+  return checker?.(messageId) ?? false;
+}
+
 export function createMessageDeduplicationCache(ttlMs = DEFAULT_TTL_MS): MessageDeduplicationCache {
   const expiresAtByMessageId = new Map<string, number>();
 
   function prune(now = Date.now()) {
     for (const [messageId, expiresAt] of expiresAtByMessageId) {
-      if (expiresAt <= now) {
-        expiresAtByMessageId.delete(messageId);
-      }
+      if (expiresAt <= now) expiresAtByMessageId.delete(messageId);
     }
   }
 
   const cache: MessageDeduplicationCache = {
     wasAlreadyHandled(messageId) {
       if (!messageId) return false;
-      if (isExternalMessageClaimedInCurrentScope(messageId)) return false;
-
-      const now = Date.now();
-      prune(now);
+      if (hasPersistentClaim(messageId)) return false;
+      prune();
       return expiresAtByMessageId.has(messageId);
     },
     markHandled(messageId) {
