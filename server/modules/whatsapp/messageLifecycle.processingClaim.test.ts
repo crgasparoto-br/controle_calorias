@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMessageLifecycleService } from "./messageLifecycle";
+import {
+  createMessageLifecycleService,
+  markMessageProcessed,
+  withMessageLifecycleService,
+} from "./messageLifecycle";
 
 function createConversationRepository() {
   return {
@@ -57,5 +61,32 @@ describe("messageLifecycle persistent processing claim", () => {
     });
 
     await expect(service.claimMessageForProcessing({ conversationId: 1, messageId: 2, wasNewInsert: false })).resolves.toBe(false);
+  });
+
+  it("só grava processedAt quando o escopo termina com sucesso", async () => {
+    const repository = createConversationRepository();
+    const service = createMessageLifecycleService({ conversationRepository: repository as never });
+    const handle = { conversationId: 1, messageId: 2, wasNewInsert: true };
+
+    await withMessageLifecycleService(service, async () => {
+      await markMessageProcessed(handle, new Date("2026-07-11T01:00:00.000Z"));
+      expect(repository.markProcessed).not.toHaveBeenCalled();
+    });
+
+    expect(repository.markProcessed).toHaveBeenCalledOnce();
+    expect(repository.markProcessed).toHaveBeenCalledWith(2, new Date("2026-07-11T01:00:00.000Z"));
+  });
+
+  it("descarta a finalização pendente quando o escopo falha", async () => {
+    const repository = createConversationRepository();
+    const service = createMessageLifecycleService({ conversationRepository: repository as never });
+    const handle = { conversationId: 1, messageId: 2, wasNewInsert: true };
+
+    await expect(withMessageLifecycleService(service, async () => {
+      await markMessageProcessed(handle);
+      throw new Error("downstream unavailable");
+    })).rejects.toThrow("downstream unavailable");
+
+    expect(repository.markProcessed).not.toHaveBeenCalled();
   });
 });
