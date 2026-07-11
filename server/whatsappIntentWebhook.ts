@@ -20,15 +20,18 @@ import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/
 import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
 import { listMeals } from "./modules/meals/service";
 import {
+  collapseWhitespace,
   extractWhatsAppWebhookMessages,
   getExtractedWhatsAppMessageKey,
   isWhatsAppMessageForConfiguredChannel,
   resolveWhatsAppMessageOccurredAt,
   sendWhatsAppInteractiveUrlButtonMessage,
   sendWhatsAppTextMessage,
+  stripDiacritics,
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
+import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { toLogicalDateInTimeZone } from "../shared/timeZone";
@@ -63,7 +66,25 @@ const pendingOperationRepository = createDrizzleWhatsAppPendingOperationReposito
   getDb,
   onWarning: logPersistenceWarning,
 });
-const SIMPLE_FOOD_QUANTITY_UNIT_PATTERN = "g|gr|gramas?|kg|quilos?|mg|ml|m\\s*l|mililitros?|l|litros?|un|unidades?|fatias?|pedacos?|xicaras?|copos?|colheres?|doses?|scoops?|long\\s*neck|longneck|latas?|garrafas?|porcoes?|porcao";
+const SIMPLE_FOOD_QUANTITY_UNIT_PATTERN = joinUnitWords([
+  "gramas",
+  "quilos",
+  "miligramas",
+  "mililitrosCompact",
+  "litros",
+  "unidades",
+  "fatias",
+  "pedacos",
+  "xicarasPlain",
+  "copos",
+  "colheresGeneric",
+  "doses",
+  "scoops",
+  "longNeck",
+  "latas",
+  "garrafas",
+  "porcoesPlain",
+]);
 const MIN_WEIGHT_LOG_KG = 25;
 const MAX_WEIGHT_LOG_KG = 350;
 const UNKNOWN_FOOD_REPLY = [
@@ -81,13 +102,7 @@ function canInterpretTextIntent(message: WhatsAppWebhookMessage) {
 }
 
 function normalizeText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return collapseWhitespace(stripDiacritics(value).toLowerCase().replace(/[^a-z0-9\s]/g, " "));
 }
 
 function looksLikeTonicWaterFood(text: string) {
@@ -96,10 +111,7 @@ function looksLikeTonicWaterFood(text: string) {
 }
 
 function normalizeTextPreservingQuantities(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+  return stripDiacritics(value).toLowerCase();
 }
 
 function formatNumber(value: number) {

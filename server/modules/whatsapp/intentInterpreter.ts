@@ -8,6 +8,8 @@ import {
   type WhatsappInterpretedIntent,
   whatsappIntentJsonSchema,
 } from "./intentSchema";
+import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
+import { joinUnitWords } from "./quantityUnitVocabulary";
 import type { WhatsappIntentOperationalTrace, WhatsappIntentValidationStatus } from "./intentAuditLog";
 import type { WhatsappIntentContext } from "./intentContext";
 import { detectWhatsappDeleteIntent, toWhatsappDeleteInterpretedIntent } from "./deleteIntent";
@@ -45,13 +47,7 @@ const LEARNED_ALIAS_INTENTS = new Set<WhatsappIntentName>([
 ]);
 
 function normalizeText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s:,.]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return collapseWhitespace(stripDiacritics(value).toLowerCase().replace(/[^\p{L}\p{N}\s:,.]/gu, " "));
 }
 
 function cleanFoodText(value?: string | null) {
@@ -64,7 +60,10 @@ function cleanFoodText(value?: string | null) {
 }
 
 function parseQuantity(value: string) {
-  const match = value.match(/(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|ml|l|fatias?|x[ií]caras?|copos?|un|unidades?)\b/i);
+  const match = value.match(new RegExp(
+    `(\\d+(?:[,.]\\d+)?)\\s*(${joinUnitWords(["gramas", "quilosOnly", "mililitrosOnly", "litrosOnly", "fatias", "xicarasAccented", "copos", "unidades"])})\\b`,
+    "i",
+  ));
   if (!match) {
     return null;
   }

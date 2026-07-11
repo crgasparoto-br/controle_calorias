@@ -78,12 +78,16 @@ export function formatDateKeyInSaoPaulo(date: Date) {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
+export function stripDiacritics(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+export function collapseWhitespace(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 export function normalizeWhatsAppIntentText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+  return stripDiacritics(value).toLowerCase().trim();
 }
 
 export function getWhatsAppMessageTextBody(message: Pick<WhatsAppWebhookMessage, "text" | "image">) {

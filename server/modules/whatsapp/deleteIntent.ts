@@ -4,6 +4,7 @@ import { listMeals, removeMeal, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { formatWhatsAppConsolidationDateKey } from "./mealConsolidation";
 import type { WhatsappInterpretedIntent } from "./intentSchema";
+import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 
 export type WhatsappDeleteIntentKind = "delete_food_from_meal" | "delete_meal" | "unknown_delete";
 
@@ -74,13 +75,7 @@ const UNKNOWN_DELETE_REPLY = [
 ].join("\n\n");
 
 function normalizeDeleteIntentText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return collapseWhitespace(stripDiacritics(value).toLowerCase().replace(/[^a-z0-9\s]/g, " "));
 }
 
 function normalizeMealLabelForDelete(label: string) {
