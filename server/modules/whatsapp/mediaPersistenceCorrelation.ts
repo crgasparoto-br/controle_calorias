@@ -1,8 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
+type WhatsappMediaType = "image" | "audio";
+
 type StoredMediaCorrelation = {
-  mediaId: string;
+  mediaType: WhatsappMediaType;
   externalMessageId: string;
+  consumed?: boolean;
   onStored: (input: { externalMessageId: string; storageKey: string; mimeType: string }) => Promise<void>;
 };
 
@@ -16,17 +19,25 @@ export async function withWhatsAppMediaPersistenceCorrelations<T>(
   return correlationStorage.run(correlations, operation);
 }
 
+function resolveWhatsappIncomingMediaType(sourceKey: string): WhatsappMediaType | null {
+  const normalized = sourceKey.toLowerCase();
+  if (normalized.startsWith("whatsapp/image/")) return "image";
+  if (normalized.startsWith("whatsapp/audio/")) return "audio";
+  return null;
+}
+
 export async function notifyWhatsAppMediaPersisted(
   sourceKey: string,
   storedKey: string,
   mimeType: string,
 ): Promise<void> {
   const correlations = correlationStorage.getStore();
-  if (!correlations?.length) return;
+  const mediaType = resolveWhatsappIncomingMediaType(sourceKey);
+  if (!mediaType || !correlations?.length) return;
 
-  const normalizedSourceKey = sourceKey.toLowerCase();
-  const match = correlations.find(candidate => normalizedSourceKey.includes(candidate.mediaId.toLowerCase()));
+  const match = correlations.find(candidate => candidate.mediaType === mediaType && !candidate.consumed);
   if (!match) return;
+  match.consumed = true;
 
   await match.onStored({
     externalMessageId: match.externalMessageId,
