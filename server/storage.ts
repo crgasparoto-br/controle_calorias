@@ -4,6 +4,7 @@
 
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { ENV } from "./_core/env";
+import { notifyWhatsAppMediaPersisted } from "./modules/whatsapp/mediaPersistenceCorrelation";
 
 type ForgeStorageConfig = { baseUrl: string; apiKey: string };
 type R2StorageConfig = {
@@ -146,21 +147,13 @@ function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "");
 }
 
-function appendHashSuffix(relKey: string): string {
-  const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
-  const segmentStart = relKey.lastIndexOf("/");
-  const lastDot = relKey.lastIndexOf(".");
-  if (lastDot === -1 || lastDot <= segmentStart) return `${relKey}_${hash}`;
-  return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
-}
-
 function extensionFromKey(relKey: string) {
   const lastSegment = normalizeKey(relKey).split("/").pop() ?? "";
   const lastDot = lastSegment.lastIndexOf(".");
   return lastDot > 0 ? lastSegment.slice(lastDot) : "";
 }
 
-function buildOpaqueR2Key(relKey: string, publicRead = false) {
+function buildOpaqueStorageKey(relKey: string, publicRead = false) {
   const prefix = publicRead ? "public" : "private";
   const extension = extensionFromKey(relKey);
   return `${prefix}/media/${crypto.randomUUID()}${extension}`;
@@ -311,15 +304,14 @@ export async function storagePut(
   options: StoragePutOptions = {},
 ): Promise<{ key: string; url: string }> {
   const storage = getStorageConfig();
-  const normalizedKey = normalizeKey(relKey);
+  const normalizedSourceKey = normalizeKey(relKey);
+  const opaqueKey = buildOpaqueStorageKey(normalizedSourceKey, options.publicRead);
+  const stored = storage.provider === "r2"
+    ? await putToR2Storage(storage.config, opaqueKey, data, contentType, options)
+    : await putToForgeStorage(storage.config, opaqueKey, data, contentType);
 
-  if (storage.provider === "r2") {
-    const key = buildOpaqueR2Key(normalizedKey, options.publicRead);
-    return putToR2Storage(storage.config, key, data, contentType, options);
-  }
-
-  const key = appendHashSuffix(normalizedKey);
-  return putToForgeStorage(storage.config, key, data, contentType);
+  await notifyWhatsAppMediaPersisted(normalizedSourceKey, stored.key, contentType);
+  return stored;
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
