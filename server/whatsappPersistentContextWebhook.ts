@@ -5,7 +5,7 @@ import {
   enrichInboundMessage,
   runWithMessageLifecycleRequestScope,
 } from "./modules/whatsapp/messageLifecycle";
-import { withWhatsAppMediaPersistenceCorrelations } from "./modules/whatsapp/mediaPersistenceCorrelation";
+import { withStoragePersistenceCorrelations } from "./storagePersistenceCorrelation";
 
 function buildMediaCorrelations(payload: unknown) {
   return extractIndexedWhatsAppWebhookMessages(payload).flatMap(({ message }) => {
@@ -32,7 +32,7 @@ function buildMediaCorrelations(payload: unknown) {
 export async function handleWhatsAppPersistentContextWebhook(req: Request, res: Response) {
   const correlations = buildMediaCorrelations(req.body);
   return runWithMessageLifecycleRequestScope(() =>
-    withWhatsAppMediaPersistenceCorrelations(correlations, () =>
+    withStoragePersistenceCorrelations(correlations, () =>
       handleWhatsAppWebhookWithImageIdempotency(req, res),
     ),
   );
