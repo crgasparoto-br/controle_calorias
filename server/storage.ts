@@ -147,13 +147,21 @@ function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "");
 }
 
+function appendHashSuffix(relKey: string): string {
+  const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  const segmentStart = relKey.lastIndexOf("/");
+  const lastDot = relKey.lastIndexOf(".");
+  if (lastDot === -1 || lastDot <= segmentStart) return `${relKey}_${hash}`;
+  return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
+}
+
 function extensionFromKey(relKey: string) {
   const lastSegment = normalizeKey(relKey).split("/").pop() ?? "";
   const lastDot = lastSegment.lastIndexOf(".");
   return lastDot > 0 ? lastSegment.slice(lastDot) : "";
 }
 
-function buildOpaqueStorageKey(relKey: string, publicRead = false) {
+function buildOpaqueR2Key(relKey: string, publicRead = false) {
   const prefix = publicRead ? "public" : "private";
   const extension = extensionFromKey(relKey);
   return `${prefix}/media/${crypto.randomUUID()}${extension}`;
@@ -304,13 +312,12 @@ export async function storagePut(
   options: StoragePutOptions = {},
 ): Promise<{ key: string; url: string }> {
   const storage = getStorageConfig();
-  const normalizedSourceKey = normalizeKey(relKey);
-  const opaqueKey = buildOpaqueStorageKey(normalizedSourceKey, options.publicRead);
+  const normalizedKey = normalizeKey(relKey);
   const stored = storage.provider === "r2"
-    ? await putToR2Storage(storage.config, opaqueKey, data, contentType, options)
-    : await putToForgeStorage(storage.config, opaqueKey, data, contentType);
+    ? await putToR2Storage(storage.config, buildOpaqueR2Key(normalizedKey, options.publicRead), data, contentType, options)
+    : await putToForgeStorage(storage.config, appendHashSuffix(normalizedKey), data, contentType);
 
-  await notifyWhatsAppMediaPersisted(normalizedSourceKey, stored.key, contentType);
+  await notifyWhatsAppMediaPersisted(normalizedKey, stored.key, contentType);
   return stored;
 }
 
