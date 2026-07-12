@@ -10,6 +10,11 @@ export type WhatsAppWebhookMessage = {
   text?: { body?: string };
   image?: { id?: string; mime_type?: string; caption?: string };
   audio?: { id?: string; mime_type?: string };
+  interactive?: {
+    type?: "button_reply" | "list_reply";
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string; description?: string };
+  };
 };
 
 export type ExtractedWhatsAppWebhookMessage = WhatsAppWebhookMessage & {
@@ -92,6 +97,19 @@ export function normalizeWhatsAppIntentText(value: string) {
 
 export function getWhatsAppMessageTextBody(message: Pick<WhatsAppWebhookMessage, "text" | "image">) {
   return message.text?.body?.trim() || message.image?.caption?.trim() || "";
+}
+
+/**
+ * ID opaco de uma resposta de botão ou lista interativa (issue #782). Não é texto
+ * livre do usuário: nunca deve ser reinterpretado como comando textual nem passado
+ * ao fallback nutricional. A resolução vive em `interactiveCallback.ts`.
+ */
+export function getWhatsAppInteractiveReplyId(message: Pick<WhatsAppWebhookMessage, "interactive">): string | null {
+  return message.interactive?.button_reply?.id?.trim() || message.interactive?.list_reply?.id?.trim() || null;
+}
+
+export function isWhatsAppInteractiveReplyMessage(message: Pick<WhatsAppWebhookMessage, "interactive">) {
+  return Boolean(getWhatsAppInteractiveReplyId(message));
 }
 
 export async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {

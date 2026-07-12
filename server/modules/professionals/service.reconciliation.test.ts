@@ -36,6 +36,7 @@ async function loadServiceWithDb(db: unknown, logInferenceEvent = vi.fn()) {
     getUserWhatsappConnection: vi.fn(),
     listUserMeals: vi.fn(),
     logInferenceEvent,
+    logPersistenceWarning: vi.fn(),
   }));
   return import("./service");
 }

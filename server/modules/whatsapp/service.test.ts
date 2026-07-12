@@ -17,6 +17,7 @@ vi.mock("../../db", () => ({
   getDb: getDbMock,
   getUserWhatsappConnection: getUserWhatsappConnectionMock,
   logInferenceEvent: logInferenceEventMock,
+  logPersistenceWarning: vi.fn(),
   upsertUserWhatsappConnection: upsertUserWhatsappConnectionMock,
 }));
 
