@@ -441,6 +441,126 @@ export async function sendWhatsAppInteractiveUrlButtonMessage(
   }
 }
 
+export type WhatsAppInteractiveButtonSpec = { id: string; title: string };
+export type WhatsAppInteractiveListRowSpec = { id: string; title: string; description?: string };
+export type WhatsAppInteractiveListSectionSpec = { title?: string; rows: WhatsAppInteractiveListRowSpec[] };
+
+export async function sendWhatsAppInteractiveButtonsMessage(
+  to: string,
+  bodyText: string,
+  buttons: WhatsAppInteractiveButtonSpec[],
+) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de botões.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: { text: bodyText },
+          action: {
+            buttons: buttons.map(button => ({
+              type: "reply",
+              reply: { id: button.id, title: button.title },
+            })),
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio dos botões.`,
+      };
+    }
+
+    return { ok: true, detail: "Botões enviados com sucesso." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar botões do WhatsApp.",
+    };
+  }
+}
+
+export async function sendWhatsAppInteractiveListMessage(
+  to: string,
+  bodyText: string,
+  buttonText: string,
+  sections: WhatsAppInteractiveListSectionSpec[],
+) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de lista.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: bodyText },
+          action: {
+            button: buttonText,
+            sections: sections.map(section => ({
+              ...(section.title ? { title: section.title } : {}),
+              rows: section.rows.map(row => ({
+                id: row.id,
+                title: row.title,
+                ...(row.description ? { description: row.description } : {}),
+              })),
+            })),
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da lista.`,
+      };
+    }
+
+    return { ok: true, detail: "Lista enviada com sucesso." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar lista do WhatsApp.",
+    };
+  }
+}
+
 export async function sendWhatsAppTextMessage(to: string, body: string) {
   let config;
   try {

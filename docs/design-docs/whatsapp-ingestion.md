@@ -10,6 +10,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Serviço de WhatsApp em `server/modules/whatsapp/service.ts`.
 - Interpretação de comandos de texto em `server/modules/whatsapp/intentActions.ts`.
 - Formatação de respostas nutricionais em `server/modules/whatsapp/replyMessages.ts`.
+- Contrato central de resposta em `server/modules/whatsapp/replyContract.ts` e transporte central em `server/modules/whatsapp/replyTransport.ts` (epic #779, issue #781) — ver seção "Contrato central de resposta" abaixo.
 - Edição rápida pública em `server/modules/quickEdit/*`, com token opaco, hash persistido e rota web `/quick-edit/:token`.
 - Wrapper de idempotência de imagens em `server/whatsappImageIdempotencyWebhook.ts`, responsável por absorver reentregas do mesmo `message.id` de imagem antes do processamento pesado.
 - Wrapper do webhook real em `server/whatsappIntentWebhook.ts`, executado antes do fallback de inferência nutricional.
@@ -81,6 +82,34 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Comandos destrutivos por alimento devem procurar no contexto lógico seguro do dia/refeição e considerar `foodName`, `canonicalName` e nomes originais/preservados quando existirem, pedindo confirmação quando houver múltiplos candidatos.
 - O campo `occurredAt` deve continuar disponível como metadado de ocorrência para horário exibido, ordenação, auditoria e interpretação temporal, mas não deve ser usado sozinho como identidade da refeição lógica.
 
+## Contrato central de resposta
+
+A epic #779 substitui, de forma incremental, o envio de payloads brutos da Cloud API dentro dos handlers por um contrato central tipado (issue #781). A migração dos domínios (refeições, resumos/água/peso/exercícios, mídia, IA, onboarding/profissionais/segurança) acontece nas subissues seguintes (#783–#788); esta issue cria apenas a infraestrutura e não altera nenhum fluxo de produção existente.
+
+### Dois níveis
+
+- **Mensagem outbound** (`WhatsAppOutboundMessage`, em `replyContract.ts`): uma unidade física enviada à Cloud API — `text`, `cta_url` (link/CTA, inclusive edição rápida), `buttons` (até 3 botões de resposta), `list` (lista interativa por seções) ou imagem (`image_url`/`image_buffer`).
+- **Resposta lógica** (`WhatsAppLogicalReply`): a sequência ordenada de mensagens físicas que pertence à mesma ação funcional, com um `kind`:
+  - `functional`: resolve a mensagem do usuário; é a única gravada no `messageLifecycle`.
+  - `acknowledgement`: "estou processando"; nunca é gravada como resposta funcional.
+
+Builders de domínio (`replyMessages.ts`, `replyTemplates.ts`) continuam existindo e retornando `string`; `logicalReplyFromLegacyText` adapta esse texto para uma mensagem de texto do contrato sem exigir migração imediata dos fluxos que ainda os consomem diretamente.
+
+### Transporte central
+
+`replyTransport.sendWhatsAppLogicalReply(to, reply, lifecycle?)` é o único serializador de uma resposta lógica:
+
+- Valida restrições do provedor (`validateWhatsAppOutboundMessage`, ex.: máximo de 3 botões, título de até 20 caracteres) antes de qualquer chamada de rede; uma mensagem rejeitada nunca chega à Cloud API e o detalhe de validação nunca é enviado ao usuário.
+- Envia cada mensagem física na ordem definida pelo array `messages`, reutilizando as funções de envio já concentradas em `webhookUtils.ts` (`sendWhatsAppTextMessage`, `sendWhatsAppInteractiveUrlButtonMessage`, `sendWhatsAppInteractiveButtonsMessage`, `sendWhatsAppInteractiveListMessage`, `sendWhatsAppImageMessage`/`sendWhatsAppImageBufferMessage`) — não há nova chamada direta a `graph.facebook.com` fora desse módulo.
+- Grava a resposta funcional no `messageLifecycle` (`recordOutboundReply`) exatamente uma vez por resposta lógica, dependendo apenas do sucesso da mensagem primária (índice 0). Falha em mídia auxiliar (ex.: imagem anotada) não impede a gravação nem repete a mutação de domínio já concluída; falha na mensagem primária não grava outbound e o chamador não deve reexecutar a mutação de domínio nem desviar para outro intent.
+- Quando chamado sem `lifecycle` (ex.: `simulateWhatsappInbound`, que apenas retorna `reply` ao chamador tRPC), não tenta gravar nada — o transporte não cria persistência paralela.
+
+### Compatibilidade incremental
+
+- Um fluxo não pode enviar simultaneamente pelo adapter antigo (`sendWhatsAppTextMessage`/`sendAndLogTextReply` chamados diretamente pelo handler) e pelo novo transporte para a mesma ação; a migração de cada domínio substitui o caminho por completo na subissue correspondente.
+- Formatters de meta que forem adaptados ao contrato central devem receber o valor final calculado pelo domínio e não podem chamar `calculateAdjustedGoalCalories` nem recalcular a regra da #756; o formatter legado `buildWhatsAppGoalProgressLines` ainda faz esse cálculo e será corrigido na migração de resumos/metas (#784), não nesta issue.
+- Adapters legados (`logicalReplyFromLegacyText`, exports antigos de `replyMessages.ts`/`replyTemplates.ts`, funções de envio direto em `webhookUtils.ts`) só são removidos na #788, depois que todos os domínios migrarem.
+
 ## Validação recomendada
 
 - Testar texto, imagem e áudio mockados.
@@ -135,3 +164,8 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar token ausente, telefone oficial usado como telefone de usuário e vínculo inexistente.
 - Testar que resposta outbound usa sempre `WHATSAPP_PHONE_NUMBER_ID`.
 - Testar que importação de exercício novo do Strava envia notificação WhatsApp com botão `Ver resumo do dia` quando houver vínculo ativo.
+- Testar que o contrato central rejeita botões acima do máximo suportado ou com título longo demais antes de qualquer chamada de rede.
+- Testar que o transporte central grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica, mesmo com múltiplas mensagens físicas (texto + imagem auxiliar).
+- Testar que acknowledgement nunca é gravado como resposta funcional pelo transporte central, mesmo com envio bem-sucedido.
+- Testar que falha na mensagem primária do transporte central não grava outbound no lifecycle, e que falha apenas na mídia auxiliar não impede a gravação da resposta já entregue.
+- Testar que o transporte central serializa botões e listas no formato interativo esperado pela Cloud API sem chamada real ao provedor.
