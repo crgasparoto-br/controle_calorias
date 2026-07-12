@@ -8,7 +8,7 @@ import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { createPendingMealItemSelection } from "../mealItemSelectionCallback";
 import { formatTargetMealItemOptions, formatTotalsLine, replaceMealItemFood, toMealItemInput } from "./mealItemHelpers";
-import { resolveTargetMealItemInMeals } from "./mealTargetResolution";
+import { resolveTargetMealItemInMeals, type MealItemTargetCandidate } from "./mealTargetResolution";
 import { formatNumber } from "./textUtils";
 import type { FoodReplacementIntent, WhatsappIntentResult } from "./types";
 
@@ -20,8 +20,7 @@ type PendingReplacementTarget = {
   options: string;
   context: string;
   scopeLabel: string;
-  candidates: Array<{ item: { foodName: string }; index: number }>;
-  meal: { id: number; mealLabel: string };
+  candidates: MealItemTargetCandidate<MutableMealRecord>[];
   toFood: string;
 };
 
@@ -52,8 +51,7 @@ async function ambiguousReplacementReply(input: {
   userId: number;
   targetFood: string;
   toFood: string;
-  candidates: Array<{ item: { foodName: string }; index: number }>;
-  meal: { id: number; mealLabel: string };
+  candidates: MealItemTargetCandidate<MutableMealRecord>[];
   context?: string;
   scopeLabel?: string;
 }): Promise<WhatsappIntentResult> {
@@ -63,8 +61,8 @@ async function ambiguousReplacementReply(input: {
     contextLabel: input.context ?? "na última refeição",
     resultTitle: "Alimento substituído",
     candidates: input.candidates.map(candidate => ({
-      mealId: input.meal.id,
-      mealLabel: input.meal.mealLabel,
+      mealId: candidate.meal.id,
+      mealLabel: candidate.meal.mealLabel,
       itemIndex: candidate.index,
       itemName: candidate.item.foodName,
     })),
@@ -162,7 +160,6 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
         context: contextWithPreposition(target.scope),
         scopeLabel: target.scopeLabel,
         candidates: target.candidates,
-        meal: target.meal,
         toFood: replacement.toFood,
       });
       continue;
@@ -185,18 +182,21 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     });
   }
 
+  // Solicitações com qualquer ambiguidade não podem persistir as ações claras parcialmente.
+  // As alterações acima existem apenas nas cópias em memória; nenhuma chamada a updateMeal ocorreu ainda.
+  if (pendingTargets.length) {
+    const pending = pendingTargets[0];
+    return ambiguousReplacementReply({
+      userId,
+      targetFood: pending.targetFood,
+      toFood: pending.toFood,
+      candidates: pending.candidates,
+      context: pending.context,
+      scopeLabel: pending.scopeLabel,
+    });
+  }
+
   if (applied.length === 0) {
-    if (pendingTargets.length) {
-      return ambiguousReplacementReply({
-        userId,
-        targetFood: pendingTargets[0].targetFood,
-        toFood: pendingTargets[0].toFood,
-        candidates: pendingTargets[0].candidates,
-        meal: pendingTargets[0].meal,
-        context: pendingTargets[0].context,
-        scopeLabel: pendingTargets[0].scopeLabel,
-      });
-    }
     return {
       handled: true,
       action: "clarification_needed",
@@ -213,12 +213,12 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
   const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(userId, mutableMeals[index])));
 
   let actionLines: string[];
-  if (applied.length === 1 && !notFound.length && !pendingTargets.length) {
+  if (applied.length === 1 && !notFound.length) {
     const { from, to, item, scope } = applied[0];
     const recalculationSource = item.source === "catalog" ? "com base no catálogo" : "por estimativa";
     actionLines = [`Troquei ${from} por ${to} ${contextWithPreposition(scope)} e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g. Estimativa: ${formatTotalsLine(item)}.`];
   } else {
-    actionLines = buildMultipleReplacementLines({ applied, notFound, pendingTargets });
+    actionLines = buildMultipleReplacementLines({ applied, notFound, pendingTargets: [] });
   }
 
   const title = applied.length === 1 ? "Alimento substituído" : "Alimentos substituídos";
@@ -227,10 +227,11 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
         title,
         actionLines,
       })
-    : buildWhatsAppAuxiliaryReplyMessage({ title, lines: actionLines });
+    : updatedMeals
+        .map(meal => buildWhatsAppMealActionReplyMessage(meal, { title, actionLines }))
+        .join("\n\n");
 
   const context = replacementContext(applied.map(item => item.scope));
-  const pendingDetail = pendingTargets.length ? ` Alvos ambíguos: ${formatPendingDetails(pendingTargets)}.` : "";
   const notFoundDetail = notFound.length ? ` Alvos não encontrados: ${notFound.join(", ")}.` : "";
 
   return {
@@ -238,7 +239,7 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     action: "meal_item_replaced",
     reply,
     eventType: "whatsapp.intent.meal_item_replaced",
-    detail: `${applied.length} alimento(s) substituído(s) via WhatsApp com macros recalculados. Matches: ${formatAppliedDetails(applied)}. Escopo da busca: ${context}. Ambiguidade: ${pendingTargets.length ? "sim" : "não"}.${pendingDetail}${notFoundDetail}`,
+    detail: `${applied.length} alimento(s) substituído(s) via WhatsApp com macros recalculados. Matches: ${formatAppliedDetails(applied)}. Escopo da busca: ${context}. Ambiguidade: não.${notFoundDetail}`,
     data: {
       mealId: updatedMeals[0]?.id,
       previousFoodName: applied[0].from,
