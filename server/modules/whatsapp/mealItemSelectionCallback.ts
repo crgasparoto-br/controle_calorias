@@ -8,13 +8,6 @@ import { listReply, type WhatsAppLogicalReply } from "./replyContract";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage, buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 
-/**
- * Resolução genérica de ambiguidade para ajuste de gramas e substituição de
- * alimento (issue #783), reutilizando a mesma infraestrutura de botões/lista
- * e `whatsappPendingOperations` já usada pela exclusão (issue #782). Nenhuma
- * mutação ocorre antes da seleção; a pendência é consumida por compare-and-set,
- * igual aos demais tipos de pendência.
- */
 export const PENDING_MEAL_ITEM_SELECTION_TYPE = "meal_item_selection";
 const PENDING_MEAL_ITEM_SELECTION_TTL_MS = 10 * 60 * 1000;
 const PENDING_MEAL_ITEM_SELECTION_ORIGIN = "mealItemSelectionCallback";
@@ -40,12 +33,18 @@ export type MealItemSelectionAction =
   | { kind: "quantity_absolute"; quantity: number; unit: string }
   | { kind: "replace_food"; targetFood: string };
 
+export type MealItemSelectionCompanionAction = {
+  candidate: MealItemSelectionCandidate;
+  action: MealItemSelectionAction;
+};
+
 export type PendingMealItemSelection = {
   targetFood: string | null;
   action: MealItemSelectionAction;
   contextLabel: string;
   resultTitle: string;
   candidates: MealItemSelectionCandidate[];
+  companionActions?: MealItemSelectionCompanionAction[];
 };
 
 export type MealItemSelectionResult = {
@@ -55,7 +54,6 @@ export type MealItemSelectionResult = {
   eventType: string;
   detail: string;
   data: Record<string, unknown>;
-  /** Quando presente, o transporte central deve enviar botões/lista (issue #782) em vez do texto simples de `reply`. */
   interactiveReply?: WhatsAppLogicalReply;
 };
 
@@ -146,10 +144,6 @@ function buildStaleSelectionResult(): MealItemSelectionResult {
   };
 }
 
-/**
- * Persiste a pendência e retorna a pergunta (texto + botões/lista opcional).
- * Nenhuma mutação ocorre aqui — é sempre chamado antes de qualquer escrita.
- */
 export async function createPendingMealItemSelection(userId: number, pending: PendingMealItemSelection): Promise<MealItemSelectionResult> {
   const created = await pendingOperationRepository.createPendingOperation({
     userId,
@@ -170,65 +164,89 @@ export async function createPendingMealItemSelection(userId: number, pending: Pe
   };
 }
 
-async function applySelectionAction(userId: number, candidate: MealItemSelectionCandidate, action: MealItemSelectionAction, resultTitle: string): Promise<MealItemSelectionResult> {
-  const meal = (await listMeals(userId)).find(candidateMeal => candidateMeal.id === candidate.mealId);
-  if (!meal?.items?.length) return buildStaleSelectionResult();
-
+function resolveCandidateIndex(meal: Awaited<ReturnType<typeof listMeals>>[number], candidate: MealItemSelectionCandidate) {
   let resolvedIndex = candidate.itemIndex;
-  const originalItem = meal.items[resolvedIndex];
-  if (!originalItem || normalizeSelectionText(originalItem.foodName ?? "") !== normalizeSelectionText(candidate.itemName)) {
-    const matches = meal.items
-      .map((item, index) => ({ item, index }))
-      .filter(({ item }) => normalizeSelectionText(item.foodName ?? "") === normalizeSelectionText(candidate.itemName));
-    if (matches.length !== 1) return buildStaleSelectionResult();
-    resolvedIndex = matches[0].index;
+  const originalItem = meal.items?.[resolvedIndex];
+  if (originalItem && normalizeSelectionText(originalItem.foodName ?? "") === normalizeSelectionText(candidate.itemName)) {
+    return resolvedIndex;
   }
+  const matches = (meal.items ?? [])
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => normalizeSelectionText(item.foodName ?? "") === normalizeSelectionText(candidate.itemName));
+  return matches.length === 1 ? matches[0].index : null;
+}
 
-  const item = meal.items[resolvedIndex] as MealItemInput;
+function applyActionToItem(item: MealItemInput, action: MealItemSelectionAction) {
   const previousGrams = Number(item.estimatedGrams || 0);
-  let nextItem: MealItemInput;
-  let actionLine: string;
   if (action.kind === "grams_delta") {
     const nextGrams = Math.max(previousGrams + action.delta, 1);
-    nextItem = scaleMealItem(item, nextGrams);
-    actionLine = `${item.foodName}: de ${previousGrams} g para ${nextGrams} g`;
-  } else if (action.kind === "grams_absolute") {
+    return { nextItem: scaleMealItem(item, nextGrams), actionLine: `${item.foodName}: de ${previousGrams} g para ${nextGrams} g` };
+  }
+  if (action.kind === "grams_absolute") {
     const nextGrams = Math.max(action.grams, 1);
-    nextItem = scaleMealItem(item, nextGrams);
-    actionLine = `${item.foodName}: de ${previousGrams} g para ${nextGrams} g`;
-  } else if (action.kind === "quantity_absolute") {
+    return { nextItem: scaleMealItem(item, nextGrams), actionLine: `${item.foodName}: de ${previousGrams} g para ${nextGrams} g` };
+  }
+  if (action.kind === "quantity_absolute") {
     const previousPortion = item.portionText ?? `${previousGrams} g`;
-    nextItem = scaleMealItemQuantity(item, action.quantity, action.unit);
-    actionLine = `${item.foodName}: de ${previousPortion} para ${nextItem.portionText}`;
-  } else {
-    nextItem = replaceMealItemFood(item, action.targetFood);
-    actionLine = `${item.foodName} → ${action.targetFood}`;
+    const nextItem = scaleMealItemQuantity(item, action.quantity, action.unit);
+    return { nextItem, actionLine: `${item.foodName}: de ${previousPortion} para ${nextItem.portionText}` };
+  }
+  return { nextItem: replaceMealItemFood(item, action.targetFood), actionLine: `${item.foodName} → ${action.targetFood}` };
+}
+
+async function applySelectionPlan(
+  userId: number,
+  selected: MealItemSelectionCandidate,
+  pending: PendingMealItemSelection,
+): Promise<MealItemSelectionResult> {
+  const meals = await listMeals(userId);
+  const plan: MealItemSelectionCompanionAction[] = [
+    { candidate: selected, action: pending.action },
+    ...(pending.companionActions ?? []),
+  ];
+  const workingMeals = new Map<number, Awaited<ReturnType<typeof listMeals>>[number]>();
+  const actionLinesByMeal = new Map<number, string[]>();
+
+  for (const step of plan) {
+    const sourceMeal = workingMeals.get(step.candidate.mealId) ?? meals.find(meal => meal.id === step.candidate.mealId);
+    if (!sourceMeal?.items?.length) return buildStaleSelectionResult();
+    const resolvedIndex = resolveCandidateIndex(sourceMeal, step.candidate);
+    if (resolvedIndex === null) return buildStaleSelectionResult();
+    const item = sourceMeal.items[resolvedIndex] as MealItemInput;
+    const { nextItem, actionLine } = applyActionToItem(item, step.action);
+    const nextMeal = {
+      ...sourceMeal,
+      items: sourceMeal.items.map((existingItem, index) => index === resolvedIndex ? nextItem : existingItem),
+    };
+    workingMeals.set(nextMeal.id, nextMeal);
+    actionLinesByMeal.set(nextMeal.id, [...(actionLinesByMeal.get(nextMeal.id) ?? []), actionLine]);
   }
 
-  const nextItems = meal.items.map((existingItem, index) => (index === resolvedIndex ? nextItem : existingItem));
-  const updatedMeal = await updateMeal(userId, {
-    mealId: meal.id,
-    mealLabel: meal.mealLabel,
-    occurredAt: new Date(meal.occurredAt).toISOString(),
-    notes: meal.notes,
-    items: nextItems as MealItemInput[],
-  });
+  const updatedMeals = [];
+  for (const meal of workingMeals.values()) {
+    updatedMeals.push(await updateMeal(userId, {
+      mealId: meal.id,
+      mealLabel: meal.mealLabel,
+      occurredAt: new Date(meal.occurredAt).toISOString(),
+      notes: meal.notes,
+      items: meal.items as MealItemInput[],
+    }));
+  }
 
+  const hasReplacement = plan.some(step => step.action.kind === "replace_food");
   return {
     handled: true,
-    action: action.kind === "replace_food" ? "meal_item_replaced" : "meal_item_grams_adjusted",
-    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, { title: resultTitle, actionLines: [actionLine] }),
-    eventType: action.kind === "replace_food" ? "whatsapp.intent.meal_item_replaced" : "whatsapp.intent.meal_item_grams_adjusted",
-    detail: `Ação aplicada ao item ${item.foodName} após seleção ambígua resolvida pelo WhatsApp.`,
-    data: { mealId: updatedMeal.id, foodName: item.foodName },
+    action: hasReplacement ? "meal_item_replaced" : "meal_item_grams_adjusted",
+    reply: updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, {
+      title: pending.resultTitle,
+      actionLines: actionLinesByMeal.get(meal.id) ?? [],
+    })).join("\n\n"),
+    eventType: hasReplacement ? "whatsapp.intent.meal_item_replaced" : "whatsapp.intent.meal_item_grams_adjusted",
+    detail: `${plan.length} ação(ões) aplicada(s) somente após a seleção ambígua, com revalidação do estado atual.`,
+    data: { mealId: updatedMeals[0]?.id, affectedMealIds: updatedMeals.map(meal => meal.id), actionCount: plan.length },
   };
 }
 
-/**
- * Fallback textual: verifica se há uma pendência de seleção ativa e resolve
- * respostas como "2", "a segunda" ou "cancelar" antes de qualquer outra
- * classificação de intenção (deve ser chamado no início da cadeia).
- */
 export async function resolveTextMealItemSelection(userId: number, text?: string | null): Promise<MealItemSelectionResult | null> {
   const trimmed = text?.trim();
   if (!trimmed) return null;
@@ -270,15 +288,9 @@ export async function resolveTextMealItemSelection(userId: number, text?: string
 
   const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });
   if (!claim.claimed) return null;
-  return applySelectionAction(userId, selected, pending.action, pending.resultTitle);
+  return applySelectionPlan(userId, selected, pending);
 }
 
-/**
- * Resolve um callback de botão/lista já reivindicado (issue #782): o chamador
- * (`messageRouter.ts`) já validou dono/estado/expiração e consumiu a versão,
- * então esta função apenas executa o efeito de domínio correspondente à
- * ação, sem consumir novamente a pendência.
- */
 export async function completeMealItemSelectionInteractiveCallback(
   userId: number,
   pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
@@ -294,7 +306,7 @@ export async function completeMealItemSelectionInteractiveCallback(
     const index = Number(action.slice(SELECT_ACTION_PREFIX.length));
     const selected = pending.candidates[index];
     if (!selected) return buildCallbackResourceNotFoundResult();
-    return applySelectionAction(userId, selected, pending.action, pending.resultTitle);
+    return applySelectionPlan(userId, selected, pending);
   }
 
   return buildCallbackResourceNotFoundResult();
