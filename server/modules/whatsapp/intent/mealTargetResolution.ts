@@ -33,6 +33,8 @@ export type MealItemTargetInMeal<TMeal extends MealWithItems> =
     }
   | {
       kind: "ambiguous";
+      meal: TMeal;
+      mealIndex: number;
       candidates: MealItemTargetCandidate<TMeal>[];
       scope: MealTargetScope;
       scopeLabel: string;
@@ -79,6 +81,8 @@ export function resolveTargetMealItemInMeals<TMeal extends MealWithItems>(
   if (latestTarget.kind === "ambiguous") {
     return {
       kind: "ambiguous",
+      meal: latestMeal,
+      mealIndex: 0,
       candidates: candidatesForMeal(latestMeal, 0, latestTarget.candidates),
       scope: "latest_meal",
       scopeLabel: scopeLabel("latest_meal"),
@@ -124,9 +128,12 @@ export function resolveTargetMealItemInMeals<TMeal extends MealWithItems>(
   }
 
   if (sameDayMatches.length > 1) {
+    const candidates = sameDayMatches.slice(0, 10);
     return {
       kind: "ambiguous",
-      candidates: sameDayMatches.slice(0, 10),
+      meal: candidates[0].meal,
+      mealIndex: candidates[0].mealIndex,
+      candidates,
       scope: "same_day_meals",
       scopeLabel: scopeLabel("same_day_meals"),
     };
