@@ -81,7 +81,8 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
     expect(result?.reply).toContain("*Quantidade corrigida*");
     expect(result?.reply).toContain("Atualizei Cerveja Budweiser: de 330ml para 600ml.");
     expect(result?.reply).toContain("Refeição atualizada:");
-    expect(result?.reply).toContain("• 🥤 Cerveja Budweiser — 600 ml (estimado)");
+    expect(result?.reply).toContain("• 🥤 Cerveja Budweiser — 600 ml");
+    expect(result?.reply).toContain("⚠️ Valores nutricionais estimados pela IA.");
     expect(result?.reply).toContain("Total da refeição:");
   });
 

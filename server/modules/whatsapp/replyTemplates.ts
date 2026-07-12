@@ -78,18 +78,25 @@ export function formatWhatsAppPortionText(item: WhatsAppFoodReplyItem) {
 }
 
 export function formatWhatsAppFoodDescription(item: WhatsAppFoodReplyItem) {
-  const estimationLabel = item.source === "heuristic" ? " (estimado)" : "";
-  return `${item.foodName ?? "Alimento"} — ${formatWhatsAppPortionText(item)}${estimationLabel}`.trim();
+  return `${item.foodName ?? "Alimento"} — ${formatWhatsAppPortionText(item)}`.trim();
 }
 
 export function formatWhatsAppFoodLine(item: WhatsAppFoodReplyItem) {
   return `• ${resolveFoodIcon(item)} ${formatWhatsAppFoodDescription(item)}`;
 }
 
+/** Item cuja nutrição não veio do catálogo confiável e foi estimada pela IA (issue #783). */
+export function isWhatsAppEstimatedFoodItem(item: WhatsAppFoodReplyItem) {
+  return item.source === "heuristic";
+}
+
+export const WHATSAPP_ESTIMATED_NUTRITION_WARNING = "⚠️ Valores nutricionais estimados pela IA.";
+
 export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
   return [
     formatWhatsAppFoodLine(item),
     formatWhatsAppMacroLine(item),
+    ...(isWhatsAppEstimatedFoodItem(item) ? [WHATSAPP_ESTIMATED_NUTRITION_WARNING] : []),
   ];
 }
 

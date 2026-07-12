@@ -187,6 +187,13 @@ describe("executeWhatsappDeleteIntent confirmation by WhatsApp message", () => {
       action: "meal_item_deleted",
       data: expect.objectContaining({ removedFoodName: "Bife entrecote" }),
     }));
+    // Fonte de verdade da resposta (issue #783): mostra a refeição recarregada com os itens restantes e totais atuais,
+    // não apenas o item removido.
+    expect(confirmation?.reply).toContain("Removi Bife entrecote");
+    expect(confirmation?.reply).toContain("Banana prata");
+    expect(confirmation?.reply).toContain("Queijo Minas Padrão Fatiado");
+    expect(confirmation?.reply).not.toContain("Bife entrecote — 150");
+    expect(confirmation?.reply).toContain("Total da refeição");
   });
 
   it("encontra alimento por nome parcial quando ha um unico candidato", async () => {

@@ -203,7 +203,12 @@ describe("executeWhatsappLlmIntent", () => {
   });
 
   it("registra escrita governada com simulacao, idempotencia e ferramenta persistente", async () => {
-    createManualMealMock.mockResolvedValue({ id: 11, mealLabel: "Almoço", occurredAt: "2026-06-12T15:00:00.000Z" });
+    createManualMealMock.mockResolvedValue({
+      id: 11,
+      mealLabel: "Almoço",
+      occurredAt: "2026-06-12T15:00:00.000Z",
+      items: [{ foodName: "Arroz", portionText: "100 g", estimatedGrams: 100, calories: 130, protein: 2.7, carbs: 28, fat: 0.3, source: "catalog" }],
+    });
     interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
       source: "llm",
       validationStatus: "valid",
