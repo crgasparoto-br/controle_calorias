@@ -294,27 +294,6 @@ function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null; items
   return lines;
 }
 
-function formatTotalsLine(totals: NutritionTotals) {
-  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
-}
-
-function buildMealItemSummaryLine(item: { foodName?: string; portionText?: string | null; estimatedGrams?: number; calories?: number; protein?: number; carbs?: number; fat?: number }) {
-  const portion = item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada");
-  return `• ${portion} de ${item.foodName || "alimento"} - ${formatTotalsLine(sumMealItems([item]))}`;
-}
-
-function buildMealFullSummary(meal: { mealLabel?: string | null; items?: Array<{ foodName?: string; portionText?: string | null; estimatedGrams?: number; calories?: number; protein?: number; carbs?: number; fat?: number }> }) {
-  const label = meal.mealLabel?.trim() || "Refeição";
-  const items = meal.items ?? [];
-  if (!items.length) return `Resumo da refeição ${label}: sem alimentos registrados.`;
-
-  return [
-    `Resumo da refeição ${label}:`,
-    ...items.map(buildMealItemSummaryLine),
-    `Total da refeição: ${formatTotalsLine(sumMealItems(items))}`,
-  ].join("\n");
-}
-
 function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; consumedCalories: number; balanceCalories: number }) {
   if (input.goalCalories <= 0) return [];
 
@@ -383,16 +362,7 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
 }
 
 async function buildMealAdditionAwareReply(userId: number, result: TextIntentResult) {
-  const baseReply = await buildExerciseAwarePeriodReportReply(userId, result);
-  if (result.action !== "meal_item_added") return baseReply;
-
-  const mealId = extractMealId(result.data);
-  if (!mealId || baseReply.includes("Resumo da refeição")) return baseReply;
-
-  const meal = (await listMeals(userId)).find(candidate => candidate.id === mealId);
-  if (!meal) return baseReply;
-
-  return [baseReply, "", buildMealFullSummary(meal)].join("\n");
+  return buildExerciseAwarePeriodReportReply(userId, result);
 }
 
 function wasTextIntentMessageAlreadyHandled(messageId?: string) {

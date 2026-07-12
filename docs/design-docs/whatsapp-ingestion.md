@@ -121,6 +121,18 @@ A epic #779 estende o contrato central para perguntas interativas com botões e 
 - **Fluxos obrigatórios**: exclusão exibe `Confirmar`/`Cancelar` e nunca executa antes da confirmação; uma seleção ambígua com mais de uma opção usa lista interativa (com linha `Cancelar`) e, ao ser escolhida, avança para a confirmação por botões em vez de excluir silenciosamente; autorização profissional exibe `Autorizar`/`Recusar` vinculados à mesma pendência criada ao notificar o profissional, mantendo o texto `AUTORIZAR <código>`/`NEGAR <código>` como fallback compatível — os dois caminhos resolvem a mesma decisão e a repetição não muda uma decisão já aplicada, pois o recurso (`access.status`) deixa de estar `"pending"` após a primeira aplicação.
 - **Transporte**: `server/modules/whatsapp/webhookUtils.ts` ganhou `sendWhatsAppInteractiveButtonsMessage`/`sendWhatsAppInteractiveListMessage`; o envio efetivo passa por `replyTransport.sendWhatsAppLogicalReply`, que grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica, igual aos demais fluxos migrados ao contrato central.
 
+### Unificação de refeições e ações sobre alimentos (issue #783)
+
+A epic #779 unifica todos os pontos que registram, atualizam, consultam ou excluem refeições/alimentos por WhatsApp para reutilizar os mesmos blocos de item e total (`buildWhatsAppFoodLines`/`buildWhatsAppMealTotalLines` em `replyTemplates.ts`), acessados via `buildWhatsAppMealActionReplyMessage`/`buildWhatsAppConsolidatedMealReplyMessage`/`buildWhatsAppMealReplyMessage` (`replyMessages.ts`).
+
+- **Fonte de verdade pós-mutação**: `datedFoodAdditionIntent.ts`, `contextualFoodReplacementIntent.ts`, `gramsAdjustmentIntent.ts`, `gramsIncrementIntent.ts` e `deleteIntent.ts` recarregam a refeição (`listMeals`/`updateMeal`/`removeMeal`) antes de montar a resposta; nenhum desses fluxos monta a resposta a partir do payload anterior à mutação.
+- **Builders locais removidos**: `buildMealFullSummary` (duplicado em `whatsappIntentWebhook.ts`, que produzia uma segunda seção "Resumo da refeição" logo abaixo da resposta central de `datedFoodAdditionIntent.ts`) e `formatMealSummary`/`formatTotalsLine` (duplicados em `contextualFoodReplacementIntent.ts`) foram removidos; ambos os fluxos agora produzem uma única seção com os blocos centrais.
+- **Substituição e ajuste de quantidade diretos**: quando o alvo é inequívoco, a mutação é aplicada sem pedido de confirmação; ambiguidade continua usando as opções numeradas/lista existentes antes de qualquer escrita. Isso não muda com a issue — apenas a formatação da resposta final passou a ser central.
+- **Exclusão de alimento**: após a confirmação (botões `Confirmar`/`Cancelar` da #782), `deleteIntent.ts` recarrega a refeição e mostra os itens restantes com `buildWhatsAppMealActionReplyMessage`; quando o item excluído era o último, a refeição é removida e a resposta é uma confirmação textual simples (não há refeição para exibir).
+- **Exclusão de refeição**: a confirmação final continua textual, já que não existe registro remanescente para renderizar nos blocos centrais.
+- **Alimento estimado pela IA**: `buildWhatsAppFoodLines` inclui `WHATSAPP_ESTIMATED_NUTRITION_WARNING` ("⚠️ Valores nutricionais estimados pela IA.") abaixo de qualquer item cuja `source` não seja `"catalog"`; itens de catálogo não recebem o aviso, e os totais sempre incluem os itens estimados.
+- **Fora de escopo**: seleção temporal, consolidação, catálogo, cálculo nutricional, persistência e a regra de meta ajustada da #756 não foram tocados; o link de edição rápida (já integrado ao contrato central desde #781) foi apenas verificado, sem alteração de comportamento.
+
 ## Validação recomendada
 
 - Testar texto, imagem e áudio mockados.

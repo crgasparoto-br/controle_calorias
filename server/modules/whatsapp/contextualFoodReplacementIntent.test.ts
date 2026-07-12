@@ -83,11 +83,11 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
       eventType: "whatsapp.intent.meal_item_replaced",
       data: expect.objectContaining({ mealId: 1 }),
     }));
-    expect(result?.reply).toContain("Troquei Salsicha por calabresa acebolada");
-    expect(result?.reply).toContain("Lanche");
-    expect(result?.reply).toContain("Resumo da refeição Lanche:");
-    expect(result?.reply).toContain("80 g de calabresa acebolada - 120 kcal | Prot. 4,8 g | Carb. 12 g | Gord. 4 g");
-    expect(result?.reply).toContain("Total da refeição: 120 kcal | Prot. 4,8 g | Carb. 12 g | Gord. 4 g");
+    expect(result?.reply).toContain("Alimento substituído");
+    expect(result?.reply).toContain("Salsicha → calabresa acebolada");
+    expect(result?.reply).toContain("calabresa acebolada");
+    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("120 kcal");
   });
 
   it("usa referência textual de primeira imagem para escolher a refeição correta", async () => {

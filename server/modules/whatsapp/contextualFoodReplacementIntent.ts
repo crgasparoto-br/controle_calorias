@@ -4,6 +4,7 @@ import type { MealDraftItem } from "../../nutritionEngine";
 import { fuzzyMatchesWords } from "../../fuzzyTextMatch";
 import { listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
+import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const MIN_FOOD_GRAMS = 1;
@@ -49,13 +50,6 @@ type ReplacementCandidate = {
   replacement: FoodReplacementIntent;
 };
 
-type NutritionTotals = {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-};
-
 const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 1,
 });
@@ -93,41 +87,6 @@ function formatReplyTime(value: number | string | Date) {
     minute: "2-digit",
     timeZone: SAO_PAULO_TIME_ZONE,
   });
-}
-
-function formatNutritionTotals(totals: NutritionTotals | MealItemInput | MealDraftItem) {
-  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
-}
-
-function formatTotalsLine(item: MealItemInput) {
-  return formatNutritionTotals(item);
-}
-
-function sumMealItems(items: Array<MealDraftItem | MealItemInput>) {
-  return items.reduce<NutritionTotals>(
-    (acc, item) => ({
-      calories: acc.calories + Number(item.calories || 0),
-      protein: acc.protein + Number(item.protein || 0),
-      carbs: acc.carbs + Number(item.carbs || 0),
-      fat: acc.fat + Number(item.fat || 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-}
-
-function formatMealItemSummaryLine(item: MealDraftItem | MealItemInput) {
-  const portion = item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada");
-  return `• ${portion} de ${item.foodName} - ${formatNutritionTotals(item)}`;
-}
-
-function formatMealSummary(mealLabel: string, items: Array<MealDraftItem | MealItemInput>) {
-  if (!items.length) return `Resumo da refeição ${mealLabel}: sem alimentos registrados.`;
-
-  return [
-    `Resumo da refeição ${mealLabel}:`,
-    ...items.map(formatMealItemSummaryLine),
-    `Total da refeição: ${formatNutritionTotals(sumMealItems(items))}`,
-  ].join("\n");
 }
 
 function cleanTargetFoodText(value?: string) {
@@ -420,6 +379,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   }
 
   const updatedMeals = [];
+  const mealBlocks: string[] = [];
   for (const group of groups.values()) {
     if (!group.applied.length) continue;
     const updatedMeal = await updateMeal(userId, {
@@ -430,20 +390,15 @@ export async function executeWhatsappContextualFoodReplacementIntent(
       items: group.items as MealItemInput[],
     });
     updatedMeals.push(updatedMeal);
+    const actionLines = group.applied.map(({ from, to }) => `${from} → ${to}`);
+    mealBlocks.push(buildWhatsAppMealActionReplyMessage(updatedMeal, {
+      title: group.applied.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
+      actionLines,
+    }));
   }
 
-  const mealSummaries = Array.from(groups.values())
-    .filter(group => group.applied.length > 0)
-    .map(group => formatMealSummary(group.meal.mealLabel, group.items));
-  const summarySection = mealSummaries.length ? `\n\n${mealSummaries.join("\n\n")}` : "";
   const notFoundNote = notFound.length ? `\nNão encontrei: ${notFound.join(", ")}.` : "";
-  const reply = applied.length === 1
-    ? (() => {
-        const item = applied[0].item;
-        const recalculationSource = item.source === "catalog" ? "com base no catálogo" : "por estimativa";
-        return `Troquei ${applied[0].from} por ${applied[0].to} na refeição ${applied[0].meal.mealLabel} das ${formatReplyTime(applied[0].meal.occurredAt)} e recalculei os macros ${recalculationSource}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g. Estimativa: ${formatTotalsLine(item)}.${notFoundNote}${summarySection}`;
-      })()
-    : `Troquei os seguintes alimentos nas refeições recentes e recalculei os macros:\n${applied.map(({ from, to, item, meal }) => `• ${meal.mealLabel} às ${formatReplyTime(meal.occurredAt)}: ${from} → ${to}: ${formatNumber(item.estimatedGrams)} g | ${formatTotalsLine(item)}`).join("\n")}${notFoundNote}${summarySection}`;
+  const reply = `${mealBlocks.join("\n\n")}${notFoundNote}`;
 
   return {
     action: "meal_item_replaced",
