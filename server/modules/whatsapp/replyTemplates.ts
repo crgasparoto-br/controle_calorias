@@ -85,9 +85,9 @@ export function formatWhatsAppFoodLine(item: WhatsAppFoodReplyItem) {
   return `• ${resolveFoodIcon(item)} ${formatWhatsAppFoodDescription(item)}`;
 }
 
-/** Item cuja nutrição não veio do catálogo confiável e foi estimada pela IA (issue #783). */
+/** Item cuja nutrição não veio integralmente do catálogo confiável e foi estimada pela IA (issue #783). */
 export function isWhatsAppEstimatedFoodItem(item: WhatsAppFoodReplyItem) {
-  return item.source === "heuristic";
+  return item.source === "heuristic" || item.source === "hybrid";
 }
 
 export const WHATSAPP_ESTIMATED_NUTRITION_WARNING = "⚠️ Valores nutricionais estimados pela IA.";
