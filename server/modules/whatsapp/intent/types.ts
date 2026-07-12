@@ -7,6 +7,8 @@ export type WhatsappIntentResult = {
   eventType: string;
   detail: string;
   data?: Record<string, unknown>;
+  /** Quando presente, o transporte central deve enviar botões/lista (issue #782) em vez do texto simples de `reply`. */
+  interactiveReply?: import("../replyContract").WhatsAppLogicalReply;
 };
 
 export type WhatsappIntentInput = {

@@ -5,9 +5,13 @@ const updateMealMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
 
-vi.mock("../../db", () => ({
-  getUserNutritionGoal: getUserNutritionGoalMock,
-}));
+vi.mock("../../db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../db")>();
+  return {
+    ...actual,
+    getUserNutritionGoal: getUserNutritionGoalMock,
+  };
+});
 
 vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,
@@ -146,9 +150,10 @@ describe("executeWhatsappTextIntent meal item target matching", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "clarification_needed",
-      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado (80 g)"),
+      reply: expect.stringContaining("Queijo Minas Padrao Fatiado"),
     }));
-    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(result?.reply).toContain("Queijo mussarela");
+    expect(result?.interactiveReply).toEqual(expect.objectContaining({ kind: "functional" }));
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 
@@ -262,9 +267,10 @@ describe("executeWhatsappTextIntent meal item target matching", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "clarification_needed",
-      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado (80 g)"),
+      reply: expect.stringContaining("Queijo Minas Padrao Fatiado"),
     }));
-    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(result?.reply).toContain("Queijo mussarela");
+    expect(result?.interactiveReply).toEqual(expect.objectContaining({ kind: "functional" }));
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 
@@ -401,9 +407,10 @@ describe("executeWhatsappTextIntent meal item target matching", () => {
     expect(result).toEqual(expect.objectContaining({
       handled: true,
       action: "clarification_needed",
-      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado (80 g)"),
+      reply: expect.stringContaining("Queijo Minas Padrao Fatiado"),
     }));
-    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(result?.reply).toContain("Queijo mussarela");
+    expect(result?.interactiveReply).toEqual(expect.objectContaining({ kind: "functional" }));
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 

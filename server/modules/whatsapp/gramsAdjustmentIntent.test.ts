@@ -132,9 +132,10 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
 
     expect(result).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado (80 g)"),
+      reply: expect.stringContaining("Queijo Minas Padrao Fatiado"),
     }));
-    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(result?.reply).toContain("Queijo mussarela");
+    expect(result?.interactiveReply).toEqual(expect.objectContaining({ kind: "functional" }));
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 

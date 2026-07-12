@@ -5,9 +5,13 @@ const updateMealMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
 
-vi.mock("../../db", () => ({
-  getUserNutritionGoal: getUserNutritionGoalMock,
-}));
+vi.mock("../../db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../db")>();
+  return {
+    ...actual,
+    getUserNutritionGoal: getUserNutritionGoalMock,
+  };
+});
 
 vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,

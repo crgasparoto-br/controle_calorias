@@ -148,11 +148,12 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
     expect(updateMealMock).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      eventType: "whatsapp.intent.clarification_needed",
-      reply: expect.stringContaining("mais de uma refeição recente"),
+      eventType: "whatsapp.intent.meal_item_selection_requested",
+      reply: expect.stringContaining("mais de um"),
     }));
     expect(result?.reply).toContain("Jantar");
     expect(result?.reply).toContain("Lanche");
+    expect(result?.interactiveReply).toEqual(expect.objectContaining({ kind: "functional" }));
   });
 
   it("ignora textos que não são substituição de alimento", async () => {

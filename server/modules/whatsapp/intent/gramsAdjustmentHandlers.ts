@@ -1,5 +1,4 @@
 import {
-  buildWhatsAppAmbiguousItemReplyMessage,
   buildWhatsAppAuxiliaryReplyMessage,
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
@@ -7,10 +6,10 @@ import {
 } from "../replyMessages";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
+import { createPendingMealItemSelection, type MealItemSelectionAction } from "../mealItemSelectionCallback";
 import {
   MIN_FOOD_GRAMS,
   findQuantityCorrectionTargets,
-  formatCorrectionOptions,
   formatTargetMealItemOptions,
   scaleMealItem,
   scaleMealItemQuantity,
@@ -24,7 +23,15 @@ import type { GramsAdjustmentItem, GramsIncrementItem, QuantityCorrectionIntent,
 type MealRecord = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMealRecord = MealRecord & { items: MealItemInput[] };
 type AppliedGramsChange = { targetFood: string | null; foodName: string; previousGrams: number; nextGrams: number; scope: string; scopeLabel: string };
-type PendingGramsTarget = { targetFood: string | null; options: string; context: string; scopeLabel: string };
+type PendingGramsTarget = {
+  targetFood: string | null;
+  options: string;
+  context: string;
+  scopeLabel: string;
+  candidates: Array<{ item: { foodName: string }; index: number }>;
+  meal: { id: number; mealLabel: string };
+  selectionAction: MealItemSelectionAction;
+};
 
 function contextWithPreposition(scope: string) {
   return scope === "same_day_meals" ? "nas refeições do dia" : "na última refeição";
@@ -57,24 +64,42 @@ function targetMatchDetail(params: {
   return `${params.prefix} Alvo usado: ${targetLabel(params.targetFood)}.${selected} Escopo da busca: ${params.scopeLabel}. Ambiguidade: ${params.ambiguous ? "sim" : "não"}.`;
 }
 
-function ambiguousTargetReply(targetFood: string | null, options: string, context = "na última refeição", scopeLabel = "última refeição") {
+async function ambiguousTargetReply(input: {
+  userId: number;
+  targetFood: string | null;
+  candidates: Array<{ item: { foodName: string }; index: number }>;
+  meal: { id: number; mealLabel: string };
+  action: MealItemSelectionAction;
+  context?: string;
+  scopeLabel?: string;
+}): Promise<WhatsappIntentResult> {
+  const context = input.context ?? "na última refeição";
+  const selectionResult = await createPendingMealItemSelection(input.userId, {
+    targetFood: input.targetFood,
+    action: input.action,
+    contextLabel: context,
+    resultTitle: "Alimento ajustado",
+    candidates: input.candidates.map(candidate => ({
+      mealId: input.meal.id,
+      mealLabel: input.meal.mealLabel,
+      itemIndex: candidate.index,
+      itemName: candidate.item.foodName,
+    })),
+  });
   return {
     handled: true,
     action: "clarification_needed",
-    reply: buildWhatsAppAmbiguousItemReplyMessage({
-      target: targetFood,
-      context,
-      options,
-      instruction: "Responda com o número do item que devo ajustar.",
-    }),
-    eventType: "whatsapp.intent.clarification_needed",
+    reply: selectionResult.reply,
+    eventType: selectionResult.eventType,
     detail: targetMatchDetail({
       prefix: "Pedido de ajuste de gramas com mais de um alimento compatível.",
-      targetFood,
-      scopeLabel,
+      targetFood: input.targetFood,
+      scopeLabel: input.scopeLabel ?? "última refeição",
       ambiguous: true,
     }),
-  } satisfies WhatsappIntentResult;
+    interactiveReply: selectionResult.interactiveReply,
+    data: selectionResult.data,
+  };
 }
 
 function toMutableMeals(meals: MealRecord[]): MutableMealRecord[] {
@@ -191,18 +216,15 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
     const previous = correction.previousQuantity && correction.previousUnit
       ? `${formatNumber(correction.previousQuantity)}${correction.previousUnit}`
       : "essa quantidade";
-    return {
-      handled: true,
-      action: "clarification_needed",
-      reply: buildWhatsAppAmbiguousItemReplyMessage({
-        target: `item com ${previous}`,
-        context: "na refeição recente",
-        options: formatCorrectionOptions(targets),
-        instruction: "Qual deseja alterar?",
-      }),
-      eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de correção de quantidade com mais de um item compatível.",
-    };
+    return ambiguousTargetReply({
+      userId,
+      targetFood: `item com ${previous}`,
+      candidates: targets,
+      meal: latestMeal,
+      action: { kind: "quantity_absolute", quantity: correction.nextQuantity, unit: correction.nextUnit },
+      context: "na refeição recente",
+      scopeLabel: "refeição recente",
+    });
   }
 
   const target = targets[0];
@@ -246,6 +268,7 @@ async function updateLatestMealItemGrams(input: {
   userId: number;
   targetFood: string | null;
   resolveNextGrams: (previousGrams: number) => number;
+  selectionAction: MealItemSelectionAction;
   detail: string;
 }) {
   const meals = await listMeals(input.userId);
@@ -262,7 +285,15 @@ async function updateLatestMealItemGrams(input: {
   const mutableMeals = toMutableMeals(meals);
   const target = resolveTargetMealItemInMeals(mutableMeals, input.targetFood);
   if (target.kind === "ambiguous") {
-    return ambiguousTargetReply(input.targetFood, formatTargetMealItemOptions(target.candidates), contextWithPreposition(target.scope), target.scopeLabel);
+    return ambiguousTargetReply({
+      userId: input.userId,
+      targetFood: input.targetFood,
+      candidates: target.candidates,
+      meal: target.meal,
+      action: input.selectionAction,
+      context: contextWithPreposition(target.scope),
+      scopeLabel: target.scopeLabel,
+    });
   }
   if (target.kind !== "matched") {
     return {
@@ -339,6 +370,9 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
         options: formatTargetMealItemOptions(target.candidates),
         context: contextWithPreposition(target.scope),
         scopeLabel: target.scopeLabel,
+        candidates: target.candidates,
+        meal: target.meal,
+        selectionAction: { kind: "grams_delta", delta: -adjustment.gramsDelta },
       });
       continue;
     }
@@ -360,7 +394,15 @@ export async function handleMealItemMultiAdjustment(userId: number, adjustments:
 
   if (!appliedAdjustments.length) {
     if (pendingTargets.length) {
-      return ambiguousTargetReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context, pendingTargets[0].scopeLabel);
+      return ambiguousTargetReply({
+        userId,
+        targetFood: pendingTargets[0].targetFood,
+        candidates: pendingTargets[0].candidates,
+        meal: pendingTargets[0].meal,
+        action: pendingTargets[0].selectionAction,
+        context: pendingTargets[0].context,
+        scopeLabel: pendingTargets[0].scopeLabel,
+      });
     }
     const foods = adjustments.map(a => a.targetFood).filter(Boolean).join(", ");
     return {
@@ -425,6 +467,9 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
         options: formatTargetMealItemOptions(target.candidates),
         context: contextWithPreposition(target.scope),
         scopeLabel: target.scopeLabel,
+        candidates: target.candidates,
+        meal: target.meal,
+        selectionAction: { kind: "grams_delta", delta: increment.gramsDelta },
       });
       continue;
     }
@@ -446,7 +491,15 @@ export async function handleMealItemMultiIncrement(userId: number, increments: G
 
   if (!appliedIncrements.length) {
     if (pendingTargets.length) {
-      return ambiguousTargetReply(pendingTargets[0].targetFood, pendingTargets[0].options, pendingTargets[0].context, pendingTargets[0].scopeLabel);
+      return ambiguousTargetReply({
+        userId,
+        targetFood: pendingTargets[0].targetFood,
+        candidates: pendingTargets[0].candidates,
+        meal: pendingTargets[0].meal,
+        action: pendingTargets[0].selectionAction,
+        context: pendingTargets[0].context,
+        scopeLabel: pendingTargets[0].scopeLabel,
+      });
     }
     const foods = increments.map(i => i.targetFood).filter(Boolean).join(", ");
     return {
@@ -490,6 +543,7 @@ export async function handleMealItemReplacement(userId: number, replacement: { t
     userId,
     targetFood: replacement.targetFood,
     resolveNextGrams: () => replacement.nextGrams,
+    selectionAction: { kind: "grams_absolute", grams: replacement.nextGrams },
     detail: `Quantidade de ${replacement.targetFood} substituída para ${formatNumber(replacement.nextGrams)} g via WhatsApp.`,
   });
 }

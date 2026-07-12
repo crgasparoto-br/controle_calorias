@@ -5,8 +5,8 @@ import { fuzzyMatchesWords } from "../../fuzzyTextMatch";
 import { listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
+import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
 
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const MIN_FOOD_GRAMS = 1;
 const RECENT_REPLACEMENT_WINDOW_MS = 30 * 60 * 1000;
 const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
@@ -22,6 +22,8 @@ export type WhatsappContextualFoodReplacementResult = {
   reply: string;
   eventType: string;
   detail: string;
+  /** Quando presente, o transporte central deve enviar botões/lista (issue #782) em vez do texto simples de `reply`. */
+  interactiveReply?: import("./replyContract").WhatsAppLogicalReply;
   data?: Record<string, unknown>;
 };
 
@@ -79,14 +81,6 @@ function cleanCatalogFoodName(value: string) {
 
 function formatNumber(value: number) {
   return ptBrNumberFormatter.format(value);
-}
-
-function formatReplyTime(value: number | string | Date) {
-  return new Date(value).toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: SAO_PAULO_TIME_ZONE,
-  });
 }
 
 function cleanTargetFoodText(value?: string) {
@@ -276,12 +270,6 @@ function findReplacementCandidates(meals: ExistingMeal[], replacement: FoodRepla
   });
 }
 
-function formatCandidateOptions(candidates: ReplacementCandidate[]) {
-  return candidates
-    .map((candidate, index) => `${index + 1}. ${candidate.meal.mealLabel} às ${formatReplyTime(candidate.meal.occurredAt)} - ${candidate.target.item.foodName}`)
-    .join(" ");
-}
-
 export async function executeWhatsappContextualFoodReplacementIntent(
   userId: number,
   input: { text?: string | null; receivedAt?: Date },
@@ -319,19 +307,25 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   }
 
   if (ambiguous.length) {
+    const selectionResult = await createPendingMealItemSelection(userId, {
+      targetFood: ambiguous[0].replacement.fromFood,
+      action: { kind: "replace_food", targetFood: ambiguous[0].replacement.toFood },
+      contextLabel: "nas refeições recentes",
+      resultTitle: "Alimento substituído",
+      candidates: ambiguous.map(candidate => ({
+        mealId: candidate.meal.id,
+        mealLabel: candidate.meal.mealLabel,
+        itemIndex: candidate.target.index,
+        itemName: candidate.target.item.foodName,
+      })),
+    });
     return {
       action: "clarification_needed",
-      reply: `Encontrei esse alimento em mais de uma refeição recente. Qual devo corrigir? ${formatCandidateOptions(ambiguous)}`,
-      eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de substituição de alimento com mais de uma refeição recente compatível.",
-      data: {
-        options: ambiguous.map(candidate => ({
-          mealId: candidate.meal.id,
-          mealLabel: candidate.meal.mealLabel,
-          foodName: candidate.target.item.foodName,
-          occurredAt: new Date(candidate.meal.occurredAt).toISOString(),
-        })),
-      },
+      reply: selectionResult.reply,
+      eventType: selectionResult.eventType,
+      detail: selectionResult.detail,
+      interactiveReply: selectionResult.interactiveReply,
+      data: selectionResult.data,
     };
   }
 

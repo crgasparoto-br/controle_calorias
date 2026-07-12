@@ -1,5 +1,4 @@
 import {
-  buildWhatsAppAmbiguousItemReplyMessage,
   buildWhatsAppAuxiliaryReplyMessage,
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
@@ -7,6 +6,7 @@ import {
 } from "../replyMessages";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
+import { createPendingMealItemSelection } from "../mealItemSelectionCallback";
 import { formatTargetMealItemOptions, formatTotalsLine, replaceMealItemFood, toMealItemInput } from "./mealItemHelpers";
 import { resolveTargetMealItemInMeals } from "./mealTargetResolution";
 import { formatNumber } from "./textUtils";
@@ -15,7 +15,15 @@ import type { FoodReplacementIntent, WhatsappIntentResult } from "./types";
 type MealRecord = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMealRecord = MealRecord & { items: MealItemInput[] };
 type AppliedFoodReplacement = { targetFood: string; from: string; to: string; item: MealItemInput; scope: string; scopeLabel: string };
-type PendingReplacementTarget = { targetFood: string; options: string; context: string; scopeLabel: string };
+type PendingReplacementTarget = {
+  targetFood: string;
+  options: string;
+  context: string;
+  scopeLabel: string;
+  candidates: Array<{ item: { foodName: string }; index: number }>;
+  meal: { id: number; mealLabel: string };
+  toFood: string;
+};
 
 function replacementMatchDetail(params: {
   prefix: string;
@@ -40,24 +48,41 @@ function formatPendingDetails(pendingTargets: PendingReplacementTarget[]) {
     .join("; ");
 }
 
-function ambiguousReplacementReply(targetFood: string, options: string, context = "na última refeição", scopeLabel = "última refeição") {
+async function ambiguousReplacementReply(input: {
+  userId: number;
+  targetFood: string;
+  toFood: string;
+  candidates: Array<{ item: { foodName: string }; index: number }>;
+  meal: { id: number; mealLabel: string };
+  context?: string;
+  scopeLabel?: string;
+}): Promise<WhatsappIntentResult> {
+  const selectionResult = await createPendingMealItemSelection(input.userId, {
+    targetFood: input.targetFood,
+    action: { kind: "replace_food", targetFood: input.toFood },
+    contextLabel: input.context ?? "na última refeição",
+    resultTitle: "Alimento substituído",
+    candidates: input.candidates.map(candidate => ({
+      mealId: input.meal.id,
+      mealLabel: input.meal.mealLabel,
+      itemIndex: candidate.index,
+      itemName: candidate.item.foodName,
+    })),
+  });
   return {
     handled: true,
     action: "clarification_needed",
-    reply: buildWhatsAppAmbiguousItemReplyMessage({
-      target: targetFood,
-      context,
-      options,
-      instruction: "Responda com o número do item que devo trocar.",
-    }),
-    eventType: "whatsapp.intent.clarification_needed",
+    reply: selectionResult.reply,
+    eventType: selectionResult.eventType,
     detail: replacementMatchDetail({
       prefix: "Pedido de substituição de alimento com mais de um item compatível.",
-      targetFood,
-      scopeLabel,
+      targetFood: input.targetFood,
+      scopeLabel: input.scopeLabel ?? "última refeição",
       ambiguous: true,
     }),
-  } satisfies WhatsappIntentResult;
+    interactiveReply: selectionResult.interactiveReply,
+    data: selectionResult.data,
+  };
 }
 
 function toMutableMeals(meals: MealRecord[]): MutableMealRecord[] {
@@ -136,6 +161,9 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
         options: formatTargetMealItemOptions(target.candidates),
         context: contextWithPreposition(target.scope),
         scopeLabel: target.scopeLabel,
+        candidates: target.candidates,
+        meal: target.meal,
+        toFood: replacement.toFood,
       });
       continue;
     }
@@ -159,12 +187,15 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
 
   if (applied.length === 0) {
     if (pendingTargets.length) {
-      return ambiguousReplacementReply(
-        pendingTargets[0].targetFood,
-        pendingTargets[0].options,
-        pendingTargets[0].context,
-        pendingTargets[0].scopeLabel,
-      );
+      return ambiguousReplacementReply({
+        userId,
+        targetFood: pendingTargets[0].targetFood,
+        toFood: pendingTargets[0].toFood,
+        candidates: pendingTargets[0].candidates,
+        meal: pendingTargets[0].meal,
+        context: pendingTargets[0].context,
+        scopeLabel: pendingTargets[0].scopeLabel,
+      });
     }
     return {
       handled: true,

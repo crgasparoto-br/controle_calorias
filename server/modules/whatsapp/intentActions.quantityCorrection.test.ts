@@ -7,6 +7,8 @@ const getUserNutritionGoalMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getUserNutritionGoal: getUserNutritionGoalMock,
+  getDb: vi.fn(),
+  logPersistenceWarning: vi.fn(),
 }));
 
 vi.mock("../meals/service", () => ({
@@ -145,10 +147,10 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
       handled: true,
       action: "clarification_needed",
     }));
-    expect(result?.reply).toContain("*Preciso confirmar o item*");
-    expect(result?.reply).toContain("Encontrei mais de um item para item com 330ml");
-    expect(result?.reply).toContain("1. Cerveja Budweiser 2. Coca-Cola");
-    expect(result?.reply).toContain("Qual deseja alterar?");
+    expect(result?.reply).toContain("Encontrei mais de um item parecido com \"item com 330ml\"");
+    expect(result?.reply).toContain("Cerveja Budweiser");
+    expect(result?.reply).toContain("Coca-Cola");
+    expect(result?.interactiveReply).toEqual(expect.objectContaining({ kind: "functional" }));
   });
 
   it("pede esclarecimento quando nao encontra item recente com 330ml", async () => {

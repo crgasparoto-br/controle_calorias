@@ -7,6 +7,8 @@ const getUserNutritionGoalMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getUserNutritionGoal: getUserNutritionGoalMock,
+  getDb: vi.fn(),
+  logPersistenceWarning: vi.fn(),
 }));
 
 vi.mock("../meals/service", () => ({

@@ -23,6 +23,7 @@ import { executeWhatsappAiQuestionIntent, isWhatsappAiQuestionText } from "./aiQ
 import { handlePendingWhatsAppConfirmation, completeWhatsappGenericConfirmationCallback, PENDING_CONFIRMATION_TYPE } from "./webhookTextCommands";
 import { claimWhatsAppInteractiveCallback } from "./interactiveCallback";
 import { completeWhatsappDeleteInteractiveCallback, PENDING_DELETE_TYPE } from "./deleteIntent";
+import { completeMealItemSelectionInteractiveCallback, PENDING_MEAL_ITEM_SELECTION_TYPE } from "./mealItemSelectionCallback";
 import { buildWhatsAppCallbackUnavailableReplyMessage } from "./replyMessages";
 import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
@@ -75,6 +76,8 @@ async function resolveWhatsAppInteractiveCallback(
   switch (claim.pendingOperation.type) {
     case PENDING_DELETE_TYPE:
       return completeWhatsappDeleteInteractiveCallback(userId, claim.pendingOperation, claim.action);
+    case PENDING_MEAL_ITEM_SELECTION_TYPE:
+      return completeMealItemSelectionInteractiveCallback(userId, claim.pendingOperation, claim.action);
     case PENDING_CONFIRMATION_TYPE:
       return completeWhatsappGenericConfirmationCallback(userId, claim.pendingOperation, claim.action);
     case PENDING_PROFESSIONAL_ACCESS_TYPE: {

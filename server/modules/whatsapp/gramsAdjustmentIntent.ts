@@ -1,10 +1,21 @@
 import { listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
-import { formatMealItemTargetOptions, resolveMealItemTarget } from "./mealItemTargetMatcher";
+import { resolveMealItemTarget } from "./mealItemTargetMatcher";
 import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
+import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
 
 type Meal = Awaited<ReturnType<typeof listMeals>>[number];
 type Item = NonNullable<Meal["items"]>[number];
+export type WhatsappGramsAdjustmentResult = {
+  handled: true;
+  action: "clarification_needed" | "meal_item_grams_adjusted";
+  reply: string;
+  eventType: string;
+  detail: string;
+  /** Quando presente, o transporte central deve enviar botões/lista (issue #782) em vez do texto simples de `reply`. */
+  interactiveReply?: import("./replyContract").WhatsAppLogicalReply;
+  data?: Record<string, unknown>;
+};
 const MEALS = ["cafe da manha", "almoco", "jantar", "lanche da tarde", "lanche", "ceia"];
 const MEAL_PREPOSITIONS = ["do", "da", "de", "no", "na", "ao", "a", "para"];
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -70,7 +81,7 @@ function scale(item: Item, grams: number): MealItemInput {
   const old = Number(item.estimatedGrams || 0), ratio = old > 0 ? grams / old : 1;
   return { ...item, estimatedGrams: grams, portionText: `${fmt(grams)} g`, quantity: grams, unit: "g", servings: Math.max(Number(item.servings || 1) * ratio, 0.1), calories: Number((Number(item.calories || 0) * ratio).toFixed(1)), protein: Number((Number(item.protein || 0) * ratio).toFixed(1)), carbs: Number((Number(item.carbs || 0) * ratio).toFixed(1)), fat: Number((Number(item.fat || 0) * ratio).toFixed(1)) } as MealItemInput;
 }
-export async function executeWhatsappGramsAdjustmentIntent(userId: number, input: { text?: string | null; receivedAt?: Date }) {
+export async function executeWhatsappGramsAdjustmentIntent(userId: number, input: { text?: string | null; receivedAt?: Date }): Promise<WhatsappGramsAdjustmentResult | null> {
   const intent = input.text ? parse(input.text) : null;
   if (!intent) return null;
   const now = (input.receivedAt ?? new Date()).getTime();
@@ -83,12 +94,26 @@ export async function executeWhatsappGramsAdjustmentIntent(userId: number, input
   for (const adjustment of intent.adjustments) {
     const target = resolveMealItemTarget(items, adjustment.targetFood);
     if (target.kind === "ambiguous") {
+      const selectionResult = await createPendingMealItemSelection(userId, {
+        targetFood: adjustment.targetFood,
+        action: { kind: "grams_delta", delta: -adjustment.gramsDelta },
+        contextLabel: `na ${context}`,
+        resultTitle: "Alimento ajustado",
+        candidates: target.candidates.map(candidate => ({
+          mealId: meal.id,
+          mealLabel: meal.mealLabel,
+          itemIndex: candidate.index,
+          itemName: candidate.item.foodName,
+        })),
+      });
       return {
         handled: true,
-        action: "clarification_needed" as const,
-        reply: `Encontrei mais de um item para ${adjustment.targetFood ?? "esse alimento"} na ${context}:\n${formatMealItemTargetOptions(target.candidates)}\nResponda com o numero do item que devo ajustar.`,
-        eventType: "whatsapp.intent.clarification_needed",
-        detail: "Pedido de reducao de gramas com mais de um alimento compativel.",
+        action: "clarification_needed",
+        reply: selectionResult.reply,
+        eventType: selectionResult.eventType,
+        detail: selectionResult.detail,
+        interactiveReply: selectionResult.interactiveReply,
+        data: selectionResult.data,
       };
     }
     if (target.kind !== "matched") continue;

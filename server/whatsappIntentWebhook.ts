@@ -5,6 +5,7 @@ import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { executeWhatsappGramsAdjustmentIntent } from "./modules/whatsapp/gramsAdjustmentIntent";
+import { resolveTextMealItemSelection } from "./modules/whatsapp/mealItemSelectionCallback";
 import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
 import { executeWhatsappLlmIntent, type WhatsappLlmNutritionFallback } from "./modules/whatsapp/llmIntentActions";
 import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
@@ -672,6 +673,26 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const pendingContext = await getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
+  const mealItemSelectionResult = await resolveTextMealItemSelection(userId, textForIntent);
+  if (mealItemSelectionResult) {
+    markTextIntentMessageHandled(message.id);
+    await clearPendingTextIntentContext(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: mealItemSelectionResult.reply,
+      eventType: mealItemSelectionResult.eventType,
+      detail: mealItemSelectionResult.detail,
+      status: mealItemSelectionResult.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractMealId(mealItemSelectionResult.data),
+      occurredAtMs,
+      lifecycleHandle,
+      interactiveReply: mealItemSelectionResult.interactiveReply,
+    });
+    return true;
+  }
+
   const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent });
   if (deleteIntentResult) {
     markTextIntentMessageHandled(message.id);
@@ -725,6 +746,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       mealId: extractMealId(contextualReplacementResult.data),
       occurredAtMs,
       lifecycleHandle,
+      interactiveReply: contextualReplacementResult.interactiveReply,
     });
     return true;
   }
@@ -741,9 +763,10 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       eventType: gramsAdjustmentResult.eventType,
       detail: gramsAdjustmentResult.detail,
       status: gramsAdjustmentResult.action === "clarification_needed" ? "warning" : "success",
-      mealId: extractMealId("data" in gramsAdjustmentResult ? gramsAdjustmentResult.data : undefined),
+      mealId: extractMealId(gramsAdjustmentResult.data),
       occurredAtMs,
       lifecycleHandle,
+      interactiveReply: gramsAdjustmentResult.interactiveReply,
     });
     return true;
   }
@@ -788,6 +811,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     mealId: extractMealId(result.data),
     occurredAtMs,
     lifecycleHandle,
+    interactiveReply: "interactiveReply" in result ? result.interactiveReply : undefined,
   });
   return true;
   }
