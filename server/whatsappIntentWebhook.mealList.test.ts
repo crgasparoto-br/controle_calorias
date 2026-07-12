@@ -185,10 +185,13 @@ describe("handleWhatsAppWebhookWithTextIntent meal list routing", () => {
       eventType: "whatsapp.intent.meal_foods_listed",
     }));
     expect(sentMessages).toHaveLength(1);
-    expect(sentMessages[0]).toContain("Alimentos de Almoço em 20/06/2026:");
-    expect(sentMessages[0]).toContain("100 g de Arroz branco - 130 kcal");
-    expect(sentMessages[0]).toContain("120 g de Frango grelhado - 198 kcal");
-    expect(sentMessages[0]).toContain("Total: 328 kcal");
+    expect(sentMessages[0]).toContain("Alimentos de Almoço em 20/06/2026");
+    expect(sentMessages[0]).toContain("Arroz branco — 100g");
+    expect(sentMessages[0]).toContain("130 kcal");
+    expect(sentMessages[0]).toContain("Frango grelhado — 120g");
+    expect(sentMessages[0]).toContain("198 kcal");
+    expect(sentMessages[0]).toContain("Total da refeição:");
+    expect(sentMessages[0]).toContain("328 kcal");
     expect(sentMessages[0]).not.toContain("Não consegui processar essa mídia agora");
   });
 });
