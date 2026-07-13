@@ -2,14 +2,21 @@ import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
   buildWhatsAppMealActionReplyMessage,
+  buildWhatsAppRecoverableErrorReplyMessage,
 } from "../replyMessages";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import {
   createPendingMealItemSelection,
+  type MealItemPendingSelectionStep,
   type MealItemSelectionAction,
   type MealItemSelectionCompanionAction,
 } from "../mealItemSelectionCallback";
+import {
+  describeMealBatchMutationFailure,
+  updateMealsWithCompensation,
+  type MealBatchMutationChange,
+} from "../mealBatchMutation";
 import {
   MIN_FOOD_GRAMS,
   findQuantityCorrectionTargets,
@@ -80,6 +87,16 @@ function toSelectionCandidate(candidate: Candidate) {
   };
 }
 
+function toBatchSnapshot(meal: MealRecord | MutableMealRecord) {
+  return {
+    id: meal.id,
+    mealLabel: meal.mealLabel,
+    occurredAt: meal.occurredAt,
+    notes: meal.notes,
+    items: [...(meal.items ?? [])] as MealItemInput[],
+  };
+}
+
 async function updateMealItems(userId: number, meal: MutableMealRecord) {
   return updateMeal(userId, {
     mealId: meal.id,
@@ -100,6 +117,7 @@ async function ambiguousTargetReply(input: {
   candidates: Candidate[];
   action: MealItemSelectionAction;
   companionActions?: MealItemSelectionCompanionAction[];
+  remainingSelections?: MealItemPendingSelectionStep[];
   context?: string;
   scopeLabel?: string;
 }): Promise<WhatsappIntentResult> {
@@ -110,6 +128,7 @@ async function ambiguousTargetReply(input: {
     resultTitle: "Alimento ajustado",
     candidates: input.candidates.map(toSelectionCandidate),
     companionActions: input.companionActions,
+    remainingSelections: input.remainingSelections,
   });
   return {
     handled: true,
@@ -334,13 +353,19 @@ async function handleMultiGramsChange(input: {
   }
 
   if (pending.length) {
-    const firstPending = pending[0];
+    const [firstPending, ...remainingPending] = pending;
     return ambiguousTargetReply({
       userId: input.userId,
       targetFood: firstPending.targetFood,
       candidates: firstPending.candidates,
       action: firstPending.selectionAction,
       companionActions: applied.map(item => ({ candidate: item.candidate, action: item.action })),
+      remainingSelections: remainingPending.map(item => ({
+        targetFood: item.targetFood,
+        action: item.selectionAction,
+        contextLabel: item.context,
+        candidates: item.candidates.map(toSelectionCandidate),
+      })),
       context: firstPending.context,
       scopeLabel: firstPending.scopeLabel,
     });
@@ -360,7 +385,26 @@ async function handleMultiGramsChange(input: {
     };
   }
 
-  const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(input.userId, mutableMeals[index])));
+  const changes: MealBatchMutationChange[] = [...changedMealIndexes].map(index => ({
+    before: toBatchSnapshot(meals[index]),
+    after: toBatchSnapshot(mutableMeals[index]),
+  }));
+
+  let updatedMeals: Awaited<ReturnType<typeof updateMealsWithCompensation>>;
+  try {
+    updatedMeals = await updateMealsWithCompensation(input.userId, changes);
+  } catch (error) {
+    const failure = describeMealBatchMutationFailure(error);
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: buildWhatsAppRecoverableErrorReplyMessage(failure.userMessage),
+      eventType: "whatsapp.intent.meal_item_batch_failed",
+      detail: failure.detail,
+      data: { rollbackSucceeded: failure.rollbackSucceeded, affectedMealIds: changes.map(change => change.after.id) },
+    };
+  }
+
   const actionLines = [
     ...applied.map(item => `• ${item.foodName}: de ${formatNumber(item.previousGrams)} g para ${formatNumber(item.nextGrams)} g`),
     ...(notFound.length ? [`Não encontrei nas refeições de hoje: ${notFound.join(", ")}.`] : []),
