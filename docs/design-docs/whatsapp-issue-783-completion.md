@@ -11,11 +11,13 @@ Todos os caminhos alcançáveis pelo webhook e pelo simulador reutilizam os buil
 - Dois itens iguais ou semelhantes dentro da mesma refeição permanecem candidatos distintos; o primeiro não é escolhido silenciosamente.
 - Ambiguidades entre refeições diferentes usam a mesma lista interativa da #782.
 - Mensagens com ações claras e ambíguas são atômicas em relação à seleção: nenhuma chamada de atualização é feita antes de todas as escolhas.
-- Quando existem várias ambiguidades, inclusive vários ajustes de gramas na mesma mensagem, as pendências são encadeadas em `remainingSelections`. Cada escolha é acumulada como ação resolvida e a escrita só ocorre após a última seleção.
+- Quando existem várias ambiguidades, inclusive vários ajustes de gramas na mesma mensagem, as pendências são encadeadas em `remainingSelections`. Cada escolha é acumulada na ordem original e a escrita só ocorre após a última seleção.
 - Cada ação de substituição ou ajuste mantém o respectivo alimento de destino, delta ou quantidade durante todo o encadeamento.
-- Antes de escrever, todos os alvos são recarregados e revalidados contra o estado atual. Mudanças concorrentes tornam o plano obsoleto e bloqueiam todas as alterações.
-- Operações que alteram mais de uma refeição usam `mealBatchMutation.ts`. Se qualquer atualização falhar, todas as refeições tentadas são restauradas em ordem inversa, inclusive a chamada que lançou erro, evitando manter uma alteração parcial silenciosa.
-- Quando a compensação completa não puder ser confirmada, a resposta não afirma que os dados foram restaurados e orienta o usuário a consultar o estado atual.
+- Antes de escrever, todos os alvos são recarregados e revalidados contra o estado atual. A identidade validada permanece estável durante o plano, mesmo se uma ação anterior renomear o item. Mudanças concorrentes tornam o plano obsoleto e bloqueiam todas as alterações.
+- Operações que alteram mais de uma refeição usam `mealBatchMutation.ts`. As tentativas não incrementam uso de catálogo, não acumulam hábitos e não emitem sucesso por refeição. Se qualquer atualização falhar, todas as refeições tentadas são restauradas em ordem inversa.
+- Hábitos são reconstruídos de forma idempotente somente no sucesso integral ou ao final da compensação. Quando a restauração não puder ser confirmada, a resposta orienta a consultar o estado atual.
+- Respostas finais usam `logicalReplyDelivery.ts` para compor texto, CTA de edição rápida e imagem auxiliar na mesma `WhatsAppLogicalReply`.
+- Callbacks preservam `mealId` até o webhook, mantendo o CTA quando a refeição ainda existe.
 - Depois da execução bem-sucedida, cada refeição afetada é renderizada integralmente, com itens e totais atuais.
 - `recordAdjustmentIntent.ts`, `gramsAdjustmentIntent.ts` e `gramsIncrementIntent.ts` delegam aos mesmos handlers canônicos. Exclusões continuam exigindo confirmação.
 - Os módulos que criam ou consomem pendências declaram `usesPendingOperation: true` e `requiresFreshDbQuery: true`.
@@ -28,6 +30,7 @@ Todos os caminhos alcançáveis pelo webhook e pelo simulador reutilizam os buil
 - `server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts`: ajustes absolutos, incrementos, reduções, correções de quantidade e encadeamento de todas as ambiguidades.
 - `server/modules/whatsapp/intent/foodReplacementHandlers.ts`: substituições estruturadas.
 - `server/modules/whatsapp/contextualFoodReplacementIntent.ts`: substituições contextuais recentes.
+- `server/modules/whatsapp/logicalReplyDelivery.ts`: composição e envio único de texto, CTA e mídia auxiliar.
 - `server/modules/whatsapp/recordAdjustmentIntent.ts`: compatibilidade do simulador/handler legado.
 
 ## Regressões cobertas

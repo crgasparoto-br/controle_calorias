@@ -483,7 +483,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
   });
 
-  it("mantém o registro e avisa quando a imagem anotada não pode ser gerada", async () => {
+  it("mantém somente a resposta nutricional quando a imagem anotada não pode ser gerada", async () => {
     createLocalMealPhotoOverlayMock.mockRejectedValue(new Error("provedor indisponível"));
     const req = createImageWebhookRequest("image-without-annotation");
     const res = createResponse();
@@ -511,7 +511,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
     expect(uploadedMediaRequests).toBe(0);
     expect(sentImageMessages).toEqual([]);
-    expect(sentTextMessages.at(-1)).toBe("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
+    expect(sentTextMessages.at(-1)).toContain("Almoço");
+    expect(sentTextMessages).not.toContain("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
       origin: "whatsapp",

@@ -161,15 +161,16 @@ function applyActionToItem(item: MealItemInput, action: MealItemSelectionAction)
 
 async function applySelectionPlan(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection): Promise<MealItemSelectionResult> {
   const meals = await listMeals(userId);
-  const plan: MealItemSelectionCompanionAction[] = [{ candidate: selected, action: pending.action }, ...(pending.companionActions ?? [])];
+  const plan: MealItemSelectionCompanionAction[] = [...(pending.companionActions ?? []), { candidate: selected, action: pending.action }];
   const workingMeals = new Map<number, Awaited<ReturnType<typeof listMeals>>[number]>();
   const actionLinesByMeal = new Map<number, string[]>();
 
   for (const step of plan) {
-    const sourceMeal = workingMeals.get(step.candidate.mealId) ?? meals.find(meal => meal.id === step.candidate.mealId);
-    if (!sourceMeal?.items?.length) return buildStaleSelectionResult();
-    const resolvedIndex = resolveCandidateIndex(sourceMeal, step.candidate);
+    const originalMeal = meals.find(meal => meal.id === step.candidate.mealId);
+    if (!originalMeal?.items?.length) return buildStaleSelectionResult();
+    const resolvedIndex = resolveCandidateIndex(originalMeal, step.candidate);
     if (resolvedIndex === null) return buildStaleSelectionResult();
+    const sourceMeal = workingMeals.get(step.candidate.mealId) ?? originalMeal;
     const item = sourceMeal.items[resolvedIndex] as MealItemInput;
     const { nextItem, actionLine } = applyActionToItem(item, step.action);
     const nextMeal = { ...sourceMeal, items: sourceMeal.items.map((existingItem, index) => index === resolvedIndex ? nextItem : existingItem) };
@@ -224,7 +225,7 @@ async function applySelectionPlan(userId: number, selected: MealItemSelectionCan
 }
 
 async function continueSelectionOrApply(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection) {
-  const resolvedActions: MealItemSelectionCompanionAction[] = [{ candidate: selected, action: pending.action }, ...(pending.companionActions ?? [])];
+  const resolvedActions: MealItemSelectionCompanionAction[] = [...(pending.companionActions ?? []), { candidate: selected, action: pending.action }];
   const [next, ...remaining] = pending.remainingSelections ?? [];
   if (next) {
     return createPendingMealItemSelection(userId, {

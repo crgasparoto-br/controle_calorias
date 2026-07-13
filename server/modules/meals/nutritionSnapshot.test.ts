@@ -139,4 +139,11 @@ describe("meal item nutrition snapshots", () => {
     expect(secondSnapshot.calculated.caloriesKcal).toBe(120);
     expect(first.foodSnapshotJson).not.toEqual(second.foodSnapshotJson);
   });
+  it("pode preparar snapshots sem incrementar uso de catálogo", async () => {
+    vi.mocked(recordGlobalFoodUsage).mockClear();
+    vi.mocked(getGlobalFoodCatalogItem).mockResolvedValueOnce(catalogFood());
+    const [item] = await enrichMealItemsWithNutritionSnapshots(7, [baseItem], { recordUsage: false });
+    expect(item.foodSnapshotJson).toBeTruthy();
+    expect(recordGlobalFoodUsage).not.toHaveBeenCalled();
+  });
 });

@@ -98,7 +98,15 @@ function buildSnapshot(params: {
   };
 }
 
-export async function enrichMealItemsWithNutritionSnapshots(userId: number, items: MealItemInput[]) {
+export type EnrichMealItemsWithNutritionSnapshotsOptions = {
+  recordUsage?: boolean;
+};
+
+export async function enrichMealItemsWithNutritionSnapshots(
+  userId: number,
+  items: MealItemInput[],
+  options: EnrichMealItemsWithNutritionSnapshotsOptions = {},
+) {
   const enriched: MealItemWithNutritionSnapshot[] = [];
 
   for (const item of items) {
@@ -122,7 +130,9 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
     const food = await getGlobalFoodCatalogItem(userId, item.foodId);
     const nutritionSource = deriveNutritionSourceForMealItem(item, food);
     const { calculated, snapshot } = buildSnapshot({ food, grams, portion, nutritionSource });
-    await recordGlobalFoodUsage(userId, food.id);
+    if (options.recordUsage !== false) {
+      await recordGlobalFoodUsage(userId, food.id);
+    }
 
     enriched.push({
       ...item,
@@ -148,6 +158,14 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
   }
 
   return enriched;
+}
+
+export async function recordMealItemsCatalogUsage(userId: number, items: MealItemWithNutritionSnapshot[]) {
+  for (const item of items) {
+    if (item.foodId) {
+      await recordGlobalFoodUsage(userId, item.foodId);
+    }
+  }
 }
 
 export async function persistMealItemNutritionSnapshots(mealId: number, items: MealItemWithNutritionSnapshot[]) {

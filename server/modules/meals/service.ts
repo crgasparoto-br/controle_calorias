@@ -11,6 +11,8 @@ import {
   listFavoriteMeals,
   listUserMeals,
   logInferenceEvent,
+  logPersistenceWarning,
+  rebuildUserMealHabits,
   removeUserMeal,
   reuseFavoriteMeal,
   saveFavoriteMeal,
@@ -34,6 +36,7 @@ import { dedupeMealItemsByProductIdentity } from "./mealItemDeduplication";
 import {
   enrichMealItemsWithNutritionSnapshots,
   persistMealItemNutritionSnapshots,
+  recordMealItemsCatalogUsage,
   type MealItemWithNutritionSnapshot,
 } from "./nutritionSnapshot";
 
@@ -299,8 +302,16 @@ function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(processe
   };
 }
 
-async function prepareMealItemsForSave(userId: number, items: Array<MealDraftItem>) {
-  return enrichMealItemsWithNutritionSnapshots(userId, ensureMealItems(items) as MealItemWithNutritionSnapshot[]);
+async function prepareMealItemsForSave(
+  userId: number,
+  items: Array<MealDraftItem>,
+  options: { recordUsage?: boolean } = {},
+) {
+  return enrichMealItemsWithNutritionSnapshots(
+    userId,
+    ensureMealItems(items) as MealItemWithNutritionSnapshot[],
+    options,
+  );
 }
 
 export async function listMeals(userId: number) {
@@ -318,8 +329,26 @@ export async function createManualMeal(userId: number, input: ManualMealInput) {
   return meal;
 }
 
+export type UpdateMealServiceOptions = {
+  recordCatalogUsage?: boolean;
+  updateHabits?: boolean;
+  logEvent?: boolean;
+  finalizeBatch?: {
+    meals: Array<{ items: MealItemWithNutritionSnapshot[] }>;
+    recordCatalogUsage?: boolean;
+    throwOnHabitFailure?: boolean;
+  };
+};
+
+const MEAL_UPDATE_SERVICE_OPTIONS = Symbol.for("controle_calorias.mealUpdateServiceOptions");
+
 export async function updateMeal(userId: number, input: UpdateMealInput) {
-  const items = await prepareMealItemsForSave(userId, input.items);
+  const options = (input as UpdateMealInput & {
+    [MEAL_UPDATE_SERVICE_OPTIONS]?: UpdateMealServiceOptions;
+  })[MEAL_UPDATE_SERVICE_OPTIONS] ?? {};
+  const items = await prepareMealItemsForSave(userId, input.items, {
+    recordUsage: options.recordCatalogUsage !== false,
+  });
   const meal = decorateMealWithImageUrl(await updateUserMeal({
     userId,
     mealId: input.mealId,
@@ -327,8 +356,33 @@ export async function updateMeal(userId: number, input: UpdateMealInput) {
     occurredAt: input.occurredAt,
     notes: input.notes,
     items,
+  }, {
+    updateHabits: options.updateHabits !== false,
+    logEvent: options.logEvent !== false,
   }));
   await persistMealItemNutritionSnapshots(meal.id, items);
+
+  if (options.finalizeBatch) {
+    if (options.finalizeBatch.recordCatalogUsage !== false) {
+      try {
+        for (const batchMeal of options.finalizeBatch.meals) {
+          await recordMealItemsCatalogUsage(userId, batchMeal.items);
+        }
+      } catch (error) {
+        logPersistenceWarning("Meal batch catalog usage finalization skipped", error);
+      }
+    }
+
+    try {
+      await rebuildUserMealHabits(userId);
+    } catch (error) {
+      logPersistenceWarning("Meal batch habit rebuild skipped", error);
+      if (options.finalizeBatch.throwOnHabitFailure) {
+        throw error;
+      }
+    }
+  }
+
   return meal;
 }
 

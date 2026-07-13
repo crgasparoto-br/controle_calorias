@@ -990,6 +990,34 @@ async function updateHabitsFromMeal(meal: SavedMeal) {
   await persistHabitsToDb(meal.userId, ordered);
 }
 
+/** Rebuilds derived habits idempotently after a compensable meal batch. */
+export async function rebuildUserMealHabits(userId: number) {
+  const meals = await listUserMeals(userId);
+  const byFoodName = new Map<string, HabitMemoryState>();
+
+  for (const meal of meals) {
+    for (const item of meal.items) {
+      const foodName = item.canonicalName?.trim() || item.foodName?.trim();
+      if (!foodName) continue;
+      const existing = byFoodName.get(foodName);
+      const isLatest = !existing || meal.occurredAt >= existing.lastSeenAt;
+      byFoodName.set(foodName, {
+        foodName,
+        typicalMealLabel: isLatest ? meal.mealLabel : existing?.typicalMealLabel,
+        preferredPortionGrams: isLatest ? item.estimatedGrams : existing?.preferredPortionGrams ?? item.estimatedGrams,
+        notes: isLatest ? `Última porção confirmada: ${item.portionText}` : existing?.notes,
+        occurrenceCount: (existing?.occurrenceCount ?? 0) + 1,
+        lastSeenAt: isLatest ? meal.occurredAt : existing!.lastSeenAt,
+      });
+    }
+  }
+
+  const rebuilt = [...byFoodName.values()].sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+  await persistHabitsToDb(userId, rebuilt);
+  habitStore.set(userId, rebuilt);
+  return rebuilt;
+}
+
 async function syncHabitsMealLabelFromMeals(userId: number, mealsToSync: SavedMeal[]) {
   if (!mealsToSync.length) {
     return;
@@ -1309,6 +1337,11 @@ export async function reuseFavoriteMeal(input: {
   });
 }
 
+export type UpdateUserMealOptions = {
+  updateHabits?: boolean;
+  logEvent?: boolean;
+};
+
 export async function updateUserMeal(input: {
   userId: number;
   mealId: number;
@@ -1316,7 +1349,7 @@ export async function updateUserMeal(input: {
   occurredAt: string;
   notes?: string;
   items: MealDraftItem[];
-}) {
+}, options: UpdateUserMealOptions = {}) {
   const current = await listUserMeals(input.userId);
   const existing = current.find(meal => meal.id === input.mealId);
   if (!existing) {
@@ -1337,14 +1370,18 @@ export async function updateUserMeal(input: {
     current.map(meal => (meal.id === input.mealId ? updatedMeal : meal)).sort((a, b) => b.occurredAt - a.occurredAt),
   );
   await updateMealInDb(updatedMeal);
-  await updateHabitsFromMeal(updatedMeal);
-  logInferenceEvent({
-    userId: input.userId,
-    origin: "web",
-    status: "success",
-    eventType: "meal.manual_updated",
-    detail: `Refeição ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
-  });
+  if (options.updateHabits !== false) {
+    await updateHabitsFromMeal(updatedMeal);
+  }
+  if (options.logEvent !== false) {
+    logInferenceEvent({
+      userId: input.userId,
+      origin: "web",
+      status: "success",
+      eventType: "meal.manual_updated",
+      detail: `Refeição ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
+    });
+  }
   return { ...updatedMeal, totals: sumMealItems(updatedMeal.items) };
 }
 

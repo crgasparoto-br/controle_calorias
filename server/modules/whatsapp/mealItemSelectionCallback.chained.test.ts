@@ -106,7 +106,7 @@ describe("meal item selection — ambiguidades encadeadas", () => {
     updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => {
       const mealId = Number(input.mealId);
       const items = input.items as Array<{ foodName: string }>;
-      if (mealId === 2 && items.some(candidate => candidate.foodName === "ricota") && failSecondOnce) {
+      if (mealId === 1 && items.some(candidate => candidate.foodName === "tapioca") && failSecondOnce) {
         failSecondOnce = false;
         throw new Error("falha simulada na segunda refeição");
       }
@@ -136,4 +136,30 @@ describe("meal item selection — ambiguidades encadeadas", () => {
     expect(state.get(2)?.items.map(candidate => candidate.foodName)).toEqual(["Queijo mussarela", "Pão integral"]);
     expect(updateMealMock).toHaveBeenCalledTimes(4);
   });
+  it("preserva a ordem original em ações sobre o mesmo item", async () => {
+    const first: PendingMealItemSelection = {
+      targetFood: "queijo", action: { kind: "grams_delta", delta: 10 }, contextLabel: "na refeição", resultTitle: "Alimento ajustado",
+      candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }],
+      remainingSelections: [{ targetFood: "o mesmo queijo", action: { kind: "grams_absolute", grams: 80 }, contextLabel: "na refeição", candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }] }],
+    };
+    await completeMealItemSelectionInteractiveCallback(42, { target: first }, "select:0");
+    const second = createPendingOperationMock.mock.calls[0][0].target as PendingMealItemSelection;
+    const result = await completeMealItemSelectionInteractiveCallback(42, { target: second }, "select:0");
+    expect(result.action).toBe("meal_item_grams_adjusted");
+    expect(updateMealMock.mock.calls[0][1].items[0].estimatedGrams).toBe(80);
+  });
+
+  it("mantém a identidade após renomeação anterior do mesmo item", async () => {
+    const first: PendingMealItemSelection = {
+      targetFood: "queijo", action: { kind: "replace_food", targetFood: "ricota" }, contextLabel: "na refeição", resultTitle: "Alimento substituído",
+      candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }],
+      remainingSelections: [{ targetFood: "o mesmo item", action: { kind: "replace_food", targetFood: "tofu" }, contextLabel: "na refeição", candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }] }],
+    };
+    await completeMealItemSelectionInteractiveCallback(42, { target: first }, "select:0");
+    const second = createPendingOperationMock.mock.calls[0][0].target as PendingMealItemSelection;
+    const result = await completeMealItemSelectionInteractiveCallback(42, { target: second }, "select:0");
+    expect(result.action).toBe("meal_item_replaced");
+    expect(updateMealMock.mock.calls[0][1].items[0].foodName).toBe("tofu");
+  });
+
 });
