@@ -80,20 +80,20 @@ jobs:
           throw lastError ?? new Error("TiDB não ficou pronto para DDL no tempo esperado.");
           NODE
 
-      - name: Apply repository migrations
+      - name: Apply current repository schema
         run: |
-          if ! pnpm exec drizzle-kit migrate > /tmp/drizzle-migrate.log 2>&1; then
-            tail -n 200 /tmp/drizzle-migrate.log
+          if ! pnpm exec drizzle-kit push --force > /tmp/drizzle-push.log 2>&1; then
+            tail -n 200 /tmp/drizzle-push.log
             exit 1
           fi
-          tail -n 80 /tmp/drizzle-migrate.log
+          tail -n 80 /tmp/drizzle-push.log
 
-      - name: Upload migration diagnostics
+      - name: Upload schema diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: whatsapp-context-drizzle-migrate-log
-          path: /tmp/drizzle-migrate.log
+          name: whatsapp-context-drizzle-push-log
+          path: /tmp/drizzle-push.log
           if-no-files-found: ignore
           retention-days: 3
 
