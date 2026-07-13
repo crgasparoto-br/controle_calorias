@@ -49,16 +49,35 @@ jobs:
             fi
             sleep 2
           done
-          docker logs whatsapp-context-tidb
+          docker logs --tail 100 whatsapp-context-tidb
           exit 1
 
-      - name: Create validation database
+      - name: Create validation database and wait for DDL readiness
         run: |
           node --input-type=module <<'NODE'
           import mysql from "mysql2/promise";
-          const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" });
-          await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias");
-          await connection.end();
+
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+          let lastError;
+
+          for (let attempt = 1; attempt <= 30; attempt += 1) {
+            let connection;
+            try {
+              connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" });
+              await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias");
+              await connection.changeUser({ database: "controle_calorias" });
+              await connection.query("CREATE TABLE IF NOT EXISTS __workflow_ddl_readiness (id INT PRIMARY KEY)");
+              await connection.query("DROP TABLE __workflow_ddl_readiness");
+              await connection.end();
+              process.exit(0);
+            } catch (error) {
+              lastError = error;
+              if (connection) await connection.end().catch(() => undefined);
+              await sleep(2000);
+            }
+          }
+
+          throw lastError ?? new Error("TiDB não ficou pronto para DDL no tempo esperado.");
           NODE
 
       - name: Apply repository migrations
@@ -88,4 +107,4 @@ jobs:
 
       - name: Show TiDB logs on failure
         if: failure()
-        run: docker logs whatsapp-context-tidb
+        run: docker logs --tail 100 whatsapp-context-tidb
