@@ -34,10 +34,12 @@ jobs:
           git show bc767414eb336e25ff7a4fc491c2bbf7da9350f2:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
 
       - name: Commit applied completion
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "fix(whatsapp): complete issue 783 response contract"
-          branch: feat/783-unificar-respostas-refeicoes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(whatsapp): complete issue 783 response contract"
+          git push origin HEAD:feat/783-unificar-respostas-refeicoes
 
   agent-check:
     name: Agent-first gate
