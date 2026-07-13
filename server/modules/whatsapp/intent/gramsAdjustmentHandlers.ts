@@ -18,13 +18,18 @@ import {
   toMealItemInput,
   toMealItemInputs,
 } from "./mealItemHelpers";
-import { resolveTargetMealItemInMeals, type MealItemTargetCandidate } from "./mealTargetResolution";
+import { resolveTargetMealItemInMeals } from "./mealTargetResolution";
 import { formatNumber } from "./textUtils";
 import type { GramsAdjustmentItem, GramsIncrementItem, QuantityCorrectionIntent, WhatsappIntentResult } from "./types";
 
 type MealRecord = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMealRecord = MealRecord & { items: MealItemInput[] };
-type Candidate = MealItemTargetCandidate<MutableMealRecord>;
+type Candidate = {
+  meal: MutableMealRecord;
+  mealIndex: number;
+  item: MealItemInput;
+  index: number;
+};
 type AppliedGramsChange = {
   targetFood: string | null;
   foodName: string;
@@ -86,9 +91,7 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
 }
 
 function buildUpdatedMealsReply(updatedMeals: MealRecord[], title: string, actionLines: string[]) {
-  return updatedMeals
-    .map(meal => buildWhatsAppMealActionReplyMessage(meal, { title, actionLines }))
-    .join("\n\n");
+  return updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title, actionLines })).join("\n\n");
 }
 
 async function ambiguousTargetReply(input: {
@@ -189,7 +192,14 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
     }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `Quantidade de ${target.item.foodName} corrigida por contexto curto via WhatsApp.`,
-    data: { mealId: updatedMeal.id, foodName: target.item.foodName, previousQuantity: correction.previousQuantity, previousUnit: correction.previousUnit, nextQuantity: correction.nextQuantity, nextUnit: correction.nextUnit },
+    data: {
+      mealId: updatedMeal.id,
+      foodName: target.item.foodName,
+      previousQuantity: correction.previousQuantity,
+      previousUnit: correction.previousUnit,
+      nextQuantity: correction.nextQuantity,
+      nextUnit: correction.nextUnit,
+    },
   };
 }
 
@@ -229,7 +239,12 @@ async function updateLatestMealItemGrams(input: {
       action: "clarification_needed",
       reply: buildWhatsAppItemNotFoundReplyMessage({ target: input.targetFood, context: "nas refeições de hoje", instruction: "Me diga qual item devo ajustar." }),
       eventType: "whatsapp.intent.clarification_needed",
-      detail: targetMatchDetail({ prefix: "Pedido de ajuste de gramas sem alimento compatível nas refeições do dia.", targetFood: input.targetFood, scopeLabel: "refeições do dia", ambiguous: false }),
+      detail: targetMatchDetail({
+        prefix: "Pedido de ajuste de gramas sem alimento compatível nas refeições do dia.",
+        targetFood: input.targetFood,
+        scopeLabel: "refeições do dia",
+        ambiguous: false,
+      }),
     } satisfies WhatsappIntentResult;
   }
 
@@ -245,7 +260,13 @@ async function updateLatestMealItemGrams(input: {
       actionLines: [`Ajustei ${target.item.foodName}: de ${formatNumber(previousGrams)} g para ${formatNumber(nextGrams)} g ${contextWithPreposition(target.scope)} e recalculei os macros.`],
     }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
-    detail: targetMatchDetail({ prefix: input.detail, targetFood: input.targetFood, selectedFoodName: target.item.foodName, scopeLabel: target.scopeLabel, ambiguous: false }),
+    detail: targetMatchDetail({
+      prefix: input.detail,
+      targetFood: input.targetFood,
+      selectedFoodName: target.item.foodName,
+      scopeLabel: target.scopeLabel,
+      ambiguous: false,
+    }),
     data: { mealId: updatedMeal.id, foodName: target.item.foodName, previousGrams, nextGrams },
   } satisfies WhatsappIntentResult;
 }
@@ -292,10 +313,24 @@ async function handleMultiGramsChange(input: {
     const previousGrams = Number(target.item.estimatedGrams || 0);
     const nextGrams = Math.max(previousGrams + change.delta, MIN_FOOD_GRAMS);
     const action: MealItemSelectionAction = { kind: "grams_delta", delta: change.delta };
-    const candidate = { mealId: target.meal.id, mealLabel: target.meal.mealLabel, itemIndex: target.index, itemName: target.item.foodName };
+    const candidate = {
+      mealId: target.meal.id,
+      mealLabel: target.meal.mealLabel,
+      itemIndex: target.index,
+      itemName: target.item.foodName,
+    };
     target.meal.items = target.meal.items.map((item, index) => index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item);
     changedMealIndexes.add(target.mealIndex);
-    applied.push({ targetFood: change.targetFood, foodName: target.item.foodName, previousGrams, nextGrams, scope: target.scope, scopeLabel: target.scopeLabel, candidate, action });
+    applied.push({
+      targetFood: change.targetFood,
+      foodName: target.item.foodName,
+      previousGrams,
+      nextGrams,
+      scope: target.scope,
+      scopeLabel: target.scopeLabel,
+      candidate,
+      action,
+    });
   }
 
   if (pending.length) {
@@ -315,7 +350,11 @@ async function handleMultiGramsChange(input: {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppItemNotFoundReplyMessage({ target: notFound.join(", ") || "esses alimentos", context: "nas refeições de hoje", instruction: "Me diga quais itens devo ajustar." }),
+      reply: buildWhatsAppItemNotFoundReplyMessage({
+        target: notFound.join(", ") || "esses alimentos",
+        context: "nas refeições de hoje",
+        instruction: "Me diga quais itens devo ajustar.",
+      }),
       eventType: "whatsapp.intent.clarification_needed",
       detail: `${input.detailPrefix} sem alimentos compatíveis nas refeições do dia.`,
     };
@@ -332,7 +371,11 @@ async function handleMultiGramsChange(input: {
     reply: buildUpdatedMealsReply(updatedMeals, applied.length === 1 ? "Alimento ajustado" : "Alimentos ajustados", actionLines),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${applied.length} item(ns) ajustado(s) via WhatsApp sem ambiguidade pendente.`,
-    data: { mealId: updatedMeals[0]?.id, affectedMealIds: updatedMeals.map(meal => meal.id), adjustments: applied.map(({ candidate: _candidate, action: _action, scope: _scope, scopeLabel: _scopeLabel, targetFood: _targetFood, ...item }) => item) },
+    data: {
+      mealId: updatedMeals[0]?.id,
+      affectedMealIds: updatedMeals.map(meal => meal.id),
+      adjustments: applied.map(({ candidate: _candidate, action: _action, scope: _scope, scopeLabel: _scopeLabel, targetFood: _targetFood, ...item }) => item),
+    },
   };
 }
 
