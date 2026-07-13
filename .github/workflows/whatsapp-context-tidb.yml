@@ -40,11 +40,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Start TiDB
+      - name: Start TiDB and wait for SQL readiness
         run: |
           docker run -d --name whatsapp-context-tidb -p 4000:4000 pingcap/tidb:v8.5.1
           for attempt in $(seq 1 90); do
-            if (echo > /dev/tcp/127.0.0.1/4000) >/dev/null 2>&1; then
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("SELECT 1"); await connection.end();'; then
               exit 0
             fi
             sleep 2
