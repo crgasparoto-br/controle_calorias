@@ -1,0 +1,163 @@
+ | Fluxo | Entrada | Cadeia | Efeito de domínio | Builder/transporte atuais | Outbound atual | Resposta desejada | Testes existentes | Lacuna |
+ |---|---|---|---|---|---|---|---|---|
+diff --git a/server/db.ts b/server/db.ts
+index 92c92a4..d968e33 100644
+--- a/server/db.ts
++++ b/server/db.ts
+@@ -990,6 +990,34 @@ async function updateHabitsFromMeal(meal: SavedMeal) {
+   await persistHabitsToDb(meal.userId, ordered);
+ }
+ 
++/** Rebuilds derived habits idempotently after a compensable meal batch. */
++export async function rebuildUserMealHabits(userId: number) {
++  const meals = await listUserMeals(userId);
++  const byFoodName = new Map<string, HabitMemoryState>();
++
++  for (const meal of meals) {
++    for (const item of meal.items) {
++      const foodName = item.canonicalName?.trim() || item.foodName?.trim();
++      if (!foodName) continue;
++      const existing = byFoodName.get(foodName);
++      const isLatest = !existing || meal.occurredAt >= existing.lastSeenAt;
++      byFoodName.set(foodName, {
++        foodName,
++        typicalMealLabel: isLatest ? meal.mealLabel : existing?.typicalMealLabel,
++        preferredPortionGrams: isLatest ? item.estimatedGrams : existing?.preferredPortionGrams ?? item.estimatedGrams,
++        notes: isLatest ? `Última porção confirmada: ${item.portionText}` : existing?.notes,
++        occurrenceCount: (existing?.occurrenceCount ?? 0) + 1,
++        lastSeenAt: isLatest ? meal.occurredAt : existing!.lastSeenAt,
++      });
++    }
++  }
++
++  const rebuilt = [...byFoodName.values()].sort((a, b) => b.lastSeenAt - a.lastSeenAt);
++  await persistHabitsToDb(userId, rebuilt);
++  habitStore.set(userId, rebuilt);
++  return rebuilt;
++}
++
+ async function syncHabitsMealLabelFromMeals(userId: number, mealsToSync: SavedMeal[]) {
+   if (!mealsToSync.length) {
+     return;
+@@ -1309,6 +1337,11 @@ export async function reuseFavoriteMeal(input: {
+   });
+ }
+ 
++export type UpdateUserMealOptions = {
++  updateHabits?: boolean;
++  logEvent?: boolean;
++};
++
+ export async function updateUserMeal(input: {
+   userId: number;
+   mealId: number;
+@@ -1316,7 +1349,7 @@ export async function updateUserMeal(input: {
+   occurredAt: string;
+   notes?: string;
+   items: MealDraftItem[];
+-}) {
++}, options: UpdateUserMealOptions = {}) {
+   const current = await listUserMeals(input.userId);
+   const existing = current.find(meal => meal.id === input.mealId);
+   if (!existing) {
+@@ -1337,14 +1370,18 @@ export async function updateUserMeal(input: {
+     current.map(meal => (meal.id === input.mealId ? updatedMeal : meal)).sort((a, b) => b.occurredAt - a.occurredAt),
+   );
+   await updateMealInDb(updatedMeal);
+-  await updateHabitsFromMeal(updatedMeal);
+-  logInferenceEvent({
+-    userId: input.userId,
+-    origin: "web",
+-    status: "success",
+-    eventType: "meal.manual_updated",
+-    detail: `Refeição ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
+-  });
++  if (options.updateHabits !== false) {
++    await updateHabitsFromMeal(updatedMeal);
++  }
++  if (options.logEvent !== false) {
++    logInferenceEvent({
++      userId: input.userId,
++      origin: "web",
++      status: "success",
++      eventType: "meal.manual_updated",
++      detail: `Refeição ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
++    });
++  }
+   return { ...updatedMeal, totals: sumMealItems(updatedMeal.items) };
+ }
+ 
+diff --git a/server/modules/meals/nutritionSnapshot.test.ts b/server/modules/meals/nutritionSnapshot.test.ts
+index 4331d53..e581d0f 100644
+--- a/server/modules/meals/nutritionSnapshot.test.ts
++++ b/server/modules/meals/nutritionSnapshot.test.ts
+@@ -139,4 +139,11 @@ describe("meal item nutrition snapshots", () => {
+     expect(secondSnapshot.calculated.caloriesKcal).toBe(120);
+     expect(first.foodSnapshotJson).not.toEqual(second.foodSnapshotJson);
+   });
++  it("pode preparar snapshots sem incrementar uso de catálogo", async () => {
++    vi.mocked(recordGlobalFoodUsage).mockClear();
++    vi.mocked(getGlobalFoodCatalogItem).mockResolvedValueOnce(catalogFood());
++    const [item] = await enrichMealItemsWithNutritionSnapshots(7, [baseItem], { recordUsage: false });
++    expect(item.foodSnapshotJson).toBeTruthy();
++    expect(recordGlobalFoodUsage).not.toHaveBeenCalled();
++  });
+ });
+diff --git a/server/modules/meals/nutritionSnapshot.ts b/server/modules/meals/nutritionSnapshot.ts
+index f9345d3..5637c98 100644
+--- a/server/modules/meals/nutritionSnapshot.ts
++++ b/server/modules/meals/nutritionSnapshot.ts
+@@ -98,7 +98,15 @@ function buildSnapshot(params: {
+   };
+ }
+ 
+-export async function enrichMealItemsWithNutritionSnapshots(userId: number, items: MealItemInput[]) {
++export type EnrichMealItemsWithNutritionSnapshotsOptions = {
++  recordUsage?: boolean;
++};
++
++export async function enrichMealItemsWithNutritionSnapshots(
++  userId: number,
++  items: MealItemInput[],
++  options: EnrichMealItemsWithNutritionSnapshotsOptions = {},
++) {
+   const enriched: MealItemWithNutritionSnapshot[] = [];
+ 
+   for (const item of items) {
+@@ -122,7 +130,9 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
+     const food = await getGlobalFoodCatalogItem(userId, item.foodId);
+     const nutritionSource = deriveNutritionSourceForMealItem(item, food);
+     const { calculated, snapshot } = buildSnapshot({ food, grams, portion, nutritionSource });
+-    await recordGlobalFoodUsage(userId, food.id);
++    if (options.recordUsage !== false) {
++      await recordGlobalFoodUsage(userId, food.id);
++    }
+ 
+     enriched.push({
+       ...item,
+diff --git a/server/modules/meals/service.ts b/server/modules/meals/service.ts
+index ae95e4e..8b430f5 100644
+--- a/server/modules/meals/service.ts
++++ b/server/modules/meals/service.ts
+@@ -11,6 +11,7 @@ import {
+   listFavoriteMeals,
+   listUserMeals,
+   logInferenceEvent,
++  rebuildUserMealHabits,
+   removeUserMeal,
+   reuseFavoriteMeal,
+   saveFavoriteMeal,
+@@ -299,8 +300,16 @@ function ensureProcessedMealItems<T extends { items: MealDraftItem[] }>(processe
+   };
+ }
+ 
+-async function prepareMealItemsForSave(userId: number, items: Array<MealDraftItem>) {
+-  return enrichMealItemsWithNutritionSnapshots(userId, ensureMealItems(items) as MealItemWithNutritionSnapshot[]);
++async function prepareMealItemsForSave(
++  userId: number,
++  items: Array<MealDraftItem>,
++  options: { recordUsage?: boolean } = {},
++) {
++  return enrichMealItemsWithNutritionSnapshots(
++    userId,
++    ensureMealItems(items) as MealItemWithNutritionSnapshot[],

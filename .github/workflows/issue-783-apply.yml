@@ -1,0 +1,32 @@
+name: Apply issue 783 completion
+
+on:
+  push:
+    branches:
+      - feat/783-unificar-respostas-refeicoes
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore(ci): apply issue 783 completion patch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/783-unificar-respostas-refeicoes
+          fetch-depth: 0
+
+      - name: Apply audited completion
+        run: |
+          cat .issue783-patch/part* > /tmp/issue-783.patch
+          git apply /tmp/issue-783.patch
+          rm -rf .issue783-patch .github/workflows/issue-783-apply.yml
+
+      - name: Commit applied completion
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: fix(whatsapp): complete issue 783 response contract
+          branch: feat/783-unificar-respostas-refeicoes

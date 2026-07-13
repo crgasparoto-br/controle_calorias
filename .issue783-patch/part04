@@ -1,0 +1,111 @@
+ import type { MealItemInput } from "../meals/schemas";
+-import { updateMeal } from "../meals/service";
++import { updateMeal, type UpdateMealServiceOptions } from "../meals/service";
++
++const MEAL_UPDATE_SERVICE_OPTIONS = Symbol.for("controle_calorias.mealUpdateServiceOptions");
+ 
+ export type MealBatchMutationSnapshot = {
+   id: number;
+@@ -30,14 +32,14 @@ export class MealBatchMutationError extends Error {
+   }
+ }
+ 
+-function toUpdateInput(meal: MealBatchMutationSnapshot) {
+-  return {
++function toUpdateInput(meal: MealBatchMutationSnapshot, options?: UpdateMealServiceOptions) {
++  return Object.assign({
+     mealId: meal.id,
+     mealLabel: meal.mealLabel,
+     occurredAt: new Date(meal.occurredAt).toISOString(),
+     notes: meal.notes ?? undefined,
+     items: meal.items,
+-  };
++  }, options ? { [MEAL_UPDATE_SERVICE_OPTIONS]: options } : {});
+ }
+ 
+ function validateChanges(changes: MealBatchMutationChange[]) {
+@@ -73,16 +75,25 @@ export async function updateMealsWithCompensation(
+   const updatedMeals: Awaited<ReturnType<typeof updateMeal>>[] = [];
+ 
+   try {
+-    for (const change of changes) {
++    for (const [index, change] of changes.entries()) {
+       attempted.push(change);
+-      updatedMeals.push(await updateMeal(userId, toUpdateInput(change.after)));
++      updatedMeals.push(await updateMeal(userId, toUpdateInput(change.after, {
++        recordCatalogUsage: false,
++        derivedState: index === changes.length - 1 ? "rebuild" : "skip",
++        logEvent: false,
++      })));
+     }
+     return updatedMeals;
+   } catch (error) {
+     const rollbackErrors: unknown[] = [];
+-    for (const change of [...attempted].reverse()) {
++    const rollbackChanges = [...attempted].reverse();
++    for (const [index, change] of rollbackChanges.entries()) {
+       try {
+-        await updateMeal(userId, toUpdateInput(change.before));
++        await updateMeal(userId, toUpdateInput(change.before, {
++          recordCatalogUsage: false,
++          derivedState: index === rollbackChanges.length - 1 ? "rebuild" : "skip",
++          logEvent: false,
++        }));
+       } catch (rollbackError) {
+         rollbackErrors.push(rollbackError);
+       }
+diff --git a/server/modules/whatsapp/mealItemSelectionCallback.chained.test.ts b/server/modules/whatsapp/mealItemSelectionCallback.chained.test.ts
+index 7299704..5a091c2 100644
+--- a/server/modules/whatsapp/mealItemSelectionCallback.chained.test.ts
++++ b/server/modules/whatsapp/mealItemSelectionCallback.chained.test.ts
+@@ -106,7 +106,7 @@ describe("meal item selection — ambiguidades encadeadas", () => {
+     updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => {
+       const mealId = Number(input.mealId);
+       const items = input.items as Array<{ foodName: string }>;
+-      if (mealId === 2 && items.some(candidate => candidate.foodName === "ricota") && failSecondOnce) {
++      if (mealId === 1 && items.some(candidate => candidate.foodName === "tapioca") && failSecondOnce) {
+         failSecondOnce = false;
+         throw new Error("falha simulada na segunda refeição");
+       }
+@@ -136,4 +136,30 @@ describe("meal item selection — ambiguidades encadeadas", () => {
+     expect(state.get(2)?.items.map(candidate => candidate.foodName)).toEqual(["Queijo mussarela", "Pão integral"]);
+     expect(updateMealMock).toHaveBeenCalledTimes(4);
+   });
++  it("preserva a ordem original em ações sobre o mesmo item", async () => {
++    const first: PendingMealItemSelection = {
++      targetFood: "queijo", action: { kind: "grams_delta", delta: 10 }, contextLabel: "na refeição", resultTitle: "Alimento ajustado",
++      candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }],
++      remainingSelections: [{ targetFood: "o mesmo queijo", action: { kind: "grams_absolute", grams: 80 }, contextLabel: "na refeição", candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }] }],
++    };
++    await completeMealItemSelectionInteractiveCallback(42, { target: first }, "select:0");
++    const second = createPendingOperationMock.mock.calls[0][0].target as PendingMealItemSelection;
++    const result = await completeMealItemSelectionInteractiveCallback(42, { target: second }, "select:0");
++    expect(result.action).toBe("meal_item_grams_adjusted");
++    expect(updateMealMock.mock.calls[0][1].items[0].estimatedGrams).toBe(80);
++  });
++
++  it("mantém a identidade após renomeação anterior do mesmo item", async () => {
++    const first: PendingMealItemSelection = {
++      targetFood: "queijo", action: { kind: "replace_food", targetFood: "ricota" }, contextLabel: "na refeição", resultTitle: "Alimento substituído",
++      candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }],
++      remainingSelections: [{ targetFood: "o mesmo item", action: { kind: "replace_food", targetFood: "tofu" }, contextLabel: "na refeição", candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }] }],
++    };
++    await completeMealItemSelectionInteractiveCallback(42, { target: first }, "select:0");
++    const second = createPendingOperationMock.mock.calls[0][0].target as PendingMealItemSelection;
++    const result = await completeMealItemSelectionInteractiveCallback(42, { target: second }, "select:0");
++    expect(result.action).toBe("meal_item_replaced");
++    expect(updateMealMock.mock.calls[0][1].items[0].foodName).toBe("tofu");
++  });
++
+ });
+diff --git a/server/modules/whatsapp/mealItemSelectionCallback.ts b/server/modules/whatsapp/mealItemSelectionCallback.ts
+index e5c5917..ff201af 100644
+--- a/server/modules/whatsapp/mealItemSelectionCallback.ts
++++ b/server/modules/whatsapp/mealItemSelectionCallback.ts
+@@ -161,15 +161,16 @@ function applyActionToItem(item: MealItemInput, action: MealItemSelectionAction)
+ 
+ async function applySelectionPlan(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection): Promise<MealItemSelectionResult> {
+   const meals = await listMeals(userId);
+-  const plan: MealItemSelectionCompanionAction[] = [{ candidate: selected, action: pending.action }, ...(pending.companionActions ?? [])];
++  const plan: MealItemSelectionCompanionAction[] = [...(pending.companionActions ?? []), { candidate: selected, action: pending.action }];
+   const workingMeals = new Map<number, Awaited<ReturnType<typeof listMeals>>[number]>();
