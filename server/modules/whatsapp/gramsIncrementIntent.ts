@@ -41,7 +41,14 @@ export async function executeWhatsappGramsIncrementIntent(
 ) {
   const increments = input.text ? parse(input.text) : null;
   if (!increments) return null;
-  return handleMealItemMultiIncrement(userId, increments);
+  const result = await handleMealItemMultiIncrement(userId, increments);
+  if (result.action !== "meal_item_grams_adjusted") return result;
+  const adjustments = Array.isArray(result.data?.adjustments) ? result.data.adjustments : [];
+  return {
+    ...result,
+    reply: result.reply.includes("recalculei os macros") ? result.reply : `${result.reply}\n\nTambém recalculei os macros da refeição.`,
+    data: { ...result.data, increments: adjustments },
+  };
 }
 
 export const contextUsage: import("./intentContext").IntentContextUsage = {
