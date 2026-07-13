@@ -1,0 +1,68 @@
+/modules/whatsapp/replyFormatting";
+ import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage, buildWhatsAppWaterVolumeNeededReplyMessage } from "./modules/whatsapp/replyMessages";
++import { sendWhatsAppLogicalDomainReply, type WhatsAppAuxiliaryImage } from "./modules/whatsapp/logicalReplyDelivery";
+ import {
+   buildWaterLogReply,
+   buildWeightLogReply,
+@@ -32,8 +32,6 @@ import {
+   isWhatsAppMessageForConfiguredChannel,
+   markWhatsAppMessageAsRead,
+   resolveWhatsAppMessageOccurredAt,
+-  sendWhatsAppImageMessage,
+-  sendWhatsAppInteractiveUrlButtonMessage,
+   sendWhatsAppTextMessage,
+   type WhatsAppWebhookMessage,
+ } from "./modules/whatsapp/webhookUtils";
+@@ -151,32 +149,27 @@ async function sendInterpretedTextIntentReply(input: {
+     detail: input.interpreted.detail,
+   });
+ 
+-  const mealId = typeof input.interpreted.data?.mealId === "number" ? input.interpreted.data.mealId : null;
++  const mealId = typeof input.interpreted.data?.mealId === "number"
++    ? input.interpreted.data.mealId
++    : null;
+   const replyText = input.interpreted.reply;
+-  let quickEditUrl: string | null = null;
+-  if (mealId) {
+-    const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId });
+-    quickEditUrl = quickEditLink?.url ?? null;
+-  }
+-
+-  const replyResult = quickEditUrl
+-    ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, replyText, "Editar refeição", quickEditUrl)
+-    : await sendWhatsAppTextMessage(input.sourcePhone, replyText);
+-
+-
+-  if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
++  const delivery = await sendWhatsAppLogicalDomainReply({
++    to: input.sourcePhone,
++    userId: input.userId,
++    replyText,
++    mealId,
++    logicalReply: input.interpreted.interactiveReply,
++    lifecycleHandle: input.lifecycleHandle,
++  });
++  if (!delivery.result.ok) {
+     logInferenceEvent({
+       userId: input.userId,
+       origin: "whatsapp",
+-      status: replyResult.ok ? "warning" : "error",
++      status: delivery.result.primaryOk ? "warning" : "error",
+       eventType: "whatsapp.reply_failed",
+-      detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}`,
++      detail: `Falha ao enviar resposta lógica para ${input.sourcePhone}.`,
+     });
+   }
+-
+-  if (replyResult.ok) {
+-    await recordOutboundReply(input.lifecycleHandle, { userId: input.userId, text: replyText });
+-  }
+   if (mealId) {
+     await recordDomainLink(input.lifecycleHandle, { mealId });
+   }
+@@ -673,7 +666,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
+         detail: `Mensagem ${prepared.summary} de ${sourcePhone} processada e refeição ${savedMeal.mealLabel} registrada automaticamente às ${formatWhatsAppReplyTime(occurredAt)}.`,
+       });
+ 
+-      const quickEditLink = await tryCreateQuickEditLinkForMeal({ userId, mealId: replyMeal.id });
+       const mealReplyText = consolidationResult.actio

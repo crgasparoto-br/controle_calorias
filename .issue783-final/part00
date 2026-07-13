@@ -1,0 +1,29 @@
+diff --git a/docs/RELIABILITY.md b/docs/RELIABILITY.md
+index 3141716..28ac12f 100644
+--- a/docs/RELIABILITY.md
++++ b/docs/RELIABILITY.md
+@@ -80,3 +80,13 @@ pnpm db:check-integrity
+ - Recalcular totais nutricionais no backend a partir dos itens validados.
+ - Falha de visual auxiliar deve degradar para ausência de imagem, nunca para falha de refeição.
+ - Rodar smoke test web e WhatsApp antes de ativar em produção.
++
++## Mutações multirrefeição pelo WhatsApp
++
++Solicitações compostas de ajuste ou substituição usam uma unidade lógica compensável:
++
++- tentativas persistem refeição e snapshots sem incrementar hábitos ou uso de catálogo;
++- somente a última escrita do lote reconstrói hábitos de forma idempotente a partir das refeições atuais;
++- falha intermediária restaura todas as refeições tentadas em ordem inversa e reconstrói novamente o estado derivado;
++- falha durante a restauração nunca comunica sucesso ou restauração completa ao usuário;
++- a resposta funcional só é enviada depois do sucesso integral pelo transporte lógico central.
+diff --git a/docs/design-docs/whatsapp-ingestion.md b/docs/design-docs/whatsapp-ingestion.md
+index 598d024..c32c288 100644
+--- a/docs/design-docs/whatsapp-ingestion.md
++++ b/docs/design-docs/whatsapp-ingestion.md
+@@ -129,9 +129,11 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
+ - **Builders locais removidos**: `buildMealFullSummary` (duplicado em `whatsappIntentWebhook.ts`, que produzia uma segunda seção "Resumo da refeição" logo abaixo da resposta central de `datedFoodAdditionIntent.ts`) e `formatMealSummary`/`formatTotalsLine` (duplicados em `contextualFoodReplacementIntent.ts`) foram removidos; ambos os fluxos agora produzem uma única seção com os blocos centrais.
+ - **Substituição e ajuste de quantidade diretos**: quando o alvo é inequívoco, a mutação é aplicada sem pedido de confirmação.
+ - **Ambiguidade por botões/lista**: `server/modules/whatsapp/mealItemSelectionCallback.ts` generaliza o padrão de seleção ambígua da exclusão (#782) para ajuste de gramas, correção de quantidade em contexto curto e substituição de alimento. Cada candidato preserva `mealId`, rótulo, índice e nome do item; duplicidades na mesma refeição permanecem candidatos distintos.
+-- **Encadeamento completo**: mensagens com uma ação clara e uma ou mais ações ambíguas não escrevem antes da última escolha. Substituições e ajustes de gramas preservam todas as ações seguintes em `remainingSelections`, incluindo destino, delta e quantidade específicos de cada ação.
++- **Encadeamento completo e ordenado**: mensagens com uma ação clara e uma ou mais ações ambíguas não escrevem antes da última escolha. Substituições e ajustes de gramas preservam todas as ações seguintes em `remainingSelections`, incluindo destino, delta e quantidade específicos de cada ação.
+ - **Caminhos equivalentes**: `recordAdjustmentIntent.ts`, `g

@@ -1,0 +1,52 @@
+ts
+@@ -483,7 +483,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
+     }));
+   });
+ 
+-  it("mantém o registro e avisa quando a imagem anotada não pode ser gerada", async () => {
++  it("mantém somente a resposta nutricional quando a imagem anotada não pode ser gerada", async () => {
+     createLocalMealPhotoOverlayMock.mockRejectedValue(new Error("provedor indisponível"));
+     const req = createImageWebhookRequest("image-without-annotation");
+     const res = createResponse();
+@@ -511,7 +511,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
+     }));
+     expect(uploadedMediaRequests).toBe(0);
+     expect(sentImageMessages).toEqual([]);
+-    expect(sentTextMessages.at(-1)).toBe("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
++    expect(sentTextMessages.at(-1)).toContain("Almoço");
++    expect(sentTextMessages).not.toContain("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
+     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+       userId: 42,
+       origin: "whatsapp",
+diff --git a/server/whatsappAnnotatedImageWebhook.ts b/server/whatsappAnnotatedImageWebhook.ts
+index b23133b..c040fe2 100644
+--- a/server/whatsappAnnotatedImageWebhook.ts
++++ b/server/whatsappAnnotatedImageWebhook.ts
+@@ -1,6 +1,5 @@
+ import { Request, Response } from "express";
+ import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
+-import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
+ import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
+ import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+ import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
+@@ -11,6 +10,7 @@ import {
+   inspectWhatsAppUserContentSafety,
+ } from "./modules/whatsapp/promptInjectionGuard";
+ import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
++import { sendWhatsAppLogicalDomainReply, type WhatsAppAuxiliaryImage } from "./modules/whatsapp/logicalReplyDelivery";
+ import {
+   buildMediaDataUrl,
+   downloadWhatsAppMedia,
+@@ -372,19 +372,26 @@ async function sendAnnotatedImageFallbackText(input: {
+   userId: number;
+   sourcePhone: string;
+   reply: string;
++  mealId?: number | null;
++  logicalReply?: import("./modules/whatsapp/replyContract").WhatsAppLogicalReply;
+   lifecycleHandle?: MessageLifecycleHandle;
+ }) {
+-  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
+-  if (!replyResult.ok) {
++  const delivery = await sendWhatsAppLogicalDomainReply({
++    to: input.sourcePhone,
++    userId: input.

@@ -1,0 +1,32 @@
+ : null,
+-    input.occurredAtMs ?? Date.now(),
+-  );
+-
+-  if (input.mealId) {
+-    await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
+-  }
++  recordConversationTurn(input.userId, input.userMessage, replyOk ? input.reply : null, input.occurredAtMs ?? Date.now());
++  if (input.mealId) await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
+   await markMessageProcessed(input.lifecycleHandle ?? null);
+ }
+ 
+@@ -467,6 +445,17 @@ function extractMealId(data: Record<string, unknown> | undefined) {
+   return typeof data?.mealId === "number" ? data.mealId : null;
+ }
+ 
++function extractEditableMealId(result: unknown) {
++  if (!result || typeof result !== "object") return null;
++  const candidate = result as { action?: unknown; data?: unknown };
++  if (candidate.action === "meal_deleted") return null;
++  return extractMealId(
++    candidate.data && typeof candidate.data === "object"
++      ? candidate.data as Record<string, unknown>
++      : undefined,
++  );
++}
++
+ function buildMixedWaterReply(waterResults: TextIntentResult[]) {
+   const waterLines = waterResults
+     .map((result) => typeof result.data?.amountMl === "number" ? `* ${formatNumber(result.data?.amountMl)} ml de água` : null)
+@@ -560,7 +549,8 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
+       reply: precedenceGate.result.reply,

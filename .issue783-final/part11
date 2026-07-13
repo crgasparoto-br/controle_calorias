@@ -1,0 +1,42 @@
+ame === "tapioca") && failSecondOnce) {
+         failSecondOnce = false;
+         throw new Error("falha simulada na segunda refeição");
+       }
+@@ -136,4 +136,30 @@ describe("meal item selection — ambiguidades encadeadas", () => {
+     expect(state.get(2)?.items.map(candidate => candidate.foodName)).toEqual(["Queijo mussarela", "Pão integral"]);
+     expect(updateMealMock).toHaveBeenCalledTimes(4);
+   });
++  it("preserva a ordem original em ações sobre o mesmo item", async () => {
++    const first: PendingMealItemSelection = {
++      targetFood: "queijo", action: { kind: "grams_delta", delta: 10 }, contextLabel: "na refeição", resultTitle: "Alimento ajustado",
++      candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }],
++      remainingSelections: [{ targetFood: "o mesmo queijo", action: { kind: "grams_absolute", grams: 80 }, contextLabel: "na refeição", candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }] }],
++    };
++    await completeMealItemSelectionInteractiveCallback(42, { target: first }, "select:0");
++    const second = createPendingOperationMock.mock.calls[0][0].target as PendingMealItemSelection;
++    const result = await completeMealItemSelectionInteractiveCallback(42, { target: second }, "select:0");
++    expect(result.action).toBe("meal_item_grams_adjusted");
++    expect(updateMealMock.mock.calls[0][1].items[0].estimatedGrams).toBe(80);
++  });
++
++  it("mantém a identidade após renomeação anterior do mesmo item", async () => {
++    const first: PendingMealItemSelection = {
++      targetFood: "queijo", action: { kind: "replace_food", targetFood: "ricota" }, contextLabel: "na refeição", resultTitle: "Alimento substituído",
++      candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }],
++      remainingSelections: [{ targetFood: "o mesmo item", action: { kind: "replace_food", targetFood: "tofu" }, contextLabel: "na refeição", candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" }] }],
++    };
++    await completeMealItemSelectionInteractiveCallback(42, { target: first }, "select:0");
++    const second = createPendingOperationMock.mock.calls[0][0].target as PendingMealItemSelection;
++    const result = await completeMealItemSelectionInteractiveCallback(42, { target: second }, "select:0");
++    expect(result.action).toBe("meal_item_replaced");
++    expect(updateMealMock.mock.calls[0][1].items[0].foodName).toBe("tofu");
++  });
++
+ });
+diff --git a/server/modules/whatsapp/mealItemSelectionCallback.ts b/server/modules/whatsapp/mealItemSelectionCallback.ts
+index e5c5917..ff201af 100644
+--- a/server/modules/whatsapp/mealItemSelectionCallback.ts
++++ b/server/modules/whatsapp/mealItemSelectionCallback.ts
+@@ -161,15 +161,16 @@ function applyActionToItem(item: MealItemInput, action: MealItemSelectionAction)
+ 
+ async function applySelectionPlan(userId: number, selected: MealItemSelectionCandida

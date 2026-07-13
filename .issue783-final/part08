@@ -1,0 +1,66 @@
+ery = await sendWhatsAppLogicalDomainReply({ to: "5511999999999", userId: 42, mealId: 10, replyText: "Atualizada", lifecycleHandle: { conversationId: 1, messageId: 2, wasNewInsert: true } });
++    expect(delivery.reply.messages).toEqual([{ type: "text", body: "Atualizada" }]);
++    expect(sendMock).toHaveBeenCalledOnce();
++  });
++});
+diff --git a/server/modules/whatsapp/logicalReplyDelivery.ts b/server/modules/whatsapp/logicalReplyDelivery.ts
+new file mode 100644
+index 0000000..19513a4
+--- /dev/null
++++ b/server/modules/whatsapp/logicalReplyDelivery.ts
+@@ -0,0 +1,45 @@
++import { tryCreateQuickEditLinkForMeal } from "../quickEdit/service";
++import { logicalReplyFromLegacyText, withAuxiliaryImage, withCtaUrl, type WhatsAppLogicalReply } from "./replyContract";
++import { sendWhatsAppLogicalReply } from "./replyTransport";
++import type { MessageLifecycleHandle } from "./messageLifecycle";
++
++export type WhatsAppAuxiliaryImage =
++  | { url: string; caption: string }
++  | { buffer: Buffer; mimeType?: string; fileName?: string; caption: string };
++
++function canReplacePrimaryWithCta(reply: WhatsAppLogicalReply) {
++  return reply.messages[0]?.type === "text";
++}
++
++export async function buildWhatsAppLogicalReplyForDelivery(input: {
++  userId: number; replyText: string; mealId?: number | null; logicalReply?: WhatsAppLogicalReply; auxiliaryImage?: WhatsAppAuxiliaryImage | null;
++}) {
++  let reply = input.logicalReply ?? logicalReplyFromLegacyText(input.replyText);
++  if (input.mealId && canReplacePrimaryWithCta(reply)) {
++    try {
++      const link = await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId });
++      if (link?.url) reply = withCtaUrl(reply, { buttonText: "Editar refeição", url: link.url });
++    } catch {
++      // Quick edit is optional; the functional nutrition reply must still be delivered.
++    }
++  }
++  if (input.auxiliaryImage) reply = withAuxiliaryImage(reply, input.auxiliaryImage);
++  return reply;
++}
++
++export async function sendWhatsAppLogicalDomainReply(input: {
++  to: string;
++  userId: number;
++  replyText: string;
++  mealId?: number | null;
++  logicalReply?: WhatsAppLogicalReply;
++  auxiliaryImage?: WhatsAppAuxiliaryImage | null;
++  lifecycleHandle?: MessageLifecycleHandle;
++}) {
++  const reply = await buildWhatsAppLogicalReplyForDelivery(input);
++  const lifecycle = input.lifecycleHandle
++    ? { handle: input.lifecycleHandle, userId: input.userId }
++    : undefined;
++  const result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle);
++  return { reply, result };
++}
+diff --git a/server/modules/whatsapp/mealBatchMutation.test.ts b/server/modules/whatsapp/mealBatchMutation.test.ts
+index a83e8a7..eabefb5 100644
+--- a/server/modules/whatsapp/mealBatchMutation.test.ts
++++ b/server/modules/whatsapp/mealBatchMutation.test.ts
+@@ -11,6 +11,14 @@ import {
+   type MealBatchMutationChange,
+ } from "./mealBatchMutation";
+ 
++function serviceOptionsAt(callIndex: number) {
++  const input = updateMealMock.

@@ -1,0 +1,73 @@
+ ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
+-  });
++  if (options.updateHabits !== false) {
++    await updateHabitsFromMeal(updatedMeal);
++  }
++  if (options.logEvent !== false) {
++    logInferenceEvent({
++      userId: input.userId,
++      origin: "web",
++      status: "success",
++      eventType: "meal.manual_updated",
++      detail: `Refeição ${updatedMeal.mealLabel} atualizada manualmente pelo usuário.`,
++    });
++  }
+   return { ...updatedMeal, totals: sumMealItems(updatedMeal.items) };
+ }
+ 
+diff --git a/server/modules/meals/nutritionSnapshot.test.ts b/server/modules/meals/nutritionSnapshot.test.ts
+index 4331d53..e581d0f 100644
+--- a/server/modules/meals/nutritionSnapshot.test.ts
++++ b/server/modules/meals/nutritionSnapshot.test.ts
+@@ -139,4 +139,11 @@ describe("meal item nutrition snapshots", () => {
+     expect(secondSnapshot.calculated.caloriesKcal).toBe(120);
+     expect(first.foodSnapshotJson).not.toEqual(second.foodSnapshotJson);
+   });
++  it("pode preparar snapshots sem incrementar uso de catálogo", async () => {
++    vi.mocked(recordGlobalFoodUsage).mockClear();
++    vi.mocked(getGlobalFoodCatalogItem).mockResolvedValueOnce(catalogFood());
++    const [item] = await enrichMealItemsWithNutritionSnapshots(7, [baseItem], { recordUsage: false });
++    expect(item.foodSnapshotJson).toBeTruthy();
++    expect(recordGlobalFoodUsage).not.toHaveBeenCalled();
++  });
+ });
+diff --git a/server/modules/meals/nutritionSnapshot.ts b/server/modules/meals/nutritionSnapshot.ts
+index f9345d3..81e0195 100644
+--- a/server/modules/meals/nutritionSnapshot.ts
++++ b/server/modules/meals/nutritionSnapshot.ts
+@@ -98,7 +98,15 @@ function buildSnapshot(params: {
+   };
+ }
+ 
+-export async function enrichMealItemsWithNutritionSnapshots(userId: number, items: MealItemInput[]) {
++export type EnrichMealItemsWithNutritionSnapshotsOptions = {
++  recordUsage?: boolean;
++};
++
++export async function enrichMealItemsWithNutritionSnapshots(
++  userId: number,
++  items: MealItemInput[],
++  options: EnrichMealItemsWithNutritionSnapshotsOptions = {},
++) {
+   const enriched: MealItemWithNutritionSnapshot[] = [];
+ 
+   for (const item of items) {
+@@ -122,7 +130,9 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
+     const food = await getGlobalFoodCatalogItem(userId, item.foodId);
+     const nutritionSource = deriveNutritionSourceForMealItem(item, food);
+     const { calculated, snapshot } = buildSnapshot({ food, grams, portion, nutritionSource });
+-    await recordGlobalFoodUsage(userId, food.id);
++    if (options.recordUsage !== false) {
++      await recordGlobalFoodUsage(userId, food.id);
++    }
+ 
+     enriched.push({
+       ...item,
+@@ -150,6 +160,14 @@ export async function enrichMealItemsWithNutritionSnapshots(userId: number, item
+   return enriched;
+ }
+ 
++export async function recordMealItemsCatalogUsage(userId: number, items: MealItemWithNutritionSnapshot[]) {
++  for (const item of items) {
++    if (item.foodId) {
++ 

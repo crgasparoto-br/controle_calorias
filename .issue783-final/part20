@@ -1,0 +1,61 @@
+n === "updated"
+         ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
+             registeredAt: occurredAt,
+@@ -683,40 +675,28 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
+             registeredAt: occurredAt,
+             goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+           });
+-      const replyResult = quickEditLink?.url
+-        ? await sendWhatsAppInteractiveUrlButtonMessage(sourcePhone, mealReplyText, "Editar refeição", quickEditLink.url)
+-        : await sendWhatsAppTextMessage(sourcePhone, mealReplyText);
+-
+-      if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
++      const auxiliaryImage: WhatsAppAuxiliaryImage | null = annotatedImage?.url
++        ? { url: annotatedImage.url, caption: "Imagem anotada com os alimentos identificados." }
++        : annotatedImage?.buffer
++          ? { buffer: annotatedImage.buffer, mimeType: annotatedImage.mimeType, fileName: "whatsapp-annotated-meal.png", caption: "Imagem anotada com os alimentos identificados." }
++          : null;
++      const delivery = await sendWhatsAppLogicalDomainReply({
++        to: sourcePhone,
++        userId,
++        replyText: mealReplyText,
++        mealId: replyMeal.id,
++        auxiliaryImage,
++        lifecycleHandle,
++      });
++      if (!delivery.result.ok) {
+         logInferenceEvent({
+           userId,
+           origin: "whatsapp",
+-          status: replyResult.ok ? "warning" : "error",
+-          eventType: "whatsapp.reply_failed",
+-          detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
++          status: delivery.result.primaryOk ? "warning" : "error",
++          eventType: auxiliaryImage && delivery.result.primaryOk ? "whatsapp.annotated_image_reply_failed" : "whatsapp.reply_failed",
++          detail: `Falha ao enviar resposta lógica de refeição para ${sourcePhone}.`,
+         });
+       }
+-      if (replyResult.ok) {
+-        await recordOutboundReply(lifecycleHandle, { userId, text: mealReplyText });
+-      }
+-
+-      if (annotatedImage?.url) {
+-        const imageReplyResult = await sendWhatsAppImageMessage(
+-          sourcePhone,
+-          annotatedImage.url,
+-          "Imagem anotada com os alimentos identificados.",
+-        );
+-
+-        if (!imageReplyResult.ok) {
+-          logInferenceEvent({
+-            userId,
+-            origin: "whatsapp",
+-            status: "warning",
+-            eventType: "whatsapp.annotated_image_reply_failed",
+-            detail: `Falha ao enviar imagem anotada para ${sourcePhone}: ${imageReplyResult.detail}`,
+-          });
+-        }
+-      }
+     } catch (error) {
+       logInferenceEvent({
+         userId,

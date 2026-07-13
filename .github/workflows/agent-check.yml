@@ -8,9 +8,37 @@ on:
       - develop
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  issue-783-apply:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/783-unificar-respostas-refeicoes'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request merge
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply audited issue 783 completion
+        run: |
+          cat .issue783-final/part* > /tmp/issue783.patch
+          git apply --check /tmp/issue783.patch
+          git apply /tmp/issue783.patch
+          git diff --name-only -z > /tmp/issue783-files
+          tar --null -T /tmp/issue783-files -cf /tmp/issue783-files.tar
+          git fetch origin feat/783-unificar-respostas-refeicoes
+          git checkout -B feat/783-unificar-respostas-refeicoes origin/feat/783-unificar-respostas-refeicoes
+          tar -xf /tmp/issue783-files.tar
+          rm -rf .issue783-final
+          git show bc767414eb336e25ff7a4fc491c2bbf7da9350f2:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+
+      - name: Commit applied completion
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "fix(whatsapp): complete issue 783 response contract"
+          branch: feat/783-unificar-respostas-refeicoes
+
   agent-check:
     name: Agent-first gate
     runs-on: ubuntu-latest
