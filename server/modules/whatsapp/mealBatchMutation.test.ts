@@ -133,7 +133,7 @@ describe("meal batch mutation compensation", () => {
       recordCatalogUsage: false,
       updateHabits: false,
       logEvent: false,
-      finalizeBatch: expect.objectContaining({ recordCatalogUsage: undefined }),
+      finalizeBatch: expect.objectContaining({ meals: expect.any(Array) }),
     });
   });
 
