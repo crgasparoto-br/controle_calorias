@@ -1,4 +1,8 @@
+import { listMeals, updateMeal } from "../meals/service";
+import type { MealItemInput } from "../meals/schemas";
 import { handleMealItemMultiAdjustment } from "./intent/gramsAdjustmentHandlers";
+import { resolveTargetMealItem, scaleMealItem, toMealItemInputs } from "./intent/mealItemHelpers";
+import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 
 export type WhatsappGramsAdjustmentResult = Awaited<ReturnType<typeof handleMealItemMultiAdjustment>>;
 
@@ -43,16 +47,53 @@ function parse(text: string) {
     const gramsDelta = Number(match[1].replace(",", "."));
     if (Number.isFinite(gramsDelta) && gramsDelta > 0) adjustments.push({ gramsDelta, targetFood: cleanFood(match[2]?.trim() ?? null, mealLabel) });
   }
-  return adjustments.length ? adjustments : null;
+  return adjustments.length ? { mealLabel, adjustments } : null;
+}
+
+async function handleExplicitMealAdjustment(userId: number, mealLabel: string, adjustments: Array<{ gramsDelta: number; targetFood: string | null }>) {
+  const meals = await listMeals(userId);
+  const meal = meals.find(candidate => normalize(candidate.mealLabel) === mealLabel);
+  if (!meal?.items?.length) return handleMealItemMultiAdjustment(userId, adjustments);
+
+  let items = toMealItemInputs(meal.items);
+  const applied: Array<{ foodName: string; previousGrams: number; nextGrams: number }> = [];
+  for (const adjustment of adjustments) {
+    const target = resolveTargetMealItem(items, adjustment.targetFood);
+    if (target.kind !== "matched") return handleMealItemMultiAdjustment(userId, adjustments);
+    const previousGrams = Number(target.item.estimatedGrams || 0);
+    const nextGrams = Math.max(previousGrams - adjustment.gramsDelta, 1);
+    items = items.map((item, index) => index === target.index ? scaleMealItem(item, nextGrams) : item);
+    applied.push({ foodName: target.item.foodName, previousGrams, nextGrams });
+  }
+
+  const updatedMeal = await updateMeal(userId, {
+    mealId: meal.id,
+    mealLabel: meal.mealLabel,
+    occurredAt: new Date(meal.occurredAt).toISOString(),
+    notes: meal.notes,
+    items: items as MealItemInput[],
+  });
+  return {
+    handled: true as const,
+    action: "meal_item_grams_adjusted" as const,
+    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
+      title: applied.length === 1 ? "Alimento ajustado" : "Alimentos ajustados",
+      actionLines: applied.map(item => `${item.foodName}: de ${item.previousGrams} g para ${item.nextGrams} g`),
+    }),
+    eventType: "whatsapp.intent.meal_item_grams_adjusted",
+    detail: `${applied.length} item(ns) ajustado(s) na refeição explicitamente informada: ${meal.mealLabel}.`,
+    data: { mealId: updatedMeal.id, affectedMealIds: [updatedMeal.id], adjustments: applied },
+  };
 }
 
 export async function executeWhatsappGramsAdjustmentIntent(
   userId: number,
   input: { text?: string | null; receivedAt?: Date },
 ): Promise<WhatsappGramsAdjustmentResult | null> {
-  const adjustments = input.text ? parse(input.text) : null;
-  if (!adjustments) return null;
-  return handleMealItemMultiAdjustment(userId, adjustments);
+  const parsed = input.text ? parse(input.text) : null;
+  if (!parsed) return null;
+  if (parsed.mealLabel) return handleExplicitMealAdjustment(userId, parsed.mealLabel, parsed.adjustments);
+  return handleMealItemMultiAdjustment(userId, parsed.adjustments);
 }
 
 export const contextUsage: import("./intentContext").IntentContextUsage = {
