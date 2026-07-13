@@ -514,7 +514,10 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       mealId: 14,
       mealLabel: "Lanche",
-      items: [expect.objectContaining({ foodName: "requeijão", canonicalName: "requeijão", estimatedGrams: 30, calories: 45, source: "heuristic" }), riceItem],
+      items: [
+        expect.objectContaining({ foodName: "requeijão", canonicalName: "requeijão", estimatedGrams: 30, calories: 45, source: "heuristic" }),
+        expect.objectContaining(riceItem),
+      ],
     }));
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_replaced" }));
