@@ -5,9 +5,7 @@ const updateMealMock = vi.hoisted(() => vi.fn());
 const createPendingMealItemSelectionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../meals/service", () => ({ listMeals: listMealsMock, updateMeal: updateMealMock }));
-vi.mock("../mealItemSelectionCallback", () => ({
-  createPendingMealItemSelection: createPendingMealItemSelectionMock,
-}));
+vi.mock("../mealItemSelectionCallback", () => ({ createPendingMealItemSelection: createPendingMealItemSelectionMock }));
 
 import { handleMealItemMultiIncrement } from "./gramsAdjustmentHandlers";
 
@@ -32,14 +30,7 @@ function item(foodName: string, grams: number) {
 describe("issue #783 — atomicidade e identidade de candidatos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    createPendingMealItemSelectionMock.mockResolvedValue({
-      handled: true,
-      action: "clarification_needed",
-      reply: "selecione",
-      eventType: "whatsapp.intent.meal_item_selection_requested",
-      detail: "pendente",
-      data: {},
-    });
+    createPendingMealItemSelectionMock.mockResolvedValue({ handled: true, action: "clarification_needed", reply: "selecione", eventType: "whatsapp.intent.meal_item_selection_requested", detail: "pendente", data: {} });
   });
 
   it("não persiste o ajuste claro quando outro alvo da mesma mensagem é ambíguo", async () => {
@@ -61,15 +52,12 @@ describe("issue #783 — atomicidade e identidade de candidatos", () => {
         expect.objectContaining({ mealId: 20, mealLabel: "Almoço", itemName: "Queijo minas" }),
         expect.objectContaining({ mealId: 30, mealLabel: "Café da manhã", itemName: "Queijo mussarela" }),
       ]),
-      companionActions: [expect.objectContaining({
-        candidate: expect.objectContaining({ mealId: 10, itemName: "Arroz branco" }),
-        action: { kind: "grams_delta", delta: 20 },
-      })],
+      companionActions: [expect.objectContaining({ candidate: expect.objectContaining({ mealId: 10, itemName: "Arroz branco" }), action: { kind: "grams_delta", delta: 20 } })],
     }));
     expect(result.action).toBe("clarification_needed");
   });
 
-  it("renderiza cada refeição afetada quando todos os alvos são claros", async () => {
+  it("renderiza um bloco completo para cada refeição afetada quando todos os alvos são claros", async () => {
     const meals = [
       { id: 10, mealLabel: "Jantar", occurredAt: "2026-07-12T22:00:00.000Z", items: [item("Arroz branco", 100)] },
       { id: 20, mealLabel: "Almoço", occurredAt: "2026-07-12T16:00:00.000Z", items: [item("Feijão carioca", 80)] },
@@ -83,8 +71,9 @@ describe("issue #783 — atomicidade e identidade de candidatos", () => {
     ]);
 
     expect(updateMealMock).toHaveBeenCalledTimes(2);
-    expect(result.reply).toContain("Jantar");
-    expect(result.reply).toContain("Almoço");
+    expect(result.reply).toContain("Arroz branco");
+    expect(result.reply).toContain("Feijão carioca");
+    expect(result.reply.match(/Refeição atualizada:/g)).toHaveLength(2);
     expect(result.reply.match(/Total da refeição:/g)).toHaveLength(2);
     expect(result.data).toEqual(expect.objectContaining({ affectedMealIds: expect.arrayContaining([10, 20]) }));
   });
