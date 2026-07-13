@@ -120,6 +120,7 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
   }
 
   const mutableMeals = toMutableMeals(meals);
+  const replacementsByMeal = new Map<number, Map<number, MealItemInput>>();
   const changedMealIndexes = new Set<number>();
   const applied: AppliedFoodReplacement[] = [];
   const pendingTargets: PendingReplacementTarget[] = [];
@@ -137,8 +138,10 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     }
     const candidate = { mealId: target.meal.id, mealLabel: target.meal.mealLabel, itemIndex: target.index, itemName: target.item.foodName };
     const replacedItem = replaceMealItemFood(toMealItemInput(target.meal.items[target.index]), replacement.toFood);
-    const originalItems = meals[target.mealIndex]?.items ?? [];
-    target.meal.items = originalItems.map((item, index) => index === target.index ? replacedItem : item) as MealItemInput[];
+    target.meal.items = target.meal.items.map((item, index) => index === target.index ? replacedItem : item);
+    const mealReplacements = replacementsByMeal.get(target.mealIndex) ?? new Map<number, MealItemInput>();
+    mealReplacements.set(target.index, replacedItem);
+    replacementsByMeal.set(target.mealIndex, mealReplacements);
     changedMealIndexes.add(target.mealIndex);
     applied.push({ targetFood: replacement.fromFood, from: target.item.foodName, to: replacement.toFood, item: replacedItem, scope: target.scope, scopeLabel: target.scopeLabel, candidate });
   }
@@ -164,7 +167,11 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     };
   }
 
-  const updatedMeals = await Promise.all([...changedMealIndexes].map(index => updateMealItems(userId, mutableMeals[index])));
+  const mealsToUpdate = [...changedMealIndexes].map(index => ({
+    ...mutableMeals[index],
+    items: (meals[index].items ?? []).map((item, itemIndex) => replacementsByMeal.get(index)?.get(itemIndex) ?? item) as MealItemInput[],
+  }));
+  const updatedMeals = await Promise.all(mealsToUpdate.map(meal => updateMealItems(userId, meal)));
   const actionLines = applied.length === 1 && !notFound.length
     ? (() => {
         const { from, to, item, scope } = applied[0];
