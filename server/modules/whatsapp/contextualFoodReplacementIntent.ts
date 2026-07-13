@@ -124,7 +124,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   if (ambiguousActions.length) {
     const [current, ...remaining] = ambiguousActions;
     const companionActions: MealItemSelectionCompanionAction[] = clearActions.map(clear => ({ candidate: selectionCandidate(clear.candidate), action: { kind: "replace_food", targetFood: clear.replacement.toFood } }));
-    return createPendingMealItemSelection(userId, {
+    const pending = await createPendingMealItemSelection(userId, {
       targetFood: current.replacement.fromFood,
       action: { kind: "replace_food", targetFood: current.replacement.toFood },
       contextLabel: "nas refeições recentes",
@@ -138,6 +138,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
         candidates: entry.candidates.map(selectionCandidate),
       })),
     });
+    return { ...pending, action: "clarification_needed" };
   }
 
   if (!clearActions.length) {
