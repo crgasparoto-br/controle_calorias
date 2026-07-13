@@ -173,7 +173,7 @@ describe("executeWhatsappGramsIncrementIntent", () => {
     }));
   });
 
-  it("pede esclarecimento quando alvo generico encontra varios itens", async () => {
+  it("pede esclarecimento interativo quando alvo generico encontra varios itens", async () => {
     const meal = {
       id: 53,
       mealLabel: "Lanche",
@@ -193,9 +193,11 @@ describe("executeWhatsappGramsIncrementIntent", () => {
 
     expect(result).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado (30 g)"),
+      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado em Lanche"),
+      interactiveReply: expect.objectContaining({ kind: "functional" }),
+      data: expect.objectContaining({ candidateCount: 2, targetFood: "queijo" }),
     }));
-    expect(result?.reply).toContain("2. Queijo mussarela (25 g)");
+    expect(result?.reply).toContain("2. Queijo mussarela em Lanche");
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 });
