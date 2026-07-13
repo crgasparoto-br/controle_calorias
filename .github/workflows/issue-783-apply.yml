@@ -30,3 +30,5 @@ jobs:
         with:
           commit_message: fix(whatsapp): complete issue 783 response contract
           branch: feat/783-unificar-respostas-refeicoes
+
+# Existing workflow retriggered after publication so GitHub executes it from the branch history.
