@@ -3,7 +3,7 @@ import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import { handleQuantityCorrectionIntent } from "./intent/gramsAdjustmentHandlers";
 import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
-import type { WhatsappLogicalReply } from "./replyContract";
+import type { WhatsAppLogicalReply } from "./replyContract";
 
 export type WhatsappRecordAdjustmentInput = {
   text?: string | null;
@@ -18,7 +18,7 @@ export type WhatsappRecordAdjustmentResult = {
   eventType: string;
   detail: string;
   data?: Record<string, unknown>;
-  interactiveReply?: WhatsappLogicalReply;
+  interactiveReply?: WhatsAppLogicalReply;
 };
 
 type ExistingMeal = Awaited<ReturnType<typeof listMeals>>[number];
