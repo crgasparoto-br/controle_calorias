@@ -81,7 +81,21 @@ jobs:
           NODE
 
       - name: Apply repository migrations
-        run: pnpm exec drizzle-kit migrate
+        run: |
+          if ! pnpm exec drizzle-kit migrate > /tmp/drizzle-migrate.log 2>&1; then
+            tail -n 200 /tmp/drizzle-migrate.log
+            exit 1
+          fi
+          tail -n 80 /tmp/drizzle-migrate.log
+
+      - name: Upload migration diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-context-drizzle-migrate-log
+          path: /tmp/drizzle-migrate.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Validate referential integrity
         run: pnpm db:check-integrity
