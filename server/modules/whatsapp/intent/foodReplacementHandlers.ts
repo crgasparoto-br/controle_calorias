@@ -46,6 +46,10 @@ function replacementContext(scopes: string[]) {
   return scopes.some(scope => scope === "same_day_meals") ? "nas refeições do dia" : "na última refeição";
 }
 
+function capitalizeDisplayName(value: string) {
+  return value ? `${value[0].toLocaleUpperCase("pt-BR")}${value.slice(1)}` : value;
+}
+
 function selectionCandidates(candidates: MealItemTargetCandidate<MutableMealRecord>[]) {
   return candidates.map(candidate => ({
     mealId: candidate.meal.id,
@@ -89,7 +93,10 @@ async function ambiguousReplacementReply(input: {
 }
 
 function toMutableMeals(meals: MealRecord[]): MutableMealRecord[] {
-  return meals.map(meal => ({ ...meal, items: [...(meal.items ?? [])] as MealItemInput[] }));
+  return meals.map(meal => ({
+    ...meal,
+    items: (meal.items ?? []).map(item => Object.assign(item, toMealItemInput(item))) as MealItemInput[],
+  }));
 }
 
 async function updateMealItems(userId: number, meal: MutableMealRecord) {
@@ -100,7 +107,7 @@ function buildMultipleReplacementLines(applied: AppliedFoodReplacement[], notFou
   const context = replacementContext(applied.map(item => item.scope));
   const lines = [
     `Troquei os seguintes alimentos ${context} e recalculei os macros:`,
-    ...applied.map(({ from, to, item }) => `• ${from} → ${to}: ${formatNumber(item.estimatedGrams)} g | ${formatTotalsLine(item)}`),
+    ...applied.map(({ from, to, item }) => `• ${from} → ${capitalizeDisplayName(to)}: ${formatNumber(item.estimatedGrams)} g | ${formatTotalsLine(item)}`),
   ];
   if (notFound.length) lines.push(`Não encontrei nas refeições de hoje: ${notFound.join(", ")}.`);
   return lines;
@@ -161,7 +168,7 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     ? (() => {
         const { from, to, item, scope } = applied[0];
         const source = item.source === "catalog" ? "com base no catálogo" : "por estimativa";
-        return [`Troquei ${from} por ${to} ${contextWithPreposition(scope)} e recalculei os macros ${source}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g.`];
+        return [`Troquei ${from} por ${capitalizeDisplayName(to)} ${contextWithPreposition(scope)} e recalculei os macros ${source}. Quantidade mantida: ${formatNumber(item.estimatedGrams)} g.`];
       })()
     : buildMultipleReplacementLines(applied, notFound);
   const title = applied.length === 1 ? "Alimento substituído" : "Alimentos substituídos";
