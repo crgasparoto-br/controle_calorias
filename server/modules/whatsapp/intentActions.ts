@@ -25,13 +25,18 @@ import type { WhatsappIntentInput, WhatsappIntentResult } from "./intent/types";
 
 export type { WhatsappIntentResult, WhatsappIntentInput } from "./intent/types";
 
-function withMacroRecalculationMessage(result: WhatsappIntentResult): WhatsappIntentResult {
-  if (result.action !== "meal_item_grams_adjusted" || result.reply.includes("recalculei os macros")) {
+function withCanonicalGramsMetadata(result: WhatsappIntentResult): WhatsappIntentResult {
+  if (result.action !== "meal_item_grams_adjusted") {
     return result;
   }
   return {
     ...result,
-    reply: `${result.reply}\n\nTambém recalculei os macros da refeição.`,
+    reply: result.reply.includes("recalculei os macros")
+      ? result.reply
+      : `${result.reply}\n\nTambém recalculei os macros da refeição.`,
+    detail: result.detail.includes("Escopo da busca:")
+      ? result.detail
+      : `${result.detail} Escopo da busca: nas refeições do dia.`,
   };
 }
 
@@ -83,12 +88,12 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
 
   const gramsIncrements = parseMealItemGramsIncrementMulti(text);
   if (gramsIncrements) {
-    return withMacroRecalculationMessage(await handleMealItemMultiIncrement(userId, gramsIncrements));
+    return withCanonicalGramsMetadata(await handleMealItemMultiIncrement(userId, gramsIncrements));
   }
 
   const gramsAdjustments = parseMealItemGramsAdjustmentMulti(text);
   if (gramsAdjustments) {
-    return withMacroRecalculationMessage(await handleMealItemMultiAdjustment(userId, gramsAdjustments));
+    return withCanonicalGramsMetadata(await handleMealItemMultiAdjustment(userId, gramsAdjustments));
   }
 
   const foodReplacements = parseFoodReplacementIntents(text);
