@@ -137,7 +137,8 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     }
     const candidate = { mealId: target.meal.id, mealLabel: target.meal.mealLabel, itemIndex: target.index, itemName: target.item.foodName };
     const replacedItem = replaceMealItemFood(toMealItemInput(target.meal.items[target.index]), replacement.toFood);
-    target.meal.items = target.meal.items.map((item, index) => index === target.index ? replacedItem : item);
+    const originalItems = meals[target.mealIndex]?.items ?? [];
+    target.meal.items = originalItems.map((item, index) => index === target.index ? replacedItem : item) as MealItemInput[];
     changedMealIndexes.add(target.mealIndex);
     applied.push({ targetFood: replacement.fromFood, from: target.item.foodName, to: replacement.toFood, item: replacedItem, scope: target.scope, scopeLabel: target.scopeLabel, candidate });
   }
