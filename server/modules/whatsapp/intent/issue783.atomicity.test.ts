@@ -57,6 +57,38 @@ describe("issue #783 — atomicidade e identidade de candidatos", () => {
     expect(result.action).toBe("clarification_needed");
   });
 
+  it("encadeia todas as ambiguidades de gramas da mesma mensagem", async () => {
+    listMealsMock.mockResolvedValue([
+      { id: 10, mealLabel: "Jantar", occurredAt: "2026-07-12T22:00:00.000Z", items: [item("Arroz branco", 100)] },
+      { id: 20, mealLabel: "Almoço", occurredAt: "2026-07-12T16:00:00.000Z", items: [item("Queijo minas", 50), item("Pão francês", 60)] },
+      { id: 30, mealLabel: "Café da manhã", occurredAt: "2026-07-12T11:00:00.000Z", items: [item("Queijo mussarela", 40), item("Pão integral", 55)] },
+    ]);
+
+    const result = await handleMealItemMultiIncrement(42, [
+      { targetFood: "queijo", gramsDelta: 10 },
+      { targetFood: "pão", gramsDelta: 25 },
+    ]);
+
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(createPendingMealItemSelectionMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      targetFood: "queijo",
+      action: { kind: "grams_delta", delta: 10 },
+      candidates: expect.arrayContaining([
+        expect.objectContaining({ mealId: 20, itemName: "Queijo minas" }),
+        expect.objectContaining({ mealId: 30, itemName: "Queijo mussarela" }),
+      ]),
+      remainingSelections: [expect.objectContaining({
+        targetFood: "pão",
+        action: { kind: "grams_delta", delta: 25 },
+        candidates: expect.arrayContaining([
+          expect.objectContaining({ mealId: 20, itemName: "Pão francês" }),
+          expect.objectContaining({ mealId: 30, itemName: "Pão integral" }),
+        ]),
+      })],
+    }));
+    expect(result.action).toBe("clarification_needed");
+  });
+
   it("renderiza um bloco completo para cada refeição afetada quando todos os alvos são claros", async () => {
     const meals = [
       { id: 10, mealLabel: "Jantar", occurredAt: "2026-07-12T22:00:00.000Z", items: [item("Arroz branco", 100)] },
