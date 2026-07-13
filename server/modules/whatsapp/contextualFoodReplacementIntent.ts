@@ -12,12 +12,7 @@ type Meal = Awaited<ReturnType<typeof listMeals>>[number];
 type MutableMeal = Meal & { items: MealItemInput[] };
 type FoodReplacementIntent = { fromFood: string; toFood: string };
 type ReplacementContext = "first" | "second" | "previous" | "latest" | null;
-type Candidate = {
-  meal: MutableMeal;
-  mealIndex: number;
-  item: MealItemInput;
-  itemIndex: number;
-};
+type Candidate = { meal: MutableMeal; mealIndex: number; item: MealItemInput; itemIndex: number };
 
 export type WhatsappContextualFoodReplacementResult = {
   action: "meal_item_replaced" | "clarification_needed";
@@ -91,23 +86,14 @@ function recentMeals(meals: Meal[], receivedAt: Date, context: ReplacementContex
 function findCandidates(meals: MutableMeal[], targetFood: string): Candidate[] {
   return meals.flatMap((meal, mealIndex) => {
     const target = resolveMealItemTarget(meal.items, targetFood);
-    if (target.kind === "matched") {
-      return [{ meal, mealIndex, item: target.item, itemIndex: target.index }];
-    }
-    if (target.kind === "ambiguous") {
-      return target.candidates.map(candidate => ({ meal, mealIndex, item: candidate.item, itemIndex: candidate.index }));
-    }
+    if (target.kind === "matched") return [{ meal, mealIndex, item: target.item, itemIndex: target.index }];
+    if (target.kind === "ambiguous") return target.candidates.map(candidate => ({ meal, mealIndex, item: candidate.item, itemIndex: candidate.index }));
     return [];
   });
 }
 
 function selectionCandidate(candidate: Candidate) {
-  return {
-    mealId: candidate.meal.id,
-    mealLabel: candidate.meal.mealLabel,
-    itemIndex: candidate.itemIndex,
-    itemName: candidate.item.foodName,
-  };
+  return { mealId: candidate.meal.id, mealLabel: candidate.meal.mealLabel, itemIndex: candidate.itemIndex, itemName: candidate.item.foodName };
 }
 
 export async function executeWhatsappContextualFoodReplacementIntent(
@@ -121,12 +107,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
 
   const meals = recentMeals(await listMeals(userId), input.receivedAt ?? new Date(), parseContext(text));
   if (!meals.length) {
-    return {
-      action: "clarification_needed",
-      reply: "Não encontrei uma refeição recente do WhatsApp para corrigir. Me diga qual refeição devo ajustar.",
-      eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de substituição sem refeição recente disponível.",
-    };
+    return { action: "clarification_needed", reply: "Não encontrei uma refeição recente do WhatsApp para corrigir. Me diga qual refeição devo ajustar.", eventType: "whatsapp.intent.clarification_needed", detail: "Pedido de substituição sem refeição recente disponível." };
   }
 
   const clearActions: Array<{ candidate: Candidate; replacement: FoodReplacementIntent }> = [];
@@ -141,29 +122,26 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   }
 
   if (ambiguousActions.length) {
-    const current = ambiguousActions[0];
-    const companionActions: MealItemSelectionCompanionAction[] = clearActions.map(clear => ({
-      candidate: selectionCandidate(clear.candidate),
-      action: { kind: "replace_food", targetFood: clear.replacement.toFood },
-    }));
-    const pending = await createPendingMealItemSelection(userId, {
+    const [current, ...remaining] = ambiguousActions;
+    const companionActions: MealItemSelectionCompanionAction[] = clearActions.map(clear => ({ candidate: selectionCandidate(clear.candidate), action: { kind: "replace_food", targetFood: clear.replacement.toFood } }));
+    return createPendingMealItemSelection(userId, {
       targetFood: current.replacement.fromFood,
       action: { kind: "replace_food", targetFood: current.replacement.toFood },
       contextLabel: "nas refeições recentes",
       resultTitle: replacements.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
       candidates: current.candidates.map(selectionCandidate),
       companionActions,
+      remainingSelections: remaining.map(entry => ({
+        targetFood: entry.replacement.fromFood,
+        action: { kind: "replace_food", targetFood: entry.replacement.toFood },
+        contextLabel: "nas refeições recentes",
+        candidates: entry.candidates.map(selectionCandidate),
+      })),
     });
-    return pending;
   }
 
   if (!clearActions.length) {
-    return {
-      action: "clarification_needed",
-      reply: `Não encontrei ${notFound.join(", ") || "esse alimento"} nas refeições recentes.`,
-      eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de substituição sem alimento compatível.",
-    };
+    return { action: "clarification_needed", reply: `Não encontrei ${notFound.join(", ") || "esse alimento"} nas refeições recentes.`, eventType: "whatsapp.intent.clarification_needed", detail: "Pedido de substituição sem alimento compatível." };
   }
 
   const changedMealIds = new Set<number>();
@@ -173,36 +151,17 @@ export async function executeWhatsappContextualFoodReplacementIntent(
     const replacementItem = replaceMealItemFood(candidate.meal.items[candidate.itemIndex], replacement.toFood);
     candidate.meal.items = candidate.meal.items.map((item, index) => index === candidate.itemIndex ? replacementItem : item);
     changedMealIds.add(candidate.meal.id);
-    actionLinesByMeal.set(candidate.meal.id, [
-      ...(actionLinesByMeal.get(candidate.meal.id) ?? []),
-      `${candidate.item.foodName} → ${replacement.toFood}`,
-    ]);
+    actionLinesByMeal.set(candidate.meal.id, [...(actionLinesByMeal.get(candidate.meal.id) ?? []), `${candidate.item.foodName} → ${replacement.toFood}`]);
   }
 
   const updatedMeals = [];
   for (const meal of meals.filter(candidate => changedMealIds.has(candidate.id))) {
-    updatedMeals.push(await updateMeal(userId, {
-      mealId: meal.id,
-      mealLabel: meal.mealLabel,
-      occurredAt: new Date(meal.occurredAt).toISOString(),
-      notes: meal.notes,
-      items: meal.items,
-    }));
+    updatedMeals.push(await updateMeal(userId, { mealId: meal.id, mealLabel: meal.mealLabel, occurredAt: new Date(meal.occurredAt).toISOString(), notes: meal.notes, items: meal.items }));
   }
 
   const title = clearActions.length === 1 ? "Alimento substituído" : "Alimentos substituídos";
-  const reply = updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, {
-    title,
-    actionLines: actionLinesByMeal.get(meal.id) ?? [],
-  })).join("\n\n") + (notFound.length ? `\n\nNão encontrei: ${notFound.join(", ")}.` : "");
-
-  return {
-    action: "meal_item_replaced",
-    reply,
-    eventType: "whatsapp.intent.meal_item_replaced",
-    detail: `${clearActions.length} alimento(s) substituído(s) com estado atual recarregado.`,
-    data: { mealId: updatedMeals[0]?.id, mealIds: updatedMeals.map(meal => meal.id) },
-  };
+  const reply = updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title, actionLines: actionLinesByMeal.get(meal.id) ?? [] })).join("\n\n") + (notFound.length ? `\n\nNão encontrei: ${notFound.join(", ")}.` : "");
+  return { action: "meal_item_replaced", reply, eventType: "whatsapp.intent.meal_item_replaced", detail: `${clearActions.length} alimento(s) substituído(s) com estado atual recarregado.`, data: { mealId: updatedMeals[0]?.id, mealIds: updatedMeals.map(meal => meal.id) } };
 }
 
 export const contextUsage: import("./intentContext").IntentContextUsage = {
