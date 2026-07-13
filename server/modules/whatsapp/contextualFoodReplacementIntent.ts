@@ -1,9 +1,14 @@
-import { listMeals, updateMeal } from "../meals/service";
+import { listMeals } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { createPendingMealItemSelection, type MealItemSelectionCompanionAction } from "./mealItemSelectionCallback";
+import {
+  describeMealBatchMutationFailure,
+  updateMealsWithCompensation,
+  type MealBatchMutationChange,
+} from "./mealBatchMutation";
 import { resolveMealItemTarget } from "./mealItemTargetMatcher";
 import { replaceMealItemFood, toMealItemInputs } from "./intent/mealItemHelpers";
-import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
+import { buildWhatsAppMealActionReplyMessage, buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 
 const RECENT_REPLACEMENT_WINDOW_MS = 30 * 60 * 1000;
 const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
@@ -96,6 +101,16 @@ function selectionCandidate(candidate: Candidate) {
   return { mealId: candidate.meal.id, mealLabel: candidate.meal.mealLabel, itemIndex: candidate.itemIndex, itemName: candidate.item.foodName };
 }
 
+function toBatchSnapshot(meal: MutableMeal) {
+  return {
+    id: meal.id,
+    mealLabel: meal.mealLabel,
+    occurredAt: meal.occurredAt,
+    notes: meal.notes,
+    items: meal.items.map(item => ({ ...item })),
+  };
+}
+
 export async function executeWhatsappContextualFoodReplacementIntent(
   userId: number,
   input: { text?: string | null; receivedAt?: Date },
@@ -109,6 +124,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   if (!meals.length) {
     return { action: "clarification_needed", reply: "Não encontrei uma refeição recente do WhatsApp para corrigir. Me diga qual refeição devo ajustar.", eventType: "whatsapp.intent.clarification_needed", detail: "Pedido de substituição sem refeição recente disponível." };
   }
+  const originalMeals = new Map(meals.map(meal => [meal.id, toBatchSnapshot(meal)]));
 
   const clearActions: Array<{ candidate: Candidate; replacement: FoodReplacementIntent }> = [];
   const ambiguousActions: Array<{ candidates: Candidate[]; replacement: FoodReplacementIntent }> = [];
@@ -155,9 +171,24 @@ export async function executeWhatsappContextualFoodReplacementIntent(
     actionLinesByMeal.set(candidate.meal.id, [...(actionLinesByMeal.get(candidate.meal.id) ?? []), `${candidate.item.foodName} → ${replacement.toFood}`]);
   }
 
-  const updatedMeals = [];
-  for (const meal of meals.filter(candidate => changedMealIds.has(candidate.id))) {
-    updatedMeals.push(await updateMeal(userId, { mealId: meal.id, mealLabel: meal.mealLabel, occurredAt: new Date(meal.occurredAt).toISOString(), notes: meal.notes, items: meal.items }));
+  const changedMeals = meals.filter(candidate => changedMealIds.has(candidate.id));
+  const changes: MealBatchMutationChange[] = changedMeals.map(meal => ({
+    before: originalMeals.get(meal.id) ?? toBatchSnapshot(meal),
+    after: toBatchSnapshot(meal),
+  }));
+
+  let updatedMeals: Awaited<ReturnType<typeof updateMealsWithCompensation>>;
+  try {
+    updatedMeals = await updateMealsWithCompensation(userId, changes);
+  } catch (error) {
+    const failure = describeMealBatchMutationFailure(error);
+    return {
+      action: "clarification_needed",
+      reply: buildWhatsAppRecoverableErrorReplyMessage(failure.userMessage),
+      eventType: "whatsapp.intent.contextual_replacement_batch_failed",
+      detail: failure.detail,
+      data: { rollbackSucceeded: failure.rollbackSucceeded, affectedMealIds: changes.map(change => change.after.id) },
+    };
   }
 
   const title = clearActions.length === 1 ? "Alimento substituído" : "Alimentos substituídos";
