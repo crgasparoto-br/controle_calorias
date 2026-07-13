@@ -8,39 +8,9 @@ on:
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  issue-783-apply:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/783-unificar-respostas-refeicoes'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout pull request merge
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Apply audited issue 783 completion
-        run: |
-          cat .issue783-final/part* > /tmp/issue783.patch
-          git apply --check /tmp/issue783.patch
-          git apply /tmp/issue783.patch
-          git diff --name-only -z > /tmp/issue783-files
-          tar --null -T /tmp/issue783-files -cf /tmp/issue783-files.tar
-          git fetch origin feat/783-unificar-respostas-refeicoes
-          git checkout -B feat/783-unificar-respostas-refeicoes origin/feat/783-unificar-respostas-refeicoes
-          tar -xf /tmp/issue783-files.tar
-          rm -rf .issue783-final
-          git show bc767414eb336e25ff7a4fc491c2bbf7da9350f2:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
-
-      - name: Commit applied completion
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "fix(whatsapp): complete issue 783 response contract"
-          git push origin HEAD:feat/783-unificar-respostas-refeicoes
-
   agent-check:
     name: Agent-first gate
     runs-on: ubuntu-latest
