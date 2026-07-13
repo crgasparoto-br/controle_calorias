@@ -1,20 +1,22 @@
-import { roundNutritionValue } from "../../../shared/mealTotals";
-import { getCatalogCache } from "../../catalogRuntime";
-import type { MealDraftItem } from "../../nutritionEngine";
-import { fuzzyMatchesWords } from "../../fuzzyTextMatch";
 import { listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
+import { createPendingMealItemSelection, type MealItemSelectionCompanionAction } from "./mealItemSelectionCallback";
+import { resolveMealItemTarget } from "./mealItemTargetMatcher";
+import { replaceMealItemFood, toMealItemInputs } from "./intent/mealItemHelpers";
 import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
-import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
 
-const MIN_FOOD_GRAMS = 1;
 const RECENT_REPLACEMENT_WINDOW_MS = 30 * 60 * 1000;
 const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
-const HEURISTIC_REPLACEMENT_NUTRITION_PER_100G = {
-  calories: 150,
-  protein: 6,
-  carbs: 15,
-  fat: 5,
+
+type Meal = Awaited<ReturnType<typeof listMeals>>[number];
+type MutableMeal = Meal & { items: MealItemInput[] };
+type FoodReplacementIntent = { fromFood: string; toFood: string };
+type ReplacementContext = "first" | "second" | "previous" | "latest" | null;
+type Candidate = {
+  meal: MutableMeal;
+  mealIndex: number;
+  item: MealItemInput;
+  itemIndex: number;
 };
 
 export type WhatsappContextualFoodReplacementResult = {
@@ -22,68 +24,15 @@ export type WhatsappContextualFoodReplacementResult = {
   reply: string;
   eventType: string;
   detail: string;
-  /** Quando presente, o transporte central deve enviar botões/lista (issue #782) em vez do texto simples de `reply`. */
   interactiveReply?: import("./replyContract").WhatsAppLogicalReply;
   data?: Record<string, unknown>;
 };
 
-type FoodReplacementIntent = {
-  fromFood: string;
-  toFood: string;
-};
-
-type ExistingMeal = {
-  id: number;
-  mealLabel: string;
-  occurredAt: number | string | Date;
-  notes?: string | null;
-  source?: "web" | "whatsapp";
-  items?: MealDraftItem[];
-};
-
-type ReplacementContext = "first" | "second" | "previous" | "latest" | null;
-
-type ReplacementCandidate = {
-  meal: ExistingMeal;
-  target: {
-    item: MealItemInput;
-    index: number;
-  };
-  replacement: FoodReplacementIntent;
-};
-
-const ptBrNumberFormatter = new Intl.NumberFormat("pt-BR", {
-  maximumFractionDigits: 1,
-});
-
-function normalizeIntentText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+function normalize(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-function normalizeCatalogText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[^\w\s-]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function cleanCatalogFoodName(value: string) {
-  return value
-    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function formatNumber(value: number) {
-  return ptBrNumberFormatter.format(value);
-}
-
-function cleanTargetFoodText(value?: string) {
+function cleanFood(value?: string) {
   return value
     ?.replace(/\b(?:ontem|hoje|agora|por favor|pfv)\b/gi, "")
     .replace(/\b(?:na|no|da|do|em)\s+(?:primeira|segunda|ultima|última)\s+(?:imagem|foto)\b/gi, "")
@@ -93,181 +42,72 @@ function cleanTargetFoodText(value?: string) {
     .trim() || null;
 }
 
-function parseFoodReplacementIntent(text: string): FoodReplacementIntent | null {
-  const correctionMatch = text.match(/\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i);
-  const swapMatch = text.match(/\b(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b\s+(.+?)\s+(?:por|para)\s+(.+)$/i);
-  const match = correctionMatch || swapMatch;
+function parseReplacement(segment: string): FoodReplacementIntent | null {
+  const correction = segment.match(/\b(?:n[aã]o)\s+(?:é|e|era)\s+(.+?)\s+(?:é|e|era)\s+(.+)$/i);
+  const swap = segment.match(/\b(?:trocar|troque|troca|mudar|alterar|corrigir|substituir|substitua)\b\s+(.+?)\s+(?:por|para)\s+(.+)$/i);
+  const match = correction || swap;
   if (!match) return null;
-
-  const fromFood = cleanTargetFoodText(match[1]);
-  const toFood = cleanTargetFoodText(match[2]);
-  if (!fromFood || !toFood || /\d/.test(toFood)) return null;
-
-  return { fromFood, toFood };
+  const fromFood = cleanFood(match[1]);
+  const toFood = cleanFood(match[2]);
+  return fromFood && toFood && !/\d/.test(toFood) ? { fromFood, toFood } : null;
 }
 
-function parseFoodReplacementIntents(text: string) {
+function parseReplacements(text: string) {
   const segments = text.split(/\s*[,;]\s*(?=n[aã]o\b)|\s+e\s+(?=n[aã]o\b)/i);
-  const results: FoodReplacementIntent[] = [];
-  for (const segment of segments) {
-    const intent = parseFoodReplacementIntent(segment.trim());
-    if (intent) results.push(intent);
-  }
-  return results.length > 0 ? results : null;
+  const replacements = segments.map(segment => parseReplacement(segment.trim())).filter((value): value is FoodReplacementIntent => Boolean(value));
+  return replacements.length ? replacements : null;
 }
 
-function parseReplacementContext(text: string): ReplacementContext {
-  const normalized = normalizeIntentText(text);
-  if (/\bprimeir[ao]\s+(?:imagem|foto)\b/.test(normalized)) return "first";
-  if (/\bsegund[ao]\s+(?:imagem|foto)\b/.test(normalized)) return "second";
-  if (/\b(?:imagem|foto)\s+anterior\b/.test(normalized)) return "previous";
-  if (/\b(?:ultima|ultimo|mais recente)\s+(?:imagem|foto)\b/.test(normalized)) return "latest";
+function parseContext(text: string): ReplacementContext {
+  const value = normalize(text);
+  if (/\bprimeir[ao]\s+(?:imagem|foto)\b/.test(value)) return "first";
+  if (/\bsegund[ao]\s+(?:imagem|foto)\b/.test(value)) return "second";
+  if (/\b(?:imagem|foto)\s+anterior\b/.test(value)) return "previous";
+  if (/\b(?:ultima|ultimo|mais recente)\s+(?:imagem|foto)\b/.test(value)) return "latest";
   return null;
 }
 
-function getCatalogFoodNames(food: ReturnType<typeof getCatalogCache>[number]) {
-  return [food.name, ...food.aliases]
-    .map(alias => normalizeCatalogText(alias))
-    .filter(Boolean);
-}
-
-function findCatalogFood(foodName: string) {
-  const normalized = normalizeCatalogText(cleanCatalogFoodName(foodName));
-  if (!normalized) return null;
-
-  const catalogSource = getCatalogCache();
-  return catalogSource.find(food => getCatalogFoodNames(food).some(alias => alias === normalized))
-    ?? catalogSource.find(food => getCatalogFoodNames(food).some(alias => normalized.includes(alias) || alias.includes(normalized)))
-    ?? catalogSource.find(food => getCatalogFoodNames(food).some(alias => fuzzyMatchesWords(normalized, alias)))
-    ?? null;
-}
-
-function deriveQuantityFromPortionText(portionText: string) {
-  const match = portionText.trim().match(/^(\d+(?:[,.]\d+)?)/u);
-  if (!match) return null;
-
-  const value = Number(match[1].replace(",", "."));
-  return Number.isFinite(value) && value > 0 ? value : null;
-}
-
-function deriveUnitFromPortionText(portionText: string) {
-  const normalized = portionText
-    .trim()
-    .replace(/^\d+(?:[,.]\d+)?\s*/u, "")
-    .trim();
-
-  return normalized || "porção";
-}
-
-function toMealItemInput(item: MealDraftItem): MealItemInput {
-  const quantityUnit = item as MealDraftItem & Partial<Pick<MealItemInput, "quantity" | "unit" | "brand">>;
-
-  return {
-    ...item,
-    ...(quantityUnit.brand ? { brand: quantityUnit.brand } : {}),
-    quantity: quantityUnit.quantity ?? deriveQuantityFromPortionText(item.portionText) ?? item.servings,
-    unit: quantityUnit.unit?.trim() || deriveUnitFromPortionText(item.portionText),
-  };
-}
-
-function toMealItemInputs(items: MealDraftItem[] | undefined): MealItemInput[] {
-  return (items ?? []).map(toMealItemInput);
-}
-
-function findTargetMealItem(items: MealItemInput[], targetFood: string) {
-  const normalizedTarget = normalizeIntentText(targetFood);
-  const index = items.findIndex(item => {
-    const foodName = normalizeIntentText(item.foodName);
-    const canonicalName = normalizeIntentText(item.canonicalName);
-    return foodName.includes(normalizedTarget)
-      || canonicalName.includes(normalizedTarget)
-      || normalizedTarget.includes(foodName)
-      || fuzzyMatchesWords(normalizedTarget, foodName)
-      || fuzzyMatchesWords(normalizedTarget, canonicalName);
-  });
-
-  if (index < 0) return null;
-  return { item: items[index], index };
-}
-
-function buildCatalogMealItem(item: MealItemInput, nextFoodName: string, nextGrams: number, catalogFood: ReturnType<typeof getCatalogCache>[number]): MealItemInput {
-  const factor = nextGrams / catalogFood.gramsPerServing;
-  return {
-    ...item,
-    foodName: nextFoodName,
-    canonicalName: catalogFood.name,
-    estimatedGrams: nextGrams,
-    portionText: item.portionText || `${formatNumber(nextGrams)} g`,
-    quantity: item.quantity ?? nextGrams,
-    unit: item.unit ?? "g",
-    servings: Math.max(nextGrams / catalogFood.gramsPerServing, 0.1),
-    calories: roundNutritionValue(catalogFood.calories * factor),
-    protein: roundNutritionValue(catalogFood.protein * factor),
-    carbs: roundNutritionValue(catalogFood.carbs * factor),
-    fat: roundNutritionValue(catalogFood.fat * factor),
-    confidence: Math.min(Math.max(Number(item.confidence || 0.8), 0.1), 0.95),
-    source: "catalog",
-  };
-}
-
-function buildHeuristicReplacementItem(item: MealItemInput, nextFoodName: string, nextGrams: number): MealItemInput {
-  const factor = nextGrams / 100;
-  return {
-    ...item,
-    foodName: nextFoodName,
-    canonicalName: nextFoodName,
-    estimatedGrams: nextGrams,
-    portionText: item.portionText || `${formatNumber(nextGrams)} g`,
-    quantity: item.quantity ?? nextGrams,
-    unit: item.unit ?? "g",
-    servings: Math.max(Number(item.servings || 1), 0.1),
-    calories: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.calories * factor),
-    protein: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.protein * factor),
-    carbs: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.carbs * factor),
-    fat: roundNutritionValue(HEURISTIC_REPLACEMENT_NUTRITION_PER_100G.fat * factor),
-    confidence: Math.min(Number(item.confidence || 0.8), 0.7),
-    source: "heuristic",
-  };
-}
-
-function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealItemInput {
-  const nextGrams = Math.max(Number(item.estimatedGrams || 0), MIN_FOOD_GRAMS);
-  const catalogFood = findCatalogFood(nextFoodName);
-  return catalogFood
-    ? buildCatalogMealItem(item, nextFoodName, nextGrams, catalogFood)
-    : buildHeuristicReplacementItem(item, nextFoodName, nextGrams);
-}
-
-function getRecentCorrectionMeals(meals: ExistingMeal[], receivedAt: Date, context: ReplacementContext) {
+function recentMeals(meals: Meal[], receivedAt: Date, context: ReplacementContext): MutableMeal[] {
   const receivedTime = receivedAt.getTime();
-  const sorted = [...meals]
+  const sorted = meals
     .filter(meal => (meal.items?.length ?? 0) > 0)
     .filter(meal => !meal.source || meal.source === "whatsapp")
-    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
   const insideWindow = sorted.filter(meal => {
     const occurredAt = new Date(meal.occurredAt).getTime();
     return occurredAt <= receivedTime + 60_000 && occurredAt >= receivedTime - RECENT_REPLACEMENT_WINDOW_MS;
   });
-  const recentMeals = (insideWindow.length ? insideWindow : sorted).slice(0, RECENT_REPLACEMENT_MEAL_LIMIT);
-
-  if (!context) return recentMeals;
-
-  const ascending = [...recentMeals].sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
-  const selected = context === "first"
-    ? ascending[0]
-    : context === "second"
-      ? ascending[1]
-      : context === "previous"
-        ? recentMeals[1]
-        : recentMeals[0];
-  return selected ? [selected] : [];
+  const selected = (insideWindow.length ? insideWindow : sorted).slice(0, RECENT_REPLACEMENT_MEAL_LIMIT);
+  const mutable = selected.map(meal => ({ ...meal, items: toMealItemInputs(meal.items) }));
+  if (!context) return mutable;
+  const ascending = [...mutable].sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime());
+  const meal = context === "first" ? ascending[0]
+    : context === "second" ? ascending[1]
+      : context === "previous" ? mutable[1]
+        : mutable[0];
+  return meal ? [meal] : [];
 }
 
-function findReplacementCandidates(meals: ExistingMeal[], replacement: FoodReplacementIntent): ReplacementCandidate[] {
-  return meals.flatMap(meal => {
-    const target = findTargetMealItem(toMealItemInputs(meal.items), replacement.fromFood);
-    return target ? [{ meal, target, replacement }] : [];
+function findCandidates(meals: MutableMeal[], targetFood: string): Candidate[] {
+  return meals.flatMap((meal, mealIndex) => {
+    const target = resolveMealItemTarget(meal.items, targetFood);
+    if (target.kind === "matched") {
+      return [{ meal, mealIndex, item: target.item, itemIndex: target.index }];
+    }
+    if (target.kind === "ambiguous") {
+      return target.candidates.map(candidate => ({ meal, mealIndex, item: candidate.item, itemIndex: candidate.index }));
+    }
+    return [];
   });
+}
+
+function selectionCandidate(candidate: Candidate) {
+  return {
+    mealId: candidate.meal.id,
+    mealLabel: candidate.meal.mealLabel,
+    itemIndex: candidate.itemIndex,
+    itemName: candidate.item.foodName,
+  };
 }
 
 export async function executeWhatsappContextualFoodReplacementIntent(
@@ -276,147 +116,99 @@ export async function executeWhatsappContextualFoodReplacementIntent(
 ): Promise<WhatsappContextualFoodReplacementResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
-
-  const replacements = parseFoodReplacementIntents(text);
+  const replacements = parseReplacements(text);
   if (!replacements) return null;
 
-  const receivedAt = input.receivedAt ?? new Date();
-  const meals = getRecentCorrectionMeals(await listMeals(userId), receivedAt, parseReplacementContext(text));
+  const meals = recentMeals(await listMeals(userId), input.receivedAt ?? new Date(), parseContext(text));
   if (!meals.length) {
     return {
       action: "clarification_needed",
       reply: "Não encontrei uma refeição recente do WhatsApp para corrigir. Me diga qual refeição devo ajustar.",
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de substituição de alimento sem refeição recente do WhatsApp disponível.",
+      detail: "Pedido de substituição sem refeição recente disponível.",
     };
   }
 
-  const selected: ReplacementCandidate[] = [];
-  const ambiguous: ReplacementCandidate[] = [];
+  const clearActions: Array<{ candidate: Candidate; replacement: FoodReplacementIntent }> = [];
+  const ambiguousActions: Array<{ candidates: Candidate[]; replacement: FoodReplacementIntent }> = [];
   const notFound: string[] = [];
 
   for (const replacement of replacements) {
-    const candidates = findReplacementCandidates(meals, replacement);
-    if (candidates.length === 0) {
-      notFound.push(replacement.fromFood);
-    } else if (candidates.length > 1) {
-      ambiguous.push(...candidates);
-    } else {
-      selected.push(candidates[0]);
-    }
+    const candidates = findCandidates(meals, replacement.fromFood);
+    if (!candidates.length) notFound.push(replacement.fromFood);
+    else if (candidates.length > 1) ambiguousActions.push({ candidates, replacement });
+    else clearActions.push({ candidate: candidates[0], replacement });
   }
 
-  if (ambiguous.length) {
-    const selectionResult = await createPendingMealItemSelection(userId, {
-      targetFood: ambiguous[0].replacement.fromFood,
-      action: { kind: "replace_food", targetFood: ambiguous[0].replacement.toFood },
+  if (ambiguousActions.length) {
+    const current = ambiguousActions[0];
+    const companionActions: MealItemSelectionCompanionAction[] = clearActions.map(clear => ({
+      candidate: selectionCandidate(clear.candidate),
+      action: { kind: "replace_food", targetFood: clear.replacement.toFood },
+    }));
+    const pending = await createPendingMealItemSelection(userId, {
+      targetFood: current.replacement.fromFood,
+      action: { kind: "replace_food", targetFood: current.replacement.toFood },
       contextLabel: "nas refeições recentes",
-      resultTitle: "Alimento substituído",
-      candidates: ambiguous.map(candidate => ({
-        mealId: candidate.meal.id,
-        mealLabel: candidate.meal.mealLabel,
-        itemIndex: candidate.target.index,
-        itemName: candidate.target.item.foodName,
-      })),
+      resultTitle: replacements.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
+      candidates: current.candidates.map(selectionCandidate),
+      companionActions,
     });
-    return {
-      action: "clarification_needed",
-      reply: selectionResult.reply,
-      eventType: selectionResult.eventType,
-      detail: selectionResult.detail,
-      interactiveReply: selectionResult.interactiveReply,
-      data: selectionResult.data,
-    };
+    return pending;
   }
 
-  if (!selected.length) {
+  if (!clearActions.length) {
     return {
       action: "clarification_needed",
-      reply: `Não encontrei ${notFound.join(", ")} nas refeições recentes do WhatsApp. Me diga qual alimento devo trocar.`,
+      reply: `Não encontrei ${notFound.join(", ") || "esse alimento"} nas refeições recentes.`,
       eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de substituição de alimento sem item compatível nas refeições recentes do WhatsApp.",
+      detail: "Pedido de substituição sem alimento compatível.",
     };
   }
 
-  const groups = new Map<number, {
-    meal: ExistingMeal;
-    items: Array<MealDraftItem | MealItemInput>;
-    applied: Array<{ from: string; to: string; item: MealItemInput }>;
-  }>();
-
-  for (const candidate of selected) {
-    const group = groups.get(candidate.meal.id) ?? {
-      meal: candidate.meal,
-      items: [...(candidate.meal.items ?? [])],
-      applied: [],
-    };
-    const currentTarget = findTargetMealItem(toMealItemInputs(group.items as MealDraftItem[]), candidate.replacement.fromFood);
-    if (!currentTarget) {
-      notFound.push(candidate.replacement.fromFood);
-      groups.set(candidate.meal.id, group);
-      continue;
-    }
-    const replacedItem = replaceMealItemFood(toMealItemInput(group.items[currentTarget.index] as MealDraftItem), candidate.replacement.toFood);
-    group.items = group.items.map((item, index) => index === currentTarget.index ? replacedItem : item);
-    group.applied.push({ from: currentTarget.item.foodName, to: candidate.replacement.toFood, item: replacedItem });
-    groups.set(candidate.meal.id, group);
-  }
-
-  const applied = Array.from(groups.values()).flatMap(group => group.applied.map(item => ({ ...item, meal: group.meal })));
-  if (!applied.length) {
-    return {
-      action: "clarification_needed",
-      reply: `Não encontrei ${notFound.join(", ")} nas refeições recentes do WhatsApp. Me diga qual alimento devo trocar.`,
-      eventType: "whatsapp.intent.clarification_needed",
-      detail: "Pedido de substituição de alimento sem item compatível após seleção de refeições recentes.",
-    };
+  const changedMealIds = new Set<number>();
+  const actionLinesByMeal = new Map<number, string[]>();
+  for (const clear of clearActions) {
+    const { candidate, replacement } = clear;
+    const replacementItem = replaceMealItemFood(candidate.meal.items[candidate.itemIndex], replacement.toFood);
+    candidate.meal.items = candidate.meal.items.map((item, index) => index === candidate.itemIndex ? replacementItem : item);
+    changedMealIds.add(candidate.meal.id);
+    actionLinesByMeal.set(candidate.meal.id, [
+      ...(actionLinesByMeal.get(candidate.meal.id) ?? []),
+      `${candidate.item.foodName} → ${replacement.toFood}`,
+    ]);
   }
 
   const updatedMeals = [];
-  const mealBlocks: string[] = [];
-  for (const group of groups.values()) {
-    if (!group.applied.length) continue;
-    const updatedMeal = await updateMeal(userId, {
-      mealId: group.meal.id,
-      mealLabel: group.meal.mealLabel,
-      occurredAt: new Date(group.meal.occurredAt).toISOString(),
-      notes: group.meal.notes ?? undefined,
-      items: group.items as MealItemInput[],
-    });
-    updatedMeals.push(updatedMeal);
-    const actionLines = group.applied.map(({ from, to }) => `${from} → ${to}`);
-    mealBlocks.push(buildWhatsAppMealActionReplyMessage(updatedMeal, {
-      title: group.applied.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
-      actionLines,
+  for (const meal of meals.filter(candidate => changedMealIds.has(candidate.id))) {
+    updatedMeals.push(await updateMeal(userId, {
+      mealId: meal.id,
+      mealLabel: meal.mealLabel,
+      occurredAt: new Date(meal.occurredAt).toISOString(),
+      notes: meal.notes,
+      items: meal.items,
     }));
   }
 
-  const notFoundNote = notFound.length ? `\nNão encontrei: ${notFound.join(", ")}.` : "";
-  const reply = `${mealBlocks.join("\n\n")}${notFoundNote}`;
+  const title = clearActions.length === 1 ? "Alimento substituído" : "Alimentos substituídos";
+  const reply = updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, {
+    title,
+    actionLines: actionLinesByMeal.get(meal.id) ?? [],
+  })).join("\n\n") + (notFound.length ? `\n\nNão encontrei: ${notFound.join(", ")}.` : "");
 
   return {
     action: "meal_item_replaced",
     reply,
     eventType: "whatsapp.intent.meal_item_replaced",
-    detail: `${applied.length} alimento(s) substituído(s) em refeições recentes do WhatsApp com macros recalculados.`,
-    data: {
-      mealId: updatedMeals[0]?.id,
-      mealIds: updatedMeals.map(meal => meal.id),
-      previousFoodName: applied[0].from,
-      nextFoodName: applied[0].to,
-      estimatedGrams: applied[0].item.estimatedGrams,
-      calories: applied[0].item.calories,
-      protein: applied[0].item.protein,
-      carbs: applied[0].item.carbs,
-      fat: applied[0].item.fat,
-      nutritionSource: applied[0].item.source,
-    },
+    detail: `${clearActions.length} alimento(s) substituído(s) com estado atual recarregado.`,
+    data: { mealId: updatedMeals[0]?.id, mealIds: updatedMeals.map(meal => meal.id) },
   };
 }
+
 export const contextUsage: import("./intentContext").IntentContextUsage = {
-  usesRecentWindow: false,
+  usesRecentWindow: true,
   usesSummary: false,
-  usesPendingOperation: false,
+  usesPendingOperation: true,
   usesLongTermMemory: false,
   requiresFreshDbQuery: true,
 };
