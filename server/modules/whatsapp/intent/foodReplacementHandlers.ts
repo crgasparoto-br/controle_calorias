@@ -93,10 +93,7 @@ async function ambiguousReplacementReply(input: {
 }
 
 function toMutableMeals(meals: MealRecord[]): MutableMealRecord[] {
-  return meals.map(meal => ({
-    ...meal,
-    items: (meal.items ?? []).map(item => Object.assign(item, toMealItemInput(item))) as MealItemInput[],
-  }));
+  return meals.map(meal => ({ ...meal, items: [...(meal.items ?? [])] as MealItemInput[] }));
 }
 
 async function updateMealItems(userId: number, meal: MutableMealRecord) {
