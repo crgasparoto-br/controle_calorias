@@ -52,7 +52,7 @@ describe("executeWhatsappTextIntent target matching details", () => {
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
   });
 
-  it("registra alvo, item escolhido, escopo e ausencia de ambiguidade em ajuste de gramas", async () => {
+  it("registra ajuste claro concluído sem ambiguidade pendente", async () => {
     listMealsMock.mockResolvedValue([{
       id: 81,
       userId: 42,
@@ -68,9 +68,13 @@ describe("executeWhatsappTextIntent target matching details", () => {
       receivedAt: new Date("2026-06-09T16:30:00.000Z"),
     });
 
-    expect(result?.detail).toContain('Matches: alvo "queijo minas" -> "Queijo Minas Padrao Fatiado"');
-    expect(result?.detail).toContain("Escopo da busca: na última refeição");
-    expect(result?.detail).toContain("Ambiguidade: não");
+    expect(result).toEqual(expect.objectContaining({
+      action: "meal_item_grams_adjusted",
+      detail: expect.stringContaining("sem ambiguidade pendente"),
+      data: expect.objectContaining({
+        adjustments: [expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", previousGrams: 80, nextGrams: 60 })],
+      }),
+    }));
   });
 
   it("registra ambiguidade em ajuste de gramas quando existem varios candidatos", async () => {
@@ -96,7 +100,7 @@ describe("executeWhatsappTextIntent target matching details", () => {
     expect(result?.detail).toContain("Ambiguidade: sim");
   });
 
-  it("registra escopo do dia quando ajuste encontra alvo fora da ultima refeicao", async () => {
+  it("ajusta item encontrado fora da última refeição e preserva o mealId correto", async () => {
     listMealsMock.mockResolvedValue([
       {
         id: 83,
@@ -122,11 +126,14 @@ describe("executeWhatsappTextIntent target matching details", () => {
       receivedAt: new Date("2026-06-09T21:30:00.000Z"),
     });
 
-    expect(result?.detail).toContain('Matches: alvo "queijo minas" -> "Queijo Minas Padrao Fatiado"');
-    expect(result?.detail).toContain("Escopo da busca: nas refeições do dia");
+    expect(result).toEqual(expect.objectContaining({
+      action: "meal_item_grams_adjusted",
+      data: expect.objectContaining({ mealId: 84 }),
+    }));
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({ mealId: 84 }));
   });
 
-  it("registra matches aplicados e pendencias em ajuste multiplo parcial", async () => {
+  it("mantém ações claras pendentes quando ajuste múltiplo contém alvo ambíguo", async () => {
     listMealsMock.mockResolvedValue([{
       id: 85,
       userId: 42,
@@ -139,16 +146,19 @@ describe("executeWhatsappTextIntent target matching details", () => {
         item("Queijo mussarela", 70),
       ],
     }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
 
     const result = await executeWhatsappTextIntent(42, {
       text: "Diminuir 10g da banana e 10g do queijo",
       receivedAt: new Date("2026-06-09T16:30:00.000Z"),
     });
 
-    expect(result?.detail).toContain('Matches: alvo "banana" -> "Banana prata"');
-    expect(result?.detail).toContain('Alvos ambíguos: alvo "queijo"');
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      detail: expect.stringContaining("Alvo usado: queijo"),
+      interactiveReply: expect.objectContaining({ kind: "functional" }),
+    }));
     expect(result?.detail).toContain("Ambiguidade: sim");
+    expect(updateMealMock).not.toHaveBeenCalled();
   });
 
   it("registra alvo e item escolhido em troca de alimento", async () => {
@@ -168,8 +178,8 @@ describe("executeWhatsappTextIntent target matching details", () => {
     });
 
     expect(result?.detail).toContain('Matches: alvo "queijo minas" -> "Queijo Minas Padrao Fatiado"');
-    expect(result?.detail).toContain("Escopo da busca: na última refeição");
-    expect(result?.detail).toContain("Ambiguidade: não");
+    expect(result?.detail).toContain("última refeição");
+    expect(result).toEqual(expect.objectContaining({ action: "meal_item_replaced" }));
   });
 
   it("registra ambiguidade em troca de alimento quando existem varios candidatos", async () => {
@@ -195,7 +205,7 @@ describe("executeWhatsappTextIntent target matching details", () => {
     expect(result?.detail).toContain("Ambiguidade: sim");
   });
 
-  it("registra matches aplicados e pendencias em troca multipla parcial", async () => {
+  it("mantém substituições claras pendentes quando a mesma mensagem contém ambiguidade", async () => {
     listMealsMock.mockResolvedValue([{
       id: 88,
       userId: 42,
@@ -208,15 +218,18 @@ describe("executeWhatsappTextIntent target matching details", () => {
         item("Queijo mussarela", 70),
       ],
     }]);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
 
     const result = await executeWhatsappTextIntent(42, {
       text: "não é banana é pera e não é queijo é ricota",
       receivedAt: new Date("2026-06-09T16:30:00.000Z"),
     });
 
-    expect(result?.detail).toContain('Matches: alvo "banana" -> "Banana prata"');
-    expect(result?.detail).toContain('Alvos ambíguos: alvo "queijo"');
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      detail: expect.stringContaining("Alvo usado: queijo"),
+      interactiveReply: expect.objectContaining({ kind: "functional" }),
+    }));
     expect(result?.detail).toContain("Ambiguidade: sim");
+    expect(updateMealMock).not.toHaveBeenCalled();
   });
 });
