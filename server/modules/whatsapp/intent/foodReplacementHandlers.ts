@@ -2,10 +2,16 @@ import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
   buildWhatsAppMealActionReplyMessage,
+  buildWhatsAppRecoverableErrorReplyMessage,
 } from "../replyMessages";
-import { listMeals, updateMeal } from "../../meals/service";
+import { listMeals } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { createPendingMealItemSelection, type MealItemSelectionCompanionAction, type MealItemPendingSelectionStep } from "../mealItemSelectionCallback";
+import {
+  describeMealBatchMutationFailure,
+  updateMealsWithCompensation,
+  type MealBatchMutationChange,
+} from "../mealBatchMutation";
 import { formatTotalsLine, replaceMealItemFood, toMealItemInput } from "./mealItemHelpers";
 import { resolveTargetMealItemInMeals, type MealItemTargetCandidate } from "./mealTargetResolution";
 import { formatNumber } from "./textUtils";
@@ -99,8 +105,14 @@ function toMutableMeals(meals: MealRecord[]): MutableMealRecord[] {
   }));
 }
 
-async function updateMealItems(userId: number, meal: MutableMealRecord) {
-  return updateMeal(userId, { mealId: meal.id, mealLabel: meal.mealLabel, occurredAt: new Date(meal.occurredAt).toISOString(), notes: meal.notes, items: meal.items });
+function toBatchSnapshot(meal: MealRecord | MutableMealRecord) {
+  return {
+    id: meal.id,
+    mealLabel: meal.mealLabel,
+    occurredAt: meal.occurredAt,
+    notes: meal.notes,
+    items: [...(meal.items ?? [])] as MealItemInput[],
+  };
 }
 
 function buildMultipleReplacementLines(applied: AppliedFoodReplacement[], notFound: string[]) {
@@ -171,7 +183,26 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
     ...mutableMeals[index],
     items: (meals[index].items ?? []).map((item, itemIndex) => replacementsByMeal.get(index)?.get(itemIndex) ?? item) as MealItemInput[],
   }));
-  const updatedMeals = await Promise.all(mealsToUpdate.map(meal => updateMealItems(userId, meal)));
+  const changes: MealBatchMutationChange[] = [...changedMealIndexes].map((index, changeIndex) => ({
+    before: toBatchSnapshot(meals[index]),
+    after: toBatchSnapshot(mealsToUpdate[changeIndex]),
+  }));
+
+  let updatedMeals: Awaited<ReturnType<typeof updateMealsWithCompensation>>;
+  try {
+    updatedMeals = await updateMealsWithCompensation(userId, changes);
+  } catch (error) {
+    const failure = describeMealBatchMutationFailure(error);
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: buildWhatsAppRecoverableErrorReplyMessage(failure.userMessage),
+      eventType: "whatsapp.intent.meal_replacement_batch_failed",
+      detail: failure.detail,
+      data: { rollbackSucceeded: failure.rollbackSucceeded, affectedMealIds: changes.map(change => change.after.id) },
+    };
+  }
+
   const actionLines = applied.length === 1 && !notFound.length
     ? (() => {
         const { from, to, item, scope } = applied[0];
