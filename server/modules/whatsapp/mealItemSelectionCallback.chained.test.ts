@@ -103,13 +103,15 @@ describe("meal item selection — ambiguidades encadeadas", () => {
     const state = new Map(meals.map(meal => [meal.id, structuredClone(meal)]));
     let failSecondOnce = true;
     listMealsMock.mockResolvedValue(meals);
-    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, any>) => {
-      if (input.mealId === 2 && input.items.some((candidate: { foodName: string }) => candidate.foodName === "tapioca") && failSecondOnce) {
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => {
+      const mealId = Number(input.mealId);
+      const items = input.items as Array<{ foodName: string }>;
+      if (mealId === 2 && items.some(candidate => candidate.foodName === "ricota") && failSecondOnce) {
         failSecondOnce = false;
         throw new Error("falha simulada na segunda refeição");
       }
-      const saved = { id: Number(input.mealId), ...input };
-      state.set(saved.id, structuredClone(saved));
+      const saved = { id: mealId, ...input, items };
+      state.set(mealId, structuredClone(saved) as ReturnType<typeof mealsFixture>[number]);
       return saved;
     });
 
@@ -118,9 +120,9 @@ describe("meal item selection — ambiguidades encadeadas", () => {
       action: { kind: "replace_food", targetFood: "tapioca" },
       contextLabel: "nas refeições recentes",
       resultTitle: "Alimentos substituídos",
-      candidates: [{ mealId: 2, mealLabel: "Lanche", itemIndex: 1, itemName: "Pão integral" }],
+      candidates: [{ mealId: 1, mealLabel: "Jantar", itemIndex: 1, itemName: "Pão francês" }],
       companionActions: [{
-        candidate: { mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" },
+        candidate: { mealId: 2, mealLabel: "Lanche", itemIndex: 0, itemName: "Queijo mussarela" },
         action: { kind: "replace_food", targetFood: "ricota" },
       }],
     };
