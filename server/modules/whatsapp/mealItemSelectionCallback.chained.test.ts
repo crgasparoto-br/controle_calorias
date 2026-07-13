@@ -35,15 +35,18 @@ function item(foodName: string) {
   };
 }
 
+function mealsFixture() {
+  return [
+    { id: 1, mealLabel: "Jantar", occurredAt: "2026-07-12T22:00:00.000Z", notes: null, items: [item("Queijo minas"), item("Pão francês")] },
+    { id: 2, mealLabel: "Lanche", occurredAt: "2026-07-12T21:00:00.000Z", notes: null, items: [item("Queijo mussarela"), item("Pão integral")] },
+  ];
+}
+
 describe("meal item selection — ambiguidades encadeadas", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createPendingOperationMock.mockResolvedValue({ id: 999 });
-    const meals = [
-      { id: 1, mealLabel: "Jantar", occurredAt: "2026-07-12T22:00:00.000Z", notes: null, items: [item("Queijo minas"), item("Pão francês")] },
-      { id: 2, mealLabel: "Lanche", occurredAt: "2026-07-12T21:00:00.000Z", notes: null, items: [item("Queijo mussarela"), item("Pão integral")] },
-    ];
-    listMealsMock.mockResolvedValue(meals);
+    listMealsMock.mockResolvedValue(mealsFixture());
     updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
   });
 
@@ -93,5 +96,42 @@ describe("meal item selection — ambiguidades encadeadas", () => {
     expect(finalResult.action).toBe("meal_item_replaced");
     expect(finalResult.data).toEqual(expect.objectContaining({ actionCount: 2, affectedMealIds: expect.arrayContaining([1, 2]) }));
     expect(finalResult.reply.match(/Total da refeição:/g)).toHaveLength(2);
+  });
+
+  it("restaura a primeira refeição quando a segunda atualização do callback falha", async () => {
+    const meals = mealsFixture();
+    const state = new Map(meals.map(meal => [meal.id, structuredClone(meal)]));
+    let failSecondOnce = true;
+    listMealsMock.mockResolvedValue(meals);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, any>) => {
+      if (input.mealId === 2 && input.items.some((candidate: { foodName: string }) => candidate.foodName === "tapioca") && failSecondOnce) {
+        failSecondOnce = false;
+        throw new Error("falha simulada na segunda refeição");
+      }
+      const saved = { id: Number(input.mealId), ...input };
+      state.set(saved.id, structuredClone(saved));
+      return saved;
+    });
+
+    const pending: PendingMealItemSelection = {
+      targetFood: "pão",
+      action: { kind: "replace_food", targetFood: "tapioca" },
+      contextLabel: "nas refeições recentes",
+      resultTitle: "Alimentos substituídos",
+      candidates: [{ mealId: 2, mealLabel: "Lanche", itemIndex: 1, itemName: "Pão integral" }],
+      companionActions: [{
+        candidate: { mealId: 1, mealLabel: "Jantar", itemIndex: 0, itemName: "Queijo minas" },
+        action: { kind: "replace_food", targetFood: "ricota" },
+      }],
+    };
+
+    const result = await completeMealItemSelectionInteractiveCallback(42, { target: pending }, "select:0");
+
+    expect(result.action).toBe("clarification_needed");
+    expect(result.eventType).toBe("whatsapp.intent.meal_item_selection_batch_failed");
+    expect(result.data).toEqual(expect.objectContaining({ rollbackSucceeded: true }));
+    expect(state.get(1)?.items.map(candidate => candidate.foodName)).toEqual(["Queijo minas", "Pão francês"]);
+    expect(state.get(2)?.items.map(candidate => candidate.foodName)).toEqual(["Queijo mussarela", "Pão integral"]);
+    expect(updateMealMock).toHaveBeenCalledTimes(4);
   });
 });
