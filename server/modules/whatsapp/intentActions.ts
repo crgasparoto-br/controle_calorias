@@ -25,6 +25,16 @@ import type { WhatsappIntentInput, WhatsappIntentResult } from "./intent/types";
 
 export type { WhatsappIntentResult, WhatsappIntentInput } from "./intent/types";
 
+function withMacroRecalculationMessage(result: WhatsappIntentResult): WhatsappIntentResult {
+  if (result.action !== "meal_item_grams_adjusted" || result.reply.includes("recalculei os macros")) {
+    return result;
+  }
+  return {
+    ...result,
+    reply: `${result.reply}\n\nTambém recalculei os macros da refeição.`,
+  };
+}
+
 export async function executeWhatsappTextIntent(userId: number, input: WhatsappIntentInput): Promise<WhatsappIntentResult | null> {
   const text = input.text?.trim();
   if (!text) {
@@ -73,12 +83,12 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
 
   const gramsIncrements = parseMealItemGramsIncrementMulti(text);
   if (gramsIncrements) {
-    return handleMealItemMultiIncrement(userId, gramsIncrements);
+    return withMacroRecalculationMessage(await handleMealItemMultiIncrement(userId, gramsIncrements));
   }
 
   const gramsAdjustments = parseMealItemGramsAdjustmentMulti(text);
   if (gramsAdjustments) {
-    return handleMealItemMultiAdjustment(userId, gramsAdjustments);
+    return withMacroRecalculationMessage(await handleMealItemMultiAdjustment(userId, gramsAdjustments));
   }
 
   const foodReplacements = parseFoodReplacementIntents(text);
