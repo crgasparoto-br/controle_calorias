@@ -47,6 +47,15 @@ jobs:
           fi
           tail -n 80 /tmp/vitest.log
 
+      - name: Upload Vitest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-vitest-log
+          path: /tmp/vitest.log
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: Architecture check
         run: pnpm architecture:check
 
