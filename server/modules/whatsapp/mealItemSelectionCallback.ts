@@ -1,11 +1,20 @@
 import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
-import { listMeals, updateMeal } from "../meals/service";
+import { listMeals } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { scaleMealItem, scaleMealItemQuantity, replaceMealItemFood } from "./intent/mealItemHelpers";
 import { buildWhatsAppCallbackId } from "./interactiveCallback";
+import {
+  describeMealBatchMutationFailure,
+  updateMealsWithCompensation,
+  type MealBatchMutationChange,
+} from "./mealBatchMutation";
 import { listReply, type WhatsAppLogicalReply } from "./replyContract";
-import { buildWhatsAppCallbackResourceNotFoundReplyMessage, buildWhatsAppMealActionReplyMessage } from "./replyMessages";
+import {
+  buildWhatsAppCallbackResourceNotFoundReplyMessage,
+  buildWhatsAppMealActionReplyMessage,
+  buildWhatsAppRecoverableErrorReplyMessage,
+} from "./replyMessages";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 
 export const PENDING_MEAL_ITEM_SELECTION_TYPE = "meal_item_selection";
@@ -168,10 +177,41 @@ async function applySelectionPlan(userId: number, selected: MealItemSelectionCan
     actionLinesByMeal.set(nextMeal.id, [...(actionLinesByMeal.get(nextMeal.id) ?? []), actionLine]);
   }
 
-  const updatedMeals = [];
+  const changes: MealBatchMutationChange[] = [];
   for (const meal of workingMeals.values()) {
-    updatedMeals.push(await updateMeal(userId, { mealId: meal.id, mealLabel: meal.mealLabel, occurredAt: new Date(meal.occurredAt).toISOString(), notes: meal.notes, items: meal.items as MealItemInput[] }));
+    const before = meals.find(candidate => candidate.id === meal.id);
+    if (!before?.items?.length) return buildStaleSelectionResult();
+    changes.push({
+      before: {
+        id: before.id,
+        mealLabel: before.mealLabel,
+        occurredAt: before.occurredAt,
+        notes: before.notes,
+        items: before.items as MealItemInput[],
+      },
+      after: {
+        id: meal.id,
+        mealLabel: meal.mealLabel,
+        occurredAt: meal.occurredAt,
+        notes: meal.notes,
+        items: meal.items as MealItemInput[],
+      },
+    });
   }
+
+  let updatedMeals: Awaited<ReturnType<typeof updateMealsWithCompensation>>;
+  try {
+    updatedMeals = await updateMealsWithCompensation(userId, changes);
+  } catch (error) {
+    const failure = describeMealBatchMutationFailure(error);
+    return clarificationResult(
+      buildWhatsAppRecoverableErrorReplyMessage(failure.userMessage),
+      "whatsapp.intent.meal_item_selection_batch_failed",
+      failure.detail,
+      { rollbackSucceeded: failure.rollbackSucceeded, affectedMealIds: changes.map(change => change.after.id) },
+    );
+  }
+
   const hasReplacement = plan.some(step => step.action.kind === "replace_food");
   return {
     handled: true,
