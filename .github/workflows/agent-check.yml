@@ -39,7 +39,13 @@ jobs:
         run: pnpm check
 
       - name: Tests
-        run: pnpm test
+        run: |
+          if ! pnpm test > /tmp/vitest.log 2>&1; then
+            echo "Vitest failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/vitest.log
+            exit 1
+          fi
+          tail -n 80 /tmp/vitest.log
 
       - name: Architecture check
         run: pnpm architecture:check
