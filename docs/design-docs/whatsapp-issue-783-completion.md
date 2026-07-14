@@ -19,6 +19,7 @@ Todos os caminhos alcançáveis pelo webhook e pelo simulador reutilizam os buil
 - Respostas finais usam `logicalReplyDelivery.ts` para compor texto, CTA de edição rápida e imagem auxiliar na mesma `WhatsAppLogicalReply`.
 - Callbacks preservam `mealId` até o webhook, mantendo o CTA quando a refeição ainda existe.
 - Depois da execução bem-sucedida, cada refeição afetada é renderizada integralmente, com itens e totais atuais.
+- Cada bloco de ação identifica explicitamente a refeição e o horário; em respostas multirrefeição, as linhas de ação são limitadas à refeição correspondente.
 - `recordAdjustmentIntent.ts`, `gramsAdjustmentIntent.ts` e `gramsIncrementIntent.ts` delegam aos mesmos handlers canônicos. Exclusões continuam exigindo confirmação.
 - Os módulos que criam ou consomem pendências declaram `usesPendingOperation: true` e `requiresFreshDbQuery: true`.
 
@@ -40,7 +41,7 @@ Todos os caminhos alcançáveis pelo webhook e pelo simulador reutilizam os buil
 - Ação clara junto de ação ambígua sem mutação parcial.
 - Duas ou mais ambiguidades de gramas na mesma mensagem, preservadas em sequência.
 - Várias substituições ambíguas com destinos diferentes.
-- Atualização de várias refeições com um bloco completo e total para cada uma.
+- Atualização de várias refeições com identificação de refeição/horário, ações segregadas, bloco completo e total para cada uma.
 - Falha na segunda atualização multirrefeição com restauração da primeira e da chamada que falhou.
 - Resposta conservadora quando uma compensação também falha.
 - Metadados de contexto dos módulos com pendências.
@@ -68,7 +69,8 @@ A entrega somente pode ser considerada pronta para merge quando os seguintes che
 - Respostas de refeições novas, inclusive no webhook de imagem anotada, passam a renderizar itens e totais a partir da refeição persistida retornada pelo domínio, nunca do payload anterior à gravação.
 - Aumento e redução de gramas preservam a refeição explicitamente informada durante resolução clara, ambiguidade, seleção interativa e mutação.
 - O builder de respostas de ação diferencia explicitamente uma refeição recém-registrada de uma refeição atualizada; o fluxo de adição datada não apresenta mais uma nova refeição como `Refeição atualizada`.
-- Os testes de regressão cobrem divergência entre inferência e persistência, alimento repetido em refeições diferentes, candidatos ambíguos limitados ao escopo explícito e o estado visual correto de uma nova refeição datada.
+- Blocos de ação passaram a mostrar `🍽️ *<refeição>* — <horário>` e respostas multirrefeição não repetem ações de uma refeição no bloco de outra.
+- Os testes de regressão cobrem divergência entre inferência e persistência, alimento repetido em refeições diferentes, candidatos ambíguos limitados ao escopo explícito, o estado visual correto de uma nova refeição datada e a segregação visual de ações multirrefeição.
 
 ### Evidência de validação
 
