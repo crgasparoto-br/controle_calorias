@@ -17,7 +17,7 @@ import {
   whatsappOnboardingCompleteSchema,
   whatsappOnboardingTokenSchema,
 } from "./modules/onboarding/whatsappLeadSchemas";
-import { getProfessionalProfile } from "./modules/professionals/service";
+import { getCanonicalProfessionalProfile } from "./modules/professionals/persistenceService";
 import { quickEditRouter } from "./modules/quickEdit/router";
 import { nutritionRouter } from "./nutritionRouter";
 
@@ -35,7 +35,7 @@ function sanitizeUser<T extends Record<string, unknown>>(user: T): Omit<T, "pass
 }
 
 async function sessionUser<T extends Record<string, unknown> & { id: number }>(user: T) {
-  const professionalProfile = await getProfessionalProfile(user.id);
+  const professionalProfile = await getCanonicalProfessionalProfile(user.id);
   return {
     ...sanitizeUser(user),
     professionalProfileActive: Boolean(professionalProfile?.active),
