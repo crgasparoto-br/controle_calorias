@@ -1,1 +1,1 @@
-Trigger the existing TiDB pull-request workflow after its definition was updated.
+Create a current source snapshot before applying the remaining issue 783 fixes.
