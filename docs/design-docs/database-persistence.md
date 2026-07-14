@@ -2,7 +2,7 @@
 
 ## Fonte de verdade
 
-`drizzle/schema.ts` é a fonte de verdade do modelo relacional. Migrações em `drizzle/` devem refletir mudanças de schema e ser aplicadas antes de validar fluxos em produção.
+`drizzle/schema.ts` e os schemas de domínio em `drizzle/*-schema.ts` são a fonte de verdade do modelo relacional. Migrações em `drizzle/` devem refletir mudanças de schema e ser aplicadas antes de validar fluxos em produção.
 
 ## Tabelas críticas
 
@@ -21,6 +21,10 @@
 | `mealInferences` | Rascunhos e inferências de IA |
 | `habitMemories` | Memória de hábitos alimentares |
 | `healthSyncedRecords` | Histórico persistido de dados importados de integrações de saúde |
+| `professionalProfiles` | Perfil profissional adicional à conta pessoal |
+| `professionalPatientAuthorizations` | Consentimento e revogação do acesso profissional aos dados do paciente |
+| `professionalPatientTrackings` | Situação operacional do acompanhamento, separada da autorização |
+| `professionalPatientTrackingEvents` | Histórico auditável das transições do acompanhamento |
 | `whatsappConnections` | Vínculo telefone do usuário ↔ usuário interno |
 | `inferenceLogs` | Logs seguros de inferência |
 | `appSecrets` | Segredos operacionais criptografados |
@@ -36,6 +40,8 @@
 - Refeições futuras devem salvar consumo real em itens de refeição com snapshot nutricional, sem duplicar dados globais do catálogo.
 - Alterações futuras em `foods` não devem recalcular refeições antigas silenciosamente.
 - Dados sincronizados de integrações de saúde devem ser apagados quando o usuário desconectar o provider correspondente.
+- Revogação de autorização profissional prevalece sobre a situação operacional do acompanhamento.
+- Uma autorização aprovada pode ter somente um acompanhamento canônico e cada transição deve registrar ator, data e motivo quando informado.
 
 ## Catálogo global de alimentos
 
@@ -62,7 +68,28 @@ A tabela armazena `provider`, `externalRecordId`, `dataType`, `measuredAt`, `val
 
 O router de integrações grava os registros retornados por `sync`, consulta primeiro o histórico persistido para a tela de dados sincronizados e remove os registros do provider quando o usuário desconecta a integração. Dados transitórios em memória seguem como fallback quando o banco não está disponível ou ainda não há histórico persistido.
 
+## Fundação persistente da Área Profissional
+
+A migration `0024_professional_persistence_foundation.sql` cria o modelo canônico de perfil, autorização, acompanhamento e eventos de transição.
+
+Durante o rollout, `server/repositories/professionalRepository.ts` mantém compatibilidade com as preferências legadas `professional_profile_v1`, `professional_accesses_v1` e `patient_professional_access_requests_v1`:
+
+- a leitura canônica importa preferências mais recentes de forma idempotente;
+- o `updatedAt` da preferência funciona como versão da origem para impedir que uma cópia antiga sobrescreva uma versão canônica mais nova;
+- escritas canônicas fazem dual-write temporário no JSON para consumidores ainda não migrados;
+- vínculos assimétricos podem ser reconciliados a partir da cópia do profissional;
+- JSON inválido é ignorado com evento sanitizado, sem registrar o conteúdo bruto;
+- uma chave única para o par profissional-paciente impede solicitações equivalentes concorrentes enquanto o vínculo está pendente ou aprovado.
+
+A aplicação da estrutura segue esta ordem:
+
+1. aplicar migrations com `pnpm db:push`;
+2. executar `pnpm db:migrate:professionals` para o backfill completo;
+3. manter a importação lazy e o dual-write durante a migração dos consumidores;
+4. remover a dependência dos JSONs somente após todas as leituras e escritas profissionais usarem o repository canônico.
+
 ## Validação
 
 - Rodar `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
 - Rodar `pnpm docs:check` após alterar schema ou docs geradas.
+- Rodar `pnpm db:migrate:professionals` mais de uma vez em homologação para confirmar idempotência antes do rollout em produção.
