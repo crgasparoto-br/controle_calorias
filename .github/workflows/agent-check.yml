@@ -21,6 +21,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create temporary source archive
+        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tgz .
+
+      - name: Upload temporary source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: controle-calorias-source
+          path: /tmp/controle-calorias-source.tgz
+          retention-days: 1
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
