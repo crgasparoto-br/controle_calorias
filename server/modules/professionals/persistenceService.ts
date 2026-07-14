@@ -1,6 +1,7 @@
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   createDrizzleProfessionalRepository,
+  type TransitionProfessionalAuthorizationInput,
   type TransitionProfessionalTrackingInput,
   type UpsertCanonicalProfessionalAuthorizationInput,
   type UpsertCanonicalProfessionalProfileInput,
@@ -15,12 +16,18 @@ export function getCanonicalProfessionalProfile(userId: number) {
   return professionalRepository.getProfile(userId);
 }
 
-export function upsertCanonicalProfessionalProfile(input: UpsertCanonicalProfessionalProfileInput) {
+export function upsertCanonicalProfessionalProfile(
+  input: UpsertCanonicalProfessionalProfileInput
+) {
   return professionalRepository.upsertProfile(input);
 }
 
-export function listCanonicalProfessionalAuthorizations(professionalUserId: number) {
-  return professionalRepository.listAuthorizationsByProfessional(professionalUserId);
+export function listCanonicalProfessionalAuthorizations(
+  professionalUserId: number
+) {
+  return professionalRepository.listAuthorizationsByProfessional(
+    professionalUserId
+  );
 }
 
 export function listCanonicalPatientAuthorizations(patientUserId: number) {
@@ -33,22 +40,33 @@ export function getCanonicalProfessionalAuthorization(authorizationId: string) {
 
 export function getApprovedCanonicalProfessionalAuthorization(
   professionalUserId: number,
-  patientUserId: number,
+  patientUserId: number
 ) {
-  return professionalRepository.getApprovedAuthorization(professionalUserId, patientUserId);
+  return professionalRepository.getApprovedAuthorization(
+    professionalUserId,
+    patientUserId
+  );
 }
 
 export function upsertCanonicalProfessionalAuthorization(
-  input: UpsertCanonicalProfessionalAuthorizationInput,
+  input: UpsertCanonicalProfessionalAuthorizationInput
 ) {
   return professionalRepository.upsertAuthorization(input);
+}
+
+export function transitionCanonicalProfessionalAuthorization(
+  input: TransitionProfessionalAuthorizationInput
+) {
+  return professionalRepository.transitionAuthorization(input);
 }
 
 export function getCanonicalProfessionalTracking(authorizationId: string) {
   return professionalRepository.getTrackingByAuthorization(authorizationId);
 }
 
-export function transitionCanonicalProfessionalTracking(input: TransitionProfessionalTrackingInput) {
+export function transitionCanonicalProfessionalTracking(
+  input: TransitionProfessionalTrackingInput
+) {
   return professionalRepository.transitionTracking(input);
 }
 
