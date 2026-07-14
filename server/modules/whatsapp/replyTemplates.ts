@@ -14,14 +14,10 @@ export type WhatsAppFoodReplyItem = FoodIconInput & WhatsAppNutritionTotals & {
 };
 
 export type WhatsAppGoalProgressInput = {
-  consumedCalories: number;
+  consumedCalories?: number | null;
   /** Meta final aplicável, já calculada pelo domínio conforme a configuração da #756. */
-  effectiveGoalCalories?: number;
-  /** Compatibilidade temporária com consumidores migrados gradualmente; deve conter a meta final. */
-  goalCalories?: number;
+  effectiveGoalCalories: number | null;
   exerciseCalories?: number | null;
-  /** Campo legado aceito durante a migração; o formatter não executa essa regra. */
-  includeExerciseCalories?: boolean;
   consumedProteinGrams?: number | null;
   targetProteinGrams?: number | null;
   consumedCarbsGrams?: number | null;
@@ -111,7 +107,7 @@ export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
 
 export function buildWhatsAppMealTotalLines(totals: WhatsAppNutritionTotals) {
   return [
-    "*Total da refeição:*",
+    "*Total da refeição*",
     formatWhatsAppNutritionTotalsLine(totals),
   ];
 }
@@ -128,14 +124,16 @@ function buildMacroProgressLine(label: "P" | "C" | "G", consumed: number | null 
 }
 
 export function buildWhatsAppGoalProgressLines(progress: WhatsAppGoalProgressInput | null | undefined) {
-  const effectiveGoalCalories = progress?.effectiveGoalCalories ?? progress?.goalCalories;
+  const effectiveGoalCalories = progress?.effectiveGoalCalories;
   if (!progress || typeof effectiveGoalCalories !== "number" || effectiveGoalCalories <= 0) {
     return [];
   }
 
-  const consumedCalories = Math.max(0, Math.round(progress.consumedCalories));
+  const consumedCalories = typeof progress.consumedCalories === "number"
+    ? Math.max(0, Math.round(progress.consumedCalories))
+    : null;
   const finalGoalCalories = Math.round(effectiveGoalCalories);
-  const calorieDifference = consumedCalories - finalGoalCalories;
+  const calorieDifference = consumedCalories === null ? null : consumedCalories - finalGoalCalories;
   const exerciseCalories = typeof progress.exerciseCalories === "number"
     ? Math.max(0, Math.round(progress.exerciseCalories))
     : null;
@@ -148,7 +146,9 @@ export function buildWhatsAppGoalProgressLines(progress: WhatsAppGoalProgressInp
   return [
     `*Meta:* ${formatWhatsAppNumber(finalGoalCalories)} kcal`,
     ...(exerciseCalories !== null ? [`*Exercícios:* ${formatWhatsAppNumber(exerciseCalories)} kcal`] : []),
-    `*Consumo:* ${formatWhatsAppNumber(consumedCalories)} kcal (${formatSignedDifference(calorieDifference, "kcal")})`,
+    ...(consumedCalories === null
+      ? []
+      : [`*Consumo:* ${formatWhatsAppNumber(consumedCalories)} kcal (${formatSignedDifference(calorieDifference!, "kcal")})`]),
     ...(macroLines.length ? [buildWhatsAppSeparator(), "*Macronutrientes*", ...macroLines] : []),
   ];
 }
