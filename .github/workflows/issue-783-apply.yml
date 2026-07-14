@@ -21,7 +21,7 @@ jobs:
 
       - name: Apply audited completion
         run: |
-          cat .issue783-patch/part* > /tmp/issue-783.patch
+          cp .issue783-patch/part00 /tmp/issue-783.patch
           git apply --check /tmp/issue-783.patch
           git apply /tmp/issue-783.patch
           rm -rf .issue783-patch .github/workflows/issue-783-apply.yml
