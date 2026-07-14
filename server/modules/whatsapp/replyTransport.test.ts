@@ -16,6 +16,11 @@ vi.mock("./webhookUtils", () => ({
   sendWhatsAppImageBufferMessage: sendWhatsAppImageBufferMessageMock,
 }));
 
+const requireWhatsAppSendConfigMock = vi.fn(async () => ({ accessToken: "token-test", phoneNumberId: "phone-id-test" }));
+vi.mock("../../whatsappConfig", () => ({
+  requireWhatsAppSendConfig: requireWhatsAppSendConfigMock,
+}));
+
 const recordOutboundReplyMock = vi.fn(async () => {});
 vi.mock("./messageLifecycle", () => ({
   recordOutboundReply: recordOutboundReplyMock,
@@ -37,9 +42,11 @@ describe("replyTransport", () => {
     vi.clearAllMocks();
     sendWhatsAppTextMessageMock.mockResolvedValue({ ok: true, detail: "Resposta automática enviada com sucesso." });
     sendWhatsAppImageMessageMock.mockResolvedValue({ ok: true, detail: "Imagem anotada enviada com sucesso." });
+    requireWhatsAppSendConfigMock.mockResolvedValue({ accessToken: "token-test", phoneNumberId: "phone-id-test" });
+    global.fetch = vi.fn(async () => ({ ok: true, status: 200, statusText: "OK" })) as typeof fetch;
   });
 
-  it("nunca chama o transporte real da Cloud API — apenas os mocks de webhookUtils", async () => {
+  it("usa os adapters centralizados de webhookUtils para texto", async () => {
     await sendWhatsAppLogicalReply("5511999990000", textReply("Registrei 300 ml de água."), lifecycle);
     expect(sendWhatsAppTextMessageMock).toHaveBeenCalledWith("5511999990000", "Registrei 300 ml de água.");
   });
@@ -75,8 +82,26 @@ describe("replyTransport", () => {
       "https://storage.test/annotated.png",
       "Imagem anotada com os alimentos identificados.",
     );
-    // ordem: chamada de texto (primária) antes da chamada de imagem (auxiliar).
     expect(sendWhatsAppTextMessageMock.mock.invocationCallOrder[0]).toBeLessThan(sendWhatsAppImageMessageMock.mock.invocationCallOrder[0]);
+  });
+
+  it("serializa imagem por media id dentro do transporte central", async () => {
+    const reply = withAuxiliaryImage(textReply("Refeição registrada."), {
+      mediaId: "media-opaque-123",
+      caption: "Imagem anotada.",
+    });
+
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
+
+    expect(result.ok).toBe(true);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [, init] = vi.mocked(global.fetch).mock.calls[0];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      messaging_product: "whatsapp",
+      to: "5511999990000",
+      type: "image",
+      image: { id: "media-opaque-123", caption: "Imagem anotada." },
+    });
   });
 
   it("falha na mídia auxiliar não impede a gravação da resposta funcional primária", async () => {
@@ -94,13 +119,19 @@ describe("replyTransport", () => {
     expect(recordOutboundReplyMock).toHaveBeenCalledTimes(1);
   });
 
-  it("falha na mensagem primária não grava outbound no lifecycle", async () => {
+  it("falha na mensagem primária não grava outbound nem envia mídia auxiliar órfã", async () => {
     sendWhatsAppTextMessageMock.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 500 Internal Server Error." });
+    const reply = withAuxiliaryImage(textReply("Registrei 300 ml de água."), {
+      url: "https://storage.test/annotated.png",
+      caption: "Imagem anotada.",
+    });
 
-    const result = await sendWhatsAppLogicalReply("5511999990000", textReply("Registrei 300 ml de água."), lifecycle);
+    const result = await sendWhatsAppLogicalReply("5511999990000", reply, lifecycle);
 
     expect(result.primaryOk).toBe(false);
     expect(result.recorded).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(sendWhatsAppImageMessageMock).not.toHaveBeenCalled();
     expect(recordOutboundReplyMock).not.toHaveBeenCalled();
   });
 
@@ -125,7 +156,7 @@ describe("replyTransport", () => {
     expect(result.recorded).toBe(true);
   });
 
-  it("rejeita botões inválidos por validação central antes de chamar o transporte, sem vazar detalhe técnico ao usuário", async () => {
+  it("rejeita botões inválidos antes de chamar o transporte", async () => {
     const reply = buttonsReply("Confirma?", [
       { id: "1", title: "Um" },
       { id: "2", title: "Dois" },
@@ -139,11 +170,10 @@ describe("replyTransport", () => {
     expect(result.sends[0].ok).toBe(false);
     expect(result.sends[0].detail).toContain("validação do contrato");
     expect(result.recorded).toBe(false);
-    // Nenhuma informação foi enviada ao usuário: o transporte nunca foi acionado para essa mensagem.
     expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalled();
   });
 
-  it("sem handle de lifecycle não tenta gravar (uso fora do fluxo persistente, ex.: simulateWhatsappInbound)", async () => {
+  it("sem handle de lifecycle não tenta gravar", async () => {
     const result = await sendWhatsAppLogicalReply("5511999990000", textReply("Registrei 300 ml de água."));
     expect(result.ok).toBe(true);
     expect(result.recorded).toBe(false);
