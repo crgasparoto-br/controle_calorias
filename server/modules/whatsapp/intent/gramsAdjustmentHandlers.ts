@@ -107,8 +107,19 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
   });
 }
 
-function buildUpdatedMealsReply(updatedMeals: MealRecord[], title: string, actionLines: string[]) {
-  return updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title, actionLines })).join("\n\n");
+function buildUpdatedMealsReply(
+  updatedMeals: MealRecord[],
+  title: string,
+  actionLinesByMeal: Map<number, string[]>,
+  sharedActionLines: string[] = [],
+) {
+  return updatedMeals.map((meal, index) => buildWhatsAppMealActionReplyMessage(meal, {
+    title,
+    actionLines: [
+      ...(actionLinesByMeal.get(meal.id) ?? []),
+      ...(index === 0 ? sharedActionLines : []),
+    ],
+  })).join("\n\n");
 }
 
 async function ambiguousTargetReply(input: {
@@ -429,14 +440,24 @@ async function handleMultiGramsChange(input: {
     };
   }
 
-  const actionLines = [
-    ...applied.map(item => `• ${item.foodName}: de ${formatNumber(item.previousGrams)} g para ${formatNumber(item.nextGrams)} g`),
-    ...(notFound.length ? [`Não encontrei ${explicitContext ?? "nas refeições de hoje"}: ${notFound.join(", ")}.`] : []),
-  ];
+  const actionLinesByMeal = new Map<number, string[]>();
+  for (const item of applied) {
+    const mealActionLines = actionLinesByMeal.get(item.candidate.mealId) ?? [];
+    mealActionLines.push(`• ${item.foodName}: de ${formatNumber(item.previousGrams)} g para ${formatNumber(item.nextGrams)} g`);
+    actionLinesByMeal.set(item.candidate.mealId, mealActionLines);
+  }
+  const sharedActionLines = notFound.length
+    ? [`Não encontrei ${explicitContext ?? "nas refeições de hoje"}: ${notFound.join(", ")}.`]
+    : [];
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: buildUpdatedMealsReply(updatedMeals, applied.length === 1 ? "Alimento ajustado" : "Alimentos ajustados", actionLines),
+    reply: buildUpdatedMealsReply(
+      updatedMeals,
+      applied.length === 1 ? "Alimento ajustado" : "Alimentos ajustados",
+      actionLinesByMeal,
+      sharedActionLines,
+    ),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${applied.length} item(ns) ajustado(s) via WhatsApp sem ambiguidade pendente.`,
     data: {
