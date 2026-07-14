@@ -1,0 +1,89 @@
+ async function continueSelectionOrApply(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection) {
+-  const resolvedActions: MealItemSelectionCompanionAction[] = [...(pending.companionActions ?? []), { candidate: selected, action: pending.action }];
+-  const [next, ...remaining] = pending.remainingSelections ?? [];
++  const resolvedActions: MealItemSelectionCompanionAction[] = [
++    ...(pending.companionActions ?? []),
++    { candidate: selected, action: pending.action },
++  ];
++  const remaining = [...(pending.remainingSelections ?? [])];
++  while (remaining[0]?.kind === "resolved") {
++    const nextResolved = remaining.shift();
++    if (nextResolved?.kind === "resolved") {
++      resolvedActions.push({ candidate: nextResolved.candidate, action: nextResolved.action });
++    }
++  }
++  const next = remaining.shift();
++  if (next?.kind === "resolved") {
++    throw new Error("Plano de seleção inválido: ação resolvida permaneceu após a normalização.");
++  }
+   if (next) {
+     return createPendingMealItemSelection(userId, {
+       ...next,
+       resultTitle: pending.resultTitle,
+       companionActions: resolvedActions,
+       remainingSelections: remaining,
+     });
+   }
+-  return applySelectionPlan(userId, selected, pending);
++  return applySelectionPlan(userId, resolvedActions, pending.resultTitle);
+ }
+diff --git a/server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts b/server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts
+index 04a47f3..0000000 100644
+--- a/server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts
++++ b/server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts
+@@ -10,6 +10,7 @@ import {
+   createPendingMealItemSelection,
++  type MealItemPendingPlanStep,
+   type MealItemPendingSelectionStep,
+@@ -312,6 +313,7 @@ async function handleMultiGramsChange(input: {
+   const applied: AppliedGramsChange[] = [];
+   const pending: PendingGramsTarget[] = [];
++  const orderedPlan: MealItemPendingPlanStep[] = [];
+   const notFound: string[] = [];
+@@ -324,6 +326,13 @@ async function handleMultiGramsChange(input: {
+         selectionAction: { kind: "grams_delta", delta: change.delta },
+       });
++      orderedPlan.push({
++        kind: "selection",
++        targetFood: change.targetFood,
++        action: { kind: "grams_delta", delta: change.delta },
++        contextLabel: contextWithPreposition(target.scope),
++        candidates: target.candidates.map(toSelectionCandidate),
++      });
+       continue;
+@@ -349,6 +358,7 @@ async function handleMultiGramsChange(input: {
+       action,
+     });
++    orderedPlan.push({ kind: "resolved", candidate, action });
+   }
+ 
+   if (pending.length) {
+-    const [firstPending, ...remainingPending] = pending;
++    const firstSelectionIndex = orderedPlan.findIndex(step => step.kind !== "resolved");
++    const firstPending = orderedPlan[firstSelectionIndex] as MealItemPendingSelectionStep;
++    const companionActions = orderedPlan.slice(0, firstSelectionIndex)
++      .filter((step): step is Extract<MealItemPendingPlanStep, { kind: "resolved" }> => step.kind === "resolved")
++      .map(step => ({ candidate: step.candidate, action: step.action }));
+     return ambiguousTargetReply({
+       userId: input.userId,
+       targetFood: firstPending.targetFood,
+-      candidates: firstPending.candidates,
+-      action: firstPending.selectionAction,
+-      companionActions: applied.map(item => ({ candidate: item.candidate, action: item.action })),
+-      remainingSelections: remainingPending.map(item => ({
+-        targetFood: item.targetFood,
+-        action: item.selectionAction,
+-        contextLabel: item.context,
+-        candidates: item.candidates.map(toSelectionCandidate),
+-      })),
+-      context: firstPending.context,
+-      scopeLabel: firstPending.scopeLabel,
++      candidates: firstPending.candidates.map(candidate => ({
++        meal: mutableMeals.find(meal => meal.id === candidate.mealId)!,
++        mealIndex: mutableMeals.findIndex(meal => meal.id === candidate.mealId),
++        item: mutableMeals.find(meal => meal.id === candidate.mealId)!.items[candidate.itemIndex],
++        index: candidate.itemIndex,
++      })),
++      action: firstPending.action,
++      companionActions,
++      remainingSelections: orderedPlan.slice(firstSelectionIndex + 1),
