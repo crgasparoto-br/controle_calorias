@@ -1,5 +1,7 @@
 import type { MealItemInput } from "../meals/schemas";
-import { updateMeal } from "../meals/service";
+import { updateMeal, type UpdateMealServiceOptions } from "../meals/service";
+
+const MEAL_UPDATE_SERVICE_OPTIONS = Symbol.for("controle_calorias.mealUpdateServiceOptions");
 
 export type MealBatchMutationSnapshot = {
   id: number;
@@ -30,13 +32,27 @@ export class MealBatchMutationError extends Error {
   }
 }
 
-function toUpdateInput(meal: MealBatchMutationSnapshot) {
-  return {
+function toUpdateInput(
+  meal: MealBatchMutationSnapshot,
+  options?: UpdateMealServiceOptions,
+) {
+  return Object.assign({
     mealId: meal.id,
     mealLabel: meal.mealLabel,
     occurredAt: new Date(meal.occurredAt).toISOString(),
     notes: meal.notes ?? undefined,
     items: meal.items,
+  }, options ? { [MEAL_UPDATE_SERVICE_OPTIONS]: options } : {});
+}
+
+function compensableUpdateOptions(
+  finalizeBatch?: UpdateMealServiceOptions["finalizeBatch"],
+): UpdateMealServiceOptions {
+  return {
+    recordCatalogUsage: false,
+    updateHabits: false,
+    logEvent: false,
+    finalizeBatch,
   };
 }
 
@@ -73,16 +89,33 @@ export async function updateMealsWithCompensation(
   const updatedMeals: Awaited<ReturnType<typeof updateMeal>>[] = [];
 
   try {
-    for (const change of changes) {
+    for (const [index, change] of changes.entries()) {
       attempted.push(change);
-      updatedMeals.push(await updateMeal(userId, toUpdateInput(change.after)));
+      const finalizeBatch = index === changes.length - 1
+        ? { meals: changes.map(item => ({ items: item.after.items })) }
+        : undefined;
+      updatedMeals.push(await updateMeal(
+        userId,
+        toUpdateInput(change.after, compensableUpdateOptions(finalizeBatch)),
+      ));
     }
     return updatedMeals;
   } catch (error) {
     const rollbackErrors: unknown[] = [];
-    for (const change of [...attempted].reverse()) {
+    const rollbackChanges = [...attempted].reverse();
+    for (const [index, change] of rollbackChanges.entries()) {
       try {
-        await updateMeal(userId, toUpdateInput(change.before));
+        const finalizeBatch = index === rollbackChanges.length - 1
+          ? {
+              meals: attempted.map(item => ({ items: item.before.items })),
+              recordCatalogUsage: false,
+              throwOnHabitFailure: true,
+            }
+          : undefined;
+        await updateMeal(
+          userId,
+          toUpdateInput(change.before, compensableUpdateOptions(finalizeBatch)),
+        );
       } catch (rollbackError) {
         rollbackErrors.push(rollbackError);
       }

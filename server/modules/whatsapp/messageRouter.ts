@@ -36,9 +36,11 @@ const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
 
 export type WhatsAppInteractiveCallbackResult = {
   handled: true;
+  action?: string;
   reply: string;
   eventType: string;
   detail: string;
+  data?: Record<string, unknown>;
   interactiveReply?: import("./replyContract").WhatsAppLogicalReply;
 };
 

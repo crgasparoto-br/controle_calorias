@@ -11,6 +11,14 @@ import {
   type MealBatchMutationChange,
 } from "./mealBatchMutation";
 
+function serviceOptionsAt(callIndex: number) {
+  const input = updateMealMock.mock.calls[callIndex]?.[1] as Record<PropertyKey, unknown> | undefined;
+  const symbol = input
+    ? Object.getOwnPropertySymbols(input).find(candidate => candidate.description === "controle_calorias.mealUpdateServiceOptions")
+    : undefined;
+  return symbol && input ? input[symbol] : undefined;
+}
+
 function item(foodName: string, grams: number) {
   return {
     foodName,
@@ -86,6 +94,47 @@ describe("meal batch mutation compensation", () => {
     expect(state.get(10)?.items[0].estimatedGrams).toBe(100);
     expect(state.get(20)?.items[0].estimatedGrams).toBe(80);
     expect(updateMealMock).toHaveBeenCalledTimes(4);
+    expect(serviceOptionsAt(0)).toMatchObject({
+      recordCatalogUsage: false,
+      updateHabits: false,
+      logEvent: false,
+      finalizeBatch: undefined,
+    });
+    expect(serviceOptionsAt(1)).toMatchObject({
+      finalizeBatch: expect.objectContaining({
+        meals: expect.arrayContaining([
+          expect.objectContaining({ items: afterFirst.items }),
+          expect.objectContaining({ items: afterSecond.items }),
+        ]),
+      }),
+    });
+    expect(serviceOptionsAt(3)).toMatchObject({
+      finalizeBatch: expect.objectContaining({
+        recordCatalogUsage: false,
+        throwOnHabitFailure: true,
+      }),
+    });
+  });
+
+  it("finaliza efeitos derivados somente na última escrita de um lote bem-sucedido", async () => {
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: input.mealId,
+      ...input,
+    }));
+
+    await updateMealsWithCompensation(42, [
+      { before: snapshot(10, "Jantar", "Arroz branco", 100), after: snapshot(10, "Jantar", "Arroz branco", 120) },
+      { before: snapshot(20, "Almoço", "Feijão carioca", 80), after: snapshot(20, "Almoço", "Feijão carioca", 90) },
+    ]);
+
+    expect(updateMealMock).toHaveBeenCalledTimes(2);
+    expect(serviceOptionsAt(0)).toMatchObject({ finalizeBatch: undefined });
+    expect(serviceOptionsAt(1)).toMatchObject({
+      recordCatalogUsage: false,
+      updateHabits: false,
+      logEvent: false,
+      finalizeBatch: expect.objectContaining({ meals: expect.any(Array) }),
+    });
   });
 
   it("não afirma restauração completa quando uma compensação também falha", () => {

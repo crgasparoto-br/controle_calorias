@@ -15,7 +15,6 @@ import {
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
-import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { getDb, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, logPersistenceWarning, updateUserCurrentWeight } from "./db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
 import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
@@ -27,14 +26,12 @@ import {
   getWhatsAppInteractiveReplyId,
   isWhatsAppMessageForConfiguredChannel,
   resolveWhatsAppMessageOccurredAt,
-  sendWhatsAppInteractiveUrlButtonMessage,
-  sendWhatsAppTextMessage,
   stripDiacritics,
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
 import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
-import { sendWhatsAppLogicalReply } from "./modules/whatsapp/replyTransport";
+import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
@@ -44,7 +41,6 @@ import {
   beginInboundMessage,
   markMessageProcessed,
   recordDomainLink,
-  recordOutboundReply,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
@@ -417,54 +413,47 @@ async function sendAndLogTextReply(input: {
   mealId?: number | null;
   occurredAtMs?: number;
   lifecycleHandle?: MessageLifecycleHandle;
-  /** Quando presente, botões/lista (issue #782) são enviados pelo transporte central em vez do texto simples de `reply`. */
   interactiveReply?: WhatsAppLogicalReply;
 }) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
 
-  let replyOk: boolean;
-  if (input.interactiveReply) {
-    const result = await sendWhatsAppLogicalReply(input.sourcePhone, input.interactiveReply, {
-      handle: input.lifecycleHandle ?? null,
+  const delivery = await sendWhatsAppLogicalDomainReply({
+    to: input.sourcePhone,
+    userId: input.userId,
+    replyText: input.reply,
+    mealId: input.mealId,
+    logicalReply: input.interactiveReply,
+    lifecycleHandle: input.lifecycleHandle,
+  });
+  const replyOk = delivery.result.primaryOk;
+  if (!delivery.result.ok) {
+    logInferenceEvent({
       userId: input.userId,
+      origin: "whatsapp",
+      status: replyOk ? "warning" : "error",
+      eventType: "whatsapp.reply_failed",
+      detail: `Falha ao enviar resposta lógica para ${input.sourcePhone}.`,
     });
-    replyOk = result.primaryOk;
-    if (!result.ok) {
-      logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: result.primaryOk ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar botões/lista para ${input.sourcePhone}.` });
-    }
-  } else {
-    const quickEditLink = input.mealId
-      ? await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId })
-      : null;
-    const replyResult = quickEditLink?.url
-      ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, input.reply, "Editar refeição", quickEditLink.url)
-      : await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
-
-    if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
-      logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: replyResult.ok ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}` });
-    }
-    replyOk = replyResult.ok;
-    if (replyOk) {
-      await recordOutboundReply(input.lifecycleHandle ?? null, { userId: input.userId, text: input.reply });
-    }
   }
 
-  // Registra a troca no histórico conversacional para enriquecer o contexto do LLM nas próximas mensagens
-  recordConversationTurn(
-    input.userId,
-    input.userMessage,
-    replyOk ? input.reply : null,
-    input.occurredAtMs ?? Date.now(),
-  );
-
-  if (input.mealId) {
-    await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
-  }
+  recordConversationTurn(input.userId, input.userMessage, replyOk ? input.reply : null, input.occurredAtMs ?? Date.now());
+  if (input.mealId) await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
   await markMessageProcessed(input.lifecycleHandle ?? null);
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
   return typeof data?.mealId === "number" ? data.mealId : null;
+}
+
+function extractEditableMealId(result: unknown) {
+  if (!result || typeof result !== "object") return null;
+  const candidate = result as { action?: unknown; data?: unknown };
+  if (candidate.action === "meal_deleted") return null;
+  return extractMealId(
+    candidate.data && typeof candidate.data === "object"
+      ? candidate.data as Record<string, unknown>
+      : undefined,
+  );
 }
 
 function buildMixedWaterReply(waterResults: TextIntentResult[]) {
@@ -560,7 +549,8 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       reply: precedenceGate.result.reply,
       eventType: precedenceGate.result.eventType,
       detail: precedenceGate.result.detail,
-      status: "success",
+      status: "action" in precedenceGate.result && precedenceGate.result.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractEditableMealId(precedenceGate.result),
       occurredAtMs,
       lifecycleHandle,
       interactiveReply: "interactiveReply" in precedenceGate.result ? precedenceGate.result.interactiveReply : undefined,
