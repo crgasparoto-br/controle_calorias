@@ -1,7 +1,12 @@
 import { tryCreateQuickEditLinkForMeal } from "../quickEdit/service";
-import { logicalReplyFromLegacyText, withAuxiliaryImage, withCtaUrl, type WhatsAppLogicalReply } from "./replyContract";
+import { textReply, withAuxiliaryImage, withCtaUrl, type WhatsAppLogicalReply } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
-import type { MessageLifecycleHandle } from "./messageLifecycle";
+import {
+  markMessageProcessed,
+  recordDomainLink,
+  type MessageLifecycleHandle,
+} from "./messageLifecycle";
+import type { DomainLinkInput } from "../../repositories/whatsappConversationRepository";
 
 export type WhatsAppAuxiliaryImage =
   | { url: string; caption: string }
@@ -14,7 +19,7 @@ function canReplacePrimaryWithCta(reply: WhatsAppLogicalReply) {
 export async function buildWhatsAppLogicalReplyForDelivery(input: {
   userId: number; replyText: string; mealId?: number | null; logicalReply?: WhatsAppLogicalReply; auxiliaryImage?: WhatsAppAuxiliaryImage | null;
 }) {
-  let reply = input.logicalReply ?? logicalReplyFromLegacyText(input.replyText);
+  let reply = input.logicalReply ?? textReply(input.replyText);
   if (input.mealId && canReplacePrimaryWithCta(reply)) {
     try {
       const link = await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId });
@@ -35,11 +40,23 @@ export async function sendWhatsAppLogicalDomainReply(input: {
   logicalReply?: WhatsAppLogicalReply;
   auxiliaryImage?: WhatsAppAuxiliaryImage | null;
   lifecycleHandle?: MessageLifecycleHandle;
+  domainLinks?: DomainLinkInput[];
+  /**
+   * Finaliza o inbound apenas quando a mensagem funcional primária foi entregue.
+   * Notificações sem inbound deixam este campo no padrão `true`, mas não possuem handle.
+   */
+  finalizeLifecycle?: boolean;
 }) {
   const reply = await buildWhatsAppLogicalReplyForDelivery(input);
   const lifecycle = input.lifecycleHandle
     ? { handle: input.lifecycleHandle, userId: input.userId }
     : undefined;
   const result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle);
+  if (result.primaryOk && input.lifecycleHandle && input.finalizeLifecycle !== false) {
+    for (const link of input.domainLinks ?? []) {
+      await recordDomainLink(input.lifecycleHandle, link);
+    }
+    await markMessageProcessed(input.lifecycleHandle);
+  }
   return { reply, result };
 }
