@@ -32,6 +32,7 @@ export type WhatsAppConsolidatedMealReplyInput = {
 export type WhatsAppMealActionReplyOptions = WhatsAppMealReplyOptions & {
   title: string;
   actionLines?: string[];
+  mealResultState?: "registered" | "updated";
 };
 
 export type WhatsAppAuxiliaryReplyOptions = {
@@ -311,12 +312,13 @@ export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMe
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
   const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
   const actionLines = options.actionLines?.filter(Boolean).map(normalizeActionLine) ?? [];
+  const mealResultLabel = options.mealResultState === "registered" ? "Refeição registrada:" : "Refeição atualizada:";
 
   return buildWhatsAppBlock([
     buildWhatsAppTitle(options.title, { bold: true }),
     ...(actionLines.length ? [buildWhatsAppSeparator(), ...actionLines] : []),
     buildWhatsAppSeparator(),
-    "Refeição atualizada:",
+    mealResultLabel,
     ...buildMealItemLines(meal.items),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(sumReplyItems(meal.items)),
