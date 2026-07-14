@@ -1,0 +1,85 @@
++    const current = orderedPlan[firstSelectionIndex] as MealItemPendingSelectionStep;
++    const companionActions = orderedPlan.slice(0, firstSelectionIndex)
++      .filter((step): step is Extract<MealItemPendingPlanStep, { kind: "resolved" }> => step.kind === "resolved")
++      .map(step => ({ candidate: step.candidate, action: step.action }));
+     return ambiguousReplacementReply({
+       userId,
+       current,
+-      remaining,
++      remaining: orderedPlan.slice(firstSelectionIndex + 1),
+       resultTitle: replacements.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
+-      companionActions: applied.map(item => ({ candidate: item.candidate, action: { kind: "replace_food", targetFood: item.to } })),
++      companionActions,
+     });
+   }
+diff --git a/server/modules/whatsapp/contextualFoodReplacementIntent.ts b/server/modules/whatsapp/contextualFoodReplacementIntent.ts
+index cf4585b..0000000 100644
+--- a/server/modules/whatsapp/contextualFoodReplacementIntent.ts
++++ b/server/modules/whatsapp/contextualFoodReplacementIntent.ts
+@@ -2,7 +2,12 @@ import { listMeals } from "../meals/service";
+ import type { MealItemInput } from "../meals/schemas";
+-import { createPendingMealItemSelection, type MealItemSelectionCompanionAction } from "./mealItemSelectionCallback";
++import {
++  createPendingMealItemSelection,
++  type MealItemPendingPlanStep,
++  type MealItemPendingSelectionStep,
++  type MealItemSelectionCompanionAction,
++} from "./mealItemSelectionCallback";
+@@ -130,6 +135,7 @@ export async function executeWhatsappContextualFoodReplacementIntent(
+   const clearActions: Array<{ candidate: Candidate; replacement: FoodReplacementIntent }> = [];
+   const ambiguousActions: Array<{ candidates: Candidate[]; replacement: FoodReplacementIntent }> = [];
++  const orderedPlan: MealItemPendingPlanStep[] = [];
+   const notFound: string[] = [];
+@@ -135,9 +141,27 @@ export async function executeWhatsappContextualFoodReplacementIntent(
+   for (const replacement of replacements) {
+     const candidates = findCandidates(meals, replacement.fromFood);
+     if (!candidates.length) notFound.push(replacement.fromFood);
+-    else if (candidates.length > 1) ambiguousActions.push({ candidates, replacement });
+-    else clearActions.push({ candidate: candidates[0], replacement });
++    else if (candidates.length > 1) {
++      ambiguousActions.push({ candidates, replacement });
++      orderedPlan.push({
++        kind: "selection",
++        targetFood: replacement.fromFood,
++        action: { kind: "replace_food", targetFood: replacement.toFood },
++        contextLabel: "nas refeições recentes",
++        candidates: candidates.map(selectionCandidate),
++      });
++    } else {
++      const clear = { candidate: candidates[0], replacement };
++      clearActions.push(clear);
++      orderedPlan.push({
++        kind: "resolved",
++        candidate: selectionCandidate(clear.candidate),
++        action: { kind: "replace_food", targetFood: replacement.toFood },
++      });
++    }
+   }
+ 
+   if (ambiguousActions.length) {
+-    const [current, ...remaining] = ambiguousActions;
+-    const companionActions: MealItemSelectionCompanionAction[] = clearActions.map(clear => ({ candidate: selectionCandidate(clear.candidate), action: { kind: "replace_food", targetFood: clear.replacement.toFood } }));
++    const firstSelectionIndex = orderedPlan.findIndex(step => step.kind !== "resolved");
++    const current = orderedPlan[firstSelectionIndex] as MealItemPendingSelectionStep;
++    const companionActions: MealItemSelectionCompanionAction[] = orderedPlan.slice(0, firstSelectionIndex)
++      .filter((step): step is Extract<MealItemPendingPlanStep, { kind: "resolved" }> => step.kind === "resolved")
++      .map(step => ({ candidate: step.candidate, action: step.action }));
+     const pending = await createPendingMealItemSelection(userId, {
+-      targetFood: current.replacement.fromFood,
+-      action: { kind: "replace_food", targetFood: current.replacement.toFood },
+-      contextLabel: "nas refeições recentes",
++      targetFood: current.targetFood,
++      action: current.action,
++      contextLabel: current.contextLabel,
+       resultTitle: replacements.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
+-      candidates: current.candidates.map(selectionCandidate),
++      candidates: current.candidates,
+       companionActions,
+-      remainingSelections: remaining.map(entry => ({
+-        targetFood: entry.replacement.fromFood,
+-        action: { kind: "replace_food", targetFood: entry.replacement.toFood },
+-        contextLabel: "nas refeições recentes",
+-        candidates: entry.candidates.map(selectionCandidate),
+-      })),
++      remainingSelections: orderedPlan.slice(firstSelectionIndex + 1),
+     });
