@@ -7,7 +7,7 @@ import type { WhatsappInterpretedIntent } from "./intentSchema";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { buildWhatsAppCallbackId } from "./interactiveCallback";
 import { buttonsReply, listReply, type WhatsAppLogicalReply } from "./replyContract";
-import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "./replyMessages";
+import { buildWhatsAppCallbackResourceNotFoundReplyMessage, buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 
 const CONFIRM_ACTION = "confirm";
 const CANCEL_ACTION = "cancel";
@@ -540,7 +540,12 @@ async function confirmPendingDelete(userId: number, pending: PendingDeleteIntent
   return {
     handled: true,
     action: "meal_item_deleted",
-    reply: `Removi ${item.foodName} da refeição ${formatMealReference(pending)}.`,
+    // Fonte de verdade da resposta (issue #783): mostra a refeição já recarregada com os itens restantes
+    // e os totais atuais, reutilizando o mesmo bloco central do registro/adição, em vez de citar só o item removido.
+    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
+      title: "Alimento removido",
+      actionLines: [`Removi ${item.foodName} da refeição ${formatMealReference(pending)}.`],
+    }),
     eventType: "whatsapp.intent.meal_item_deleted",
     detail: `Alimento ${item.foodName} removido da refeição ${latestMeal.id} após confirmação por mensagem no WhatsApp.`,
     data: { mealId: updatedMeal.id, deleteIntentKind: pending.kind, removedFoodName: item.foodName },

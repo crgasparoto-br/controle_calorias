@@ -71,7 +71,8 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
         occurredAt: expect.stringMatching(/^2026-06-29T/),
       }),
     }));
-    expect(result?.reply).toContain("Refeição atualizada");
+    expect(result?.reply).toContain("Refeição registrada:");
+    expect(result?.reply).not.toContain("Refeição atualizada:");
     expect(result?.reply).toContain("Canelone");
     expect(result?.reply).toContain("Total da refeição:");
   });

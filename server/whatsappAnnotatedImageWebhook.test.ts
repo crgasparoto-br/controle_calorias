@@ -338,6 +338,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
     expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
     expect(sentTextMessages[1]).toBe([
+      "🍽️ *Almoço* — 13:00",
+      "",
       "*Almoço Registrado às 13:00hs.*",
       "",
       "Itens:",
@@ -483,7 +485,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
   });
 
-  it("mantém o registro e avisa quando a imagem anotada não pode ser gerada", async () => {
+  it("mantém somente a resposta nutricional quando a imagem anotada não pode ser gerada", async () => {
     createLocalMealPhotoOverlayMock.mockRejectedValue(new Error("provedor indisponível"));
     const req = createImageWebhookRequest("image-without-annotation");
     const res = createResponse();
@@ -511,7 +513,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
     expect(uploadedMediaRequests).toBe(0);
     expect(sentImageMessages).toEqual([]);
-    expect(sentTextMessages.at(-1)).toBe("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
+    expect(sentTextMessages.at(-1)).toContain("Almoço");
+    expect(sentTextMessages).not.toContain("A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.");
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
       origin: "whatsapp",
@@ -542,5 +545,32 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       eventType: "whatsapp.processing_error",
       detail: "provider timeout",
     }));
+  });
+
+  it("usa o estado persistido ao responder uma refeição nova criada por imagem", async () => {
+    const persistedMeal = {
+      ...savedImageMeal,
+      items: [{
+        ...savedImageMeal.items[0],
+        foodName: "Arroz persistido da imagem",
+        portionText: "120 g",
+        estimatedGrams: 120,
+        calories: 156,
+        protein: 3.2,
+        carbs: 33.6,
+        fat: 0.4,
+      }],
+    };
+    confirmPendingMealMock.mockResolvedValue(persistedMeal);
+    listUserMealsMock.mockResolvedValue([persistedMeal]);
+
+    const req = createImageWebhookRequest("image-persisted-domain-state");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(sentTextMessages[1]).toContain("Arroz persistido da imagem — 120g");
+    expect(sentTextMessages[1]).toContain("156 kcal | P 3,2 g | C 33,6 g | G 0,4 g");
+    expect(sentTextMessages[1]).not.toContain("• 🍚 arroz — 100g");
   });
 });

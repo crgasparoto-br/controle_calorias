@@ -80,7 +80,7 @@ function createResponse(): MockResponse {
   };
 }
 
-function createTextPayload(text: string) {
+function createTextPayload(text: string, messageId = "wamid.reply-1") {
   return {
     object: "whatsapp_business_account",
     entry: [
@@ -97,7 +97,7 @@ function createTextPayload(text: string) {
               messages: [
                 {
                   from: "5511999999999",
-                  id: "wamid.reply-1",
+                  id: messageId,
                   timestamp: "1713708840",
                   type: "text",
                   text: { body: text },
@@ -137,7 +137,13 @@ describe("whatsappWebhook detailed replies", () => {
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-reply" });
-    confirmPendingMealMock.mockResolvedValue({ id: 456, mealLabel: "Almoço" });
+    confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
+      id: 456,
+      mealLabel: input.mealLabel as string,
+      occurredAt: input.occurredAt as string,
+      notes: input.notes as string | undefined,
+      items: input.items as Array<Record<string, unknown>>,
+    }));
     processMealInputMock.mockResolvedValue({
       detectedMealLabel: "Almoço",
       sourceText: "arroz e frango",
@@ -211,4 +217,37 @@ describe("whatsappWebhook detailed replies", () => {
     expect(finalReply).not.toContain("Alimentos e macros:");
     expect(finalReply).not.toContain("Total estimado:");
   });
+  it("usa os itens persistidos como fonte de verdade ao responder uma refeição nova", async () => {
+    confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
+      id: 456,
+      mealLabel: input.mealLabel as string,
+      occurredAt: input.occurredAt as string,
+      notes: input.notes as string | undefined,
+      items: [{
+        foodName: "Arroz branco persistido",
+        canonicalName: "Arroz branco cozido",
+        portionText: "120 g",
+        servings: 1,
+        estimatedGrams: 120,
+        calories: 156,
+        protein: 3.2,
+        carbs: 33.6,
+        fat: 0.4,
+        confidence: 0.99,
+        source: "catalog" as const,
+      }],
+    }));
+
+    const req = { body: createTextPayload("arroz e frango", "wamid.reply-persisted") };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    const finalReply = outboundTextBodies().at(-1) ?? "";
+    expect(finalReply).toContain("Arroz branco persistido — 120g");
+    expect(finalReply).toContain("156 kcal | P 3,2 g | C 33,6 g | G 0,4 g");
+    expect(finalReply).not.toContain("• 🍚 arroz — 100g");
+    expect(finalReply).not.toContain("• 🍗 frango — 100g");
+  });
+
 });

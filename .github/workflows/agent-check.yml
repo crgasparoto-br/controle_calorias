@@ -39,7 +39,22 @@ jobs:
         run: pnpm check
 
       - name: Tests
-        run: pnpm test
+        run: |
+          if ! pnpm test > /tmp/vitest.log 2>&1; then
+            echo "Vitest failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/vitest.log
+            exit 1
+          fi
+          tail -n 80 /tmp/vitest.log
+
+      - name: Upload Vitest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-vitest-log
+          path: /tmp/vitest.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Architecture check
         run: pnpm architecture:check

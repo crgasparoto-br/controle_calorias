@@ -14,6 +14,7 @@ import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
 import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
+import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const HEURISTIC_NUTRITION_PER_100G = {
@@ -477,10 +478,17 @@ async function handleAddFoodsToMeal(
   }
 
   const meal = mealResult.result;
+  // Fonte de verdade da resposta (issue #783): reutiliza o mesmo bloco central de item/total do registro,
+  // mostrando a refeição completa recarregada em vez de só os itens adicionados.
   return {
     handled: true,
     action: "llm_intent_add_foods_to_meal",
-    reply: `Registrei ${addedItems.length} item(ns) em ${meal.mealLabel} de ${formatReplyDate(new Date(meal.occurredAt))}: ${addedItems.map(item => `${item.portionText} de ${item.foodName}`).join(", ")}.`,
+    reply: buildWhatsAppMealActionReplyMessage(meal, {
+      title: addedItems.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
+      actionLines: [
+        `Adicionado a ${meal.mealLabel} de ${formatReplyDate(new Date(meal.occurredAt))}: ${addedItems.map(item => `${item.portionText} de ${item.foodName}`).join(", ")}.`,
+      ],
+    }),
     eventType: "whatsapp.llm_intent.add_foods_to_meal",
     detail: existingMeal
       ? "Alimentos adicionados a refeição existente por intenção estruturada."
@@ -570,10 +578,14 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
   }
 
   const replacedItem = nextItems[target.index];
+  // Fonte de verdade da resposta (issue #783): mostra a refeição completa recarregada, não só o item trocado.
   return {
     handled: true,
     action: "llm_intent_replace_food_in_meal",
-    reply: `Troquei ${target.item.foodName} por ${intent.targetFood} na ultima refeicao e mantive ${formatNumber(replacedItem.estimatedGrams)} g. Estimativa: ${formatTotalsLine(replacedItem)}.`,
+    reply: buildWhatsAppMealActionReplyMessage(updatedMealResult.result, {
+      title: "Alimento substituído",
+      actionLines: [`Troquei ${target.item.foodName} por ${intent.targetFood} e mantive ${formatNumber(replacedItem.estimatedGrams)} g.`],
+    }),
     eventType: "whatsapp.llm_intent.replace_food_in_meal",
     detail: "Alimento substituido por intencao estruturada validada.",
     data: {
