@@ -1,0 +1,42 @@
+           goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+         });
+diff --git a/server/whatsappIntentWebhook.ts b/server/whatsappIntentWebhook.ts
+index c34ab16..0000000 100644
+--- a/server/whatsappIntentWebhook.ts
++++ b/server/whatsappIntentWebhook.ts
+@@ -518,5 +518,6 @@ async function handleTextIntentAfterLifecycleBegin(userId: number): Promise<Text
+       detail: deleteIntentResult.detail,
+       status: "warning",
++      mealId: extractEditableMealId(deleteIntentResult),
+       occurredAtMs,
+       lifecycleHandle,
+       interactiveReply: deleteIntentResult.interactiveReply,
+diff --git a/server/modules/whatsapp/mealItemSelectionCallback.ts b/server/modules/whatsapp/mealItemSelectionCallback.ts
+index ff201af..0000000 100644
+--- a/server/modules/whatsapp/mealItemSelectionCallback.ts
++++ b/server/modules/whatsapp/mealItemSelectionCallback.ts
+@@ -47,9 +47,18 @@ export type MealItemSelectionCompanionAction = {
+   action: MealItemSelectionAction;
+ };
+ 
+ export type MealItemPendingSelectionStep = {
++  kind?: "selection";
+   targetFood: string | null;
+   action: MealItemSelectionAction;
+   contextLabel: string;
+   candidates: MealItemSelectionCandidate[];
+ };
++
++export type MealItemPendingResolvedStep = {
++  kind: "resolved";
++  candidate: MealItemSelectionCandidate;
++  action: MealItemSelectionAction;
++};
++
++export type MealItemPendingPlanStep = MealItemPendingSelectionStep | MealItemPendingResolvedStep;
+@@ -56,4 +62,4 @@ export type PendingMealItemSelection = MealItemPendingSelectionStep & {
+   resultTitle: string;
+   companionActions?: MealItemSelectionCompanionAction[];
+-  remainingSelections?: MealItemPendingSelectionStep[];
++  remainingSelections?: MealItemPendingPlanStep[];
+ };
