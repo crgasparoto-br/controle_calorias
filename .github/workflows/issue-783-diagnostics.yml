@@ -1,0 +1,31 @@
+name: Diagnose issue 783 patch
+
+on:
+  push:
+    branches:
+      - feat/783-unificar-respostas-refeicoes
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.event.head_commit.message == 'chore(ci): diagnose issue 783 patch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/783-unificar-respostas-refeicoes
+          fetch-depth: 0
+
+      - name: Check patch
+        run: |
+          cat .github/issue-783-patch/fixed*.diff > /tmp/issue-783.patch
+          git apply --check /tmp/issue-783.patch > .github/issue-783-patch/check-result.txt 2>&1 || true
+
+      - name: Commit diagnostics
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: chore(ci): record issue 783 diagnostics
+          branch: feat/783-unificar-respostas-refeicoes
