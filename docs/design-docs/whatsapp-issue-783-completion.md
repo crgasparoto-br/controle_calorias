@@ -69,3 +69,6 @@ A entrega somente pode ser considerada pronta para merge quando os seguintes che
 - Aumento e redução de gramas preservam a refeição explicitamente informada durante resolução clara, ambiguidade, seleção interativa e mutação.
 - Os testes de regressão cobrem divergência entre inferência e persistência, alimento repetido em refeições diferentes e candidatos ambíguos limitados ao escopo explícito.
 
+### Evidência de validação
+
+A implementação final foi validada em conjunto pelos testes focados da auditoria, pela suíte completa, pelo type-check, pelas verificações de arquitetura e documentação, pelo build e pelo `agent:check`. A PR mantém a árvore validada sobre `develop` e depende dos dois workflows obrigatórios acima antes de ser considerada pronta para merge.
