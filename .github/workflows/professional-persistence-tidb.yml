@@ -1,0 +1,68 @@
+name: Professional persistence TiDB gate
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/**"
+      - "server/modules/professionals/**"
+      - "server/repositories/professionalRepository.ts"
+      - "server/nutritionRouter.ts"
+      - "scripts/migrate-professional-persistence.ts"
+      - "scripts/test-professional-persistence-tidb.ts"
+      - "package.json"
+      - ".github/workflows/professional-persistence-tidb.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  professional-persistence:
+    name: Professional persistence TiDB
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start TiDB
+        run: |
+          docker run -d --name professional-persistence-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 professional-persistence-tidb
+          exit 1
+
+      - name: Apply versioned migrations
+        run: pnpm db:push
+
+      - name: Ensure Drizzle metadata is stable
+        run: git diff --exit-code -- drizzle
+
+      - name: Validate professional migration and repository
+        run: pnpm db:test:professionals
+
+      - name: Validate backfill command idempotency
+        run: |
+          pnpm db:migrate:professionals
+          pnpm db:migrate:professionals
+
+      - name: Validate referential integrity
+        run: pnpm db:check-integrity
+
+      - name: Show TiDB logs on failure
+        if: failure()
+        run: docker logs --tail 100 professional-persistence-tidb
