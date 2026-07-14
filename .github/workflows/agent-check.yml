@@ -23,14 +23,14 @@ jobs:
 
       - name: Apply audited issue 783 completion
         run: |
-          if [ ! -d .issue783-patch ]; then
-            echo "No temporary issue 783 patch is present."
-            exit 0
-          fi
-          cat .issue783-patch/part* > /tmp/issue-783.patch
+          cat .github/issue-783-patch/fixed*.diff > /tmp/issue-783.patch
           git apply --check /tmp/issue-783.patch
           git apply /tmp/issue-783.patch
-          rm -rf .issue783-patch .github/workflows/issue-783-apply.yml
+          rm -rf .github/issue-783-patch .issue783-patch
+          rm -f .github/issue-783-apply-error.txt
+          rm -f .github/workflows/issue-783-apply.yml
+          rm -f .github/workflows/issue-783-transparent-apply.yml
+          rm -f .github/workflows/issue-783-diagnostics.yml
           python3 - <<'PY'
           from pathlib import Path
           path = Path('.github/workflows/agent-check.yml')
@@ -45,7 +45,7 @@ jobs:
       - name: Commit applied completion
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: fix(whatsapp): complete issue 783 response contract
+          commit_message: fix(whatsapp): complete audited issue 783 gaps
           branch: feat/783-unificar-respostas-refeicoes
 
   agent-check:
@@ -57,17 +57,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Upload source snapshot for implementation
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-783-source-snapshot
-          path: |
-            .
-            !node_modules
-            !dist
-          include-hidden-files: true
-          retention-days: 1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
