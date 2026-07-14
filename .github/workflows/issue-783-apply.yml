@@ -22,13 +22,14 @@ jobs:
       - name: Apply audited completion
         run: |
           cat .issue783-patch/part* > /tmp/issue-783.patch
+          git apply --check /tmp/issue-783.patch
           git apply /tmp/issue-783.patch
           rm -rf .issue783-patch .github/workflows/issue-783-apply.yml
+          git show 75b9cb08c58f1203381cee6688f36389e4ffa4a2:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+          git show 75b9cb08c58f1203381cee6688f36389e4ffa4a2:.github/workflows/whatsapp-context-tidb.yml > .github/workflows/whatsapp-context-tidb.yml
 
       - name: Commit applied completion
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: fix(whatsapp): complete issue 783 response contract
+          commit_message: fix(whatsapp): complete audited issue 783 gaps
           branch: feat/783-unificar-respostas-refeicoes
-
-# Existing workflow retriggered after publication so GitHub executes it from the branch history.
