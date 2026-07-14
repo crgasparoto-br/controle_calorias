@@ -1,0 +1,114 @@
++      context: firstPending.contextLabel,
++      scopeLabel: firstPending.contextLabel,
+     });
+   }
+diff --git a/server/db.ts b/server/db.ts
+index d968e33..0000000 100644
+--- a/server/db.ts
++++ b/server/db.ts
+@@ -408,7 +408,7 @@ type FavoriteMeal = {
+   createdAt: number;
+ };
+ 
+-type HabitMemoryState = {
++export type HabitMemoryState = {
+@@ -995,31 +995,62 @@ async function updateHabitsFromMeal(meal: SavedMeal) {
+   await persistHabitsToDb(meal.userId, ordered);
+ }
+ 
+-/** Rebuilds derived habits idempotently after a compensable meal batch. */
+-export async function rebuildUserMealHabits(userId: number) {
+-  const meals = await listUserMeals(userId);
+-  const byFoodName = new Map<string, HabitMemoryState>();
+-
+-  for (const meal of meals) {
++export type UserMealHabitSnapshot = HabitMemoryState[];
++
++function cloneHabitSnapshot(snapshot: UserMealHabitSnapshot) {
++  return snapshot.map(habit => ({ ...habit }));
++}
++
++type HabitMealInput = { mealLabel: string; occurredAt: number | string | Date; items: MealDraftItem[] };
++
++function applyMealToHabitSnapshot(snapshot: UserMealHabitSnapshot, meal: HabitMealInput) {
++  const next = cloneHabitSnapshot(snapshot);
++  const occurredAt = meal.occurredAt instanceof Date
++    ? meal.occurredAt.getTime()
++    : new Date(meal.occurredAt).getTime();
++  for (const item of meal.items) {
++    const foodName = item.canonicalName?.trim() || item.foodName?.trim();
++    if (!foodName) continue;
++    const matchIndex = next.findIndex(habit => habit.foodName === foodName);
++    if (matchIndex >= 0) {
++      next[matchIndex] = {
++        ...next[matchIndex],
++        typicalMealLabel: meal.mealLabel,
++        preferredPortionGrams: item.estimatedGrams,
++        notes: `Última porção confirmada: ${item.portionText}`,
++        occurrenceCount: next[matchIndex].occurrenceCount + 1,
++        lastSeenAt: occurredAt,
++      };
++    } else {
++      next.push({
++        foodName,
++        typicalMealLabel: meal.mealLabel,
++        preferredPortionGrams: item.estimatedGrams,
++        notes: `Última porção confirmada: ${item.portionText}`,
++        occurrenceCount: 1,
++        lastSeenAt: occurredAt,
++      });
++    }
++  }
++  return next.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
++}
++
++export async function captureUserMealHabitsSnapshot(userId: number): Promise<UserMealHabitSnapshot> {
++  const existing = (await loadHabitsFromDb(userId)) ?? habitStore.get(userId) ?? [];
++  return cloneHabitSnapshot(existing);
++}
++
++export async function restoreUserMealHabitsSnapshot(userId: number, snapshot: UserMealHabitSnapshot) {
++  const restored = cloneHabitSnapshot(snapshot);
++  await persistHabitsToDb(userId, restored);
++  habitStore.set(userId, restored);
++  return restored;
++}
++
++export async function applyUserMealHabitsFromSnapshot(
++  userId: number,
++  snapshot: UserMealHabitSnapshot,
++  meals: HabitMealInput[],
++) {
++  let next = cloneHabitSnapshot(snapshot);
++  for (const meal of meals) {
++    next = applyMealToHabitSnapshot(next, meal);
++  }
++  await persistHabitsToDb(userId, next);
++  habitStore.set(userId, next);
++  return next;
++}
++
++/** @deprecated Use capture/apply/restore snapshot helpers for compensable batches. */
++export async function rebuildUserMealHabits(userId: number) {
++  const snapshot = await captureUserMealHabitsSnapshot(userId);
++  const meals = await listUserMeals(userId);
++  let next = snapshot;
++  for (const meal of meals) {
++    next = applyMealToHabitSnapshot(next, meal);
++  }
++  await persistHabitsToDb(userId, next);
++  habitStore.set(userId, next);
++  return next;
+-    for (const item of meal.items) {
+-      const foodName = item.canonicalName?.trim() || item.foodName?.trim();
+-      if (!foodName) continue;
+-      const existing = byFoodName.get(foodName);
+-      const isLatest = !existing || meal.occurredAt >= existing.lastSeenAt;
+-      byFoodName.set(foodName, {
+-        foodName,
+-        typicalMealLabel: isLatest ? meal.mealLabel : existing?.typicalMealLabel,
+-        preferredPortionGrams: isLatest ? item.estimatedGrams : existing?.preferredPortionGrams ?? item.estimatedGrams,
+-        notes: isLatest ? `Última porção confirmada: ${item.portionText}` : existing?.notes,
+-        occurrenceCount: (existing?.occurrenceCount ?? 0) + 1,
+-        lastSeenAt: isLatest ? meal.occurredAt : existing!.lastSeenAt,
+-      });
