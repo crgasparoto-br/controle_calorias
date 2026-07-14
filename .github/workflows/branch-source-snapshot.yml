@@ -1,0 +1,23 @@
+name: Branch source snapshot
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/branch-source-snapshot.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack source
+        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tar.gz .
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-source-snapshot
+          path: /tmp/controle-calorias-source.tar.gz
+          retention-days: 1
