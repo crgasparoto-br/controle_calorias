@@ -1,0 +1,81 @@
+-import { createPendingMealItemSelection, type MealItemSelectionCompanionAction, type MealItemPendingSelectionStep } from "../mealItemSelectionCallback";
++import {
++  createPendingMealItemSelection,
++  type MealItemPendingPlanStep,
++  type MealItemPendingSelectionStep,
++  type MealItemSelectionCompanionAction,
++} from "../mealItemSelectionCallback";
+@@ -30,13 +36,6 @@ type AppliedFoodReplacement = {
+   candidate: MealItemSelectionCompanionAction["candidate"];
+ };
+-type PendingReplacementTarget = {
+-  targetFood: string;
+-  context: string;
+-  scopeLabel: string;
+-  candidates: MealItemTargetCandidate<MutableMealRecord>[];
+-  toFood: string;
+-};
+@@ -67,28 +66,22 @@ function selectionCandidates(candidates: MealItemTargetCandidate<MutableMealReco
+ }
+ 
+ async function ambiguousReplacementReply(input: {
+   userId: number;
+-  current: PendingReplacementTarget;
+-  remaining: PendingReplacementTarget[];
++  current: MealItemPendingSelectionStep;
++  remaining: MealItemPendingPlanStep[];
+   companionActions: MealItemSelectionCompanionAction[];
+   resultTitle: string;
+ }): Promise<WhatsappIntentResult> {
+-  const remainingSelections: MealItemPendingSelectionStep[] = input.remaining.map(pending => ({
+-    targetFood: pending.targetFood,
+-    action: { kind: "replace_food", targetFood: pending.toFood },
+-    contextLabel: pending.context,
+-    candidates: selectionCandidates(pending.candidates),
+-  }));
+   const selectionResult = await createPendingMealItemSelection(input.userId, {
+     targetFood: input.current.targetFood,
+-    action: { kind: "replace_food", targetFood: input.current.toFood },
+-    contextLabel: input.current.context,
++    action: input.current.action,
++    contextLabel: input.current.contextLabel,
+     resultTitle: input.resultTitle,
+-    candidates: selectionCandidates(input.current.candidates),
++    candidates: input.current.candidates,
+     companionActions: input.companionActions,
+-    remainingSelections,
++    remainingSelections: input.remaining,
+   });
+@@ -95,7 +88,7 @@ async function ambiguousReplacementReply(input: {
+     reply: selectionResult.reply,
+     eventType: selectionResult.eventType,
+-    detail: replacementMatchDetail({ prefix: "Pedido de substituição com item ambíguo.", targetFood: input.current.targetFood, scopeLabel: input.current.scopeLabel, ambiguous: true }),
++    detail: replacementMatchDetail({ prefix: "Pedido de substituição com item ambíguo.", targetFood: input.current.targetFood ?? "alimento", scopeLabel: input.current.contextLabel, ambiguous: true }),
+@@ -137,7 +130,7 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
+   const changedMealIndexes = new Set<number>();
+   const applied: AppliedFoodReplacement[] = [];
+-  const pendingTargets: PendingReplacementTarget[] = [];
++  const orderedPlan: MealItemPendingPlanStep[] = [];
+   const notFound: string[] = [];
+@@ -143,7 +136,15 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
+     const target = resolveTargetMealItemInMeals(mutableMeals, replacement.fromFood);
+     if (target.kind === "ambiguous") {
+-      pendingTargets.push({ targetFood: replacement.fromFood, context: contextWithPreposition(target.scope), scopeLabel: target.scopeLabel, candidates: target.candidates, toFood: replacement.toFood });
++      orderedPlan.push({
++        kind: "selection",
++        targetFood: replacement.fromFood,
++        action: { kind: "replace_food", targetFood: replacement.toFood },
++        contextLabel: contextWithPreposition(target.scope),
++        candidates: selectionCandidates(target.candidates),
++      });
+       continue;
+@@ -158,17 +159,26 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
+     changedMealIndexes.add(target.mealIndex);
+     applied.push({ targetFood: replacement.fromFood, from: target.item.foodName, to: replacement.toFood, item: replacedItem, scope: target.scope, scopeLabel: target.scopeLabel, candidate });
++    orderedPlan.push({ kind: "resolved", candidate, action: { kind: "replace_food", targetFood: replacement.toFood } });
+   }
+ 
+-  if (pendingTargets.length) {
+-    const [current, ...remaining] = pendingTargets;
++  const firstSelectionIndex = orderedPlan.findIndex(step => step.kind !== "resolved");
++  if (firstSelectionIndex >= 0) {
