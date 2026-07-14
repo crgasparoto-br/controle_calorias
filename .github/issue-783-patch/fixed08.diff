@@ -1,0 +1,18 @@
+-      targetFood: current.replacement.fromFood,
+-      action: { kind: "replace_food", targetFood: current.replacement.toFood },
+-      contextLabel: "nas refeições recentes",
++      targetFood: current.targetFood,
++      action: current.action,
++      contextLabel: current.contextLabel,
+       resultTitle: replacements.length === 1 ? "Alimento substituído" : "Alimentos substituídos",
+-      candidates: current.candidates.map(selectionCandidate),
++      candidates: current.candidates,
+       companionActions,
+-      remainingSelections: remaining.map(entry => ({
+-        targetFood: entry.replacement.fromFood,
+-        action: { kind: "replace_food", targetFood: entry.replacement.toFood },
+-        contextLabel: "nas refeições recentes",
+-        candidates: entry.candidates.map(selectionCandidate),
+-      })),
++      remainingSelections: orderedPlan.slice(firstSelectionIndex + 1),
+     });
