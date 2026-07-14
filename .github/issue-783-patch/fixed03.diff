@@ -1,0 +1,112 @@
+--- a/server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts
++++ b/server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts
+@@ -10,2 +10,3 @@ import {
+   createPendingMealItemSelection,
++  type MealItemPendingPlanStep,
+   type MealItemPendingSelectionStep,
+@@ -312,3 +313,4 @@ async function handleMultiGramsChange(input: {
+   const applied: AppliedGramsChange[] = [];
+   const pending: PendingGramsTarget[] = [];
++  const orderedPlan: MealItemPendingPlanStep[] = [];
+   const notFound: string[] = [];
+@@ -324,3 +326,10 @@ async function handleMultiGramsChange(input: {
+         selectionAction: { kind: "grams_delta", delta: change.delta },
+       });
++      orderedPlan.push({
++        kind: "selection",
++        targetFood: change.targetFood,
++        action: { kind: "grams_delta", delta: change.delta },
++        contextLabel: contextWithPreposition(target.scope),
++        candidates: target.candidates.map(toSelectionCandidate),
++      });
+       continue;
+@@ -349,22 +358,27 @@ async function handleMultiGramsChange(input: {
+       action,
+     });
++    orderedPlan.push({ kind: "resolved", candidate, action });
+   }
+ 
+   if (pending.length) {
+-    const [firstPending, ...remainingPending] = pending;
++    const firstSelectionIndex = orderedPlan.findIndex(step => step.kind !== "resolved");
++    const firstPending = orderedPlan[firstSelectionIndex] as MealItemPendingSelectionStep;
++    const companionActions = orderedPlan.slice(0, firstSelectionIndex)
++      .filter((step): step is Extract<MealItemPendingPlanStep, { kind: "resolved" }> => step.kind === "resolved")
++      .map(step => ({ candidate: step.candidate, action: step.action }));
+     return ambiguousTargetReply({
+       userId: input.userId,
+       targetFood: firstPending.targetFood,
+-      candidates: firstPending.candidates,
+-      action: firstPending.selectionAction,
+-      companionActions: applied.map(item => ({ candidate: item.candidate, action: item.action })),
+-      remainingSelections: remainingPending.map(item => ({
+-        targetFood: item.targetFood,
+-        action: item.selectionAction,
+-        contextLabel: item.context,
+-        candidates: item.candidates.map(toSelectionCandidate),
+-      })),
+-      context: firstPending.context,
+-      scopeLabel: firstPending.scopeLabel,
++      candidates: firstPending.candidates.map(candidate => ({
++        meal: mutableMeals.find(meal => meal.id === candidate.mealId)!,
++        mealIndex: mutableMeals.findIndex(meal => meal.id === candidate.mealId),
++        item: mutableMeals.find(meal => meal.id === candidate.mealId)!.items[candidate.itemIndex],
++        index: candidate.itemIndex,
++      })),
++      action: firstPending.action,
++      companionActions,
++      remainingSelections: orderedPlan.slice(firstSelectionIndex + 1),
++      context: firstPending.contextLabel,
++      scopeLabel: firstPending.contextLabel,
+     });
+   }
+diff --git a/server/db.ts b/server/db.ts
+index d968e33..0000000 100644
+--- a/server/db.ts
++++ b/server/db.ts
+@@ -408,4 +408,4 @@ type FavoriteMeal = {
+   createdAt: number;
+ };
+ 
+-type HabitMemoryState = {
++export type HabitMemoryState = {
+@@ -995,30 +995,81 @@ async function updateHabitsFromMeal(meal: SavedMeal) {
+   await persistHabitsToDb(meal.userId, ordered);
+ }
+ 
+-/** Rebuilds derived habits idempotently after a compensable meal batch. */
+-export async function rebuildUserMealHabits(userId: number) {
+-  const meals = await listUserMeals(userId);
+-  const byFoodName = new Map<string, HabitMemoryState>();
+-
+-  for (const meal of meals) {
++export type UserMealHabitSnapshot = HabitMemoryState[];
++
++function cloneHabitSnapshot(snapshot: UserMealHabitSnapshot) {
++  return snapshot.map(habit => ({ ...habit }));
++}
++
++type HabitMealInput = { mealLabel: string; occurredAt: number | string | Date; items: MealDraftItem[] };
++
++function applyMealToHabitSnapshot(snapshot: UserMealHabitSnapshot, meal: HabitMealInput) {
++  const next = cloneHabitSnapshot(snapshot);
++  const occurredAt = meal.occurredAt instanceof Date
++    ? meal.occurredAt.getTime()
++    : new Date(meal.occurredAt).getTime();
++  for (const item of meal.items) {
++    const foodName = item.canonicalName?.trim() || item.foodName?.trim();
++    if (!foodName) continue;
++    const matchIndex = next.findIndex(habit => habit.foodName === foodName);
++    if (matchIndex >= 0) {
++      next[matchIndex] = {
++        ...next[matchIndex],
++        typicalMealLabel: meal.mealLabel,
++        preferredPortionGrams: item.estimatedGrams,
++        notes: `Última porção confirmada: ${item.portionText}`,
++        occurrenceCount: next[matchIndex].occurrenceCount + 1,
++        lastSeenAt: occurredAt,
++      };
++    } else {
++      next.push({
++        foodName,
++        typicalMealLabel: meal.mealLabel,
