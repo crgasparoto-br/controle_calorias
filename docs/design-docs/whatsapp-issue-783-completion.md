@@ -67,7 +67,8 @@ A entrega somente pode ser considerada pronta para merge quando os seguintes che
 
 - Respostas de refeições novas, inclusive no webhook de imagem anotada, passam a renderizar itens e totais a partir da refeição persistida retornada pelo domínio, nunca do payload anterior à gravação.
 - Aumento e redução de gramas preservam a refeição explicitamente informada durante resolução clara, ambiguidade, seleção interativa e mutação.
-- Os testes de regressão cobrem divergência entre inferência e persistência, alimento repetido em refeições diferentes e candidatos ambíguos limitados ao escopo explícito.
+- O builder de respostas de ação diferencia explicitamente uma refeição recém-registrada de uma refeição atualizada; o fluxo de adição datada não apresenta mais uma nova refeição como `Refeição atualizada`.
+- Os testes de regressão cobrem divergência entre inferência e persistência, alimento repetido em refeições diferentes, candidatos ambíguos limitados ao escopo explícito e o estado visual correto de uma nova refeição datada.
 
 ### Evidência de validação
 
