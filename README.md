@@ -1,6 +1,13 @@
 # Controle de Calorias
 
-Controle de Calorias é uma plataforma de nutrição com registro multimodal de refeições, revisão antes de persistência, acompanhamento de metas e operação por web e WhatsApp. O projeto segue como um monólito React + Express + tRPC + Drizzle, com a camada principal de IA isolada no backend.
+Controle de Calorias é uma plataforma de acompanhamento nutricional contínuo com registro multimodal de refeições, revisão antes de persistência, acompanhamento de metas e operação por web e WhatsApp. O projeto segue como um monólito React + Express + tRPC + Drizzle, com a camada principal de IA isolada no backend.
+
+O produto possui duas experiências de primeira classe sobre os mesmos dados e serviços:
+
+- **Área do Paciente**, que corresponde à experiência pessoal já desenvolvida e funciona com ou sem vínculo profissional;
+- **Área Profissional**, que evolui como ambiente próprio para nutricionistas administrarem carteira, metas, orientações, acompanhamento e comunicação.
+
+O principal cliente pagante e foco comercial inicial é o nutricionista com atendimento individual. O paciente continua sendo usuário central da plataforma e também pode utilizar o sistema de forma independente. A especificação canônica desta decisão está em `docs/product-specs/product-experience-model.md`.
 
 ## O que o produto faz hoje
 
@@ -13,8 +20,24 @@ Controle de Calorias é uma plataforma de nutrição com registro multimodal de 
 | Sessão | Cookie HTTP-only assinado com `JWT_SECRET` |
 | WhatsApp | Entrada e resposta pelo número oficial configurado |
 | Relatórios | Dashboard diário, visão semanal e detalhamento por refeição |
+| Área Profissional | Perfil adicional, vínculos autorizados, visão de dados, comentários, sugestões e apoio da IA; evolução planejada para ambiente dedicado |
 | Operação administrativa | Status do canal e atualização segura do token do WhatsApp |
 | Saúde externa | Conexão OAuth persistente com Strava, importação automática por webhook e importação manual via API/tRPC |
+
+## Modelo de experiência
+
+A Área do Paciente não será reescrita para viabilizar a estratégia profissional. Ela permanece como produto completo para registros, metas, relatórios, peso, exercícios, integrações e uso pessoal do WhatsApp.
+
+A Área Profissional será desenvolvida separadamente, com navegação e páginas próprias, reutilizando serviços canônicos de domínio. A tela profissional atual com abas é uma linha de base funcional que deve ser preservada durante a transição.
+
+As issues são separadas em quatro fluxos para evitar ampliação indevida de escopo:
+
+1. experiência atual do paciente;
+2. plataforma compartilhada;
+3. programa da Área Profissional;
+4. comercial e billing.
+
+Correções já abertas mantêm seu objetivo original. Novos dashboards, prontuário, carteira, acompanhamento e comunicação do nutricionista pertencem à épica profissional específica, enquanto billing, onboarding comercial, timezone e infraestrutura do WhatsApp permanecem em seus programas próprios.
 
 ## Autenticação própria
 
@@ -124,6 +147,8 @@ O webhook localiza o usuário pelo telefone de origem, processa a refeição no 
 
 **Inteligência do WhatsApp:**
 O canal possui um classificador de intenções (LLM) que atua antes do pipeline nutricional para evitar registros acidentais. Ele avalia o histórico conversacional recente do usuário para resolver ambiguidades (ex: distinguir "frango grelhado" como consulta vs. registro). O sistema também conta com aprendizado silencioso de aliases pessoais, associando automaticamente apelidos informais aos nomes canônicos do catálogo após registros bem-sucedidos.
+
+A evolução da comunicação profissional deve reutilizar esse canal e o contrato central de mensagens, distinguindo conteúdo automático, sugestão da IA e mensagem enviada pelo nutricionista. Não deve existir transporte paralelo exclusivo para a Área Profissional.
 
 ## Strava
 
