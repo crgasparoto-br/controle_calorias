@@ -109,7 +109,7 @@ export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
 
 export function buildWhatsAppMealTotalLines(totals: WhatsAppNutritionTotals) {
   return [
-    "*Total da refeição*",
+    "*Total da refeição:*",
     formatWhatsAppNutritionTotalsLine(totals),
   ];
 }
