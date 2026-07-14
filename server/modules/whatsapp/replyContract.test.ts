@@ -16,19 +16,19 @@ describe("replyContract", () => {
   it("textReply produz uma resposta funcional com uma única mensagem primária de texto", () => {
     const reply = textReply("Registrei 300 ml de água.");
     expect(reply.kind).toBe("functional");
-    expect(reply.messages).toEqual([{ type: "text", body: "Registrei 300 ml de água.", role: "primary" }]);
+    expect(reply.messages).toEqual([{ type: "text", body: "Registrei 300 ml de água." }]);
   });
 
   it("acknowledgementReply nunca é classificada como funcional", () => {
     const reply = acknowledgementReply("Recebi sua imagem e estou processando.");
     expect(reply.kind).toBe("acknowledgement");
-    expect(reply.messages[0].role).toBe("primary");
+    expect(reply.messages[0].role).toBeUndefined();
   });
 
   it("logicalReplyFromLegacyText adapta um builder string existente sem remover o formato legado", () => {
     const legacyText = "*Refeição registrada.*\n\nItens:\n• Arroz — 100g";
     const reply = logicalReplyFromLegacyText(legacyText);
-    expect(reply).toEqual({ kind: "functional", messages: [{ type: "text", body: legacyText, role: "primary" }] });
+    expect(reply).toEqual({ kind: "functional", messages: [{ type: "text", body: legacyText }] });
   });
 
   it("withCtaUrl substitui a mensagem primária por um CTA preservando o texto para gravação", () => {
@@ -36,7 +36,7 @@ describe("replyContract", () => {
     const withLink = withCtaUrl(base, { buttonText: "Editar refeição", url: "https://app.test/quick-edit/abc" });
 
     expect(withLink.messages).toEqual([
-      { type: "cta_url", bodyText: "Refeição registrada. Edite se precisar.", buttonText: "Editar refeição", url: "https://app.test/quick-edit/abc", role: "primary" },
+      { type: "cta_url", bodyText: "Refeição registrada. Edite se precisar.", buttonText: "Editar refeição", url: "https://app.test/quick-edit/abc" },
     ]);
     expect(resolveWhatsAppLogicalReplyRecordText(withLink)).toBe("Refeição registrada. Edite se precisar.");
   });
@@ -47,7 +47,7 @@ describe("replyContract", () => {
 
     expect(withImage.kind).toBe("functional");
     expect(withImage.messages).toEqual([
-      { type: "text", body: "Refeição registrada.", role: "primary" },
+      { type: "text", body: "Refeição registrada." },
       { type: "image_url", url: "https://storage.test/annotated.png", caption: "Imagem anotada.", role: "auxiliary" },
     ]);
   });
@@ -65,10 +65,10 @@ describe("replyContract", () => {
     });
   });
 
-  it("sequencedTextReply representa sequência ordenada e classifica mensagens posteriores como auxiliares", () => {
+  it("sequencedTextReply representa sequência ordenada e marca somente mensagens posteriores como auxiliares", () => {
     const reply = sequencedTextReply(["Boas-vindas ao Controle de Calorias.", "Finalize seu cadastro pelo link."]);
     expect(reply.messages.map(message => message.type)).toEqual(["text", "text"]);
-    expect(reply.messages.map(message => message.role)).toEqual(["primary", "auxiliary"]);
+    expect(reply.messages.map(message => message.role)).toEqual([undefined, "auxiliary"]);
     expect(reply.messages.map(message => "body" in message ? message.body : null)).toEqual([
       "Boas-vindas ao Controle de Calorias.",
       "Finalize seu cadastro pelo link.",
@@ -84,7 +84,6 @@ describe("replyContract", () => {
       type: "buttons",
       bodyText: "Confirma a exclusão do almoço?",
       buttons: [{ id: "confirm", title: "Confirmar" }, { id: "cancel", title: "Cancelar" }],
-      role: "primary",
     });
 
     const list = listReply("Qual período?", "Ver opções", [{ rows: [{ id: "today", title: "Hoje" }] }]);
@@ -93,7 +92,6 @@ describe("replyContract", () => {
       bodyText: "Qual período?",
       buttonText: "Ver opções",
       sections: [{ rows: [{ id: "today", title: "Hoje" }] }],
-      role: "primary",
     });
   });
 
