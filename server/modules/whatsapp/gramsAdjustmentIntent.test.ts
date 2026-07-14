@@ -132,9 +132,10 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
 
     expect(result).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      reply: expect.stringContaining("1. Queijo Minas Padrao Fatiado (80 g)"),
+      reply: expect.stringContaining("Queijo Minas Padrao Fatiado"),
     }));
-    expect(result?.reply).toContain("2. Queijo mussarela (70 g)");
+    expect(result?.reply).toContain("Queijo mussarela");
+    expect(result?.interactiveReply).toEqual(expect.objectContaining({ kind: "functional" }));
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 
@@ -188,4 +189,22 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
       }),
     }));
   });
+  it("restringe candidatos ambíguos à refeição explicitamente informada na redução", async () => {
+    listMealsMock.mockResolvedValue([
+      { id: 30, mealLabel: "Jantar", occurredAt: "2026-06-29T23:00:00.000Z", notes: null, items: [item("Queijo prato", 30)] },
+      { id: 20, mealLabel: "Almoco", occurredAt: "2026-06-29T15:00:00.000Z", notes: null, items: [item("Queijo Minas", 40), item("Queijo mussarela", 35)] },
+    ]);
+
+    const result = await executeWhatsappGramsAdjustmentIntent(42, {
+      text: "Diminuir 10g do queijo do almoco",
+      receivedAt: new Date("2026-06-29T23:30:00.000Z"),
+    });
+
+    expect(result).toEqual(expect.objectContaining({ action: "clarification_needed" }));
+    expect(result?.reply).toContain("Queijo Minas em Almoco");
+    expect(result?.reply).toContain("Queijo mussarela em Almoco");
+    expect(result?.reply).not.toContain("Queijo prato em Jantar");
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
 });

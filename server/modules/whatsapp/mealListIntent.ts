@@ -1,5 +1,15 @@
 import { listMeals } from "../meals/service";
 import type { MealDraftItem } from "../../nutritionEngine";
+import {
+  buildWhatsAppBlock,
+  buildWhatsAppFoodLines,
+  buildWhatsAppMealTotalLines,
+  buildWhatsAppSeparator,
+  buildWhatsAppTitle,
+  formatWhatsAppNutritionTotalsLine,
+  type WhatsAppFoodReplyItem,
+  type WhatsAppNutritionTotals,
+} from "./replyTemplates";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 
@@ -197,12 +207,32 @@ function findMealByLabelAndDate(meals: ExistingMeal[], mealLabel: string, refere
   return meals.find(meal => mealLabelMatches(meal.mealLabel, mealLabel) && isMealInsideDay(meal, referenceDate)) ?? null;
 }
 
-function formatItemLine(item: MealDraftItem) {
-  const portion = item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada");
-  return `• ${portion} de ${item.foodName} - ${formatNumber(item.calories)} kcal | Prot. ${formatNumber(item.protein)} g | Carb. ${formatNumber(item.carbs)} g | Gord. ${formatNumber(item.fat)} g`;
+/** Converte um item de refeição (domínio) para o bloco de item central (issue #781/#783). */
+function toReplyItem(item: MealDraftItem): WhatsAppFoodReplyItem {
+  return {
+    foodName: item.foodName,
+    canonicalName: item.canonicalName,
+    category: (item as { category?: unknown }).category,
+    classification: (item as { classification?: unknown }).classification,
+    tags: (item as { tags?: unknown }).tags,
+    portionText: item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada"),
+    estimatedGrams: item.estimatedGrams ?? 0,
+    source: item.source,
+    calories: Number(item.calories || 0),
+    protein: Number(item.protein || 0),
+    carbs: Number(item.carbs || 0),
+    fat: Number(item.fat || 0),
+  };
 }
 
-function sumMealItems(items: MealDraftItem[]) {
+function buildItemBlockLines(items: MealDraftItem[]) {
+  return items.flatMap((item, index) => [
+    ...buildWhatsAppFoodLines(toReplyItem(item)),
+    ...(index < items.length - 1 ? [buildWhatsAppSeparator()] : []),
+  ]);
+}
+
+function sumMealItems(items: MealDraftItem[]): WhatsAppNutritionTotals {
   return items.reduce(
     (acc, item) => ({
       calories: acc.calories + Number(item.calories || 0),
@@ -212,14 +242,6 @@ function sumMealItems(items: MealDraftItem[]) {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
-}
-
-function formatTotals(totals: ReturnType<typeof sumMealItems>) {
-  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
-}
-
-function formatMealSubtotal(items: MealDraftItem[]) {
-  return `Subtotal da refeição: ${formatTotals(sumMealItems(items))}`;
 }
 
 function groupMealsByLabel(meals: ExistingMeal[]) {
@@ -235,32 +257,40 @@ function groupMealsByLabel(meals: ExistingMeal[]) {
   return [...groups.values()];
 }
 
+/** Consulta de uma refeição e seus alimentos usando os mesmos blocos de item/total do registro (issue #783). */
 function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
   const items = meal.items ?? [];
   const mealDate = new Date(meal.occurredAt);
   const title = isLatest
-    ? `Alimentos da última refeição (${meal.mealLabel}):`
-    : `Alimentos de ${meal.mealLabel} em ${formatReplyDate(mealDate)}:`;
+    ? `Alimentos da última refeição (${meal.mealLabel})`
+    : `Alimentos de ${meal.mealLabel} em ${formatReplyDate(mealDate)}`;
 
   if (!items.length) {
-    return `${title}\n\nEncontrei a refeição, mas ela não tem alimentos registrados.`;
+    return buildWhatsAppBlock([
+      buildWhatsAppTitle(title, { bold: true }),
+      buildWhatsAppSeparator(),
+      "Encontrei a refeição, mas ela não tem alimentos registrados.",
+    ]);
   }
 
-  return [
-    title,
-    "",
-    ...items.map(formatItemLine),
-    "",
-    `Total: ${formatTotals(sumMealItems(items))}`,
-  ].join("\n");
+  return buildWhatsAppBlock([
+    buildWhatsAppTitle(title, { bold: true }),
+    buildWhatsAppSeparator(),
+    ...buildItemBlockLines(items),
+    buildWhatsAppSeparator(),
+    ...buildWhatsAppMealTotalLines(sumMealItems(items)),
+  ]);
 }
 
-function formatDayMealGroup(group: MealGroup) {
-  const itemLines = group.items.length ? group.items.map(formatItemLine) : ["• Sem alimentos detalhados."];
+function formatDayMealGroupLines(group: MealGroup) {
+  if (!group.items.length) {
+    return [buildWhatsAppTitle(group.label, { bold: true }), "Sem alimentos detalhados."];
+  }
   return [
-    `${group.label}:`,
-    ...itemLines,
-    ...(group.items.length ? [formatMealSubtotal(group.items)] : []),
+    buildWhatsAppTitle(group.label, { bold: true }),
+    ...buildItemBlockLines(group.items),
+    buildWhatsAppSeparator(),
+    ...buildWhatsAppMealTotalLines(sumMealItems(group.items)),
   ];
 }
 
@@ -268,23 +298,28 @@ function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date) {
   const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate));
   const dateLabel = formatReplyDate(referenceDate);
   if (!mealsInDay.length) {
-    return `Não encontrei alimentos registrados em ${dateLabel}.`;
+    return buildWhatsAppBlock([
+      buildWhatsAppTitle(`Alimentos registrados em ${dateLabel}`, { bold: true }),
+      buildWhatsAppSeparator(),
+      "Não encontrei alimentos registrados nessa data.",
+    ]);
   }
 
   const groups = groupMealsByLabel(mealsInDay);
   const lines = groups.flatMap((group, index) => {
-    const groupLines = formatDayMealGroup(group);
-    return index === groups.length - 1 ? groupLines : [...groupLines, ""];
+    const groupLines = formatDayMealGroupLines(group);
+    return index === groups.length - 1 ? groupLines : [...groupLines, buildWhatsAppSeparator()];
   });
   const allItems = groups.flatMap(group => group.items);
 
-  return [
-    `Alimentos registrados em ${dateLabel}:`,
-    "",
+  return buildWhatsAppBlock([
+    buildWhatsAppTitle(`Alimentos registrados em ${dateLabel}`, { bold: true }),
+    buildWhatsAppSeparator(),
     ...lines,
-    "",
-    `Total do dia: ${formatTotals(sumMealItems(allItems))}`,
-  ].join("\n");
+    buildWhatsAppSeparator(),
+    "Total do dia:",
+    formatWhatsAppNutritionTotalsLine(sumMealItems(allItems)),
+  ]);
 }
 
 export async function executeWhatsappMealListIntent(userId: number, input: { text?: string | null; receivedAt?: Date }): Promise<WhatsappMealListIntentResult | null> {
