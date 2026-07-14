@@ -1,12 +1,13 @@
 import { getPeriodReportBundle } from "../../insights/service";
 import { listMeals } from "../../meals/service";
-import { createWaterLog, getWaterGoal, listWaterLogs } from "../../water/service";
+import { createWaterLog } from "../../water/service";
 import {
   buildWhatsAppPeriodReportReplyMessage,
   buildWhatsAppSnackSuggestionReplyMessage,
   buildWhatsAppWaterLoggedReplyMessage,
 } from "../replyMessages";
 import { buildWhatsAppGoalProgressLines } from "../replyTemplates";
+import { getWhatsAppWaterProgress } from "../userMeasurementReplyContext";
 import {
   formatReplyDateTime,
   getZonedParts,
@@ -16,12 +17,6 @@ import {
 import { buildMealBreakdownLines } from "./report";
 import { formatNumber } from "./textUtils";
 import type { PeriodRange, WhatsappIntentResult } from "./types";
-
-function sameLogicalDay(first: Date | number | string, second: Date | number | string) {
-  const a = getZonedParts(new Date(first));
-  const b = getZonedParts(new Date(second));
-  return a.year === b.year && a.month === b.month && a.day === b.day;
-}
 
 function dateKey(date: Date) {
   const parts = getZonedParts(date);
@@ -44,13 +39,7 @@ export async function handleWaterIntent(userId: number, text: string, receivedAt
     amountMl,
     occurredAt: occurredAt.toISOString(),
   });
-  const [goal, logs] = await Promise.all([
-    getWaterGoal(userId),
-    listWaterLogs(userId),
-  ]);
-  const totalMl = logs
-    .filter(log => sameLogicalDay(log.occurredAt, occurredAt))
-    .reduce((total, log) => total + Number(log.amountMl ?? 0), 0);
+  const waterProgress = await getWhatsAppWaterProgress(userId, occurredAt);
 
   return {
     handled: true,
@@ -58,16 +47,16 @@ export async function handleWaterIntent(userId: number, text: string, receivedAt
     reply: buildWhatsAppWaterLoggedReplyMessage({
       amountLabel: formatNumber(amountMl),
       occurredAtLabel: formatReplyDateTime(occurredAt),
-      totalMl,
-      goalMl: goal.dailyTargetMl,
+      totalMl: waterProgress.totalMl,
+      goalMl: waterProgress.goalMl,
     }),
     eventType: "whatsapp.intent.water_logged",
     detail: `Consumo de ${amountMl} ml de água registrado após interpretação de data relativa pelo WhatsApp.`,
     data: {
       waterLogId: created.id,
       amountMl,
-      totalMl,
-      goalMl: goal.dailyTargetMl,
+      totalMl: waterProgress.totalMl,
+      goalMl: waterProgress.goalMl,
       occurredAt: occurredAt.toISOString(),
     },
   };

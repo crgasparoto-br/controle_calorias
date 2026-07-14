@@ -9,8 +9,17 @@ import {
   buildSuspiciousWhatsAppContentReply,
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
-import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
+import {
+  buildWhatsAppConsolidatedMealReplyMessage,
+  buildWhatsAppImageNotRecognizedReplyMessage,
+  buildWhatsAppImageProcessingFailureReplyMessage,
+  buildWhatsAppMealReplyMessage,
+} from "./modules/whatsapp/replyMessages";
 import { sendWhatsAppLogicalDomainReply, type WhatsAppAuxiliaryImage } from "./modules/whatsapp/logicalReplyDelivery";
+import {
+  startProcessingAcknowledgement,
+  type ProcessingAcknowledgementCoordinator,
+} from "./modules/whatsapp/processingAcknowledgement";
 import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
@@ -60,7 +69,6 @@ type PreparedImageMessage = {
 
 const annotatedImageMessageDeduplicationCache = createMessageDeduplicationCache();
 const MEDIA_STORAGE_WARNING = "Falha ao persistir mídia recebida do WhatsApp; processamento seguirá com mídia inline.";
-const PROCESSING_ERROR_REPLY = "Não consegui processar essa imagem agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 const ANNOTATED_IMAGE_UNAVAILABLE_REPLY = "A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.";
 const ANNOTATED_IMAGE_SEND_FAILED_REPLY = "A refeição foi registrada, mas não consegui enviar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.";
 
@@ -376,7 +384,9 @@ async function sendAnnotatedImageFallbackText(input: {
   mealId?: number | null;
   logicalReply?: import("./modules/whatsapp/replyContract").WhatsAppLogicalReply;
   lifecycleHandle?: MessageLifecycleHandle;
+  acknowledgement?: ProcessingAcknowledgementCoordinator | null;
 }) {
+  await input.acknowledgement?.beforeFinalReply();
   const delivery = await sendWhatsAppLogicalDomainReply({
     to: input.sourcePhone,
     userId: input.userId,
@@ -411,6 +421,7 @@ async function tryHandleAnnotatedImageMessage(
 
   let userId: number | null = null;
   let lifecycleHandle: MessageLifecycleHandle = null;
+  let acknowledgement: ProcessingAcknowledgementCoordinator | null = null;
 
   try {
     userId = await getUserIdByWhatsappPhone(sourcePhone);
@@ -438,14 +449,14 @@ async function tryHandleAnnotatedImageMessage(
       });
     }
 
-    const acknowledgementResult = await sendWhatsAppTextMessage(sourcePhone, "Recebi sua imagem e estou processando.");
-    if (!acknowledgementResult.ok) {
-      await logWhatsAppOperationWarning({
-        userId,
+    acknowledgement = startProcessingAcknowledgement({
+      send: () => sendWhatsAppTextMessage(sourcePhone, "Recebi sua imagem e estou processando."),
+      onFailure: detail => logWhatsAppOperationWarning({
+        userId: userId!,
         eventType: "whatsapp.processing_ack_failed",
-        detail: acknowledgementResult.detail,
-      });
-    }
+        detail,
+      }),
+    });
 
     const prepared = await prepareImageMessage(message, sourcePhone);
     if (prepared.storageWarning) {
@@ -472,6 +483,7 @@ async function tryHandleAnnotatedImageMessage(
         sourcePhone,
         reply: buildSuspiciousWhatsAppContentReply(),
         lifecycleHandle,
+        acknowledgement,
       });
       markAnnotatedImageMessageHandled(message.id);
       return true;
@@ -490,6 +502,7 @@ async function tryHandleAnnotatedImageMessage(
           mealId: deleteResult.action === "meal_deleted" ? null : typeof deleteResult.data?.mealId === "number" ? deleteResult.data.mealId : null,
           logicalReply: deleteResult.interactiveReply,
           lifecycleHandle,
+          acknowledgement,
         });
         markAnnotatedImageMessageHandled(message.id);
         return true;
@@ -507,10 +520,14 @@ async function tryHandleAnnotatedImageMessage(
     });
 
     if (!processed) {
-      const notRecognizedReply = prepared.text?.trim()
-        ? `Não consegui identificar alimentos na imagem com segurança suficiente. Tente descrever o que você comeu em texto para eu registrar corretamente.`
-        : `Não consegui identificar alimentos nessa foto. Tente tirar uma foto com melhor iluminação ou descreva o que você comeu em texto.`;
-      await sendAnnotatedImageFallbackText({ userId, sourcePhone, reply: notRecognizedReply, lifecycleHandle });
+      const notRecognizedReply = buildWhatsAppImageNotRecognizedReplyMessage();
+      await sendAnnotatedImageFallbackText({
+        userId,
+        sourcePhone,
+        reply: notRecognizedReply,
+        lifecycleHandle,
+        acknowledgement,
+      });
       markAnnotatedImageMessageHandled(message.id);
       return true;
     }
@@ -584,6 +601,7 @@ async function tryHandleAnnotatedImageMessage(
       : annotatedImage.buffer
         ? { buffer: annotatedImage.buffer, mimeType: annotatedImage.mimeType, fileName: "whatsapp-annotated-meal.png", caption: "Imagem anotada com os alimentos identificados." }
         : null;
+    await acknowledgement.beforeFinalReply();
     const delivery = await sendWhatsAppLogicalDomainReply({
       to: sourcePhone,
       userId,
@@ -644,7 +662,9 @@ async function tryHandleAnnotatedImageMessage(
       detail: error instanceof Error ? error.message : "Falha desconhecida ao processar imagem do WhatsApp.",
     });
 
-    const replyResult = await sendWhatsAppTextMessage(sourcePhone, PROCESSING_ERROR_REPLY);
+    const processingErrorReply = buildWhatsAppImageProcessingFailureReplyMessage();
+    await acknowledgement?.beforeFinalReply();
+    const replyResult = await sendWhatsAppTextMessage(sourcePhone, processingErrorReply);
     if (!replyResult.ok) {
       logInferenceEvent({
         userId,
@@ -654,12 +674,13 @@ async function tryHandleAnnotatedImageMessage(
         detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
       });
     } else if (userId) {
-      await recordOutboundReply(lifecycleHandle, { userId, text: PROCESSING_ERROR_REPLY });
+      await recordOutboundReply(lifecycleHandle, { userId, text: processingErrorReply });
     }
 
     markAnnotatedImageMessageHandled(message.id);
     return true;
   } finally {
+    await acknowledgement?.beforeFinalReply();
     await markMessageProcessed(lifecycleHandle);
   }
 }
