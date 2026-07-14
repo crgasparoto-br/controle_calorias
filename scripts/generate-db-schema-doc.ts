@@ -2,15 +2,18 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const sourcePath = path.join(root, "drizzle/schema.ts");
+const sourcePaths = [
+  path.join(root, "drizzle/schema.ts"),
+  path.join(root, "drizzle/professional-schema.ts"),
+];
 const outputPath = path.join(root, "docs/generated/db-schema.md");
 const checkOnly = process.argv.includes("--check");
 
 type ColumnInfo = { propertyName: string; columnName: string };
 type TableInfo = { exportName: string; tableName: string; columns: ColumnInfo[] };
 
-const tableFragments = ["user", "profile", "goal", "favorite", "badge", "recipe", "meal", "habit", "summary", "exercise", "weight", "water", "preference", "restriction", "whatsapp", "inference", "log", "media"];
-const columnFragments = ["email", "name", "age", "birth", "height", "weight", "objective", "activity", "routine", "difficulty", "timezone", "text", "transcript", "note", "media", "reason", "json", "url", "detail", "preference", "restriction", "label", "severity", "occurred", "measured"];
+const tableFragments = ["user", "profile", "professional", "authorization", "tracking", "goal", "favorite", "badge", "recipe", "meal", "habit", "summary", "exercise", "weight", "water", "preference", "restriction", "whatsapp", "inference", "log", "media"];
+const columnFragments = ["email", "name", "age", "birth", "height", "weight", "objective", "activity", "routine", "difficulty", "timezone", "text", "transcript", "note", "media", "reason", "json", "url", "detail", "preference", "restriction", "label", "severity", "occurred", "measured", "professional", "patient", "actor", "authorization", "status"];
 
 function readRequiredFile(filePath: string) {
   if (!existsSync(filePath)) throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
@@ -42,7 +45,7 @@ function findMatchingBrace(source: string, start: number) {
 }
 
 function parseColumns(source: string): ColumnInfo[] {
-  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:int|double|text|timestamp|varchar|mysqlEnum)\("([^"]+)"/gm))
+  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:boolean|int|double|text|timestamp|varchar|mysqlEnum)\("([^"]+)"/gm))
     .map(match => ({ propertyName: match[1], columnName: match[2] }));
 }
 
@@ -80,7 +83,7 @@ function generateMarkdown(tables: TableInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.",
     "",
-    "Fonte: `drizzle/schema.ts`.",
+    "Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.",
     "",
     "## Tabelas",
     "",
@@ -109,11 +112,13 @@ function generateMarkdown(tables: TableInfo[]) {
   lines.push("- A maioria dos dados de domínio referencia `users.id`.");
   lines.push("- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.");
   lines.push("- `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.");
+  lines.push("- `professionalPatientAuthorizations` separa consentimento de `professionalPatientTrackings`; cada transição de acompanhamento gera um evento auditável.");
   lines.push("");
   return `${lines.join("\n")}\n`;
 }
 
-const generated = generateMarkdown(parseTables(readRequiredFile(sourcePath)));
+const source = sourcePaths.map(readRequiredFile).join("\n");
+const generated = generateMarkdown(parseTables(source));
 if (checkOnly) {
   const current = readRequiredFile(outputPath);
   if (current !== generated) {
