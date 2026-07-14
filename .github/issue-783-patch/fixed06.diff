@@ -1,0 +1,95 @@
++      { id: 10, mealLabel: "Jantar", occurredAt: "2026-07-12T22:00:00.000Z", items: [item("Queijo minas", 50), item("Arroz branco", 100)] },
++      { id: 20, mealLabel: "Almoço", occurredAt: "2026-07-12T16:00:00.000Z", items: [item("Queijo mussarela", 40)] },
++    ]);
++
++    await handleMealItemMultiIncrement(42, [
++      { targetFood: "queijo", gramsDelta: 10 },
++      { targetFood: "arroz", gramsDelta: 20 },
++    ]);
++
++    const pending = createPendingMealItemSelectionMock.mock.calls[0][1];
++    expect(pending.companionActions ?? []).toEqual([]);
++    expect(pending.remainingSelections).toEqual([
++      expect.objectContaining({
++        kind: "resolved",
++        candidate: expect.objectContaining({ mealId: 10, itemName: "Arroz branco" }),
++        action: { kind: "grams_delta", delta: 20 },
++      }),
++    ]);
++  });
+ 
+   it("encadeia todas as ambiguidades de gramas da mesma mensagem", async () => {
+diff --git a/server/modules/whatsapp/intent/foodReplacementHandlers.ts b/server/modules/whatsapp/intent/foodReplacementHandlers.ts
+index c9ce1f4..0000000 100644
+--- a/server/modules/whatsapp/intent/foodReplacementHandlers.ts
++++ b/server/modules/whatsapp/intent/foodReplacementHandlers.ts
+@@ -8,4 +8,9 @@ import {
+ } from "../replyMessages";
+ import { listMeals } from "../../meals/service";
+ import type { MealItemInput } from "../../meals/schemas";
+-import { createPendingMealItemSelection, type MealItemSelectionCompanionAction, type MealItemPendingSelectionStep } from "../mealItemSelectionCallback";
++import {
++  createPendingMealItemSelection,
++  type MealItemPendingPlanStep,
++  type MealItemPendingSelectionStep,
++  type MealItemSelectionCompanionAction,
++} from "../mealItemSelectionCallback";
+@@ -30,9 +36,2 @@ type AppliedFoodReplacement = {
+   candidate: MealItemSelectionCompanionAction["candidate"];
+ };
+-type PendingReplacementTarget = {
+-  targetFood: string;
+-  context: string;
+-  scopeLabel: string;
+-  candidates: MealItemTargetCandidate<MutableMealRecord>[];
+-  toFood: string;
+-};
+@@ -67,24 +66,18 @@ function selectionCandidates(candidates: MealItemTargetCandidate<MutableMealReco
+ }
+ 
+ async function ambiguousReplacementReply(input: {
+   userId: number;
+-  current: PendingReplacementTarget;
+-  remaining: PendingReplacementTarget[];
++  current: MealItemPendingSelectionStep;
++  remaining: MealItemPendingPlanStep[];
+   companionActions: MealItemSelectionCompanionAction[];
+   resultTitle: string;
+ }): Promise<WhatsappIntentResult> {
+-  const remainingSelections: MealItemPendingSelectionStep[] = input.remaining.map(pending => ({
+-    targetFood: pending.targetFood,
+-    action: { kind: "replace_food", targetFood: pending.toFood },
+-    contextLabel: pending.context,
+-    candidates: selectionCandidates(pending.candidates),
+-  }));
+   const selectionResult = await createPendingMealItemSelection(input.userId, {
+     targetFood: input.current.targetFood,
+-    action: { kind: "replace_food", targetFood: input.current.toFood },
+-    contextLabel: input.current.context,
++    action: input.current.action,
++    contextLabel: input.current.contextLabel,
+     resultTitle: input.resultTitle,
+-    candidates: selectionCandidates(input.current.candidates),
++    candidates: input.current.candidates,
+     companionActions: input.companionActions,
+-    remainingSelections,
++    remainingSelections: input.remaining,
+   });
+@@ -95,3 +88,3 @@ async function ambiguousReplacementReply(input: {
+     reply: selectionResult.reply,
+     eventType: selectionResult.eventType,
+-    detail: replacementMatchDetail({ prefix: "Pedido de substituição com item ambíguo.", targetFood: input.current.targetFood, scopeLabel: input.current.scopeLabel, ambiguous: true }),
++    detail: replacementMatchDetail({ prefix: "Pedido de substituição com item ambíguo.", targetFood: input.current.targetFood ?? "alimento", scopeLabel: input.current.contextLabel, ambiguous: true }),
+@@ -137,4 +130,4 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
+   const changedMealIndexes = new Set<number>();
+   const applied: AppliedFoodReplacement[] = [];
+-  const pendingTargets: PendingReplacementTarget[] = [];
++  const orderedPlan: MealItemPendingPlanStep[] = [];
+   const notFound: string[] = [];
+@@ -143,4 +136,10 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
+     const target = resolveTargetMealItemInMeals(mutableMeals, replacement.fromFood);
+     if (target.kind === "ambiguous") {
+-      pendingTargets.push({ targetFood: replacement.fromFood, context: contextWithPreposition(target.scope), scopeLabel: target.scopeLabel, candidates: target.candidates, toFood: replacement.toFood });
++      orderedPlan.push({
++        kind: "selection",
++        targetFood: replacement.fromFood,
