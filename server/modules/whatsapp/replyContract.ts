@@ -11,17 +11,25 @@
  *
  * Handlers e builders de domínio produzem `WhatsAppLogicalReply` e nunca
  * conhecem o payload bruto da Meta; a serialização/envio vive em
- * `replyTransport.ts`. Isso permite migrar formatters e cadeias de intenção
- * (subissues #783-#787) sem acoplar cada uma ao transporte.
+ * `replyTransport.ts`.
  */
 
-export type WhatsAppOutboundMessage =
+export type WhatsAppOutboundMessageRole = "primary" | "auxiliary";
+
+type WhatsAppOutboundMessageMetadata = {
+  /** Função da mensagem física dentro da resposta lógica. */
+  role?: WhatsAppOutboundMessageRole;
+};
+
+export type WhatsAppOutboundMessage = WhatsAppOutboundMessageMetadata & (
   | { type: "text"; body: string }
   | { type: "cta_url"; bodyText: string; buttonText: string; url: string }
   | { type: "buttons"; bodyText: string; buttons: WhatsAppReplyButtonSpec[] }
   | { type: "list"; bodyText: string; buttonText: string; sections: WhatsAppReplyListSectionSpec[] }
   | { type: "image_url"; url: string; caption: string }
-  | { type: "image_buffer"; buffer: Buffer; mimeType?: string; fileName?: string; caption: string };
+  | { type: "image_id"; mediaId: string; caption: string }
+  | { type: "image_buffer"; buffer: Buffer; mimeType?: string; fileName?: string; caption: string }
+);
 
 export type WhatsAppReplyButtonSpec = { id: string; title: string };
 export type WhatsAppReplyListRowSpec = { id: string; title: string; description?: string };
@@ -72,6 +80,10 @@ export function validateWhatsAppOutboundMessage(message: WhatsAppOutboundMessage
     }
   }
 
+  if (message.type === "image_id" && !message.mediaId.trim()) {
+    errors.push({ field: "mediaId", detail: "Mensagem de imagem sem media ID." });
+  }
+
   return errors;
 }
 
@@ -90,16 +102,16 @@ export function resolveWhatsAppLogicalReplyRecordText(reply: WhatsAppLogicalRepl
 }
 
 export function textReply(body: string): WhatsAppLogicalReply {
-  return { kind: "functional", messages: [{ type: "text", body }] };
+  return { kind: "functional", messages: [{ type: "text", body, role: "primary" }] };
 }
 
 export function acknowledgementReply(body: string): WhatsAppLogicalReply {
-  return { kind: "acknowledgement", messages: [{ type: "text", body }] };
+  return { kind: "acknowledgement", messages: [{ type: "text", body, role: "primary" }] };
 }
 
 /** Adapta um builder legado (`string`) para a mensagem de texto do contrato central, sem remover o export original. */
 export function logicalReplyFromLegacyText(body: string, kind: WhatsAppLogicalReplyKind = "functional"): WhatsAppLogicalReply {
-  return { kind, messages: [{ type: "text", body }] };
+  return { kind, messages: [{ type: "text", body, role: "primary" }] };
 }
 
 /** Substitui a mensagem primária de texto por um CTA URL (edição rápida, onboarding), preservando a sequência restante. */
@@ -108,31 +120,38 @@ export function withCtaUrl(reply: WhatsAppLogicalReply, cta: { buttonText: strin
   const bodyText = extractPrimaryRecordText(primary) ?? "";
   return {
     ...reply,
-    messages: [{ type: "cta_url", bodyText, buttonText: cta.buttonText, url: cta.url }, ...rest],
+    messages: [{ type: "cta_url", bodyText, buttonText: cta.buttonText, url: cta.url, role: "primary" }, ...rest],
     recordText: reply.recordText ?? bodyText,
   };
 }
 
-/** Anexa mídia auxiliar (ex.: imagem anotada) à mesma resposta lógica, sem criar uma segunda execução. */
-export function withAuxiliaryImage(
-  reply: WhatsAppLogicalReply,
-  image: { url: string; caption: string } | { buffer: Buffer; mimeType?: string; fileName?: string; caption: string },
-): WhatsAppLogicalReply {
+export type WhatsAppAuxiliaryImageInput =
+  | { url: string; caption: string }
+  | { mediaId: string; caption: string }
+  | { buffer: Buffer; mimeType?: string; fileName?: string; caption: string };
+
+/** Anexa mídia auxiliar à mesma resposta lógica, sem criar uma segunda execução. */
+export function withAuxiliaryImage(reply: WhatsAppLogicalReply, image: WhatsAppAuxiliaryImageInput): WhatsAppLogicalReply {
   const message: WhatsAppOutboundMessage = "url" in image
-    ? { type: "image_url", url: image.url, caption: image.caption }
-    : { type: "image_buffer", buffer: image.buffer, mimeType: image.mimeType, fileName: image.fileName, caption: image.caption };
+    ? { type: "image_url", url: image.url, caption: image.caption, role: "auxiliary" }
+    : "mediaId" in image
+      ? { type: "image_id", mediaId: image.mediaId, caption: image.caption, role: "auxiliary" }
+      : { type: "image_buffer", buffer: image.buffer, mimeType: image.mimeType, fileName: image.fileName, caption: image.caption, role: "auxiliary" };
   return { ...reply, messages: [...reply.messages, message] };
 }
 
 /** Sequência ordenada de mensagens de texto pertencentes à mesma resposta lógica (ex.: onboarding em duas mensagens). */
 export function sequencedTextReply(bodies: string[], kind: WhatsAppLogicalReplyKind = "functional"): WhatsAppLogicalReply {
-  return { kind, messages: bodies.map(body => ({ type: "text", body })) };
+  return {
+    kind,
+    messages: bodies.map((body, index) => ({ type: "text", body, role: index === 0 ? "primary" : "auxiliary" })),
+  };
 }
 
 export function buttonsReply(bodyText: string, buttons: WhatsAppReplyButtonSpec[]): WhatsAppLogicalReply {
-  return { kind: "functional", messages: [{ type: "buttons", bodyText, buttons }] };
+  return { kind: "functional", messages: [{ type: "buttons", bodyText, buttons, role: "primary" }] };
 }
 
 export function listReply(bodyText: string, buttonText: string, sections: WhatsAppReplyListSectionSpec[]): WhatsAppLogicalReply {
-  return { kind: "functional", messages: [{ type: "list", bodyText, buttonText, sections }] };
+  return { kind: "functional", messages: [{ type: "list", bodyText, buttonText, sections, role: "primary" }] };
 }
