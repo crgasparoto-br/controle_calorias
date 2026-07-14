@@ -1,0 +1,120 @@
++        preferredPortionGrams: item.estimatedGrams,
++        notes: `Última porção confirmada: ${item.portionText}`,
++        occurrenceCount: 1,
++        lastSeenAt: occurredAt,
++      });
++    }
++  }
++  return next.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
++}
++
++export async function captureUserMealHabitsSnapshot(userId: number): Promise<UserMealHabitSnapshot> {
++  const existing = (await loadHabitsFromDb(userId)) ?? habitStore.get(userId) ?? [];
++  return cloneHabitSnapshot(existing);
++}
++
++export async function restoreUserMealHabitsSnapshot(userId: number, snapshot: UserMealHabitSnapshot) {
++  const restored = cloneHabitSnapshot(snapshot);
++  await persistHabitsToDb(userId, restored);
++  habitStore.set(userId, restored);
++  return restored;
++}
++
++export async function applyUserMealHabitsFromSnapshot(
++  userId: number,
++  snapshot: UserMealHabitSnapshot,
++  meals: HabitMealInput[],
++) {
++  let next = cloneHabitSnapshot(snapshot);
++  for (const meal of meals) {
++    next = applyMealToHabitSnapshot(next, meal);
++  }
++  await persistHabitsToDb(userId, next);
++  habitStore.set(userId, next);
++  return next;
++}
++
++/** @deprecated Use capture/apply/restore snapshot helpers for compensable batches. */
++export async function rebuildUserMealHabits(userId: number) {
++  const snapshot = await captureUserMealHabitsSnapshot(userId);
++  const meals = await listUserMeals(userId);
++  let next = snapshot;
++  for (const meal of meals) {
++    next = applyMealToHabitSnapshot(next, meal);
++  }
++  await persistHabitsToDb(userId, next);
++  habitStore.set(userId, next);
++  return next;
+-    for (const item of meal.items) {
+-      const foodName = item.canonicalName?.trim() || item.foodName?.trim();
+-      if (!foodName) continue;
+-      const existing = byFoodName.get(foodName);
+-      const isLatest = !existing || meal.occurredAt >= existing.lastSeenAt;
+-      byFoodName.set(foodName, {
+-        foodName,
+-        typicalMealLabel: isLatest ? meal.mealLabel : existing?.typicalMealLabel,
+-        preferredPortionGrams: isLatest ? item.estimatedGrams : existing?.preferredPortionGrams ?? item.estimatedGrams,
+-        notes: isLatest ? `Última porção confirmada: ${item.portionText}` : existing?.notes,
+-        occurrenceCount: (existing?.occurrenceCount ?? 0) + 1,
+-        lastSeenAt: isLatest ? meal.occurredAt : existing!.lastSeenAt,
+-      });
+-    }
+-  }
+-
+-  const rebuilt = [...byFoodName.values()].sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+-  await persistHabitsToDb(userId, rebuilt);
+-  habitStore.set(userId, rebuilt);
+-  return rebuilt;
+ }
+diff --git a/server/modules/meals/service.ts b/server/modules/meals/service.ts
+index 160551b..0000000 100644
+--- a/server/modules/meals/service.ts
++++ b/server/modules/meals/service.ts
+@@ -2,1 +2,3 @@ import {
++  applyUserMealHabitsFromSnapshot,
+   buildSavedMedia,
++  captureUserMealHabitsSnapshot,
+@@ -15,3 +18,3 @@ import {
+   logInferenceEvent,
+   logPersistenceWarning,
+-  rebuildUserMealHabits,
++  restoreUserMealHabitsSnapshot,
+@@ -20,2 +23,3 @@ import {
+   updateUserMeal,
++  type UserMealHabitSnapshot,
+ } from "../../db";
+@@ -339,7 +343,13 @@ export type UpdateMealServiceOptions = {
+   logEvent?: boolean;
+   finalizeBatch?: {
+-    meals: Array<{ items: MealItemWithNutritionSnapshot[] }>;
++    meals: Array<{ mealLabel: string; occurredAt: number | string | Date; items: MealItemWithNutritionSnapshot[] }>;
++    habitSnapshot: UserMealHabitSnapshot;
+     recordCatalogUsage?: boolean;
++    restoreHabits?: boolean;
+     throwOnHabitFailure?: boolean;
+   };
+ };
++
++export async function captureMealBatchHabitSnapshot(userId: number) {
++  return captureUserMealHabitsSnapshot(userId);
++}
+@@ -374,5 +382,9 @@ export async function updateMeal(userId: number, input: UpdateMealInput) {
+ 
+     try {
+-      await rebuildUserMealHabits(userId);
++      if (options.finalizeBatch.restoreHabits) {
++        await restoreUserMealHabitsSnapshot(userId, options.finalizeBatch.habitSnapshot);
++      } else {
++        await applyUserMealHabitsFromSnapshot(userId, options.finalizeBatch.habitSnapshot, options.finalizeBatch.meals);
++      }
+     } catch (error) {
+-      logPersistenceWarning("Meal batch habit rebuild skipped", error);
++      logPersistenceWarning("Meal batch habit finalization failed", error);
+diff --git a/server/modules/whatsapp/mealBatchMutation.ts b/server/modules/whatsapp/mealBatchMutation.ts
+index 70f1709..0000000 100644
+--- a/server/modules/whatsapp/mealBatchMutation.ts
++++ b/server/modules/whatsapp/mealBatchMutation.ts
+@@ -1,2 +1,2 @@
+ import type { MealItemInput } from "../meals/schemas";
+-import { updateMeal, type UpdateMealServiceOptions } from "../meals/service";
++import { captureMealBatchHabitSnapshot, updateMeal, type UpdateMealServiceOptions } from "../meals/service";
