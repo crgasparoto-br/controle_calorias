@@ -1,0 +1,49 @@
+@@ -161,8 +167,7 @@ function applyActionToItem(item: MealItemInput, action: MealItemSelectionAction)
+   return { nextItem: replaceMealItemFood(item, action.targetFood), actionLine: `${item.foodName} → ${action.targetFood}` };
+ }
+ 
+-async function applySelectionPlan(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection): Promise<MealItemSelectionResult> {
++async function applySelectionPlan(userId: number, plan: MealItemSelectionCompanionAction[], resultTitle: string): Promise<MealItemSelectionResult> {
+   const meals = await listMeals(userId);
+-  const plan: MealItemSelectionCompanionAction[] = [...(pending.companionActions ?? []), { candidate: selected, action: pending.action }];
+   const workingMeals = new Map<number, Awaited<ReturnType<typeof listMeals>>[number]>();
+   const actionLinesByMeal = new Map<number, string[]>();
+@@ -219,3 +224,3 @@ async function applySelectionPlan(userId: number, selected: MealItemSelectionCan
+     handled: true,
+     action: hasReplacement ? "meal_item_replaced" : "meal_item_grams_adjusted",
+-    reply: updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title: pending.resultTitle, actionLines: actionLinesByMeal.get(meal.id) ?? [] })).join("\n\n"),
++    reply: updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title: resultTitle, actionLines: actionLinesByMeal.get(meal.id) ?? [] })).join("\n\n"),
+@@ -228,15 +233,28 @@ async function applySelectionPlan(userId: number, selected: MealItemSelectionCan
+ }
+ 
+ async function continueSelectionOrApply(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection) {
+-  const resolvedActions: MealItemSelectionCompanionAction[] = [...(pending.companionActions ?? []), { candidate: selected, action: pending.action }];
+-  const [next, ...remaining] = pending.remainingSelections ?? [];
++  const resolvedActions: MealItemSelectionCompanionAction[] = [
++    ...(pending.companionActions ?? []),
++    { candidate: selected, action: pending.action },
++  ];
++  const remaining = [...(pending.remainingSelections ?? [])];
++  while (remaining[0]?.kind === "resolved") {
++    const nextResolved = remaining.shift();
++    if (nextResolved?.kind === "resolved") {
++      resolvedActions.push({ candidate: nextResolved.candidate, action: nextResolved.action });
++    }
++  }
++  const next = remaining.shift();
++  if (next?.kind === "resolved") {
++    throw new Error("Plano de seleção inconsistente após a normalização.");
++  }
+   if (next) {
+     return createPendingMealItemSelection(userId, {
+       ...next,
+       resultTitle: pending.resultTitle,
+       companionActions: resolvedActions,
+       remainingSelections: remaining,
+     });
+   }
+-  return applySelectionPlan(userId, selected, pending);
++  return applySelectionPlan(userId, resolvedActions, pending.resultTitle);
+ }
+diff --git a/server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts b/server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts
+index 04a47f3..0000000 100644
