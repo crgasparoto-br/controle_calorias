@@ -80,6 +80,12 @@ function buildMealTitle(mealLabel?: string | null, registeredAt?: Date, consolid
   return buildWhatsAppTitle(`${label} ${consolidated ? "Atualizado" : "Registrado"}${suffix}`, { bold: true });
 }
 
+function buildMealContextLine(mealLabel?: string | null, occurredAt?: Date) {
+  const label = mealLabel?.trim() || "Refeição";
+  const time = formatTimeInSaoPaulo(occurredAt);
+  return `🍽️ ${buildWhatsAppTitle(label, { bold: true })}${time ? ` — ${time}` : ""}`;
+}
+
 function buildMealGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
   const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
   return buildWhatsAppGoalProgressLines(progress
@@ -319,6 +325,7 @@ export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMe
     ...(actionLines.length ? [buildWhatsAppSeparator(), ...actionLines] : []),
     buildWhatsAppSeparator(),
     mealResultLabel,
+    buildMealContextLine(meal.mealLabel, registeredAt),
     ...buildMealItemLines(meal.items),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(sumReplyItems(meal.items)),
