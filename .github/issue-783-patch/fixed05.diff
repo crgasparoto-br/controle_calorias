@@ -1,0 +1,103 @@
+@@ -88,2 +88,3 @@ export async function updateMealsWithCompensation(
+   validateChanges(changes);
+   if (!changes.length) return [];
++  const habitSnapshot = await captureMealBatchHabitSnapshot(userId);
+@@ -95,4 +96,8 @@ export async function updateMealsWithCompensation(
+       attempted.push(change);
+       const finalizeBatch = index === changes.length - 1
+-        ? { meals: changes.map(item => ({ items: item.after.items })) }
++        ? {
++            meals: changes.map(item => item.after),
++            habitSnapshot,
++            throwOnHabitFailure: true,
++          }
+         : undefined;
+@@ -110,6 +115,8 @@ export async function updateMealsWithCompensation(
+         const finalizeBatch = index === rollbackChanges.length - 1
+           ? {
+-              meals: attempted.map(item => ({ items: item.before.items })),
++              meals: attempted.map(item => item.before),
++              habitSnapshot,
+               recordCatalogUsage: false,
++              restoreHabits: true,
+               throwOnHabitFailure: true,
+             }
+diff --git a/server/modules/whatsapp/mealBatchMutation.test.ts b/server/modules/whatsapp/mealBatchMutation.test.ts
+index 5e437d1..0000000 100644
+--- a/server/modules/whatsapp/mealBatchMutation.test.ts
++++ b/server/modules/whatsapp/mealBatchMutation.test.ts
+@@ -3,4 +3,5 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
+ 
+ const updateMealMock = vi.hoisted(() => vi.fn());
++const captureMealBatchHabitSnapshotMock = vi.hoisted(() => vi.fn());
+ 
+-vi.mock("../meals/service", () => ({ updateMeal: updateMealMock }));
++vi.mock("../meals/service", () => ({ updateMeal: updateMealMock, captureMealBatchHabitSnapshot: captureMealBatchHabitSnapshotMock }));
+@@ -52,3 +54,4 @@ describe("meal batch mutation compensation", () => {
+   beforeEach(() => {
+     vi.clearAllMocks();
++    captureMealBatchHabitSnapshotMock.mockResolvedValue([{ foodName: "Histórico", preferredPortionGrams: 30, occurrenceCount: 7, lastSeenAt: 1 }]);
+   });
+@@ -113,4 +116,6 @@ describe("meal batch mutation compensation", () => {
+       finalizeBatch: expect.objectContaining({
+         recordCatalogUsage: false,
++        restoreHabits: true,
++        habitSnapshot: expect.arrayContaining([expect.objectContaining({ foodName: "Histórico", occurrenceCount: 7 })]),
+         throwOnHabitFailure: true,
+       }),
+@@ -137,5 +142,9 @@ describe("meal batch mutation compensation", () => {
+       updateHabits: false,
+       logEvent: false,
+-      finalizeBatch: expect.objectContaining({ meals: expect.any(Array) }),
++      finalizeBatch: expect.objectContaining({
++        meals: expect.any(Array),
++        habitSnapshot: expect.arrayContaining([expect.objectContaining({ occurrenceCount: 7 })]),
++        throwOnHabitFailure: true,
++      }),
+     });
+   });
+diff --git a/server/whatsappAnnotatedImageWebhook.test.ts b/server/whatsappAnnotatedImageWebhook.test.ts
+index 099d7b2..0000000 100644
+--- a/server/whatsappAnnotatedImageWebhook.test.ts
++++ b/server/whatsappAnnotatedImageWebhook.test.ts
+@@ -302,4 +302,30 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
+     expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
+   });
++
++  it("renderiza o estado persistido recarregado em vez do payload anterior à gravação", async () => {
++    const persistedMeal = {
++      ...savedImageMeal,
++      items: [{
++        ...savedImageMeal.items[0],
++        foodName: "Arroz persistido",
++        portionText: "120 g",
++        estimatedGrams: 120,
++        calories: 156,
++      }],
++    };
++    listUserMealsMock
++      .mockResolvedValueOnce([savedImageMeal])
++      .mockResolvedValueOnce([persistedMeal]);
++
++    const req = createImageWebhookRequest("image-persisted-state");
++    const res = createResponse();
++
++    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
++
++    const functionalText = sentTextMessages[0] ?? "";
++    expect(functionalText).toContain("Arroz persistido");
++    expect(functionalText).toContain("120g");
++    expect(functionalText).toContain("156 kcal");
++  });
+ 
+   it("consolida a foto na refeição lógica existente do mesmo dia", async () => {
+diff --git a/server/modules/whatsapp/intent/issue783.atomicity.test.ts b/server/modules/whatsapp/intent/issue783.atomicity.test.ts
+index 809f5e1..0000000 100644
+--- a/server/modules/whatsapp/intent/issue783.atomicity.test.ts
++++ b/server/modules/whatsapp/intent/issue783.atomicity.test.ts
+@@ -58,4 +58,26 @@ describe("issue #783 — atomicidade e identidade de candidatos", () => {
+     expect(result.action).toBe("clarification_needed");
+   });
++
++  it("preserva uma ação clara posterior à ambiguidade na posição original do plano", async () => {
++    listMealsMock.mockResolvedValue([
