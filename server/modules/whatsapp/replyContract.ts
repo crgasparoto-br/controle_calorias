@@ -109,11 +109,6 @@ export function acknowledgementReply(body: string): WhatsAppLogicalReply {
   return { kind: "acknowledgement", messages: [{ type: "text", body }] };
 }
 
-/** Adapta um builder legado (`string`) para a mensagem de texto do contrato central, sem remover o export original. */
-export function logicalReplyFromLegacyText(body: string, kind: WhatsAppLogicalReplyKind = "functional"): WhatsAppLogicalReply {
-  return { kind, messages: [{ type: "text", body }] };
-}
-
 /** Substitui a mensagem primária de texto por um CTA URL (edição rápida, onboarding), preservando a sequência restante. */
 export function withCtaUrl(reply: WhatsAppLogicalReply, cta: { buttonText: string; url: string }): WhatsAppLogicalReply {
   const [primary, ...rest] = reply.messages;
