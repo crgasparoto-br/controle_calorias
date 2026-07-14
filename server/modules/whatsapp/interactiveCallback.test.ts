@@ -22,10 +22,26 @@ async function createPending(userId: number, type = "delete") {
 }
 
 describe("interactiveCallback", () => {
-  it("gera um ID opaco que não expõe o pendingOperationId nem a ação em texto plano", () => {
+  it("gera um ID cifrado que não expõe o pendingOperationId nem a ação", () => {
     const id = buildWhatsAppCallbackId(42, "confirm");
     expect(id).not.toContain("42");
     expect(id).not.toContain("confirm");
+
+    const decodedSegments = id
+      .split(".")
+      .slice(1)
+      .map(segment => Buffer.from(segment, "base64url").toString("utf8"))
+      .join(" ");
+    expect(decodedSegments).not.toContain("42");
+    expect(decodedSegments).not.toContain("confirm");
+  });
+
+  it("usa nonce aleatório para não repetir o token com o mesmo conteúdo", () => {
+    const first = buildWhatsAppCallbackId(42, "confirm");
+    const second = buildWhatsAppCallbackId(42, "confirm");
+    expect(first).not.toBe(second);
+    expect(parseWhatsAppCallbackId(first)).toEqual({ pendingOperationId: 42, action: "confirm" });
+    expect(parseWhatsAppCallbackId(second)).toEqual({ pendingOperationId: 42, action: "confirm" });
   });
 
   it("faz round-trip de parse do ID gerado", () => {
@@ -33,7 +49,7 @@ describe("interactiveCallback", () => {
     expect(parseWhatsAppCallbackId(id)).toEqual({ pendingOperationId: 42, action: "select:2" });
   });
 
-  it("rejeita um ID adulterado (assinatura não confere)", () => {
+  it("rejeita um ID adulterado (tag de autenticação não confere)", () => {
     const id = buildWhatsAppCallbackId(42, "confirm");
     const tampered = `${id.slice(0, -1)}${id.at(-1) === "a" ? "b" : "a"}`;
     expect(parseWhatsAppCallbackId(tampered)).toBeNull();
@@ -49,7 +65,7 @@ describe("interactiveCallback", () => {
       // usa o fallback em memória do repositório de pendências (sem DATABASE_URL neste ambiente de teste)
     });
 
-    it("retorna invalid para um callback que não corresponde ao formato assinado", async () => {
+    it("retorna invalid para um callback que não corresponde ao formato autenticado", async () => {
       const result = await claimWhatsAppInteractiveCallback(1, "not-a-real-callback");
       expect(result).toEqual({ status: "invalid" });
     });
