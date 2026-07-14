@@ -60,7 +60,22 @@ jobs:
         run: pnpm architecture:check
 
       - name: Documentation check
-        run: pnpm docs:check
+        run: |
+          if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
+            echo "Documentation check failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/docs-check.log
+            exit 1
+          fi
+          cat /tmp/docs-check.log
+
+      - name: Upload documentation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-docs-log
+          path: /tmp/docs-check.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Build
         run: pnpm build
