@@ -13,7 +13,7 @@ type ColumnInfo = { propertyName: string; columnName: string };
 type TableInfo = { exportName: string; tableName: string; columns: ColumnInfo[] };
 
 const tableFragments = ["user", "profile", "professional", "authorization", "tracking", "goal", "favorite", "badge", "recipe", "meal", "habit", "summary", "exercise", "weight", "water", "preference", "restriction", "whatsapp", "inference", "log", "media"];
-const columnFragments = ["email", "name", "age", "birth", "height", "weight", "objective", "activity", "routine", "difficulty", "timezone", "text", "transcript", "note", "media", "reason", "json", "url", "detail", "preference", "restriction", "label", "severity", "occurred", "measured", "professional", "patient", "actor", "authorization", "status"];
+const columnFragments = ["email", "name", "age", "birth", "height", "weight", "objective", "activity", "routine", "difficulty", "timezone", "text", "transcript", "note", "media", "reason", "json", "url", "detail", "preference", "restriction", "label", "severity", "occurred", "measured", "professional", "patient", "actor", "authorization"];
 
 function readRequiredFile(filePath: string) {
   if (!existsSync(filePath)) throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
@@ -45,7 +45,7 @@ function findMatchingBrace(source: string, start: number) {
 }
 
 function parseColumns(source: string): ColumnInfo[] {
-  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:boolean|int|double|text|timestamp|varchar|mysqlEnum)\("([^"]+)"/gm))
+  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:int|double|text|timestamp|varchar|mysqlEnum)\("([^"]+)"/gm))
     .map(match => ({ propertyName: match[1], columnName: match[2] }));
 }
 
