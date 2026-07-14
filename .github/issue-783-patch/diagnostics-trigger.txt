@@ -1,0 +1,1 @@
+Run the issue 783 patch diagnostics.
