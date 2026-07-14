@@ -1,0 +1,37 @@
+name: Apply transparent issue 783 completion
+
+on:
+  push:
+    branches:
+      - feat/783-unificar-respostas-refeicoes
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore(ci): apply transparent issue 783 completion'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/783-unificar-respostas-refeicoes
+          fetch-depth: 0
+
+      - name: Apply audited completion
+        run: |
+          cat .github/issue-783-patch/fixed*.diff > /tmp/issue-783.patch
+          git apply --check /tmp/issue-783.patch
+          git apply /tmp/issue-783.patch
+          rm -rf .github/issue-783-patch .issue783-patch
+          rm -f .github/workflows/issue-783-apply.yml
+          rm -f .github/workflows/issue-783-transparent-apply.yml
+          git show 75b9cb08c58f1203381cee6688f36389e4ffa4a2:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+          git show 75b9cb08c58f1203381cee6688f36389e4ffa4a2:.github/workflows/whatsapp-context-tidb.yml > .github/workflows/whatsapp-context-tidb.yml
+
+      - name: Commit applied completion
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: fix(whatsapp): complete audited issue 783 gaps
+          branch: feat/783-unificar-respostas-refeicoes
