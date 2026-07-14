@@ -25,7 +25,13 @@ import { getDb, logPersistenceWarning } from "../../db";
 
 const DEFAULT_PROCESSING_LEASE_MS = 15 * 60 * 1000;
 
-export type MessageLifecycleHandle = { conversationId: number; messageId: number; wasNewInsert: boolean } | null;
+export type MessageLifecycleHandle = {
+  conversationId: number;
+  messageId: number;
+  wasNewInsert: boolean;
+  processedAt?: Date | null;
+  hasResponse?: boolean;
+} | null;
 
 export type BeginInboundMessageInput = {
   userId: number;
@@ -91,7 +97,16 @@ export function createMessageLifecycleService(input: {
       });
       if (!appended) return null;
 
-      return { conversationId: conversation.id, messageId: appended.message.id, wasNewInsert: appended.wasNewInsert };
+      const hasResponse = appended.wasNewInsert
+        ? false
+        : Boolean(await input.conversationRepository.findResponseForMessage?.(appended.message.id));
+      return {
+        conversationId: conversation.id,
+        messageId: appended.message.id,
+        wasNewInsert: appended.wasNewInsert,
+        processedAt: appended.message.processedAt,
+        hasResponse,
+      };
     },
 
     async claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
@@ -108,8 +123,12 @@ export function createMessageLifecycleService(input: {
 
     async wasMessageAlreadyProcessed(handle: MessageLifecycleHandle): Promise<boolean> {
       if (!handle || handle.wasNewInsert) return false;
-      const links = await input.conversationRepository.findDomainLinksForMessage(handle.messageId);
-      return links.length > 0;
+      return Boolean(handle.processedAt || handle.hasResponse);
+    },
+
+    async listDomainLinks(handle: MessageLifecycleHandle) {
+      if (!handle) return [];
+      return input.conversationRepository.findDomainLinksForMessage(handle.messageId);
     },
 
     async recordOutboundReply(
@@ -136,6 +155,15 @@ export function createMessageLifecycleService(input: {
     async recordDomainLink(handle: MessageLifecycleHandle, link: DomainLinkInput): Promise<void> {
       if (!handle) return;
       if (!link.mealId && !link.mealItemId && !link.waterLogId && !link.weightEntryId && !link.exerciseId) return;
+      const existingLinks = await input.conversationRepository.findDomainLinksForMessage(handle.messageId) ?? [];
+      const alreadyLinked = existingLinks.some(existing =>
+        (link.mealId ?? null) === (existing.mealId ?? null)
+        && (link.mealItemId ?? null) === (existing.mealItemId ?? null)
+        && (link.waterLogId ?? null) === (existing.waterLogId ?? null)
+        && (link.weightEntryId ?? null) === (existing.weightEntryId ?? null)
+        && (link.exerciseId ?? null) === (existing.exerciseId ?? null),
+      );
+      if (alreadyLinked) return;
       await input.conversationRepository.linkDomainRecord(handle.messageId, link);
     },
 
@@ -259,6 +287,10 @@ export async function recordOutboundReply(
 
 export async function recordDomainLink(handle: MessageLifecycleHandle, link: DomainLinkInput): Promise<void> {
   await getActiveService().recordDomainLink(handle, link);
+}
+
+export async function listMessageDomainLinks(handle: MessageLifecycleHandle) {
+  return getActiveService().listDomainLinks(handle);
 }
 
 export async function markMessageProcessed(handle: MessageLifecycleHandle, processedAt = new Date()): Promise<void> {
