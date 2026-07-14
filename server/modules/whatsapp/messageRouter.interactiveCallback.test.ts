@@ -159,6 +159,94 @@ describe("messageRouter — resolução central de callbacks interativos (issue 
     expect(result.result.reply).not.toContain("999999998");
   });
 
+  describe("seleção ambígua de item por lista (issue #783)", () => {
+    function ambiguousMeal(userId: number) {
+      return {
+        id: 701,
+        userId,
+        mealLabel: "Lanche",
+        occurredAt: "2026-06-23T18:00:00.000Z",
+        notes: null,
+        items: [
+          { foodName: "Queijo Minas Padrao Fatiado", canonicalName: "Queijo Minas Padrao Fatiado", portionText: "80 g", estimatedGrams: 80, servings: 1, calories: 200, protein: 14, carbs: 1, fat: 16, confidence: 0.9, source: "catalog" },
+          { foodName: "Queijo mussarela", canonicalName: "Queijo mussarela", portionText: "70 g", estimatedGrams: 70, servings: 1, calories: 210, protein: 15, carbs: 1, fat: 17, confidence: 0.9, source: "catalog" },
+        ],
+      };
+    }
+
+    it("ajuste de gramas ambíguo: escolher uma opção por lista aplica a mutação sem pedir confirmação extra", async () => {
+      const userId = 61_201;
+      const meal = ambiguousMeal(userId);
+      listMealsMock.mockResolvedValue([meal]);
+      updateMealMock.mockResolvedValue({ ...meal, items: [{ ...meal.items[0], estimatedGrams: 60, portionText: "60 g" }, meal.items[1]] });
+
+      const { executeWhatsappGramsAdjustmentIntent } = await import("./gramsAdjustmentIntent");
+      const detection = await executeWhatsappGramsAdjustmentIntent(userId, { text: "Diminuir 20g do queijo", receivedAt: new Date("2026-06-23T18:30:00.000Z") });
+      expect(detection?.action).toBe("clarification_needed");
+      const selectFirstId = extractListRowId(detection!.interactiveReply, "Queijo Minas");
+
+      const result = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: selectFirstId });
+      if (result.step !== "interactive_callback") throw new Error("unreachable");
+      expect(result.result.eventType).toBe("whatsapp.intent.meal_item_grams_adjusted");
+      expect(updateMealMock).toHaveBeenCalledTimes(1);
+      expect(updateMealMock.mock.calls[0][1].items[0]).toEqual(expect.objectContaining({ foodName: "Queijo Minas Padrao Fatiado", estimatedGrams: 60 }));
+    });
+
+    it("substituição ambígua: cancelar por lista não altera a refeição", async () => {
+      const userId = 61_202;
+      const jantar = { id: 702, userId, mealLabel: "Jantar", occurredAt: "2026-06-23T18:10:00.000Z", notes: null, items: [{ foodName: "Queijo prato", canonicalName: "Queijo prato", portionText: "50 g", estimatedGrams: 50, servings: 1, calories: 150, protein: 10, carbs: 1, fat: 12, confidence: 0.9, source: "catalog" as const }] };
+      const lanche = { id: 703, userId, mealLabel: "Lanche", occurredAt: "2026-06-23T18:00:00.000Z", notes: null, items: [{ foodName: "Queijo mussarela", canonicalName: "Queijo mussarela", portionText: "70 g", estimatedGrams: 70, servings: 1, calories: 210, protein: 15, carbs: 1, fat: 17, confidence: 0.9, source: "catalog" as const }] };
+      listMealsMock.mockResolvedValue([jantar, lanche]);
+
+      const { executeWhatsappContextualFoodReplacementIntent } = await import("./contextualFoodReplacementIntent");
+      const detection = await executeWhatsappContextualFoodReplacementIntent(userId, { text: "não é queijo, é ricota", receivedAt: new Date("2026-06-23T18:30:00.000Z") });
+      expect(detection?.action).toBe("clarification_needed");
+      const cancelId = extractListRowId(detection!.interactiveReply, "Cancelar");
+
+      const result = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: cancelId });
+      if (result.step !== "interactive_callback") throw new Error("unreachable");
+      expect(result.result.eventType).toBe("whatsapp.intent.meal_item_selection_cancelled");
+      expect(updateMealMock).not.toHaveBeenCalled();
+    });
+
+    it("reentrega/clique duplo na mesma seleção só aplica a mutação uma vez", async () => {
+      const userId = 61_203;
+      const meal = ambiguousMeal(userId);
+      listMealsMock.mockResolvedValue([meal]);
+      updateMealMock.mockResolvedValue({ ...meal, items: [{ ...meal.items[0], estimatedGrams: 60, portionText: "60 g" }, meal.items[1]] });
+
+      const { executeWhatsappGramsAdjustmentIntent } = await import("./gramsAdjustmentIntent");
+      const detection = await executeWhatsappGramsAdjustmentIntent(userId, { text: "Diminuir 20g do queijo", receivedAt: new Date("2026-06-23T18:30:00.000Z") });
+      const selectFirstId = extractListRowId(detection!.interactiveReply, "Queijo Minas");
+
+      const first = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: selectFirstId });
+      if (first.step !== "interactive_callback") throw new Error("unreachable");
+      expect(first.result.eventType).toBe("whatsapp.intent.meal_item_grams_adjusted");
+
+      const second = await resolveWhatsAppPrecedenceGate({ userId, interactiveReplyId: selectFirstId });
+      if (second.step !== "interactive_callback") throw new Error("unreachable");
+      expect(second.result.eventType).toBe("whatsapp.interactive_callback.unavailable");
+      expect(updateMealMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("isolamento entre usuários: seleção de um usuário não pode ser resolvida por outro", async () => {
+      const owner = 61_204;
+      const attacker = 61_205;
+      const meal = ambiguousMeal(owner);
+      listMealsMock.mockResolvedValue([meal]);
+      updateMealMock.mockResolvedValue({ ...meal, items: [{ ...meal.items[0], estimatedGrams: 60, portionText: "60 g" }, meal.items[1]] });
+
+      const { executeWhatsappGramsAdjustmentIntent } = await import("./gramsAdjustmentIntent");
+      const detection = await executeWhatsappGramsAdjustmentIntent(owner, { text: "Diminuir 20g do queijo", receivedAt: new Date("2026-06-23T18:30:00.000Z") });
+      const selectFirstId = extractListRowId(detection!.interactiveReply, "Queijo Minas");
+
+      const attackerAttempt = await resolveWhatsAppPrecedenceGate({ userId: attacker, interactiveReplyId: selectFirstId });
+      if (attackerAttempt.step !== "interactive_callback") throw new Error("unreachable");
+      expect(attackerAttempt.result.eventType).toBe("whatsapp.interactive_callback.unavailable");
+      expect(updateMealMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe("autorização profissional por botões", () => {
     beforeEach(() => {
       global.fetch = vi.fn(async () => ({ ok: true, json: async () => ({}) } as Response)) as typeof fetch;

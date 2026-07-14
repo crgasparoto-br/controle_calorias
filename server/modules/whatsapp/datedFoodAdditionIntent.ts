@@ -140,6 +140,7 @@ export async function executeWhatsappDatedFoodAdditionIntent(
     reply: buildWhatsAppMealActionReplyMessage(createdMeal, {
       title: "Refeição registrada",
       actionLines: [`Registrei ${items.length} item(ns) no ${parsed.mealType} de ${formatReplyDate(parsed.date)}.`],
+      mealResultState: "registered",
     }),
     eventType: "whatsapp.intent.meal_item_added",
     detail: `${items.length} alimento(s) registrados em nova refeição ${parsed.mealType} com data explícita pelo WhatsApp.`,

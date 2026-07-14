@@ -5,6 +5,7 @@ import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { executeWhatsappGramsAdjustmentIntent } from "./modules/whatsapp/gramsAdjustmentIntent";
+import { resolveTextMealItemSelection } from "./modules/whatsapp/mealItemSelectionCallback";
 import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
 import { executeWhatsappLlmIntent, type WhatsappLlmNutritionFallback } from "./modules/whatsapp/llmIntentActions";
 import { getWhatsAppIntentLogStatus, type WhatsAppIntentLogStatus } from "./modules/whatsapp/intentResult";
@@ -14,7 +15,6 @@ import {
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
 import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
-import { tryCreateQuickEditLinkForMeal } from "./modules/quickEdit/service";
 import { getDb, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, logPersistenceWarning, updateUserCurrentWeight } from "./db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
 import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
@@ -26,14 +26,12 @@ import {
   getWhatsAppInteractiveReplyId,
   isWhatsAppMessageForConfiguredChannel,
   resolveWhatsAppMessageOccurredAt,
-  sendWhatsAppInteractiveUrlButtonMessage,
-  sendWhatsAppTextMessage,
   stripDiacritics,
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
 import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
-import { sendWhatsAppLogicalReply } from "./modules/whatsapp/replyTransport";
+import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
@@ -43,7 +41,6 @@ import {
   beginInboundMessage,
   markMessageProcessed,
   recordDomainLink,
-  recordOutboundReply,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
@@ -294,27 +291,6 @@ function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null; items
   return lines;
 }
 
-function formatTotalsLine(totals: NutritionTotals) {
-  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
-}
-
-function buildMealItemSummaryLine(item: { foodName?: string; portionText?: string | null; estimatedGrams?: number; calories?: number; protein?: number; carbs?: number; fat?: number }) {
-  const portion = item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada");
-  return `• ${portion} de ${item.foodName || "alimento"} - ${formatTotalsLine(sumMealItems([item]))}`;
-}
-
-function buildMealFullSummary(meal: { mealLabel?: string | null; items?: Array<{ foodName?: string; portionText?: string | null; estimatedGrams?: number; calories?: number; protein?: number; carbs?: number; fat?: number }> }) {
-  const label = meal.mealLabel?.trim() || "Refeição";
-  const items = meal.items ?? [];
-  if (!items.length) return `Resumo da refeição ${label}: sem alimentos registrados.`;
-
-  return [
-    `Resumo da refeição ${label}:`,
-    ...items.map(buildMealItemSummaryLine),
-    `Total da refeição: ${formatTotalsLine(sumMealItems(items))}`,
-  ].join("\n");
-}
-
 function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; consumedCalories: number; balanceCalories: number }) {
   if (input.goalCalories <= 0) return [];
 
@@ -383,16 +359,7 @@ async function buildExerciseAwarePeriodReportReply(userId: number, result: TextI
 }
 
 async function buildMealAdditionAwareReply(userId: number, result: TextIntentResult) {
-  const baseReply = await buildExerciseAwarePeriodReportReply(userId, result);
-  if (result.action !== "meal_item_added") return baseReply;
-
-  const mealId = extractMealId(result.data);
-  if (!mealId || baseReply.includes("Resumo da refeição")) return baseReply;
-
-  const meal = (await listMeals(userId)).find(candidate => candidate.id === mealId);
-  if (!meal) return baseReply;
-
-  return [baseReply, "", buildMealFullSummary(meal)].join("\n");
+  return buildExerciseAwarePeriodReportReply(userId, result);
 }
 
 function wasTextIntentMessageAlreadyHandled(messageId?: string) {
@@ -446,54 +413,47 @@ async function sendAndLogTextReply(input: {
   mealId?: number | null;
   occurredAtMs?: number;
   lifecycleHandle?: MessageLifecycleHandle;
-  /** Quando presente, botões/lista (issue #782) são enviados pelo transporte central em vez do texto simples de `reply`. */
   interactiveReply?: WhatsAppLogicalReply;
 }) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
 
-  let replyOk: boolean;
-  if (input.interactiveReply) {
-    const result = await sendWhatsAppLogicalReply(input.sourcePhone, input.interactiveReply, {
-      handle: input.lifecycleHandle ?? null,
+  const delivery = await sendWhatsAppLogicalDomainReply({
+    to: input.sourcePhone,
+    userId: input.userId,
+    replyText: input.reply,
+    mealId: input.mealId,
+    logicalReply: input.interactiveReply,
+    lifecycleHandle: input.lifecycleHandle,
+  });
+  const replyOk = delivery.result.primaryOk;
+  if (!delivery.result.ok) {
+    logInferenceEvent({
       userId: input.userId,
+      origin: "whatsapp",
+      status: replyOk ? "warning" : "error",
+      eventType: "whatsapp.reply_failed",
+      detail: `Falha ao enviar resposta lógica para ${input.sourcePhone}.`,
     });
-    replyOk = result.primaryOk;
-    if (!result.ok) {
-      logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: result.primaryOk ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar botões/lista para ${input.sourcePhone}.` });
-    }
-  } else {
-    const quickEditLink = input.mealId
-      ? await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId })
-      : null;
-    const replyResult = quickEditLink?.url
-      ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, input.reply, "Editar refeição", quickEditLink.url)
-      : await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
-
-    if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
-      logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: replyResult.ok ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}` });
-    }
-    replyOk = replyResult.ok;
-    if (replyOk) {
-      await recordOutboundReply(input.lifecycleHandle ?? null, { userId: input.userId, text: input.reply });
-    }
   }
 
-  // Registra a troca no histórico conversacional para enriquecer o contexto do LLM nas próximas mensagens
-  recordConversationTurn(
-    input.userId,
-    input.userMessage,
-    replyOk ? input.reply : null,
-    input.occurredAtMs ?? Date.now(),
-  );
-
-  if (input.mealId) {
-    await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
-  }
+  recordConversationTurn(input.userId, input.userMessage, replyOk ? input.reply : null, input.occurredAtMs ?? Date.now());
+  if (input.mealId) await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
   await markMessageProcessed(input.lifecycleHandle ?? null);
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
   return typeof data?.mealId === "number" ? data.mealId : null;
+}
+
+function extractEditableMealId(result: unknown) {
+  if (!result || typeof result !== "object") return null;
+  const candidate = result as { action?: unknown; data?: unknown };
+  if (candidate.action === "meal_deleted") return null;
+  return extractMealId(
+    candidate.data && typeof candidate.data === "object"
+      ? candidate.data as Record<string, unknown>
+      : undefined,
+  );
 }
 
 function buildMixedWaterReply(waterResults: TextIntentResult[]) {
@@ -589,7 +549,8 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       reply: precedenceGate.result.reply,
       eventType: precedenceGate.result.eventType,
       detail: precedenceGate.result.detail,
-      status: "success",
+      status: "action" in precedenceGate.result && precedenceGate.result.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractEditableMealId(precedenceGate.result),
       occurredAtMs,
       lifecycleHandle,
       interactiveReply: "interactiveReply" in precedenceGate.result ? precedenceGate.result.interactiveReply : undefined,
@@ -702,6 +663,26 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   const pendingContext = await getPendingTextIntentContext(userId);
   const textForIntent = pendingContext?.kind === "period_report" ? `Resumo ${text}` : isBareDailySummaryRequest(text) ? "Resumo hoje" : text;
 
+  const mealItemSelectionResult = await resolveTextMealItemSelection(userId, textForIntent);
+  if (mealItemSelectionResult) {
+    markTextIntentMessageHandled(message.id);
+    await clearPendingTextIntentContext(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: mealItemSelectionResult.reply,
+      eventType: mealItemSelectionResult.eventType,
+      detail: mealItemSelectionResult.detail,
+      status: mealItemSelectionResult.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractMealId(mealItemSelectionResult.data),
+      occurredAtMs,
+      lifecycleHandle,
+      interactiveReply: mealItemSelectionResult.interactiveReply,
+    });
+    return true;
+  }
+
   const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent });
   if (deleteIntentResult) {
     markTextIntentMessageHandled(message.id);
@@ -755,6 +736,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       mealId: extractMealId(contextualReplacementResult.data),
       occurredAtMs,
       lifecycleHandle,
+      interactiveReply: contextualReplacementResult.interactiveReply,
     });
     return true;
   }
@@ -771,9 +753,10 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       eventType: gramsAdjustmentResult.eventType,
       detail: gramsAdjustmentResult.detail,
       status: gramsAdjustmentResult.action === "clarification_needed" ? "warning" : "success",
-      mealId: extractMealId("data" in gramsAdjustmentResult ? gramsAdjustmentResult.data : undefined),
+      mealId: extractMealId(gramsAdjustmentResult.data),
       occurredAtMs,
       lifecycleHandle,
+      interactiveReply: gramsAdjustmentResult.interactiveReply,
     });
     return true;
   }
@@ -818,6 +801,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     mealId: extractMealId(result.data),
     occurredAtMs,
     lifecycleHandle,
+    interactiveReply: "interactiveReply" in result ? result.interactiveReply : undefined,
   });
   return true;
   }

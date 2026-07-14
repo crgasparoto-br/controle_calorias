@@ -32,6 +32,7 @@ export type WhatsAppConsolidatedMealReplyInput = {
 export type WhatsAppMealActionReplyOptions = WhatsAppMealReplyOptions & {
   title: string;
   actionLines?: string[];
+  mealResultState?: "registered" | "updated";
 };
 
 export type WhatsAppAuxiliaryReplyOptions = {
@@ -79,6 +80,13 @@ function buildMealTitle(mealLabel?: string | null, registeredAt?: Date, consolid
   return buildWhatsAppTitle(`${label} ${consolidated ? "Atualizado" : "Registrado"}${suffix}`, { bold: true });
 }
 
+/** Bloco canônico de contexto reutilizado por registro, atualização, consulta e ações (issue #783). */
+export function buildWhatsAppMealContextLine(mealLabel?: string | null, occurredAt?: Date | number | string | null) {
+  const label = mealLabel?.trim() || "Refeição";
+  const time = formatTimeInSaoPaulo(normalizeReplyDate(occurredAt));
+  return `🍽️ ${buildWhatsAppTitle(label, { bold: true })}${time ? ` — ${time}` : ""}`;
+}
+
 function buildMealGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
   const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
   return buildWhatsAppGoalProgressLines(progress
@@ -107,6 +115,7 @@ function buildMealItemLines(items: WhatsAppFoodReplyItem[]) {
 
 function buildMealReplyBody(input: {
   title: string;
+  contextLine: string;
   sourceText?: string | null;
   items: WhatsAppFoodReplyItem[];
   totals: WhatsAppNutritionTotals;
@@ -114,6 +123,8 @@ function buildMealReplyBody(input: {
 }) {
   if (!input.items.length) {
     return buildWhatsAppBlock([
+      input.contextLine,
+      buildWhatsAppSeparator(),
       input.title,
       buildWhatsAppSeparator(),
       input.sourceText || "Não consegui identificar os alimentos com segurança.",
@@ -124,6 +135,8 @@ function buildMealReplyBody(input: {
   }
 
   return buildWhatsAppBlock([
+    input.contextLine,
+    buildWhatsAppSeparator(),
     input.title,
     buildWhatsAppSeparator(),
     "Itens:",
@@ -295,28 +308,33 @@ export function buildWhatsAppPeriodReportReplyMessage(params: { periodLabel: str
 }
 
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
-  const title = buildMealTitle(processed.detectedMealLabel, options.registeredAt);
-  const goalLines = buildMealGoalProgressLines(options.goalProgress, options.registeredAt);
-  return buildMealReplyBody({ title, sourceText: processed.sourceText, items: processed.items, totals: processed.totals, goalLines });
+  const registeredAt = options.registeredAt;
+  const title = buildMealTitle(processed.detectedMealLabel, registeredAt);
+  const contextLine = buildWhatsAppMealContextLine(processed.detectedMealLabel, registeredAt);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+  return buildMealReplyBody({ title, contextLine, sourceText: processed.sourceText, items: processed.items, totals: processed.totals, goalLines });
 }
 
 export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
   const title = buildMealTitle(meal.mealLabel, registeredAt, true);
+  const contextLine = buildWhatsAppMealContextLine(meal.mealLabel, registeredAt);
   const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
-  return buildMealReplyBody({ title, items: meal.items, totals: sumReplyItems(meal.items), goalLines });
+  return buildMealReplyBody({ title, contextLine, items: meal.items, totals: sumReplyItems(meal.items), goalLines });
 }
 
 export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealActionReplyOptions) {
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
   const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
   const actionLines = options.actionLines?.filter(Boolean).map(normalizeActionLine) ?? [];
+  const mealResultLabel = options.mealResultState === "registered" ? "Refeição registrada:" : "Refeição atualizada:";
 
   return buildWhatsAppBlock([
     buildWhatsAppTitle(options.title, { bold: true }),
     ...(actionLines.length ? [buildWhatsAppSeparator(), ...actionLines] : []),
     buildWhatsAppSeparator(),
-    "Refeição atualizada:",
+    mealResultLabel,
+    buildWhatsAppMealContextLine(meal.mealLabel, registeredAt),
     ...buildMealItemLines(meal.items),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(sumReplyItems(meal.items)),
