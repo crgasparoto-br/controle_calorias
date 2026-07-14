@@ -338,6 +338,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     }));
     expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
     expect(sentTextMessages[1]).toBe([
+      "🍽️ *Almoço* — 13:00",
+      "",
       "*Almoço Registrado às 13:00hs.*",
       "",
       "Itens:",
@@ -544,6 +546,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       detail: "provider timeout",
     }));
   });
+
   it("usa o estado persistido ao responder uma refeição nova criada por imagem", async () => {
     const persistedMeal = {
       ...savedImageMeal,
@@ -570,5 +573,4 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(sentTextMessages[1]).toContain("156 kcal | P 3,2 g | C 33,6 g | G 0,4 g");
     expect(sentTextMessages[1]).not.toContain("• 🍚 arroz — 100g");
   });
-
 });
