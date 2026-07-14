@@ -113,7 +113,6 @@ function generateMarkdown(tables: TableInfo[]) {
   lines.push("- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.");
   lines.push("- `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.");
   lines.push("- `professionalPatientAuthorizations` separa consentimento de `professionalPatientTrackings`; cada transição de acompanhamento gera um evento auditável.");
-  lines.push("");
   return `${lines.join("\n")}\n`;
 }
 
