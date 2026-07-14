@@ -1,10 +1,13 @@
 import { getDb, listUserMeals, logPersistenceWarning, relabelUserMeals } from "../../db";
-import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
+import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./replyFormatting";
+import { buildWhatsAppCallbackId } from "./interactiveCallback";
+import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
 import {
   buildWhatsAppActionCancelledReplyMessage,
   buildWhatsAppActionConfirmationRequestReplyMessage,
   buildWhatsAppActionConfirmedReplyMessage,
+  buildWhatsAppCallbackResourceNotFoundReplyMessage,
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppWaterLoggedReplyMessage,
   buildWhatsAppWeightLoggedReplyMessage,
@@ -14,6 +17,9 @@ import {
   normalizeWhatsAppIntentText,
   type WhatsAppWebhookMessage,
 } from "./webhookUtils";
+
+const CONFIRM_ACTION = "confirm";
+const CANCEL_ACTION = "cancel";
 
 export type WhatsAppAction = {
   kind: "reclassify_recent_meals";
@@ -29,7 +35,7 @@ export type PendingWhatsAppConfirmation = {
 
 const PENDING_CONFIRMATION_TTL_MS = 10 * 60 * 1000;
 const PENDING_CONFIRMATION_ORIGIN = "webhookTextCommands";
-const PENDING_CONFIRMATION_TYPE = "confirmation";
+export const PENDING_CONFIRMATION_TYPE = "confirmation";
 
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb,
@@ -127,6 +133,36 @@ async function resolveMatchingRecentMeals(action: WhatsAppAction, userId: number
   return { recentMeals, matchingMeals };
 }
 
+async function applyClaimedGenericConfirmation(
+  userId: number,
+  pending: PendingWhatsAppConfirmation,
+): Promise<{ handled: true; reply: string; eventType: string; detail: string }> {
+  // Revalida o alvo contra o estado atual do banco em vez de confiar cegamente no target persistido (issue #766).
+  const { matchingMeals } = await resolveMatchingRecentMeals(pending.action, userId);
+  if (!matchingMeals.length) {
+    return {
+      handled: true,
+      reply: buildWhatsAppClarificationReplyMessage("Os registros que essa confirmação alteraria não estão mais disponíveis. Envie o comando novamente se ainda quiser reclassificar refeições."),
+      eventType: "whatsapp.action_confirmation_target_stale",
+      detail: `Confirmação consumida, mas alvo (${pending.summary}) não foi mais encontrado no estado atual.`,
+    };
+  }
+
+  const updatedMeals = await relabelUserMeals({
+    userId,
+    mealIds: matchingMeals.map(meal => meal.id),
+    mealLabel: pending.action.toMealLabel,
+    origin: "whatsapp",
+  });
+
+  return {
+    handled: true,
+    reply: buildWhatsAppActionConfirmedReplyMessage(`${updatedMeals.length} registro(s) recente(s) foram alterados de ${pending.action.fromMealLabel} para ${pending.action.toMealLabel}.`),
+    eventType: "whatsapp.action_applied",
+    detail: `Comando confirmado e executado com sucesso: ${pending.summary} em ${updatedMeals.length} registro(s).`,
+  };
+}
+
 export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhookMessage, userId: number) {
   const pendingRow = await pendingOperationRepository.getActivePendingOperation(userId);
   if (!pendingRow || pendingRow.type !== PENDING_CONFIRMATION_TYPE) {
@@ -154,29 +190,39 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
     return null;
   }
 
-  // Revalida o alvo contra o estado atual do banco em vez de confiar cegamente no target persistido (issue #766).
-  const { matchingMeals } = await resolveMatchingRecentMeals(pending.action, userId);
-  if (!matchingMeals.length) {
+  return applyClaimedGenericConfirmation(userId, pending);
+}
+
+/**
+ * Resolve um callback de botão já reivindicado pelo gate central (issue #782):
+ * `messageRouter.ts` já validou dono/estado/expiração e consumiu a versão via
+ * `claimWhatsAppInteractiveCallback`, então esta função só decide o efeito.
+ */
+export async function completeWhatsappGenericConfirmationCallback(
+  userId: number,
+  pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
+  action: string,
+): Promise<{ handled: true; reply: string; eventType: string; detail: string; interactiveReply?: WhatsAppLogicalReply }> {
+  const pending = pendingOperation.target as PendingWhatsAppConfirmation;
+
+  if (action === CANCEL_ACTION) {
     return {
       handled: true,
-      reply: buildWhatsAppClarificationReplyMessage("Os registros que essa confirmação alteraria não estão mais disponíveis. Envie o comando novamente se ainda quiser reclassificar refeições."),
-      eventType: "whatsapp.action_confirmation_target_stale",
-      detail: `Confirmação consumida, mas alvo (${pending.summary}) não foi mais encontrado no estado atual.`,
+      reply: buildWhatsAppActionCancelledReplyMessage("Tudo certo. Não alterei nenhum registro histórico."),
+      eventType: "whatsapp.action_cancelled",
+      detail: `Confirmação cancelada para ${pending.summary} via botão.`,
     };
   }
 
-  const updatedMeals = await relabelUserMeals({
-    userId,
-    mealIds: matchingMeals.map(meal => meal.id),
-    mealLabel: pending.action.toMealLabel,
-    origin: "whatsapp",
-  });
+  if (action === CONFIRM_ACTION) {
+    return applyClaimedGenericConfirmation(userId, pending);
+  }
 
   return {
     handled: true,
-    reply: buildWhatsAppActionConfirmedReplyMessage(`${updatedMeals.length} registro(s) recente(s) foram alterados de ${pending.action.fromMealLabel} para ${pending.action.toMealLabel}.`),
-    eventType: "whatsapp.action_applied",
-    detail: `Comando confirmado e executado com sucesso: ${pending.summary} em ${updatedMeals.length} registro(s).`,
+    reply: buildWhatsAppCallbackResourceNotFoundReplyMessage(),
+    eventType: "whatsapp.action_callback_resource_not_found",
+    detail: `Callback com ação desconhecida (${action}) para confirmação genérica.`,
   };
 }
 
@@ -206,7 +252,7 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
   }
 
   const summary = `${action.fromMealLabel} → ${action.toMealLabel}`;
-  await pendingOperationRepository.createPendingOperation({
+  const created = await pendingOperationRepository.createPendingOperation({
     userId,
     type: PENDING_CONFIRMATION_TYPE,
     origin: PENDING_CONFIRMATION_ORIGIN,
@@ -218,13 +264,23 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
     } satisfies PendingWhatsAppConfirmation,
   });
 
+  const reply = buildWhatsAppActionConfirmationRequestReplyMessage({
+    summary: `Encontrei ${matchingMeals.length} registro(s) recente(s) marcados como ${action.fromMealLabel}.`,
+    confirmInstruction: `Responda SIM para confirmar a mudança para ${action.toMealLabel}.`,
+    cancelInstruction: "Responda CANCELAR para desistir.",
+  });
+
   return {
     handled: true,
-    reply: buildWhatsAppActionConfirmationRequestReplyMessage({
-      summary: `Encontrei ${matchingMeals.length} registro(s) recente(s) marcados como ${action.fromMealLabel}.`,
-      confirmInstruction: `Responda SIM para confirmar a mudança para ${action.toMealLabel}.`,
-      cancelInstruction: "Responda CANCELAR para desistir.",
-    }),
+    reply,
+    ...(created
+      ? {
+          interactiveReply: buttonsReply(reply, [
+            { id: buildWhatsAppCallbackId(created.id, CONFIRM_ACTION), title: "Confirmar" },
+            { id: buildWhatsAppCallbackId(created.id, CANCEL_ACTION), title: "Cancelar" },
+          ]),
+        }
+      : {}),
     eventType: "whatsapp.action_confirmation_requested",
     detail: `Confirmação solicitada para ${summary} em ${matchingMeals.length} registro(s).`,
   };

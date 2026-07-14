@@ -23,6 +23,7 @@ import {
   collapseWhitespace,
   extractWhatsAppWebhookMessages,
   getExtractedWhatsAppMessageKey,
+  getWhatsAppInteractiveReplyId,
   isWhatsAppMessageForConfiguredChannel,
   resolveWhatsAppMessageOccurredAt,
   sendWhatsAppInteractiveUrlButtonMessage,
@@ -31,6 +32,8 @@ import {
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
+import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
+import { sendWhatsAppLogicalReply } from "./modules/whatsapp/replyTransport";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
@@ -98,7 +101,9 @@ function getTextBody(message: WhatsAppWebhookMessage) {
 }
 
 function canInterpretTextIntent(message: WhatsAppWebhookMessage) {
-  return Boolean(getTextBody(message) && !message.image?.id && !message.audio?.id);
+  return Boolean(
+    (getTextBody(message) || getWhatsAppInteractiveReplyId(message)) && !message.image?.id && !message.audio?.id,
+  );
 }
 
 function normalizeText(value: string) {
@@ -441,31 +446,46 @@ async function sendAndLogTextReply(input: {
   mealId?: number | null;
   occurredAtMs?: number;
   lifecycleHandle?: MessageLifecycleHandle;
+  /** Quando presente, botões/lista (issue #782) são enviados pelo transporte central em vez do texto simples de `reply`. */
+  interactiveReply?: WhatsAppLogicalReply;
 }) {
   logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: input.status, eventType: input.eventType, detail: input.detail });
 
-  const quickEditLink = input.mealId
-    ? await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId })
-    : null;
-  const replyResult = quickEditLink?.url
-    ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, input.reply, "Editar refeição", quickEditLink.url)
-    : await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
+  let replyOk: boolean;
+  if (input.interactiveReply) {
+    const result = await sendWhatsAppLogicalReply(input.sourcePhone, input.interactiveReply, {
+      handle: input.lifecycleHandle ?? null,
+      userId: input.userId,
+    });
+    replyOk = result.primaryOk;
+    if (!result.ok) {
+      logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: result.primaryOk ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar botões/lista para ${input.sourcePhone}.` });
+    }
+  } else {
+    const quickEditLink = input.mealId
+      ? await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId })
+      : null;
+    const replyResult = quickEditLink?.url
+      ? await sendWhatsAppInteractiveUrlButtonMessage(input.sourcePhone, input.reply, "Editar refeição", quickEditLink.url)
+      : await sendWhatsAppTextMessage(input.sourcePhone, input.reply);
 
-  if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
-    logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: replyResult.ok ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}` });
+    if (!replyResult.ok || "usedFallback" in replyResult && replyResult.usedFallback) {
+      logInferenceEvent({ userId: input.userId, origin: "whatsapp", status: replyResult.ok ? "warning" : "error", eventType: "whatsapp.reply_failed", detail: `Falha ao enviar resposta automática para ${input.sourcePhone}: ${replyResult.detail}` });
+    }
+    replyOk = replyResult.ok;
+    if (replyOk) {
+      await recordOutboundReply(input.lifecycleHandle ?? null, { userId: input.userId, text: input.reply });
+    }
   }
 
   // Registra a troca no histórico conversacional para enriquecer o contexto do LLM nas próximas mensagens
   recordConversationTurn(
     input.userId,
     input.userMessage,
-    replyResult.ok ? input.reply : null,
+    replyOk ? input.reply : null,
     input.occurredAtMs ?? Date.now(),
   );
 
-  if (replyResult.ok) {
-    await recordOutboundReply(input.lifecycleHandle ?? null, { userId: input.userId, text: input.reply });
-  }
   if (input.mealId) {
     await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
   }
@@ -553,10 +573,12 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     return true;
   }
 
-  // Precedência obrigatória (issue #766): comando explícito `/` e pendência operacional
-  // ativa são resolvidos em um único ponto compartilhado, antes de qualquer classificação
-  // de intenção (exclusão, ajuste, substituição, LLM etc).
-  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt });
+  // Precedência obrigatória (issue #766): comando explícito `/`, pendência operacional
+  // ativa e callback de botão/lista (issue #782) são resolvidos em um único ponto
+  // compartilhado, antes de qualquer classificação de intenção (exclusão, ajuste,
+  // substituição, LLM etc).
+  const interactiveReplyId = getWhatsAppInteractiveReplyId(message);
+  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, interactiveReplyId });
   if (precedenceGate.step !== "continue_pipeline") {
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -570,6 +592,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       status: "success",
       occurredAtMs,
       lifecycleHandle,
+      interactiveReply: "interactiveReply" in precedenceGate.result ? precedenceGate.result.interactiveReply : undefined,
     });
     return true;
   }
@@ -693,6 +716,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       status: "warning",
       occurredAtMs,
       lifecycleHandle,
+      interactiveReply: deleteIntentResult.interactiveReply,
     });
     return true;
   }

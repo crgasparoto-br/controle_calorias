@@ -196,6 +196,22 @@ export function buildWhatsAppRecoverableErrorReplyMessage(message: string) {
   return buildWhatsAppAuxiliaryReplyMessage({ title: "Não consegui concluir agora", lines: [message] });
 }
 
+/** Pendência expirada, consumida, cancelada ou de callback inválido (issue #782): nunca revela o estado exato. */
+export function buildWhatsAppCallbackUnavailableReplyMessage() {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "⚠️ Esta solicitação não está mais disponível",
+    lines: ["Ela já foi concluída, cancelada ou expirou. Envie novamente o que deseja fazer."],
+  });
+}
+
+/** Pendência válida, mas o recurso atual não existe mais ou não satisfaz mais a condição registrada (issue #782). */
+export function buildWhatsAppCallbackResourceNotFoundReplyMessage() {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "⚠️ Registro não encontrado",
+    lines: ["O registro pode ter sido alterado ou excluído. Consulte os dados atuais e tente novamente."],
+  });
+}
+
 export function buildWhatsAppSecurityBlockedReplyMessage() {
   return buildWhatsAppAuxiliaryReplyMessage({
     title: "Não posso seguir essa instrução",

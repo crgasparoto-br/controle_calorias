@@ -2,11 +2,28 @@ import crypto from "node:crypto";
 import { and, eq, or } from "drizzle-orm";
 import { userPreferences, users, whatsappConnections } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
-import { getDb, getUserWhatsappConnection, listUserMeals, logInferenceEvent } from "../../db";
+import { getDb, getUserWhatsappConnection, listUserMeals, logInferenceEvent, logPersistenceWarning } from "../../db";
 import { getPeriodReportBundle, getWeeklyReportBundle } from "../insights/service";
 import { redactSensitiveText } from "../../privacy";
 import { getNutritionGoal } from "../goals/service";
-import { sendWhatsAppTextMessage } from "../whatsapp/webhookUtils";
+import { buildWhatsAppCallbackId } from "../whatsapp/interactiveCallback";
+import { buttonsReply, type WhatsAppLogicalReply } from "../whatsapp/replyContract";
+import { sendWhatsAppLogicalReply } from "../whatsapp/replyTransport";
+import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "../whatsapp/replyMessages";
+import {
+  createDrizzleWhatsAppPendingOperationRepository,
+  type WhatsAppPendingOperationRecord,
+} from "../../repositories/whatsappPendingOperationRepository";
+
+export const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
+const PENDING_PROFESSIONAL_ACCESS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const PENDING_PROFESSIONAL_ACCESS_ORIGIN = "professionals/service";
+const AUTHORIZE_ACTION = "authorize";
+const REJECT_ACTION = "reject";
+const professionalAccessPendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
+  getDb,
+  onWarning: logPersistenceWarning,
+});
 import {
   professionalPatientAnswerSchema,
   type ProfessionalCommentInput,
@@ -533,7 +550,21 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
     reason: access.reason,
     accessId: access.id,
   });
-  const result = await sendWhatsAppTextMessage(connection.phoneNumber, message);
+  const pendingOperation = await professionalAccessPendingOperationRepository.createPendingOperation({
+    userId: access.patientUserId,
+    type: PENDING_PROFESSIONAL_ACCESS_TYPE,
+    origin: PENDING_PROFESSIONAL_ACCESS_ORIGIN,
+    ttlMs: PENDING_PROFESSIONAL_ACCESS_TTL_MS,
+    target: { accessId: access.id },
+  });
+  const reply: WhatsAppLogicalReply = pendingOperation
+    ? buttonsReply(message, [
+        { id: buildWhatsAppCallbackId(pendingOperation.id, AUTHORIZE_ACTION), title: "Autorizar" },
+        { id: buildWhatsAppCallbackId(pendingOperation.id, REJECT_ACTION), title: "Recusar" },
+      ])
+    : { kind: "functional", messages: [{ type: "text", body: message }] };
+  const sendResult = await sendWhatsAppLogicalReply(connection.phoneNumber, reply);
+  const result = { ok: sendResult.primaryOk, detail: sendResult.sends[0]?.detail ?? "Falha desconhecida ao enviar autorização pelo WhatsApp." };
   const sent: ProfessionalPatientAccess = result.ok
     ? {
         ...access,
@@ -587,6 +618,55 @@ function findPendingAccessFromWhatsappText(pendingAccesses: ProfessionalPatientA
   return pendingAccesses.length === 1 ? pendingAccesses[0] : null;
 }
 
+async function applyProfessionalAccessWhatsappDecision(
+  patientUserId: number,
+  access: ProfessionalPatientAccess,
+  decision: "approved" | "rejected",
+  responseOrigin: AccessResponseOrigin,
+): Promise<{ handled: true; action: string; reply: string; eventType: string; detail: string; data: ReturnType<typeof publicAccess> }> {
+  const now = Date.now();
+  const updated: ProfessionalPatientAccess = decision === "approved"
+    ? {
+        ...access,
+        status: "approved",
+        approvedAt: now,
+        revokedAt: null,
+        rejectedAt: null,
+        respondedAt: now,
+        responseOrigin,
+        responseDecision: "approved",
+      }
+    : {
+        ...access,
+        status: "rejected",
+        approvedAt: null,
+        revokedAt: null,
+        rejectedAt: now,
+        respondedAt: now,
+        responseOrigin,
+        responseDecision: "rejected",
+      };
+
+  await persistAccessForBothSides(updated);
+  const professionalProfile = await getProfessionalProfile(access.professionalUserId);
+  pushHistory({
+    actorUserId: patientUserId,
+    professionalUserId: access.professionalUserId,
+    patientUserId,
+    eventType: decision === "approved" ? "access_approved" : "access_rejected",
+  });
+
+  const action = decision === "approved" ? "professional_access_approved" : "professional_access_rejected";
+  return {
+    handled: true,
+    action,
+    reply: buildDecisionReply(decision, professionalProfile),
+    eventType: `professional.access.whatsapp_${decision}`,
+    detail: `Solicitação de acompanhamento ${decision === "approved" ? "aprovada" : "recusada"} via ${responseOrigin === "whatsapp" ? "WhatsApp (texto)" : responseOrigin} pela pessoa acompanhada #${patientUserId}.`,
+    data: publicAccess(updated),
+  };
+}
+
 export async function processProfessionalAccessWhatsappResponse(patientUserId: number, text: string) {
   const decision = parseProfessionalAccessWhatsappDecision(text);
   if (!decision) return null;
@@ -606,47 +686,48 @@ export async function processProfessionalAccessWhatsappResponse(patientUserId: n
     };
   }
 
-  const now = Date.now();
-  const updated: ProfessionalPatientAccess = decision === "approved"
-    ? {
-        ...access,
-        status: "approved",
-        approvedAt: now,
-        revokedAt: null,
-        rejectedAt: null,
-        respondedAt: now,
-        responseOrigin: "whatsapp",
-        responseDecision: "approved",
-      }
-    : {
-        ...access,
-        status: "rejected",
-        approvedAt: null,
-        revokedAt: null,
-        rejectedAt: now,
-        respondedAt: now,
-        responseOrigin: "whatsapp",
-        responseDecision: "rejected",
-      };
+  return applyProfessionalAccessWhatsappDecision(patientUserId, access, decision, "whatsapp");
+}
 
-  await persistAccessForBothSides(updated);
-  const professionalProfile = await getProfessionalProfile(access.professionalUserId);
-  pushHistory({
-    actorUserId: patientUserId,
-    professionalUserId: access.professionalUserId,
-    patientUserId,
-    eventType: decision === "approved" ? "access_approved" : "access_rejected",
-  });
+/**
+ * Resolve um callback de botão (Autorizar/Recusar) já reivindicado pelo gate
+ * central (issue #782): `messageRouter.ts` já validou dono/estado/expiração da
+ * pendência e consumiu a versão via `claimWhatsAppInteractiveCallback`. Esta
+ * função revalida que a solicitação referenciada ainda pertence ao paciente e
+ * continua pendente antes de aplicar a decisão — repetição (reentrega, clique
+ * duplo, ou o texto AUTORIZAR/NEGAR chegando depois) não muda uma decisão já
+ * consumida, pois `access.status` deixa de ser `"pending"` após a primeira aplicação.
+ */
+export async function completeWhatsAppProfessionalAccessCallback(
+  patientUserId: number,
+  pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
+  action: string,
+): Promise<{ handled: true; reply: string; eventType: string; detail: string; action?: string; data?: ReturnType<typeof publicAccess> }> {
+  const target = pendingOperation.target as { accessId?: unknown };
+  const accessId = typeof target?.accessId === "string" ? target.accessId : null;
+  if (!accessId || (action !== AUTHORIZE_ACTION && action !== REJECT_ACTION)) {
+    return {
+      handled: true,
+      reply: buildWhatsAppCallbackResourceNotFoundReplyMessage(),
+      eventType: "professional.access.whatsapp_callback_invalid",
+      detail: "Callback de autorização profissional com alvo ou ação inválidos.",
+    };
+  }
 
-  const action = decision === "approved" ? "professional_access_approved" : "professional_access_rejected";
-  return {
-    handled: true,
-    action,
-    reply: buildDecisionReply(decision, professionalProfile),
-    eventType: `professional.access.whatsapp_${decision}`,
-    detail: `Solicitação de acompanhamento ${decision === "approved" ? "aprovada" : "recusada"} via WhatsApp pela pessoa acompanhada #${patientUserId}.`,
-    data: publicAccess(updated),
-  };
+  const pendingAccesses = (await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY))
+    .filter(access => access.status === "pending");
+  const access = pendingAccesses.find(candidate => candidate.id === accessId && candidate.patientUserId === patientUserId);
+  if (!access) {
+    return {
+      handled: true,
+      reply: buildWhatsAppCallbackResourceNotFoundReplyMessage(),
+      eventType: "professional.access.whatsapp_callback_resource_not_found",
+      detail: `Callback de autorização profissional resolvido, mas a solicitação ${accessId} não está mais pendente para a pessoa acompanhada #${patientUserId}.`,
+    };
+  }
+
+  const decision = action === AUTHORIZE_ACTION ? "approved" : "rejected";
+  return applyProfessionalAccessWhatsappDecision(patientUserId, access, decision, "whatsapp");
 }
 
 export async function getProfessionalStatus(userId: number) {
