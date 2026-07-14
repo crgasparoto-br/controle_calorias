@@ -1,0 +1,136 @@
+diff --git a/server/modules/whatsapp/intent/mealTargetResolution.ts b/server/modules/whatsapp/intent/mealTargetResolution.ts
+index 778e15c..0000000 100644
+--- a/server/modules/whatsapp/intent/mealTargetResolution.ts
++++ b/server/modules/whatsapp/intent/mealTargetResolution.ts
+@@ -64,32 +64,23 @@ export function resolveTargetMealItemInMeals<TMeal extends MealWithItems>(
+   const latestMeal = meals[0];
+   if (!latestMeal) {
+     return { kind: "none" };
+   }
+ 
++  const matches: MealItemTargetCandidate<TMeal>[] = [];
+   const latestTarget = resolveTargetMealItem(toMealItemInputs(latestMeal.items), targetFood);
+   if (latestTarget.kind === "matched") {
+-    return {
+-      ...latestTarget,
+-      kind: "matched",
+-      meal: latestMeal,
+-      mealIndex: 0,
+-      scope: "latest_meal",
+-      scopeLabel: scopeLabel("latest_meal"),
+-    };
+-  }
+-  if (latestTarget.kind === "ambiguous") {
+-    return {
+-      kind: "ambiguous",
+-      meal: latestMeal,
+-      mealIndex: 0,
+-      candidates: candidatesForMeal(latestMeal, 0, latestTarget.candidates),
+-      scope: "latest_meal",
+-      scopeLabel: scopeLabel("latest_meal"),
+-    };
++    matches.push({
++      item: latestTarget.item,
++      index: latestTarget.index,
++      score: latestTarget.score,
++      matchedAllTargetTokens: true,
++      meal: latestMeal,
++      mealIndex: 0,
++    });
++  } else if (latestTarget.kind === "ambiguous") {
++    matches.push(...candidatesForMeal(latestMeal, 0, latestTarget.candidates));
+   }
+ 
+-  const sameDayMatches: MealItemTargetCandidate<TMeal>[] = [];
+-
+   for (const [mealIndex, meal] of meals.entries()) {
+     if (mealIndex === 0 || !meal.items?.length || !sameZonedDay(latestMeal.occurredAt, meal.occurredAt)) {
+       continue;
+@@ -97,11 +90,11 @@ export function resolveTargetMealItemInMeals<TMeal extends MealWithItems>(
+ 
+     const target = resolveTargetMealItem(toMealItemInputs(meal.items), targetFood);
+     if (target.kind === "ambiguous") {
+-      sameDayMatches.push(...candidatesForMeal(meal, mealIndex, target.candidates));
++      matches.push(...candidatesForMeal(meal, mealIndex, target.candidates));
+       continue;
+     }
+     if (target.kind === "matched") {
+-      sameDayMatches.push({
++      matches.push({
+         item: target.item,
+         index: target.index,
+         score: target.score,
+@@ -115,29 +108,33 @@ export function resolveTargetMealItemInMeals<TMeal extends MealWithItems>(
+     }
+   }
+ 
+-  if (sameDayMatches.length === 1) {
+-    const match = sameDayMatches[0];
++  if (matches.length === 1) {
++    const match = matches[0];
++    const scope: MealTargetScope = match.mealIndex === 0 ? "latest_meal" : "same_day_meals";
+     return {
+       kind: "matched",
+       meal: match.meal,
+       mealIndex: match.mealIndex,
+       item: match.item,
+       index: match.index,
+       score: match.score,
+-      scope: "same_day_meals",
+-      scopeLabel: scopeLabel("same_day_meals"),
++      scope,
++      scopeLabel: scopeLabel(scope),
+     };
+   }
+ 
+-  if (sameDayMatches.length > 1) {
+-    const candidates = sameDayMatches.slice(0, 10);
++  if (matches.length > 1) {
++    const candidates = matches.slice(0, 10);
++    const scope: MealTargetScope = candidates.some(candidate => candidate.mealIndex > 0)
++      ? "same_day_meals"
++      : "latest_meal";
+     return {
+       kind: "ambiguous",
+       meal: candidates[0].meal,
+       mealIndex: candidates[0].mealIndex,
+       candidates,
+-      scope: "same_day_meals",
+-      scopeLabel: scopeLabel("same_day_meals"),
++      scope,
++      scopeLabel: scopeLabel(scope),
+     };
+   }
+ 
+diff --git a/server/modules/whatsapp/intent/mealTargetResolution.test.ts b/server/modules/whatsapp/intent/mealTargetResolution.test.ts
+index 6174320..0000000 100644
+--- a/server/modules/whatsapp/intent/mealTargetResolution.test.ts
++++ b/server/modules/whatsapp/intent/mealTargetResolution.test.ts
+@@ -51,6 +51,30 @@ describe("resolveTargetMealItemInMeals", () => {
+     ]);
+   });
+ 
++  it("mantém ambiguidade quando há candidato na refeição mais recente e em outra refeição do dia", () => {
++    const meals = [
++      {
++        id: 1,
++        mealLabel: "Jantar",
++        occurredAt: "2026-07-12T22:00:00.000Z",
++        items: [item("Queijo minas")],
++      },
++      {
++        id: 2,
++        mealLabel: "Almoço",
++        occurredAt: "2026-07-12T16:00:00.000Z",
++        items: [item("Queijo mussarela")],
++      },
++    ];
++
++    const result = resolveTargetMealItemInMeals(meals, "queijo");
++
++    expect(result.kind).toBe("ambiguous");
++    if (result.kind !== "ambiguous") throw new Error("resultado inesperado");
++    expect(result.scope).toBe("same_day_meals");
++    expect(result.candidates.map(candidate => candidate.meal.id)).toEqual([1, 2]);
++  });
++
