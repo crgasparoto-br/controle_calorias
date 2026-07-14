@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.
 
-Fonte: `drizzle/schema.ts`.
+Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 
 ## Tabelas
 
@@ -45,6 +45,10 @@ Fonte: `drizzle/schema.ts`.
 | `appSecrets` | `appSecrets` | 6 | Baixa |
 | `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
+| `professionalProfiles` | `professionalProfiles` | 6 | Requer atenção |
+| `professionalPatientAuthorizations` | `professionalPatientAuthorizations` | 19 | Requer atenção |
+| `professionalPatientTrackings` | `professionalPatientTrackings` | 13 | Requer atenção |
+| `professionalPatientTrackingEvents` | `professionalPatientTrackingEvents` | 9 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
@@ -75,6 +79,10 @@ Fonte: `drizzle/schema.ts`.
 - `whatsappConversationSummaries` via export `whatsappConversationSummaries`.
 - `whatsappPendingOperations` via export `whatsappPendingOperations`.
 - `inferenceLogs` via export `inferenceLogs`.
+- `professionalProfiles` via export `professionalProfiles`.
+- `professionalPatientAuthorizations` via export `professionalPatientAuthorizations`.
+- `professionalPatientTrackings` via export `professionalPatientTrackings`.
+- `professionalPatientTrackingEvents` via export `professionalPatientTrackingEvents`.
 
 ## Campos sensíveis conhecidos
 
@@ -109,10 +117,14 @@ Fonte: `drizzle/schema.ts`.
 | `whatsappMessageDomainLinks` | `messageId`, `weightEntryId` |
 | `whatsappConversationSummaries` | `summaryText`, `fromMessageId`, `toMessageId` |
 | `inferenceLogs` | `detail` |
+| `professionalProfiles` | `displayName` |
+| `professionalPatientAuthorizations` | `professionalUserId`, `patientUserId`, `reason`, `authorizationMessageStatus`, `authorizationMessageSentAt`, `authorizationMessageError` |
+| `professionalPatientTrackings` | `authorizationId`, `professionalUserId`, `patientUserId`, `lastTransitionReason` |
+| `professionalPatientTrackingEvents` | `authorizationId`, `actorUserId`, `reason`, `occurredAt` |
 
 ## Relações críticas
 
 - A maioria dos dados de domínio referencia `users.id`.
 - `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.
 - `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.
-
+- `professionalPatientAuthorizations` separa consentimento de `professionalPatientTrackings`; cada transição de acompanhamento gera um evento auditável.
