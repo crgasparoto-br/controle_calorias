@@ -1,0 +1,75 @@
+   it("mantém dois itens compatíveis da mesma refeição como candidatos distintos", () => {
+     const meals = [
+       {
+diff --git a/server/modules/whatsapp/replyMessages.ts b/server/modules/whatsapp/replyMessages.ts
+index 97f75db..0000000 100644
+--- a/server/modules/whatsapp/replyMessages.ts
++++ b/server/modules/whatsapp/replyMessages.ts
+@@ -303,6 +303,13 @@ export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult,
+   return buildMealReplyBody({ title, sourceText: processed.sourceText, items: processed.items, totals: processed.totals, goalLines });
+ }
+ 
++export function buildWhatsAppPersistedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
++  const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
++  const title = buildMealTitle(meal.mealLabel, registeredAt);
++  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
++  return buildMealReplyBody({ title, items: meal.items, totals: sumReplyItems(meal.items), goalLines });
++}
++
+ export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
+   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
+   const title = buildMealTitle(meal.mealLabel, registeredAt, true);
+diff --git a/server/whatsappWebhook.ts b/server/whatsappWebhook.ts
+index 4794462..0000000 100644
+--- a/server/whatsappWebhook.ts
++++ b/server/whatsappWebhook.ts
+@@ -16,3 +16,3 @@ import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDedu
+ import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
+ import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./modules/whatsapp/replyFormatting";
+-import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage, buildWhatsAppWaterVolumeNeededReplyMessage } from "./modules/whatsapp/replyMessages";
++import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppPersistedMealReplyMessage, buildWhatsAppWaterVolumeNeededReplyMessage } from "./modules/whatsapp/replyMessages";
+@@ -711,3 +711,4 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
+ 
+       const replyMeal = consolidationResult.meal;
+       await recordDomainLink(lifecycleHandle, { mealId: replyMeal.id });
++      const currentReplyMeal = (await listUserMeals(userId)).find(meal => meal.id === replyMeal.id) ?? replyMeal;
+@@ -723,11 +725,11 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
+       });
+ 
+       const mealReplyText = consolidationResult.action === "updated"
+-        ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
++        ? buildWhatsAppConsolidatedMealReplyMessage(currentReplyMeal, {
+             registeredAt: occurredAt,
+             goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+           })
+-        : buildWhatsAppMealReplyMessage(processedForPersistence, {
++        : buildWhatsAppPersistedMealReplyMessage(currentReplyMeal, {
+             registeredAt: occurredAt,
+             goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+           });
+diff --git a/server/whatsappAnnotatedImageWebhook.ts b/server/whatsappAnnotatedImageWebhook.ts
+index c040fe2..0000000 100644
+--- a/server/whatsappAnnotatedImageWebhook.ts
++++ b/server/whatsappAnnotatedImageWebhook.ts
+@@ -11,3 +11,3 @@ import {
+   inspectWhatsAppUserContentSafety,
+ } from "./modules/whatsapp/promptInjectionGuard";
+-import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage } from "./modules/whatsapp/replyMessages";
++import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppPersistedMealReplyMessage } from "./modules/whatsapp/replyMessages";
+@@ -323,3 +323,4 @@ async function handleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookMess
+     );
+     const replyMeal = consolidationResult.meal;
++    const currentReplyMeal = (await listUserMeals(userId)).find(meal => meal.id === replyMeal.id) ?? replyMeal;
+     await recordDomainLink(lifecycleHandle, { mealId: replyMeal.id });
+@@ -334,11 +335,11 @@ async function handleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookMess
+     });
+ 
+     const mealReplyText = consolidationResult.action === "updated"
+-      ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
++      ? buildWhatsAppConsolidatedMealReplyMessage(currentReplyMeal, {
+           registeredAt: occurredAt,
+           goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+         })
+-      : buildWhatsAppMealReplyMessage(processedForPersistence, {
++      : buildWhatsAppPersistedMealReplyMessage(currentReplyMeal, {
+           registeredAt: occurredAt,
