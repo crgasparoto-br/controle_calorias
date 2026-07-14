@@ -14,10 +14,10 @@
  * `replyTransport.ts`.
  */
 
-export type WhatsAppOutboundMessageRole = "primary" | "auxiliary";
+export type WhatsAppOutboundMessageRole = "auxiliary";
 
 type WhatsAppOutboundMessageMetadata = {
-  /** Função da mensagem física dentro da resposta lógica. */
+  /** Mensagens sem papel explícito são primárias pela posição 0; auxiliares são marcadas. */
   role?: WhatsAppOutboundMessageRole;
 };
 
@@ -102,16 +102,16 @@ export function resolveWhatsAppLogicalReplyRecordText(reply: WhatsAppLogicalRepl
 }
 
 export function textReply(body: string): WhatsAppLogicalReply {
-  return { kind: "functional", messages: [{ type: "text", body, role: "primary" }] };
+  return { kind: "functional", messages: [{ type: "text", body }] };
 }
 
 export function acknowledgementReply(body: string): WhatsAppLogicalReply {
-  return { kind: "acknowledgement", messages: [{ type: "text", body, role: "primary" }] };
+  return { kind: "acknowledgement", messages: [{ type: "text", body }] };
 }
 
 /** Adapta um builder legado (`string`) para a mensagem de texto do contrato central, sem remover o export original. */
 export function logicalReplyFromLegacyText(body: string, kind: WhatsAppLogicalReplyKind = "functional"): WhatsAppLogicalReply {
-  return { kind, messages: [{ type: "text", body, role: "primary" }] };
+  return { kind, messages: [{ type: "text", body }] };
 }
 
 /** Substitui a mensagem primária de texto por um CTA URL (edição rápida, onboarding), preservando a sequência restante. */
@@ -120,7 +120,7 @@ export function withCtaUrl(reply: WhatsAppLogicalReply, cta: { buttonText: strin
   const bodyText = extractPrimaryRecordText(primary) ?? "";
   return {
     ...reply,
-    messages: [{ type: "cta_url", bodyText, buttonText: cta.buttonText, url: cta.url, role: "primary" }, ...rest],
+    messages: [{ type: "cta_url", bodyText, buttonText: cta.buttonText, url: cta.url }, ...rest],
     recordText: reply.recordText ?? bodyText,
   };
 }
@@ -144,14 +144,14 @@ export function withAuxiliaryImage(reply: WhatsAppLogicalReply, image: WhatsAppA
 export function sequencedTextReply(bodies: string[], kind: WhatsAppLogicalReplyKind = "functional"): WhatsAppLogicalReply {
   return {
     kind,
-    messages: bodies.map((body, index) => ({ type: "text", body, role: index === 0 ? "primary" : "auxiliary" })),
+    messages: bodies.map((body, index) => ({ type: "text", body, ...(index > 0 ? { role: "auxiliary" as const } : {}) })),
   };
 }
 
 export function buttonsReply(bodyText: string, buttons: WhatsAppReplyButtonSpec[]): WhatsAppLogicalReply {
-  return { kind: "functional", messages: [{ type: "buttons", bodyText, buttons, role: "primary" }] };
+  return { kind: "functional", messages: [{ type: "buttons", bodyText, buttons }] };
 }
 
 export function listReply(bodyText: string, buttonText: string, sections: WhatsAppReplyListSectionSpec[]): WhatsAppLogicalReply {
-  return { kind: "functional", messages: [{ type: "list", bodyText, buttonText, sections, role: "primary" }] };
+  return { kind: "functional", messages: [{ type: "list", bodyText, buttonText, sections }] };
 }
