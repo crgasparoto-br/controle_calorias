@@ -1,0 +1,98 @@
+-    }
+-  }
+-
+-  const rebuilt = [...byFoodName.values()].sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+-  await persistHabitsToDb(userId, rebuilt);
+-  habitStore.set(userId, rebuilt);
+-  return rebuilt;
+ }
+diff --git a/server/modules/meals/service.ts b/server/modules/meals/service.ts
+index 160551b..0000000 100644
+--- a/server/modules/meals/service.ts
++++ b/server/modules/meals/service.ts
+@@ -2,6 +2,9 @@ import {
++  applyUserMealHabitsFromSnapshot,
+   buildSavedMedia,
++  captureUserMealHabitsSnapshot,
+@@ -15,7 +18,7 @@ import {
+   logInferenceEvent,
+   logPersistenceWarning,
+-  rebuildUserMealHabits,
++  restoreUserMealHabitsSnapshot,
+@@ -20,6 +23,7 @@ import {
+   updateUserMeal,
++  type UserMealHabitSnapshot,
+ } from "../../db";
+@@ -339,9 +343,13 @@ export type UpdateMealServiceOptions = {
+   logEvent?: boolean;
+   finalizeBatch?: {
+-    meals: Array<{ items: MealItemWithNutritionSnapshot[] }>;
++    meals: Array<{ mealLabel: string; occurredAt: number | string | Date; items: MealItemWithNutritionSnapshot[] }>;
++    habitSnapshot: UserMealHabitSnapshot;
+     recordCatalogUsage?: boolean;
++    restoreHabits?: boolean;
+     throwOnHabitFailure?: boolean;
+   };
+ };
++
++export async function captureMealBatchHabitSnapshot(userId: number) {
++  return captureUserMealHabitsSnapshot(userId);
++}
+@@ -374,7 +382,11 @@ export async function updateMeal(userId: number, input: UpdateMealInput) {
+ 
+     try {
+-      await rebuildUserMealHabits(userId);
++      if (options.finalizeBatch.restoreHabits) {
++        await restoreUserMealHabitsSnapshot(userId, options.finalizeBatch.habitSnapshot);
++      } else {
++        await applyUserMealHabitsFromSnapshot(userId, options.finalizeBatch.habitSnapshot, options.finalizeBatch.meals);
++      }
+     } catch (error) {
+-      logPersistenceWarning("Meal batch habit rebuild skipped", error);
++      logPersistenceWarning("Meal batch habit finalization failed", error);
+diff --git a/server/modules/whatsapp/mealBatchMutation.ts b/server/modules/whatsapp/mealBatchMutation.ts
+index 70f1709..0000000 100644
+--- a/server/modules/whatsapp/mealBatchMutation.ts
++++ b/server/modules/whatsapp/mealBatchMutation.ts
+@@ -1,5 +1,5 @@
+ import type { MealItemInput } from "../meals/schemas";
+-import { updateMeal, type UpdateMealServiceOptions } from "../meals/service";
++import { captureMealBatchHabitSnapshot, updateMeal, type UpdateMealServiceOptions } from "../meals/service";
+@@ -88,6 +88,7 @@ export async function updateMealsWithCompensation(
+   validateChanges(changes);
+   if (!changes.length) return [];
++  const habitSnapshot = await captureMealBatchHabitSnapshot(userId);
+@@ -95,7 +96,11 @@ export async function updateMealsWithCompensation(
+       attempted.push(change);
+       const finalizeBatch = index === changes.length - 1
+-        ? { meals: changes.map(item => ({ items: item.after.items })) }
++        ? {
++            meals: changes.map(item => item.after),
++            habitSnapshot,
++            throwOnHabitFailure: true,
++          }
+         : undefined;
+@@ -110,9 +115,11 @@ export async function updateMealsWithCompensation(
+         const finalizeBatch = index === rollbackChanges.length - 1
+           ? {
+-              meals: attempted.map(item => ({ items: item.before.items })),
++              meals: attempted.map(item => item.before),
++              habitSnapshot,
+               recordCatalogUsage: false,
++              restoreHabits: true,
+               throwOnHabitFailure: true,
+             }
+diff --git a/server/modules/whatsapp/mealBatchMutation.test.ts b/server/modules/whatsapp/mealBatchMutation.test.ts
+index 5e437d1..0000000 100644
+--- a/server/modules/whatsapp/mealBatchMutation.test.ts
++++ b/server/modules/whatsapp/mealBatchMutation.test.ts
+@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
+ 
+ const updateMealMock = vi.hoisted(() => vi.fn());
++const captureMealBatchHabitSnapshotMock = vi.hoisted(() => vi.fn());
+ 
+-vi.mock("../meals/service", () => ({ updateMeal: updateMealMock }));
++vi.mock("../meals/service", () => ({ updateMeal: updateMealMock, captureMealBatchHabitSnapshot: captureMealBatchHabitSnapshotMock }));
+@@ -52,6 +54,7 @@ describe("meal batch mutation compensation", () => {
+   beforeEach(() => {
+     vi.clearAllMocks();
