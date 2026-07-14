@@ -20,6 +20,8 @@ export type WhatsAppGoalProgressInput = {
   /** Compatibilidade temporária com consumidores migrados gradualmente; deve conter a meta final. */
   goalCalories?: number;
   exerciseCalories?: number | null;
+  /** Campo legado aceito durante a migração; o formatter não executa essa regra. */
+  includeExerciseCalories?: boolean;
   consumedProteinGrams?: number | null;
   targetProteinGrams?: number | null;
   consumedCarbsGrams?: number | null;
