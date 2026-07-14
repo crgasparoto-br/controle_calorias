@@ -123,9 +123,9 @@ function buildMealReplyBody(input: {
 }) {
   if (!input.items.length) {
     return buildWhatsAppBlock([
-      input.title,
-      buildWhatsAppSeparator(),
       input.contextLine,
+      buildWhatsAppSeparator(),
+      input.title,
       buildWhatsAppSeparator(),
       input.sourceText || "Não consegui identificar os alimentos com segurança.",
       buildWhatsAppSeparator(),
@@ -135,9 +135,9 @@ function buildMealReplyBody(input: {
   }
 
   return buildWhatsAppBlock([
-    input.title,
-    buildWhatsAppSeparator(),
     input.contextLine,
+    buildWhatsAppSeparator(),
+    input.title,
     buildWhatsAppSeparator(),
     "Itens:",
     ...buildMealItemLines(input.items),
