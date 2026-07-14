@@ -1,5 +1,6 @@
 import { listMeals } from "../meals/service";
 import type { MealDraftItem } from "../../nutritionEngine";
+import { buildWhatsAppMealContextLine } from "./replyMessages";
 import {
   buildWhatsAppBlock,
   buildWhatsAppFoodLines,
@@ -257,17 +258,20 @@ function groupMealsByLabel(meals: ExistingMeal[]) {
   return [...groups.values()];
 }
 
-/** Consulta de uma refeição e seus alimentos usando os mesmos blocos de item/total do registro (issue #783). */
+/** Consulta de uma refeição e seus alimentos usando os mesmos blocos de contexto/item/total do registro (issue #783). */
 function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
   const items = meal.items ?? [];
   const mealDate = new Date(meal.occurredAt);
   const title = isLatest
     ? `Alimentos da última refeição (${meal.mealLabel})`
     : `Alimentos de ${meal.mealLabel} em ${formatReplyDate(mealDate)}`;
+  const contextLine = buildWhatsAppMealContextLine(meal.mealLabel, meal.occurredAt);
 
   if (!items.length) {
     return buildWhatsAppBlock([
       buildWhatsAppTitle(title, { bold: true }),
+      buildWhatsAppSeparator(),
+      contextLine,
       buildWhatsAppSeparator(),
       "Encontrei a refeição, mas ela não tem alimentos registrados.",
     ]);
@@ -276,6 +280,8 @@ function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
   return buildWhatsAppBlock([
     buildWhatsAppTitle(title, { bold: true }),
     buildWhatsAppSeparator(),
+    contextLine,
+    buildWhatsAppSeparator(),
     ...buildItemBlockLines(items),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(sumMealItems(items)),
@@ -283,11 +289,12 @@ function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
 }
 
 function formatDayMealGroupLines(group: MealGroup) {
+  const contextLine = buildWhatsAppMealContextLine(group.label);
   if (!group.items.length) {
-    return [buildWhatsAppTitle(group.label, { bold: true }), "Sem alimentos detalhados."];
+    return [contextLine, "Sem alimentos detalhados."];
   }
   return [
-    buildWhatsAppTitle(group.label, { bold: true }),
+    contextLine,
     ...buildItemBlockLines(group.items),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(sumMealItems(group.items)),
@@ -378,11 +385,3 @@ export async function executeWhatsappMealListIntent(userId: number, input: { tex
     },
   };
 }
-
-export const contextUsage: import("./intentContext").IntentContextUsage = {
-  usesRecentWindow: false,
-  usesSummary: false,
-  usesPendingOperation: false,
-  usesLongTermMemory: false,
-  requiresFreshDbQuery: true,
-};
