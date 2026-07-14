@@ -129,3 +129,29 @@ export async function claimWhatsAppInteractiveCallback(
 
   return { status: "claimed", pendingOperation, action: parsed.action };
 }
+
+/**
+ * Fallback textual das interações: usa exatamente a mesma pendência persistida,
+ * validação de dono/estado/expiração e compare-and-set dos callbacks visuais.
+ */
+export async function claimWhatsAppTextPendingOperation(
+  userId: number,
+  expectedType: string,
+  action: string,
+  now = new Date(),
+): Promise<WhatsAppInteractiveCallbackClaim> {
+  const pendingOperation = await pendingOperationRepository.getActivePendingOperation(userId, now);
+  if (!pendingOperation || pendingOperation.userId !== userId || pendingOperation.type !== expectedType) {
+    return { status: "unavailable" };
+  }
+  if (pendingOperation.state !== "active" || new Date(pendingOperation.expiresAt).getTime() < now.getTime()) {
+    return { status: "unavailable" };
+  }
+
+  const claim = await pendingOperationRepository.claimPendingOperation({
+    id: pendingOperation.id,
+    expectedVersion: pendingOperation.version,
+  });
+  if (!claim.claimed) return { status: "unavailable" };
+  return { status: "claimed", pendingOperation, action };
+}
