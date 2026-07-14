@@ -1,0 +1,1 @@
+Apply the audited issue 783 completion patch.
