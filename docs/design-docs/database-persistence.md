@@ -6,28 +6,28 @@
 
 ## Tabelas críticas
 
-| Tabela | Papel |
-|---|---|
-| `users` | Identidade interna e papel |
-| `userProfiles` | Perfil nutricional e onboarding |
-| `nutritionGoals` | Metas e exceções |
-| `food_sources` | Fontes nutricionais, versão e código de origem do catálogo global |
-| `foods` | Catálogo alimentar global e alimentos personalizados por usuário |
-| `food_aliases` | Nomes alternativos normalizados para busca no catálogo |
-| `food_portions` | Porções e medidas caseiras por alimento do catálogo |
-| `meals` | Cabeçalho da refeição |
-| `mealItems` | Itens nutricionais por refeição, incluindo snapshot nutricional histórico |
-| `mealMedia` | Referências de mídia |
-| `mealInferences` | Rascunhos e inferências de IA |
-| `habitMemories` | Memória de hábitos alimentares |
-| `healthSyncedRecords` | Histórico persistido de dados importados de integrações de saúde |
-| `professionalProfiles` | Perfil profissional adicional à conta pessoal |
-| `professionalPatientAuthorizations` | Consentimento e revogação do acesso profissional aos dados do paciente |
-| `professionalPatientTrackings` | Situação operacional do acompanhamento, separada da autorização |
-| `professionalPatientTrackingEvents` | Histórico auditável das transições do acompanhamento |
-| `whatsappConnections` | Vínculo telefone do usuário ↔ usuário interno |
-| `inferenceLogs` | Logs seguros de inferência |
-| `appSecrets` | Segredos operacionais criptografados |
+| Tabela                              | Papel                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `users`                             | Identidade interna e papel                                                |
+| `userProfiles`                      | Perfil nutricional e onboarding                                           |
+| `nutritionGoals`                    | Metas e exceções                                                          |
+| `food_sources`                      | Fontes nutricionais, versão e código de origem do catálogo global         |
+| `foods`                             | Catálogo alimentar global e alimentos personalizados por usuário          |
+| `food_aliases`                      | Nomes alternativos normalizados para busca no catálogo                    |
+| `food_portions`                     | Porções e medidas caseiras por alimento do catálogo                       |
+| `meals`                             | Cabeçalho da refeição                                                     |
+| `mealItems`                         | Itens nutricionais por refeição, incluindo snapshot nutricional histórico |
+| `mealMedia`                         | Referências de mídia                                                      |
+| `mealInferences`                    | Rascunhos e inferências de IA                                             |
+| `habitMemories`                     | Memória de hábitos alimentares                                            |
+| `healthSyncedRecords`               | Histórico persistido de dados importados de integrações de saúde          |
+| `professionalProfiles`              | Perfil profissional adicional à conta pessoal                             |
+| `professionalPatientAuthorizations` | Consentimento e revogação do acesso profissional aos dados do paciente    |
+| `professionalPatientTrackings`      | Situação operacional do acompanhamento, separada da autorização           |
+| `professionalPatientTrackingEvents` | Histórico auditável das transições do acompanhamento                      |
+| `whatsappConnections`               | Vínculo telefone do usuário ↔ usuário interno                             |
+| `inferenceLogs`                     | Logs seguros de inferência                                                |
+| `appSecrets`                        | Segredos operacionais criptografados                                      |
 
 ## Regras
 
@@ -74,22 +74,28 @@ A migration `0024_professional_persistence_foundation.sql` cria o modelo canôni
 
 Durante o rollout, `server/repositories/professionalRepository.ts` mantém compatibilidade com as preferências legadas `professional_profile_v1`, `professional_accesses_v1` e `patient_professional_access_requests_v1`:
 
+- os fluxos web e WhatsApp leem e escrevem primeiro no repository canônico;
 - a leitura canônica importa preferências mais recentes de forma idempotente;
 - o `updatedAt` da preferência funciona como versão da origem para impedir que uma cópia antiga sobrescreva uma versão canônica mais nova;
 - escritas canônicas fazem dual-write temporário no JSON para consumidores ainda não migrados;
-- vínculos assimétricos podem ser reconciliados a partir da cópia do profissional;
+- vínculos assimétricos são reconciliados nos dois sentidos: cópia exclusiva do profissional ou cópia exclusiva do paciente;
 - JSON inválido é ignorado com evento sanitizado, sem registrar o conteúdo bruto;
-- uma chave única para o par profissional-paciente impede solicitações equivalentes concorrentes enquanto o vínculo está pendente ou aprovado.
+- uma chave única para o par profissional-paciente impede solicitações equivalentes concorrentes enquanto o vínculo está pendente ou aprovado;
+- aprovação atualiza a autorização e cria acompanhamento/evento na mesma transação;
+- rejeição e revogação liberam o par para um convite posterior, preservando o histórico anterior;
+- pausa, retomada e encerramento usam atualização otimista e evento auditável transacional.
 
 A aplicação da estrutura segue esta ordem:
 
 1. aplicar migrations com `pnpm db:push`;
-2. executar `pnpm db:migrate:professionals` para o backfill completo;
-3. manter a importação lazy e o dual-write durante a migração dos consumidores;
-4. remover a dependência dos JSONs somente após todas as leituras e escritas profissionais usarem o repository canônico.
+2. executar `pnpm db:migrate:professionals` para o backfill completo; o comando falha quando não existe conexão com o banco;
+3. repetir o comando para comprovar idempotência antes do rollout;
+4. manter a importação lazy e o dual-write somente para compatibilidade externa durante a janela de migração;
+5. remover o dual-write depois de confirmar que não existem consumidores externos das preferências JSON.
 
 ## Validação
 
 - Rodar `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
 - Rodar `pnpm docs:check` após alterar schema ou docs geradas.
 - Rodar `pnpm db:migrate:professionals` mais de uma vez em homologação para confirmar idempotência antes do rollout em produção.
+- O workflow `Professional persistence TiDB gate` executa `pnpm db:push`, verifica estabilidade dos metadados Drizzle, cobre backfill, vínculo assimétrico, concorrência, transação de aprovação, leitura por outra instância e revogação imediata.
