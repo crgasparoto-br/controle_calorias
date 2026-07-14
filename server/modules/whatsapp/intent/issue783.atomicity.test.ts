@@ -89,7 +89,7 @@ describe("issue #783 — atomicidade e identidade de candidatos", () => {
     expect(result.action).toBe("clarification_needed");
   });
 
-  it("renderiza um bloco completo para cada refeição afetada quando todos os alvos são claros", async () => {
+  it("identifica cada refeição e limita as ações ao bloco correspondente", async () => {
     const meals = [
       { id: 10, mealLabel: "Jantar", occurredAt: "2026-07-12T22:00:00.000Z", items: [item("Arroz branco", 100)] },
       { id: 20, mealLabel: "Almoço", occurredAt: "2026-07-12T16:00:00.000Z", items: [item("Feijão carioca", 80)] },
@@ -103,10 +103,25 @@ describe("issue #783 — atomicidade e identidade de candidatos", () => {
     ]);
 
     expect(updateMealMock).toHaveBeenCalledTimes(2);
-    expect(result.reply).toContain("Arroz branco");
-    expect(result.reply).toContain("Feijão carioca");
+    expect(result.reply.match(/🍽️ \*Jantar\* — \d{2}:\d{2}/g)).toHaveLength(1);
+    expect(result.reply.match(/🍽️ \*Almoço\* — \d{2}:\d{2}/g)).toHaveLength(1);
     expect(result.reply.match(/Refeição atualizada:/g)).toHaveLength(2);
     expect(result.reply.match(/Total da refeição:/g)).toHaveLength(2);
+
+    const blockStarts = Array.from(result.reply.matchAll(/\*Alimentos ajustados\*/g), match => match.index ?? 0);
+    expect(blockStarts).toHaveLength(2);
+    const jantarBlock = result.reply.slice(blockStarts[0], blockStarts[1]);
+    const almocoBlock = result.reply.slice(blockStarts[1]);
+
+    expect(jantarBlock).toContain("• Arroz branco: de 100 g para 120 g");
+    expect(jantarBlock).not.toContain("Feijão carioca: de 80 g para 90 g");
+    expect(jantarBlock).toContain("Arroz branco");
+    expect(jantarBlock).not.toContain("Feijão carioca");
+
+    expect(almocoBlock).toContain("• Feijão carioca: de 80 g para 90 g");
+    expect(almocoBlock).not.toContain("Arroz branco: de 100 g para 120 g");
+    expect(almocoBlock).toContain("Feijão carioca");
+    expect(almocoBlock).not.toContain("Arroz branco");
     expect(result.data).toEqual(expect.objectContaining({ affectedMealIds: expect.arrayContaining([10, 20]) }));
   });
 });
