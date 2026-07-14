@@ -1,0 +1,77 @@
+@@ -323,6 +323,7 @@ async function handleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookMess
+     );
+     const replyMeal = consolidationResult.meal;
++    const currentReplyMeal = (await listUserMeals(userId)).find(meal => meal.id === replyMeal.id) ?? replyMeal;
+     await recordDomainLink(lifecycleHandle, { mealId: replyMeal.id });
+@@ -334,12 +335,12 @@ async function handleAnnotatedImageMessage(message: ExtractedWhatsAppWebhookMess
+     });
+ 
+     const mealReplyText = consolidationResult.action === "updated"
+-      ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
++      ? buildWhatsAppConsolidatedMealReplyMessage(currentReplyMeal, {
+           registeredAt: occurredAt,
+           goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+         })
+-      : buildWhatsAppMealReplyMessage(processedForPersistence, {
++      : buildWhatsAppPersistedMealReplyMessage(currentReplyMeal, {
+           registeredAt: occurredAt,
+           goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+         });
+diff --git a/server/whatsappIntentWebhook.ts b/server/whatsappIntentWebhook.ts
+index c34ab16..0000000 100644
+--- a/server/whatsappIntentWebhook.ts
++++ b/server/whatsappIntentWebhook.ts
+@@ -518,6 +518,7 @@ async function handleTextIntentAfterLifecycleBegin(userId: number): Promise<Text
+       detail: deleteIntentResult.detail,
+       status: "warning",
++      mealId: extractEditableMealId(deleteIntentResult),
+       occurredAtMs,
+       lifecycleHandle,
+       interactiveReply: deleteIntentResult.interactiveReply,
+diff --git a/server/modules/whatsapp/mealItemSelectionCallback.ts b/server/modules/whatsapp/mealItemSelectionCallback.ts
+index ff201af..0000000 100644
+--- a/server/modules/whatsapp/mealItemSelectionCallback.ts
++++ b/server/modules/whatsapp/mealItemSelectionCallback.ts
+@@ -47,12 +47,18 @@ export type MealItemSelectionCompanionAction = {
+   action: MealItemSelectionAction;
+ };
+ 
+ export type MealItemPendingSelectionStep = {
++  kind?: "selection";
+   targetFood: string | null;
+   action: MealItemSelectionAction;
+   contextLabel: string;
+   candidates: MealItemSelectionCandidate[];
+ };
++
++export type MealItemPendingResolvedStep = {
++  kind: "resolved";
++  candidate: MealItemSelectionCandidate;
++  action: MealItemSelectionAction;
++};
++
++export type MealItemPendingPlanStep = MealItemPendingSelectionStep | MealItemPendingResolvedStep;
+@@ -56,7 +62,7 @@ export type PendingMealItemSelection = MealItemPendingSelectionStep & {
+   resultTitle: string;
+   companionActions?: MealItemSelectionCompanionAction[];
+-  remainingSelections?: MealItemPendingSelectionStep[];
++  remainingSelections?: MealItemPendingPlanStep[];
+ };
+@@ -161,9 +167,8 @@ function applyActionToItem(item: MealItemInput, action: MealItemSelectionAction)
+   return { nextItem: replaceMealItemFood(item, action.targetFood), actionLine: `${item.foodName} → ${action.targetFood}` };
+ }
+ 
+-async function applySelectionPlan(userId: number, selected: MealItemSelectionCandidate, pending: PendingMealItemSelection): Promise<MealItemSelectionResult> {
++async function applySelectionPlan(userId: number, plan: MealItemSelectionCompanionAction[], resultTitle: string): Promise<MealItemSelectionResult> {
+   const meals = await listMeals(userId);
+-  const plan: MealItemSelectionCompanionAction[] = [...(pending.companionActions ?? []), { candidate: selected, action: pending.action }];
+   const workingMeals = new Map<number, Awaited<ReturnType<typeof listMeals>>[number]>();
+   const actionLinesByMeal = new Map<number, string[]>();
+@@ -219,7 +224,7 @@ async function applySelectionPlan(userId: number, selected: MealItemSelectionCan
+     handled: true,
+     action: hasReplacement ? "meal_item_replaced" : "meal_item_grams_adjusted",
+-    reply: updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title: pending.resultTitle, actionLines: actionLinesByMeal.get(meal.id) ?? [] })).join("\n\n"),
++    reply: updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title: resultTitle, actionLines: actionLinesByMeal.get(meal.id) ?? [] })).join("\n\n"),
+@@ -228,16 +233,27 @@ async function applySelectionPlan(userId: number, selected: MealItemSelectionCan
+ }
+ 
