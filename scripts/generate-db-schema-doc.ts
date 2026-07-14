@@ -117,11 +117,26 @@ function generateMarkdown(tables: TableInfo[]) {
   return `${lines.join("\n")}\n`;
 }
 
+function reportFirstDifference(current: string, expected: string) {
+  const currentLines = current.split("\n");
+  const expectedLines = expected.split("\n");
+  const limit = Math.max(currentLines.length, expectedLines.length);
+  for (let index = 0; index < limit; index += 1) {
+    if (currentLines[index] !== expectedLines[index]) {
+      console.error(`Primeira divergência na linha ${index + 1}.`);
+      console.error(`Atual: ${JSON.stringify(currentLines[index] ?? "<ausente>")}`);
+      console.error(`Esperado: ${JSON.stringify(expectedLines[index] ?? "<ausente>")}`);
+      return;
+    }
+  }
+}
+
 const source = sourcePaths.map(readRequiredFile).join("\n");
 const generated = generateMarkdown(parseTables(source));
 if (checkOnly) {
   const current = readRequiredFile(outputPath);
   if (current !== generated) {
+    reportFirstDifference(current, generated);
     console.error("docs/generated/db-schema.md está desatualizado. Rode `pnpm docs:generate:db` e commit as mudanças.");
     process.exit(1);
   }
