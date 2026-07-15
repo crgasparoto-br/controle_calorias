@@ -20,17 +20,6 @@ async function resolveUserTimeZone(userId: number) {
 }
 
 async function resolveEffectiveGoal(userId: number, dateKey: string) {
-  if (!process.env.DATABASE_URL) {
-    safeLogGoalWarning({
-      userId,
-      origin: "whatsapp",
-      status: "warning",
-      eventType: "whatsapp.goal_history_unavailable",
-      detail: "Meta efetiva histórica indisponível porque o banco não está configurado.",
-    });
-    return null;
-  }
-
   try {
     const { getEffectiveNutritionGoalForDate } = await import("../goals/service");
     return await getEffectiveNutritionGoalForDate(userId, dateKey);

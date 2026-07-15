@@ -41,6 +41,7 @@ import { storagePut } from "./storage";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
 import {
   beginInboundMessage,
+  markMessageProcessed,
   recordDomainLink,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
@@ -324,6 +325,7 @@ async function sendAnnotatedImageFallbackText(input: {
       detail: "Falha ao enviar resposta lógica do WhatsApp.",
     });
   }
+  await markMessageProcessed(input.lifecycleHandle ?? null);
 }
 
 async function tryHandleAnnotatedImageMessage(
@@ -554,7 +556,7 @@ async function tryHandleAnnotatedImageMessage(
         origin: "whatsapp",
         status: "success",
         eventType: "whatsapp.annotated_image_sent",
-        detail: `Imagem anotada enviada pelo WhatsApp. origem=${imageSource}.`,
+        detail: `Imagem anotada enviada pelo WhatsApp. origem=${imageSource}${annotatedImage.skippedReason ? `; skippedReason=${annotatedImage.skippedReason}` : ""}.`,
       });
     } else {
       const skipDetail = annotatedImage.detail || annotatedImage.skippedReason || "imagem auxiliar indisponível";
@@ -567,6 +569,7 @@ async function tryHandleAnnotatedImageMessage(
       });
     }
 
+    await markMessageProcessed(lifecycleHandle);
     markAnnotatedImageMessageHandled(message.id);
     return true;
   } catch (error) {

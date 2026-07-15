@@ -38,6 +38,9 @@ vi.mock("./db", () => ({
   getHabitSnapshots: vi.fn(async () => []),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   listUserMeals: vi.fn(async () => []),
+  updateUserMeal: vi.fn(),
+  removeUserMeal: vi.fn(),
+  getUserDayMealTotals: vi.fn(async () => ({ totals: { calories: 0, protein: 0, carbs: 0, fat: 0 } })),
   logInferenceEvent: logInferenceEventMock,
   relabelUserMeals: vi.fn(),
   updateUserCurrentWeight: vi.fn(),
@@ -261,7 +264,8 @@ describe("handleWhatsAppWebhook media text intents", () => {
       status: "success",
       eventType: "whatsapp.intent.water_logged",
     }));
-    expect(sentMessages[0]).toBe("Recebi seu áudio e estou processando.");
+    // Fast path (#785): sem acknowledgement, apenas a resposta funcional final.
+    expect(sentMessages).toHaveLength(1);
     expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
   });
 
@@ -310,7 +314,8 @@ describe("handleWhatsAppWebhook media text intents", () => {
       status: "success",
       eventType: "whatsapp.intent.meal_item_grams_adjusted",
     }));
-    expect(sentMessages[0]).toBe("Recebi seu áudio e estou processando.");
+    // Fast path (#785): sem acknowledgement, apenas a resposta funcional final.
+    expect(sentMessages).toHaveLength(1);
     expect(sentMessages.at(-1)).toContain("de 100 g para 145 g");
   });
 
@@ -337,6 +342,8 @@ describe("handleWhatsAppWebhook media text intents", () => {
       imageUrl: expect.stringMatching(/^data:image\/jpeg;base64,/),
     }));
     expect(confirmPendingMealMock).toHaveBeenCalled();
-    expect(sentMessages[0]).toBe("Recebi sua imagem e estou processando.");
+    // Fast path (#785): sem acknowledgement, apenas a resposta funcional final da refeição.
+    expect(sentMessages).toHaveLength(1);
+    expect(sentMessages[0]).toContain("🍽️ *Almoço*");
   });
 });

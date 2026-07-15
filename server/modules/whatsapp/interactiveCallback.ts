@@ -18,7 +18,10 @@ const CALLBACK_TAG_BYTES = 16;
 function getCallbackSecret() {
   try {
     return requireCookieSecret("whatsapp interactive callbacks");
-  } catch {
+  } catch (error) {
+    // Em produção a ausência do segredo deve falhar de forma segura (#782);
+    // o fallback fixo existe apenas para desenvolvimento e testes locais.
+    if (process.env.NODE_ENV === "production") throw error;
     return "whatsapp-interactive-callback-dev-secret";
   }
 }

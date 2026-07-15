@@ -587,7 +587,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
-    expect(sentMessages.at(-1)).toContain("*Resumo de semana:*");
+    expect(sentMessages.at(-1)).toContain("*Resumo de semana*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
     expect(sentMessages.at(-1)).toContain("• *Almoço*");
     expect(sentMessages.at(-1)).toContain("195 kcal | P 4,1 g | C 42 g | G 0,5 g");
@@ -607,7 +607,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
-    expect(sentMessages.at(-1)).toContain("*Resumo de hoje:*");
+    expect(sentMessages.at(-1)).toContain("*Resumo de hoje*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
     expect(sentMessages.at(-1)).toContain("• *Almoço*");
     expect(sentMessages.at(-1)).toContain("195 kcal | P 4,1 g | C 42 g | G 0,5 g");
@@ -635,7 +635,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenLastCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
-    expect(sentMessages.at(-1)).toContain("*Resumo de hoje:*");
+    expect(sentMessages.at(-1)).toContain("*Resumo de hoje*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
   });
 

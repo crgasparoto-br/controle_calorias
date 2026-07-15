@@ -1,12 +1,17 @@
 import { Request, Response } from "express";
-import { createUserWaterLog, getUserIdByWhatsappPhone, logInferenceEvent } from "./db";
+import { createUserWaterLog, getUserIdByWhatsappPhone, listUserExercises, logInferenceEvent } from "./db";
 import {
   extractIndexedWhatsAppWebhookMessages,
+  formatDateKeyInSaoPaulo,
   normalizeWhatsAppIntentText,
   resolveWhatsAppMessageOccurredAt,
   type IndexedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
+import {
+  buildWhatsAppExerciseCaloriesByDateKey,
+  runWithWhatsAppGoalProgressContext,
+} from "./modules/whatsapp/goalProgressContext";
 import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import {
@@ -312,9 +317,33 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
 
   const remainingMessages = extractIndexedWhatsAppWebhookMessages(req.body);
   const flow = resolveBatchContextFlow(remainingMessages);
-  const result = await withWhatsappContextFlow(flow, () => handleWhatsAppWebhookWithTextIntent(req, res));
+  const goalProgressContext = await resolveGoalProgressContext(remainingMessages);
+  const result = await runWithWhatsAppGoalProgressContext(
+    goalProgressContext,
+    () => withWhatsappContextFlow(flow, () => handleWhatsAppWebhookWithTextIntent(req, res)),
+  );
 
   return result;
+}
+
+/**
+ * Disponibiliza aos formatters downstream as calorias de exercícios por dia,
+ * deduplicadas por atividade externa (#784). Falhas não bloqueiam o fluxo:
+ * o contexto vazio apenas omite o dado contextual.
+ */
+async function resolveGoalProgressContext(messages: IndexedWhatsAppWebhookMessage[]) {
+  const sourcePhone = messages[0]?.message.from;
+  if (!sourcePhone) return { exerciseCaloriesByDateKey: {} };
+  try {
+    const userId = await getUserIdByWhatsappPhone(sourcePhone);
+    if (!userId) return { exerciseCaloriesByDateKey: {} };
+    const exercises = await listUserExercises(userId);
+    return {
+      exerciseCaloriesByDateKey: buildWhatsAppExerciseCaloriesByDateKey(exercises ?? [], formatDateKeyInSaoPaulo),
+    };
+  } catch {
+    return { exerciseCaloriesByDateKey: {} };
+  }
 }
 
 export async function handleWhatsAppWebhookWithImageIdempotency(req: Request, res: Response) {

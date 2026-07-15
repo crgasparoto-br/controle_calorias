@@ -61,6 +61,7 @@ import { getWhatsAppChannelConfig } from "./whatsappConfig";
 import { calculateMealTotals } from "../shared/mealTotals";
 import {
   beginInboundMessage,
+  markMessageProcessed,
   recordDomainLink,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
@@ -241,6 +242,7 @@ async function sendInterpretedTextIntentReply(input: {
   if (mealId) {
     await recordDomainLink(input.lifecycleHandle, { mealId });
   }
+  await markMessageProcessed(input.lifecycleHandle);
 }
 
 function canInterpretAudioTranscriptIntent(message: WhatsAppWebhookMessage, prepared: PreparedMessageInput) {
@@ -360,6 +362,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       allowRawContentStorage: true,
     });
     const deferredReply = getWhatsAppDeferredLogicalReply(req, message.id);
+    for (const link of deferredReply?.domainLinks ?? []) {
+      await recordDomainLink(lifecycleHandle, link);
+    }
     const responsePrefixBlocks = [...(deferredReply?.prefixBlocks ?? [])];
     const composeFinalReply = (reply: string) => composeWhatsAppDeferredReplyText(
       { prefixBlocks: responsePrefixBlocks, domainLinks: deferredReply?.domainLinks ?? [] },
@@ -375,6 +380,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         replyText: finalReply,
         lifecycleHandle,
       });
+      await markMessageProcessed(lifecycleHandle);
       return {
         ok: delivery.result.primaryOk,
         detail: delivery.result.sends.find(send => !send.ok)?.detail ?? "Resposta funcional enviada.",
@@ -776,6 +782,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: "Falha ao enviar resposta lógica de refeição pelo WhatsApp.",
         });
       }
+      await markMessageProcessed(lifecycleHandle);
     } catch (error) {
       logInferenceEvent({
         userId,

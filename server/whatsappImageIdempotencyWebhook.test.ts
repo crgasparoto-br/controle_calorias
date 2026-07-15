@@ -10,6 +10,9 @@ vi.mock("./db", () => ({
   createUserWaterLog: createUserWaterLogMock,
   getDb: vi.fn(async () => null),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
+  getUserWaterGoal: vi.fn(async () => ({ dailyMl: 2500 })),
+  listUserWaterLogs: vi.fn(async () => []),
+  listUserWeightEntries: vi.fn(async () => []),
   listUserExercises: listUserExercisesMock,
   logInferenceEvent: logInferenceEventMock,
   logPersistenceWarning: vi.fn(),
@@ -19,6 +22,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => null),
   claimMessageForProcessing: vi.fn(async () => true),
   markMessageProcessed: vi.fn(async () => undefined),
+  recordDomainLink: vi.fn(async () => undefined),
   runWithMessageLifecycleRequestScope: async (operation: () => Promise<unknown>) => operation(),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   enrichInboundMessage: vi.fn(async () => true),
@@ -144,7 +148,9 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     expect(res.statusCode).toBe(200);
     expect(createUserWaterLogMock).toHaveBeenCalledWith(42, expect.objectContaining({ amountMl: 300 }));
     expect(downstreamWebhookMock).not.toHaveBeenCalled();
-    expect(sentBodies.at(-1)).toContain("Registrei 300 ml de água");
+    // Formato canônico de água (#784): quantidade, total e meta com diferença.
+    expect(sentBodies.at(-1)).toContain("💧 *Água registrada*");
+    expect(sentBodies.at(-1)).toContain("*Quantidade:* 300 ml");
   });
 
   it("não trata imagem sem legenda de água como hidratação e delega para o fluxo normal", async () => {

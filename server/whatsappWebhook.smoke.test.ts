@@ -324,7 +324,7 @@ describe("whatsappWebhook smoke", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({
-        body: expect.stringContaining("Registrei 250 ml de água"),
+        body: expect.stringContaining("*Quantidade:* 250 ml"),
       }),
     );
     expect(recordDomainLinkMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 }, { waterLogId: 789 });
@@ -420,7 +420,6 @@ describe("whatsappWebhook smoke", () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(createWhatsAppOkResponse())
-      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -484,7 +483,6 @@ describe("whatsappWebhook smoke", () => {
 
     global.fetch = vi
       .fn()
-      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,

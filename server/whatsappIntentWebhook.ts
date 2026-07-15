@@ -30,6 +30,8 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
 import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
+import { setWhatsAppDeferredLogicalReply } from "./modules/whatsapp/deferredLogicalReply";
+import type { DomainLinkInput } from "./repositories/whatsappConversationRepository";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { buildWhatsAppCanonicalWeightReply } from "./modules/whatsapp/domainReplyFormatters";
 import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
@@ -326,20 +328,7 @@ function extractEditableMealId(result: unknown) {
   );
 }
 
-function buildMixedWaterReply(waterResults: TextIntentResult[]) {
-  const waterLines = waterResults
-    .map((result) => typeof result.data?.amountMl === "number" ? `* ${formatNumber(result.data?.amountMl)} ml de água` : null)
-    .filter((line): line is string => Boolean(line));
-
-  return [
-    "Hidratação registrada:",
-    ...waterLines,
-    "",
-    "Vou processar os alimentos da mesma mensagem separadamente.",
-  ].join("\n");
-}
-
-async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Promise<TextIntentHandlingResult> {
+async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebhookMessage): Promise<TextIntentHandlingResult> {
   const sourcePhone = message.from || "unknown";
   if (!isWhatsAppMessageForConfiguredChannel(message) || !canInterpretTextIntent(message)) return false;
   if (wasTextIntentMessageAlreadyHandled(message.id)) return true;
@@ -532,16 +521,20 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       waterResults.push(result);
     }
 
-    await sendAndLogTextReply({
+    // Água e alimento na mesma entrada formam uma única resposta funcional
+    // lógica (#785): os blocos canônicos de água entram como prefixo da
+    // resposta final do fluxo nutricional, sem outbound próprio.
+    const prefixBlocks = waterResults.map(result => result.reply);
+    const domainLinks: DomainLinkInput[] = waterResults
+      .map(result => (typeof result.data?.waterLogId === "number" ? { waterLogId: result.data.waterLogId } : null))
+      .filter((link): link is { waterLogId: number } => Boolean(link));
+    setWhatsAppDeferredLogicalReply(req, message.id, { prefixBlocks, domainLinks });
+    logInferenceEvent({
       userId,
-      sourcePhone,
-      userMessage: text,
-      reply: buildMixedWaterReply(waterResults),
-      eventType: "whatsapp.intent.water_food_multiline_split",
-      detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional após separar mensagem multi-linha.",
+      origin: "whatsapp",
       status: "success",
-      occurredAtMs,
-      lifecycleHandle,
+      eventType: "whatsapp.intent.water_food_multiline_split",
+      detail: "Hidratação registrada e composta como prefixo da resposta nutricional da mesma mensagem.",
     });
     return { passthroughText: mixedWaterFood.foodText };
   }
@@ -738,7 +731,7 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
   const textOverrides = new Map<string, string>();
   const intentHints = new Map<string, import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]>();
   for (const message of messages) {
-    const handled = await tryHandleTextIntent(message);
+    const handled = await tryHandleTextIntent(req, message);
     const key = getExtractedWhatsAppMessageKey(message);
     if (handled === true) {
       handledMessageKeys.add(key);

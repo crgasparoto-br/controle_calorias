@@ -225,7 +225,7 @@ describe("whatsappWebhook audio transcription failures", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).not.toHaveBeenCalled();
-    expect(outboundTextBodies().at(-1)).toContain("Não consegui ouvir/transcrever seu áudio com segurança");
+    expect(outboundTextBodies().at(-1)).toContain("*⚠️ Não foi possível processar o áudio*");
     expect((await listUserMeals(userId)).filter(meal => meal.source === "whatsapp")).toHaveLength(0);
   });
 
@@ -247,7 +247,7 @@ describe("whatsappWebhook audio transcription failures", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).not.toHaveBeenCalled();
-    expect(outboundTextBodies().at(-1)).toContain("não identifiquei uma fala útil");
+    expect(outboundTextBodies().at(-1)).toContain("*⚠️ Não consegui entender o áudio*");
     expect((await listUserMeals(userId)).filter(meal => meal.source === "whatsapp")).toHaveLength(0);
   });
 

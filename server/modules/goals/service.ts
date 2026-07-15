@@ -535,21 +535,43 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
 }
 
 
+async function resolveAppliedGoalForDate(userId: number, dateKey: string) {
+  try {
+    return (await getNutritionGoalForDate(userId, dateKey)).today;
+  } catch {
+    // Fallback canônico já usado quando não há histórico de vigência: a meta
+    // atual do usuário. Sem meta atual válida, não há meta efetiva a exibir.
+    const goal = await getUserNutritionGoal(userId);
+    if (typeof goal?.today?.calories !== "number") {
+      throw new Error("Meta nutricional atual indisponível para resolver a meta efetiva.");
+    }
+    return goal.today;
+  }
+}
+
+async function listExercisesForGoalDate(userId: number, dateKey: string) {
+  try {
+    return (await listUserExercisesByDate(userId, dateKey)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function getEffectiveNutritionGoalForDate(userId: number, dateKey: string) {
-  const [goalSummary, exercises] = await Promise.all([
-    getNutritionGoalForDate(userId, dateKey),
-    listUserExercisesByDate(userId, dateKey),
+  const [appliedGoal, exercises] = await Promise.all([
+    resolveAppliedGoalForDate(userId, dateKey),
+    listExercisesForGoalDate(userId, dateKey),
   ]);
   const exerciseCalories = Math.max(0, sumExercises(exercises));
   const effectiveGoalCalories = calculateAdjustedGoalCalories(
-    goalSummary.today.calories,
+    appliedGoal.calories,
     exerciseCalories,
-    goalSummary.today.includeExerciseCalories,
+    appliedGoal.includeExerciseCalories,
   );
   return {
     effectiveGoalCalories,
     exerciseCalories,
-    includeExerciseCalories: goalSummary.today.includeExerciseCalories,
-    appliedGoal: goalSummary.today,
+    includeExerciseCalories: appliedGoal.includeExerciseCalories,
+    appliedGoal,
   };
 }
