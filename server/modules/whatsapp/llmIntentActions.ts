@@ -14,12 +14,7 @@ import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
 import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
-import {
-  buildWhatsAppAuxiliaryReplyMessage,
-  buildWhatsAppClarificationReplyMessage,
-  buildWhatsAppMealActionReplyMessage,
-  buildWhatsAppRecoverableErrorReplyMessage,
-} from "./replyMessages";
+import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const HEURISTIC_NUTRITION_PER_100G = {
@@ -284,6 +279,14 @@ function sumMealItems(items: MealItemInput[]) {
   );
 }
 
+function formatTotalsLine(totals: { calories: number; protein: number; carbs: number; fat: number }) {
+  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
+}
+
+function formatMealItemLine(item: MealItemInput) {
+  const portionText = item.portionText?.trim() || "1 porção";
+  return `  - ${portionText} de ${item.foodName}: ${formatTotalsLine(item)}`;
+}
 
 function hasLikelyMealRegistrationSignal(text: string) {
   const normalized = normalizeText(text);
@@ -322,7 +325,7 @@ function buildToolFallbackResult(toolTrace: WhatsappAiToolTrace[], detail: strin
   return {
     handled: true,
     action: "clarification_needed",
-    reply: buildWhatsAppRecoverableErrorReplyMessage("Não consegui concluir essa ação com segurança agora. Tente novamente em instantes ou envie mais detalhes."),
+    reply: "Nao consegui concluir essa acao com seguranca agora. Tente novamente em instantes ou envie mais detalhes.",
     eventType: "whatsapp.llm_intent.clarification_needed",
     detail,
     toolTrace,
@@ -350,8 +353,8 @@ function buildBackendValidationClarification(
   return {
     handled: true,
     action: "clarification_needed",
-    reply: buildWhatsAppClarificationReplyMessage(firstIssue?.message
-      ?? "Preciso confirmar alguns detalhes antes de salvar essa informação com segurança."),
+    reply: firstIssue?.message
+      ?? "Preciso confirmar alguns detalhes antes de salvar essa informacao com seguranca.",
     eventType: "whatsapp.llm_intent.clarification_needed",
     detail: "Validacao de backend bloqueou acao persistente antes de chamar ferramentas.",
     data: {
@@ -522,7 +525,7 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para corrigir. Informe qual alimento deseja trocar."),
+      reply: "Nao encontrei uma refeicao recente para corrigir. Me diga qual alimento devo trocar.",
       eventType: "whatsapp.llm_intent.clarification_needed",
       detail: "Intencao estruturada de troca sem refeicao recente.",
       toolTrace: [...toolTrace, buildClarificationToolTrace(intent)],
@@ -536,7 +539,7 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei uma correspondência segura para ${intent.sourceFood}. Qual item devo trocar? ${options}`),
+      reply: `Nao encontrei uma correspondencia segura para ${intent.sourceFood}. Qual item devo trocar? ${options}`,
       eventType: "whatsapp.llm_intent.clarification_needed",
       detail: target === "ambiguous"
         ? "Intencao estruturada de troca com correspondencia ambigua."
@@ -603,48 +606,65 @@ async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent
     parameterSummary: { dateWindow: "received_day", mode },
   }, () => listMeals(userId));
   const toolTrace = [mealsResult.trace];
-  if (!mealsResult.result) return buildToolFallbackResult(toolTrace, "Falha ao consultar refeições para resposta contextual.");
+  if (!mealsResult.result) {
+    return buildToolFallbackResult(toolTrace, "Falha ao consultar refeicoes para resposta contextual.");
+  }
 
   const filteredMeals = mealsResult.result.filter(meal => isMealInsideDay(meal, receivedAt));
-  const reply = filteredMeals.length
-    ? filteredMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, {
-        title: mode === "list" ? "Refeição consultada" : "Resumo da refeição",
-      })).join("
+  if (!filteredMeals.length) {
+    return {
+      handled: true,
+      action: mode === "list" ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
+      reply: "Nao encontrei refeicoes registradas hoje.",
+      eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
+      detail: "Consulta estruturada de refeicoes sem registros encontrados.",
+      data: { mealCount: 0 },
+      toolTrace,
+    };
+  }
 
-")
-    : buildWhatsAppClarificationReplyMessage("Não encontrei refeições registradas hoje.");
+  const lines = filteredMeals.flatMap(meal => {
+    const items = (meal.items ?? []).map(toMealItemInput);
+    const totals = sumMealItems(items);
+    const header = `• ${meal.mealLabel}: ${formatTotalsLine(totals)}`;
+    if (mode === "summary") {
+      return [header];
+    }
+    if (!items.length) {
+      return [header, "  - Sem alimentos detalhados."];
+    }
+    return [header, ...items.map(formatMealItemLine)];
+  });
 
   return {
     handled: true,
     action: mode === "list" ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
-    reply,
+    reply: [mode === "list" ? "Alimentos registrados hoje:" : "Refeicoes registradas hoje:", "", ...lines].join("\n"),
     eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
-    detail: "Consulta estruturada de refeições respondida pelos formatadores centrais do WhatsApp.",
+    detail: "Consulta estruturada de refeicoes respondida pelo WhatsApp.",
     data: { mealCount: filteredMeals.length },
     toolTrace,
   };
 }
 
 function buildHelpReply() {
-  return buildWhatsAppAuxiliaryReplyMessage({
-    title: "Ajuda do WhatsApp",
-    lines: [
-      "• Registrar alimentos em uma refeição",
-      "• Corrigir ou trocar um alimento da última refeição",
-      "• Listar refeições registradas hoje",
-      "• Mostrar resumo do dia",
-      "• Registrar água com quantidade",
-      "• Fazer perguntas livres iniciando a mensagem com `/`",
-    ],
-  });
+  return [
+    "Posso ajudar pelo WhatsApp com:",
+    "",
+    "• registrar alimentos em uma refeicao",
+    "• corrigir ou trocar um alimento da ultima refeicao",
+    "• listar refeicoes registradas hoje",
+    "• mostrar resumo do dia",
+    "• registrar agua com quantidade",
+  ].join("\n");
 }
 
 function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmIntentResult {
   return {
     handled: true,
     action: "clarification_needed",
-    reply: buildWhatsAppClarificationReplyMessage(intent.clarificationQuestion
-      ?? "Não entendi com segurança. Você quer registrar alimento, corrigir uma refeição ou consultar seus registros?"),
+    reply: intent.clarificationQuestion
+      ?? "Nao entendi com seguranca. Voce quer registrar alimento, corrigir uma refeicao ou consultar seus registros?",
     eventType: "whatsapp.llm_intent.clarification_needed",
     detail: `Intencao ${intent.intent} exige esclarecimento antes de executar.`,
     data: {
@@ -733,7 +753,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
         return finish({
           handled: true,
           action: "llm_intent_open_records_link",
-          reply: buildWhatsAppAuxiliaryReplyMessage({ title: "Registros", lines: ["Você pode revisar seus registros na tela de refeições do sistema web."] }),
+          reply: "Voce pode revisar seus registros na tela de refeicoes do app.",
           eventType: "whatsapp.llm_intent.open_records_link",
           detail: "Pedido estruturado para abrir registros respondido sem criar refeicao.",
           toolTrace: [buildWhatsappAiToolTrace({
