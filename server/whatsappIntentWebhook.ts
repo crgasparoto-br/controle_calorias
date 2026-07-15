@@ -14,11 +14,9 @@ import {
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
-import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
-import { getDb, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, logPersistenceWarning, updateUserCurrentWeight } from "./db";
+import { getDb, getUserIdByWhatsappPhone, logInferenceEvent, logPersistenceWarning } from "./db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
 import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
-import { listMeals } from "./modules/meals/service";
 import {
   collapseWhitespace,
   extractWhatsAppWebhookMessages,
@@ -33,9 +31,11 @@ import {
 import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
 import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
+import { buildWhatsAppCanonicalWeightReply } from "./modules/whatsapp/domainReplyFormatters";
+import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
+import { getWhatsAppUserTimeZone, getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
-import { toLogicalDateInTimeZone } from "../shared/timeZone";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
 import {
   beginInboundMessage,
@@ -51,13 +51,6 @@ type TextIntentResult =
   | Exclude<NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>>, WhatsappLlmNutritionFallback>
   | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
 type TextIntentHandlingResult = boolean | { passthroughText: string; intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null };
-type NutritionTotals = {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-};
-
 const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
 const PERIOD_REPORT_PENDING_TYPE = "period_report_clarification";
@@ -160,17 +153,6 @@ function detectWeightLogFromText(text: string) {
   return mentionsWeightWord ? { kind: "clarification" as const } : null;
 }
 
-function buildWeightLogReply(weightKg: number, occurredAt: Date) {
-  return `Atualizei seu peso atual para ${formatNumber(weightKg)} kg em ${occurredAt.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  })}.`;
-}
-
 function hasExplicitFoodQuantity(text: string) {
   const normalized = normalizeTextPreservingQuantities(text);
   return new RegExp(`\\b\\d+(?:[,.]\\d+)?\\s*(?:${SIMPLE_FOOD_QUANTITY_UNIT_PATTERN})\\b`, "i").test(normalized);
@@ -246,120 +228,8 @@ function looksLikeProfessionalAccessDecision(text: string) {
   return /\b(autorizar|autorizo|autorizado|aprovar|aprovo|permitir|permito|negar|nego|recusar|recuso|nao autorizo)\b/.test(normalized);
 }
 
-function isInsidePeriod(value: number | string | Date, start: Date, end: Date) {
-  const time = new Date(value).getTime();
-  return time >= start.getTime() && time <= end.getTime();
-}
-
-function sumMealItems(items: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }>): NutritionTotals {
-  return items.reduce<NutritionTotals>(
-    (acc, item) => ({
-      calories: acc.calories + Number(item.calories || 0),
-      protein: acc.protein + Number(item.protein || 0),
-      carbs: acc.carbs + Number(item.carbs || 0),
-      fat: acc.fat + Number(item.fat || 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-}
-
-function countPeriodDays(start: Date, end: Date) {
-  const startDay = toLogicalDateInTimeZone(start);
-  const endDay = toLogicalDateInTimeZone(end);
-  return Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
-}
-
-function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null; items?: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }> }>) {
-  const groups = new Map<string, NutritionTotals>();
-  for (const meal of [...meals].reverse()) {
-    const label = meal.mealLabel?.trim() || "Refeição";
-    const itemTotals = sumMealItems(meal.items ?? []);
-    const existing = groups.get(label) ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
-    groups.set(label, {
-      calories: existing.calories + itemTotals.calories,
-      protein: existing.protein + itemTotals.protein,
-      carbs: existing.carbs + itemTotals.carbs,
-      fat: existing.fat + itemTotals.fat,
-    });
-  }
-  const lines: string[] = [];
-  for (const [label, totals] of groups) {
-    if (lines.length > 0) lines.push("");
-    lines.push(`${label}: ${formatNumber(totals.calories)} kcal`);
-    lines.push(`* Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`);
-  }
-  return lines;
-}
-
-function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; consumedCalories: number; balanceCalories: number }) {
-  if (input.goalCalories <= 0) return [];
-
-  const balanceLabel = input.balanceCalories >= 0 ? "Déficit" : "Superávit";
-  const pct = input.adjustedGoalCalories > 0
-    ? Math.round((Math.abs(input.balanceCalories) / input.adjustedGoalCalories) * 100)
-    : 0;
-  const pctStr = input.balanceCalories >= 0 ? `(-${pct}%)` : `(+${pct}%)`;
-
-  return [
-    "*Resumo das Metas:*",
-    `* Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
-    ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal`] : []),
-    `* Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
-    `* Consumo: ${formatNumber(input.consumedCalories)} kcal`,
-    `* ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal ${pctStr}`,
-  ];
-}
-
-async function buildExerciseAwarePeriodReportReply(userId: number, result: TextIntentResult) {
-  if (result.action !== "period_report") return result.reply;
-
-  const start = typeof result.data?.start === "string" ? new Date(result.data.start) : null;
-  const end = typeof result.data?.end === "string" ? new Date(result.data.end) : null;
-  const label = typeof result.data?.periodLabel === "string" ? result.data.periodLabel : "período";
-  if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return result.reply;
-  }
-
-  const [meals, exercises, goal] = await Promise.all([
-    listMeals(userId),
-    listUserExercises(userId),
-    getUserNutritionGoal(userId),
-  ]);
-  const mealsInPeriod = meals.filter(meal => isInsidePeriod(meal.occurredAt, start, end));
-  const exercisesInPeriod = exercises.filter(exercise => isInsidePeriod(Number(exercise.occurredAt), start, end));
-  const totals = mealsInPeriod.reduce<NutritionTotals>((acc, meal) => {
-    const itemTotals = sumMealItems(meal.items ?? []);
-    acc.calories += itemTotals.calories;
-    acc.protein += itemTotals.protein;
-    acc.carbs += itemTotals.carbs;
-    acc.fat += itemTotals.fat;
-    return acc;
-  }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const consumedCalories = Math.round(totals.calories);
-  const exerciseCalories = Math.round(exercisesInPeriod.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0));
-  const goalCalories = Math.round(Number(goal.today?.calories || 0) * countPeriodDays(start, end));
-  const adjustedGoalCalories = calculateAdjustedGoalCalories(goalCalories, exerciseCalories, goal.today?.includeExerciseCalories ?? true);
-  const balanceCalories = adjustedGoalCalories - consumedCalories;
-  const goalSummaryLines = buildPeriodGoalSummaryLines({
-    goalCalories,
-    adjustedGoalCalories,
-    exerciseCalories,
-    consumedCalories,
-    balanceCalories,
-  });
-
-  return [
-    `*Resumo de ${label}:*`,
-    "",
-    `Refeições registradas: ${mealsInPeriod.length}`,
-    "",
-    ...buildMealBreakdownLines(mealsInPeriod),
-    ...(goalSummaryLines.length ? ["", ...goalSummaryLines] : []),
-  ].join("\n");
-}
-
-async function buildMealAdditionAwareReply(userId: number, result: TextIntentResult) {
-  return buildExerciseAwarePeriodReportReply(userId, result);
+async function buildMealAdditionAwareReply(_userId: number, result: TextIntentResult) {
+  return result.reply;
 }
 
 function wasTextIntentMessageAlreadyHandled(messageId?: string) {
@@ -601,11 +471,16 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   }
 
   if (weightLog?.kind === "weight") {
-    await updateUserCurrentWeight(userId, {
+    const timeZone = await getWhatsAppUserTimeZone(userId);
+    const { variationKg } = await getWhatsAppWeightVariation(userId, occurredAt, weightLog.weightKg);
+    const persistedWeight = await ensureWhatsAppWeightEntry(userId, {
       weightKg: weightLog.weightKg,
       measuredAt: occurredAt,
       notes: "Peso atualizado pelo WhatsApp.",
     });
+    if (persistedWeight.entry.id > 0) {
+      await recordDomainLink(lifecycleHandle, { weightEntryId: persistedWeight.entry.id });
+    }
 
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -613,7 +488,18 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       userId,
       sourcePhone,
       userMessage: text,
-      reply: buildWeightLogReply(weightLog.weightKg, occurredAt),
+      reply: buildWhatsAppCanonicalWeightReply({
+        weightKg: weightLog.weightKg,
+        variationKg,
+        occurredAtLabel: occurredAt.toLocaleString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone,
+        }),
+      }),
       eventType: "whatsapp.intent.weight_logged",
       detail: `Peso de ${formatNumber(weightLog.weightKg)} kg registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.`,
       status: "success",

@@ -1,32 +1,32 @@
 import { getUserWaterGoal, listUserWaterLogs, listUserWeightEntries } from "../../db";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { getUserOnboardingProfile } from "../onboarding/profileRead";
 
-const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
-
-function logicalDateKey(value: Date | number | string, timeZone = DEFAULT_TIME_ZONE) {
-  const date = value instanceof Date ? value : new Date(value);
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const read = (type: string) => parts.find(part => part.type === type)?.value ?? "";
-  return `${read("year")}-${read("month")}-${read("day")}`;
+export async function getWhatsAppUserTimeZone(userId: number) {
+  try {
+    return (await getUserOnboardingProfile(userId))?.timezone ?? DEFAULT_APP_TIME_ZONE;
+  } catch {
+    return DEFAULT_APP_TIME_ZONE;
+  }
 }
 
 export async function getWhatsAppWaterProgress(userId: number, occurredAt: Date) {
-  const [goal, logs] = await Promise.all([
+  const [goal, logs, timeZone] = await Promise.all([
     getUserWaterGoal(userId),
     listUserWaterLogs(userId),
+    getWhatsAppUserTimeZone(userId),
   ]);
-  const targetDateKey = logicalDateKey(occurredAt);
+  const targetDateKey = getDateKeyInTimeZone(occurredAt, timeZone);
   const totalMl = logs
-    .filter(log => logicalDateKey(log.occurredAt) === targetDateKey)
+    .filter(log => getDateKeyInTimeZone(log.occurredAt, timeZone) === targetDateKey)
     .reduce((total, log) => total + Number(log.amountMl ?? 0), 0);
+  const rawGoal = Number(goal.dailyTargetMl);
 
   return {
     totalMl,
-    goalMl: Number(goal.dailyTargetMl),
+    goalMl: Number.isFinite(rawGoal) ? rawGoal : null,
+    timeZone,
+    dateKey: targetDateKey,
   };
 }
 

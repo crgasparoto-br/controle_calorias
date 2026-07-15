@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { createUserWaterLog, getUserIdByWhatsappPhone, logInferenceEvent } from "./db";
 import {
   extractIndexedWhatsAppWebhookMessages,
-  formatDateKeyInSaoPaulo,
   normalizeWhatsAppIntentText,
   resolveWhatsAppMessageOccurredAt,
   type IndexedWhatsAppWebhookMessage,
@@ -22,9 +21,13 @@ import {
   type WhatsappContextFlow,
 } from "./modules/whatsapp/conversationContextRollout";
 import { textReply, withCtaUrl } from "./modules/whatsapp/replyContract";
-import { sendWhatsAppLogicalReply } from "./modules/whatsapp/replyTransport";
+import { sendWhatsAppStandaloneLogicalReply } from "./modules/whatsapp/logicalReplyDelivery";
 import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
 import { buildWhatsAppCanonicalWaterReply } from "./modules/whatsapp/domainReplyFormatters";
+import {
+  buildWhatsAppOnboardingLeadReplyMessage,
+  buildWhatsAppWaterImageClarificationReplyMessage,
+} from "./modules/whatsapp/replyMessages";
 import { getWhatsAppWaterProgress } from "./modules/whatsapp/userMeasurementReplyContext";
 
 const fallbackMessageDeduplicationCache = createMessageDeduplicationCache();
@@ -35,18 +38,6 @@ type ClaimedMessage = {
   userId: number;
   lifecycleHandle: MessageLifecycleHandle;
 };
-
-function formatReplyTime(date: Date) {
-  return date.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  });
-}
-
-function formatNumber(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
-}
 
 function parseWaterAmountMl(text: string) {
   const normalized = normalizeWhatsAppIntentText(text);
@@ -62,27 +53,6 @@ function parseWaterAmountMl(text: string) {
 function mentionsWater(text?: string) {
   const normalized = normalizeWhatsAppIntentText(text || "");
   return /\baguas?\b/.test(normalized) || /\bhidratacao\b/.test(normalized) || /\bwater\b/.test(normalized);
-}
-
-function buildWaterLogReply(amountMl: number, occurredAt: Date) {
-  return `Registrei ${formatNumber(amountMl)} ml de água às ${formatReplyTime(occurredAt)}.`;
-}
-
-function buildWaterImageClarificationReply() {
-  return "Identifiquei água na imagem. Para registrar corretamente, me diga a quantidade aproximada, por exemplo: 300 ml de água.";
-}
-
-function buildOnboardingWelcomeReply() {
-  return [
-    "Boas-vindas ao Controle de Calorias.",
-    "Para começar pelo WhatsApp, finalize seu cadastro no site pelo link seguro abaixo.",
-    "Depois disso, este canal passa a registrar suas refeições automaticamente.",
-    "Para perguntas livres à IA, inicie a mensagem com `/`.",
-  ].join("\n\n");
-}
-
-function isSameDateKeyInSaoPaulo(value: number | string | Date, dateKey: string) {
-  return formatDateKeyInSaoPaulo(new Date(value)) === dateKey;
 }
 
 function getImageCaption(message: WhatsAppWebhookMessage) {
@@ -155,9 +125,9 @@ async function handleOnboardingLeadMessage(item: IndexedWhatsAppWebhookMessage) 
 
   const { createWhatsappOnboardingLead } = await import("./modules/onboarding/whatsappLeadService");
   const onboarding = await createWhatsappOnboardingLead({ phoneNumber: message.from });
-  const replyResult = await sendWhatsAppLogicalReply(
+  const { result: replyResult } = await sendWhatsAppStandaloneLogicalReply(
     message.from,
-    withCtaUrl(textReply(buildOnboardingWelcomeReply()), {
+    withCtaUrl(textReply(buildWhatsAppOnboardingLeadReplyMessage()), {
       buttonText: "Finalizar cadastro",
       url: onboarding.url,
     }),
@@ -213,8 +183,10 @@ async function buildCanonicalWaterImageReply(userId: number, amountMl: number, o
     amountMl,
     totalMl: progress.totalMl,
     goalMl: progress.goalMl,
-    occurredAtLabel: occurredAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
-    totalLabel: "Total",
+    occurredAtLabel: occurredAt.toLocaleString("pt-BR", { timeZone: progress.timeZone }),
+    totalLabel: progress.dateKey === new Date().toLocaleDateString("en-CA", { timeZone: progress.timeZone })
+      ? "Total de hoje"
+      : `Total de ${progress.dateKey.split("-").reverse().join("/")}`,
   });
 }
 
@@ -262,7 +234,7 @@ async function sendWaterImageClarification(input: { userId: number; sourcePhone:
   const delivery = await sendWhatsAppLogicalDomainReply({
     to: input.sourcePhone,
     userId: input.userId,
-    replyText: buildWaterImageClarificationReply(),
+    replyText: buildWhatsAppWaterImageClarificationReplyMessage(),
     lifecycleHandle: input.lifecycleHandle,
   });
   if (!delivery.result.primaryOk) {

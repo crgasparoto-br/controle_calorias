@@ -3,23 +3,23 @@ import { normalizeIntentText } from "./textUtils";
 
 export const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 
-export function formatReplyDateTime(date: Date) {
+export function formatReplyDateTime(date: Date, timeZone = SAO_PAULO_TIME_ZONE) {
   return date.toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: SAO_PAULO_TIME_ZONE,
+    timeZone,
   });
 }
 
-export function formatReplyDate(date: Date) {
+export function formatReplyDate(date: Date, timeZone = SAO_PAULO_TIME_ZONE) {
   return date.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: SAO_PAULO_TIME_ZONE,
+    timeZone,
   });
 }
 
@@ -74,17 +74,17 @@ export function addDaysToZonedDate(parts: ZonedParts, days: number) {
   };
 }
 
-export function resolveRelativeOccurredAt(text: string, receivedAt: Date) {
+export function resolveRelativeOccurredAt(text: string, receivedAt: Date, timeZone = SAO_PAULO_TIME_ZONE) {
   const normalized = normalizeIntentText(text);
-  const referenceParts = getZonedParts(receivedAt);
+  const referenceParts = getZonedParts(receivedAt, timeZone);
   if (/\banteontem\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -2));
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -2), timeZone);
   }
   if (/\bontem\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -1));
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -1), timeZone);
   }
   if (/\bamanha\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, 1));
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, 1), timeZone);
   }
   return receivedAt;
 }
@@ -234,12 +234,6 @@ export function parseReportPeriod(text: string, receivedAt: Date, timeZone = SAO
   }
 
   return { kind: "clarification" as const };
-}
-
-export function countPeriodDays(period: PeriodRange) {
-  const start = startOfZonedDay(period.start).getTime();
-  const end = startOfZonedDay(period.end).getTime();
-  return Math.max(1, Math.round((end - start) / 86_400_000) + 1);
 }
 
 export function isMealInsidePeriod(meal: { occurredAt: number | string | Date }, period: PeriodRange) {

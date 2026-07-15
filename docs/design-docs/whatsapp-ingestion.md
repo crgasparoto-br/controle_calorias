@@ -207,3 +207,14 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - Testar que a exclusão por botão só executa após `Confirmar`, que `Cancelar` não altera o domínio, e que uma seleção ambígua por lista avança para confirmação por botões em vez de excluir diretamente.
 - Testar que autorização/recusa profissional por botão aplica a decisão uma única vez e que repetir o clique ou o texto equivalente não muda uma decisão já consumida.
 - Testar que o webhook real reconhece `button_reply` recebido pela Cloud API e resolve a exclusão pendente sem passar pelo fallback nutricional.
+
+
+## Invariantes finais da epic #779
+
+- Toda resposta funcional passa pelo contrato lógico e pelo delivery central; acknowledgement é operacional, cancelável e nunca substitui a resposta funcional.
+- Valores de meta são calculados no domínio. Formatters não recalculam a regra da #756, não multiplicam a meta atual por dias e não transformam ausência em zero.
+- Datas e períodos usam o timezone do perfil, com `America/Sao_Paulo` somente como fallback.
+- Ambiguidades de ações estruturadas usam pendência persistente, callback opaco e revalidação do banco antes da mutação.
+- Onboarding composto retoma apenas mensagens físicas ainda não entregues após falha parcial.
+- Erros de mídia, conta não vinculada e indisponibilidade são sanitizados e não expõem provider, payload, telefone completo ou identificadores internos.
+- O gate arquitetural impede novos payloads, envios e builders paralelos fora dos módulos autorizados.

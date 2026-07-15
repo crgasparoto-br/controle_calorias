@@ -225,6 +225,16 @@ export function buildWhatsAppCallbackResourceNotFoundReplyMessage() {
   });
 }
 
+export function buildWhatsAppUnlinkedAccountReplyMessage() {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "🔒 Conta não identificada",
+    lines: [
+      "Não consegui associar este número do WhatsApp a uma conta ativa.",
+      "Verifique o telefone cadastrado no sistema web.",
+    ],
+  });
+}
+
 export function buildWhatsAppSecurityBlockedReplyMessage() {
   return buildWhatsAppAuxiliaryReplyMessage({
     title: "Não posso seguir essa instrução",
@@ -233,19 +243,6 @@ export function buildWhatsAppSecurityBlockedReplyMessage() {
       "Para registrar uma refeição, corrigir um item ou consultar seus próprios registros, envie o pedido normalmente.",
     ],
   });
-}
-
-export function buildWhatsAppAudioTranscriptionFailureReplyMessage(code: WhatsAppAudioTranscriptionFailureCode) {
-  if (code === "INVALID_FORMAT") {
-    return buildWhatsAppRecoverableErrorReplyMessage("Não consegui ouvir seu áudio com segurança porque o formato não pôde ser lido. Pode reenviar o áudio ou escrever a refeição em texto?");
-  }
-  if (code === "FILE_TOO_LARGE") {
-    return buildWhatsAppRecoverableErrorReplyMessage("Não consegui ouvir seu áudio com segurança porque o arquivo está grande demais. Pode enviar um áudio menor ou escrever a refeição em texto?");
-  }
-  if (code === "EMPTY_TRANSCRIPT") {
-    return buildWhatsAppRecoverableErrorReplyMessage("Não consegui ouvir seu áudio com segurança porque não identifiquei uma fala útil. Pode reenviar o áudio ou escrever a refeição em texto?");
-  }
-  return buildWhatsAppRecoverableErrorReplyMessage("Não consegui ouvir/transcrever seu áudio com segurança porque ocorreu uma falha na transcrição. Pode reenviar o áudio ou escrever a refeição em texto?");
 }
 
 export function buildWhatsAppPartialAudioTranscriptionReplyMessage() {
@@ -269,10 +266,20 @@ export function buildWhatsAppWaterVolumeNeededReplyMessage() {
   });
 }
 
-export function buildWhatsAppWeightLoggedReplyMessage(params: { weightLabel: string; occurredAtLabel: string }) {
+export function buildWhatsAppWaterImageClarificationReplyMessage() {
+  return buildWhatsAppClarificationReplyMessage(
+    "Identifiquei água na imagem. Para registrar corretamente, informe a quantidade aproximada, por exemplo: 300 ml de água.",
+  );
+}
+
+export function buildWhatsAppOnboardingLeadReplyMessage() {
   return buildWhatsAppAuxiliaryReplyMessage({
-    title: "Peso atualizado",
-    lines: [`Atualizei seu peso atual para ${params.weightLabel} kg ${auxiliaryTimePreposition(params.occurredAtLabel)} ${params.occurredAtLabel}.`],
+    title: "Boas-vindas ao Controle de Calorias",
+    lines: [
+      "Para começar pelo WhatsApp, finalize seu cadastro no site pelo link seguro abaixo.",
+      "Depois disso, este canal poderá registrar suas refeições automaticamente.",
+      "Para perguntas livres à IA, inicie a mensagem com `/`.",
+    ],
   });
 }
 

@@ -432,7 +432,8 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
     expect(savedMeals.length).toBeGreaterThan(0);
-    expect(lastSentWhatsAppBody).toBeNull();
+    expect(lastSentWhatsAppBody).toContain("Conta não identificada");
+    expect(lastSentWhatsAppBody).toContain("Verifique o telefone cadastrado no sistema web");
   });
 
   it("ignora mensagens recebidas por um WhatsApp Phone Number ID diferente do canal fixo configurado", async () => {

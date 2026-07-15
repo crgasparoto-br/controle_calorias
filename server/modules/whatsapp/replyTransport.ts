@@ -78,6 +78,9 @@ export async function sendWhatsAppLogicalReply(
   for (const message of reply.messages) {
     const result = await sendOutboundMessage(to, message);
     sends.push({ message, ...result });
+    if (!result.ok) {
+      break;
+    }
   }
 
   const primaryOk = sends.length > 0 && sends[0].ok;

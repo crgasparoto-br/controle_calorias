@@ -17,13 +17,15 @@ import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./modules/whatsapp
 import {
   buildWhatsAppConsolidatedMealReplyMessage,
   buildWhatsAppMealReplyMessage,
+  buildWhatsAppRecoverableErrorReplyMessage,
+  buildWhatsAppUnlinkedAccountReplyMessage,
   buildWhatsAppWaterVolumeNeededReplyMessage,
 } from "./modules/whatsapp/replyMessages";
 import {
   buildWhatsAppCanonicalWaterReply as formatCanonicalWaterReply,
   buildWhatsAppCanonicalWeightReply as formatCanonicalWeightReply,
 } from "./modules/whatsapp/domainReplyFormatters";
-import { sendWhatsAppLogicalDomainReply, type WhatsAppAuxiliaryImage } from "./modules/whatsapp/logicalReplyDelivery";
+import { sendWhatsAppLogicalDomainReply, sendWhatsAppStandaloneReply, type WhatsAppAuxiliaryImage } from "./modules/whatsapp/logicalReplyDelivery";
 import { composeWhatsAppDeferredReplyText, getWhatsAppDeferredLogicalReply } from "./modules/whatsapp/deferredLogicalReply";
 import {
   startProcessingAcknowledgement,
@@ -31,7 +33,7 @@ import {
 } from "./modules/whatsapp/processingAcknowledgement";
 import { sendWhatsAppProcessingAcknowledgement } from "./modules/whatsapp/processingAcknowledgementDelivery";
 import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
-import { getWhatsAppWaterProgress, getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
+import { getWhatsAppUserTimeZone, getWhatsAppWaterProgress, getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
 import {
   detectWaterLogFromMessage,
   detectWeightLogFromMessage,
@@ -40,6 +42,12 @@ import {
   handleWhatsAppAction,
 } from "./modules/whatsapp/webhookTextCommands";
 import { prepareMessageInput, type PreparedMessageInput } from "./modules/whatsapp/webhookMediaPipeline";
+import {
+  buildWhatsAppAudioNotUnderstoodReplyMessage,
+  buildWhatsAppAudioProcessingFailureReplyMessage,
+  buildWhatsAppImageNotRecognizedReplyMessage,
+  buildWhatsAppImageProcessingFailureReplyMessage,
+} from "./modules/whatsapp/mediaReplyMessages";
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
 import {
   extractWhatsAppWebhookMessages,
@@ -60,20 +68,19 @@ import {
 type WhatsAppTextIntentResult = NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>;
 
 const whatsAppMessageDeduplicationCache = createMessageDeduplicationCache();
-const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.";
 
 async function resolveUserIdFromPhone(sourcePhone: string) {
   return getUserIdByWhatsappPhone(sourcePhone);
 }
 
-function formatWhatsAppOccurredAt(occurredAt: Date) {
+function formatWhatsAppOccurredAt(occurredAt: Date, timeZone: string) {
   return occurredAt.toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
+    timeZone,
   });
 }
 
@@ -83,18 +90,36 @@ async function buildCanonicalWaterReply(userId: number, amountMl: number, occurr
     amountMl,
     totalMl: progress.totalMl,
     goalMl: progress.goalMl,
-    occurredAtLabel: formatWhatsAppOccurredAt(occurredAt),
-    totalLabel: "Total",
+    occurredAtLabel: formatWhatsAppOccurredAt(occurredAt, progress.timeZone),
+    totalLabel: progress.dateKey === new Date().toLocaleDateString("en-CA", { timeZone: progress.timeZone }) ? "Total de hoje" : `Total de ${progress.dateKey.split("-").reverse().join("/")}`,
   });
 }
 
 async function buildCanonicalWeightReply(userId: number, weightKg: number, occurredAt: Date) {
-  const { variationKg } = await getWhatsAppWeightVariation(userId, occurredAt, weightKg);
+  const [{ variationKg }, timeZone] = await Promise.all([
+    getWhatsAppWeightVariation(userId, occurredAt, weightKg),
+    getWhatsAppUserTimeZone(userId),
+  ]);
   return formatCanonicalWeightReply({
     weightKg,
     variationKg,
-    occurredAtLabel: formatWhatsAppOccurredAt(occurredAt),
+    occurredAtLabel: formatWhatsAppOccurredAt(occurredAt, timeZone),
   });
+}
+
+function buildProcessingFailureReply(message: WhatsAppWebhookMessage, error: unknown) {
+  const notRecognized = error instanceof MealInferenceError;
+  if (message.image?.id) {
+    return notRecognized
+      ? buildWhatsAppImageNotRecognizedReplyMessage()
+      : buildWhatsAppImageProcessingFailureReplyMessage();
+  }
+  if (message.audio?.id) {
+    return notRecognized
+      ? buildWhatsAppAudioNotUnderstoodReplyMessage()
+      : buildWhatsAppAudioProcessingFailureReplyMessage();
+  }
+  return buildWhatsAppRecoverableErrorReplyMessage("Não foi possível concluir sua solicitação agora. Tente novamente em alguns instantes.");
 }
 
 function getVerifyToken() {
@@ -290,6 +315,19 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         eventType: "whatsapp.unlinked_phone",
         detail: "Mensagem recebida de telefone sem vínculo ativo com um usuário da plataforma.",
       });
+      const delivery = await sendWhatsAppStandaloneReply(
+        sourcePhone,
+        buildWhatsAppUnlinkedAccountReplyMessage(),
+      );
+      if (!delivery.result.primaryOk) {
+        logInferenceEvent({
+          userId: null,
+          origin: "whatsapp",
+          status: "warning",
+          eventType: "whatsapp.unlinked_phone_reply_failed",
+          detail: "Falha ao enviar orientação sanitizada para telefone sem vínculo.",
+        });
+      }
       continue;
     }
 
@@ -747,7 +785,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         detail: error instanceof Error ? error.message : "Falha desconhecida ao processar webhook.",
       });
 
-      const reply = error instanceof MealInferenceError ? error.message : PROCESSING_ERROR_REPLY;
+      const reply = buildProcessingFailureReply(message, error);
       const replyResult = await sendFinalText( reply);
       if (!replyResult.ok) {
         logInferenceEvent({

@@ -19,6 +19,7 @@ type WelcomeAudit = {
   sentAt?: string;
   attemptedAt: string;
   detail?: string;
+  deliveredMessageCount?: number;
 };
 
 const memoryWelcomeAudit = new Map<number, WelcomeAudit>();
@@ -325,10 +326,20 @@ export async function sendOnboardingWelcomeWhatsapp(userId: number): Promise<voi
     }
 
     const messages = buildWelcomeMessages();
+    const deliveredBefore = Math.min(Math.max(existing?.deliveredMessageCount ?? 0, 0), messages.length);
+    const remainingMessages = messages.slice(deliveredBefore);
+    if (!remainingMessages.length) {
+      return;
+    }
+
     const sentAt = new Date();
-    const delivery = await sendWhatsAppLogicalReply(connection.phoneNumber, sequencedTextReply(messages));
+    const delivery = await sendWhatsAppLogicalReply(connection.phoneNumber, sequencedTextReply(remainingMessages));
+    const deliveredNow = delivery.sends.findIndex(send => !send.ok) === -1
+      ? delivery.sends.length
+      : delivery.sends.findIndex(send => !send.ok);
+    const deliveredMessageCount = Math.min(deliveredBefore + deliveredNow, messages.length);
     const result = {
-      ok: delivery.primaryOk && delivery.ok,
+      ok: deliveredMessageCount === messages.length,
       detail: delivery.sends.find(send => !send.ok)?.detail ?? "Onboarding enviado.",
     };
 
@@ -339,6 +350,7 @@ export async function sendOnboardingWelcomeWhatsapp(userId: number): Promise<voi
           template: WELCOME_TEMPLATE_KEY,
           attemptedAt: sentAt.toISOString(),
           sentAt: sentAt.toISOString(),
+          deliveredMessageCount,
           detail: "Mensagem de boas-vindas enviada após onboarding.",
         }
       : {
@@ -347,6 +359,7 @@ export async function sendOnboardingWelcomeWhatsapp(userId: number): Promise<voi
           channel: "whatsapp",
           template: WELCOME_TEMPLATE_KEY,
           attemptedAt: sentAt.toISOString(),
+          deliveredMessageCount,
           detail: result.detail.slice(0, 500),
         };
 

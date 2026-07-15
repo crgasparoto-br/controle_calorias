@@ -2,7 +2,6 @@ import type { MealDraftItem } from "../../../nutritionEngine";
 import { sumMealItems, toMealItemInputs } from "./mealItemHelpers";
 import type { NutritionTotals } from "./types";
 import { formatWhatsAppMacroLine } from "../replyTemplates";
-import { buildWhatsAppCanonicalPeriodProgressLines } from "../domainReplyFormatters";
 
 export function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null; items?: MealDraftItem[] }>) {
   const groups = new Map<string, NutritionTotals>();
@@ -24,14 +23,4 @@ export function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null
     lines.push(formatWhatsAppMacroLine(totals));
   }
   return lines;
-}
-
-/** Adapter temporário para ambientes sem DATABASE_URL; mantém a nomenclatura
- * canônica e a diferença consumo - meta sem duplicar a regra da #756. */
-export function buildPeriodGoalSummaryLines(goalCalories: number, differenceCalories: number) {
-  if (goalCalories <= 0) return [];
-  return buildWhatsAppCanonicalPeriodProgressLines({
-    effectiveGoalCalories: goalCalories,
-    consumedCalories: goalCalories + differenceCalories,
-  });
 }

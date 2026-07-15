@@ -79,7 +79,11 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
 
     getDbMock.mockResolvedValue(null);
     getUserNutritionGoalMock.mockResolvedValue(VALID_GOAL_SUMMARY);
-    sendWhatsAppLogicalReplyMock.mockResolvedValue({ ok: true, primaryOk: true, sends: [{ ok: true, detail: "ok" }] });
+    sendWhatsAppLogicalReplyMock.mockImplementation(async (_to: string, reply: { messages: unknown[] }) => ({
+      ok: true,
+      primaryOk: true,
+      sends: reply.messages.map(message => ({ message, ok: true, detail: "ok" })),
+    }));
   });
 
   it("envia mensagem para usuário novo com telefone e meta válidos", async () => {
@@ -166,6 +170,36 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
 
     await sendOnboardingWelcomeWhatsapp(uid);
     expect(sendWhatsAppLogicalReplyMock).not.toHaveBeenCalled();
+  });
+
+
+  it("retoma somente a mensagem pendente após falha parcial", async () => {
+    const uid = freshUserId();
+    getUserWhatsappConnectionMock.mockResolvedValue(makeConnection(uid));
+    sendWhatsAppLogicalReplyMock
+      .mockResolvedValueOnce({
+        ok: false,
+        primaryOk: true,
+        sends: [
+          { ok: true, detail: "ok" },
+          { ok: false, detail: "falha na segunda mensagem" },
+        ],
+      })
+      .mockImplementationOnce(async (_to: string, reply: { messages: unknown[] }) => ({
+        ok: true,
+        primaryOk: true,
+        sends: reply.messages.map(message => ({ message, ok: true, detail: "ok" })),
+      }));
+
+    await sendOnboardingWelcomeWhatsapp(uid);
+    await sendOnboardingWelcomeWhatsapp(uid);
+
+    expect(sendWhatsAppLogicalReplyMock).toHaveBeenCalledTimes(2);
+    const [, firstReply] = sendWhatsAppLogicalReplyMock.mock.calls[0];
+    const [, retryReply] = sendWhatsAppLogicalReplyMock.mock.calls[1];
+    expect(firstReply.messages).toHaveLength(2);
+    expect(retryReply.messages).toHaveLength(1);
+    expect(retryReply.messages[0].body).toContain("Sua meta nutricional");
   });
 
   it("registra log de aviso quando provedor WhatsApp retorna erro", async () => {

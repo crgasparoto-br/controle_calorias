@@ -7,6 +7,9 @@ const logInferenceEventMock = vi.fn();
 const handleWhatsAppWebhookMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const updateUserCurrentWeightMock = vi.fn();
+const ensureWhatsAppWeightEntryMock = vi.fn();
+const getWhatsAppWeightVariationMock = vi.fn();
+const getWhatsAppUserTimeZoneMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
@@ -128,6 +131,15 @@ vi.mock("./modules/water/service", () => ({
   createWaterLog: createWaterLogMock,
 }));
 
+vi.mock("./modules/whatsapp/weightIdempotency", () => ({
+  ensureWhatsAppWeightEntry: ensureWhatsAppWeightEntryMock,
+}));
+
+vi.mock("./modules/whatsapp/userMeasurementReplyContext", () => ({
+  getWhatsAppWeightVariation: getWhatsAppWeightVariationMock,
+  getWhatsAppUserTimeZone: getWhatsAppUserTimeZoneMock,
+}));
+
 vi.mock("./modules/meals/service", () => ({
   listMeals: listMealsMock,
   updateMeal: updateMealMock,
@@ -246,6 +258,9 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     handleWhatsAppWebhookMock.mockReset();
     createWaterLogMock.mockReset();
     updateUserCurrentWeightMock.mockReset();
+    ensureWhatsAppWeightEntryMock.mockReset();
+    getWhatsAppWeightVariationMock.mockReset();
+    getWhatsAppUserTimeZoneMock.mockReset();
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     tryCreateQuickEditLinkForMealMock.mockReset();
@@ -266,6 +281,12 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     updateUserCurrentWeightMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
       userId: 42,
       ...input,
+    }));
+    getWhatsAppWeightVariationMock.mockResolvedValue({ variationKg: null, previousWeightKg: null });
+    getWhatsAppUserTimeZoneMock.mockResolvedValue("America/Sao_Paulo");
+    ensureWhatsAppWeightEntryMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      entry: { id: 92, userId: 42, ...input },
+      created: true,
     }));
     tryCreateQuickEditLinkForMealMock.mockResolvedValue(null);
     handleWhatsAppWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
@@ -325,7 +346,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
-    expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(42, {
+    expect(ensureWhatsAppWeightEntryMock).toHaveBeenCalledWith(42, {
       weightKg: 80.5,
       measuredAt: expect.any(Date),
       notes: "Peso atualizado pelo WhatsApp.",
@@ -337,7 +358,9 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       status: "success",
       eventType: "whatsapp.intent.weight_logged",
     }));
-    expect(sentMessages.at(-1)).toContain("Atualizei seu peso atual para 80,5 kg");
+    expect(sentMessages.at(-1)).toContain("⚖️ *Peso registrado*");
+    expect(sentMessages.at(-1)).toContain("*Peso:* 80,5 kg");
+    expect(sentMessages.at(-1)).toContain("*Variação:* primeiro registro");
   });
 
   it("pede esclarecimento para peso sem valor e não delega para criação de refeição", async () => {
@@ -566,17 +589,13 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
     expect(sentMessages.at(-1)).toContain("*Resumo de semana:*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
-    expect(sentMessages.at(-1)).toContain("Almoço: 195 kcal");
-    expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
+    expect(sentMessages.at(-1)).toContain("• *Almoço*");
+    expect(sentMessages.at(-1)).toContain("195 kcal | P 4,1 g | C 42 g | G 0,5 g");
     expect(sentMessages.at(-1)).not.toContain("Total consumido:");
-    expect(sentMessages.at(-1)).toContain("*Resumo das Metas:*");
-    expect(sentMessages.at(-1)).toContain("* Meta estimada: 15.400 kcal");
-    expect(sentMessages.at(-1)).toContain("* Exercícios: 300 kcal");
-    expect(sentMessages.at(-1)).toContain("* Meta ajustada: 15.700 kcal");
-    expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
-    expect(sentMessages.at(-1)).toContain("* Déficit: 15.505 kcal (-99%)");
-    expect(sentMessages.at(-1)).not.toContain("Você está em déficit");
-    expect(sentMessages.at(-1)).not.toContain("para a meta ajustada do período");
+    expect(sentMessages.at(-1)).toContain("*Meta:* não disponível para este período");
+    expect(sentMessages.at(-1)).toContain("*Consumo:* 195 kcal");
+    expect(sentMessages.at(-1)).not.toContain("Meta estimada");
+    expect(sentMessages.at(-1)).not.toContain("Meta ajustada");
   });
 
   it("interpreta Resumo sem período como relatório de hoje", async () => {
@@ -590,13 +609,13 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
     expect(sentMessages.at(-1)).toContain("*Resumo de hoje:*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
-    expect(sentMessages.at(-1)).toContain("Almoço: 195 kcal");
-    expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
+    expect(sentMessages.at(-1)).toContain("• *Almoço*");
+    expect(sentMessages.at(-1)).toContain("195 kcal | P 4,1 g | C 42 g | G 0,5 g");
     expect(sentMessages.at(-1)).not.toContain("Total consumido:");
-    expect(sentMessages.at(-1)).toContain("*Resumo das Metas:*");
-    expect(sentMessages.at(-1)).toContain("* Meta estimada: 2.200 kcal");
-    expect(sentMessages.at(-1)).toContain("* Meta ajustada: 2.200 kcal");
-    expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
+    expect(sentMessages.at(-1)).toContain("*Meta:* não disponível para este período");
+    expect(sentMessages.at(-1)).toContain("*Consumo:* 195 kcal");
+    expect(sentMessages.at(-1)).not.toContain("Meta estimada");
+    expect(sentMessages.at(-1)).not.toContain("Meta ajustada");
   });
 
   it("mantém contexto de resumo para pedidos ambíguos que não sejam apenas Resumo", async () => {

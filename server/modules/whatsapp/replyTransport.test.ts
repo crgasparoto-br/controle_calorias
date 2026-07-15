@@ -24,6 +24,7 @@ vi.mock("./messageLifecycle", () => ({
 const {
   acknowledgementReply,
   buttonsReply,
+  sequencedTextReply,
   textReply,
   withAuxiliaryImage,
   withCtaUrl,
@@ -102,6 +103,23 @@ describe("replyTransport", () => {
     expect(result.primaryOk).toBe(false);
     expect(result.recorded).toBe(false);
     expect(recordOutboundReplyMock).not.toHaveBeenCalled();
+  });
+
+
+  it("interrompe uma sequência na primeira falha para permitir retomada idempotente", async () => {
+    sendWhatsAppTextMessageMock
+      .mockResolvedValueOnce({ ok: true, detail: "primeira enviada" })
+      .mockResolvedValueOnce({ ok: false, detail: "segunda falhou" });
+
+    const result = await sendWhatsAppLogicalReply(
+      "5511999990000",
+      sequencedTextReply(["primeira", "segunda", "terceira"]),
+    );
+
+    expect(sendWhatsAppTextMessageMock).toHaveBeenCalledTimes(2);
+    expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalledWith("5511999990000", "terceira");
+    expect(result.sends).toHaveLength(2);
+    expect(result.ok).toBe(false);
   });
 
   it("CTA URL usa o transporte interativo dedicado e preserva o texto de gravação", async () => {

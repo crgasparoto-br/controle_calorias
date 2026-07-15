@@ -14,9 +14,18 @@ import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
 import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
-import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
+import {
+  buildWhatsAppClarificationReplyMessage,
+  buildWhatsAppItemNotFoundReplyMessage,
+  buildWhatsAppMealActionReplyMessage,
+  buildWhatsAppRecoverableErrorReplyMessage,
+} from "./replyMessages";
+import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
+import { formatDayMealListReply } from "./mealListIntent";
+import type { WhatsAppLogicalReply } from "./replyContract";
+import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
+import { addDaysToZonedDate, getZonedParts, makeDateInTimeZone } from "./intent/dateTime";
 
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const HEURISTIC_NUTRITION_PER_100G = {
   calories: 150,
   protein: 6,
@@ -40,6 +49,7 @@ type WhatsappLlmIntentResult = {
   detail: string;
   data?: Record<string, unknown>;
   toolTrace?: WhatsappAiToolTrace[];
+  interactiveReply?: WhatsAppLogicalReply;
 };
 
 /**
@@ -81,33 +91,22 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value);
 }
 
-function formatReplyDate(date: Date) {
+function formatReplyDate(date: Date, timeZone: string) {
   return date.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: SAO_PAULO_TIME_ZONE,
+    timeZone,
   });
 }
 
-function startOfSaoPauloDay(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: SAO_PAULO_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return new Date(`${values.year}-${values.month}-${values.day}T00:00:00-03:00`);
+function logicalDayKey(date: Date | number | string, timeZone: string) {
+  const parts = getZonedParts(new Date(date), timeZone);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
 }
 
-function endOfSaoPauloDay(date: Date) {
-  return new Date(startOfSaoPauloDay(date).getTime() + 86_400_000 - 1);
-}
-
-function isMealInsideDay(meal: ExistingMeal, date: Date) {
-  const occurredAt = new Date(meal.occurredAt).getTime();
-  return occurredAt >= startOfSaoPauloDay(date).getTime() && occurredAt <= endOfSaoPauloDay(date).getTime();
+function isMealInsideDay(meal: ExistingMeal, date: Date, timeZone: string) {
+  return logicalDayKey(meal.occurredAt, timeZone) === logicalDayKey(date, timeZone);
 }
 
 function normalizeMealLabel(value: string) {
@@ -120,28 +119,28 @@ function normalizeMealLabel(value: string) {
   return value.trim();
 }
 
-function resolveRelativeDateFromText(text: string, receivedAt: Date) {
+function shiftLogicalDay(receivedAt: Date, days: number, timeZone: string) {
+  return makeDateInTimeZone(addDaysToZonedDate(getZonedParts(receivedAt, timeZone), days), timeZone);
+}
+
+function resolveRelativeDateFromText(text: string, receivedAt: Date, timeZone: string) {
   const normalized = normalizeText(text);
-  if (/\banteontem\b/.test(normalized)) return new Date(receivedAt.getTime() - 172_800_000);
-  if (/\bontem\b/.test(normalized)) return new Date(receivedAt.getTime() - 86_400_000);
-  if (/\bamanha\b/.test(normalized)) return new Date(receivedAt.getTime() + 86_400_000);
+  if (/\banteontem\b/.test(normalized)) return shiftLogicalDay(receivedAt, -2, timeZone);
+  if (/\bontem\b/.test(normalized)) return shiftLogicalDay(receivedAt, -1, timeZone);
+  if (/\bamanha\b/.test(normalized)) return shiftLogicalDay(receivedAt, 1, timeZone);
   if (/\bhoje\b/.test(normalized)) return receivedAt;
   return null;
 }
 
-function resolveIntentDateSelection(intent: WhatsappInterpretedIntent, receivedAt: Date, sourceText?: string): ResolvedIntentDate {
-  const textDate = sourceText ? resolveRelativeDateFromText(sourceText, receivedAt) : null;
-  if (textDate) {
-    return { date: textDate, explicit: true, source: "text" };
-  }
-  if (!intent.date) {
-    return { date: receivedAt, explicit: false, source: "received_day" };
-  }
+function resolveIntentDateSelection(intent: WhatsappInterpretedIntent, receivedAt: Date, timeZone: string, sourceText?: string): ResolvedIntentDate {
+  const textDate = sourceText ? resolveRelativeDateFromText(sourceText, receivedAt, timeZone) : null;
+  if (textDate) return { date: textDate, explicit: true, source: "text" };
+  if (!intent.date) return { date: receivedAt, explicit: false, source: "received_day" };
   const normalized = normalizeText(intent.date);
   if (normalized === "hoje") return { date: receivedAt, explicit: true, source: "intent" };
-  if (normalized === "ontem") return { date: new Date(receivedAt.getTime() - 86_400_000), explicit: true, source: "intent" };
-  if (normalized === "anteontem") return { date: new Date(receivedAt.getTime() - 172_800_000), explicit: true, source: "intent" };
-  if (normalized === "amanha") return { date: new Date(receivedAt.getTime() + 86_400_000), explicit: true, source: "intent" };
+  if (normalized === "ontem") return { date: shiftLogicalDay(receivedAt, -1, timeZone), explicit: true, source: "intent" };
+  if (normalized === "anteontem") return { date: shiftLogicalDay(receivedAt, -2, timeZone), explicit: true, source: "intent" };
+  if (normalized === "amanha") return { date: shiftLogicalDay(receivedAt, 1, timeZone), explicit: true, source: "intent" };
   const parsed = new Date(intent.date);
   return Number.isNaN(parsed.getTime())
     ? { date: receivedAt, explicit: false, source: "received_day" }
@@ -152,10 +151,11 @@ function findMealByLabel(
   meals: ExistingMeal[],
   label: string,
   date: Date,
+  timeZone: string,
   options: { allowCrossDayFallback?: boolean } = {},
 ) {
   const normalizedLabel = normalizeText(normalizeMealLabel(label));
-  return meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel && isMealInsideDay(meal, date))
+  return meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel && isMealInsideDay(meal, date, timeZone))
     ?? (options.allowCrossDayFallback ? meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel) : null)
     ?? null;
 }
@@ -241,11 +241,15 @@ function itemMatchScore(item: MealItemInput, targetFood: string) {
   return overlap >= Math.max(1, Math.min(2, targetWords.size)) ? 1 : 0;
 }
 
-function findReplacementTarget(items: MealItemInput[], sourceFood: string) {
-  const candidates = items
+function listReplacementCandidates(items: MealItemInput[], sourceFood: string) {
+  return items
     .map((item, index) => ({ item, index, score: itemMatchScore(item, sourceFood) }))
     .filter(candidate => candidate.score > 0)
     .sort((a, b) => b.score - a.score);
+}
+
+function findReplacementTarget(items: MealItemInput[], sourceFood: string) {
+  const candidates = listReplacementCandidates(items, sourceFood);
   if (!candidates.length) return null;
   if (candidates.length > 1 && candidates[0].score === candidates[1].score) return "ambiguous" as const;
   return candidates[0];
@@ -265,27 +269,6 @@ function replaceMealItemFood(item: MealItemInput, targetFood: string): MealItemI
     confidence: Math.min(Number(item.confidence || 0.7), 0.7),
     source: "heuristic",
   };
-}
-
-function sumMealItems(items: MealItemInput[]) {
-  return items.reduce(
-    (acc, item) => ({
-      calories: acc.calories + Number(item.calories || 0),
-      protein: acc.protein + Number(item.protein || 0),
-      carbs: acc.carbs + Number(item.carbs || 0),
-      fat: acc.fat + Number(item.fat || 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-}
-
-function formatTotalsLine(totals: { calories: number; protein: number; carbs: number; fat: number }) {
-  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
-}
-
-function formatMealItemLine(item: MealItemInput) {
-  const portionText = item.portionText?.trim() || "1 porção";
-  return `  - ${portionText} de ${item.foodName}: ${formatTotalsLine(item)}`;
 }
 
 function hasLikelyMealRegistrationSignal(text: string) {
@@ -325,7 +308,7 @@ function buildToolFallbackResult(toolTrace: WhatsappAiToolTrace[], detail: strin
   return {
     handled: true,
     action: "clarification_needed",
-    reply: "Nao consegui concluir essa acao com seguranca agora. Tente novamente em instantes ou envie mais detalhes.",
+    reply: buildWhatsAppRecoverableErrorReplyMessage("Não consegui concluir essa ação com segurança agora. Tente novamente em instantes ou envie mais detalhes."),
     eventType: "whatsapp.llm_intent.clarification_needed",
     detail,
     toolTrace,
@@ -353,8 +336,8 @@ function buildBackendValidationClarification(
   return {
     handled: true,
     action: "clarification_needed",
-    reply: firstIssue?.message
-      ?? "Preciso confirmar alguns detalhes antes de salvar essa informacao com seguranca.",
+    reply: buildWhatsAppClarificationReplyMessage(firstIssue?.message
+      ?? "Preciso confirmar alguns detalhes antes de salvar essa informação com segurança."),
     eventType: "whatsapp.llm_intent.clarification_needed",
     detail: "Validacao de backend bloqueou acao persistente antes de chamar ferramentas.",
     data: {
@@ -407,12 +390,13 @@ async function handleAddFoodsToMeal(
   receivedAt: Date,
   idempotencyKey: string,
   sourceText: string,
+  timeZone: string,
 ): Promise<WhatsappLlmIntentResult | null> {
   if (!intent.meal?.label || !intent.items.length) {
     return null;
   }
   const toolTrace: WhatsappAiToolTrace[] = [];
-  const targetDate = resolveIntentDateSelection(intent, receivedAt, sourceText);
+  const targetDate = resolveIntentDateSelection(intent, receivedAt, timeZone, sourceText);
   const mealLabel = normalizeMealLabel(intent.meal.label);
   const mealsResult = await runWhatsappAiTool({
     toolId: "meal_records_list",
@@ -426,7 +410,7 @@ async function handleAddFoodsToMeal(
   }
 
   const meals = mealsResult.result;
-  const existingMeal = findMealByLabel(meals, mealLabel, targetDate.date, { allowCrossDayFallback: !targetDate.explicit });
+  const existingMeal = findMealByLabel(meals, mealLabel, targetDate.date, timeZone, { allowCrossDayFallback: !targetDate.explicit });
   if (!existingMeal && !intent.meal.createIfMissing) {
     return null;
   }
@@ -486,7 +470,7 @@ async function handleAddFoodsToMeal(
     reply: buildWhatsAppMealActionReplyMessage(meal, {
       title: addedItems.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
       actionLines: [
-        `Adicionado a ${meal.mealLabel} de ${formatReplyDate(new Date(meal.occurredAt))}: ${addedItems.map(item => `${item.portionText} de ${item.foodName}`).join(", ")}.`,
+        `Adicionado a ${meal.mealLabel} de ${formatReplyDate(new Date(meal.occurredAt), timeZone)}: ${addedItems.map(item => `${item.portionText} de ${item.foodName}`).join(", ")}.`,
       ],
     }),
     eventType: "whatsapp.llm_intent.add_foods_to_meal",
@@ -513,42 +497,68 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
     toolId: "meal_records_list",
     intent: "replace_food_in_meal",
     outcome: "success",
-    parameterSummary: { dateWindow: "latest", sourceFoodProvided: true },
+    parameterSummary: { dateWindow: "recent", sourceFoodProvided: true },
   }, () => listMeals(userId));
   toolTrace.push(mealsResult.trace);
   if (!mealsResult.result) {
-    return buildToolFallbackResult(toolTrace, "Falha ao consultar refeicao recente antes de correcao.");
+    return buildToolFallbackResult(toolTrace, "Falha ao consultar refeições antes da correção.");
   }
 
-  const latestMeal = mealsResult.result[0];
-  if (!latestMeal?.items?.length) {
+  const requestedMealLabel = intent.meal?.label ? normalizeText(normalizeMealLabel(intent.meal.label)) : null;
+  const candidateMeals = requestedMealLabel
+    ? mealsResult.result.filter(meal => normalizeText(meal.mealLabel) === requestedMealLabel)
+    : mealsResult.result;
+  const candidates = candidateMeals.flatMap(meal =>
+    listReplacementCandidates((meal.items ?? []).map(toMealItemInput), intent.sourceFood!)
+      .map(candidate => ({ ...candidate, meal })),
+  );
+
+  if (!candidateMeals.length || !candidates.length) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: "Nao encontrei uma refeicao recente para corrigir. Me diga qual alimento devo trocar.",
+      reply: buildWhatsAppItemNotFoundReplyMessage({
+        target: intent.sourceFood,
+        context: requestedMealLabel ? `na refeição ${intent.meal?.label}` : "nas refeições recentes",
+        instruction: "Informe a refeição e o nome do alimento exatamente como aparecem nos registros.",
+      }),
       eventType: "whatsapp.llm_intent.clarification_needed",
-      detail: "Intencao estruturada de troca sem refeicao recente.",
+      detail: "Intenção estruturada de troca sem item compatível.",
       toolTrace: [...toolTrace, buildClarificationToolTrace(intent)],
     };
   }
 
-  const latestItems = latestMeal.items.map(toMealItemInput);
-  const target = findReplacementTarget(latestItems, intent.sourceFood);
-  if (!target || target === "ambiguous") {
-    const options = latestItems.map((item, index) => `${index + 1}. ${item.foodName}`).join(" ");
+  const bestScore = candidates[0]?.score ?? 0;
+  const bestCandidates = candidates.filter(candidate => candidate.score === bestScore);
+  if (bestCandidates.length > 1) {
+    const pending = await createPendingMealItemSelection(userId, {
+      targetFood: intent.sourceFood,
+      action: { kind: "replace_food", targetFood: intent.targetFood },
+      contextLabel: requestedMealLabel ? `na refeição ${intent.meal?.label}` : "nas refeições recentes",
+      resultTitle: "Alimento substituído",
+      candidates: bestCandidates.map(candidate => ({
+        mealId: candidate.meal.id,
+        mealLabel: candidate.meal.mealLabel,
+        itemIndex: candidate.index,
+        itemName: candidate.item.foodName,
+      })),
+    });
     return {
       handled: true,
       action: "clarification_needed",
-      reply: `Nao encontrei uma correspondencia segura para ${intent.sourceFood}. Qual item devo trocar? ${options}`,
-      eventType: "whatsapp.llm_intent.clarification_needed",
-      detail: target === "ambiguous"
-        ? "Intencao estruturada de troca com correspondencia ambigua."
-        : "Intencao estruturada de troca sem item compativel.",
+      reply: pending.reply,
+      interactiveReply: pending.interactiveReply,
+      eventType: pending.eventType,
+      detail: pending.detail,
+      data: { ...pending.data, intentConfidence: intent.confidence },
       toolTrace: [...toolTrace, buildClarificationToolTrace(intent)],
     };
   }
 
-  const nextItems = latestItems.map((item, index) => index === target.index
+  const target = bestCandidates[0];
+  const sourceMeal = target.meal;
+  const sourceItems = (sourceMeal.items ?? []).map(toMealItemInput);
+  const nextItems = sourceItems.map((item, index) => index === target.index
     ? replaceMealItemFood(item, intent.targetFood!)
     : item);
   toolTrace.push(buildWhatsappAiToolTrace({
@@ -564,21 +574,20 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
     backendValidated: true,
     idempotencyKey,
     outcome: "success",
-    parameterSummary: { mealId: latestMeal.id, itemCount: nextItems.length },
+    parameterSummary: { mealId: sourceMeal.id, itemCount: nextItems.length },
   }, () => updateMeal(userId, {
-    mealId: latestMeal.id,
-    mealLabel: latestMeal.mealLabel,
-    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
-    notes: latestMeal.notes,
+    mealId: sourceMeal.id,
+    mealLabel: sourceMeal.mealLabel,
+    occurredAt: new Date(sourceMeal.occurredAt).toISOString(),
+    notes: sourceMeal.notes,
     items: nextItems,
   }));
   toolTrace.push(updatedMealResult.trace);
   if (!updatedMealResult.result) {
-    return buildToolFallbackResult(toolTrace, "Falha ao persistir correcao validada.");
+    return buildToolFallbackResult(toolTrace, "Falha ao persistir correção validada.");
   }
 
   const replacedItem = nextItems[target.index];
-  // Fonte de verdade da resposta (issue #783): mostra a refeição completa recarregada, não só o item trocado.
   return {
     handled: true,
     action: "llm_intent_replace_food_in_meal",
@@ -587,7 +596,7 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
       actionLines: [`Troquei ${target.item.foodName} por ${intent.targetFood} e mantive ${formatNumber(replacedItem.estimatedGrams)} g.`],
     }),
     eventType: "whatsapp.llm_intent.replace_food_in_meal",
-    detail: "Alimento substituido por intencao estruturada validada.",
+    detail: "Alimento substituído por intenção estruturada validada.",
     data: {
       mealId: updatedMealResult.result.id,
       previousFoodName: target.item.foodName,
@@ -598,7 +607,7 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
   };
 }
 
-async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent, receivedAt: Date, mode: "list" | "summary" = "list"): Promise<WhatsappLlmIntentResult> {
+async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent, receivedAt: Date, timeZone: string, mode: "list" | "summary" = "list"): Promise<WhatsappLlmIntentResult> {
   const mealsResult = await runWhatsappAiTool({
     toolId: "meal_records_list",
     intent: intent.intent,
@@ -610,12 +619,12 @@ async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent
     return buildToolFallbackResult(toolTrace, "Falha ao consultar refeicoes para resposta contextual.");
   }
 
-  const filteredMeals = mealsResult.result.filter(meal => isMealInsideDay(meal, receivedAt));
+  const filteredMeals = mealsResult.result.filter(meal => isMealInsideDay(meal, receivedAt, timeZone));
   if (!filteredMeals.length) {
     return {
       handled: true,
       action: mode === "list" ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
-      reply: "Nao encontrei refeicoes registradas hoje.",
+      reply: buildWhatsAppItemNotFoundReplyMessage({ target: "refeições", context: "nesta data", instruction: "Registre uma refeição ou informe outra data para consultar." }),
       eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
       detail: "Consulta estruturada de refeicoes sem registros encontrados.",
       data: { mealCount: 0 },
@@ -623,23 +632,12 @@ async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent
     };
   }
 
-  const lines = filteredMeals.flatMap(meal => {
-    const items = (meal.items ?? []).map(toMealItemInput);
-    const totals = sumMealItems(items);
-    const header = `• ${meal.mealLabel}: ${formatTotalsLine(totals)}`;
-    if (mode === "summary") {
-      return [header];
-    }
-    if (!items.length) {
-      return [header, "  - Sem alimentos detalhados."];
-    }
-    return [header, ...items.map(formatMealItemLine)];
-  });
+  const canonicalReply = formatDayMealListReply(filteredMeals, receivedAt, timeZone);
 
   return {
     handled: true,
     action: mode === "list" ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
-    reply: [mode === "list" ? "Alimentos registrados hoje:" : "Refeicoes registradas hoje:", "", ...lines].join("\n"),
+    reply: canonicalReply,
     eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
     detail: "Consulta estruturada de refeicoes respondida pelo WhatsApp.",
     data: { mealCount: filteredMeals.length },
@@ -663,8 +661,8 @@ function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmInten
   return {
     handled: true,
     action: "clarification_needed",
-    reply: intent.clarificationQuestion
-      ?? "Nao entendi com seguranca. Voce quer registrar alimento, corrigir uma refeicao ou consultar seus registros?",
+    reply: buildWhatsAppClarificationReplyMessage(intent.clarificationQuestion
+      ?? "Não consegui entender com segurança. Diga se deseja registrar um alimento, corrigir uma refeição ou consultar seus registros."),
     eventType: "whatsapp.llm_intent.clarification_needed",
     detail: `Intencao ${intent.intent} exige esclarecimento antes de executar.`,
     data: {
@@ -692,6 +690,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   }
 
   const receivedAt = input.receivedAt ?? new Date();
+  const timeZone = await getWhatsAppUserTimeZone(userId);
   const idempotencyKey = buildIdempotencyKey(userId, text, receivedAt, input.messageId);
   // Passa a pendência operacional ativa (se houver) para o classificador saber que uma
   // resposta pode estar resolvendo uma seleção/confirmação/exclusão em aberto (issue #766).
@@ -742,13 +741,13 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
 
     switch (intent.intent) {
       case "add_foods_to_meal":
-        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt, idempotencyKey, text));
+        return finish(await handleAddFoodsToMeal(userId, intent, receivedAt, idempotencyKey, text, timeZone));
       case "replace_food_in_meal":
         return finish(await handleReplaceFoodInMeal(userId, intent, idempotencyKey));
       case "list_meal_records":
-        return finish(await handleListMeals(userId, intent, receivedAt, "list"));
+        return finish(await handleListMeals(userId, intent, receivedAt, timeZone, "list"));
       case "daily_summary":
-        return finish(await handleListMeals(userId, intent, receivedAt, "summary"));
+        return finish(await handleListMeals(userId, intent, receivedAt, timeZone, "summary"));
       case "open_records_link":
         return finish({
           handled: true,

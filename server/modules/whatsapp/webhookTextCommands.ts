@@ -1,6 +1,5 @@
 import { getDb, listUserMeals, logPersistenceWarning, relabelUserMeals } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
-import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./replyFormatting";
 import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
 import {
@@ -9,8 +8,6 @@ import {
   buildWhatsAppActionConfirmedReplyMessage,
   buildWhatsAppCallbackResourceNotFoundReplyMessage,
   buildWhatsAppClarificationReplyMessage,
-  buildWhatsAppWaterLoggedReplyMessage,
-  buildWhatsAppWeightLoggedReplyMessage,
 } from "./replyMessages";
 import {
   getWhatsAppMessageTextBody,
@@ -364,18 +361,4 @@ export function detectWeightLogFromMessage(message: WhatsAppWebhookMessage) {
   }
 
   return { weightKg };
-}
-
-export function buildWaterLogReply(amountMl: number, occurredAt: Date) {
-  return buildWhatsAppWaterLoggedReplyMessage({
-    amountLabel: formatWhatsAppMacro(amountMl),
-    occurredAtLabel: formatWhatsAppReplyTime(occurredAt),
-  });
-}
-
-export function buildWeightLogReply(weightKg: number, occurredAt: Date) {
-  return buildWhatsAppWeightLoggedReplyMessage({
-    weightLabel: formatWhatsAppMacro(weightKg),
-    occurredAtLabel: formatWhatsAppReplyTime(occurredAt),
-  });
 }
