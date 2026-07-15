@@ -1,4 +1,4 @@
-import { getUserWaterGoal, listUserWaterLogs, listUserWeightEntries } from "../../db";
+import { getUserWaterGoal, getWeeklyProgress, listUserWaterLogs } from "../../db";
 
 const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
 
@@ -35,9 +35,11 @@ export async function getWhatsAppWeightVariation(
   occurredAt: Date,
   currentWeightKg: number,
 ) {
-  const previousEntry = (await listUserWeightEntries(userId))
-    .filter(entry => new Date(entry.measuredAt).getTime() < occurredAt.getTime())
-    .sort((first, second) => new Date(second.measuredAt).getTime() - new Date(first.measuredAt).getTime())[0];
+  const targetDateKey = logicalDateKey(occurredAt);
+  const entries = (await getWeeklyProgress(userId)).weight.entries
+    .filter(entry => entry.date < targetDateKey)
+    .sort((first, second) => second.date.localeCompare(first.date));
+  const previousEntry = entries[0];
 
   if (!previousEntry) return { variationKg: null, previousWeightKg: null };
   return {

@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getUserWaterGoalMock = vi.hoisted(() => vi.fn());
 const listUserWaterLogsMock = vi.hoisted(() => vi.fn());
-const listUserWeightEntriesMock = vi.hoisted(() => vi.fn());
+const getWeeklyProgressMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../db", () => ({
   getUserWaterGoal: getUserWaterGoalMock,
   listUserWaterLogs: listUserWaterLogsMock,
-  listUserWeightEntries: listUserWeightEntriesMock,
+  getWeeklyProgress: getWeeklyProgressMock,
 }));
 
 const { getWhatsAppWaterProgress, getWhatsAppWeightVariation } = await import("./userMeasurementReplyContext");
@@ -30,11 +30,13 @@ describe("userMeasurementReplyContext", () => {
   });
 
   it("calcula variação contra o registro anterior válido do mesmo usuário", async () => {
-    listUserWeightEntriesMock.mockResolvedValue([
-      { weightKg: 68, measuredAt: new Date("2026-07-15T08:00:00-03:00") },
-      { weightKg: 66.7, measuredAt: new Date("2026-07-13T08:00:00-03:00") },
-      { weightKg: 67.1, measuredAt: new Date("2026-07-10T08:00:00-03:00") },
-    ]);
+    getWeeklyProgressMock.mockResolvedValue({
+      weight: { entries: [
+        { weightKg: 68, date: "2026-07-15" },
+        { weightKg: 66.7, date: "2026-07-13" },
+        { weightKg: 67.1, date: "2026-07-10" },
+      ] },
+    });
 
     await expect(getWhatsAppWeightVariation(7, new Date("2026-07-14T08:00:00-03:00"), 66.3)).resolves.toEqual({
       variationKg: -0.4,
@@ -43,7 +45,7 @@ describe("userMeasurementReplyContext", () => {
   });
 
   it("identifica primeiro registro quando não existe peso anterior", async () => {
-    listUserWeightEntriesMock.mockResolvedValue([]);
+    getWeeklyProgressMock.mockResolvedValue({ weight: { entries: [] } });
     await expect(getWhatsAppWeightVariation(7, new Date(), 66.3)).resolves.toEqual({
       variationKg: null,
       previousWeightKg: null,
