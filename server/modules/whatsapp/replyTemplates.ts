@@ -15,12 +15,9 @@ export type WhatsAppFoodReplyItem = FoodIconInput & WhatsAppNutritionTotals & {
 
 export type WhatsAppGoalProgressInput = {
   consumedCalories?: number | null;
-  /** Meta final aplicável, já calculada fora do formatter conforme a configuração da #756. */
-  effectiveGoalCalories?: number | null;
-  /** Alias legado temporário; deve conter a meta efetiva, nunca a meta-base. */
-  goalCalories?: number | null;
+  /** Meta final aplicável, já calculada pelo domínio conforme a configuração da #756. */
+  effectiveGoalCalories: number | null;
   exerciseCalories?: number | null;
-  includeExerciseCalories?: boolean;
   consumedProteinGrams?: number | null;
   targetProteinGrams?: number | null;
   consumedCarbsGrams?: number | null;
@@ -110,7 +107,7 @@ export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
 
 export function buildWhatsAppMealTotalLines(totals: WhatsAppNutritionTotals) {
   return [
-    "Total da refeição:",
+    "*Total da refeição*",
     formatWhatsAppNutritionTotalsLine(totals),
   ];
 }
@@ -127,7 +124,7 @@ function buildMacroProgressLine(label: "P" | "C" | "G", consumed: number | null 
 }
 
 export function buildWhatsAppGoalProgressLines(progress: WhatsAppGoalProgressInput | null | undefined) {
-  const effectiveGoalCalories = progress?.effectiveGoalCalories ?? progress?.goalCalories;
+  const effectiveGoalCalories = progress?.effectiveGoalCalories;
   if (!progress || typeof effectiveGoalCalories !== "number" || effectiveGoalCalories <= 0) {
     return [];
   }

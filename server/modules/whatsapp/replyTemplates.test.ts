@@ -47,10 +47,11 @@ describe("replyTemplates", () => {
     expect(buildWhatsAppFoodLines({ ...banana, source: "heuristic" })).toHaveLength(3);
   });
 
-  it("mantém o contrato existente do total da refeição", () => {
+  it("formata total da refeição e linha compacta de totais", () => {
     const totals = { calories: 247.5, protein: 46.5, carbs: 0, fat: 5.4 };
+
     expect(buildWhatsAppMealTotalLines(totals)).toEqual([
-      "Total da refeição:",
+      "*Total da refeição*",
       "247,5 kcal | P 46,5 g | C 0 g | G 5,4 g",
     ]);
     expect(formatWhatsAppNutritionTotalsLine(totals)).toBe("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");
@@ -68,13 +69,20 @@ describe("replyTemplates", () => {
     ]);
   });
 
-  it("aceita temporariamente o alias legado contendo a meta efetiva", () => {
+  it("mostra sinal positivo quando o consumo excede a meta e zero quando são iguais", () => {
     expect(buildWhatsAppGoalProgressLines({
       consumedCalories: 2100,
-      goalCalories: 2000,
+      effectiveGoalCalories: 2000,
     })).toEqual([
       "*Meta:* 2.000 kcal",
       "*Consumo:* 2.100 kcal (+100 kcal)",
+    ]);
+    expect(buildWhatsAppGoalProgressLines({
+      consumedCalories: 2000,
+      effectiveGoalCalories: 2000,
+    })).toEqual([
+      "*Meta:* 2.000 kcal",
+      "*Consumo:* 2.000 kcal (0 kcal)",
     ]);
   });
 
