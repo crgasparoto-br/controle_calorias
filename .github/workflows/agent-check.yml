@@ -36,12 +36,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
-        run: |
-          if ! pnpm check > /tmp/tsc.log 2>&1; then
-            cat /tmp/tsc.log
-            exit 1
-          fi
-          cat /tmp/tsc.log
+        run: pnpm check
 
       - name: Tests
         run: |
@@ -52,14 +47,12 @@ jobs:
           fi
           tail -n 80 /tmp/vitest.log
 
-      - name: Upload diagnostics
+      - name: Upload Vitest diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: agent-first-diagnostics
-          path: |
-            /tmp/tsc.log
-            /tmp/vitest.log
+          name: agent-first-vitest-log
+          path: /tmp/vitest.log
           if-no-files-found: ignore
           retention-days: 3
 
