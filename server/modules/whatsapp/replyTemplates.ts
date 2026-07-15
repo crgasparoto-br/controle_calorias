@@ -15,9 +15,9 @@ export type WhatsAppFoodReplyItem = FoodIconInput & WhatsAppNutritionTotals & {
 
 export type WhatsAppGoalProgressInput = {
   consumedCalories?: number | null;
-  /** Meta final aplicável, já calculada pelo domínio conforme a configuração da #756. */
+  /** Meta final aplicável, já calculada fora do formatter conforme a configuração da #756. */
   effectiveGoalCalories?: number | null;
-  /** Compatibilidade temporária: deve conter a meta efetiva, nunca a meta-base. */
+  /** Alias legado temporário; deve conter a meta efetiva, nunca a meta-base. */
   goalCalories?: number | null;
   exerciseCalories?: number | null;
   includeExerciseCalories?: boolean;
@@ -93,6 +93,7 @@ export function formatWhatsAppFoodLine(item: WhatsAppFoodReplyItem) {
   return `• ${resolveFoodIcon(item)} ${formatWhatsAppFoodDescription(item)}`;
 }
 
+/** Item cuja nutrição não veio integralmente do catálogo confiável e foi estimada pela IA (issue #783). */
 export function isWhatsAppEstimatedFoodItem(item: WhatsAppFoodReplyItem) {
   return item.source !== "catalog";
 }
@@ -109,7 +110,7 @@ export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
 
 export function buildWhatsAppMealTotalLines(totals: WhatsAppNutritionTotals) {
   return [
-    "*Total da refeição*",
+    "Total da refeição:",
     formatWhatsAppNutritionTotalsLine(totals),
   ];
 }

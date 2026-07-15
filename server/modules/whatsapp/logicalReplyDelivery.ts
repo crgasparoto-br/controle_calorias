@@ -1,12 +1,7 @@
 import { tryCreateQuickEditLinkForMeal } from "../quickEdit/service";
 import { logicalReplyFromLegacyText, withAuxiliaryImage, withCtaUrl, type WhatsAppLogicalReply } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
-import {
-  markMessageProcessed,
-  recordDomainLink,
-  type MessageLifecycleHandle,
-} from "./messageLifecycle";
-import type { DomainLinkInput } from "../../repositories/whatsappConversationRepository";
+import type { MessageLifecycleHandle } from "./messageLifecycle";
 
 export type WhatsAppAuxiliaryImage =
   | { url: string; caption: string }
@@ -40,23 +35,11 @@ export async function sendWhatsAppLogicalDomainReply(input: {
   logicalReply?: WhatsAppLogicalReply;
   auxiliaryImage?: WhatsAppAuxiliaryImage | null;
   lifecycleHandle?: MessageLifecycleHandle;
-  domainLinks?: DomainLinkInput[];
-  /**
-   * Finaliza o inbound apenas quando a mensagem funcional primária foi entregue.
-   * Notificações sem inbound deixam este campo no padrão `true`, mas não possuem handle.
-   */
-  finalizeLifecycle?: boolean;
 }) {
   const reply = await buildWhatsAppLogicalReplyForDelivery(input);
   const lifecycle = input.lifecycleHandle
     ? { handle: input.lifecycleHandle, userId: input.userId }
     : undefined;
   const result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle);
-  if (result.primaryOk && result.recorded && input.lifecycleHandle && input.finalizeLifecycle !== false) {
-    for (const link of input.domainLinks ?? []) {
-      await recordDomainLink(input.lifecycleHandle, link);
-    }
-    await markMessageProcessed(input.lifecycleHandle);
-  }
   return { reply, result };
 }

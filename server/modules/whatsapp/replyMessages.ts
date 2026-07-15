@@ -1,4 +1,5 @@
 import type { MealProcessingResult } from "../../nutritionEngine";
+import { getWhatsAppExerciseCaloriesForDateKey } from "./goalProgressContext";
 import {
   buildWhatsAppBlock,
   buildWhatsAppFoodLines,
@@ -6,13 +7,16 @@ import {
   buildWhatsAppMealTotalLines,
   buildWhatsAppSeparator,
   buildWhatsAppTitle,
-  formatWhatsAppNumber,
   type WhatsAppFoodReplyItem,
-  type WhatsAppGoalProgressInput,
   type WhatsAppNutritionTotals,
 } from "./replyTemplates";
 
-export type WhatsAppMealGoalProgress = WhatsAppGoalProgressInput;
+export type WhatsAppMealGoalProgress = {
+  consumedCalories: number;
+  goalCalories: number;
+  exerciseCalories?: number;
+  includeExerciseCalories?: boolean;
+};
 
 export type WhatsAppMealReplyOptions = {
   registeredAt?: Date;
@@ -38,6 +42,18 @@ export type WhatsAppAuxiliaryReplyOptions = {
 
 export type WhatsAppAudioTranscriptionFailureCode = "INVALID_FORMAT" | "FILE_TOO_LARGE" | "EMPTY_TRANSCRIPT" | "TRANSCRIPTION_FAILED" | string;
 
+function formatDateKeyInSaoPaulo(date?: Date) {
+  if (!date) return undefined;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 function formatTimeInSaoPaulo(date?: Date) {
   if (!date) return undefined;
   return new Intl.DateTimeFormat("pt-BR", {
@@ -54,10 +70,14 @@ function normalizeReplyDate(date?: Date | number | string | null) {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
-function buildMealResultTitle(state: "registered" | "updated") {
-  return state === "registered"
-    ? "✅ *Refeição registrada:*"
-    : "✅ *Refeição atualizada:*";
+function buildMealTitle(mealLabel?: string | null, registeredAt?: Date, consolidated = false) {
+  const label = mealLabel?.trim();
+  const time = formatTimeInSaoPaulo(registeredAt);
+  const suffix = time ? ` às ${time}hs.` : ".";
+  if (!label || label.toLowerCase() === "refeição") {
+    return buildWhatsAppTitle(`${consolidated ? "Refeição atualizada" : "Refeição registrada"}${suffix}`, { bold: true });
+  }
+  return buildWhatsAppTitle(`${label} ${consolidated ? "Atualizado" : "Registrado"}${suffix}`, { bold: true });
 }
 
 /** Bloco canônico de contexto reutilizado por registro, atualização, consulta e ações (issue #783). */
@@ -67,8 +87,11 @@ export function buildWhatsAppMealContextLine(mealLabel?: string | null, occurred
   return `🍽️ ${buildWhatsAppTitle(label, { bold: true })}${time ? ` — ${time}` : ""}`;
 }
 
-function buildMealGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined) {
-  return buildWhatsAppGoalProgressLines(progress ?? null);
+function buildMealGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
+  const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
+  return buildWhatsAppGoalProgressLines(progress
+    ? { ...progress, exerciseCalories: progress.exerciseCalories ?? contextualExerciseCalories ?? 0 }
+    : null);
 }
 
 function sumReplyItems(items: WhatsAppFoodReplyItem[]): WhatsAppNutritionTotals {
@@ -91,23 +114,33 @@ function buildMealItemLines(items: WhatsAppFoodReplyItem[]) {
 }
 
 function buildMealReplyBody(input: {
-  state: "registered" | "updated";
+  title: string;
   contextLine: string;
   sourceText?: string | null;
   items: WhatsAppFoodReplyItem[];
   totals: WhatsAppNutritionTotals;
   goalLines: string[];
 }) {
-  const itemLines = input.items.length
-    ? buildMealItemLines(input.items)
-    : [input.sourceText || "Não consegui identificar os alimentos com segurança."];
+  if (!input.items.length) {
+    return buildWhatsAppBlock([
+      input.contextLine,
+      buildWhatsAppSeparator(),
+      input.title,
+      buildWhatsAppSeparator(),
+      input.sourceText || "Não consegui identificar os alimentos com segurança.",
+      buildWhatsAppSeparator(),
+      ...buildWhatsAppMealTotalLines(input.totals),
+      ...(input.goalLines.length ? [buildWhatsAppSeparator(), ...input.goalLines] : []),
+    ]);
+  }
 
   return buildWhatsAppBlock([
-    buildMealResultTitle(input.state),
-    buildWhatsAppSeparator(),
     input.contextLine,
     buildWhatsAppSeparator(),
-    ...itemLines,
+    input.title,
+    buildWhatsAppSeparator(),
+    "Itens:",
+    ...buildMealItemLines(input.items),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(input.totals),
     ...(input.goalLines.length ? [buildWhatsAppSeparator(), ...input.goalLines] : []),
@@ -131,7 +164,7 @@ export function buildWhatsAppAuxiliaryReplyMessage(options: WhatsAppAuxiliaryRep
 }
 
 export function buildWhatsAppClarificationReplyMessage(message: string) {
-  return buildWhatsAppAuxiliaryReplyMessage({ title: "⚠️ Preciso de uma informação", lines: [message] });
+  return buildWhatsAppAuxiliaryReplyMessage({ title: "Preciso de uma informação", lines: [message] });
 }
 
 export function buildWhatsAppItemNotFoundReplyMessage(params: { target?: string | null; context?: string; instruction: string }) {
@@ -139,12 +172,12 @@ export function buildWhatsAppItemNotFoundReplyMessage(params: { target?: string 
   const targetLine = params.target?.trim()
     ? `Não encontrei ${params.target}${context ? ` ${context}` : ""}.`
     : `Não encontrei esse item${context ? ` ${context}` : " nas refeições recentes"}.`;
-  return buildWhatsAppAuxiliaryReplyMessage({ title: "⚠️ Item não encontrado", lines: [targetLine, params.instruction] });
+  return buildWhatsAppAuxiliaryReplyMessage({ title: "Item não encontrado", lines: [targetLine, params.instruction] });
 }
 
 export function buildWhatsAppAmbiguousItemReplyMessage(params: { target?: string | null; context?: string; options: string; instruction: string }) {
   return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚠️ Preciso confirmar o item",
+    title: "Preciso confirmar o item",
     lines: [
       `Encontrei mais de um item para ${params.target ?? "esse alimento"} ${params.context ?? "na refeição"}:`,
       params.options,
@@ -155,28 +188,28 @@ export function buildWhatsAppAmbiguousItemReplyMessage(params: { target?: string
 
 export function buildWhatsAppActionConfirmationRequestReplyMessage(params: { summary: string; confirmInstruction?: string; cancelInstruction?: string }) {
   return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚠️ Confirmação necessária",
+    title: "Confirmação necessária",
     lines: [
       params.summary,
-      params.confirmInstruction ?? "Use Confirmar para continuar.",
-      params.cancelInstruction ?? "Use Cancelar para desistir.",
+      params.confirmInstruction ?? "Responda SIM para confirmar.",
+      params.cancelInstruction ?? "Responda CANCELAR para desistir.",
     ],
   });
 }
 
 export function buildWhatsAppActionConfirmedReplyMessage(message: string) {
-  return buildWhatsAppAuxiliaryReplyMessage({ title: "✅ Alteração confirmada", lines: [message] });
+  return buildWhatsAppAuxiliaryReplyMessage({ title: "Alteração confirmada", lines: [message] });
 }
 
 export function buildWhatsAppActionCancelledReplyMessage(message: string) {
-  return buildWhatsAppAuxiliaryReplyMessage({ title: "✅ Alteração cancelada", lines: [message] });
+  return buildWhatsAppAuxiliaryReplyMessage({ title: "Alteração cancelada", lines: [message] });
 }
 
 export function buildWhatsAppRecoverableErrorReplyMessage(message: string) {
-  return buildWhatsAppAuxiliaryReplyMessage({ title: "⚠️ Serviço temporariamente indisponível", lines: [message] });
+  return buildWhatsAppAuxiliaryReplyMessage({ title: "Não consegui concluir agora", lines: [message] });
 }
 
-/** Pendência expirada, consumida, cancelada ou de callback inválido (issue #782). */
+/** Pendência expirada, consumida, cancelada ou de callback inválido (issue #782): nunca revela o estado exato. */
 export function buildWhatsAppCallbackUnavailableReplyMessage() {
   return buildWhatsAppAuxiliaryReplyMessage({
     title: "⚠️ Esta solicitação não está mais disponível",
@@ -184,7 +217,7 @@ export function buildWhatsAppCallbackUnavailableReplyMessage() {
   });
 }
 
-/** Pendência válida, mas o recurso atual não existe mais ou não satisfaz a condição registrada. */
+/** Pendência válida, mas o recurso atual não existe mais ou não satisfaz mais a condição registrada (issue #782). */
 export function buildWhatsAppCallbackResourceNotFoundReplyMessage() {
   return buildWhatsAppAuxiliaryReplyMessage({
     title: "⚠️ Registro não encontrado",
@@ -194,107 +227,52 @@ export function buildWhatsAppCallbackResourceNotFoundReplyMessage() {
 
 export function buildWhatsAppSecurityBlockedReplyMessage() {
   return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚠️ Não foi possível atender à solicitação",
-    lines: ["Envie uma pergunta ou ação relacionada ao seu acompanhamento nutricional."],
+    title: "Não posso seguir essa instrução",
+    lines: [
+      "Não posso executar instruções para alterar regras, permissões, validações ou acessar dados de outras pessoas.",
+      "Para registrar uma refeição, corrigir um item ou consultar seus próprios registros, envie o pedido normalmente.",
+    ],
   });
 }
 
 export function buildWhatsAppAudioTranscriptionFailureReplyMessage(code: WhatsAppAudioTranscriptionFailureCode) {
-  if (code === "EMPTY_TRANSCRIPT") {
-    return buildWhatsAppAuxiliaryReplyMessage({
-      title: "⚠️ Não consegui entender o áudio",
-      lines: ["Envie o áudio novamente, falando mais próximo do microfone, ou descreva a informação por texto."],
-    });
+  if (code === "INVALID_FORMAT") {
+    return buildWhatsAppRecoverableErrorReplyMessage("Não consegui ouvir seu áudio com segurança porque o formato não pôde ser lido. Pode reenviar o áudio ou escrever a refeição em texto?");
   }
-  return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚠️ Não foi possível processar o áudio",
-    lines: ["Tente enviar novamente. Se o problema continuar, envie a informação por texto."],
-  });
+  if (code === "FILE_TOO_LARGE") {
+    return buildWhatsAppRecoverableErrorReplyMessage("Não consegui ouvir seu áudio com segurança porque o arquivo está grande demais. Pode enviar um áudio menor ou escrever a refeição em texto?");
+  }
+  if (code === "EMPTY_TRANSCRIPT") {
+    return buildWhatsAppRecoverableErrorReplyMessage("Não consegui ouvir seu áudio com segurança porque não identifiquei uma fala útil. Pode reenviar o áudio ou escrever a refeição em texto?");
+  }
+  return buildWhatsAppRecoverableErrorReplyMessage("Não consegui ouvir/transcrever seu áudio com segurança porque ocorreu uma falha na transcrição. Pode reenviar o áudio ou escrever a refeição em texto?");
 }
 
 export function buildWhatsAppPartialAudioTranscriptionReplyMessage() {
   return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚠️ Áudio não transcrito",
-    lines: ["Vou considerar somente o texto enviado. Caso alguma informação estivesse no áudio, envie-a novamente por texto."],
+    title: "Áudio não transcrito",
+    lines: ["Vou considerar o texto que você enviou, mas não consegui transcrever o áudio com segurança. Se faltou alguma informação do áudio, pode enviar em texto depois."],
   });
 }
 
-export function buildWhatsAppImageNotRecognizedReplyMessage() {
+export function buildWhatsAppWaterLoggedReplyMessage(params: { amountLabel: string; occurredAtLabel: string }) {
   return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚠️ Não consegui identificar a refeição",
-    lines: ["Envie uma foto mais nítida ou descreva os alimentos e as quantidades por mensagem."],
-  });
-}
-
-export function buildWhatsAppImageProcessingFailureReplyMessage() {
-  return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚠️ Não foi possível processar a imagem",
-    lines: ["Tente enviar a foto novamente. Se o problema continuar, descreva a refeição por mensagem."],
-  });
-}
-
-export function buildWhatsAppWaterLoggedReplyMessage(params: {
-  amountLabel: string;
-  occurredAtLabel: string;
-  totalMl?: number | null;
-  goalMl?: number | null;
-}) {
-  const difference = typeof params.totalMl === "number" && typeof params.goalMl === "number"
-    ? params.totalMl - params.goalMl
-    : null;
-  return buildWhatsAppAuxiliaryReplyMessage({
-    title: "💧 Água registrada",
-    lines: [
-      `*Quantidade:* ${params.amountLabel} ml`,
-      ...(typeof params.totalMl === "number" ? [`*Total:* ${formatWhatsAppNumber(params.totalMl)} ml`] : []),
-      ...(typeof params.goalMl === "number"
-        ? [`*Meta:* ${formatWhatsAppNumber(params.goalMl)} ml${difference === null ? "" : ` (${difference > 0 ? "+" : ""}${formatWhatsAppNumber(difference)} ml)`}`]
-        : []),
-      `*Data:* ${params.occurredAtLabel}`,
-    ],
+    title: "Água registrada",
+    lines: [`Registrei ${params.amountLabel} ml de água ${auxiliaryTimePreposition(params.occurredAtLabel)} ${params.occurredAtLabel}.`],
   });
 }
 
 export function buildWhatsAppWaterVolumeNeededReplyMessage() {
   return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚠️ Preciso do volume da água",
-    lines: ["Identifiquei água na imagem, mas não consegui identificar o volume. Informe quantos ml ou litros foram consumidos."],
+    title: "Preciso do volume da água",
+    lines: ["Identifiquei água na imagem, mas não consegui identificar o volume consumido. Pode me dizer quantos ml ou litros foram, por favor?"],
   });
 }
 
-export function buildWhatsAppWeightLoggedReplyMessage(params: {
-  weightLabel: string;
-  occurredAtLabel: string;
-  variationLabel?: string | null;
-}) {
+export function buildWhatsAppWeightLoggedReplyMessage(params: { weightLabel: string; occurredAtLabel: string }) {
   return buildWhatsAppAuxiliaryReplyMessage({
-    title: "⚖️ Peso registrado",
-    lines: [
-      `*Peso:* ${params.weightLabel} kg`,
-      `*Variação:* ${params.variationLabel ?? "primeiro registro"}`,
-      `*Data:* ${params.occurredAtLabel}`,
-    ],
-  });
-}
-
-export function buildWhatsAppExerciseLoggedReplyMessage(params: {
-  activity: string;
-  durationMinutes?: number | null;
-  distanceKm?: number | null;
-  calories?: number | null;
-  occurredAtLabel: string;
-  caloriesEstimated?: boolean;
-}) {
-  return buildWhatsAppAuxiliaryReplyMessage({
-    title: "🏃 Exercício registrado",
-    lines: [
-      `*Atividade:* ${params.activity}`,
-      ...(typeof params.durationMinutes === "number" ? [`*Duração:* ${formatWhatsAppNumber(params.durationMinutes)} min`] : []),
-      ...(typeof params.distanceKm === "number" ? [`*Distância:* ${formatWhatsAppNumber(params.distanceKm)} km`] : []),
-      ...(typeof params.calories === "number" ? [`*Calorias:* ${formatWhatsAppNumber(params.calories)} kcal`] : []),
-      `*Data:* ${params.occurredAtLabel}`,
-      ...(params.caloriesEstimated ? [buildWhatsAppSeparator(), "⚠️ Calorias estimadas pelo sistema."] : []),
-    ],
+    title: "Peso atualizado",
+    lines: [`Atualizei seu peso atual para ${params.weightLabel} kg ${auxiliaryTimePreposition(params.occurredAtLabel)} ${params.occurredAtLabel}.`],
   });
 }
 
@@ -309,7 +287,7 @@ export function buildWhatsAppSnackSuggestionReplyMessage() {
       "• Pão integral com queijo branco e tomate",
       "  Aproximadamente 300 kcal | simples, saciante e fácil de montar",
       buildWhatsAppSeparator(),
-      "Os valores variam conforme o alimento e o preparo. A sugestão não registra alimentos automaticamente.",
+      "Se quiser, envie o que você tem em casa que eu sugiro uma opção mais certeira.",
     ],
   });
 }
@@ -331,38 +309,31 @@ export function buildWhatsAppPeriodReportReplyMessage(params: { periodLabel: str
 
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
   const registeredAt = options.registeredAt;
-  return buildMealReplyBody({
-    state: "registered",
-    contextLine: buildWhatsAppMealContextLine(processed.detectedMealLabel, registeredAt),
-    sourceText: processed.sourceText,
-    items: processed.items,
-    totals: processed.totals,
-    goalLines: buildMealGoalProgressLines(options.goalProgress),
-  });
+  const title = buildMealTitle(processed.detectedMealLabel, registeredAt);
+  const contextLine = buildWhatsAppMealContextLine(processed.detectedMealLabel, registeredAt);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+  return buildMealReplyBody({ title, contextLine, sourceText: processed.sourceText, items: processed.items, totals: processed.totals, goalLines });
 }
 
 export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
-  return buildMealReplyBody({
-    state: "updated",
-    contextLine: buildWhatsAppMealContextLine(meal.mealLabel, registeredAt),
-    items: meal.items,
-    totals: sumReplyItems(meal.items),
-    goalLines: buildMealGoalProgressLines(options.goalProgress),
-  });
+  const title = buildMealTitle(meal.mealLabel, registeredAt, true);
+  const contextLine = buildWhatsAppMealContextLine(meal.mealLabel, registeredAt);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+  return buildMealReplyBody({ title, contextLine, items: meal.items, totals: sumReplyItems(meal.items), goalLines });
 }
 
 export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealActionReplyOptions) {
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
-  const goalLines = buildMealGoalProgressLines(options.goalProgress);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
   const actionLines = options.actionLines?.filter(Boolean).map(normalizeActionLine) ?? [];
-  const state = options.mealResultState === "registered" ? "registered" : "updated";
+  const mealResultLabel = options.mealResultState === "registered" ? "Refeição registrada:" : "Refeição atualizada:";
 
   return buildWhatsAppBlock([
     buildWhatsAppTitle(options.title, { bold: true }),
     ...(actionLines.length ? [buildWhatsAppSeparator(), ...actionLines] : []),
     buildWhatsAppSeparator(),
-    buildMealResultTitle(state),
+    mealResultLabel,
     buildWhatsAppMealContextLine(meal.mealLabel, registeredAt),
     ...buildMealItemLines(meal.items),
     buildWhatsAppSeparator(),

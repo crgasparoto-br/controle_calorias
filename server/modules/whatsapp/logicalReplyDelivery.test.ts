@@ -19,7 +19,7 @@ describe("logicalReplyDelivery", () => {
     const reply = await buildWhatsAppLogicalReplyForDelivery({ userId: 42, mealId: 10, replyText: "Refeição registrada", auxiliaryImage: { url: "https://img.test/a.png", caption: "Imagem anotada" } });
     expect(reply.messages).toEqual([
       { type: "cta_url", bodyText: "Refeição registrada", buttonText: "Editar refeição", url: "https://app.test/quick-edit/token" },
-      { type: "image_url", url: "https://img.test/a.png", caption: "Imagem anotada", role: "auxiliary" },
+      { type: "image_url", url: "https://img.test/a.png", caption: "Imagem anotada" },
     ]);
     expect(reply.recordText).toBe("Refeição registrada");
   });

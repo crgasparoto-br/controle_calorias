@@ -1,71 +1,81 @@
-import { getUserDayMealTotals, listUserExercisesByDate, logInferenceEvent } from "../../db";
+import {
+  getUserDayMealTotals,
+  getUserNutritionGoal,
+  listUserExercisesByDate,
+  logInferenceEvent,
+} from "../../db";
 import { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";
 import { sumExercises } from "../exercises/store";
-import { getNutritionGoalForDate } from "../goals/service";
 import { formatDateKeyInSaoPaulo } from "./webhookUtils";
 import type { WhatsAppMealGoalProgress } from "./replyMessages";
 
-export type WhatsAppEffectiveGoalForDate = {
-  dateKey: string;
-  effectiveGoalCalories: number;
-  exerciseCalories: number;
-  targetProteinGrams: number;
-  targetCarbsGrams: number;
-  targetFatGrams: number;
+type AppliedGoal = {
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  includeExerciseCalories: boolean;
 };
 
-/**
- * Resolve a meta aplicável por usuário e data usando o mesmo histórico de metas
- * consumido por Hoje/Relatórios. Exercícios são consultados para o próprio
- * usuário; nenhum estado de lote ou chave apenas por data participa do cálculo.
- */
-export async function getWhatsAppEffectiveGoalForDate(
-  userId: number,
-  dateKey: string,
-): Promise<WhatsAppEffectiveGoalForDate> {
-  const [goalSummary, exercises] = await Promise.all([
-    getNutritionGoalForDate(userId, dateKey),
-    listUserExercisesByDate(userId, dateKey),
-  ]);
-  const appliedGoal = goalSummary.today;
-  const exerciseCalories = Math.max(0, sumExercises(exercises));
-  const effectiveGoalCalories = calculateAdjustedGoalCalories(
-    appliedGoal.calories,
-    exerciseCalories,
-    appliedGoal.includeExerciseCalories,
-  );
+async function resolveAppliedGoal(userId: number, dateKey: string): Promise<AppliedGoal> {
+  const current = await getUserNutritionGoal(userId);
+  if (!process.env.DATABASE_URL) return current.today;
 
-  return {
-    dateKey,
-    effectiveGoalCalories,
-    exerciseCalories,
-    targetProteinGrams: appliedGoal.proteinGrams,
-    targetCarbsGrams: appliedGoal.carbsGrams,
-    targetFatGrams: appliedGoal.fatGrams,
-  };
+  try {
+    const { getNutritionGoalForDate } = await import("../goals/service");
+    return (await getNutritionGoalForDate(userId, dateKey)).today;
+  } catch (error) {
+    logInferenceEvent({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.goal_history_fallback",
+      detail: error instanceof Error ? error.message : "Falha ao resolver versão histórica da meta.",
+    });
+    return current.today;
+  }
 }
 
+async function resolveExerciseCalories(userId: number, dateKey: string) {
+  if (!process.env.DATABASE_URL) return 0;
+  const exercises = await listUserExercisesByDate(userId, dateKey);
+  return Math.max(0, sumExercises(exercises));
+}
+
+/**
+ * Resolve meta e exercícios pelo próprio usuário e pela data da refeição.
+ * Não utiliza contexto de lote indexado apenas por data, evitando mistura entre
+ * usuários processados no mesmo webhook.
+ */
 export async function getWhatsAppMealGoalProgress(
   userId: number,
   occurredAt: Date,
 ): Promise<WhatsAppMealGoalProgress | null> {
   try {
     const dateKey = formatDateKeyInSaoPaulo(occurredAt);
-    const [goal, dayTotals] = await Promise.all([
-      getWhatsAppEffectiveGoalForDate(userId, dateKey),
+    const [appliedGoal, dayTotals, exerciseCalories] = await Promise.all([
+      resolveAppliedGoal(userId, dateKey),
       getUserDayMealTotals(userId, dateKey),
+      resolveExerciseCalories(userId, dateKey),
     ]);
+    const effectiveGoalCalories = calculateAdjustedGoalCalories(
+      appliedGoal.calories,
+      exerciseCalories,
+      appliedGoal.includeExerciseCalories,
+    );
 
     return {
       consumedCalories: dayTotals.totals.calories,
-      effectiveGoalCalories: goal.effectiveGoalCalories,
-      exerciseCalories: goal.exerciseCalories,
+      goalCalories: effectiveGoalCalories,
+      effectiveGoalCalories,
+      exerciseCalories,
+      includeExerciseCalories: appliedGoal.includeExerciseCalories,
       consumedProteinGrams: dayTotals.totals.protein,
-      targetProteinGrams: goal.targetProteinGrams,
+      targetProteinGrams: appliedGoal.proteinGrams,
       consumedCarbsGrams: dayTotals.totals.carbs,
-      targetCarbsGrams: goal.targetCarbsGrams,
+      targetCarbsGrams: appliedGoal.carbsGrams,
       consumedFatGrams: dayTotals.totals.fat,
-      targetFatGrams: goal.targetFatGrams,
+      targetFatGrams: appliedGoal.fatGrams,
     };
   } catch (error) {
     logInferenceEvent({

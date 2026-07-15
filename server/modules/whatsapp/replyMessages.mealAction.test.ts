@@ -50,7 +50,7 @@ describe("buildWhatsAppMealActionReplyMessage", () => {
     expect(reply).toContain("150g");
     expect(reply).toContain("156 kcal | P 3 g | C 34 g | G 0,4 g");
     expect(reply).toContain("248 kcal | P 46 g | C 0 g | G 5,4 g");
-    expect(reply).toContain("*Total da refeição*");
+    expect(reply).toContain("Total da refeição:");
     expect(reply).toContain("404 kcal | P 49 g | C 34 g | G 5,8 g");
   });
 });
