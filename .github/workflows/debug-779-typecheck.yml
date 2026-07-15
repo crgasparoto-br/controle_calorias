@@ -1,0 +1,32 @@
+name: Debug epic 779 typecheck
+
+on:
+  push:
+    branches:
+      - fix/779-concluir-auditoria
+    paths:
+      - .github/workflows/debug-779-typecheck.yml
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture TypeScript output
+        run: pnpm check > typecheck.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: epic-779-typecheck
+          path: typecheck.log
+          retention-days: 1
