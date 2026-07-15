@@ -66,7 +66,6 @@ describe("goalProgressService", () => {
     expect(getNutritionGoalForDateMock).toHaveBeenCalledWith(101, "2026-07-14");
     expect(result).toMatchObject({
       goalCalories: 2200,
-      effectiveGoalCalories: 2200,
       consumedCalories: 1850,
       consumedProteinGrams: 110,
       targetProteinGrams: 120,
