@@ -1,0 +1,34 @@
+name: Diagnose 779 TypeScript
+
+on:
+  push:
+    branches:
+      - fix/779-auditoria-callback-meta
+    paths:
+      - .github/workflows/diagnose-779-ts.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture TypeScript diagnostics
+        run: |
+          pnpm check > /tmp/tsc.log 2>&1 || true
+          cat /tmp/tsc.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: diagnose-779-ts
+          path: /tmp/tsc.log
+          retention-days: 1
