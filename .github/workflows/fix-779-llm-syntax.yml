@@ -1,0 +1,38 @@
+name: Fix 779 LLM syntax
+
+on:
+  push:
+    branches:
+      - fix/779-auditoria-callback-meta
+    paths:
+      - .github/workflows/fix-779-llm-syntax.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/779-auditoria-callback-meta
+      - name: Fix generated join
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('server/modules/whatsapp/llmIntentActions.ts')
+          text = path.read_text()
+          broken = '''      })).join("
+
+")'''
+          if broken not in text:
+              raise SystemExit('broken join not found')
+          path.write_text(text.replace(broken, '      })).join("\\n\\n")', 1))
+          PY
+          rm .github/workflows/fix-779-llm-syntax.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix(whatsapp): corrigir composição da resposta estruturada"
+          git push origin HEAD:fix/779-auditoria-callback-meta
