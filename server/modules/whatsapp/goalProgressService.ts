@@ -17,6 +17,15 @@ type AppliedGoal = {
   includeExerciseCalories: boolean;
 };
 
+function safeLogGoalWarning(input: Parameters<typeof logInferenceEvent>[0]) {
+  try {
+    logInferenceEvent(input);
+  } catch {
+    // Alguns testes isolam o webhook com mocks parciais de db. A ausência do
+    // logger não pode transformar um fallback opcional de meta em rejeição não tratada.
+  }
+}
+
 async function resolveAppliedGoal(userId: number, dateKey: string): Promise<AppliedGoal> {
   const current = await getUserNutritionGoal(userId);
   if (!process.env.DATABASE_URL) return current.today;
@@ -25,7 +34,7 @@ async function resolveAppliedGoal(userId: number, dateKey: string): Promise<Appl
     const { getNutritionGoalForDate } = await import("../goals/service");
     return (await getNutritionGoalForDate(userId, dateKey)).today;
   } catch (error) {
-    logInferenceEvent({
+    safeLogGoalWarning({
       userId,
       origin: "whatsapp",
       status: "warning",
@@ -71,7 +80,7 @@ export async function getWhatsAppMealGoalProgress(
       includeExerciseCalories: appliedGoal.includeExerciseCalories,
     };
   } catch (error) {
-    logInferenceEvent({
+    safeLogGoalWarning({
       userId,
       origin: "whatsapp",
       status: "warning",
