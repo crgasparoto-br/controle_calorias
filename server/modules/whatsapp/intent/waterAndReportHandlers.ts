@@ -6,11 +6,55 @@ import {
   buildWhatsAppSnackSuggestionReplyMessage,
   buildWhatsAppWaterLoggedReplyMessage,
 } from "../replyMessages";
+import {
+  buildWhatsAppCanonicalPeriodProgressLines,
+  buildWhatsAppCanonicalWaterReply,
+} from "../domainReplyFormatters";
+import { formatDateKeyInSaoPaulo } from "../webhookUtils";
 import { countPeriodDays, formatReplyDateTime, isMealInsidePeriod, resolveRelativeOccurredAt } from "./dateTime";
 import { sumMealItems, toMealItemInputs } from "./mealItemHelpers";
 import { buildMealBreakdownLines, buildPeriodGoalSummaryLines } from "./report";
 import { formatNumber } from "./textUtils";
 import type { PeriodRange, WhatsappIntentResult } from "./types";
+
+function sameSaoPauloDay(first: Date, second: Date) {
+  return formatDateKeyInSaoPaulo(first) === formatDateKeyInSaoPaulo(second);
+}
+
+async function buildWaterReply(userId: number, amountMl: number, occurredAt: Date) {
+  if (!process.env.DATABASE_URL) {
+    return buildWhatsAppWaterLoggedReplyMessage({
+      amountLabel: formatNumber(amountMl),
+      occurredAtLabel: formatReplyDateTime(occurredAt),
+    });
+  }
+
+  try {
+    const db = await import("../../../db");
+    const [goal, logs] = await Promise.all([
+      db.getUserWaterGoal(userId),
+      db.listUserWaterLogs(userId),
+    ]);
+    const dateKey = formatDateKeyInSaoPaulo(occurredAt);
+    const totalMl = logs
+      .filter(log => formatDateKeyInSaoPaulo(new Date(log.occurredAt)) === dateKey)
+      .reduce((total, log) => total + Number(log.amountMl ?? 0), 0);
+    const today = new Date();
+
+    return buildWhatsAppCanonicalWaterReply({
+      amountMl,
+      totalMl,
+      goalMl: Number(goal.dailyTargetMl),
+      occurredAtLabel: formatReplyDateTime(occurredAt),
+      totalLabel: sameSaoPauloDay(occurredAt, today) ? "Total de hoje" : `Total de ${dateKey.split("-").reverse().join("/")}`,
+    });
+  } catch {
+    return buildWhatsAppWaterLoggedReplyMessage({
+      amountLabel: formatNumber(amountMl),
+      occurredAtLabel: formatReplyDateTime(occurredAt),
+    });
+  }
+}
 
 export async function handleSnackSuggestionIntent(): Promise<WhatsappIntentResult> {
   return {
@@ -32,10 +76,7 @@ export async function handleWaterIntent(userId: number, text: string, receivedAt
   return {
     handled: true,
     action: "water_logged",
-    reply: buildWhatsAppWaterLoggedReplyMessage({
-      amountLabel: formatNumber(amountMl),
-      occurredAtLabel: formatReplyDateTime(occurredAt),
-    }),
+    reply: await buildWaterReply(userId, amountMl, occurredAt),
     eventType: "whatsapp.intent.water_logged",
     detail: `Consumo de ${amountMl} ml de água registrado após interpretação de data relativa pelo WhatsApp.`,
     data: {
@@ -46,31 +87,65 @@ export async function handleWaterIntent(userId: number, text: string, receivedAt
   };
 }
 
+async function buildCanonicalPeriodData(userId: number, period: PeriodRange) {
+  if (!process.env.DATABASE_URL) return null;
+  try {
+    const { getPeriodReportBundle } = await import("../../insights/service");
+    const bundle = await getPeriodReportBundle(userId, {
+      startDate: formatDateKeyInSaoPaulo(period.start),
+      endDate: formatDateKeyInSaoPaulo(period.end),
+    });
+    const progress = bundle.daily.reduce(
+      (acc, day) => ({
+        effectiveGoalCalories: acc.effectiveGoalCalories + Number(day.adjustedGoalCalories ?? 0),
+        exerciseCalories: acc.exerciseCalories + Number(day.exerciseCalories ?? 0),
+        targetProteinGrams: acc.targetProteinGrams + Number(day.goalProtein ?? 0),
+        targetCarbsGrams: acc.targetCarbsGrams + Number(day.goalCarbs ?? 0),
+        targetFatGrams: acc.targetFatGrams + Number(day.goalFat ?? 0),
+      }),
+      { effectiveGoalCalories: 0, exerciseCalories: 0, targetProteinGrams: 0, targetCarbsGrams: 0, targetFatGrams: 0 },
+    );
+
+    return {
+      mealCount: Object.values(bundle.mealsByDate).reduce((count, meals) => count + meals.length, 0),
+      progressLines: buildWhatsAppCanonicalPeriodProgressLines({
+        ...progress,
+        consumedCalories: bundle.totals.calories,
+        consumedProteinGrams: bundle.totals.protein,
+        consumedCarbsGrams: bundle.totals.carbs,
+        consumedFatGrams: bundle.totals.fat,
+      }),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function handlePeriodReportIntent(userId: number, period: PeriodRange): Promise<WhatsappIntentResult> {
-  const [meals, goal] = await Promise.all([
-    listMeals(userId),
-    getUserNutritionGoal(userId),
-  ]);
+  const meals = await listMeals(userId);
   const mealsInPeriod = meals.filter(meal => isMealInsidePeriod(meal, period));
-  const totals = mealsInPeriod.reduce(
-    (acc, meal) => {
-      const itemTotals = sumMealItems(toMealItemInputs(meal.items));
-      acc.calories += itemTotals.calories;
-      acc.protein += itemTotals.protein;
-      acc.carbs += itemTotals.carbs;
-      acc.fat += itemTotals.fat;
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-  const periodDays = countPeriodDays(period);
-  const goalCalories = Math.round((goal.today?.calories ?? 0) * periodDays);
-  const diff = Math.round(totals.calories - goalCalories);
-  const goalSummaryLines = buildPeriodGoalSummaryLines(goalCalories, diff);
+  const canonical = await buildCanonicalPeriodData(userId, period);
+
+  let goalSummaryLines: string[];
+  if (canonical) {
+    goalSummaryLines = canonical.progressLines;
+  } else {
+    const totals = mealsInPeriod.reduce(
+      (acc, meal) => {
+        const itemTotals = sumMealItems(toMealItemInputs(meal.items));
+        acc.calories += itemTotals.calories;
+        return acc;
+      },
+      { calories: 0 },
+    );
+    const goal = await getUserNutritionGoal(userId);
+    const goalCalories = Math.round((goal.today?.calories ?? 0) * countPeriodDays(period));
+    goalSummaryLines = buildPeriodGoalSummaryLines(goalCalories, Math.round(totals.calories - goalCalories));
+  }
 
   const reply = buildWhatsAppPeriodReportReplyMessage({
     periodLabel: period.label,
-    mealCount: mealsInPeriod.length,
+    mealCount: canonical?.mealCount ?? mealsInPeriod.length,
     mealBreakdownLines: buildMealBreakdownLines(mealsInPeriod),
     goalSummaryLines,
   });
@@ -85,7 +160,7 @@ export async function handlePeriodReportIntent(userId: number, period: PeriodRan
       periodLabel: period.label,
       start: period.start.toISOString(),
       end: period.end.toISOString(),
-      mealCount: mealsInPeriod.length,
+      mealCount: canonical?.mealCount ?? mealsInPeriod.length,
     },
   };
 }
