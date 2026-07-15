@@ -130,16 +130,14 @@ describe("webhookTextCommands", () => {
   describe("reply builders", () => {
     it("formata mensagem de água com horário em São Paulo", () => {
       const reply = buildWaterLogReply(300, new Date("2026-04-20T11:14:00-03:00"));
-      expect(reply).toContain("Água registrada");
-      expect(reply).toContain("*Quantidade:* 300 ml");
-      expect(reply).toContain("*Data:* 11:14");
+      expect(reply).toContain("*Água registrada*");
+      expect(reply).toContain("Registrei 300 ml de água às 11:14.");
     });
 
     it("formata mensagem de peso com horário em São Paulo", () => {
       const reply = buildWeightLogReply(82.5, new Date("2026-04-20T11:14:00-03:00"));
-      expect(reply).toContain("Peso registrado");
-      expect(reply).toContain("*Peso:* 82.5 kg");
-      expect(reply).toContain("*Data:* 11:14");
+      expect(reply).toContain("*Peso atualizado*");
+      expect(reply).toContain("Atualizei seu peso atual para 82.5 kg às 11:14.");
     });
   });
 
