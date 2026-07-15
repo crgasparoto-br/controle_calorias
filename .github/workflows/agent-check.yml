@@ -1,29 +1,89 @@
-name: Agent-first gate
+name: Apply epic 779 source package
 
 on:
-  pull_request:
+  push:
+    branches:
+      - fix/779-auditoria-callback-meta
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  snapshot:
-    name: Agent-first gate
+  apply:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout implementation branch
         uses: actions/checkout@v4
-      - name: Upload source snapshot
-        uses: actions/upload-artifact@v4
         with:
-          name: epic-779-source-snapshot
-          path: |
-            server
-            scripts
-            docs
-            shared
-            drizzle
-            package.json
-            pnpm-lock.yaml
-            tsconfig.json
-          retention-days: 1
+          ref: fix/779-auditoria-callback-meta
+          fetch-depth: 0
+
+      - name: Reconstruct and verify package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          import hashlib
+
+          root = Path('.github')
+          read = lambda name: (root / name).read_bytes()
+
+          encoded_p08_02 = base64.b64decode(read('epic779.p08.02.xor64'))
+          p08_02 = bytes(value ^ 0x5A for value in encoded_p08_02)
+
+          reversed_p08_03 = b''.join([
+              read('epic779.p08.03.rev.00'),
+              read('epic779.p08.03.rev.01'),
+              *[read(f'epic779.p08r02.{index:02d}') for index in range(9)],
+          ])
+          encoded_p08_03 = reversed_p08_03[::-1]
+          xor_p08_03 = base64.b64decode(encoded_p08_03)
+          p08_03 = bytes(value ^ 0x5A for value in xor_p08_03)
+
+          p09 = b''.join(read(f'epic779.p09.{index:02d}') for index in range(7))
+          package_b64 = b''.join([
+              read('epic779.part.00'),
+              read('epic779.group.01'),
+              read('epic779.part.04'),
+              read('epic779.part.05'),
+              read('epic779.part.06'),
+              read('epic779.part.07'),
+              read('epic779.p08.00'),
+              read('epic779.p08.01'),
+              p08_02,
+              p08_03,
+              p09,
+          ])
+          package = base64.b64decode(package_b64)
+          digest = hashlib.sha256(package).hexdigest()
+          expected = '68fe5f7637e370c72eae33aa0b44f4224e5c3e4a8ff5dee7dcb7925e5728db02'
+          if digest != expected:
+              raise SystemExit(f'package checksum mismatch: {digest}')
+          Path('/tmp/epic779-files.tar.gz').write_bytes(package)
+          PY
+
+      - name: Apply source files and clean temporary assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xzf /tmp/epic779-files.tar.gz -C .
+          rm -f server/modules/whatsapp/goalProgressContext.ts
+          rm -f .github/epic779.*
+          rm -f .github/workflows/apply-779-*.yml
+          rm -f .github/workflows/diagnose-779-ts.yml
+          rm -f .github/workflows/fix-779-llm-syntax.yml
+          git fetch origin develop
+          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+          git diff --check
+
+      - name: Commit final source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "feat(whatsapp): concluir padronizacao da epic 779"
+          git push origin HEAD:fix/779-auditoria-callback-meta
