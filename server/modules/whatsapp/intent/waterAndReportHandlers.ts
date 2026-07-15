@@ -107,7 +107,7 @@ async function buildCanonicalPeriodData(userId: number, period: PeriodRange) {
     );
 
     return {
-      mealCount: Object.values(bundle.mealsByDate).reduce((count, meals) => count + meals.length, 0),
+      mealCount: bundle.mealsByDate.reduce((count, group) => count + group.items.length, 0),
       progressLines: buildWhatsAppCanonicalPeriodProgressLines({
         ...progress,
         consumedCalories: bundle.totals.calories,
