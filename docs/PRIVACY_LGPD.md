@@ -34,6 +34,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Tokens do Strava devem permanecer criptografados em `appSecrets`; logs de sincronização automática devem conter apenas contadores, status e mensagens sanitizadas.
 - Atividades do Strava são importadas para exercícios para manter o diário do usuário atualizado sem sincronização manual.
 - Métricas detalhadas do Strava, incluindo frequência cardíaca, cadência, potência, equipamento, visibilidade e contadores sociais, devem ser exibidas apenas para o usuário autenticado e não devem aparecer em logs ou analytics.
+- Eventos operacionais do WhatsApp não devem registrar telefone completo, texto/transcrição crus, resumo de refeição, peso, volume de água ou payload do provider; apenas status, tipo de fluxo e identificadores internos necessários.
 - O escopo `activity:read_all` deve ser usado apenas para permitir importação de atividades privadas ou Only Me quando o usuário reconectar e conceder esse acesso.
 - Mídias salvas em qualquer provider devem usar chaves opacas, sem telefone, `userId`, `imageId`, `audioId` ou nome original no caminho persistido.
 - URLs públicas devem ser usadas apenas para artefatos que precisam sair do backend, como a imagem anotada enviada pelo WhatsApp. Mídias originais e recebidas devem manter referência interna quando armazenadas pelo backend.

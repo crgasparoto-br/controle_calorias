@@ -308,10 +308,9 @@ describe("Baseline do contrato de respostas do WhatsApp (issue #780)", () => {
     expect(processMealInputMock).toHaveBeenCalledTimes(1);
     expect(state.domainLinks.filter(entry => entry.link.mealId)).toHaveLength(1);
 
-    // Sequência física atual: read receipt, ack, resposta funcional, imagem anotada auxiliar.
-    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "text", "image"]);
-    const [ack, functionalReply] = outboundMessages() as Array<{ kind: "text"; body: string }>;
-    expect(ack.body).toContain("estou processando");
+    // Caminho rápido: read receipt, resposta funcional e imagem anotada auxiliar, sem ack.
+    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "image"]);
+    const [functionalReply] = outboundMessages() as Array<{ kind: "text"; body: string }>;
     expect(functionalReply.body).not.toContain("estou processando");
 
     // Exatamente uma resposta funcional gravada no lifecycle; o ack não é gravado.
@@ -324,7 +323,7 @@ describe("Baseline do contrato de respostas do WhatsApp (issue #780)", () => {
     expect(inbound?.processedAt).not.toBeNull();
   });
 
-  it("texto nutricional pelo fallback: ack legado antes da resposta funcional e gravação única", async () => {
+  it("texto nutricional pelo fallback: sem ack e com gravação única", async () => {
     const userId = 8_200_002;
     const phone = "5511820000002";
     await upsertUserWhatsappConnection({ userId, phoneNumber: phone, displayName: "Baseline Texto" });
@@ -339,7 +338,7 @@ describe("Baseline do contrato de respostas do WhatsApp (issue #780)", () => {
 
     expect(processMealInputMock).toHaveBeenCalledTimes(1);
     expect(state.domainLinks.filter(entry => entry.link.mealId)).toHaveLength(1);
-    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "text"]);
+    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text"]);
 
     const outboundRecorded = state.messages.filter(message => message.direction === "outbound");
     expect(outboundRecorded).toHaveLength(1);

@@ -70,6 +70,7 @@ export type WhatsAppConversationRepository = {
   ): Promise<WhatsAppConversationRecord | null>;
   appendMessage(input: AppendMessageInput): Promise<AppendMessageResult | null>;
   findByIdempotencyKey(idempotencyKey: string): Promise<WhatsAppConversationMessageRecord | null>;
+  findResponseForMessage?(inboundMessageId: number): Promise<WhatsAppConversationMessageRecord | null>;
   linkResponse(inboundMessageId: number, outboundMessageId: number): Promise<void>;
   linkDomainRecord(messageId: number, link: DomainLinkInput): Promise<void>;
   findRecentMessages(conversationId: number, limit?: number): Promise<WhatsAppConversationMessageRecord[]>;
@@ -97,6 +98,9 @@ function buildIdempotencyKey(input: AppendMessageInput): string {
   const channel = "whatsapp";
   if (input.externalMessageId) {
     return `${channel}:${input.direction}:${input.externalMessageId}`;
+  }
+  if (input.direction === "outbound" && input.respondsToMessageId) {
+    return `${channel}:outbound:response:${input.respondsToMessageId}`;
   }
   return `${channel}:${input.direction}:${input.conversationId}:${input.respondsToMessageId ?? "root"}:${crypto.randomUUID()}`;
 }
@@ -280,6 +284,27 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
         return row ?? null;
       } catch (error) {
         deps.onWarning("WhatsApp conversation message lookup by idempotency key skipped", error);
+        return null;
+      }
+    },
+
+    async findResponseForMessage(inboundMessageId) {
+      const db = await deps.getDb();
+      if (!db) return null;
+
+      try {
+        const [row] = await db
+          .select()
+          .from(whatsappConversationMessages)
+          .where(and(
+            eq(whatsappConversationMessages.direction, "outbound"),
+            eq(whatsappConversationMessages.respondsToMessageId, inboundMessageId),
+          ))
+          .orderBy(asc(whatsappConversationMessages.id))
+          .limit(1);
+        return row ?? null;
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation response lookup skipped", error);
         return null;
       }
     },

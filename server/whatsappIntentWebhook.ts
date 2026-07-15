@@ -14,11 +14,9 @@ import {
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
-import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
-import { getDb, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, logPersistenceWarning, updateUserCurrentWeight } from "./db";
+import { getDb, getUserIdByWhatsappPhone, logInferenceEvent, logPersistenceWarning } from "./db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
 import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
-import { listMeals } from "./modules/meals/service";
 import {
   collapseWhitespace,
   extractWhatsAppWebhookMessages,
@@ -31,15 +29,17 @@ import {
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
 import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
+import { buildWhatsAppClarificationReplyMessage, buildWhatsAppWeightLoggedReplyMessage } from "./modules/whatsapp/replyMessages";
+import { getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
 import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
+import { setWhatsAppDeferredLogicalReply, type WhatsAppDeferredLogicalReply } from "./modules/whatsapp/deferredLogicalReply";
+import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
-import { toLogicalDateInTimeZone } from "../shared/timeZone";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
 import {
   beginInboundMessage,
-  markMessageProcessed,
   recordDomainLink,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
@@ -50,12 +50,10 @@ type TextIntentResult =
   | NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>>
   | Exclude<NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>>, WhatsappLlmNutritionFallback>
   | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
-type TextIntentHandlingResult = boolean | { passthroughText: string; intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null };
-type NutritionTotals = {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+type TextIntentHandlingResult = boolean | {
+  passthroughText: string;
+  intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null;
+  deferredReply?: WhatsAppDeferredLogicalReply;
 };
 
 const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
@@ -160,16 +158,7 @@ function detectWeightLogFromText(text: string) {
   return mentionsWeightWord ? { kind: "clarification" as const } : null;
 }
 
-function buildWeightLogReply(weightKg: number, occurredAt: Date) {
-  return `Atualizei seu peso atual para ${formatNumber(weightKg)} kg em ${occurredAt.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  })}.`;
-}
+
 
 function hasExplicitFoodQuantity(text: string) {
   const normalized = normalizeTextPreservingQuantities(text);
@@ -246,121 +235,12 @@ function looksLikeProfessionalAccessDecision(text: string) {
   return /\b(autorizar|autorizo|autorizado|aprovar|aprovo|permitir|permito|negar|nego|recusar|recuso|nao autorizo)\b/.test(normalized);
 }
 
-function isInsidePeriod(value: number | string | Date, start: Date, end: Date) {
-  const time = new Date(value).getTime();
-  return time >= start.getTime() && time <= end.getTime();
+async function buildMealAdditionAwareReply(_userId: number, result: TextIntentResult) {
+  // Relatórios já chegam formatados pelo handler canônico, que consome
+  // getPeriodReportBundle e agrega a meta efetiva de cada dia.
+  return result.reply;
 }
 
-function sumMealItems(items: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }>): NutritionTotals {
-  return items.reduce<NutritionTotals>(
-    (acc, item) => ({
-      calories: acc.calories + Number(item.calories || 0),
-      protein: acc.protein + Number(item.protein || 0),
-      carbs: acc.carbs + Number(item.carbs || 0),
-      fat: acc.fat + Number(item.fat || 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-}
-
-function countPeriodDays(start: Date, end: Date) {
-  const startDay = toLogicalDateInTimeZone(start);
-  const endDay = toLogicalDateInTimeZone(end);
-  return Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
-}
-
-function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null; items?: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }> }>) {
-  const groups = new Map<string, NutritionTotals>();
-  for (const meal of [...meals].reverse()) {
-    const label = meal.mealLabel?.trim() || "Refeição";
-    const itemTotals = sumMealItems(meal.items ?? []);
-    const existing = groups.get(label) ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
-    groups.set(label, {
-      calories: existing.calories + itemTotals.calories,
-      protein: existing.protein + itemTotals.protein,
-      carbs: existing.carbs + itemTotals.carbs,
-      fat: existing.fat + itemTotals.fat,
-    });
-  }
-  const lines: string[] = [];
-  for (const [label, totals] of groups) {
-    if (lines.length > 0) lines.push("");
-    lines.push(`${label}: ${formatNumber(totals.calories)} kcal`);
-    lines.push(`* Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`);
-  }
-  return lines;
-}
-
-function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; consumedCalories: number; balanceCalories: number }) {
-  if (input.goalCalories <= 0) return [];
-
-  const balanceLabel = input.balanceCalories >= 0 ? "Déficit" : "Superávit";
-  const pct = input.adjustedGoalCalories > 0
-    ? Math.round((Math.abs(input.balanceCalories) / input.adjustedGoalCalories) * 100)
-    : 0;
-  const pctStr = input.balanceCalories >= 0 ? `(-${pct}%)` : `(+${pct}%)`;
-
-  return [
-    "*Resumo das Metas:*",
-    `* Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
-    ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal`] : []),
-    `* Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
-    `* Consumo: ${formatNumber(input.consumedCalories)} kcal`,
-    `* ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal ${pctStr}`,
-  ];
-}
-
-async function buildExerciseAwarePeriodReportReply(userId: number, result: TextIntentResult) {
-  if (result.action !== "period_report") return result.reply;
-
-  const start = typeof result.data?.start === "string" ? new Date(result.data.start) : null;
-  const end = typeof result.data?.end === "string" ? new Date(result.data.end) : null;
-  const label = typeof result.data?.periodLabel === "string" ? result.data.periodLabel : "período";
-  if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return result.reply;
-  }
-
-  const [meals, exercises, goal] = await Promise.all([
-    listMeals(userId),
-    listUserExercises(userId),
-    getUserNutritionGoal(userId),
-  ]);
-  const mealsInPeriod = meals.filter(meal => isInsidePeriod(meal.occurredAt, start, end));
-  const exercisesInPeriod = exercises.filter(exercise => isInsidePeriod(Number(exercise.occurredAt), start, end));
-  const totals = mealsInPeriod.reduce<NutritionTotals>((acc, meal) => {
-    const itemTotals = sumMealItems(meal.items ?? []);
-    acc.calories += itemTotals.calories;
-    acc.protein += itemTotals.protein;
-    acc.carbs += itemTotals.carbs;
-    acc.fat += itemTotals.fat;
-    return acc;
-  }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const consumedCalories = Math.round(totals.calories);
-  const exerciseCalories = Math.round(exercisesInPeriod.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0));
-  const goalCalories = Math.round(Number(goal.today?.calories || 0) * countPeriodDays(start, end));
-  const adjustedGoalCalories = calculateAdjustedGoalCalories(goalCalories, exerciseCalories, goal.today?.includeExerciseCalories ?? true);
-  const balanceCalories = adjustedGoalCalories - consumedCalories;
-  const goalSummaryLines = buildPeriodGoalSummaryLines({
-    goalCalories,
-    adjustedGoalCalories,
-    exerciseCalories,
-    consumedCalories,
-    balanceCalories,
-  });
-
-  return [
-    `*Resumo de ${label}:*`,
-    "",
-    `Refeições registradas: ${mealsInPeriod.length}`,
-    "",
-    ...buildMealBreakdownLines(mealsInPeriod),
-    ...(goalSummaryLines.length ? ["", ...goalSummaryLines] : []),
-  ].join("\n");
-}
-
-async function buildMealAdditionAwareReply(userId: number, result: TextIntentResult) {
-  return buildExerciseAwarePeriodReportReply(userId, result);
-}
 
 function wasTextIntentMessageAlreadyHandled(messageId?: string) {
   return textIntentMessageDeduplicationCache.wasAlreadyHandled(messageId);
@@ -432,13 +312,12 @@ async function sendAndLogTextReply(input: {
       origin: "whatsapp",
       status: replyOk ? "warning" : "error",
       eventType: "whatsapp.reply_failed",
-      detail: `Falha ao enviar resposta lógica para ${input.sourcePhone}.`,
+      detail: "Falha ao enviar resposta lógica do WhatsApp.",
     });
   }
 
   recordConversationTurn(input.userId, input.userMessage, replyOk ? input.reply : null, input.occurredAtMs ?? Date.now());
   if (input.mealId) await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
-  await markMessageProcessed(input.lifecycleHandle ?? null);
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
@@ -503,16 +382,10 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       eventType: "whatsapp.idempotency.duplicate_detected",
       detail: JSON.stringify({ source: "db_unique_constraint" }),
     });
-    await markMessageProcessed(lifecycleHandle);
     return true;
   }
 
-  try {
-    return await handleTextIntentAfterLifecycleBegin(userId);
-  } catch (error) {
-    await markMessageProcessed(lifecycleHandle);
-    throw error;
-  }
+  return handleTextIntentAfterLifecycleBegin(userId);
 
   async function handleTextIntentAfterLifecycleBegin(userId: number): Promise<TextIntentHandlingResult> {
   const safety = inspectWhatsAppUserContentSafety(text, "text");
@@ -538,7 +411,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   // compartilhado, antes de qualquer classificação de intenção (exclusão, ajuste,
   // substituição, LLM etc).
   const interactiveReplyId = getWhatsAppInteractiveReplyId(message);
-  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, interactiveReplyId });
+  const precedenceGate = await resolveWhatsAppPrecedenceGate({
+    userId,
+    text,
+    receivedAt: occurredAt,
+    interactiveReplyId,
+    sourcePhone,
+  });
   if (precedenceGate.step !== "continue_pipeline") {
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -577,6 +456,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
         detail: professionalAccessResponse.detail,
         status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
         occurredAtMs,
+        lifecycleHandle,
       });
       return true;
     }
@@ -590,7 +470,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       userId,
       sourcePhone,
       userMessage: text,
-      reply: "Entendi que você quer registrar peso, mas preciso do valor em kg. Exemplo: peso 80,5 kg.",
+      reply: buildWhatsAppClarificationReplyMessage("Informe o peso em kg. Exemplo: *peso 80,5 kg*."),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido de peso sem valor explícito válido.",
       status: "warning",
@@ -601,10 +481,26 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   }
 
   if (weightLog?.kind === "weight") {
-    await updateUserCurrentWeight(userId, {
+    const { variationKg: variation } = await getWhatsAppWeightVariation(
+      userId,
+      occurredAt,
+      weightLog.weightKg,
+    );
+    const persistedWeight = await ensureWhatsAppWeightEntry(userId, {
       weightKg: weightLog.weightKg,
       measuredAt: occurredAt,
       notes: "Peso atualizado pelo WhatsApp.",
+    });
+    if (persistedWeight.entry.id > 0) {
+      await recordDomainLink(lifecycleHandle, { weightEntryId: persistedWeight.entry.id });
+    }
+    const occurredAtLabel = occurredAt.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Sao_Paulo",
     });
 
     markTextIntentMessageHandled(message.id);
@@ -613,9 +509,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       userId,
       sourcePhone,
       userMessage: text,
-      reply: buildWeightLogReply(weightLog.weightKg, occurredAt),
+      reply: buildWhatsAppWeightLoggedReplyMessage({
+        weightLabel: formatNumber(weightLog.weightKg),
+        occurredAtLabel,
+        variationLabel: variation === null ? "primeiro registro" : `${variation > 0 ? "+" : ""}${formatNumber(variation)} kg`,
+      }),
       eventType: "whatsapp.intent.weight_logged",
-      detail: `Peso de ${formatNumber(weightLog.weightKg)} kg registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.`,
+      detail: "Peso registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.",
       status: "success",
       occurredAtMs,
       lifecycleHandle,
@@ -646,18 +546,24 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       waterResults.push(result);
     }
 
-    await sendAndLogTextReply({
+    const domainLinks = waterResults.flatMap(result =>
+      typeof result.data?.waterLogId === "number" ? [{ waterLogId: result.data.waterLogId }] : [],
+    );
+    for (const link of domainLinks) await recordDomainLink(lifecycleHandle, link);
+    logInferenceEvent({
       userId,
-      sourcePhone,
-      userMessage: text,
-      reply: buildMixedWaterReply(waterResults),
-      eventType: "whatsapp.intent.water_food_multiline_split",
-      detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional após separar mensagem multi-linha.",
+      origin: "whatsapp",
       status: "success",
-      occurredAtMs,
-      lifecycleHandle,
+      eventType: "whatsapp.intent.water_food_multiline_split",
+      detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional na mesma resposta lógica.",
     });
-    return { passthroughText: mixedWaterFood.foodText };
+    return {
+      passthroughText: mixedWaterFood.foodText,
+      deferredReply: {
+        prefixBlocks: [buildMixedWaterReply(waterResults)],
+        domainLinks,
+      },
+    };
   }
 
   const pendingContext = await getPendingTextIntentContext(userId);
@@ -858,6 +764,9 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
       handledMessageKeys.add(key);
     } else if (handled && typeof handled === "object") {
       textOverrides.set(key, handled.passthroughText);
+      if (handled.deferredReply) {
+        setWhatsAppDeferredLogicalReply(req, message.id, handled.deferredReply);
+      }
       if (handled.intentHint) {
         intentHints.set(key, handled.intentHint);
       }

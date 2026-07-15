@@ -13,7 +13,7 @@ import {
 } from "./replyContract";
 
 describe("replyContract", () => {
-  it("textReply produz uma resposta funcional com uma única mensagem de texto", () => {
+  it("textReply produz uma resposta funcional com uma única mensagem primária de texto", () => {
     const reply = textReply("Registrei 300 ml de água.");
     expect(reply.kind).toBe("functional");
     expect(reply.messages).toEqual([{ type: "text", body: "Registrei 300 ml de água." }]);
@@ -22,6 +22,7 @@ describe("replyContract", () => {
   it("acknowledgementReply nunca é classificada como funcional", () => {
     const reply = acknowledgementReply("Recebi sua imagem e estou processando.");
     expect(reply.kind).toBe("acknowledgement");
+    expect(reply.messages[0].role).toBeUndefined();
   });
 
   it("logicalReplyFromLegacyText adapta um builder string existente sem remover o formato legado", () => {
@@ -40,20 +41,34 @@ describe("replyContract", () => {
     expect(resolveWhatsAppLogicalReplyRecordText(withLink)).toBe("Refeição registrada. Edite se precisar.");
   });
 
-  it("withAuxiliaryImage anexa mídia auxiliar sem criar uma segunda resposta lógica", () => {
+  it("withAuxiliaryImage anexa mídia por URL marcada como auxiliar", () => {
     const base = textReply("Refeição registrada.");
     const withImage = withAuxiliaryImage(base, { url: "https://storage.test/annotated.png", caption: "Imagem anotada." });
 
     expect(withImage.kind).toBe("functional");
     expect(withImage.messages).toEqual([
       { type: "text", body: "Refeição registrada." },
-      { type: "image_url", url: "https://storage.test/annotated.png", caption: "Imagem anotada." },
+      { type: "image_url", url: "https://storage.test/annotated.png", caption: "Imagem anotada.", role: "auxiliary" },
     ]);
   });
 
-  it("sequencedTextReply representa uma sequência ordenada, como onboarding em duas mensagens", () => {
+  it("withAuxiliaryImage representa mídia por media id sem expor payload da Meta ao handler", () => {
+    const reply = withAuxiliaryImage(textReply("Refeição registrada."), {
+      mediaId: "media-opaque-123",
+      caption: "Imagem anotada.",
+    });
+    expect(reply.messages[1]).toEqual({
+      type: "image_id",
+      mediaId: "media-opaque-123",
+      caption: "Imagem anotada.",
+      role: "auxiliary",
+    });
+  });
+
+  it("sequencedTextReply representa sequência ordenada e marca somente mensagens posteriores como auxiliares", () => {
     const reply = sequencedTextReply(["Boas-vindas ao Controle de Calorias.", "Finalize seu cadastro pelo link."]);
     expect(reply.messages.map(message => message.type)).toEqual(["text", "text"]);
+    expect(reply.messages.map(message => message.role)).toEqual([undefined, "auxiliary"]);
     expect(reply.messages.map(message => "body" in message ? message.body : null)).toEqual([
       "Boas-vindas ao Controle de Calorias.",
       "Finalize seu cadastro pelo link.",
@@ -108,13 +123,18 @@ describe("replyContract", () => {
     expect(valid).toEqual([]);
   });
 
-  it("valida que uma lista sem nenhuma opção é rejeitada", () => {
-    const errors = validateWhatsAppOutboundMessage({
+  it("valida lista sem opções e image id vazio", () => {
+    expect(validateWhatsAppOutboundMessage({
       type: "list",
       bodyText: "x",
       buttonText: "Ver",
       sections: [{ rows: [] }],
-    });
-    expect(errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: "sections" })]));
+    })).toEqual(expect.arrayContaining([expect.objectContaining({ field: "sections" })]));
+
+    expect(validateWhatsAppOutboundMessage({
+      type: "image_id",
+      mediaId: " ",
+      caption: "Imagem",
+    })).toEqual(expect.arrayContaining([expect.objectContaining({ field: "mediaId" })]));
   });
 });

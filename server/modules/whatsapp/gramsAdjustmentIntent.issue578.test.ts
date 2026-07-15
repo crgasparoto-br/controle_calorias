@@ -95,7 +95,7 @@ describe("executeWhatsappGramsAdjustmentIntent issue #578", () => {
     expect(result?.reply).toContain("Maçã Fuji");
     expect(result?.reply).toContain("Pêra William");
     expect(result?.reply).toContain("Iogurte natural");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
     expect(result?.data).toEqual(expect.objectContaining({
       adjustments: [
         expect.objectContaining({ foodName: "Maçã Fuji", nextGrams: 79 }),

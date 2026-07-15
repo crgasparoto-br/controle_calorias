@@ -7,7 +7,7 @@ Este diretório reúne a documentação canônica do Controle de Calorias. Use e
 | Documento | Uso |
 |---|---|
 | `../README.md` | Visão geral do produto, stack e configuração inicial. |
-| `../ARCHITECTURE.md` | Fronteiras de camadas, regras de dependência e direção arquitetural. |
+| `../ARCHITECTURE.md` | Fronteiras de camadas, áreas de experiência, regras de dependência e direção arquitetural. |
 | `../AGENTS.md` | Guia obrigatório para agentes e automações. |
 | `../CONTRIBUTING.md` | Gates de validação, critérios antes de PR e comandos mínimos por tipo de mudança. |
 
@@ -17,11 +17,19 @@ Use `docs/product-specs/` para regras funcionais, critérios de aceite e comport
 
 | Área | Documento |
 |---|---|
+| Modelo do produto e separação dos fluxos | `product-specs/product-experience-model.md` |
 | Registro de refeições | `product-specs/meal-registration.md` |
 | Metas, Hoje, Registros e Relatórios | `product-specs/goals-and-reports.md` |
 | Privacidade, exportação e exclusão | `product-specs/privacy-export-deletion.md` |
-| Profissionais e pacientes | `product-specs/professionals.md` |
+| Área Profissional, vínculos e acompanhamento | `product-specs/professionals.md` |
 | Integrações de saúde / Strava | `product-specs/health-integrations.md` |
+
+`product-experience-model.md` é a fonte canônica para:
+
+- posicionamento comercial centrado no nutricionista;
+- coexistência entre Área do Paciente e Área Profissional;
+- preservação da experiência individual já desenvolvida;
+- classificação de issues entre experiência atual, plataforma compartilhada, programa profissional e billing.
 
 ## Design técnico
 
@@ -74,3 +82,5 @@ Quando um plano for implementado:
 ## Regra para novos documentos
 
 Antes de criar um novo `.md`, verifique se a informação cabe em uma documentação canônica existente. Prefira atualizar o documento de domínio em vez de criar revisão pontual, plano solto ou duplicação de checklist.
+
+Novas funcionalidades profissionais devem ser incorporadas a `product-specs/professionals.md` ou a design docs vinculados. Não criar documentos paralelos que misturem a evolução da Área Profissional com correções da Área do Paciente, infraestrutura compartilhada ou billing.

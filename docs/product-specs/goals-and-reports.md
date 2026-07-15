@@ -28,7 +28,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - Períodos customizados de relatórios são limitados a 90 dias inclusivos; ranges invertidos ou maiores devem ser bloqueados pelo backend e avisados pela interface quando possível.
 - A leitura principal de relatórios deve comparar consumido vs meta ajustada, macros planejados vs realizados, peso, qualidade alimentar, água e exercícios.
 - A organização visual de Relatórios deve começar por um resumo do período com cards de decisão antes dos blocos analíticos detalhados.
-- Meta ajustada de calorias é a meta base do dia somada às calorias de exercícios registradas no mesmo dia, quando houver gasto aplicável.
+- Meta efetiva de calorias é a meta base do dia somada às calorias de exercícios registrados no mesmo dia somente quando a configuração do usuário habilita essa compensação. O WhatsApp exibe apenas `Meta`, recebida do domínio, sem recalcular ou distinguir “estimada/ajustada”.
 - A distribuição percentual de macronutrientes deve ser calculada por calorias: proteína e carboidrato usam 4 kcal/g, gordura usa 9 kcal/g.
 - A qualidade alimentar em Relatórios deve ser agregada por período e não deve listar alimentos individualmente.
 - Alimentos sem classificação disponível devem entrar como `não classificados` para não inflar artificialmente percentuais de ultraprocessados ou in natura/minimamente processados.

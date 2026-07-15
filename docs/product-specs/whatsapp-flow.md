@@ -1,5 +1,14 @@
 # Especificação de produto: fluxo WhatsApp
 
+## Contrato de resposta da epic #779
+
+- Cada inbound produz no máximo uma resposta funcional lógica; texto, CTA e mídia auxiliar podem formar uma sequência física única.
+- A resposta funcional é enviada apenas pelo transporte central e persistida uma vez no lifecycle. Acknowledgements não contam como resposta e só aparecem quando mídia ultrapassa o limiar de processamento.
+- Reentregas não repetem mutações. Se o domínio foi alterado e a entrega falhou, a resposta é reconstruída pelos vínculos persistidos.
+- Água e alimento na mesma entrada são consolidados na resposta final. Imagem anotada é mídia auxiliar e sua falha não cria outra resposta funcional.
+- Perguntas livres à IA começam com `/`; sem `/`, a mensagem segue o roteamento de registros, consultas e alterações.
+- Resumos usam somente `Meta`, consumo, diferença e macros `P`/`C`/`G`, com a meta efetiva fornecida pelo domínio.
+
 ## Objetivo
 
 Oferecer registro conversacional de refeições usando um único número oficial da solução e identificando o usuário final pelo telefone de origem da mensagem.

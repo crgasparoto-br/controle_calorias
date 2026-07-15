@@ -19,6 +19,9 @@ Todos os caminhos alcançáveis pelo webhook e pelo simulador reutilizam os buil
 - Respostas finais usam `logicalReplyDelivery.ts` para compor texto, CTA de edição rápida e imagem auxiliar na mesma `WhatsAppLogicalReply`.
 - Callbacks preservam `mealId` até o webhook, mantendo o CTA quando a refeição ainda existe.
 - Depois da execução bem-sucedida, cada refeição afetada é renderizada integralmente, com itens e totais atuais.
+- Registro, consolidação, consulta e mutações reutilizam `buildWhatsAppMealContextLine` no formato `🍽️ *<refeição>* — <horário>`.
+- Em consultas diárias agrupadas, o mesmo bloco é usado sem horário para não atribuir uma única hora a várias ocorrências consolidadas.
+- Em respostas multirrefeição, as linhas de ação são limitadas à refeição correspondente.
 - `recordAdjustmentIntent.ts`, `gramsAdjustmentIntent.ts` e `gramsIncrementIntent.ts` delegam aos mesmos handlers canônicos. Exclusões continuam exigindo confirmação.
 - Os módulos que criam ou consomem pendências declaram `usesPendingOperation: true` e `requiresFreshDbQuery: true`.
 
@@ -31,6 +34,7 @@ Todos os caminhos alcançáveis pelo webhook e pelo simulador reutilizam os buil
 - `server/modules/whatsapp/intent/foodReplacementHandlers.ts`: substituições estruturadas.
 - `server/modules/whatsapp/contextualFoodReplacementIntent.ts`: substituições contextuais recentes.
 - `server/modules/whatsapp/logicalReplyDelivery.ts`: composição e envio único de texto, CTA e mídia auxiliar.
+- `server/modules/whatsapp/replyMessages.ts`: blocos compartilhados de contexto, item, total e resultado da refeição.
 - `server/modules/whatsapp/recordAdjustmentIntent.ts`: compatibilidade do simulador/handler legado.
 
 ## Regressões cobertas
@@ -40,7 +44,8 @@ Todos os caminhos alcançáveis pelo webhook e pelo simulador reutilizam os buil
 - Ação clara junto de ação ambígua sem mutação parcial.
 - Duas ou mais ambiguidades de gramas na mesma mensagem, preservadas em sequência.
 - Várias substituições ambíguas com destinos diferentes.
-- Atualização de várias refeições com um bloco completo e total para cada uma.
+- Atualização de várias refeições com identificação de refeição/horário, ações segregadas, bloco completo e total para cada uma.
+- Registro, consolidação, atualização e consulta reutilizam o mesmo bloco canônico de contexto.
 - Falha na segunda atualização multirrefeição com restauração da primeira e da chamada que falhou.
 - Resposta conservadora quando uma compensação também falha.
 - Metadados de contexto dos módulos com pendências.
@@ -62,3 +67,16 @@ A entrega somente pode ser considerada pronta para merge quando os seguintes che
 - `pnpm agent:check`
 - workflow `WhatsApp context TiDB gate`
 - workflow `Agent-first gate`
+
+## Correções finais após auditoria
+
+- Respostas de refeições novas, inclusive no webhook de imagem anotada, passam a renderizar itens e totais a partir da refeição persistida retornada pelo domínio, nunca do payload anterior à gravação.
+- Aumento e redução de gramas preservam a refeição explicitamente informada durante resolução clara, ambiguidade, seleção interativa e mutação.
+- O builder de respostas de ação diferencia explicitamente uma refeição recém-registrada de uma refeição atualizada; o fluxo de adição datada não apresenta mais uma nova refeição como `Refeição atualizada`.
+- Blocos de ação passaram a mostrar `🍽️ *<refeição>* — <horário>` e respostas multirrefeição não repetem ações de uma refeição no bloco de outra.
+- O mesmo bloco de contexto passou a ser reutilizado também por registro, consolidação e consulta.
+- Os testes de regressão cobrem divergência entre inferência e persistência, alimento repetido em refeições diferentes, candidatos ambíguos limitados ao escopo explícito, o estado visual correto de uma nova refeição datada, a segregação visual de ações multirrefeição e a consistência de contexto entre os quatro fluxos.
+
+### Evidência de validação
+
+A implementação final deve ser validada em conjunto pelos testes focados da auditoria, pela suíte completa, pelo type-check, pelas verificações de arquitetura e documentação, pelo build e pelo `agent:check`. A PR mantém a árvore sobre `develop` e depende dos dois workflows obrigatórios acima antes de ser considerada pronta para merge.

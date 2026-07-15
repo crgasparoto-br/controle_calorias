@@ -95,7 +95,7 @@ describe("meal item selection — ambiguidades encadeadas", () => {
     }));
     expect(finalResult.action).toBe("meal_item_replaced");
     expect(finalResult.data).toEqual(expect.objectContaining({ actionCount: 2, affectedMealIds: expect.arrayContaining([1, 2]) }));
-    expect(finalResult.reply.match(/Total da refeição:/g)).toHaveLength(2);
+    expect(finalResult.reply.match(/\*Total da refeição\*/g)).toHaveLength(2);
   });
 
   it("restaura a primeira refeição quando a segunda atualização do callback falha", async () => {

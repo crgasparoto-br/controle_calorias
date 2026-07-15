@@ -32,16 +32,16 @@ function parse(text: string) {
     const gramsDelta = Number(match[1].replace(",", "."));
     if (Number.isFinite(gramsDelta) && gramsDelta > 0) increments.push({ gramsDelta, targetFood: cleanFood(match[2]?.trim() ?? null, mealLabel) });
   }
-  return increments.length ? increments : null;
+  return increments.length ? { mealLabel, increments } : null;
 }
 
 export async function executeWhatsappGramsIncrementIntent(
   userId: number,
   input: { text?: string | null; receivedAt?: Date },
 ) {
-  const increments = input.text ? parse(input.text) : null;
-  if (!increments) return null;
-  const result = await handleMealItemMultiIncrement(userId, increments);
+  const parsed = input.text ? parse(input.text) : null;
+  if (!parsed) return null;
+  const result = await handleMealItemMultiIncrement(userId, parsed.increments, { mealLabel: parsed.mealLabel });
   if (result.action !== "meal_item_grams_adjusted") return result;
   const adjustments = Array.isArray(result.data?.adjustments) ? result.data.adjustments : [];
   return {

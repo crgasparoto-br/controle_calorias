@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import type { GenerateImageResponse } from "./_core/imageGeneration";
-import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserCurrentWeight, updateUserMeal } from "./db";
+import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, createUserWaterLog, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
 import { executeWhatsappAiQuestionIntent } from "./modules/whatsapp/aiQuestionAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
@@ -14,11 +14,23 @@ import {
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
 import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./modules/whatsapp/replyFormatting";
-import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealReplyMessage, buildWhatsAppWaterVolumeNeededReplyMessage } from "./modules/whatsapp/replyMessages";
-import { sendWhatsAppLogicalDomainReply, type WhatsAppAuxiliaryImage } from "./modules/whatsapp/logicalReplyDelivery";
 import {
-  buildWaterLogReply,
-  buildWeightLogReply,
+  buildWhatsAppConsolidatedMealReplyMessage,
+  buildWhatsAppMealReplyMessage,
+  buildWhatsAppWaterLoggedReplyMessage,
+  buildWhatsAppWaterVolumeNeededReplyMessage,
+  buildWhatsAppWeightLoggedReplyMessage,
+} from "./modules/whatsapp/replyMessages";
+import { sendWhatsAppLogicalDomainReply, type WhatsAppAuxiliaryImage } from "./modules/whatsapp/logicalReplyDelivery";
+import { composeWhatsAppDeferredReplyText, getWhatsAppDeferredLogicalReply } from "./modules/whatsapp/deferredLogicalReply";
+import {
+  startProcessingAcknowledgement,
+  type ProcessingAcknowledgementCoordinator,
+} from "./modules/whatsapp/processingAcknowledgement";
+import { sendWhatsAppProcessingAcknowledgement } from "./modules/whatsapp/processingAcknowledgementDelivery";
+import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
+import { getWhatsAppWaterProgress, getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
+import {
   detectWaterLogFromMessage,
   detectWeightLogFromMessage,
   detectWhatsAppAction,
@@ -32,7 +44,6 @@ import {
   isWhatsAppMessageForConfiguredChannel,
   markWhatsAppMessageAsRead,
   resolveWhatsAppMessageOccurredAt,
-  sendWhatsAppTextMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
 import { MealInferenceError, MealProcessingResult, processMealInput } from "./nutritionEngine";
@@ -40,9 +51,7 @@ import { getWhatsAppChannelConfig } from "./whatsappConfig";
 import { calculateMealTotals } from "../shared/mealTotals";
 import {
   beginInboundMessage,
-  markMessageProcessed,
   recordDomainLink,
-  recordOutboundReply,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 
@@ -53,6 +62,38 @@ const PROCESSING_ERROR_REPLY = "Não consegui processar essa mídia agora. Tente
 
 async function resolveUserIdFromPhone(sourcePhone: string) {
   return getUserIdByWhatsappPhone(sourcePhone);
+}
+
+function formatWhatsAppOccurredAt(occurredAt: Date) {
+  return occurredAt.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+async function buildCanonicalWaterReply(userId: number, amountMl: number, occurredAt: Date) {
+  const progress = await getWhatsAppWaterProgress(userId, occurredAt);
+  return buildWhatsAppWaterLoggedReplyMessage({
+    amountLabel: formatWhatsAppMacro(amountMl),
+    occurredAtLabel: formatWhatsAppOccurredAt(occurredAt),
+    totalMl: progress.totalMl,
+    goalMl: progress.goalMl,
+  });
+}
+
+async function buildCanonicalWeightReply(userId: number, weightKg: number, occurredAt: Date) {
+  const { variationKg } = await getWhatsAppWeightVariation(userId, occurredAt, weightKg);
+  return buildWhatsAppWeightLoggedReplyMessage({
+    weightLabel: formatWhatsAppMacro(weightKg),
+    occurredAtLabel: formatWhatsAppOccurredAt(occurredAt),
+    variationLabel: variationKg === null
+      ? "primeiro registro"
+      : `${variationKg > 0 ? "+" : ""}${formatWhatsAppMacro(variationKg)} kg`,
+  });
 }
 
 function getVerifyToken() {
@@ -140,6 +181,7 @@ async function sendInterpretedTextIntentReply(input: {
   sourcePhone: string;
   interpreted: WhatsAppTextIntentResult;
   lifecycleHandle: MessageLifecycleHandle;
+  replyText?: string;
 }) {
   logInferenceEvent({
     userId: input.userId,
@@ -152,7 +194,7 @@ async function sendInterpretedTextIntentReply(input: {
   const mealId = typeof input.interpreted.data?.mealId === "number"
     ? input.interpreted.data.mealId
     : null;
-  const replyText = input.interpreted.reply;
+  const replyText = input.replyText ?? input.interpreted.reply;
   const delivery = await sendWhatsAppLogicalDomainReply({
     to: input.sourcePhone,
     userId: input.userId,
@@ -167,7 +209,7 @@ async function sendInterpretedTextIntentReply(input: {
       origin: "whatsapp",
       status: delivery.result.primaryOk ? "warning" : "error",
       eventType: "whatsapp.reply_failed",
-      detail: `Falha ao enviar resposta lógica para ${input.sourcePhone}.`,
+      detail: "Falha ao enviar resposta lógica do WhatsApp.",
     });
   }
   if (mealId) {
@@ -245,7 +287,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.unlinked_phone",
-        detail: `Mensagem recebida de ${sourcePhone} sem vínculo ativo com um usuário da plataforma.`,
+        detail: "Mensagem recebida de telefone sem vínculo ativo com um usuário da plataforma.",
       });
       continue;
     }
@@ -256,7 +298,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.unsupported_message",
-        detail: `Mensagem recebida de ${sourcePhone} com tipo ${message.type || "desconhecido"}.`,
+        detail: `Mensagem recebida com tipo ${message.type || "desconhecido"} não suportado.`,
       });
       continue;
     }
@@ -278,6 +320,27 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       occurredAt: resolveWhatsAppMessageOccurredAt(message),
       allowRawContentStorage: true,
     });
+    const deferredReply = getWhatsAppDeferredLogicalReply(req, message.id);
+    const responsePrefixBlocks = [...(deferredReply?.prefixBlocks ?? [])];
+    const composeFinalReply = (reply: string) => composeWhatsAppDeferredReplyText(
+      { prefixBlocks: responsePrefixBlocks, domainLinks: deferredReply?.domainLinks ?? [] },
+      reply,
+    );
+    let acknowledgement: ProcessingAcknowledgementCoordinator | null = null;
+    const sendFinalText = async (reply: string) => {
+      await acknowledgement?.beforeFinalReply();
+      const finalReply = composeFinalReply(reply);
+      const delivery = await sendWhatsAppLogicalDomainReply({
+        to: sourcePhone,
+        userId,
+        replyText: finalReply,
+        lifecycleHandle,
+      });
+      return {
+        ok: delivery.result.primaryOk,
+        detail: delivery.result.sends.find(send => !send.ok)?.detail ?? "Resposta funcional enviada.",
+      };
+    };
 
     const readResult = await markWhatsAppMessageAsRead(message.id);
     if (!readResult.ok) {
@@ -303,17 +366,15 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: aiQuestionResult.detail,
         });
 
-        const replyResult = await sendWhatsAppTextMessage(sourcePhone, aiQuestionResult.reply);
+        const replyResult = await sendFinalText( aiQuestionResult.reply);
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.reply_failed",
-            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+            detail: "Falha ao enviar resposta automática do WhatsApp.",
           });
-        } else {
-          await recordOutboundReply(lifecycleHandle, { userId, text: aiQuestionResult.reply });
         }
         continue;
       }
@@ -328,17 +389,15 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: pendingConfirmationResult.detail,
         });
 
-        const replyResult = await sendWhatsAppTextMessage(sourcePhone, pendingConfirmationResult.reply);
+        const replyResult = await sendFinalText( pendingConfirmationResult.reply);
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.reply_failed",
-            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+            detail: "Falha ao enviar resposta automática do WhatsApp.",
           });
-        } else {
-          await recordOutboundReply(lifecycleHandle, { userId, text: pendingConfirmationResult.reply });
         }
         continue;
       }
@@ -354,30 +413,29 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: actionResult.detail,
         });
 
-        const replyResult = await sendWhatsAppTextMessage(sourcePhone, actionResult.reply);
+        const replyResult = await sendFinalText( actionResult.reply);
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.reply_failed",
-            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+            detail: "Falha ao enviar resposta automática do WhatsApp.",
           });
-        } else {
-          await recordOutboundReply(lifecycleHandle, { userId, text: actionResult.reply });
         }
         continue;
       }
 
-      // Ack de "processando" é intencionalmente NÃO registrado como resposta funcional:
-      // a resposta que conta para o histórico é a que efetivamente resolve a mensagem, mais abaixo.
-      const acknowledgementResult = await sendWhatsAppTextMessage(sourcePhone, buildProcessingAcknowledgement(message));
-      if (!acknowledgementResult.ok) {
-        await logWhatsAppOperationWarning({
-          userId,
-          sourcePhone,
-          eventType: "whatsapp.processing_ack_failed",
-          detail: acknowledgementResult.detail,
+      // Mídia usa acknowledgement cancelável apenas quando o processamento ultrapassa o limiar.
+      if (message.image?.id || message.audio?.id) {
+        acknowledgement = startProcessingAcknowledgement({
+          send: () => sendWhatsAppProcessingAcknowledgement(sourcePhone, buildProcessingAcknowledgement(message)),
+          onFailure: detail => logWhatsAppOperationWarning({
+            userId,
+            sourcePhone,
+            eventType: "whatsapp.processing_ack_failed",
+            detail,
+          }),
         });
       }
 
@@ -395,20 +453,19 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           origin: "whatsapp",
           status: "success",
           eventType: "whatsapp.water_logged",
-          detail: `Consumo de ${waterLog.amountMl} ml de água registrado pelo WhatsApp às ${formatWhatsAppReplyTime(occurredAt)}.`,
+          detail: "Consumo de água registrado pelo WhatsApp.",
         });
 
-        const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWaterLogReply(waterLog.amountMl, occurredAt));
+        const waterReply = await buildCanonicalWaterReply(userId, waterLog.amountMl, occurredAt);
+        const replyResult = await sendFinalText(waterReply);
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.reply_failed",
-            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+            detail: "Falha ao enviar resposta automática do WhatsApp.",
           });
-        } else {
-          await recordOutboundReply(lifecycleHandle, { userId, text: buildWaterLogReply(waterLog.amountMl, occurredAt) });
         }
         continue;
       }
@@ -416,48 +473,48 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const weightLog = detectWeightLogFromMessage(message);
       if (weightLog) {
         const occurredAt = resolveWhatsAppMessageOccurredAt(message);
-        await updateUserCurrentWeight(userId, {
+        const weightReply = await buildCanonicalWeightReply(userId, weightLog.weightKg, occurredAt);
+        const persistedWeight = await ensureWhatsAppWeightEntry(userId, {
           weightKg: weightLog.weightKg,
           measuredAt: occurredAt,
           notes: "Peso atualizado pelo WhatsApp.",
         });
+        if (persistedWeight.entry.id > 0) {
+          await recordDomainLink(lifecycleHandle, { weightEntryId: persistedWeight.entry.id });
+        }
 
         logInferenceEvent({
           userId,
           origin: "whatsapp",
           status: "success",
           eventType: "whatsapp.weight_logged",
-          detail: `Peso de ${formatWhatsAppMacro(weightLog.weightKg)} kg registrado pelo WhatsApp às ${formatWhatsAppReplyTime(occurredAt)}.`,
+          detail: "Peso registrado pelo WhatsApp.",
         });
 
-        const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWeightLogReply(weightLog.weightKg, occurredAt));
+        const replyResult = await sendFinalText(weightReply);
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.reply_failed",
-            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+            detail: "Falha ao enviar resposta automática do WhatsApp.",
           });
-        } else {
-          await recordOutboundReply(lifecycleHandle, { userId, text: buildWeightLogReply(weightLog.weightKg, occurredAt) });
         }
         continue;
       }
 
       const prepared = await prepareMessageInput(message, sourcePhone);
       if (prepared.audioTranscriptionFailure?.blockedMealProcessing) {
-        const replyResult = await sendWhatsAppTextMessage(sourcePhone, prepared.audioTranscriptionFailure.reply);
+        const replyResult = await sendFinalText( prepared.audioTranscriptionFailure.reply);
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.reply_failed",
-            detail: `Falha ao enviar resposta de falha de transcrição para ${sourcePhone}: ${replyResult.detail}`,
+            detail: "Falha ao enviar resposta de falha de transcrição pelo WhatsApp.",
           });
-        } else {
-          await recordOutboundReply(lifecycleHandle, { userId, text: prepared.audioTranscriptionFailure.reply });
         }
         continue;
       }
@@ -472,34 +529,21 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: buildSecurityGuardDetail(unsafeContent),
         });
 
-        const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildSuspiciousWhatsAppContentReply());
+        const replyResult = await sendFinalText( buildSuspiciousWhatsAppContentReply());
         if (!replyResult.ok) {
           logInferenceEvent({
             userId,
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.reply_failed",
-            detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+            detail: "Falha ao enviar resposta automática do WhatsApp.",
           });
-        } else {
-          await recordOutboundReply(lifecycleHandle, { userId, text: buildSuspiciousWhatsAppContentReply() });
         }
         continue;
       }
 
       if (prepared.audioTranscriptionFailure && prepared.text?.trim()) {
-        const replyResult = await sendWhatsAppTextMessage(sourcePhone, prepared.audioTranscriptionFailure.partialTextReply);
-        if (!replyResult.ok) {
-          logInferenceEvent({
-            userId,
-            origin: "whatsapp",
-            status: "warning",
-            eventType: "whatsapp.reply_failed",
-            detail: `Falha ao enviar aviso de transcrição parcial para ${sourcePhone}: ${replyResult.detail}`,
-          });
-        } else {
-          await recordOutboundReply(lifecycleHandle, { userId, text: prepared.audioTranscriptionFailure.partialTextReply });
-        }
+        responsePrefixBlocks.push(prepared.audioTranscriptionFailure.partialTextReply);
       }
 
       if (canInterpretAudioTranscriptIntent(message, prepared)) {
@@ -509,11 +553,13 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         });
 
         if (interpreted) {
+          await acknowledgement?.beforeFinalReply();
           await sendInterpretedTextIntentReply({
             userId,
             sourcePhone,
             interpreted,
             lifecycleHandle,
+            replyText: composeFinalReply(interpreted.reply),
           });
           continue;
         }
@@ -543,7 +589,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             origin: "whatsapp",
             status: "success",
             eventType: "whatsapp.water_logged",
-            detail: `Consumo de ${waterSplit.waterVolumeMl} ml de água identificado em imagem e registrado pelo WhatsApp às ${formatWhatsAppReplyTime(occurredAt)}.`,
+            detail: "Consumo de água identificado em imagem e registrado pelo WhatsApp.",
           });
         }
 
@@ -552,49 +598,35 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
         if (!waterSplit.remainingItems.length) {
           if (waterSplit.waterVolumeMl > 0) {
-            const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWaterLogReply(waterSplit.waterVolumeMl, occurredAt));
+            const waterReply = await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt);
+            const replyResult = await sendFinalText(waterReply);
             if (!replyResult.ok) {
               logInferenceEvent({
                 userId,
                 origin: "whatsapp",
                 status: "warning",
                 eventType: "whatsapp.reply_failed",
-                detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+                detail: "Falha ao enviar resposta automática do WhatsApp.",
               });
-            } else {
-              await recordOutboundReply(lifecycleHandle, { userId, text: buildWaterLogReply(waterSplit.waterVolumeMl, occurredAt) });
             }
             continue;
           }
 
           if (waterSplit.hasWaterWithoutVolume) {
-            const replyResult = await sendWhatsAppTextMessage(sourcePhone, buildWhatsAppWaterVolumeNeededReplyMessage());
+            const replyResult = await sendFinalText( buildWhatsAppWaterVolumeNeededReplyMessage());
             if (!replyResult.ok) {
               logInferenceEvent({
                 userId,
                 origin: "whatsapp",
                 status: "warning",
                 eventType: "whatsapp.reply_failed",
-                detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+                detail: "Falha ao enviar resposta automática do WhatsApp.",
               });
-            } else {
-              await recordOutboundReply(lifecycleHandle, { userId, text: buildWhatsAppWaterVolumeNeededReplyMessage() });
             }
             continue;
           }
         } else if (waterSplit.waterVolumeMl > 0) {
-          const waterReplyResult = await sendWhatsAppTextMessage(sourcePhone, buildWaterLogReply(waterSplit.waterVolumeMl, occurredAt));
-          if (!waterReplyResult.ok) {
-            logInferenceEvent({
-              userId,
-              origin: "whatsapp",
-              status: "warning",
-              eventType: "whatsapp.reply_failed",
-              detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${waterReplyResult.detail}`,
-            });
-          } else {
-            await recordOutboundReply(lifecycleHandle, { userId, text: buildWaterLogReply(waterSplit.waterVolumeMl, occurredAt) });
-          }
+          responsePrefixBlocks.push(await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt));
         }
       }
 
@@ -622,7 +654,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
               origin: "whatsapp",
               status: "warning",
               eventType: "whatsapp.annotated_image_skipped",
-              detail: `Imagem anotada não vinculada à refeição ${prepared.summary} de ${sourcePhone}: ${annotatedImage?.detail || annotatedImage?.skippedReason || "geração sem URL"}.`,
+              detail: "Imagem anotada não vinculada à refeição; o registro nutricional foi preservado.",
             });
           }
         } catch (annotationError) {
@@ -631,7 +663,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             origin: "whatsapp",
             status: "warning",
             eventType: "whatsapp.annotated_image_skipped",
-            detail: `Falha ao gerar imagem anotada para ${prepared.summary} de ${sourcePhone}: ${annotationError instanceof Error ? annotationError.message : "erro desconhecido"}.`,
+            detail: "Falha ao gerar imagem anotada; o registro nutricional foi preservado.",
           });
         }
       }
@@ -663,27 +695,35 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         origin: "whatsapp",
         status: "success",
         eventType: "whatsapp.message_processed",
-        detail: `Mensagem ${prepared.summary} de ${sourcePhone} processada e refeição ${savedMeal.mealLabel} registrada automaticamente às ${formatWhatsAppReplyTime(occurredAt)}.`,
+        detail: "Mensagem processada e refeição registrada automaticamente pelo WhatsApp.",
       });
 
+      const persistedReplyInput: MealProcessingResult = {
+        ...processedForPersistence,
+        detectedMealLabel: replyMeal.mealLabel,
+        items: replyMeal.items ?? [],
+        totals: calculateMealTotals(replyMeal.items ?? []),
+      };
+      const goalProgress = await getWhatsAppMealGoalProgress(userId, occurredAt);
       const mealReplyText = consolidationResult.action === "updated"
         ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
             registeredAt: occurredAt,
-            goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+            goalProgress,
           })
-        : buildWhatsAppMealReplyMessage(processedForPersistence, {
+        : buildWhatsAppMealReplyMessage(persistedReplyInput, {
             registeredAt: occurredAt,
-            goalProgress: await getWhatsAppMealGoalProgress(userId, occurredAt),
+            goalProgress,
           });
       const auxiliaryImage: WhatsAppAuxiliaryImage | null = annotatedImage?.url
         ? { url: annotatedImage.url, caption: "Imagem anotada com os alimentos identificados." }
         : annotatedImage?.buffer
           ? { buffer: annotatedImage.buffer, mimeType: annotatedImage.mimeType, fileName: "whatsapp-annotated-meal.png", caption: "Imagem anotada com os alimentos identificados." }
           : null;
+      await acknowledgement?.beforeFinalReply();
       const delivery = await sendWhatsAppLogicalDomainReply({
         to: sourcePhone,
         userId,
-        replyText: mealReplyText,
+        replyText: composeFinalReply(mealReplyText),
         mealId: replyMeal.id,
         auxiliaryImage,
         lifecycleHandle,
@@ -694,7 +734,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           origin: "whatsapp",
           status: delivery.result.primaryOk ? "warning" : "error",
           eventType: auxiliaryImage && delivery.result.primaryOk ? "whatsapp.annotated_image_reply_failed" : "whatsapp.reply_failed",
-          detail: `Falha ao enviar resposta lógica de refeição para ${sourcePhone}.`,
+          detail: "Falha ao enviar resposta lógica de refeição pelo WhatsApp.",
         });
       }
     } catch (error) {
@@ -707,20 +747,18 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       });
 
       const reply = error instanceof MealInferenceError ? error.message : PROCESSING_ERROR_REPLY;
-      const replyResult = await sendWhatsAppTextMessage(sourcePhone, reply);
+      const replyResult = await sendFinalText( reply);
       if (!replyResult.ok) {
         logInferenceEvent({
           userId,
           origin: "whatsapp",
           status: "warning",
           eventType: "whatsapp.reply_failed",
-          detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+          detail: "Falha ao enviar resposta automática do WhatsApp.",
         });
-      } else {
-        await recordOutboundReply(lifecycleHandle, { userId, text: reply });
       }
     } finally {
-      await markMessageProcessed(lifecycleHandle);
+      await acknowledgement?.beforeFinalReply();
     }
   }
 

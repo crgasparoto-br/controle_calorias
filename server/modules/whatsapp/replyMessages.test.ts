@@ -40,7 +40,8 @@ describe("buildWhatsAppMealReplyMessage", () => {
       registeredAt: new Date("2026-06-04T16:00:00.000Z"),
     });
 
-    expect(reply).toContain("*Almoço Registrado às 13:00hs.*");
+    expect(reply).toContain("✅ *Refeição registrada:*");
+    expect(reply).toContain("🍽️ *Almoço* — 13:00");
     expect(reply).toContain("• 🍗 Frango grelhado — 150g");
     expect(reply).toContain("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");
   });
@@ -145,17 +146,16 @@ describe("buildWhatsAppMealReplyMessage", () => {
       registeredAt: new Date("2026-06-04T16:00:00.000Z"),
       goalProgress: {
         consumedCalories: 1165,
-        goalCalories: 2000,
+        effectiveGoalCalories: 2200,
         exerciseCalories: 200,
       },
     });
 
-    expect(reply).toContain("Meta de hoje:");
-    expect(reply).toContain("* Meta estimada: 2.000 kcal");
-    expect(reply).toContain("* Exercícios: 200 kcal");
-    expect(reply).toContain("* Meta ajustada: 2.200 kcal");
-    expect(reply).toContain("* Consumo: 1.165 kcal");
-    expect(reply).toContain("* Déficit: 1.035 kcal");
+    expect(reply).toContain("*Meta:* 2.200 kcal");
+    expect(reply).toContain("*Exercícios:* 200 kcal");
+    expect(reply).toContain("*Consumo:* 1.165 kcal (-1.035 kcal)");
+    expect(reply).not.toContain("Meta estimada");
+    expect(reply).not.toContain("Meta ajustada");
   });
 
   it("não inclui link de edição no corpo do texto (link é enviado como botão separado)", () => {
@@ -239,11 +239,12 @@ describe("buildWhatsAppMealReplyMessage", () => {
       ],
     });
 
-    expect(reply).toContain("*Café da manhã Atualizado às 07:14hs.*");
+    expect(reply).toContain("✅ *Refeição atualizada:*");
+    expect(reply).toContain("🍽️ *Café da manhã* — 07:14");
     expect(reply).toContain("• 🍎 Pêra William — 185g");
     expect(reply).toContain("• 🍌 Banana prata — 139g");
     expect(reply).toContain("• 🥛 Iogurte grego light Danone — 80g");
-    expect(reply).toContain("Total da refeição:");
+    expect(reply).toContain("*Total da refeição*");
     expect(reply).toContain("292 kcal | P 8,2 g | C 67,3 g | G 1,6 g");
   });
 

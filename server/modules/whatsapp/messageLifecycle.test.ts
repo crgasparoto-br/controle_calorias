@@ -4,6 +4,7 @@ const repositoryMock = vi.hoisted(() => ({
   createOrGetActiveConversation: vi.fn(),
   appendMessage: vi.fn(),
   findByIdempotencyKey: vi.fn(),
+  findResponseForMessage: vi.fn(),
   linkResponse: vi.fn(),
   linkDomainRecord: vi.fn(),
   findRecentMessages: vi.fn(),
@@ -42,7 +43,7 @@ describe("whatsapp messageLifecycle", () => {
       occurredAt: new Date("2026-07-11T12:00:00Z"),
     });
 
-    expect(handle).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true });
+    expect(handle).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true, processedAt: undefined, hasResponse: false });
     expect(repositoryMock.createOrGetActiveConversation).toHaveBeenCalledWith(1, null, "5511999999999");
     expect(repositoryMock.appendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: 10, userId: 1, direction: "inbound", externalMessageId: "wamid.abc" }),
@@ -80,11 +81,12 @@ describe("whatsapp messageLifecycle", () => {
       occurredAt: new Date("2026-07-11T12:00:00Z"),
     };
 
+    repositoryMock.findResponseForMessage.mockResolvedValue(null);
     const first = await beginInboundMessage(input);
     const second = await beginInboundMessage(input);
 
-    expect(first).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true });
-    expect(second).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: false });
+    expect(first).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true, processedAt: undefined, hasResponse: false });
+    expect(second).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: false, processedAt: undefined, hasResponse: false });
   });
 
   it("isola conversas/mensagens entre usuários diferentes", async () => {
@@ -104,20 +106,34 @@ describe("whatsapp messageLifecycle", () => {
       contentType: "text", text: "b", occurredAt: new Date(),
     });
 
-    expect(handleA).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true });
-    expect(handleB).toEqual({ conversationId: 20, messageId: 200, wasNewInsert: true });
+    expect(handleA).toEqual({ conversationId: 10, messageId: 100, wasNewInsert: true, processedAt: undefined, hasResponse: false });
+    expect(handleB).toEqual({ conversationId: 20, messageId: 200, wasNewInsert: true, processedAt: undefined, hasResponse: false });
   });
 
-  it("detecta mensagem já processada (reentrega com domínio já vinculado) — issue #767", async () => {
-    repositoryMock.findDomainLinksForMessage.mockResolvedValue([{ id: 1, messageId: 100, mealId: 42 }]);
-
-    const alreadyProcessed = await wasMessageAlreadyProcessed({ conversationId: 10, messageId: 100, wasNewInsert: false });
+  it("detecta mensagem já processada por processedAt ou resposta persistida", async () => {
+    const alreadyProcessed = await wasMessageAlreadyProcessed({
+      conversationId: 10,
+      messageId: 100,
+      wasNewInsert: false,
+      hasResponse: true,
+    });
     expect(alreadyProcessed).toBe(true);
 
     const freshInsert = await wasMessageAlreadyProcessed({ conversationId: 10, messageId: 100, wasNewInsert: true });
     expect(freshInsert).toBe(false);
 
     expect(await wasMessageAlreadyProcessed(null)).toBe(false);
+  });
+
+  it("permite retry quando a mutação tem vínculo, mas a resposta ainda não foi persistida", async () => {
+    const retryable = await wasMessageAlreadyProcessed({
+      conversationId: 10,
+      messageId: 100,
+      wasNewInsert: false,
+      processedAt: null,
+      hasResponse: false,
+    });
+    expect(retryable).toBe(false);
   });
 
   it("grava a resposta de saída e vincula à mensagem de entrada", async () => {

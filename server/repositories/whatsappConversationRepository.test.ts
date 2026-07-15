@@ -417,6 +417,39 @@ describe("createDrizzleWhatsAppConversationRepository", () => {
     expect(messages).toHaveLength(1);
   });
 
+  it("persiste no máximo uma resposta funcional para o mesmo inbound", async () => {
+    const { repository } = createRepository();
+    const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");
+    const { message: inbound } = await repository.appendMessage({
+      conversationId: conversation!.id,
+      userId: 1,
+      direction: "inbound",
+      externalMessageId: "wamid.response-once",
+      contentType: "text",
+      text: "500 ml de água",
+      occurredAt: new Date("2026-07-10T12:00:00Z"),
+    });
+    const responseInput = {
+      conversationId: conversation!.id,
+      userId: 1,
+      direction: "outbound" as const,
+      contentType: "text" as const,
+      text: "Água registrada",
+      respondsToMessageId: inbound!.id,
+      occurredAt: new Date("2026-07-10T12:00:01Z"),
+    };
+
+    const first = await repository.appendMessage(responseInput);
+    const retry = await repository.appendMessage(responseInput);
+
+    expect(first?.wasNewInsert).toBe(true);
+    expect(retry?.wasNewInsert).toBe(false);
+    expect(retry.message?.id).toBe(first.message?.id);
+    await expect(repository.findResponseForMessage(inbound!.id)).resolves.toEqual(
+      expect.objectContaining({ id: first.message?.id, respondsToMessageId: inbound!.id }),
+    );
+  });
+
   it("mensagens fora de ordem são recuperadas ordenadas por occurredAt, com id como desempate", async () => {
     const { repository } = createRepository();
     const conversation = await repository.createOrGetActiveConversation(1, null, "5511999999999");

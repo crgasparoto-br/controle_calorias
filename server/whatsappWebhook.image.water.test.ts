@@ -29,6 +29,8 @@ vi.mock("./db", () => ({
   createPendingMealInference: createPendingMealInferenceMock,
   createUserWaterLog: createUserWaterLogMock,
   getHabitSnapshots: getHabitSnapshotsMock,
+  getUserWaterGoal: vi.fn(async () => ({ dailyTargetMl: 2000 })),
+  listUserWaterLogs: vi.fn(async () => [{ amountMl: 500, occurredAt: new Date("2026-06-03T13:14:00.000Z") }]),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getWhatsAppAccessToken: getWhatsAppAccessTokenMock,
   listUserMeals: vi.fn(async () => []),
@@ -53,6 +55,10 @@ vi.mock("./_core/imageGeneration", () => ({
 
 vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
   createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
+}));
+
+vi.mock("./modules/whatsapp/goalProgressService", () => ({
+  getWhatsAppMealGoalProgress: vi.fn(async () => null),
 }));
 
 vi.mock("./_core/voiceTranscription", () => ({
@@ -181,7 +187,6 @@ function foodItem(overrides: Partial<Record<string, unknown>> = {}) {
 
 function setupFetchForImageFlow(extraOkResponses = 1) {
   const calls = [
-    createWhatsAppOkResponse(),
     createWhatsAppOkResponse(),
     {
       ok: true,

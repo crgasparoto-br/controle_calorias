@@ -107,8 +107,19 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
   });
 }
 
-function buildUpdatedMealsReply(updatedMeals: MealRecord[], title: string, actionLines: string[]) {
-  return updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title, actionLines })).join("\n\n");
+function buildUpdatedMealsReply(
+  updatedMeals: MealRecord[],
+  title: string,
+  actionLinesByMeal: Map<number, string[]>,
+  sharedActionLines: string[] = [],
+) {
+  return updatedMeals.map((meal, index) => buildWhatsAppMealActionReplyMessage(meal, {
+    title,
+    actionLines: [
+      ...(actionLinesByMeal.get(meal.id) ?? []),
+      ...(index === 0 ? sharedActionLines : []),
+    ],
+  })).join("\n\n");
 }
 
 async function ambiguousTargetReply(input: {
@@ -294,15 +305,35 @@ async function handleMultiGramsChange(input: {
   userId: number;
   changes: Array<{ targetFood: string | null; delta: number }>;
   detailPrefix: string;
+  mealLabel?: string | null;
 }): Promise<WhatsappIntentResult> {
-  const meals = await listMeals(input.userId);
+  const allMeals = await listMeals(input.userId);
+  const normalizedMealLabel = input.mealLabel
+    ?.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  const meals = normalizedMealLabel
+    ? allMeals.filter(meal => meal.mealLabel
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim() === normalizedMealLabel)
+    : allMeals;
+  const explicitContext = input.mealLabel ? `na refeição ${input.mealLabel}` : null;
+  const explicitScopeLabel = input.mealLabel ? `refeição ${input.mealLabel}` : null;
+
   if (!meals.length) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada."),
+      reply: buildWhatsAppClarificationReplyMessage(input.mealLabel
+        ? `Não encontrei a refeição ${input.mealLabel} para ajustar. Confira o nome da refeição e tente novamente.`
+        : "Não encontrei uma refeição recente para ajustar. Me diga o alimento e a quantidade atualizada."),
       eventType: "whatsapp.intent.clarification_needed",
-      detail: `${input.detailPrefix} sem refeição recente disponível.`,
+      detail: input.mealLabel
+        ? `${input.detailPrefix} sem a refeição explicitamente informada: ${input.mealLabel}.`
+        : `${input.detailPrefix} sem refeição recente disponível.`,
     };
   }
 
@@ -317,8 +348,8 @@ async function handleMultiGramsChange(input: {
     if (target.kind === "ambiguous") {
       pending.push({
         targetFood: change.targetFood,
-        context: contextWithPreposition(target.scope),
-        scopeLabel: target.scopeLabel,
+        context: explicitContext ?? contextWithPreposition(target.scope),
+        scopeLabel: explicitScopeLabel ?? target.scopeLabel,
         candidates: target.candidates,
         selectionAction: { kind: "grams_delta", delta: change.delta },
       });
@@ -346,7 +377,7 @@ async function handleMultiGramsChange(input: {
       previousGrams,
       nextGrams,
       scope: target.scope,
-      scopeLabel: target.scopeLabel,
+      scopeLabel: explicitScopeLabel ?? target.scopeLabel,
       candidate,
       action,
     });
@@ -377,11 +408,15 @@ async function handleMultiGramsChange(input: {
       action: "clarification_needed",
       reply: buildWhatsAppItemNotFoundReplyMessage({
         target: notFound.join(", ") || "esses alimentos",
-        context: "nas refeições de hoje",
-        instruction: "Me diga quais itens devo ajustar.",
+        context: explicitContext ?? "nas refeições de hoje",
+        instruction: input.mealLabel
+          ? `Me diga quais itens da refeição ${input.mealLabel} devo ajustar.`
+          : "Me diga quais itens devo ajustar.",
       }),
       eventType: "whatsapp.intent.clarification_needed",
-      detail: `${input.detailPrefix} sem alimentos compatíveis nas refeições do dia.`,
+      detail: input.mealLabel
+        ? `${input.detailPrefix} sem alimentos compatíveis na refeição ${input.mealLabel}.`
+        : `${input.detailPrefix} sem alimentos compatíveis nas refeições do dia.`,
     };
   }
 
@@ -405,14 +440,24 @@ async function handleMultiGramsChange(input: {
     };
   }
 
-  const actionLines = [
-    ...applied.map(item => `• ${item.foodName}: de ${formatNumber(item.previousGrams)} g para ${formatNumber(item.nextGrams)} g`),
-    ...(notFound.length ? [`Não encontrei nas refeições de hoje: ${notFound.join(", ")}.`] : []),
-  ];
+  const actionLinesByMeal = new Map<number, string[]>();
+  for (const item of applied) {
+    const mealActionLines = actionLinesByMeal.get(item.candidate.mealId) ?? [];
+    mealActionLines.push(`• ${item.foodName}: de ${formatNumber(item.previousGrams)} g para ${formatNumber(item.nextGrams)} g`);
+    actionLinesByMeal.set(item.candidate.mealId, mealActionLines);
+  }
+  const sharedActionLines = notFound.length
+    ? [`Não encontrei ${explicitContext ?? "nas refeições de hoje"}: ${notFound.join(", ")}.`]
+    : [];
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: buildUpdatedMealsReply(updatedMeals, applied.length === 1 ? "Alimento ajustado" : "Alimentos ajustados", actionLines),
+    reply: buildUpdatedMealsReply(
+      updatedMeals,
+      applied.length === 1 ? "Alimento ajustado" : "Alimentos ajustados",
+      actionLinesByMeal,
+      sharedActionLines,
+    ),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${applied.length} item(ns) ajustado(s) via WhatsApp sem ambiguidade pendente.`,
     data: {
@@ -423,19 +468,33 @@ async function handleMultiGramsChange(input: {
   };
 }
 
-export async function handleMealItemMultiAdjustment(userId: number, adjustments: GramsAdjustmentItem[]): Promise<WhatsappIntentResult> {
+type MealGramsScopeOptions = {
+  mealLabel?: string | null;
+};
+
+export async function handleMealItemMultiAdjustment(
+  userId: number,
+  adjustments: GramsAdjustmentItem[],
+  options: MealGramsScopeOptions = {},
+): Promise<WhatsappIntentResult> {
   return handleMultiGramsChange({
     userId,
     changes: adjustments.map(item => ({ targetFood: item.targetFood, delta: -item.gramsDelta })),
     detailPrefix: "Pedido de ajuste de gramas",
+    mealLabel: options.mealLabel,
   });
 }
 
-export async function handleMealItemMultiIncrement(userId: number, increments: GramsIncrementItem[]): Promise<WhatsappIntentResult> {
+export async function handleMealItemMultiIncrement(
+  userId: number,
+  increments: GramsIncrementItem[],
+  options: MealGramsScopeOptions = {},
+): Promise<WhatsappIntentResult> {
   return handleMultiGramsChange({
     userId,
     changes: increments.map(item => ({ targetFood: item.targetFood, delta: item.gramsDelta })),
     detailPrefix: "Pedido de incremento de gramas",
+    mealLabel: options.mealLabel,
   });
 }
 

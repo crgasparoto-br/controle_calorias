@@ -75,6 +75,7 @@ vi.mock("../../db", () => ({
   getUserWhatsappConnection: vi.fn(async () => null),
   getWhatsAppAccessToken: vi.fn(async () => "whatsapp-access-token"),
   logInferenceEvent: vi.fn(),
+  logPersistenceWarning: vi.fn(),
 }));
 
 vi.mock("../../_core/env", () => ({
