@@ -34,19 +34,34 @@ jobs:
 
           baseline = Path('server/whatsappResponseBaseline.characterization.test.ts')
           text = baseline.read_text()
-          old = '''  it("imagem de refeição: ack separado da resposta funcional, sequência física ordenada e uma resposta gravada", async () => {'''
-          text = text.replace(old, '''  it("imagem de refeição no fast path: resposta funcional e mídia auxiliar sem acknowledgement tardio", async () => {''')
           text = text.replace(
-            '    // Sequência física atual: read receipt, ack, resposta funcional, imagem anotada auxiliar.\n    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "text", "image"]);\n    const [ack, functionalReply] = outboundMessages() as Array<{ kind: "text"; body: string }>;\n    expect(ack.body).toContain("estou processando");\n    expect(functionalReply.body).not.toContain("estou processando");\n\n    // Exatamente uma resposta funcional gravada no lifecycle; o ack não é gravado.',
-            '    // Fast path: read receipt, resposta funcional e imagem anotada auxiliar.\n    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "image"]);\n    const [functionalReply] = outboundMessages() as Array<{ kind: "text"; body: string }>;\n    expect(functionalReply.body).not.toContain("estou processando");\n\n    // Exatamente uma resposta funcional gravada no lifecycle.'
+            '  it("imagem de refeição: ack separado da resposta funcional, sequência física ordenada e uma resposta gravada", async () => {',
+            '  it("imagem de refeição no fast path: resposta funcional e mídia auxiliar sem acknowledgement tardio", async () => {'
           )
+          old = '''    // Sequência física atual: read receipt, ack, resposta funcional, imagem anotada auxiliar.
+    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "text", "image"]);
+    const [ack, functionalReply] = outboundMessages() as Array<{ kind: "text"; body: string }>;
+    expect(ack.body).toContain("estou processando");
+    expect(functionalReply.body).not.toContain("estou processando");
+
+    // Exatamente uma resposta funcional gravada no lifecycle; o ack não é gravado.'''
+          new = '''    // Fast path: read receipt, resposta funcional e imagem anotada auxiliar.
+    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "image"]);
+    const [functionalReply] = outboundMessages() as Array<{ kind: "text"; body: string }>;
+    expect(functionalReply.body).not.toContain("estou processando");
+
+    // Exatamente uma resposta funcional gravada no lifecycle.'''
+          if old not in text:
+              raise SystemExit('baseline image block not found')
+          text = text.replace(old, new, 1)
           text = text.replace(
             '  it("texto nutricional pelo fallback: ack legado antes da resposta funcional e gravação única", async () => {',
             '  it("texto nutricional pelo fallback no fast path: resposta funcional única", async () => {'
           )
           text = text.replace(
             '    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "text"]);',
-            '    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text"]);'
+            '    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text"]);',
+            1
           )
           baseline.write_text(text)
 
@@ -79,3 +94,5 @@ jobs:
           git add -A
           git commit -m "test(whatsapp): alinhar regressões ao contrato canônico"
           git push origin HEAD:fix/779-auditoria-callback-meta
+
+# retrigger
