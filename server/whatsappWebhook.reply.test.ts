@@ -51,6 +51,10 @@ vi.mock("./_core/voiceTranscription", () => ({
   transcribeAudio: vi.fn(),
 }));
 
+vi.mock("./modules/whatsapp/goalProgressService", () => ({
+  getWhatsAppMealGoalProgress: vi.fn(async () => null),
+}));
+
 const { handleWhatsAppWebhook } = await import("./whatsappWebhook");
 
 type MockResponse = {
@@ -133,7 +137,11 @@ describe("whatsappWebhook detailed replies", () => {
     getUserIdByWhatsappPhoneMock.mockResolvedValue(123);
     getHabitSnapshotsMock.mockResolvedValue([]);
     getUserDayMealTotalsMock.mockResolvedValue({ totals: { calories: 795 } });
-    getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
+    getUserNutritionGoalMock.mockResolvedValue({
+      defaultGoal: { calories: 2200, proteinGrams: 120, carbsGrams: 250, fatGrams: 70 },
+      exceptions: [],
+      today: { calories: 2200, proteinGrams: 120, carbsGrams: 250, fatGrams: 70 },
+    });
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-reply" });
@@ -201,19 +209,15 @@ describe("whatsappWebhook detailed replies", () => {
     const finalReply = replies.at(-1) ?? "";
 
     expect(res.statusCode).toBe(200);
-    expect(finalReply).toContain("*Almoço Registrado às 11:14hs.*");
-    expect(finalReply).toContain("Itens:");
+    expect(finalReply).toContain("✅ *Refeição registrada:*");
+    expect(finalReply).toContain("🍽️ *Almoço* — 11:14");
     expect(finalReply).toContain("• 🍚 arroz — 100g");
     expect(finalReply).toContain("130 kcal | P 2,7 g | C 28 g | G 0,3 g");
     expect(finalReply).toContain("• 🍗 frango — 100g");
     expect(finalReply).toContain("165 kcal | P 31 g | C 0 g | G 3,6 g");
-    expect(finalReply).toContain("Total da refeição:");
+    expect(finalReply).toContain("*Total da refeição*");
     expect(finalReply).toContain("295 kcal | P 33,7 g | C 28 g | G 3,9 g");
-    expect(finalReply).toContain("*Meta:* 2.200 kcal");
-    expect(finalReply).toContain("*Exercícios:* 0 kcal");
-    expect(finalReply).toContain("*Consumo:* 795 kcal (-1.405 kcal)");
     expect(finalReply).not.toContain("Meta estimada");
-    expect(finalReply).not.toContain("Meta ajustada");
     expect(finalReply).not.toContain("Alimentos e macros:");
     expect(finalReply).not.toContain("Total estimado:");
   });
