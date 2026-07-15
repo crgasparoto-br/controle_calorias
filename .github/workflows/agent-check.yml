@@ -20,96 +20,54 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           run_install: false
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
       - name: TypeScript check
-        run: pnpm check
-
+        run: |
+          if ! pnpm check > /tmp/tsc.log 2>&1; then
+            cat /tmp/tsc.log
+            exit 1
+          fi
+          cat /tmp/tsc.log
       - name: Tests
         run: |
           if ! pnpm test > /tmp/vitest.log 2>&1; then
-            echo "Vitest failed. Showing the final 250 log lines:"
             tail -n 250 /tmp/vitest.log
             exit 1
           fi
           tail -n 80 /tmp/vitest.log
-
-      - name: Upload Vitest diagnostics
+      - name: Upload diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: agent-first-vitest-log
-          path: /tmp/vitest.log
+          name: agent-first-diagnostics
+          path: |
+            /tmp/tsc.log
+            /tmp/vitest.log
           if-no-files-found: ignore
           retention-days: 3
-
       - name: Architecture check
         run: pnpm architecture:check
-
       - name: Documentation check
         run: pnpm docs:check
-
       - name: Build
         run: pnpm build
-
       - name: Agent check
         run: pnpm agent:check
-
       - name: CI gate docs check
         run: pnpm exec tsx scripts/check-ci-gate-docs.ts
-
       - name: Database integrity check
         if: ${{ env.DATABASE_URL != '' }}
-        run: |
-          pnpm db:check-integrity
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo "- pnpm db:check-integrity"
-            echo ""
-            echo "Database integrity: executed with DATABASE_URL."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
-
+        run: pnpm db:check-integrity
       - name: Database integrity check skipped
         if: ${{ env.DATABASE_URL == '' }}
-        run: |
-          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo ""
-            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
