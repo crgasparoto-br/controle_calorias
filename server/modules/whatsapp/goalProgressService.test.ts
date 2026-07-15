@@ -67,8 +67,7 @@ describe("goalProgressService", () => {
     expect(result).toMatchObject({
       goalCalories: 2200,
       consumedCalories: 1850,
-      consumedProteinGrams: 110,
-      targetProteinGrams: 120,
+      exerciseCalories: 300,
     });
   });
 });
