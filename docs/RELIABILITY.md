@@ -4,6 +4,9 @@
 
 Garantir que os fluxos críticos possam ser validados por humanos e agentes antes de deploy ou merge.
 
+- No WhatsApp, o lifecycle só marca o inbound como processado após a entrega e persistência da resposta funcional primária. Falhas de transporte preservam o inbound para retry e os vínculos de domínio evitam repetir mutações já concluídas.
+- Acknowledgements de mídia são canceláveis: nenhum é enviado no caminho rápido e há no máximo um no caminho lento. Falha do acknowledgement não bloqueia a resposta final.
+
 ## Fluxos críticos
 
 - Autenticação e sessão.

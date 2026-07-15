@@ -134,8 +134,8 @@ export function createMessageLifecycleService(input: {
     async recordOutboundReply(
       handle: MessageLifecycleHandle,
       reply: { userId: number; text: string; occurredAt?: Date },
-    ): Promise<void> {
-      if (!handle) return;
+    ): Promise<boolean> {
+      if (!handle) return false;
 
       const appended = await input.conversationRepository.appendMessage({
         conversationId: handle.conversationId,
@@ -147,9 +147,10 @@ export function createMessageLifecycleService(input: {
         occurredAt: reply.occurredAt ?? new Date(),
         allowRawContentStorage: true,
       });
-      if (!appended) return;
+      if (!appended) return false;
 
       await input.conversationRepository.linkResponse(handle.messageId, appended.message.id);
+      return true;
     },
 
     async recordDomainLink(handle: MessageLifecycleHandle, link: DomainLinkInput): Promise<void> {
@@ -281,8 +282,8 @@ export async function wasMessageAlreadyProcessed(handle: MessageLifecycleHandle)
 export async function recordOutboundReply(
   handle: MessageLifecycleHandle,
   input: { userId: number; text: string; occurredAt?: Date },
-): Promise<void> {
-  await getActiveService().recordOutboundReply(handle, input);
+): Promise<boolean> {
+  return getActiveService().recordOutboundReply(handle, input);
 }
 
 export async function recordDomainLink(handle: MessageLifecycleHandle, link: DomainLinkInput): Promise<void> {

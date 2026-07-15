@@ -94,6 +94,6 @@ describe("issue #783 — bloco canônico de contexto da refeição", () => {
     expect(result?.action).toBe("meal_foods_listed");
     expect(result?.reply.match(/🍽️ \*Almoço\* — 13:00/g)).toHaveLength(1);
     expect(result?.reply).toContain("Arroz branco");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
   });
 });

@@ -12,10 +12,7 @@ import {
   type WhatsAppNutritionTotals,
 } from "./replyTemplates";
 
-export type WhatsAppMealGoalProgress = WhatsAppGoalProgressInput & {
-  /** Campo mantido durante a migração; deve conter a meta efetiva final. */
-  goalCalories: number;
-};
+export type WhatsAppMealGoalProgress = WhatsAppGoalProgressInput;
 
 export type WhatsAppMealReplyOptions = {
   registeredAt?: Date;

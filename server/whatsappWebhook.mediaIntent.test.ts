@@ -37,10 +37,24 @@ vi.mock("./db", () => ({
   createUserWaterLog: vi.fn(),
   getHabitSnapshots: vi.fn(async () => []),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
-  listUserMeals: vi.fn(async () => []),
+  getUserWaterGoal: vi.fn(async () => ({ dailyTargetMl: 2000 })),
+  listUserWaterLogs: vi.fn(async () => [{ id: 91, amountMl: 500, occurredAt: new Date("2026-06-02T12:00:00Z") }]),
+  listUserMeals: vi.fn(async () => [{
+    id: 10,
+    userId: 42,
+    mealLabel: "Almoço",
+    occurredAt: new Date("2026-06-03T12:00:00Z").getTime(),
+    items: mockNutritionResult().items,
+  }]),
   logInferenceEvent: logInferenceEventMock,
   relabelUserMeals: vi.fn(),
+  removeUserMeal: vi.fn(),
+  updateUserMeal: vi.fn(),
   updateUserCurrentWeight: vi.fn(),
+}));
+
+vi.mock("./modules/whatsapp/goalProgressService", () => ({
+  getWhatsAppMealGoalProgress: vi.fn(async () => null),
 }));
 
 vi.mock("./storage", () => ({
@@ -197,6 +211,8 @@ describe("handleWhatsAppWebhook media text intents", () => {
     confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
       id: 10,
       mealLabel: input.mealLabel,
+      occurredAt: input.occurredAt,
+      items: mockNutritionResult().items,
     }));
 
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -261,8 +277,8 @@ describe("handleWhatsAppWebhook media text intents", () => {
       status: "success",
       eventType: "whatsapp.intent.water_logged",
     }));
-    expect(sentMessages[0]).toBe("Recebi seu áudio e estou processando.");
-    expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
+    expect(sentMessages).toHaveLength(1);
+    expect(sentMessages[0]).toContain("Água registrada");
   });
 
   it("interpreta áudio transcrito como incremento de gramas e não chama inferência nutricional", async () => {
@@ -310,7 +326,7 @@ describe("handleWhatsAppWebhook media text intents", () => {
       status: "success",
       eventType: "whatsapp.intent.meal_item_grams_adjusted",
     }));
-    expect(sentMessages[0]).toBe("Recebi seu áudio e estou processando.");
+    expect(sentMessages).toHaveLength(1);
     expect(sentMessages.at(-1)).toContain("de 100 g para 145 g");
   });
 
@@ -337,6 +353,7 @@ describe("handleWhatsAppWebhook media text intents", () => {
       imageUrl: expect.stringMatching(/^data:image\/jpeg;base64,/),
     }));
     expect(confirmPendingMealMock).toHaveBeenCalled();
-    expect(sentMessages[0]).toBe("Recebi sua imagem e estou processando.");
+    expect(sentMessages).toHaveLength(1);
+    expect(sentMessages[0]).toContain("Refeição registrada");
   });
 });

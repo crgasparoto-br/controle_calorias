@@ -74,7 +74,7 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     expect(result?.reply).toContain("Refeição registrada:");
     expect(result?.reply).not.toContain("Refeição atualizada:");
     expect(result?.reply).toContain("Canelone");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
   });
 
   it("adiciona itens à refeição existente do dia interpretado e responde com a refeição completa", async () => {
@@ -112,6 +112,6 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     expect(result?.reply).toContain("Refeição atualizada:");
     expect(result?.reply).toContain("Arroz");
     expect(result?.reply).toContain("Pão sovado");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
   });
 });

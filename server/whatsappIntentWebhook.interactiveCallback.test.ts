@@ -20,6 +20,8 @@ vi.mock("./db", () => ({
   getDb: vi.fn(async () => null),
   logPersistenceWarning: vi.fn(),
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
+  getUserWhatsappConnection: vi.fn(async () => ({ phoneNumber: "5511999999999", status: "active" })),
+  normalizeWhatsAppPhoneNumber: (phone: string) => phone.replace(/\D/g, ""),
   getUserNutritionGoal: vi.fn(async () => ({ today: { calories: 2000 } })),
   listUserExercises: vi.fn(async () => []),
   logInferenceEvent: vi.fn(),

@@ -51,7 +51,7 @@ describe("replyTemplates", () => {
     const totals = { calories: 247.5, protein: 46.5, carbs: 0, fat: 5.4 };
 
     expect(buildWhatsAppMealTotalLines(totals)).toEqual([
-      "*Total da refeição:*",
+      "*Total da refeição*",
       "247,5 kcal | P 46,5 g | C 0 g | G 5,4 g",
     ]);
     expect(formatWhatsAppNutritionTotalsLine(totals)).toBe("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");

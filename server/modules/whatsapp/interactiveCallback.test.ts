@@ -128,5 +128,22 @@ describe("interactiveCallback", () => {
       const claimedCount = [a, b].filter(result => result.status === "claimed").length;
       expect(claimedCount).toBe(1);
     });
+
+    it("rejeita tipo ou ação incompatíveis sem consumir a pendência", async () => {
+      const userId = 9_006;
+      const pending = await createPending(userId, "delete");
+      const callbackId = buildWhatsAppCallbackId(pending.id, "confirm");
+
+      await expect(claimWhatsAppInteractiveCallback(userId, callbackId, new Date(), {
+        expectedTypes: ["professional_access"],
+      })).resolves.toEqual({ status: "unavailable" });
+      await expect(claimWhatsAppInteractiveCallback(userId, callbackId, new Date(), {
+        expectedTypes: ["delete"],
+        isExpectedAction: () => false,
+      })).resolves.toEqual({ status: "invalid" });
+
+      const legitimate = await claimWhatsAppInteractiveCallback(userId, callbackId);
+      expect(legitimate.status).toBe("claimed");
+    });
   });
 });

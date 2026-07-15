@@ -12,7 +12,7 @@
  */
 import crypto from "node:crypto";
 import { requireCookieSecret } from "../../_core/env";
-import { getDb, logPersistenceWarning } from "../../db";
+import { getDb, getUserWhatsappConnection, logPersistenceWarning, normalizeWhatsAppPhoneNumber } from "../../db";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
@@ -106,6 +106,11 @@ export async function claimWhatsAppInteractiveCallback(
   userId: number,
   rawCallbackId: string,
   now = new Date(),
+  context?: {
+    sourcePhone?: string | null;
+    expectedTypes?: readonly string[];
+    isExpectedAction?: (type: string, action: string) => boolean;
+  },
 ): Promise<WhatsAppInteractiveCallbackClaim> {
   const parsed = parseWhatsAppCallbackId(rawCallbackId);
   if (!parsed) return { status: "invalid" };
@@ -113,6 +118,20 @@ export async function claimWhatsAppInteractiveCallback(
   const pendingOperation = await pendingOperationRepository.getPendingOperationById(parsed.pendingOperationId);
   if (!pendingOperation || pendingOperation.userId !== userId || pendingOperation.state !== "active") {
     return { status: "unavailable" };
+  }
+  if (context?.expectedTypes && !context.expectedTypes.includes(pendingOperation.type)) {
+    return { status: "unavailable" };
+  }
+  if (context?.isExpectedAction && !context.isExpectedAction(pendingOperation.type, parsed.action)) {
+    return { status: "invalid" };
+  }
+  if (context?.sourcePhone) {
+    const connection = await getUserWhatsappConnection(userId);
+    const expectedPhone = connection?.phoneNumber ? normalizeWhatsAppPhoneNumber(connection.phoneNumber) : null;
+    const sourcePhone = normalizeWhatsAppPhoneNumber(context.sourcePhone);
+    if (!expectedPhone || connection?.status !== "active" || expectedPhone !== sourcePhone) {
+      return { status: "unavailable" };
+    }
   }
   if (new Date(pendingOperation.expiresAt).getTime() < now.getTime()) {
     return { status: "unavailable" };

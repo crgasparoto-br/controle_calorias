@@ -76,7 +76,7 @@ describe("executeWhatsappGramsIncrementIntent", () => {
     expect(result?.reply).toContain("Arroz branco");
     expect(result?.reply).toContain("Mandioca cozida");
     expect(result?.reply).toContain("Feijao carioca");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
   });
 
   it("usa tokens parciais para ajustar o item salvo com nome mais completo", async () => {

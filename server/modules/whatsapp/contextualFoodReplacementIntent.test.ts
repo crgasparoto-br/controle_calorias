@@ -86,7 +86,7 @@ describe("executeWhatsappContextualFoodReplacementIntent", () => {
     expect(result?.reply).toContain("Alimento substituído");
     expect(result?.reply).toContain("Salsicha → calabresa acebolada");
     expect(result?.reply).toContain("calabresa acebolada");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
     expect(result?.reply).toContain("120 kcal");
   });
 

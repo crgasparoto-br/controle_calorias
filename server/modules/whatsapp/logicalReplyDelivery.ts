@@ -52,7 +52,7 @@ export async function sendWhatsAppLogicalDomainReply(input: {
     ? { handle: input.lifecycleHandle, userId: input.userId }
     : undefined;
   const result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle);
-  if (result.primaryOk && input.lifecycleHandle && input.finalizeLifecycle !== false) {
+  if (result.primaryOk && result.recorded && input.lifecycleHandle && input.finalizeLifecycle !== false) {
     for (const link of input.domainLinks ?? []) {
       await recordDomainLink(input.lifecycleHandle, link);
     }

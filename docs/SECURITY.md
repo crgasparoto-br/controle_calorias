@@ -13,6 +13,8 @@
 
 - Segredos devem vir do ambiente ou de armazenamento criptografado; nunca commitar tokens.
 - Mensagens de erro públicas não devem expor stack, SQL, token, URL assinada ou payload bruto.
+- Callbacks interativos do WhatsApp devem validar assinatura, usuário, telefone/canal ativo, tipo da pendência e ação permitida antes de consumir a operação por compare-and-set.
+- O check de arquitetura deve falhar quando um handler envia mensagem funcional diretamente à Cloud API fora dos adaptadores autorizados.
 - Webhooks devem validar token e tratar payload inválido com segurança.
 - Rotas administrativas devem usar `adminProcedure`.
 - Logs devem ser úteis para operação, mas sanitizados para dados sensíveis.

@@ -85,7 +85,7 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
     expect(result?.reply).toContain("Refeição atualizada:");
     expect(result?.reply).toContain("• 🥤 Cerveja Budweiser — 600 ml");
     expect(result?.reply).toContain("⚠️ Valores nutricionais estimados pela IA.");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
   });
 
   it("corrige ultimo item compativel com frase nao e", async () => {
@@ -120,7 +120,7 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
     expect(result?.reply).toContain("*Quantidade corrigida*");
     expect(result?.reply).toContain("Atualizei Cerveja Budweiser: de 330ml para 600ml.");
     expect(result?.reply).toContain("Refeição atualizada:");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
   });
 
   it("pede confirmacao quando dois itens possuem 330ml", async () => {
@@ -177,7 +177,7 @@ describe("executeWhatsappTextIntent short quantity correction", () => {
       handled: true,
       action: "clarification_needed",
     }));
-    expect(result?.reply).toContain("*Item não encontrado*");
+    expect(result?.reply).toContain("Item não encontrado");
     expect(result?.reply).toContain("Não encontrei um item recente com 330ml.");
     expect(result?.reply).toContain("Qual item devo corrigir?");
   });

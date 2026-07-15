@@ -20,6 +20,7 @@ import {
   startProcessingAcknowledgement,
   type ProcessingAcknowledgementCoordinator,
 } from "./modules/whatsapp/processingAcknowledgement";
+import { sendWhatsAppProcessingAcknowledgement } from "./modules/whatsapp/processingAcknowledgementDelivery";
 import {
   buildMediaDataUrl,
   downloadWhatsAppMedia,
@@ -29,10 +30,6 @@ import {
   isWhatsAppMessageForConfiguredChannel,
   markWhatsAppMessageAsRead,
   resolveWhatsAppMessageOccurredAt,
-  sendWhatsAppImageBufferMessage,
-  sendWhatsAppImageMessage,
-  sendWhatsAppInteractiveUrlButtonMessage,
-  sendWhatsAppTextMessage,
   type ExtractedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
@@ -42,9 +39,7 @@ import { storagePut } from "./storage";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
 import {
   beginInboundMessage,
-  markMessageProcessed,
   recordDomainLink,
-  recordOutboundReply,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 
@@ -247,83 +242,6 @@ function buildAnnotatedImageMedia(annotatedImage: AnnotatedImageResult) {
   });
 }
 
-async function sendAnnotatedImageBuffer(input: {
-  sourcePhone: string;
-  annotatedImage: AnnotatedImageResult;
-  caption: string;
-}) {
-  if (!input.annotatedImage.buffer) {
-    return null;
-  }
-
-  return sendWhatsAppImageBufferMessage(
-    input.sourcePhone,
-    {
-      buffer: input.annotatedImage.buffer,
-      mimeType: input.annotatedImage.mimeType || "image/png",
-      fileName: "whatsapp-annotated-meal.png",
-    },
-    input.caption,
-  );
-}
-
-async function sendAnnotatedImageToWhatsApp(input: {
-  sourcePhone: string;
-  annotatedImage: AnnotatedImageResult;
-}) {
-  const caption = "Imagem anotada com os alimentos identificados.";
-  if (!hasUsableAnnotatedImagePayload(input.annotatedImage)) {
-    return {
-      attempted: false,
-      ok: false,
-      detail: "Imagem anotada não possui URL nem arquivo local para envio.",
-    };
-  }
-
-  if (input.annotatedImage.url) {
-    const urlResult = await sendWhatsAppImageMessage(input.sourcePhone, input.annotatedImage.url, caption);
-    if (urlResult.ok || !input.annotatedImage.buffer) {
-      return {
-        attempted: true,
-        ...urlResult,
-      };
-    }
-
-    const bufferResult = await sendAnnotatedImageBuffer({
-      sourcePhone: input.sourcePhone,
-      annotatedImage: input.annotatedImage,
-      caption,
-    });
-
-    return {
-      attempted: true,
-      ok: Boolean(bufferResult?.ok),
-      detail: bufferResult?.ok
-        ? "Envio por URL falhou; imagem enviada por buffer local."
-        : `Envio por URL falhou: ${urlResult.detail}. Envio por buffer falhou: ${bufferResult?.detail || "buffer indisponível"}.`,
-    };
-  }
-
-  const bufferResult = await sendAnnotatedImageBuffer({
-    sourcePhone: input.sourcePhone,
-    annotatedImage: input.annotatedImage,
-    caption,
-  });
-
-  if (bufferResult) {
-    return {
-      attempted: true,
-      ...bufferResult,
-    };
-  }
-
-  return {
-    attempted: false,
-    ok: false,
-    detail: "Imagem anotada não possui URL nem arquivo local para envio.",
-  };
-}
-
 function clonePayloadWithoutHandledMessages(payload: any, handledMessageKeys: Set<string>) {
   const cloned = structuredClone(payload);
   const entries = Array.isArray(cloned?.entry) ? cloned.entry : [];
@@ -401,7 +319,7 @@ async function sendAnnotatedImageFallbackText(input: {
       origin: "whatsapp",
       status: delivery.result.primaryOk ? "warning" : "error",
       eventType: "whatsapp.reply_failed",
-      detail: `Falha ao enviar resposta lógica para ${input.sourcePhone}.`,
+      detail: "Falha ao enviar resposta lógica do WhatsApp.",
     });
   }
 }
@@ -450,7 +368,7 @@ async function tryHandleAnnotatedImageMessage(
     }
 
     acknowledgement = startProcessingAcknowledgement({
-      send: () => sendWhatsAppTextMessage(sourcePhone, "Recebi sua imagem e estou processando."),
+      send: () => sendWhatsAppProcessingAcknowledgement(sourcePhone, "Recebi sua imagem e estou processando."),
       onFailure: detail => logWhatsAppOperationWarning({
         userId: userId!,
         eventType: "whatsapp.processing_ack_failed",
@@ -577,7 +495,7 @@ async function tryHandleAnnotatedImageMessage(
       origin: "whatsapp",
       status: "success",
       eventType: "whatsapp.message_processed",
-      detail: `Mensagem imagem de ${sourcePhone} processada e refeição ${savedMeal.mealLabel} registrada automaticamente às ${formatReplyTime(occurredAt)}.`,
+      detail: "Imagem processada e refeição registrada automaticamente pelo WhatsApp.",
     });
 
     const persistedReplyInput: MealProcessingResult = {
@@ -618,7 +536,7 @@ async function tryHandleAnnotatedImageMessage(
         origin: "whatsapp",
         status: "error",
         eventType: "whatsapp.reply_failed",
-        detail: `Falha ao enviar resposta funcional de refeição para ${sourcePhone}.`,
+        detail: "Falha ao enviar resposta funcional de refeição pelo WhatsApp.",
       });
     } else if (auxiliaryImage && !delivery.result.ok) {
       logInferenceEvent({
@@ -626,7 +544,7 @@ async function tryHandleAnnotatedImageMessage(
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.annotated_image_reply_failed",
-        detail: `Resposta nutricional enviada, mas a imagem auxiliar falhou. origem=${imageSource}; ${formatAnnotatedImagePayload(annotatedImage)}`,
+        detail: `Resposta nutricional enviada, mas a imagem auxiliar falhou. origem=${imageSource}.`,
       });
     } else if (auxiliaryImage) {
       logInferenceEvent({
@@ -634,7 +552,7 @@ async function tryHandleAnnotatedImageMessage(
         origin: "whatsapp",
         status: "success",
         eventType: "whatsapp.annotated_image_sent",
-        detail: `Imagem anotada enviada para ${sourcePhone}. origem=${imageSource}; ${formatAnnotatedImagePayload(annotatedImage)}`,
+        detail: `Imagem anotada enviada pelo WhatsApp. origem=${imageSource}.`,
       });
     } else {
       const skipDetail = annotatedImage.detail || annotatedImage.skippedReason || "imagem auxiliar indisponível";
@@ -643,7 +561,7 @@ async function tryHandleAnnotatedImageMessage(
         origin: "whatsapp",
         status: "warning",
         eventType: "whatsapp.annotated_image_skipped",
-        detail: `Imagem anotada não enviada para ${sourcePhone}: ${skipDetail}. origem=${imageSource}; ${formatAnnotatedImagePayload(annotatedImage)}`,
+        detail: `Imagem anotada não enviada; resposta nutricional preservada. origem=${imageSource}; motivo=${skipDetail}.`,
       });
     }
 
@@ -662,26 +580,20 @@ async function tryHandleAnnotatedImageMessage(
       detail: error instanceof Error ? error.message : "Falha desconhecida ao processar imagem do WhatsApp.",
     });
 
-    const processingErrorReply = buildWhatsAppImageProcessingFailureReplyMessage();
-    await acknowledgement?.beforeFinalReply();
-    const replyResult = await sendWhatsAppTextMessage(sourcePhone, processingErrorReply);
-    if (!replyResult.ok) {
-      logInferenceEvent({
+    if (userId) {
+      await sendAnnotatedImageFallbackText({
         userId,
-        origin: "whatsapp",
-        status: "warning",
-        eventType: "whatsapp.reply_failed",
-        detail: `Falha ao enviar resposta automática para ${sourcePhone}: ${replyResult.detail}`,
+        sourcePhone,
+        reply: buildWhatsAppImageProcessingFailureReplyMessage(),
+        lifecycleHandle,
+        acknowledgement,
       });
-    } else if (userId) {
-      await recordOutboundReply(lifecycleHandle, { userId, text: processingErrorReply });
     }
 
     markAnnotatedImageMessageHandled(message.id);
     return true;
   } finally {
     await acknowledgement?.beforeFinalReply();
-    await markMessageProcessed(lifecycleHandle);
   }
 }
 

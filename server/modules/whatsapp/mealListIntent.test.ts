@@ -74,7 +74,7 @@ describe("executeWhatsappMealListIntent", () => {
     for (const line of itemBlockLines(salada)) {
       expect(result?.reply).toContain(line);
     }
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
     expect(result?.reply).toContain(totalsLine([salada]));
     expect(result?.reply).not.toContain("às");
   });
@@ -146,7 +146,7 @@ describe("executeWhatsappMealListIntent", () => {
     expect(result?.reply).toContain("Almoço");
     expect(result?.reply).toContain("arroz");
     expect(result?.reply).toContain("pão");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
     expect(result?.reply).not.toContain("às");
   });
 

@@ -73,7 +73,7 @@ describe("executeWhatsappGramsAdjustmentIntent", () => {
     expect(result?.reply).toContain("Refeição atualizada:");
     expect(result?.reply).toContain("Pao frances");
     expect(result?.reply).toContain("Queijo Minas Padrao Fatiado");
-    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain("*Total da refeição*");
   });
 
   it("tolera pequeno erro de digitacao no alvo da reducao", async () => {

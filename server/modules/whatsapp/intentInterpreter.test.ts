@@ -264,7 +264,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     expect(result.errorCode).toBe("system_override");
     expect(result.intent.intent).toBe("ambiguous");
     expect(result.intent.requiresConfirmation).toBe(true);
-    expect(result.intent.clarificationQuestion).toContain("Não posso executar instruções");
+    expect(result.intent.clarificationQuestion).toContain("Não foi possível atender à solicitação");
     expect(result.operationalTrace).toEqual(expect.objectContaining({
       strategy: "safe_fallback",
       modelName: null,

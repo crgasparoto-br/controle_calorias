@@ -7,6 +7,10 @@ const logInferenceEventMock = vi.fn();
 const handleWhatsAppWebhookMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const updateUserCurrentWeightMock = vi.fn();
+const getUserWaterGoalMock = vi.fn();
+const listUserWaterLogsMock = vi.fn();
+const listUserWeightEntriesMock = vi.fn();
+const getPeriodReportBundleMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
@@ -106,6 +110,13 @@ vi.mock("./db", () => ({
   listUserExercises: listUserExercisesMock,
   logInferenceEvent: logInferenceEventMock,
   updateUserCurrentWeight: updateUserCurrentWeightMock,
+  getUserWaterGoal: getUserWaterGoalMock,
+  listUserWaterLogs: listUserWaterLogsMock,
+  listUserWeightEntries: listUserWeightEntriesMock,
+}));
+
+vi.mock("./modules/insights/service", () => ({
+  getPeriodReportBundle: getPeriodReportBundleMock,
 }));
 
 vi.mock("./modules/quickEdit/service", () => ({
@@ -246,6 +257,10 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     handleWhatsAppWebhookMock.mockReset();
     createWaterLogMock.mockReset();
     updateUserCurrentWeightMock.mockReset();
+    getUserWaterGoalMock.mockReset();
+    listUserWaterLogsMock.mockReset();
+    listUserWeightEntriesMock.mockReset();
+    getPeriodReportBundleMock.mockReset();
     listMealsMock.mockReset();
     updateMealMock.mockReset();
     tryCreateQuickEditLinkForMealMock.mockReset();
@@ -254,6 +269,10 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     recordDomainLinkMock.mockReset();
     markMessageProcessedMock.mockReset();
     beginInboundMessageMock.mockResolvedValue({ conversationId: 1, messageId: 1 });
+    recordOutboundReplyMock.mockImplementation(async handle => {
+      await markMessageProcessedMock(handle);
+      return true;
+    });
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
@@ -263,10 +282,33 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       userId: 42,
       ...input,
     }));
-    updateUserCurrentWeightMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+    getUserWaterGoalMock.mockResolvedValue({ dailyTargetMl: 2000 });
+    listUserWaterLogsMock.mockResolvedValue([{ amountMl: 500, occurredAt: new Date("2026-06-02T12:00:00.000Z") }]);
+    let weightEntries: Array<Record<string, unknown>> = [];
+    listUserWeightEntriesMock.mockImplementation(async () => weightEntries);
+    updateUserCurrentWeightMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => {
+      const entry = {
+        id: 92,
       userId: 42,
       ...input,
-    }));
+      };
+      weightEntries = [entry];
+      return entry;
+    });
+    getPeriodReportBundleMock.mockImplementation(async (_userId: number, range: { startDate: string; endDate: string }) => {
+      const days = Math.round((Date.parse(`${range.endDate}T12:00:00Z`) - Date.parse(`${range.startDate}T12:00:00Z`)) / 86_400_000) + 1;
+      const exerciseCalories = days > 1 ? 300 : 0;
+      return {
+        daily: Array.from({ length: days }, (_, index) => ({
+          adjustedGoalCalories: 2200 + (index === 0 ? exerciseCalories : 0),
+          exerciseCalories: index === 0 ? exerciseCalories : 0,
+          goalProtein: 0,
+          goalCarbs: 0,
+          goalFat: 0,
+        })),
+        totals: { calories: 195, protein: 4.1, carbs: 42, fat: 0.5 },
+      };
+    });
     tryCreateQuickEditLinkForMealMock.mockResolvedValue(null);
     handleWhatsAppWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -301,7 +343,8 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       status: "success",
       eventType: "whatsapp.intent.water_logged",
     }));
-    expect(sentMessages.at(-1)).toContain("Registrei 500 ml de água");
+    expect(sentMessages.at(-1)).toContain("*💧 Água registrada*");
+    expect(sentMessages.at(-1)).toContain("*Quantidade:* 500 ml");
     expect(beginInboundMessageMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
       externalMessageId: "water-yesterday",
@@ -309,7 +352,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     }));
     expect(recordOutboundReplyMock).toHaveBeenCalledWith(
       { conversationId: 1, messageId: 1 },
-      expect.objectContaining({ userId: 42, text: expect.stringContaining("Registrei 500 ml de água") }),
+      expect.objectContaining({ userId: 42, text: expect.stringContaining("Água registrada") }),
     );
     expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
   });
@@ -337,7 +380,8 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       status: "success",
       eventType: "whatsapp.intent.weight_logged",
     }));
-    expect(sentMessages.at(-1)).toContain("Atualizei seu peso atual para 80,5 kg");
+    expect(sentMessages.at(-1)).toContain("*⚖️ Peso registrado*");
+    expect(sentMessages.at(-1)).toContain("*Peso:* 80,5 kg");
   });
 
   it("pede esclarecimento para peso sem valor e não delega para criação de refeição", async () => {
@@ -355,7 +399,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       status: "warning",
       eventType: "whatsapp.intent.clarification_needed",
     }));
-    expect(sentMessages.at(-1)).toContain("preciso do valor em kg");
+    expect(sentMessages.at(-1)).toContain("Informe o peso em kg");
   });
 
   it("pede esclarecimento para água sem quantidade e não delega para criação de refeição", async () => {
@@ -564,17 +608,14 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
-    expect(sentMessages.at(-1)).toContain("*Resumo de semana:*");
+    expect(sentMessages.at(-1)).toContain("*Resumo de semana*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
-    expect(sentMessages.at(-1)).toContain("Almoço: 195 kcal");
-    expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
+    expect(sentMessages.at(-1)).toContain("• *Almoço*");
+    expect(sentMessages.at(-1)).toContain("195 kcal | P 4,1 g | C 42 g | G 0,5 g");
     expect(sentMessages.at(-1)).not.toContain("Total consumido:");
-    expect(sentMessages.at(-1)).toContain("*Resumo das Metas:*");
-    expect(sentMessages.at(-1)).toContain("* Meta estimada: 15.400 kcal");
-    expect(sentMessages.at(-1)).toContain("* Exercícios: 300 kcal");
-    expect(sentMessages.at(-1)).toContain("* Meta ajustada: 15.700 kcal");
-    expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
-    expect(sentMessages.at(-1)).toContain("* Déficit: 15.505 kcal (-99%)");
+    expect(sentMessages.at(-1)).toContain("*Meta:* 15.700 kcal");
+    expect(sentMessages.at(-1)).toContain("*Exercícios:* 300 kcal");
+    expect(sentMessages.at(-1)).toContain("*Consumo:* 195 kcal (-15.505 kcal)");
     expect(sentMessages.at(-1)).not.toContain("Você está em déficit");
     expect(sentMessages.at(-1)).not.toContain("para a meta ajustada do período");
   });
@@ -588,15 +629,13 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
-    expect(sentMessages.at(-1)).toContain("*Resumo de hoje:*");
+    expect(sentMessages.at(-1)).toContain("*Resumo de hoje*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
-    expect(sentMessages.at(-1)).toContain("Almoço: 195 kcal");
-    expect(sentMessages.at(-1)).toContain("* Prot. 4,1 g | Carb. 42 g | Gord. 0,5 g");
+    expect(sentMessages.at(-1)).toContain("• *Almoço*");
+    expect(sentMessages.at(-1)).toContain("195 kcal | P 4,1 g | C 42 g | G 0,5 g");
     expect(sentMessages.at(-1)).not.toContain("Total consumido:");
-    expect(sentMessages.at(-1)).toContain("*Resumo das Metas:*");
-    expect(sentMessages.at(-1)).toContain("* Meta estimada: 2.200 kcal");
-    expect(sentMessages.at(-1)).toContain("* Meta ajustada: 2.200 kcal");
-    expect(sentMessages.at(-1)).toContain("* Consumo: 195 kcal");
+    expect(sentMessages.at(-1)).toContain("*Meta:* 2.200 kcal");
+    expect(sentMessages.at(-1)).toContain("*Consumo:* 195 kcal (-2.005 kcal)");
   });
 
   it("mantém contexto de resumo para pedidos ambíguos que não sejam apenas Resumo", async () => {
@@ -616,7 +655,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
 
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenLastCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.period_report" }));
-    expect(sentMessages.at(-1)).toContain("*Resumo de hoje:*");
+    expect(sentMessages.at(-1)).toContain("*Resumo de hoje*");
     expect(sentMessages.at(-1)).toContain("Refeições registradas: 1");
   });
 

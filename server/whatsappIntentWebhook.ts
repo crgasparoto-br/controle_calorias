@@ -14,7 +14,7 @@ import {
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
-import { getDb, getUserIdByWhatsappPhone, logInferenceEvent, logPersistenceWarning, updateUserCurrentWeight } from "./db";
+import { getDb, getUserIdByWhatsappPhone, logInferenceEvent, logPersistenceWarning } from "./db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
 import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
 import {
@@ -32,13 +32,14 @@ import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
 import { buildWhatsAppClarificationReplyMessage, buildWhatsAppWeightLoggedReplyMessage } from "./modules/whatsapp/replyMessages";
 import { getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
 import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
+import { setWhatsAppDeferredLogicalReply, type WhatsAppDeferredLogicalReply } from "./modules/whatsapp/deferredLogicalReply";
+import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
 import {
   beginInboundMessage,
-  markMessageProcessed,
   recordDomainLink,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
@@ -49,7 +50,11 @@ type TextIntentResult =
   | NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>>
   | Exclude<NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>>, WhatsappLlmNutritionFallback>
   | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
-type TextIntentHandlingResult = boolean | { passthroughText: string; intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null };
+type TextIntentHandlingResult = boolean | {
+  passthroughText: string;
+  intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null;
+  deferredReply?: WhatsAppDeferredLogicalReply;
+};
 
 const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
@@ -307,13 +312,12 @@ async function sendAndLogTextReply(input: {
       origin: "whatsapp",
       status: replyOk ? "warning" : "error",
       eventType: "whatsapp.reply_failed",
-      detail: `Falha ao enviar resposta lógica para ${input.sourcePhone}.`,
+      detail: "Falha ao enviar resposta lógica do WhatsApp.",
     });
   }
 
   recordConversationTurn(input.userId, input.userMessage, replyOk ? input.reply : null, input.occurredAtMs ?? Date.now());
   if (input.mealId) await recordDomainLink(input.lifecycleHandle ?? null, { mealId: input.mealId });
-  await markMessageProcessed(input.lifecycleHandle ?? null);
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
@@ -378,16 +382,10 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       eventType: "whatsapp.idempotency.duplicate_detected",
       detail: JSON.stringify({ source: "db_unique_constraint" }),
     });
-    await markMessageProcessed(lifecycleHandle);
     return true;
   }
 
-  try {
-    return await handleTextIntentAfterLifecycleBegin(userId);
-  } catch (error) {
-    await markMessageProcessed(lifecycleHandle);
-    throw error;
-  }
+  return handleTextIntentAfterLifecycleBegin(userId);
 
   async function handleTextIntentAfterLifecycleBegin(userId: number): Promise<TextIntentHandlingResult> {
   const safety = inspectWhatsAppUserContentSafety(text, "text");
@@ -413,7 +411,13 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   // compartilhado, antes de qualquer classificação de intenção (exclusão, ajuste,
   // substituição, LLM etc).
   const interactiveReplyId = getWhatsAppInteractiveReplyId(message);
-  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, interactiveReplyId });
+  const precedenceGate = await resolveWhatsAppPrecedenceGate({
+    userId,
+    text,
+    receivedAt: occurredAt,
+    interactiveReplyId,
+    sourcePhone,
+  });
   if (precedenceGate.step !== "continue_pipeline") {
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -452,6 +456,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
         detail: professionalAccessResponse.detail,
         status: professionalAccessResponse.action === "professional_access_decision_ambiguous" ? "warning" : "success",
         occurredAtMs,
+        lifecycleHandle,
       });
       return true;
     }
@@ -481,11 +486,14 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       occurredAt,
       weightLog.weightKg,
     );
-    await updateUserCurrentWeight(userId, {
+    const persistedWeight = await ensureWhatsAppWeightEntry(userId, {
       weightKg: weightLog.weightKg,
       measuredAt: occurredAt,
       notes: "Peso atualizado pelo WhatsApp.",
     });
+    if (persistedWeight.entry.id > 0) {
+      await recordDomainLink(lifecycleHandle, { weightEntryId: persistedWeight.entry.id });
+    }
     const occurredAtLabel = occurredAt.toLocaleString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
@@ -507,7 +515,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
         variationLabel: variation === null ? "primeiro registro" : `${variation > 0 ? "+" : ""}${formatNumber(variation)} kg`,
       }),
       eventType: "whatsapp.intent.weight_logged",
-      detail: `Peso de ${formatNumber(weightLog.weightKg)} kg registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.`,
+      detail: "Peso registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.",
       status: "success",
       occurredAtMs,
       lifecycleHandle,
@@ -538,18 +546,24 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       waterResults.push(result);
     }
 
-    await sendAndLogTextReply({
+    const domainLinks = waterResults.flatMap(result =>
+      typeof result.data?.waterLogId === "number" ? [{ waterLogId: result.data.waterLogId }] : [],
+    );
+    for (const link of domainLinks) await recordDomainLink(lifecycleHandle, link);
+    logInferenceEvent({
       userId,
-      sourcePhone,
-      userMessage: text,
-      reply: buildMixedWaterReply(waterResults),
-      eventType: "whatsapp.intent.water_food_multiline_split",
-      detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional após separar mensagem multi-linha.",
+      origin: "whatsapp",
       status: "success",
-      occurredAtMs,
-      lifecycleHandle,
+      eventType: "whatsapp.intent.water_food_multiline_split",
+      detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional na mesma resposta lógica.",
     });
-    return { passthroughText: mixedWaterFood.foodText };
+    return {
+      passthroughText: mixedWaterFood.foodText,
+      deferredReply: {
+        prefixBlocks: [buildMixedWaterReply(waterResults)],
+        domainLinks,
+      },
+    };
   }
 
   const pendingContext = await getPendingTextIntentContext(userId);
@@ -750,6 +764,9 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
       handledMessageKeys.add(key);
     } else if (handled && typeof handled === "object") {
       textOverrides.set(key, handled.passthroughText);
+      if (handled.deferredReply) {
+        setWhatsAppDeferredLogicalReply(req, message.id, handled.deferredReply);
+      }
       if (handled.intentHint) {
         intentHints.set(key, handled.intentHint);
       }

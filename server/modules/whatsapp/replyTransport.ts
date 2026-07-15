@@ -137,8 +137,7 @@ export async function sendWhatsAppLogicalReply(
   if (reply.kind === "functional" && primaryOk && lifecycle) {
     const recordText = resolveWhatsAppLogicalReplyRecordText(reply);
     if (recordText) {
-      await recordOutboundReply(lifecycle.handle, { userId: lifecycle.userId, text: recordText });
-      recorded = true;
+      recorded = await recordOutboundReply(lifecycle.handle, { userId: lifecycle.userId, text: recordText });
     }
   }
 

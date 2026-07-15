@@ -190,7 +190,7 @@ describe("handleWhatsAppWebhookWithTextIntent meal list routing", () => {
     expect(sentMessages[0]).toContain("130 kcal");
     expect(sentMessages[0]).toContain("Frango grelhado — 120g");
     expect(sentMessages[0]).toContain("198 kcal");
-    expect(sentMessages[0]).toContain("Total da refeição:");
+    expect(sentMessages[0]).toContain("*Total da refeição*");
     expect(sentMessages[0]).toContain("328 kcal");
     expect(sentMessages[0]).not.toContain("Não consegui processar essa mídia agora");
   });

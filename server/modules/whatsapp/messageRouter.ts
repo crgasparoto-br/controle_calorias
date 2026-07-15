@@ -69,8 +69,26 @@ async function resolveWhatsAppInteractiveCallback(
   userId: number,
   interactiveReplyId: string,
   receivedAt?: Date,
+  sourcePhone?: string | null,
 ): Promise<WhatsAppInteractiveCallbackResult> {
-  const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt);
+  const expectedTypes = [
+    PENDING_DELETE_TYPE,
+    PENDING_MEAL_ITEM_SELECTION_TYPE,
+    PENDING_CONFIRMATION_TYPE,
+    PENDING_PROFESSIONAL_ACCESS_TYPE,
+  ] as const;
+  const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt, {
+    sourcePhone,
+    expectedTypes,
+    isExpectedAction: (type, action) => {
+      if (type === PENDING_PROFESSIONAL_ACCESS_TYPE) return action === "authorize" || action === "reject";
+      if (type === PENDING_CONFIRMATION_TYPE) return action === "confirm" || action === "cancel";
+      if (type === PENDING_DELETE_TYPE || type === PENDING_MEAL_ITEM_SELECTION_TYPE) {
+        return action === "confirm" || action === "cancel" || /^select:\d+$/.test(action);
+      }
+      return false;
+    },
+  });
   if (claim.status !== "claimed") {
     return buildUnavailableInteractiveCallbackResult();
   }
@@ -109,9 +127,11 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   userTimezone?: string | null;
   /** ID opaco de `button_reply`/`list_reply` (issue #782). Resolvido antes de qualquer outra precedência: um clique nunca é reinterpretado como texto livre nem cai no fallback nutricional. */
   interactiveReplyId?: string | null;
+  /** Telefone de origem validado contra a conexão ativa antes de consumir callback. */
+  sourcePhone?: string | null;
 }): Promise<WhatsAppPrecedenceGateResult> {
   if (input.interactiveReplyId) {
-    const result = await resolveWhatsAppInteractiveCallback(input.userId, input.interactiveReplyId, input.receivedAt);
+    const result = await resolveWhatsAppInteractiveCallback(input.userId, input.interactiveReplyId, input.receivedAt, input.sourcePhone);
     return { step: "interactive_callback", result };
   }
 

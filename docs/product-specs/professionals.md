@@ -16,6 +16,7 @@ Esta especificação complementa `product-experience-model.md`, que define o pos
 - O Controle de Calorias é uma ferramenta que o nutricionista oferece aos pacientes.
 - O paciente também pode utilizar o sistema sem vínculo profissional.
 - O WhatsApp deve atender registros do paciente e comunicação profissional.
+- Autorizações por WhatsApp usam botões `Autorizar`/`Recusar` com callback opaco; assinatura, usuário, telefone ativo, tipo, ação, expiração e consumo único são validados antes de aplicar a decisão. O fallback textual resolve a mesma pendência persistida.
 
 ## Estado atual a preservar
 

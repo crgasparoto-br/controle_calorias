@@ -13,14 +13,15 @@ describe("WhatsApp auxiliary reply messages", () => {
       occurredAtLabel: "02/06/2026 09:00",
     });
 
-    expect(reply).toContain("*Água registrada*");
-    expect(reply).toContain("Registrei 500 ml de água em 02/06/2026 09:00.");
+    expect(reply).toContain("Água registrada");
+    expect(reply).toContain("*Quantidade:* 500 ml");
+    expect(reply).toContain("*Data:* 02/06/2026 09:00");
   });
 
   it("padroniza esclarecimentos curtos", () => {
     const reply = buildWhatsAppClarificationReplyMessage("Me diga o período do resumo.");
 
-    expect(reply).toContain("*Preciso de uma informação*");
+    expect(reply).toContain("Preciso de uma informação");
     expect(reply).toContain("Me diga o período do resumo.");
   });
 

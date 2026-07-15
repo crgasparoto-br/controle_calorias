@@ -105,6 +105,11 @@ export function textReply(body: string): WhatsAppLogicalReply {
   return { kind: "functional", messages: [{ type: "text", body }] };
 }
 
+/** Compatibilidade para builders string durante a migração para o contrato central. */
+export function logicalReplyFromLegacyText(body: string): WhatsAppLogicalReply {
+  return textReply(body);
+}
+
 export function acknowledgementReply(body: string): WhatsAppLogicalReply {
   return { kind: "acknowledgement", messages: [{ type: "text", body }] };
 }

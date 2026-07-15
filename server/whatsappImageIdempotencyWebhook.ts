@@ -6,8 +6,6 @@ import {
   formatDateKeyInSaoPaulo,
   normalizeWhatsAppIntentText,
   resolveWhatsAppMessageOccurredAt,
-  sendWhatsAppInteractiveUrlButtonMessage,
-  sendWhatsAppTextMessage,
   type IndexedWhatsAppWebhookMessage,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
@@ -16,7 +14,7 @@ import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDedup
 import {
   beginInboundMessage,
   claimMessageForProcessing,
-  markMessageProcessed,
+  recordDomainLink,
   runWithMessageLifecycleRequestScope,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
@@ -24,6 +22,9 @@ import {
   withWhatsappContextFlow,
   type WhatsappContextFlow,
 } from "./modules/whatsapp/conversationContextRollout";
+import { textReply, withCtaUrl } from "./modules/whatsapp/replyContract";
+import { sendWhatsAppLogicalReply } from "./modules/whatsapp/replyTransport";
+import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
 
 const fallbackMessageDeduplicationCache = createMessageDeduplicationCache();
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
@@ -152,33 +153,28 @@ async function handleOnboardingLeadMessage(item: IndexedWhatsAppWebhookMessage) 
 
   const { createWhatsappOnboardingLead } = await import("./modules/onboarding/whatsappLeadService");
   const onboarding = await createWhatsappOnboardingLead({ phoneNumber: message.from });
-  const replyResult = await sendWhatsAppInteractiveUrlButtonMessage(
+  const replyResult = await sendWhatsAppLogicalReply(
     message.from,
-    buildOnboardingWelcomeReply(),
-    "Finalizar cadastro",
-    onboarding.url,
+    withCtaUrl(textReply(buildOnboardingWelcomeReply()), {
+      buttonText: "Finalizar cadastro",
+      url: onboarding.url,
+    }),
   );
 
-  if (!replyResult.ok) {
-    const textResult = await sendWhatsAppTextMessage(
-      message.from,
-      `${buildOnboardingWelcomeReply()}\n\n${onboarding.url}`,
-    );
-    if (!textResult.ok) {
-      logInferenceEvent({
-        userId: null,
-        origin: "whatsapp",
-        status: "warning",
-        eventType: "whatsapp.onboarding_reply_failed",
-        detail: `Falha ao enviar link de onboarding para telefone mascarado ${onboarding.lead.phoneNumberMasked}: ${textResult.detail}`,
-      });
-    }
+  if (!replyResult.primaryOk) {
+    logInferenceEvent({
+      userId: null,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.onboarding_reply_failed",
+      detail: `Falha ao enviar link de onboarding para telefone mascarado ${onboarding.lead.phoneNumberMasked}.`,
+    });
   }
 
   return true;
 }
 
-async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage) {
+async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage, claim: ClaimedMessage | null) {
   const message = item.message;
   if (!message.image?.id || message.audio?.id || !message.from) return false;
 
@@ -191,7 +187,7 @@ async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage) {
 
   if (captionMentionsWater) {
     if (!amountFromCaption || amountFromCaption <= 0 || amountFromCaption > MAX_WATER_LOG_AMOUNT_ML) {
-      await sendWaterImageClarification({ userId, sourcePhone: message.from });
+      await sendWaterImageClarification({ userId, sourcePhone: message.from, lifecycleHandle: claim?.lifecycleHandle ?? null });
       return true;
     }
 
@@ -201,6 +197,7 @@ async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage) {
       amountMl: amountFromCaption,
       occurredAt: resolveWhatsAppMessageOccurredAt(message),
       detail: "Imagem de água com quantidade explícita na legenda registrada pelo WhatsApp.",
+      lifecycleHandle: claim?.lifecycleHandle ?? null,
     });
     return true;
   }
@@ -208,33 +205,39 @@ async function handleWaterImageMessage(item: IndexedWhatsAppWebhookMessage) {
   return false;
 }
 
-async function registerWaterImage(input: { userId: number; sourcePhone: string; amountMl: number; occurredAt: Date; detail: string }) {
-  await createUserWaterLog(input.userId, {
+async function registerWaterImage(input: { userId: number; sourcePhone: string; amountMl: number; occurredAt: Date; detail: string; lifecycleHandle: MessageLifecycleHandle }) {
+  const created = await createUserWaterLog(input.userId, {
     amountMl: input.amountMl,
     occurredAt: input.occurredAt.toISOString(),
   });
+  await recordDomainLink(input.lifecycleHandle, { waterLogId: created.id });
 
   logInferenceEvent({
     userId: input.userId,
     origin: "whatsapp",
     status: "success",
     eventType: "whatsapp.image_water_logged",
-    detail: `${input.detail} Quantidade: ${input.amountMl} ml às ${formatReplyTime(input.occurredAt)}.`,
+    detail: `${input.detail} Registro de hidratação persistido pelo WhatsApp.`,
   });
 
-  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, buildWaterLogReply(input.amountMl, input.occurredAt));
-  if (!replyResult.ok) {
+  const delivery = await sendWhatsAppLogicalDomainReply({
+    to: input.sourcePhone,
+    userId: input.userId,
+    replyText: buildWaterLogReply(input.amountMl, input.occurredAt),
+    lifecycleHandle: input.lifecycleHandle,
+  });
+  if (!delivery.result.primaryOk) {
     logInferenceEvent({
       userId: input.userId,
       origin: "whatsapp",
       status: "warning",
       eventType: "whatsapp.reply_failed",
-      detail: `Falha ao enviar resposta automática: ${replyResult.detail}`,
+      detail: "Falha ao enviar resposta funcional de hidratação.",
     });
   }
 }
 
-async function sendWaterImageClarification(input: { userId: number; sourcePhone: string }) {
+async function sendWaterImageClarification(input: { userId: number; sourcePhone: string; lifecycleHandle: MessageLifecycleHandle }) {
   logInferenceEvent({
     userId: input.userId,
     origin: "whatsapp",
@@ -243,14 +246,19 @@ async function sendWaterImageClarification(input: { userId: number; sourcePhone:
     detail: "Imagem de água recebida sem quantidade explícita para registro de hidratação.",
   });
 
-  const replyResult = await sendWhatsAppTextMessage(input.sourcePhone, buildWaterImageClarificationReply());
-  if (!replyResult.ok) {
+  const delivery = await sendWhatsAppLogicalDomainReply({
+    to: input.sourcePhone,
+    userId: input.userId,
+    replyText: buildWaterImageClarificationReply(),
+    lifecycleHandle: input.lifecycleHandle,
+  });
+  if (!delivery.result.primaryOk) {
     logInferenceEvent({
       userId: input.userId,
       origin: "whatsapp",
       status: "warning",
       eventType: "whatsapp.reply_failed",
-      detail: `Falha ao enviar resposta automática: ${replyResult.detail}`,
+      detail: "Falha ao enviar clarificação de hidratação.",
     });
   }
 }
@@ -341,7 +349,6 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
   const messages = extractIndexedWhatsAppWebhookMessages(req.body);
   const handledKeys = new Set<string>();
   const duplicateKeys = new Set<string>();
-  const claimedMessages: ClaimedMessage[] = [];
 
   for (const item of messages) {
     if (await handleOnboardingLeadMessage(item)) {
@@ -355,11 +362,8 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
       handledKeys.add(item.key);
       continue;
     }
-    if (claim) claimedMessages.push(claim);
-
-    if (await handleWaterImageMessage(item)) {
+    if (await handleWaterImageMessage(item, claim)) {
       handledKeys.add(item.key);
-      if (claim) await markMessageProcessed(claim.lifecycleHandle);
     }
   }
 
@@ -382,12 +386,6 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
     runWithWhatsAppGoalProgressContext(context, () => handleWhatsAppWebhookWithTextIntent(req, res)),
   );
 
-  const remainingKeys = new Set(remainingMessages.map(item => item.key));
-  await Promise.all(
-    claimedMessages
-      .filter(claim => remainingKeys.has(claim.item.key))
-      .map(claim => markMessageProcessed(claim.lifecycleHandle)),
-  );
   return result;
 }
 

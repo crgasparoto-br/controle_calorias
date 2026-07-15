@@ -21,7 +21,7 @@ vi.mock("../../whatsappConfig", () => ({
   requireWhatsAppSendConfig: requireWhatsAppSendConfigMock,
 }));
 
-const recordOutboundReplyMock = vi.fn(async () => {});
+const recordOutboundReplyMock = vi.fn(async () => true);
 vi.mock("./messageLifecycle", () => ({
   recordOutboundReply: recordOutboundReplyMock,
 }));

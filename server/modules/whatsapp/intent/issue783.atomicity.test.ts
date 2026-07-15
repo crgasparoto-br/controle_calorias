@@ -106,7 +106,7 @@ describe("issue #783 — atomicidade e identidade de candidatos", () => {
     expect(result.reply.match(/🍽️ \*Jantar\* — \d{2}:\d{2}/g)).toHaveLength(1);
     expect(result.reply.match(/🍽️ \*Almoço\* — \d{2}:\d{2}/g)).toHaveLength(1);
     expect(result.reply.match(/Refeição atualizada:/g)).toHaveLength(2);
-    expect(result.reply.match(/Total da refeição:/g)).toHaveLength(2);
+    expect(result.reply.match(/\*Total da refeição\*/g)).toHaveLength(2);
 
     const blockStarts = Array.from(result.reply.matchAll(/\*Alimentos ajustados\*/g), match => match.index ?? 0);
     expect(blockStarts).toHaveLength(2);

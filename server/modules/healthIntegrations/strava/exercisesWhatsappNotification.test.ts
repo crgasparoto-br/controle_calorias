@@ -13,8 +13,7 @@ const quickEditMocks = vi.hoisted(() => ({
   tryCreateQuickEditLinkForExercise: vi.fn(),
 }));
 const whatsappMocks = vi.hoisted(() => ({
-  sendWhatsAppInteractiveUrlButtonMessage: vi.fn(),
-  sendWhatsAppTextMessage: vi.fn(),
+  sendWhatsAppLogicalReply: vi.fn(),
 }));
 
 vi.mock("../../../db", () => ({
@@ -32,9 +31,8 @@ vi.mock("../../quickEdit/service", () => ({
   tryCreateQuickEditLinkForExercise: quickEditMocks.tryCreateQuickEditLinkForExercise,
 }));
 
-vi.mock("../../whatsapp/webhookUtils", () => ({
-  sendWhatsAppInteractiveUrlButtonMessage: whatsappMocks.sendWhatsAppInteractiveUrlButtonMessage,
-  sendWhatsAppTextMessage: whatsappMocks.sendWhatsAppTextMessage,
+vi.mock("../../whatsapp/replyTransport", () => ({
+  sendWhatsAppLogicalReply: whatsappMocks.sendWhatsAppLogicalReply,
 }));
 
 vi.mock("./activities", () => ({
@@ -83,7 +81,7 @@ describe("Strava WhatsApp import notification", () => {
     vi.clearAllMocks();
     dbMocks.getUserWhatsappConnection.mockResolvedValue({ status: "active", phoneNumber: "5511999999999" });
     quickEditMocks.tryCreateQuickEditLinkForExercise.mockResolvedValue({ url: "https://app.test/quick-edit/exercise/token" });
-    whatsappMocks.sendWhatsAppInteractiveUrlButtonMessage.mockResolvedValue({ ok: true, detail: "sent" });
+    whatsappMocks.sendWhatsAppLogicalReply.mockResolvedValue({ primaryOk: true, sends: [{ ok: true, detail: "sent" }] });
     exerciseMocks.createExercise.mockImplementation(async (_userId, input) => ({ id: 123, userId: _userId, ...input }));
     exerciseMocks.updateExercise.mockResolvedValue({ id: 456 });
   });
@@ -94,7 +92,7 @@ describe("Strava WhatsApp import notification", () => {
     await upsertStravaActivitiesAsExercises(42, [{ ...activity }]);
 
     expect(exerciseMocks.createExercise).toHaveBeenCalledOnce();
-    expect(whatsappMocks.sendWhatsAppInteractiveUrlButtonMessage).toHaveBeenCalledOnce();
+    expect(whatsappMocks.sendWhatsAppLogicalReply).toHaveBeenCalledOnce();
   });
 
   it("não reenvia WhatsApp quando apenas atualiza exercício Strava existente", async () => {
@@ -106,7 +104,6 @@ describe("Strava WhatsApp import notification", () => {
 
     expect(exerciseMocks.updateExercise).toHaveBeenCalledOnce();
     expect(exerciseMocks.createExercise).not.toHaveBeenCalled();
-    expect(whatsappMocks.sendWhatsAppInteractiveUrlButtonMessage).not.toHaveBeenCalled();
-    expect(whatsappMocks.sendWhatsAppTextMessage).not.toHaveBeenCalled();
+    expect(whatsappMocks.sendWhatsAppLogicalReply).not.toHaveBeenCalled();
   });
 });
