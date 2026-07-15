@@ -36,7 +36,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
-        run: pnpm check
+        run: |
+          if ! pnpm check > /tmp/typecheck.log 2>&1; then
+            echo "TypeScript check failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/typecheck.log
+            exit 1
+          fi
+          cat /tmp/typecheck.log
+
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: epic-779-typecheck-log
+          path: /tmp/typecheck.log
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Tests
         run: |
