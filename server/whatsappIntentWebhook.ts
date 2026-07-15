@@ -538,7 +538,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   // compartilhado, antes de qualquer classificação de intenção (exclusão, ajuste,
   // substituição, LLM etc).
   const interactiveReplyId = getWhatsAppInteractiveReplyId(message);
-  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, interactiveReplyId });
+  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, interactiveReplyId, sourcePhone });
   if (precedenceGate.step !== "continue_pipeline") {
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
