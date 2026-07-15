@@ -1,0 +1,42 @@
+name: Apply final epic 779 implementation
+
+on:
+  push:
+    branches:
+      - fix/779-concluir-auditoria
+    paths:
+      - .github/workflows/apply-779-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/779-concluir-auditoria
+          fetch-depth: 0
+      - name: Reconstruct and apply audited changes
+        run: |
+          cat .github/issue779-patch/final.b64.* > /tmp/final.patch.gz.b64
+          base64 -d /tmp/final.patch.gz.b64 > /tmp/final.patch.gz
+          gunzip -c /tmp/final.patch.gz > /tmp/final.patch
+          rm -f .github/epic779.*
+          rm -f .github/workflows/apply-779-test-alignment.yml
+          rm -f .github/workflows/export-branch-source.yml
+          rm -f .github/workflows/cleanup-779-branch.yml
+          rm -f .github/issue779-patch/part00.patch
+          git fetch origin develop
+          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+          git apply --index /tmp/final.patch
+          rm -rf .github/issue779-patch
+          rm -f .github/workflows/apply-779-final.yml
+          git add -A
+      - name: Commit implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "fix(whatsapp): concluir itens faltantes da epic 779"
+          git push origin HEAD:fix/779-concluir-auditoria

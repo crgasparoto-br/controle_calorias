@@ -16,6 +16,7 @@ Esta especificação complementa `product-experience-model.md`, que define o pos
 - O Controle de Calorias é uma ferramenta que o nutricionista oferece aos pacientes.
 - O paciente também pode utilizar o sistema sem vínculo profissional.
 - O WhatsApp deve atender registros do paciente e comunicação profissional.
+- Autorizações por WhatsApp usam botões `Autorizar`/`Recusar` com callback opaco; assinatura, usuário, telefone ativo, tipo, ação, expiração e consumo único são validados antes de aplicar a decisão. O fallback textual resolve a mesma pendência persistida.
 
 ## Estado atual a preservar
 
@@ -44,6 +45,33 @@ Dados profissionais críticos não devem continuar apenas em memória ou em form
 - Rotas e APIs profissionais devem validar perfil ativo e autorização no backend.
 - A Área Profissional não deve acessar dados simulando login, sessão ou impersonação do paciente.
 - Toda operação deve identificar separadamente o profissional ator e o paciente dono dos dados.
+
+## Critérios de aceite do modelo de conta e navegação
+
+- Usuário comum mantém acesso a Hoje, Registrar refeição, Refeições registradas, Relatórios, Metas, Integrações e Configurações.
+- Usuário comum sem perfil profissional ativo não visualiza o menu Profissional.
+- Rota e APIs do módulo Profissional bloqueiam operações quando o perfil profissional não está ativo.
+- O estado de modo profissional ativo permanece consistente após recarregar a aplicação e iniciar uma nova sessão.
+- Solicitação, aprovação e revogação passam por procedimentos protegidos.
+- Solicitações pendentes continuam visíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação ou iniciar nova sessão.
+- Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento.
+- Perfil, solicitações, vínculos e situação do acompanhamento permanecem consistentes após restart e entre instâncias.
+- O histórico de transições de autorização e acompanhamento é lido das tabelas canônicas e permanece disponível após restart.
+- Dashboard profissional respeita vínculo aprovado.
+- Comentários não expõem dados de outras pessoas acompanhadas.
+- Solicitação por e-mail ou celular encontra a pessoa correta ou retorna erro amigável.
+- Aprovações e revogações recebidas pela pessoa acompanhada ficam acessíveis em Configurações.
+- Dados autorizados incluem visão equivalente a Hoje e Relatórios, além das metas nutricionais atuais.
+- O profissional consegue registrar uma sugestão de ajuste de meta para pessoa autorizada.
+- Sugestões de meta registram status e ficam disponíveis na análise profissional da pessoa acompanhada.
+- A meta ativa da pessoa acompanhada não é alterada pela criação de uma sugestão profissional.
+- O profissional consegue registrar uma sugestão de refeição ou plano alimentar para pessoa autorizada.
+- Sugestões de refeição registram status e ficam disponíveis na análise profissional da pessoa acompanhada.
+- O diário de refeições da pessoa acompanhada não é alterado pela criação de uma sugestão profissional.
+- O profissional consegue fazer perguntas com IA sobre uma pessoa autorizada.
+- A resposta com IA apresenta contexto citado e aviso educacional.
+- Perguntas com IA sobre pessoa sem acesso aprovado são bloqueadas.
+- A interface deixa claro quando os dados exibidos pertencem à pessoa selecionada, e não à conta pessoal do profissional.
 
 ## Estrutura alvo da Área Profissional
 

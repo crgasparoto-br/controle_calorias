@@ -1,0 +1,98 @@
+name: Apply 779 test alignment
+
+on:
+  push:
+    branches:
+      - fix/779-auditoria-callback-meta
+    paths:
+      - .github/workflows/apply-779-test-alignment.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/779-auditoria-callback-meta
+      - name: Align tests and lazy-load Strava transport
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          strava = Path('server/modules/healthIntegrations/strava/exercises.ts')
+          text = strava.read_text()
+          text = text.replace('import { textReply, withCtaUrl } from "../../whatsapp/replyContract";\n', '')
+          text = text.replace('import { sendWhatsAppLogicalReply } from "../../whatsapp/replyTransport";\n', '')
+          marker = '    const message = buildStravaExerciseImportedWhatsAppMessage(exercise);\n    const quickEditLink = await tryCreateQuickEditLinkForExercise({ userId, exerciseId });\n'
+          replacement = marker + '    const [{ textReply, withCtaUrl }, { sendWhatsAppLogicalReply }] = await Promise.all([\n      import("../../whatsapp/replyContract"),\n      import("../../whatsapp/replyTransport"),\n    ]);\n'
+          if marker not in text:
+              raise SystemExit('Strava notification marker not found')
+          strava.write_text(text.replace(marker, replacement, 1))
+
+          baseline = Path('server/whatsappResponseBaseline.characterization.test.ts')
+          text = baseline.read_text()
+          text = text.replace(
+            '  it("imagem de refeição: ack separado da resposta funcional, sequência física ordenada e uma resposta gravada", async () => {',
+            '  it("imagem de refeição no fast path: resposta funcional e mídia auxiliar sem acknowledgement tardio", async () => {'
+          )
+          old = '''    // Sequência física atual: read receipt, ack, resposta funcional, imagem anotada auxiliar.
+    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "text", "image"]);
+    const [ack, functionalReply] = outboundMessages() as Array<{ kind: "text"; body: string }>;
+    expect(ack.body).toContain("estou processando");
+    expect(functionalReply.body).not.toContain("estou processando");
+
+    // Exatamente uma resposta funcional gravada no lifecycle; o ack não é gravado.'''
+          new = '''    // Fast path: read receipt, resposta funcional e imagem anotada auxiliar.
+    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "image"]);
+    const [functionalReply] = outboundMessages() as Array<{ kind: "text"; body: string }>;
+    expect(functionalReply.body).not.toContain("estou processando");
+
+    // Exatamente uma resposta funcional gravada no lifecycle.'''
+          if old not in text:
+              raise SystemExit('baseline image block not found')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+            '  it("texto nutricional pelo fallback: ack legado antes da resposta funcional e gravação única", async () => {',
+            '  it("texto nutricional pelo fallback no fast path: resposta funcional única", async () => {'
+          )
+          text = text.replace(
+            '    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text", "text"]);',
+            '    expect(sends.map(send => send.kind)).toEqual(["read_receipt", "text"]);',
+            1
+          )
+          baseline.write_text(text)
+
+          intent = Path('server/modules/whatsapp/intentActions.test.ts')
+          text = intent.read_text()
+          old = '''    expect(result?.reply).toContain("Jantar: 198 kcal");
+    expect(result?.reply).toContain("* Prot. 37 g | Carb. 0 g | Gord. 4 g");
+    expect(result?.reply).toContain("Almoço: 271 kcal");
+    expect(result?.reply).toContain("* Prot. 8,9 g | Carb. 55,6 g | Gord. 1 g");
+    expect(result?.reply).not.toContain("Total consumido:");
+    expect(result?.reply).toContain("*Análise sobre a Meta:*");
+    expect(result?.reply).toContain("• Meta estimada: 15.400 kcal");
+    expect(result?.reply).toContain("• Déficit: 14.931 kcal (-97%) para a meta estimada do período");'''
+          new = '''    expect(result?.reply).toContain("• *Jantar*");
+    expect(result?.reply).toContain("198 kcal | P 37 g | C 0 g | G 4 g");
+    expect(result?.reply).toContain("• *Almoço*");
+    expect(result?.reply).toContain("271 kcal | P 8,9 g | C 55,6 g | G 1 g");
+    expect(result?.reply).not.toContain("Total consumido:");
+    expect(result?.reply).toContain("*Meta:* 15.400 kcal");
+    expect(result?.reply).toContain("*Consumo:* 469 kcal (-14.931 kcal)");
+    expect(result?.reply).not.toContain("Meta estimada");
+    expect(result?.reply).not.toContain("Meta ajustada");'''
+          if old not in text:
+              raise SystemExit('period expectation block not found')
+          intent.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/apply-779-test-alignment.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "test(whatsapp): alinhar regressões ao contrato canônico"
+          git push origin HEAD:fix/779-auditoria-callback-meta
+
+# retrigger

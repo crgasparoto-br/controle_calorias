@@ -5,10 +5,6 @@
  * funções de envio da Cloud API concentradas em `webhookUtils.ts`, envia a
  * sequência na ordem definida e integra com o `messageLifecycle` para gravar
  * a resposta funcional exatamente uma vez por ação lógica.
- *
- * Handlers não devem montar payload da Meta nem chamar `recordOutboundReply`
- * diretamente para fluxos migrados a este transporte — devem produzir um
- * `WhatsAppLogicalReply` e chamar `sendWhatsAppLogicalReply`.
  */
 import {
   sendWhatsAppImageBufferMessage,
@@ -24,18 +20,16 @@ import {
   type WhatsAppLogicalReply,
   type WhatsAppOutboundMessage,
 } from "./replyContract";
-import { recordOutboundReply, type MessageLifecycleHandle } from "./messageLifecycle";
+import type { MessageLifecycleHandle } from "./messageLifecycle";
 
 export type WhatsAppOutboundSendResult = {
   message: WhatsAppOutboundMessage;
   ok: boolean;
-  /** Detalhe técnico para logs seguros; nunca é enviado ao usuário como texto da resposta. */
   detail: string;
 };
 
 export type WhatsAppLogicalReplySendResult = {
   ok: boolean;
-  /** `true` quando a mensagem primária foi entregue, independentemente de mídia auxiliar. */
   primaryOk: boolean;
   sends: WhatsAppOutboundSendResult[];
   recorded: boolean;
@@ -75,18 +69,6 @@ export type WhatsAppLogicalReplyLifecycleInput = {
   userId: number;
 };
 
-/**
- * Envia a sequência de mensagens físicas de uma resposta lógica, na ordem
- * definida, e grava a resposta funcional no lifecycle exatamente uma vez.
- *
- * Regras de gravação (issue #780/#781):
- * - Somente respostas `functional` são gravadas; `acknowledgement` nunca é.
- * - A gravação depende apenas do sucesso da mensagem primária (índice 0);
- *   falha de mídia auxiliar (ex.: imagem anotada) não impede a gravação nem
- *   repete a mutação de domínio já concluída.
- * - Falha na mensagem primária não grava outbound e não deve levar o
- *   chamador a reexecutar a mutação de domínio nem desviar para outro intent.
- */
 export async function sendWhatsAppLogicalReply(
   to: string,
   reply: WhatsAppLogicalReply,
@@ -103,6 +85,7 @@ export async function sendWhatsAppLogicalReply(
   if (reply.kind === "functional" && primaryOk && lifecycle) {
     const recordText = resolveWhatsAppLogicalReplyRecordText(reply);
     if (recordText) {
+      const { recordOutboundReply } = await import("./messageLifecycle");
       await recordOutboundReply(lifecycle.handle, { userId: lifecycle.userId, text: recordText });
       recorded = true;
     }

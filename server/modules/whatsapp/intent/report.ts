@@ -1,7 +1,8 @@
 import type { MealDraftItem } from "../../../nutritionEngine";
 import { sumMealItems, toMealItemInputs } from "./mealItemHelpers";
-import { formatNumber } from "./textUtils";
 import type { NutritionTotals } from "./types";
+import { formatWhatsAppMacroLine } from "../replyTemplates";
+import { buildWhatsAppCanonicalPeriodProgressLines } from "../domainReplyFormatters";
 
 export function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null; items?: MealDraftItem[] }>) {
   const groups = new Map<string, NutritionTotals>();
@@ -19,25 +20,18 @@ export function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null
   const lines: string[] = [];
   for (const [label, totals] of groups) {
     if (lines.length > 0) lines.push("");
-    lines.push(`${label}: ${formatNumber(totals.calories)} kcal`);
-    lines.push(`* Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`);
+    lines.push(`• *${label}*`);
+    lines.push(formatWhatsAppMacroLine(totals));
   }
   return lines;
 }
 
-export function buildPeriodGoalSummaryLines(goalCalories: number, diff: number) {
-  if (goalCalories <= 0) {
-    return [];
-  }
-
-  const balanceLabel = diff > 0 ? "Superávit" : "Déficit";
-  const balanceDetail = diff > 0 ? "da meta estimada do período" : "para a meta estimada do período";
-  const pct = Math.round((Math.abs(diff) / goalCalories) * 100);
-  const pctStr = diff > 0 ? `(+${pct}%)` : `(-${pct}%)`;
-
-  return [
-    "*Análise sobre a Meta:*",
-    `• Meta estimada: ${formatNumber(goalCalories)} kcal`,
-    `• ${balanceLabel}: ${formatNumber(Math.abs(diff))} kcal ${pctStr} ${balanceDetail}`,
-  ];
+/** Adapter temporário para ambientes sem DATABASE_URL; mantém a nomenclatura
+ * canônica e a diferença consumo - meta sem duplicar a regra da #756. */
+export function buildPeriodGoalSummaryLines(goalCalories: number, differenceCalories: number) {
+  if (goalCalories <= 0) return [];
+  return buildWhatsAppCanonicalPeriodProgressLines({
+    effectiveGoalCalories: goalCalories,
+    consumedCalories: goalCalories + differenceCalories,
+  });
 }

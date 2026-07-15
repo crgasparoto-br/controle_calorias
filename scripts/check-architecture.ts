@@ -111,6 +111,31 @@ for (const file of walk("server")) {
   }
 }
 
+const whatsappTransportAllowlist = new Set([
+  "server/modules/whatsapp/webhookUtils.ts",
+  "server/modules/whatsapp/replyTransport.ts",
+  "server/modules/whatsapp/processingAcknowledgementDelivery.ts",
+]);
+const directWhatsAppSendPattern = /\b(?:sendWhatsAppTextMessage|sendWhatsAppImageMessage|sendWhatsAppImageBufferMessage|sendWhatsAppInteractiveUrlButtonMessage|sendWhatsAppInteractiveButtonsMessage|sendWhatsAppInteractiveListMessage)\b/;
+
+for (const file of walk("server")) {
+  if (!/\.ts$/.test(file) || /(?:\.test|\.spec)\.ts$/.test(file)) continue;
+  const content = read(file);
+
+  if (!whatsappTransportAllowlist.has(file) && directWhatsAppSendPattern.test(content)) {
+    fail(`Envio funcional direto do WhatsApp fora do transporte central: ${file}`);
+  }
+  if (!whatsappTransportAllowlist.has(file) && /graph\.facebook\.com\/[^\s"'`]*\/messages/.test(content)) {
+    fail(`Chamada direta ao endpoint /messages do WhatsApp fora do transporte central: ${file}`);
+  }
+  if (file.includes("whatsapp") && /Meta (?:estimada|ajustada)/.test(content)) {
+    fail(`Terminologia legada de meta encontrada no fluxo WhatsApp: ${file}`);
+  }
+  if (file.includes("whatsapp") && /\bcalculateAdjustedGoalCalories\b/.test(content)) {
+    fail(`Regra paralela de meta ajustada encontrada no fluxo WhatsApp: ${file}`);
+  }
+}
+
 const routerPath = "server/nutritionRouter.ts";
 if (existsSync(path.join(root, routerPath))) {
   const router = read(routerPath);
