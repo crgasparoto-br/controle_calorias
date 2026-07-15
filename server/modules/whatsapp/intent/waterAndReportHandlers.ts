@@ -91,7 +91,7 @@ function sumAvailable(values: Array<number | null | undefined>) {
   if (!values.length || values.some(value => typeof value !== "number" || !Number.isFinite(value))) {
     return null;
   }
-  return values.reduce((total, value) => total + Number(value), 0);
+  return values.reduce<number>((total, value) => total + Number(value), 0);
 }
 
 async function buildCanonicalPeriodData(userId: number, period: PeriodRange, timeZone: string) {
