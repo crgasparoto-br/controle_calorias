@@ -1,0 +1,327 @@
+name: Apply 779 contract migration
+
+on:
+  push:
+    branches:
+      - fix/779-auditoria-callback-meta
+    paths:
+      - .github/workflows/apply-779-contract.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: contains(github.event.head_commit.message, 'apply 779 contract migration')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/779-auditoria-callback-meta
+          fetch-depth: 0
+
+      - name: Apply contract migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feat/779-concluir-respostas-whatsapp:refs/remotes/origin/feat/779-concluir-respostas-whatsapp
+          old_ref=origin/feat/779-concluir-respostas-whatsapp
+          files=(
+            server/whatsappImageIdempotencyWebhook.ts
+            server/whatsappImageIdempotencyWebhook.test.ts
+            server/modules/whatsapp/intent/report.ts
+            server/modules/whatsapp/webhookTextCommands.test.ts
+            scripts/check-architecture.ts
+            docs/design-docs/whatsapp-ingestion.md
+            docs/product-specs/whatsapp-flow.md
+            docs/product-specs/goals-and-reports.md
+            docs/product-specs/health-integrations.md
+            docs/product-specs/professionals.md
+            docs/testing/whatsapp-response-contract-regression.md
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "$(dirname "$file")"
+            git show "$old_ref:$file" > "$file"
+          done
+
+          cat > server/modules/whatsapp/goalProgressService.ts <<'EOF'
+          import { getUserDayMealTotals, getUserNutritionGoal, logInferenceEvent } from "../../db";
+          import { formatDateKeyInSaoPaulo } from "./webhookUtils";
+          import type { WhatsAppMealGoalProgress } from "./replyMessages";
+
+          function safeLogGoalWarning(input: Parameters<typeof logInferenceEvent>[0]) {
+            try {
+              logInferenceEvent(input);
+            } catch {
+              // Mocks parciais de db não podem transformar um fallback opcional em rejeição não tratada.
+            }
+          }
+
+          async function resolveEffectiveGoal(userId: number, dateKey: string) {
+            if (!process.env.DATABASE_URL) {
+              const current = await getUserNutritionGoal(userId);
+              return {
+                effectiveGoalCalories: current.today.calories,
+                exerciseCalories: 0,
+                includeExerciseCalories: current.today.includeExerciseCalories,
+              };
+            }
+
+            try {
+              const { getEffectiveNutritionGoalForDate } = await import("../goals/service");
+              return getEffectiveNutritionGoalForDate(userId, dateKey);
+            } catch (error) {
+              const current = await getUserNutritionGoal(userId);
+              safeLogGoalWarning({
+                userId,
+                origin: "whatsapp",
+                status: "warning",
+                eventType: "whatsapp.goal_history_fallback",
+                detail: error instanceof Error ? error.message : "Falha ao resolver meta efetiva histórica.",
+              });
+              return {
+                effectiveGoalCalories: current.today.calories,
+                exerciseCalories: 0,
+                includeExerciseCalories: current.today.includeExerciseCalories,
+              };
+            }
+          }
+
+          export async function getWhatsAppMealGoalProgress(
+            userId: number,
+            occurredAt: Date,
+          ): Promise<WhatsAppMealGoalProgress | null> {
+            try {
+              const dateKey = formatDateKeyInSaoPaulo(occurredAt);
+              const [goal, dayTotals] = await Promise.all([
+                resolveEffectiveGoal(userId, dateKey),
+                getUserDayMealTotals(userId, dateKey),
+              ]);
+
+              return {
+                consumedCalories: dayTotals.totals.calories,
+                goalCalories: goal.effectiveGoalCalories,
+                exerciseCalories: goal.exerciseCalories,
+                includeExerciseCalories: goal.includeExerciseCalories,
+              };
+            } catch (error) {
+              safeLogGoalWarning({
+                userId,
+                origin: "whatsapp",
+                status: "warning",
+                eventType: "whatsapp.goal_progress_warning",
+                detail: error instanceof Error ? error.message : "Falha desconhecida ao resolver progresso de meta para resposta do WhatsApp.",
+              });
+              return null;
+            }
+          }
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          # Domain service owns the #756 calculation and the per-user/date exercise lookup.
+          goals = Path('server/modules/goals/service.ts')
+          text = goals.read_text()
+          text = text.replace(
+              'import { getDb, getUserNutritionGoal, upsertNutritionGoal } from "../../db";',
+              'import { getDb, getUserNutritionGoal, listUserExercisesByDate, upsertNutritionGoal } from "../../db";'
+          )
+          if 'reportsGoalAnalytics' not in text:
+              text = text.replace(
+                  'import { GoalInput } from "./schemas";',
+                  'import { GoalInput } from "./schemas";\nimport { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";\nimport { sumExercises } from "../exercises/store";'
+              )
+          if 'export async function getEffectiveNutritionGoalForDate' not in text:
+              text += '''\n\nexport async function getEffectiveNutritionGoalForDate(userId: number, dateKey: string) {\n  const [goalSummary, exercises] = await Promise.all([\n    getNutritionGoalForDate(userId, dateKey),\n    listUserExercisesByDate(userId, dateKey),\n  ]);\n  const exerciseCalories = Math.max(0, sumExercises(exercises));\n  const effectiveGoalCalories = calculateAdjustedGoalCalories(\n    goalSummary.today.calories,\n    exerciseCalories,\n    goalSummary.today.includeExerciseCalories,\n  );\n  return {\n    effectiveGoalCalories,\n    exerciseCalories,\n    includeExerciseCalories: goalSummary.today.includeExerciseCalories,\n    appliedGoal: goalSummary.today,\n  };\n}\n'''
+          goals.write_text(text)
+
+          # Text fallback and visual callbacks now use the same persistent claim service.
+          commands = Path('server/modules/whatsapp/webhookTextCommands.ts')
+          text = commands.read_text()
+          text = text.replace(
+              'import { buildWhatsAppCallbackId } from "./interactiveCallback";',
+              'import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";'
+          )
+          pattern = re.compile(r'export async function handlePendingWhatsAppConfirmation\(message: WhatsAppWebhookMessage, userId: number\) \{.*?\n\}', re.S)
+          replacement = '''export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhookMessage, userId: number) {
+            const pendingRow = await pendingOperationRepository.getActivePendingOperation(userId);
+            if (!pendingRow || pendingRow.type !== PENDING_CONFIRMATION_TYPE) return null;
+
+            if (isCancellationMessage(message)) {
+              const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CANCEL_ACTION);
+              if (claim.status !== "claimed") return null;
+              const pending = claim.pendingOperation.target as PendingWhatsAppConfirmation;
+              return {
+                handled: true,
+                reply: buildWhatsAppActionCancelledReplyMessage("Tudo certo. Não alterei nenhum registro histórico."),
+                eventType: "whatsapp.action_cancelled",
+                detail: `Confirmação cancelada para ${pending.summary}.`,
+              };
+            }
+
+            if (!isConfirmationMessage(message)) return null;
+            const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CONFIRM_ACTION);
+            if (claim.status !== "claimed") return null;
+            return applyClaimedGenericConfirmation(userId, claim.pendingOperation.target as PendingWhatsAppConfirmation);
+          }'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('generic confirmation function not replaced')
+          commands.write_text(text)
+
+          delete = Path('server/modules/whatsapp/deleteIntent.ts')
+          text = delete.read_text()
+          text = text.replace(
+              'import { buildWhatsAppCallbackId } from "./interactiveCallback";',
+              'import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";'
+          )
+          text = text.replace(
+              'await pendingOperationRepository.cancelPendingOperation(pendingRow.id);\n      return buildCancellationResult();',
+              'const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CANCEL_ACTION);\n      if (claim.status !== "claimed") return null;\n      return buildCancellationResult();'
+          )
+          text = text.replace(
+              'const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });\n        if (!claim.claimed) return null;\n        const created = await pendingOperationRepository.createPendingOperation({',
+              'const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, `${SELECT_ACTION_PREFIX}${selectedIndex}`);\n        if (claim.status !== "claimed") return null;\n        const created = await pendingOperationRepository.createPendingOperation({'
+          )
+          text = text.replace(
+              'const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });\n      if (!claim.claimed) return null;\n      return confirmPendingDelete(userId, pending);',
+              'const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CONFIRM_ACTION);\n      if (claim.status !== "claimed") return null;\n      return confirmPendingDelete(userId, claim.pendingOperation.target as PendingDeleteIntent);'
+          )
+          delete.write_text(text)
+
+          # Structured AI responses delegate all presentation to central formatters.
+          llm = Path('server/modules/whatsapp/llmIntentActions.ts')
+          text = llm.read_text()
+          text = text.replace(
+              'import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";',
+              'import {\n  buildWhatsAppAuxiliaryReplyMessage,\n  buildWhatsAppClarificationReplyMessage,\n  buildWhatsAppMealActionReplyMessage,\n  buildWhatsAppRecoverableErrorReplyMessage,\n} from "./replyMessages";'
+          )
+          text = re.sub(r'\nfunction formatTotalsLine\(.*?\n\}\n\nfunction formatMealItemLine\(.*?\n\}\n', '\n', text, count=1, flags=re.S)
+          text = text.replace(
+              'reply: "Nao consegui concluir essa acao com seguranca agora. Tente novamente em instantes ou envie mais detalhes.",',
+              'reply: buildWhatsAppRecoverableErrorReplyMessage("Não consegui concluir essa ação com segurança agora. Tente novamente em instantes ou envie mais detalhes."),'
+          )
+          text = text.replace(
+              'reply: firstIssue?.message\n      ?? "Preciso confirmar alguns detalhes antes de salvar essa informacao com seguranca.",',
+              'reply: buildWhatsAppClarificationReplyMessage(firstIssue?.message\n      ?? "Preciso confirmar alguns detalhes antes de salvar essa informação com segurança."),'
+          )
+          text = text.replace(
+              'reply: "Nao encontrei uma refeicao recente para corrigir. Me diga qual alimento devo trocar.",',
+              'reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para corrigir. Informe qual alimento deseja trocar."),'
+          )
+          text = text.replace(
+              'reply: `Nao encontrei uma correspondencia segura para ${intent.sourceFood}. Qual item devo trocar? ${options}`,',
+              'reply: buildWhatsAppClarificationReplyMessage(`Não encontrei uma correspondência segura para ${intent.sourceFood}. Qual item devo trocar? ${options}`),'
+          )
+          list_pattern = re.compile(r'async function handleListMeals\(.*?\n\}\n\nfunction buildHelpReply\(\)', re.S)
+          list_replacement = '''async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent, receivedAt: Date, mode: "list" | "summary" = "list"): Promise<WhatsappLlmIntentResult> {
+            const mealsResult = await runWhatsappAiTool({
+              toolId: "meal_records_list",
+              intent: intent.intent,
+              outcome: "success",
+              parameterSummary: { dateWindow: "received_day", mode },
+            }, () => listMeals(userId));
+            const toolTrace = [mealsResult.trace];
+            if (!mealsResult.result) return buildToolFallbackResult(toolTrace, "Falha ao consultar refeições para resposta contextual.");
+
+            const filteredMeals = mealsResult.result.filter(meal => isMealInsideDay(meal, receivedAt));
+            const reply = filteredMeals.length
+              ? filteredMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, {
+                  title: mode === "list" ? "Refeição consultada" : "Resumo da refeição",
+                })).join("\\n\\n")
+              : buildWhatsAppClarificationReplyMessage("Não encontrei refeições registradas hoje.");
+
+            return {
+              handled: true,
+              action: mode === "list" ? "llm_intent_list_meal_records" : "llm_intent_daily_summary",
+              reply,
+              eventType: mode === "list" ? "whatsapp.llm_intent.list_meal_records" : "whatsapp.llm_intent.daily_summary",
+              detail: "Consulta estruturada de refeições respondida pelos formatadores centrais do WhatsApp.",
+              data: { mealCount: filteredMeals.length },
+              toolTrace,
+            };
+          }
+
+          function buildHelpReply()'''
+          text, count = list_pattern.subn(list_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('AI list handler not replaced')
+          help_pattern = re.compile(r'function buildHelpReply\(\) \{.*?\n\}', re.S)
+          help_replacement = '''function buildHelpReply() {
+            return buildWhatsAppAuxiliaryReplyMessage({
+              title: "Ajuda do WhatsApp",
+              lines: [
+                "• Registrar alimentos em uma refeição",
+                "• Corrigir ou trocar um alimento da última refeição",
+                "• Listar refeições registradas hoje",
+                "• Mostrar resumo do dia",
+                "• Registrar água com quantidade",
+                "• Fazer perguntas livres iniciando a mensagem com `/`",
+              ],
+            });
+          }'''
+          text, count = help_pattern.subn(help_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('AI help builder not replaced')
+          text = text.replace(
+              'reply: intent.clarificationQuestion\n      ?? "Nao entendi com seguranca. Voce quer registrar alimento, corrigir uma refeicao ou consultar seus registros?",',
+              'reply: buildWhatsAppClarificationReplyMessage(intent.clarificationQuestion\n      ?? "Não entendi com segurança. Você quer registrar alimento, corrigir uma refeição ou consultar seus registros?"),'
+          )
+          text = text.replace(
+              'reply: "Voce pode revisar seus registros na tela de refeicoes do app.",',
+              'reply: buildWhatsAppAuxiliaryReplyMessage({ title: "Registros", lines: ["Você pode revisar seus registros na tela de refeições do sistema web."] }),'
+          )
+          llm.write_text(text)
+
+          # Lead onboarding uses the central CTA and explains the slash convention.
+          image = Path('server/whatsappImageIdempotencyWebhook.ts')
+          text = image.read_text()
+          text = text.replace(
+              'import { createUserWaterLog, getUserIdByWhatsappPhone, listUserExercises, logInferenceEvent } from "./db";',
+              'import { createUserWaterLog, getUserIdByWhatsappPhone, logInferenceEvent } from "./db";'
+          )
+          text = text.replace('import { runWithWhatsAppGoalProgressContext } from "./modules/whatsapp/goalProgressContext";\n', '')
+          text = text.replace(
+              'import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";',
+              'import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";\nimport { buildWhatsAppCanonicalWaterReply } from "./modules/whatsapp/domainReplyFormatters";\nimport { getWhatsAppWaterProgress } from "./modules/whatsapp/userMeasurementReplyContext";'
+          )
+          text = text.replace(
+              '"Depois disso, este canal passa a registrar suas refeições automaticamente.",',
+              '"Depois disso, este canal passa a registrar suas refeições automaticamente.",\n    "Para perguntas livres à IA, inicie a mensagem com `/`.",'
+          )
+          text = re.sub(r'\nfunction getStravaExerciseReference\(.*?\nasync function buildExerciseCaloriesContext\(.*?\n\}\n', '\n', text, count=1, flags=re.S)
+          text = text.replace(
+              'replyText: buildWaterLogReply(input.amountMl, input.occurredAt),',
+              'replyText: await buildCanonicalWaterImageReply(input.userId, input.amountMl, input.occurredAt),'
+          )
+          marker = 'async function registerWaterImage(input:'
+          helper = '''async function buildCanonicalWaterImageReply(userId: number, amountMl: number, occurredAt: Date) {
+            const progress = await getWhatsAppWaterProgress(userId, occurredAt);
+            return buildWhatsAppCanonicalWaterReply({
+              amountMl,
+              totalMl: progress.totalMl,
+              goalMl: progress.goalMl,
+              occurredAtLabel: occurredAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+              totalLabel: "Total",
+            });
+          }
+
+          '''
+          if marker not in text:
+              raise SystemExit('water image marker missing')
+          text = text.replace(marker, helper + marker, 1)
+          text = text.replace(
+              '  const remainingMessages = extractIndexedWhatsAppWebhookMessages(req.body);\n  const context = await buildExerciseCaloriesContext(remainingMessages);\n  const flow = resolveBatchContextFlow(remainingMessages);\n  const result = await withWhatsappContextFlow(flow, () =>\n    runWithWhatsAppGoalProgressContext(context, () => handleWhatsAppWebhookWithTextIntent(req, res)),\n  );',
+              '  const remainingMessages = extractIndexedWhatsAppWebhookMessages(req.body);\n  const flow = resolveBatchContextFlow(remainingMessages);\n  const result = await withWhatsappContextFlow(flow, () => handleWhatsAppWebhookWithTextIntent(req, res));'
+          )
+          image.write_text(text)
+          PY
+
+          rm .github/workflows/apply-779-contract.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "feat(whatsapp): concluir contrato central e proteção arquitetural"
+          git push origin HEAD:fix/779-auditoria-callback-meta
