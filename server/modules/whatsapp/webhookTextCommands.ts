@@ -2,6 +2,7 @@ import { getDb, listUserMeals, logPersistenceWarning, relabelUserMeals } from ".
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
+import { formatWhatsAppReplyTime } from "./replyFormatting";
 import {
   buildWhatsAppActionCancelledReplyMessage,
   buildWhatsAppActionConfirmationRequestReplyMessage,
