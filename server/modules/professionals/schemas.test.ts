@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   professionalGoalSuggestionSchema,
+  professionalFollowUpTransitionSchema,
   professionalMealSuggestionSchema,
   professionalPatientQuestionSchema,
   professionalProfileSchema,
@@ -87,5 +88,17 @@ describe("professional schemas", () => {
       patientId: 2,
       question: "O que merece atenção nos registros da semana?",
     });
+  });
+
+  it("valida transição e limita o motivo do acompanhamento", () => {
+    expect(professionalFollowUpTransitionSchema.parse({
+      patientId: 2,
+      status: "paused",
+      reason: "Pausa solicitada pela pessoa acompanhada.",
+    })).toMatchObject({ status: "paused" });
+    expect(() => professionalFollowUpTransitionSchema.parse({
+      patientId: 2,
+      status: "pending",
+    })).toThrow();
   });
 });

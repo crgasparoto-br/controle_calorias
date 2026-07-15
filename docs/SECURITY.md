@@ -8,6 +8,7 @@
 - Storage de mídia.
 - IA, transcrição e geração de imagem.
 - Administração de tokens e segredos.
+- Autorização profissional-paciente e revogação de consentimento.
 
 ## Regras
 
@@ -16,6 +17,8 @@
 - Webhooks devem validar token e tratar payload inválido com segurança.
 - Rotas administrativas devem usar `adminProcedure`.
 - Logs devem ser úteis para operação, mas sanitizados para dados sensíveis.
+- APIs profissionais devem reler a autorização persistida em cada operação protegida; cache de tela ou memória do processo não pode manter acesso depois de `revoked`.
+- Transições de autorização e acompanhamento devem validar que o ator é o profissional ou paciente do vínculo e usar a trilha auditável sem incluir motivos sensíveis em logs.
 
 ## Checklist para mudanças
 

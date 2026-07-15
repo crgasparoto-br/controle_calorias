@@ -10,6 +10,11 @@
 |---|---|
 | `users` | Identidade interna e papel |
 | `userProfiles` | Perfil nutricional e onboarding |
+| `professionalProfiles` | Extensão profissional ativa da conta pessoal |
+| `professionalPatientAccesses` | Autorização canônica profissional-paciente |
+| `professionalAccessEvents` | Auditoria de transições da autorização |
+| `professionalFollowUps` | Situação operacional do acompanhamento, separada da autorização |
+| `professionalFollowUpEvents` | Histórico de pausa, retomada e encerramento |
 | `nutritionGoals` | Metas e exceções |
 | `food_sources` | Fontes nutricionais, versão e código de origem do catálogo global |
 | `foods` | Catálogo alimentar global e alimentos personalizados por usuário |
@@ -61,6 +66,24 @@ A migration `0002_health_synced_records.sql` cria `healthSyncedRecords` para per
 A tabela armazena `provider`, `externalRecordId`, `dataType`, `measuredAt`, `value`, `unit`, detalhes opcionais de atividade/energia e `metadataJson`. O índice único por usuário, provider, identificador externo e tipo de dado permite sincronizações idempotentes, atualizando registros já conhecidos sem duplicar histórico.
 
 O router de integrações grava os registros retornados por `sync`, consulta primeiro o histórico persistido para a tela de dados sincronizados e remove os registros do provider quando o usuário desconecta a integração. Dados transitórios em memória seguem como fallback quando o banco não está disponível ou ainda não há histórico persistido.
+
+## Área Profissional
+
+A migration `0024_professional_persistence_foundation.sql` cria a fonte canônica de perfil, autorização e acompanhamento profissional. `professionalPatientAccesses.authorizationStatus` representa somente consentimento (`pending`, `approved`, `rejected`, `revoked`); `professionalFollowUps.status` representa a operação do acompanhamento (`active`, `paused`, `ended`). Toda consulta ou mutação protegida relê a autorização canônica, e `revoked` prevalece sobre o estado do acompanhamento.
+
+Durante o rollout, `server/modules/professionals/service.ts` funciona como fachada compatível. A fachada:
+
+- lê as preferências `professional_profile_v1`, `professional_accesses_v1` e `patient_professional_access_requests_v1`;
+- faz backfill idempotente por ID e por par ativo, preservando IDs e timestamps válidos;
+- resolve conflito pelo registro canônico ou pela transição legada comprovadamente mais recente;
+- mantém dual-write temporário nas preferências para instâncias antigas;
+- ignora itens inválidos com aviso sanitizado, sem registrar o JSON ou o motivo sensível do vínculo.
+
+O backfill global é executado no primeiro acesso da instância e pode ser repetido após um intervalo mínimo de um minuto para absorver escritas de versões antigas sem varrer todas as preferências em cada requisição. A leitura funcional permanece canônica. Erros técnicos legados de envio são sanitizados antes da persistência e nunca são devolvidos diretamente pelo contrato público.
+
+O índice único nullable `professionalAccesses_active_pair_unique_idx` impede dois vínculos simultâneos `pending`/`approved` para o mesmo par, sem bloquear novo convite depois de `rejected`/`revoked`. Transições relacionais usam transação e lock no registro de autorização. A preferência JSON só poderá ser removida depois que não houver instâncias antigas e todos os consumidores estiverem confirmados no modelo canônico.
+
+As procedures patient-scoped consultam também `professionalFollowUps`: `active` permite consultas e intervenções, `paused` permite somente consultas e `ended` bloqueia novos acessos aos dados atuais. O endpoint de histórico combina `professionalAccessEvents` e `professionalFollowUpEvents`, mantendo os eventos canônicos disponíveis entre instâncias e após restart.
 
 ## Validação
 

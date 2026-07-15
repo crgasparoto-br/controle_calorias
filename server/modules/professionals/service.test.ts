@@ -5,11 +5,14 @@ import {
   approvePatientAccess,
   buildPhoneLookupCandidates,
   getProfessionalProfile,
+  getProfessionalPatientDashboard,
   listPatientAccessRequests,
   listProfessionalAccesses,
   requestPatientAccess,
+  revokePatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
+  transitionProfessionalFollowUp,
   upsertProfessionalProfile,
   type ProfessionalPatientAccess,
 } from "./service";
@@ -251,6 +254,91 @@ describe("professional goal suggestions", () => {
     });
     expect(suggestion.sentAt).toEqual(expect.any(Number));
     expect(suggestion.respondedAt).toBeNull();
+  });
+
+  it("bloqueia imediatamente novas mutações depois da revogação", async () => {
+    const professionalUserId = 24230;
+    const patientUserId = 24231;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+    await revokePatientAccess(patientUserId, access.id);
+
+    await expect(suggestGoalAdjustment(professionalUserId, {
+      patientId: patientUserId,
+      rationale: "Esta mutação deve ser bloqueada.",
+      status: "sent",
+      goal: goalInput(),
+    })).rejects.toThrow("Acesso profissional não autorizado pela pessoa acompanhada.");
+  });
+});
+
+describe("professional follow-up permissions", () => {
+  it("mantém consultas durante pausa, mas bloqueia novas intervenções", async () => {
+    const professionalUserId = 24240;
+    const patientUserId = 24241;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+    await transitionProfessionalFollowUp({
+      actorUserId: professionalUserId,
+      professionalUserId,
+      patientUserId,
+      status: "paused",
+      reason: "Pausa combinada",
+    });
+
+    await expect(getProfessionalPatientDashboard(professionalUserId, patientUserId)).resolves.toMatchObject({
+      patientId: patientUserId,
+    });
+    await expect(suggestGoalAdjustment(professionalUserId, {
+      patientId: patientUserId,
+      rationale: "Não deve ser criada durante a pausa.",
+      status: "sent",
+      goal: goalInput(),
+    })).rejects.toThrow("O acompanhamento está pausado");
+  });
+
+  it("bloqueia consultas e intervenções depois do encerramento", async () => {
+    const professionalUserId = 24250;
+    const patientUserId = 24251;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+    await transitionProfessionalFollowUp({
+      actorUserId: professionalUserId,
+      professionalUserId,
+      patientUserId,
+      status: "ended",
+      reason: "Acompanhamento concluído",
+    });
+
+    await expect(getProfessionalPatientDashboard(professionalUserId, patientUserId))
+      .rejects.toThrow("O acompanhamento foi encerrado");
+    await expect(suggestGoalAdjustment(professionalUserId, {
+      patientId: patientUserId,
+      rationale: "Não deve ser criada após encerramento.",
+      status: "sent",
+      goal: goalInput(),
+    })).rejects.toThrow("O acompanhamento foi encerrado");
   });
 });
 

@@ -161,6 +161,7 @@ import {
   goalSuggestionDecisionSchema,
   patientIdSchema,
   patientPeriodBundleSchema,
+  professionalFollowUpTransitionSchema,
   professionalCommentSchema,
   professionalGoalSuggestionSchema,
   professionalMealSuggestionSchema,
@@ -174,6 +175,7 @@ import {
   approvePatientAccess,
   getProfessionalPatientDashboard,
   getProfessionalPatientPeriodBundle,
+  getProfessionalFollowUp,
   getProfessionalProfile,
   listPatientAccessRequests,
   listProfessionalAccesses,
@@ -182,6 +184,7 @@ import {
   revokePatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
+  transitionProfessionalFollowUp,
   upsertProfessionalProfile,
 } from "./modules/professionals/service";
 import {
@@ -325,6 +328,18 @@ export const nutritionRouter = router({
     patientDashboard: protectedProcedure
       .input(patientIdSchema)
       .query(async ({ ctx, input }) => getProfessionalPatientDashboard(ctx.user.id, input.patientId, input.weekOffset)),
+    patientFollowUp: protectedProcedure
+      .input(patientIdSchema)
+      .query(async ({ ctx, input }) => getProfessionalFollowUp(ctx.user.id, input.patientId)),
+    transitionFollowUp: protectedProcedure
+      .input(professionalFollowUpTransitionSchema)
+      .mutation(async ({ ctx, input }) => transitionProfessionalFollowUp({
+        actorUserId: ctx.user.id,
+        professionalUserId: ctx.user.id,
+        patientUserId: input.patientId,
+        status: input.status,
+        reason: input.reason,
+      })),
     patientPeriodBundle: protectedProcedure
       .input(patientPeriodBundleSchema)
       .query(async ({ ctx, input }) => getProfessionalPatientPeriodBundle(ctx.user.id, input.patientId, { startDate: input.startDate, endDate: input.endDate })),

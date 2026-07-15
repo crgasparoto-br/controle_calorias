@@ -35,6 +35,11 @@ Fonte: `drizzle/schema.ts`.
 | `waterGoals` | `waterGoals` | 5 | Requer atenção |
 | `waterLogs` | `waterLogs` | 6 | Requer atenção |
 | `userPreferences` | `userPreferences` | 6 | Requer atenção |
+| `professionalProfiles` | `professionalProfiles` | 6 | Requer atenção |
+| `professionalPatientAccesses` | `professionalPatientAccesses` | 18 | Baixa |
+| `professionalAccessEvents` | `professionalAccessEvents` | 9 | Baixa |
+| `professionalFollowUps` | `professionalFollowUps` | 10 | Baixa |
+| `professionalFollowUpEvents` | `professionalFollowUpEvents` | 8 | Baixa |
 | `userRestrictions` | `userRestrictions` | 8 | Requer atenção |
 | `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
 | `whatsappConversations` | `whatsappConversations` | 11 | Requer atenção |
@@ -67,6 +72,7 @@ Fonte: `drizzle/schema.ts`.
 - `waterGoals` via export `waterGoals`.
 - `waterLogs` via export `waterLogs`.
 - `userPreferences` via export `userPreferences`.
+- `professionalProfiles` via export `professionalProfiles`.
 - `userRestrictions` via export `userRestrictions`.
 - `whatsappConnections` via export `whatsappConnections`.
 - `whatsappConversations` via export `whatsappConversations`.
@@ -102,6 +108,11 @@ Fonte: `drizzle/schema.ts`.
 | `weightEntries` | `weightKg`, `measuredAt`, `notes` |
 | `waterLogs` | `occurredAt` |
 | `userPreferences` | `preferenceKey`, `preferenceValue` |
+| `professionalProfiles` | `displayName` |
+| `professionalPatientAccesses` | `reason`, `authorizationMessageStatus`, `authorizationMessageSentAt`, `authorizationMessageError` |
+| `professionalAccessEvents` | `reason`, `occurredAt` |
+| `professionalFollowUps` | `reason` |
+| `professionalFollowUpEvents` | `reason`, `occurredAt` |
 | `userRestrictions` | `restrictionType`, `label`, `severity`, `notes` |
 | `whatsappConnections` | `displayName` |
 | `whatsappConversations` | `lastActivityAt` |

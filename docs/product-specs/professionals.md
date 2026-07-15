@@ -26,6 +26,9 @@ Permitir que profissionais acompanhem pessoas mediante solicitação, aprovaçã
 - A criação de sugestão de refeição pelo profissional não cria automaticamente refeição no diário da pessoa acompanhada.
 - Perguntas com IA não alteram metas, refeições, comentários ou dados automaticamente.
 - Revogação deve bloquear novos acessos imediatamente para o profissional e continuar visível no histórico da pessoa acompanhada.
+- Autorização (`pending`, `approved`, `rejected`, `revoked`) e situação do acompanhamento (`active`, `paused`, `ended`) são estados independentes; revogação sempre prevalece para controle de acesso.
+- Pausa, retomada e encerramento do acompanhamento preservam ator, data e motivo opcional em histórico auditável.
+- Durante pausa, consultas autorizadas permanecem disponíveis, mas comentários, sugestões e demais intervenções novas ficam bloqueados; após encerramento, novas consultas aos dados atuais e intervenções ficam bloqueadas, restando somente o histórico profissional necessário para auditoria.
 - O controle de consentimento é operacional e não deve aparecer como bloco visual destacado na tela principal Profissional.
 
 ## Critérios de aceite
@@ -37,6 +40,8 @@ Permitir que profissionais acompanhem pessoas mediante solicitação, aprovaçã
 - Solicitação, aprovação e revogação passam por procedimentos protegidos.
 - Solicitações pendentes continuam visíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação ou iniciar nova sessão.
 - Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento.
+- Perfil, solicitações, vínculos e situação do acompanhamento permanecem consistentes após restart e entre instâncias.
+- O histórico de transições de autorização e acompanhamento é lido das tabelas canônicas e permanece disponível após restart.
 - Dashboard profissional respeita vínculo aprovado.
 - Comentários não expõem dados de outras pessoas acompanhadas.
 - Solicitação por e-mail ou celular encontra a pessoa correta ou retorna erro amigável.

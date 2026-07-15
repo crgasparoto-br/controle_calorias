@@ -88,6 +88,26 @@ const checks = [
     sql: "SELECT COUNT(*) AS count FROM userPreferences p LEFT JOIN users u ON u.id = p.userId WHERE u.id IS NULL",
   },
   {
+    name: "professionalProfiles sem usuário",
+    sql: "SELECT COUNT(*) AS count FROM professionalProfiles p LEFT JOIN users u ON u.id = p.userId WHERE u.id IS NULL",
+  },
+  {
+    name: "professionalPatientAccesses com usuário inválido",
+    sql: "SELECT COUNT(*) AS count FROM professionalPatientAccesses a LEFT JOIN users professional ON professional.id = a.professionalUserId LEFT JOIN users patient ON patient.id = a.patientUserId WHERE professional.id IS NULL OR patient.id IS NULL",
+  },
+  {
+    name: "professionalAccessEvents sem vínculo",
+    sql: "SELECT COUNT(*) AS count FROM professionalAccessEvents e LEFT JOIN professionalPatientAccesses a ON a.id = e.accessId WHERE a.id IS NULL",
+  },
+  {
+    name: "professionalFollowUps sem vínculo",
+    sql: "SELECT COUNT(*) AS count FROM professionalFollowUps f LEFT JOIN professionalPatientAccesses a ON a.id = f.accessId WHERE a.id IS NULL",
+  },
+  {
+    name: "professionalFollowUpEvents sem acompanhamento",
+    sql: "SELECT COUNT(*) AS count FROM professionalFollowUpEvents e LEFT JOIN professionalFollowUps f ON f.id = e.followUpId WHERE f.id IS NULL",
+  },
+  {
     name: "userRestrictions sem usuário",
     sql: "SELECT COUNT(*) AS count FROM userRestrictions r LEFT JOIN users u ON u.id = r.userId WHERE u.id IS NULL",
   },

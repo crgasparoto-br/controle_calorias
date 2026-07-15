@@ -29,6 +29,12 @@ export const patientIdSchema = z.object({
   weekOffset: z.number().int().optional().default(0),
 });
 
+export const professionalFollowUpTransitionSchema = z.object({
+  patientId: z.number().int().positive(),
+  status: z.enum(["active", "paused", "ended"]),
+  reason: z.string().trim().max(500).optional(),
+});
+
 export const patientPeriodBundleSchema = boundedReportDateRangeSchema.safeExtend({
   patientId: z.number().int().positive(),
 });
@@ -80,6 +86,7 @@ export type ProfessionalProfileInput = z.infer<typeof professionalProfileSchema>
 export type RequestPatientAccessInput = z.infer<typeof requestPatientAccessSchema>;
 export type AccessIdInput = z.infer<typeof accessIdSchema>;
 export type PatientIdInput = z.infer<typeof patientIdSchema>;
+export type ProfessionalFollowUpTransitionInput = z.infer<typeof professionalFollowUpTransitionSchema>;
 export type PatientPeriodBundleInput = z.infer<typeof patientPeriodBundleSchema>;
 export type ProfessionalCommentInput = z.infer<typeof professionalCommentSchema>;
 export type ProfessionalGoalSuggestionInput = z.infer<typeof professionalGoalSuggestionSchema>;

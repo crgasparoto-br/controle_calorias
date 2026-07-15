@@ -480,6 +480,92 @@ export const userPreferences = mysqlTable("userPreferences", {
   userKeyUnique: uniqueIndex("userPreferences_user_key_idx").on(table.userId, table.preferenceKey),
 }));
 
+export const professionalProfiles = mysqlTable("professionalProfiles", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  displayName: varchar("displayName", { length: 120 }).notNull(),
+  registrationNumber: varchar("registrationNumber", { length: 80 }),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  userUniqueIdx: uniqueIndex("professionalProfiles_user_unique_idx").on(table.userId),
+  activeIdx: index("professionalProfiles_active_idx").on(table.active),
+}));
+
+export const professionalPatientAccesses = mysqlTable("professionalPatientAccesses", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  professionalUserId: int("professionalUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  patientUserId: int("patientUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  authorizationStatus: mysqlEnum("authorizationStatus", ["pending", "approved", "rejected", "revoked"]).default("pending").notNull(),
+  // Preenchida somente em pending/approved. MySQL/TiDB permitem vários NULLs
+  // no índice único, preservando histórico e impedindo dois vínculos ativos.
+  activePairKey: varchar("activePairKey", { length: 64 }),
+  reason: text("reason").notNull(),
+  requestedAt: timestamp("requestedAt").notNull(),
+  approvedAt: timestamp("approvedAt"),
+  rejectedAt: timestamp("rejectedAt"),
+  revokedAt: timestamp("revokedAt"),
+  respondedAt: timestamp("respondedAt"),
+  responseOrigin: mysqlEnum("responseOrigin", ["web", "whatsapp"]),
+  responseDecision: mysqlEnum("responseDecision", ["approved", "rejected", "revoked"]),
+  authorizationMessageStatus: mysqlEnum("authorizationMessageStatus", ["sent", "failed", "skipped"]),
+  authorizationMessageSentAt: timestamp("authorizationMessageSentAt"),
+  authorizationMessageError: text("authorizationMessageError"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  activePairUniqueIdx: uniqueIndex("professionalAccesses_active_pair_unique_idx").on(table.activePairKey),
+  professionalStatusIdx: index("professionalAccesses_professional_status_idx").on(table.professionalUserId, table.authorizationStatus),
+  patientStatusIdx: index("professionalAccesses_patient_status_idx").on(table.patientUserId, table.authorizationStatus),
+  pairRequestedIdx: index("professionalAccesses_pair_requested_idx").on(table.professionalUserId, table.patientUserId, table.requestedAt),
+}));
+
+export const professionalAccessEvents = mysqlTable("professionalAccessEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  accessId: varchar("accessId", { length: 64 }).notNull().references(() => professionalPatientAccesses.id, { onDelete: "cascade" }),
+  fromStatus: mysqlEnum("fromStatus", ["pending", "approved", "rejected", "revoked"]),
+  toStatus: mysqlEnum("toStatus", ["pending", "approved", "rejected", "revoked"]).notNull(),
+  actorUserId: int("actorUserId").references(() => users.id, { onDelete: "set null" }),
+  origin: mysqlEnum("origin", ["web", "whatsapp", "migration", "system"]).default("system").notNull(),
+  reason: text("reason"),
+  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  accessOccurredIdx: index("professionalAccessEvents_access_occurred_idx").on(table.accessId, table.occurredAt),
+  actorOccurredIdx: index("professionalAccessEvents_actor_occurred_idx").on(table.actorUserId, table.occurredAt),
+}));
+
+export const professionalFollowUps = mysqlTable("professionalFollowUps", {
+  id: int("id").autoincrement().primaryKey(),
+  accessId: varchar("accessId", { length: 64 }).notNull().references(() => professionalPatientAccesses.id, { onDelete: "cascade" }),
+  status: mysqlEnum("status", ["active", "paused", "ended"]).default("active").notNull(),
+  statusChangedAt: timestamp("statusChangedAt").defaultNow().notNull(),
+  statusChangedByUserId: int("statusChangedByUserId").references(() => users.id, { onDelete: "set null" }),
+  reason: text("reason"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  endedAt: timestamp("endedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  accessUniqueIdx: uniqueIndex("professionalFollowUps_access_unique_idx").on(table.accessId),
+  statusIdx: index("professionalFollowUps_status_idx").on(table.status),
+}));
+
+export const professionalFollowUpEvents = mysqlTable("professionalFollowUpEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  followUpId: int("followUpId").notNull().references(() => professionalFollowUps.id, { onDelete: "cascade" }),
+  fromStatus: mysqlEnum("fromStatus", ["active", "paused", "ended"]),
+  toStatus: mysqlEnum("toStatus", ["active", "paused", "ended"]).notNull(),
+  actorUserId: int("actorUserId").references(() => users.id, { onDelete: "set null" }),
+  reason: text("reason"),
+  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  followUpOccurredIdx: index("professionalFollowUpEvents_followup_occurred_idx").on(table.followUpId, table.occurredAt),
+  actorOccurredIdx: index("professionalFollowUpEvents_actor_occurred_idx").on(table.actorUserId, table.occurredAt),
+}));
+
 export const userRestrictions = mysqlTable("userRestrictions", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -759,6 +845,16 @@ export type WaterEntry = WaterLog;
 export type InsertWaterEntry = InsertWaterLog;
 export type UserPreference = typeof userPreferences.$inferSelect;
 export type InsertUserPreference = typeof userPreferences.$inferInsert;
+export type ProfessionalProfile = typeof professionalProfiles.$inferSelect;
+export type InsertProfessionalProfile = typeof professionalProfiles.$inferInsert;
+export type ProfessionalPatientAccess = typeof professionalPatientAccesses.$inferSelect;
+export type InsertProfessionalPatientAccess = typeof professionalPatientAccesses.$inferInsert;
+export type ProfessionalAccessEvent = typeof professionalAccessEvents.$inferSelect;
+export type InsertProfessionalAccessEvent = typeof professionalAccessEvents.$inferInsert;
+export type ProfessionalFollowUp = typeof professionalFollowUps.$inferSelect;
+export type InsertProfessionalFollowUp = typeof professionalFollowUps.$inferInsert;
+export type ProfessionalFollowUpEvent = typeof professionalFollowUpEvents.$inferSelect;
+export type InsertProfessionalFollowUpEvent = typeof professionalFollowUpEvents.$inferInsert;
 export type UserRestriction = typeof userRestrictions.$inferSelect;
 export type InsertUserRestriction = typeof userRestrictions.$inferInsert;
 export type AppSecret = typeof appSecrets.$inferSelect;

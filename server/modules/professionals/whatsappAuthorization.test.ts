@@ -134,7 +134,7 @@ describe("professional WhatsApp authorization", () => {
   it("registra falha de envio para exibição ao profissional", async () => {
     const professionalUserId = 405;
     const patientUserId = 406;
-    mockedSendWhatsAppInteractiveButtonsMessage.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 500 Internal Server Error" });
+    mockedSendWhatsAppInteractiveButtonsMessage.mockResolvedValueOnce({ ok: false, detail: "Falha para paciente@example.com no telefone +55 11 99999-9406" });
     await upsertProfessionalProfile(professionalUserId, {
       displayName: "Dra. Beatriz",
       active: true,
@@ -152,13 +152,13 @@ describe("professional WhatsApp authorization", () => {
 
     expect(access.authorizationMessage).toMatchObject({
       status: "failed",
-      detail: "Meta retornou 500 Internal Server Error",
+      detail: "Não foi possível enviar a autorização pelo WhatsApp. A solicitação continua disponível na plataforma.",
     });
 
     const professionalAccesses = await listProfessionalAccesses(professionalUserId);
     expect(professionalAccesses.find(item => item.id === access.id)).toMatchObject({
       authorizationMessageStatus: "failed",
-      authorizationMessageError: "Meta retornou 500 Internal Server Error",
+      authorizationMessageError: "Não foi possível enviar a autorização pelo WhatsApp. A solicitação continua disponível na plataforma.",
     });
   });
 });

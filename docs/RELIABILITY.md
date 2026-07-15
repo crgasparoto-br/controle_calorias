@@ -13,6 +13,7 @@ Garantir que os fluxos críticos possam ser validados por humanos e agentes ante
 - Integrações de saúde, incluindo OAuth, sincronização automática do Strava e exibição de métricas detalhadas de atividades.
 - WhatsApp inbound e outbound.
 - Exportação e exclusão de dados.
+- Autorização e acompanhamento da Área Profissional.
 - Migrações e integridade referencial.
 - Migração da camada de IA para OpenAI, conforme `docs/exec-plans/active/migrate-ai-to-openai.md`.
 
@@ -45,6 +46,8 @@ pnpm db:check-integrity
 ## Incidentes comuns a prevenir
 
 - Migração não aplicada em produção.
+- Divergência entre preferências legadas e a fonte canônica da Área Profissional.
+- Revogação profissional sobrescrita por retry ou por instância com estado obsoleto.
 - Divergência entre rascunho e confirmação.
 - Log de dados sensíveis.
 - Falha silenciosa no envio WhatsApp.
@@ -80,6 +83,16 @@ pnpm db:check-integrity
 - Recalcular totais nutricionais no backend a partir dos itens validados.
 - Falha de visual auxiliar deve degradar para ausência de imagem, nunca para falha de refeição.
 - Rodar smoke test web e WhatsApp antes de ativar em produção.
+
+## Guardrails da Área Profissional
+
+- Aplicar `0024_professional_persistence_foundation.sql` antes do código que usa a fachada canônica; não criar tabelas em runtime.
+- Repetir o backfill de preferências durante o rollout para absorver escritas de instâncias antigas, sempre de forma idempotente e sem logar o conteúdo de origem.
+- Serializar transições concorrentes no vínculo e manter revogação como estado terminal para autorização.
+- Impedir mais de um vínculo pendente/aprovado por par profissional-paciente no banco, não apenas em memória.
+- Manter dual-write somente durante a janela de compatibilidade e removê-lo em mudança posterior, após confirmar que nenhum consumidor usa as chaves legadas.
+- Validar restart e múltiplas instâncias com banco real quando `DATABASE_URL` estiver disponível; sem banco, o fallback em memória serve apenas a desenvolvimento/teste single-instance.
+- Validar que pausa bloqueia intervenções sem bloquear consultas e que encerramento bloqueia consultas aos dados atuais, preservando apenas o histórico profissional auditável.
 
 ## Mutações multirrefeição pelo WhatsApp
 

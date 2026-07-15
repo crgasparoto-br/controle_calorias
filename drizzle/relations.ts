@@ -13,6 +13,11 @@ import {
   meals,
   nutritionGoals,
   portions,
+  professionalAccessEvents,
+  professionalFollowUpEvents,
+  professionalFollowUps,
+  professionalPatientAccesses,
+  professionalProfiles,
   recipeItems,
   recipes,
   userPreferences,
@@ -37,6 +42,9 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   weightEntries: many(weightEntries),
   waterLogs: many(waterLogs),
   preferences: many(userPreferences),
+  professionalProfile: one(professionalProfiles),
+  professionalAccesses: many(professionalPatientAccesses, { relationName: "professionalAccesses" }),
+  patientAccesses: many(professionalPatientAccesses, { relationName: "patientAccesses" }),
   restrictions: many(userRestrictions),
   whatsappConnections: many(whatsappConnections),
   inferenceLogs: many(inferenceLogs),
@@ -197,6 +205,62 @@ export const waterLogsRelations = relations(waterLogs, ({ one }) => ({
 export const userPreferencesRelations = relations(userPreferences, ({ one }) => ({
   user: one(users, {
     fields: [userPreferences.userId],
+    references: [users.id],
+  }),
+}));
+
+export const professionalProfilesRelations = relations(professionalProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [professionalProfiles.userId],
+    references: [users.id],
+  }),
+}));
+
+export const professionalPatientAccessesRelations = relations(professionalPatientAccesses, ({ many, one }) => ({
+  professional: one(users, {
+    fields: [professionalPatientAccesses.professionalUserId],
+    references: [users.id],
+    relationName: "professionalAccesses",
+  }),
+  patient: one(users, {
+    fields: [professionalPatientAccesses.patientUserId],
+    references: [users.id],
+    relationName: "patientAccesses",
+  }),
+  authorizationEvents: many(professionalAccessEvents),
+  followUp: one(professionalFollowUps),
+}));
+
+export const professionalAccessEventsRelations = relations(professionalAccessEvents, ({ one }) => ({
+  access: one(professionalPatientAccesses, {
+    fields: [professionalAccessEvents.accessId],
+    references: [professionalPatientAccesses.id],
+  }),
+  actor: one(users, {
+    fields: [professionalAccessEvents.actorUserId],
+    references: [users.id],
+  }),
+}));
+
+export const professionalFollowUpsRelations = relations(professionalFollowUps, ({ many, one }) => ({
+  access: one(professionalPatientAccesses, {
+    fields: [professionalFollowUps.accessId],
+    references: [professionalPatientAccesses.id],
+  }),
+  statusChangedBy: one(users, {
+    fields: [professionalFollowUps.statusChangedByUserId],
+    references: [users.id],
+  }),
+  events: many(professionalFollowUpEvents),
+}));
+
+export const professionalFollowUpEventsRelations = relations(professionalFollowUpEvents, ({ one }) => ({
+  followUp: one(professionalFollowUps, {
+    fields: [professionalFollowUpEvents.followUpId],
+    references: [professionalFollowUps.id],
+  }),
+  actor: one(users, {
+    fields: [professionalFollowUpEvents.actorUserId],
     references: [users.id],
   }),
 }));

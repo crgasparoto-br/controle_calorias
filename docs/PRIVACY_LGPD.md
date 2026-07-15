@@ -13,7 +13,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 | Integrações externas | Tokens OAuth, identificadores externos, atividades importadas do Strava, distância, duração, elevação, frequência cardíaca, cadência e potência | `appSecrets`, módulos de integrações de saúde |
 | IA | Prompt, contexto nutricional, reasoning, confidence, inferências e logs | `server/_core`, `server/modules/assistant`, `server/modules/meals` |
 | Operação | Tokens, IDs de canal, URLs de mídia, detalhes técnicos e logs de erro | `appSecrets`, logs operacionais e analytics |
-| Compartilhamento profissional | Solicitações, consentimento aprovado/revogado, comentários e sugestões | módulo `professionals` |
+| Compartilhamento profissional | Perfil profissional, solicitações, consentimento aprovado/revogado, situação do acompanhamento e auditoria de transições | `professionalProfiles`, `professionalPatientAccesses`, `professionalAccessEvents`, `professionalFollowUps`, `professionalFollowUpEvents` |
 
 ## Princípios
 
@@ -40,6 +40,8 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Se um bucket tiver domínio público de leitura, trate a posse do caminho do objeto como acesso potencial à mídia. Não registre caminhos completos em logs desnecessários e configure lifecycle policy para limitar retenção.
 - A exclusão de conta remove os vínculos e linhas principais do produto. Objetos externos exigem rotina operacional ou lifecycle policy até existir deleção automatizada por chave.
 - Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
+- Motivos de solicitação e de transição profissional são dados sensíveis: podem ser persistidos no vínculo/auditoria, mas não devem aparecer em logs, analytics ou mensagens técnicas.
+- Exclusão de qualquer uma das contas remove o vínculo profissional e seu histórico por cascade; referências de ator em eventos usam `set null` quando o evento continuar ligado a outro registro válido.
 
 ## Contexto persistente do WhatsApp
 
@@ -58,7 +60,7 @@ A especificação funcional está em `docs/product-specs/privacy-export-deletion
 
 O endpoint autenticado `nutrition.privacy.exportData` deve retornar os dados principais do próprio usuário em formato compreensível, incluindo conta/perfil, metas, refeições, exercícios, hidratação, peso, preferências, restrições e estado de canais quando aplicável.
 
-O endpoint autenticado `nutrition.privacy.requestAccountDeletion` deve remover ou desvincular dados principais vinculados ao usuário, incluindo conta, perfil, refeições, itens, mídias, favoritos, inferências, hábitos, metas, água, exercícios, preferências, restrições, gamificação, vínculos WhatsApp, contexto conversacional e logs de inferência. Alimentos criados pelo usuário podem ser desvinculados quando a remoção direta causar conflito de integridade.
+O endpoint autenticado `nutrition.privacy.requestAccountDeletion` deve remover ou desvincular dados principais vinculados ao usuário, incluindo conta, perfil, perfil/vínculos profissionais e auditoria dependente, refeições, itens, mídias, favoritos, inferências, hábitos, metas, água, exercícios, preferências, restrições, gamificação, vínculos WhatsApp, contexto conversacional e logs de inferência. Alimentos criados pelo usuário podem ser desvinculados quando a remoção direta causar conflito de integridade.
 
 Backups, logs de infraestrutura fora do banco e arquivos externos em storage dependem de política operacional de retenção ou automação específica.
 

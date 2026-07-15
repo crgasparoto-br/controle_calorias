@@ -155,6 +155,13 @@
       "when": 1783724719666,
       "tag": "0023_nostalgic_sheva_callister",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1784127953547,
+      "tag": "0024_professional_persistence_foundation",
+      "breakpoints": true
     }
   ]
 }

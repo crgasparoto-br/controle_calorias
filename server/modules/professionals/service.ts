@@ -4,7 +4,7 @@ import { userPreferences, users, whatsappConnections } from "../../../drizzle/sc
 import { invokeLLM } from "../../_core/llm";
 import { getDb, getUserWhatsappConnection, listUserMeals, logInferenceEvent, logPersistenceWarning } from "../../db";
 import { getPeriodReportBundle, getWeeklyReportBundle } from "../insights/service";
-import { redactSensitiveText } from "../../privacy";
+import { redactSensitiveText, safeLogDetail } from "../../privacy";
 import { getNutritionGoal } from "../goals/service";
 import { buildWhatsAppCallbackId } from "../whatsapp/interactiveCallback";
 import { buttonsReply, type WhatsAppLogicalReply } from "../whatsapp/replyContract";
@@ -14,6 +14,23 @@ import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
+import {
+  findCanonicalAccessForPatient,
+  findCanonicalActiveAccess,
+  findCanonicalProfessionalProfile,
+  getCanonicalFollowUp,
+  isProfessionalFollowUpTransitionAllowed,
+  listCanonicalAccessesByPatient,
+  listCanonicalAccessesByProfessional,
+  listCanonicalProfessionalHistory,
+  saveCanonicalProfessionalAccess,
+  compareCanonicalProfessionalAccessVersions,
+  transitionCanonicalFollowUp,
+  upsertCanonicalProfessionalProfile,
+  type ProfessionalFollowUpStatus,
+  type CanonicalProfessionalFollowUp,
+  type ProfessionalTransitionOrigin,
+} from "../../repositories/professionalRepository";
 
 export const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
 const PENDING_PROFESSIONAL_ACCESS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -112,7 +129,7 @@ type MealSuggestion = {
 
 type HistoryEvent = {
   id: string;
-  actorUserId: number;
+  actorUserId: number | null;
   patientUserId: number;
   professionalUserId: number;
   eventType:
@@ -124,6 +141,10 @@ type HistoryEvent = {
     | "access_authorization_whatsapp_sent"
     | "access_authorization_whatsapp_failed"
     | "access_reconciled"
+    | "follow_up_started"
+    | "follow_up_paused"
+    | "follow_up_resumed"
+    | "follow_up_ended"
     | "comment_created"
     | "goal_suggested"
     | "meal_suggested"
@@ -148,20 +169,38 @@ const PROFESSIONAL_PROFILE_PREFERENCE_KEY = "professional_profile_v1";
 const PROFESSIONAL_ACCESSES_PREFERENCE_KEY = "professional_accesses_v1";
 const PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY = "patient_professional_access_requests_v1";
 const BRAZIL_COUNTRY_CODE = "55";
+const LEGACY_ACCESS_MIGRATION_INTERVAL_MS = 60_000;
 
 const profiles = new Map<number, ProfessionalProfile>();
 const accesses = new Map<string, ProfessionalPatientAccess>();
+const followUps = new Map<string, CanonicalProfessionalFollowUp>();
 const comments: ProfessionalComment[] = [];
 const goalSuggestions: GoalSuggestion[] = [];
 const mealSuggestions: MealSuggestion[] = [];
 const history: HistoryEvent[] = [];
+let legacyAccessMigrationPromise: Promise<void> | null = null;
+let legacyAccessMigrationLastCompletedAt = 0;
 
 export function _forTestOnly_setAccessInMap(access: ProfessionalPatientAccess) {
   accesses.set(access.id, access);
 }
 
+export function _forTestOnly_setFollowUpInMap(followUp: CanonicalProfessionalFollowUp) {
+  followUps.set(followUp.accessId, followUp);
+}
+
 function pushHistory(event: Omit<HistoryEvent, "id" | "createdAt">) {
   history.push({ id: crypto.randomUUID(), createdAt: Date.now(), ...event });
+}
+
+function publicAuthorizationMessageError(access: ProfessionalPatientAccess) {
+  if (access.authorizationMessageStatus === "failed") {
+    return "Não foi possível enviar a autorização pelo WhatsApp. A solicitação continua disponível na plataforma.";
+  }
+  if (access.authorizationMessageStatus === "skipped") {
+    return "A autorização não foi enviada pelo WhatsApp. A solicitação continua disponível na plataforma.";
+  }
+  return null;
 }
 
 function publicAccess(access: ProfessionalPatientAccess) {
@@ -180,7 +219,7 @@ function publicAccess(access: ProfessionalPatientAccess) {
     responseDecision: access.responseDecision,
     authorizationMessageStatus: access.authorizationMessageStatus,
     authorizationMessageSentAt: access.authorizationMessageSentAt,
-    authorizationMessageError: access.authorizationMessageError,
+    authorizationMessageError: publicAuthorizationMessageError(access),
   };
 }
 
@@ -242,6 +281,14 @@ function isAuthorizationMessageStatus(value: unknown): value is AuthorizationMes
   return value === "sent" || value === "failed" || value === "skipped";
 }
 
+function isValidLegacyTimestamp(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 4_102_444_800_000;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
 function firstName(value: string | null | undefined) {
   return value?.trim().split(/\s+/)[0] || "Profissional";
 }
@@ -291,12 +338,13 @@ export function parseProfessionalAccessWhatsappDecision(text: string): "approved
 
 function normalizeStoredAccess(value: Partial<ProfessionalPatientAccess>): ProfessionalPatientAccess | null {
   if (
-    typeof value.id !== "string" ||
-    typeof value.professionalUserId !== "number" ||
-    typeof value.patientUserId !== "number" ||
+    typeof value.id !== "string" || value.id.length === 0 || value.id.length > 64 ||
+    !isPositiveInteger(value.professionalUserId) ||
+    !isPositiveInteger(value.patientUserId) ||
+    value.professionalUserId === value.patientUserId ||
     !isAccessStatus(value.status) ||
-    typeof value.reason !== "string" ||
-    typeof value.requestedAt !== "number"
+    typeof value.reason !== "string" || value.reason.length > 500 ||
+    !isValidLegacyTimestamp(value.requestedAt)
   ) {
     return null;
   }
@@ -308,33 +356,88 @@ function normalizeStoredAccess(value: Partial<ProfessionalPatientAccess>): Profe
     status: value.status,
     reason: value.reason,
     requestedAt: value.requestedAt,
-    approvedAt: typeof value.approvedAt === "number" ? value.approvedAt : null,
-    revokedAt: typeof value.revokedAt === "number" ? value.revokedAt : null,
-    rejectedAt: typeof value.rejectedAt === "number" ? value.rejectedAt : null,
-    respondedAt: typeof value.respondedAt === "number" ? value.respondedAt : null,
+    approvedAt: isValidLegacyTimestamp(value.approvedAt) ? value.approvedAt : null,
+    revokedAt: isValidLegacyTimestamp(value.revokedAt) ? value.revokedAt : null,
+    rejectedAt: isValidLegacyTimestamp(value.rejectedAt) ? value.rejectedAt : null,
+    respondedAt: isValidLegacyTimestamp(value.respondedAt) ? value.respondedAt : null,
     responseOrigin: isAccessResponseOrigin(value.responseOrigin) ? value.responseOrigin : null,
     responseDecision: isAccessResponseDecision(value.responseDecision) ? value.responseDecision : null,
     authorizationMessageStatus: isAuthorizationMessageStatus(value.authorizationMessageStatus) ? value.authorizationMessageStatus : null,
-    authorizationMessageSentAt: typeof value.authorizationMessageSentAt === "number" ? value.authorizationMessageSentAt : null,
-    authorizationMessageError: typeof value.authorizationMessageError === "string" ? value.authorizationMessageError : null,
+    authorizationMessageSentAt: isValidLegacyTimestamp(value.authorizationMessageSentAt) ? value.authorizationMessageSentAt : null,
+    authorizationMessageError: typeof value.authorizationMessageError === "string" ? safeLogDetail(value.authorizationMessageError) : null,
   };
 }
 
-function parseStoredAccesses(userId: number, preferenceKey: string, value: string): ProfessionalPatientAccess[] {
+function parseStoredAccesses(userId: number, preferenceKey: string, value: string) {
   try {
     const parsed = JSON.parse(value) as Array<Partial<ProfessionalPatientAccess>>;
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) return { accesses: [], totalCount: 0, rejectedCount: 1, validArray: false };
 
-    return parsed
-      .map(normalizeStoredAccess)
-      .filter((access): access is ProfessionalPatientAccess => Boolean(access))
-      .filter(access => preferenceKey === PROFESSIONAL_ACCESSES_PREFERENCE_KEY
+    const accesses: ProfessionalPatientAccess[] = [];
+    let rejectedCount = 0;
+    for (const candidate of parsed) {
+      const access = normalizeStoredAccess(candidate);
+      const belongsToPreference = access && (preferenceKey === PROFESSIONAL_ACCESSES_PREFERENCE_KEY
         ? access.professionalUserId === userId
-        : access.patientUserId === userId,
-      );
+        : access.patientUserId === userId);
+      if (access && belongsToPreference) accesses.push(access);
+      else rejectedCount += 1;
+    }
+    return { accesses, totalCount: parsed.length, rejectedCount, validArray: true };
   } catch {
-    return [];
+    return { accesses: [], totalCount: 0, rejectedCount: 1, validArray: false };
   }
+}
+
+function reportInvalidLegacyPreference(userId: number, preferenceKey: string, rejectedCount = 1, totalCount = 0) {
+  logPersistenceWarning(
+    "Professional legacy preference ignored",
+    new Error(`Preferência profissional com ${rejectedCount} item(ns) rejeitado(s) de ${totalCount} para o usuário #${userId} na chave ${preferenceKey}.`),
+  );
+}
+
+async function migrateLegacyAccessPreferences() {
+  const db = await getDb();
+  if (!db) return;
+  if (legacyAccessMigrationPromise) return legacyAccessMigrationPromise;
+  if (Date.now() - legacyAccessMigrationLastCompletedAt < LEGACY_ACCESS_MIGRATION_INTERVAL_MS) return;
+
+  legacyAccessMigrationPromise = (async () => {
+    const rows = await db.select().from(userPreferences).where(or(
+      eq(userPreferences.preferenceKey, PROFESSIONAL_ACCESSES_PREFERENCE_KEY),
+      eq(userPreferences.preferenceKey, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY),
+    ));
+    const byId = new Map<string, ProfessionalPatientAccess>();
+    for (const row of rows) {
+      const parsed = parseStoredAccesses(row.userId, row.preferenceKey, row.preferenceValue);
+      if (!parsed.validArray || parsed.rejectedCount > 0) {
+        reportInvalidLegacyPreference(row.userId, row.preferenceKey, parsed.rejectedCount, parsed.totalCount);
+      }
+      for (const access of parsed.accesses) {
+        const current = byId.get(access.id);
+        if (!current || compareCanonicalProfessionalAccessVersions(access, current) > 0) byId.set(access.id, access);
+      }
+    }
+    for (const access of byId.values()) {
+      await saveCanonicalProfessionalAccess({
+        access,
+        actorUserId: access.status === "pending" ? access.professionalUserId : access.patientUserId,
+        origin: "migration",
+      });
+    }
+    legacyAccessMigrationLastCompletedAt = Date.now();
+  })()
+    .catch(error => {
+      logPersistenceWarning("Professional legacy access migration failed", error);
+      throw new Error("Não foi possível carregar os vínculos profissionais persistidos.");
+    })
+    .finally(() => {
+      // Durante rollout, instâncias antigas ainda podem escrever somente nas
+      // preferências. O backfill é repetido com intervalo mínimo para absorver
+      // essas escritas sem executar um scan global a cada requisição.
+      legacyAccessMigrationPromise = null;
+    });
+  return legacyAccessMigrationPromise;
 }
 
 function mergeAccesses(current: ProfessionalPatientAccess[], nextAccess: ProfessionalPatientAccess) {
@@ -352,12 +455,10 @@ async function loadPersistedAccesses(userId: number, preferenceKey: string) {
     );
   }
 
-  const rows = await db
-    .select()
-    .from(userPreferences)
-    .where(and(eq(userPreferences.userId, userId), eq(userPreferences.preferenceKey, preferenceKey)))
-    .limit(1);
-  const loadedAccesses = rows[0]?.preferenceValue ? parseStoredAccesses(userId, preferenceKey, rows[0].preferenceValue) : [];
+  await migrateLegacyAccessPreferences();
+  const loadedAccesses = preferenceKey === PROFESSIONAL_ACCESSES_PREFERENCE_KEY
+    ? await listCanonicalAccessesByProfessional(userId) ?? []
+    : await listCanonicalAccessesByPatient(userId) ?? [];
   loadedAccesses.forEach(access => accesses.set(access.id, access));
   return loadedAccesses;
 }
@@ -368,18 +469,8 @@ async function loadProfessionalAccessesForPatient(patientUserId: number): Promis
     return Array.from(accesses.values()).filter(a => a.patientUserId === patientUserId);
   }
 
-  const rows = await db
-    .select()
-    .from(userPreferences)
-    .where(eq(userPreferences.preferenceKey, PROFESSIONAL_ACCESSES_PREFERENCE_KEY));
-
-  const found: ProfessionalPatientAccess[] = [];
-  for (const row of rows) {
-    if (!row.preferenceValue) continue;
-    const parsed = parseStoredAccesses(row.userId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY, row.preferenceValue);
-    found.push(...parsed.filter(a => a.patientUserId === patientUserId));
-  }
-  return found;
+  await migrateLegacyAccessPreferences();
+  return await listCanonicalAccessesByPatient(patientUserId) ?? [];
 }
 
 async function loadPatientAccessRequestState(patientUserId: number) {
@@ -411,18 +502,30 @@ async function persistAccessesForUser(userId: number, preferenceKey: string, nex
   });
 }
 
-async function persistAccessForBothSides(access: ProfessionalPatientAccess) {
-  accesses.set(access.id, access);
+async function persistAccessForBothSides(
+  access: ProfessionalPatientAccess,
+  context: { actorUserId?: number | null; origin?: ProfessionalTransitionOrigin; auditReason?: string | null } = {},
+) {
+  const canonicalResult = await saveCanonicalProfessionalAccess({
+    access,
+    actorUserId: context.actorUserId ?? null,
+    origin: context.origin ?? "system",
+    auditReason: context.auditReason,
+  });
+  const persisted = canonicalResult?.access ?? access;
+  const outcome = canonicalResult?.outcome ?? "updated";
+  accesses.set(persisted.id, persisted);
 
   const [professionalAccesses, patientAccesses] = await Promise.all([
-    loadPersistedAccesses(access.professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY),
-    loadPersistedAccesses(access.patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY),
+    loadPersistedAccesses(persisted.professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY),
+    loadPersistedAccesses(persisted.patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY),
   ]);
 
   await Promise.all([
-    persistAccessesForUser(access.professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY, mergeAccesses(professionalAccesses, access)),
-    persistAccessesForUser(access.patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY, mergeAccesses(patientAccesses, access)),
+    persistAccessesForUser(persisted.professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY, mergeAccesses(professionalAccesses, persisted)),
+    persistAccessesForUser(persisted.patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY, mergeAccesses(patientAccesses, persisted)),
   ]);
+  return { access: persisted, outcome };
 }
 
 export async function reconcilePatientAccessRequests(patientUserId: number): Promise<ProfessionalAccessReconciliationResult> {
@@ -455,10 +558,21 @@ export async function reconcilePatientAccessRequests(patientUserId: number): Pro
   };
 }
 
-async function parseStoredProfessionalProfile(userId: number, value: string): Promise<ProfessionalProfile | null> {
+async function parseStoredProfessionalProfile(
+  userId: number,
+  value: string,
+  fallback?: { createdAt?: Date; updatedAt?: Date },
+): Promise<ProfessionalProfile | null> {
   try {
     const parsed = JSON.parse(value) as Partial<ProfessionalProfile>;
-    if (parsed.userId !== userId || typeof parsed.displayName !== "string" || typeof parsed.active !== "boolean") {
+    if (
+      parsed.userId !== userId ||
+      typeof parsed.displayName !== "string" ||
+      parsed.displayName.trim().length < 2 ||
+      parsed.displayName.length > 120 ||
+      (parsed.registrationNumber !== undefined && (typeof parsed.registrationNumber !== "string" || parsed.registrationNumber.length > 80)) ||
+      typeof parsed.active !== "boolean"
+    ) {
       return null;
     }
 
@@ -467,8 +581,8 @@ async function parseStoredProfessionalProfile(userId: number, value: string): Pr
       displayName: parsed.displayName,
       registrationNumber: typeof parsed.registrationNumber === "string" ? parsed.registrationNumber : undefined,
       active: parsed.active,
-      createdAt: typeof parsed.createdAt === "number" ? parsed.createdAt : Date.now(),
-      updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
+      createdAt: isValidLegacyTimestamp(parsed.createdAt) ? parsed.createdAt : fallback?.createdAt?.getTime() ?? Date.now(),
+      updatedAt: isValidLegacyTimestamp(parsed.updatedAt) ? parsed.updatedAt : fallback?.updatedAt?.getTime() ?? Date.now(),
     };
   } catch {
     return null;
@@ -478,6 +592,8 @@ async function parseStoredProfessionalProfile(userId: number, value: string): Pr
 async function persistProfessionalProfile(profile: ProfessionalProfile) {
   const db = await getDb();
   if (!db) return;
+
+  await upsertCanonicalProfessionalProfile(profile);
 
   await db.insert(userPreferences).values({
     userId: profile.userId,
@@ -494,14 +610,24 @@ async function loadPersistedProfessionalProfile(userId: number) {
   const db = await getDb();
   if (!db) return null;
 
+  const canonical = await findCanonicalProfessionalProfile(userId);
+
   const rows = await db
     .select()
     .from(userPreferences)
     .where(and(eq(userPreferences.userId, userId), eq(userPreferences.preferenceKey, PROFESSIONAL_PROFILE_PREFERENCE_KEY)))
     .limit(1);
-  const profile = rows[0]?.preferenceValue ? await parseStoredProfessionalProfile(userId, rows[0].preferenceValue) : null;
-  if (profile) profiles.set(userId, profile);
-  return profile;
+  const profile = rows[0]?.preferenceValue
+    ? await parseStoredProfessionalProfile(userId, rows[0].preferenceValue, rows[0])
+    : null;
+  const resolved = profile && (!canonical || profile.updatedAt > canonical.updatedAt) ? profile : canonical;
+  if (resolved) {
+    if (resolved === profile) await upsertCanonicalProfessionalProfile(profile);
+    profiles.set(userId, resolved);
+  } else if (rows[0]?.preferenceValue) {
+    reportInvalidLegacyPreference(userId, PROFESSIONAL_PROFILE_PREFERENCE_KEY);
+  }
+  return resolved;
 }
 
 async function assertActiveProfessionalProfile(userId: number) {
@@ -534,7 +660,7 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
       authorizationMessageSentAt: null,
       authorizationMessageError: detail,
     };
-    await persistAccessForBothSides(skipped);
+    const persistence = await persistAccessForBothSides(skipped);
     logInferenceEvent({
       userId: access.professionalUserId,
       origin: "web",
@@ -542,7 +668,7 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
       eventType: "professional.access.authorization_whatsapp_skipped",
       detail,
     });
-    return { status: "skipped", detail, access: skipped };
+    return { status: "skipped", detail, access: persistence.access };
   }
 
   const message = buildProfessionalAccessAuthorizationMessage({
@@ -565,6 +691,8 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
     : { kind: "functional", messages: [{ type: "text", body: message }] };
   const sendResult = await sendWhatsAppLogicalReply(connection.phoneNumber, reply);
   const result = { ok: sendResult.primaryOk, detail: sendResult.sends[0]?.detail ?? "Falha desconhecida ao enviar autorização pelo WhatsApp." };
+  const safeTechnicalDetail = safeLogDetail(result.detail);
+  const publicFailureDetail = "Não foi possível enviar a autorização pelo WhatsApp. A solicitação continua disponível na plataforma.";
   const sent: ProfessionalPatientAccess = result.ok
     ? {
         ...access,
@@ -576,10 +704,10 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
         ...access,
         authorizationMessageStatus: "failed",
         authorizationMessageSentAt: null,
-        authorizationMessageError: result.detail.slice(0, 500),
+        authorizationMessageError: safeTechnicalDetail,
       };
 
-  await persistAccessForBothSides(sent);
+  const persistence = await persistAccessForBothSides(sent);
   pushHistory({
     actorUserId: access.professionalUserId,
     professionalUserId: access.professionalUserId,
@@ -593,13 +721,13 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
     eventType: result.ok ? "professional.access.authorization_whatsapp_sent" : "professional.access.authorization_whatsapp_failed",
     detail: result.ok
       ? `Autorização profissional enviada ao WhatsApp da pessoa acompanhada #${access.patientUserId}.`
-      : result.detail.slice(0, 500),
+      : safeTechnicalDetail,
   });
 
   return {
     status: result.ok ? "sent" : "failed",
-    detail: result.ok ? "Mensagem de autorização enviada pelo WhatsApp." : result.detail,
-    access: sent,
+    detail: result.ok ? "Mensagem de autorização enviada pelo WhatsApp." : publicFailureDetail,
+    access: persistence.access,
   };
 }
 
@@ -647,8 +775,22 @@ async function applyProfessionalAccessWhatsappDecision(
         responseDecision: "rejected",
       };
 
-  await persistAccessForBothSides(updated);
+  const persistence = await persistAccessForBothSides(updated, {
+    actorUserId: patientUserId,
+    origin: responseOrigin,
+  });
+  const persisted = persistence.access;
   const professionalProfile = await getProfessionalProfile(access.professionalUserId);
+  if (persisted.status !== decision) {
+    return {
+      handled: true,
+      action: "professional_access_decision_conflict",
+      reply: "Essa solicitação já foi respondida em outra sessão. Consulte o estado atual na plataforma antes de tentar novamente.",
+      eventType: "professional.access.whatsapp_decision_conflict",
+      detail: `Decisão concorrente ignorada para a solicitação profissional ${persisted.id}; estado canônico preservado como ${persisted.status}.`,
+      data: publicAccess(persisted),
+    };
+  }
   pushHistory({
     actorUserId: patientUserId,
     professionalUserId: access.professionalUserId,
@@ -663,7 +805,7 @@ async function applyProfessionalAccessWhatsappDecision(
     reply: buildDecisionReply(decision, professionalProfile),
     eventType: `professional.access.whatsapp_${decision}`,
     detail: `Solicitação de acompanhamento ${decision === "approved" ? "aprovada" : "recusada"} via ${responseOrigin === "whatsapp" ? "WhatsApp (texto)" : responseOrigin} pela pessoa acompanhada #${patientUserId}.`,
-    data: publicAccess(updated),
+    data: publicAccess(persisted),
   };
 }
 
@@ -814,13 +956,6 @@ async function getUserSummaryByContact(contact: string): Promise<UserSummary | n
 }
 
 async function getApprovedAccess(professionalUserId: number, patientUserId: number) {
-  const current = Array.from(accesses.values()).find(access =>
-    access.professionalUserId === professionalUserId &&
-    access.patientUserId === patientUserId &&
-    access.status === "approved",
-  );
-  if (current) return current;
-
   const professionalAccesses = await loadPersistedAccesses(professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY);
   return professionalAccesses.find(access => access.patientUserId === patientUserId && access.status === "approved");
 }
@@ -834,14 +969,56 @@ async function assertApprovedAccess(professionalUserId: number, patientUserId: n
   return access;
 }
 
+async function loadFollowUpForAccess(access: ProfessionalPatientAccess) {
+  const db = await getDb();
+  if (db) {
+    const followUp = await getCanonicalFollowUp(access.id);
+    if (!followUp) throw new Error("A situação do acompanhamento profissional não está disponível.");
+    return followUp;
+  }
+
+  const current = followUps.get(access.id);
+  if (current) return current;
+  const startedAt = access.approvedAt ?? access.respondedAt ?? access.requestedAt;
+  const fallback: CanonicalProfessionalFollowUp = {
+    id: 0,
+    accessId: access.id,
+    status: "active",
+    statusChangedAt: startedAt,
+    statusChangedByUserId: access.patientUserId,
+    reason: null,
+    startedAt,
+    endedAt: null,
+  };
+  followUps.set(access.id, fallback);
+  return fallback;
+}
+
+async function assertProfessionalPatientPermission(
+  professionalUserId: number,
+  patientUserId: number,
+  permission: "consult" | "intervene",
+) {
+  const access = await assertApprovedAccess(professionalUserId, patientUserId);
+  const followUp = await loadFollowUpForAccess(access);
+  if (followUp.status === "ended") {
+    throw new Error("O acompanhamento foi encerrado e não permite novas consultas ou intervenções profissionais.");
+  }
+  if (permission === "intervene" && followUp.status !== "active") {
+    throw new Error("O acompanhamento está pausado e não permite novas intervenções profissionais.");
+  }
+  return { access, followUp };
+}
+
 export async function upsertProfessionalProfile(userId: number, input: ProfessionalProfileInput) {
   const now = Date.now();
+  const current = await getProfessionalProfile(userId);
   const profile: ProfessionalProfile = {
     userId,
     displayName: input.displayName,
     registrationNumber: input.registrationNumber,
     active: input.active,
-    createdAt: profiles.get(userId)?.createdAt ?? now,
+    createdAt: current?.createdAt ?? now,
     updatedAt: now,
   };
   profiles.set(userId, profile);
@@ -856,7 +1033,8 @@ export async function upsertProfessionalProfile(userId: number, input: Professio
 }
 
 export async function getProfessionalProfile(userId: number) {
-  return profiles.get(userId) ?? await loadPersistedProfessionalProfile(userId);
+  const db = await getDb();
+  return db ? loadPersistedProfessionalProfile(userId) : profiles.get(userId) ?? null;
 }
 
 export async function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
@@ -870,10 +1048,11 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
   if (professionalUserId === patient.userId) throw new Error("Profissional e pessoa acompanhada precisam ser usuários diferentes.");
 
   const professionalAccesses = await loadPersistedAccesses(professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY);
-  const existing = professionalAccesses.find(access =>
+  const canonicalExisting = await findCanonicalActiveAccess(professionalUserId, patient.userId);
+  const existing = canonicalExisting ?? professionalAccesses.find(access =>
     access.professionalUserId === professionalUserId &&
     access.patientUserId === patient.userId &&
-    access.status !== "revoked",
+    (access.status === "pending" || access.status === "approved"),
   );
   if (existing) {
     await persistAccessForBothSides(existing);
@@ -883,7 +1062,7 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
       authorizationMessage: existing.authorizationMessageStatus
         ? {
             status: existing.authorizationMessageStatus,
-            detail: existing.authorizationMessageError ?? "Solicitação já registrada anteriormente.",
+            detail: publicAuthorizationMessageError(existing) ?? "Solicitação já registrada anteriormente.",
           }
         : null,
     };
@@ -906,14 +1085,30 @@ export async function requestPatientAccess(professionalUserId: number, input: Re
     authorizationMessageSentAt: null,
     authorizationMessageError: null,
   };
-  await persistAccessForBothSides(access);
+  const persistence = await persistAccessForBothSides(access, {
+    actorUserId: professionalUserId,
+    origin: "web",
+  });
+  const persistedAccess = persistence.access;
+  if (persistence.outcome === "conflict") {
+    return {
+      ...publicAccess(persistedAccess),
+      patient,
+      authorizationMessage: persistedAccess.authorizationMessageStatus
+        ? {
+            status: persistedAccess.authorizationMessageStatus,
+            detail: publicAuthorizationMessageError(persistedAccess) ?? "Solicitação já registrada anteriormente.",
+          }
+        : null,
+    };
+  }
   pushHistory({
     actorUserId: professionalUserId,
     professionalUserId,
     patientUserId: patient.userId,
     eventType: "access_requested",
   });
-  const authorizationMessage = await sendProfessionalAccessAuthorizationWhatsapp(access, professionalProfile);
+  const authorizationMessage = await sendProfessionalAccessAuthorizationWhatsapp(persistedAccess, professionalProfile);
   return {
     ...publicAccess(authorizationMessage.access),
     patient,
@@ -958,7 +1153,8 @@ export async function listPatientAccessRequests(patientUserId: number) {
 
 export async function approvePatientAccess(patientUserId: number, accessId: string) {
   const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
-  const access = accesses.get(accessId) ?? patientAccesses.find(item => item.id === accessId);
+  const access = await findCanonicalAccessForPatient(patientUserId, accessId)
+    ?? patientAccesses.find(item => item.id === accessId);
   if (!access || access.patientUserId !== patientUserId) throw new Error("Solicitação de acesso não encontrada.");
   if (access.status !== "pending") throw new Error("Apenas solicitações pendentes podem ser aprovadas.");
   const now = Date.now();
@@ -972,20 +1168,30 @@ export async function approvePatientAccess(patientUserId: number, accessId: stri
     responseOrigin: "web" as const,
     responseDecision: "approved" as const,
   };
-  await persistAccessForBothSides(approved);
+  const persistence = await persistAccessForBothSides(approved, {
+    actorUserId: patientUserId,
+    origin: "web",
+  });
+  const persisted = persistence.access;
+  if (persisted.status !== "approved") {
+    throw new Error("A solicitação já foi respondida em outra sessão e não pode mais ser aprovada.");
+  }
   pushHistory({
     actorUserId: patientUserId,
     professionalUserId: access.professionalUserId,
     patientUserId,
     eventType: "access_approved",
   });
-  return publicAccess(approved);
+  return publicAccess(persisted);
 }
 
 export async function revokePatientAccess(patientUserId: number, accessId: string) {
   const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
-  const access = accesses.get(accessId) ?? patientAccesses.find(item => item.id === accessId);
+  const access = await findCanonicalAccessForPatient(patientUserId, accessId)
+    ?? patientAccesses.find(item => item.id === accessId);
   if (!access || access.patientUserId !== patientUserId) throw new Error("Vínculo de acesso não encontrado.");
+  if (access.status === "revoked") return publicAccess(access);
+  if (access.status !== "approved") throw new Error("Apenas vínculos aprovados podem ser revogados.");
   const now = Date.now();
   const revoked = {
     ...access,
@@ -995,18 +1201,68 @@ export async function revokePatientAccess(patientUserId: number, accessId: strin
     responseOrigin: "web" as const,
     responseDecision: "revoked" as const,
   };
-  await persistAccessForBothSides(revoked);
+  const persistence = await persistAccessForBothSides(revoked, {
+    actorUserId: patientUserId,
+    origin: "web",
+  });
+  const persisted = persistence.access;
+  if (persisted.status !== "revoked") {
+    throw new Error("O vínculo mudou em outra sessão e não pôde ser revogado.");
+  }
   pushHistory({
     actorUserId: patientUserId,
     professionalUserId: access.professionalUserId,
     patientUserId,
     eventType: "access_revoked",
   });
-  return publicAccess(revoked);
+  return publicAccess(persisted);
+}
+
+export async function getProfessionalFollowUp(professionalUserId: number, patientUserId: number) {
+  const access = await assertApprovedAccess(professionalUserId, patientUserId);
+  return loadFollowUpForAccess(access);
+}
+
+export async function transitionProfessionalFollowUp(input: {
+  actorUserId: number;
+  professionalUserId: number;
+  patientUserId: number;
+  status: ProfessionalFollowUpStatus;
+  reason?: string;
+  occurredAt?: number;
+}) {
+  const access = await assertApprovedAccess(input.professionalUserId, input.patientUserId);
+  if (input.actorUserId !== access.professionalUserId && input.actorUserId !== access.patientUserId) {
+    throw new Error("Usuário não autorizado a alterar este acompanhamento.");
+  }
+  const db = await getDb();
+  if (db) return transitionCanonicalFollowUp({
+    accessId: access.id,
+    actorUserId: input.actorUserId,
+    toStatus: input.status,
+    reason: input.reason,
+    occurredAt: input.occurredAt,
+  });
+  const current = await loadFollowUpForAccess(access);
+  if (!isProfessionalFollowUpTransitionAllowed(current.status, input.status)) {
+    throw new Error("Transição de acompanhamento inválida.");
+  }
+  if (current.status === input.status) return current;
+  const occurredAt = input.occurredAt ?? Date.now();
+  const updated: CanonicalProfessionalFollowUp = {
+    ...current,
+    status: input.status,
+    statusChangedAt: occurredAt,
+    statusChangedByUserId: input.actorUserId,
+    reason: input.reason ?? null,
+    endedAt: input.status === "ended" ? occurredAt : null,
+  };
+  followUps.set(access.id, updated);
+  return updated;
 }
 
 export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number, weekOffset = 0) {
-  await assertApprovedAccess(professionalUserId, patientUserId);
+  await assertProfessionalPatientPermission(professionalUserId, patientUserId, "consult");
   const [bundle, recentMeals, patient, nutritionGoal] = await Promise.all([
     getWeeklyReportBundle(patientUserId, weekOffset),
     listUserMeals(patientUserId),
@@ -1048,7 +1304,7 @@ export async function getProfessionalPatientPeriodBundle(
   patientUserId: number,
   range: { startDate: string; endDate: string },
 ) {
-  await assertApprovedAccess(professionalUserId, patientUserId);
+  await assertProfessionalPatientPermission(professionalUserId, patientUserId, "consult");
   return getPeriodReportBundle(patientUserId, range);
 }
 
@@ -1099,7 +1355,7 @@ function buildFallbackPatientAnswer(question: string, snapshot: ProfessionalPati
 }
 
 export async function addProfessionalComment(professionalUserId: number, input: ProfessionalCommentInput) {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertProfessionalPatientPermission(professionalUserId, input.patientId, "intervene");
   const comment: ProfessionalComment = {
     id: crypto.randomUUID(),
     professionalUserId,
@@ -1118,7 +1374,7 @@ export async function addProfessionalComment(professionalUserId: number, input: 
 }
 
 export async function suggestGoalAdjustment(professionalUserId: number, input: ProfessionalGoalSuggestionInput) {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertProfessionalPatientPermission(professionalUserId, input.patientId, "intervene");
   const now = Date.now();
   const suggestion: GoalSuggestion = {
     id: crypto.randomUUID(),
@@ -1142,7 +1398,7 @@ export async function suggestGoalAdjustment(professionalUserId: number, input: P
 }
 
 export async function suggestMealPlan(professionalUserId: number, input: ProfessionalMealSuggestionInput) {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertProfessionalPatientPermission(professionalUserId, input.patientId, "intervene");
   const now = Date.now();
   const suggestion: MealSuggestion = {
     id: crypto.randomUUID(),
@@ -1169,7 +1425,7 @@ export async function suggestMealPlan(professionalUserId: number, input: Profess
 }
 
 export async function answerProfessionalPatientQuestion(professionalUserId: number, input: ProfessionalPatientQuestionInput) {
-  await assertApprovedAccess(professionalUserId, input.patientId);
+  await assertProfessionalPatientPermission(professionalUserId, input.patientId, "consult");
   const snapshot = await getProfessionalPatientDashboard(professionalUserId, input.patientId);
   const sanitizedQuestion = redactSensitiveText(input.question);
   const context = buildPatientQuestionContext(snapshot);
@@ -1239,5 +1495,17 @@ export async function answerProfessionalPatientQuestion(professionalUserId: numb
 
 export async function listProfessionalHistory(userId: number) {
   await assertActiveProfessionalProfile(userId);
-  return history.filter(event => event.professionalUserId === userId || event.patientUserId === userId);
+  const inMemoryHistory = history.filter(event => event.professionalUserId === userId || event.patientUserId === userId);
+  const canonicalHistory = await listCanonicalProfessionalHistory(userId);
+  if (!canonicalHistory) return inMemoryHistory;
+  const canonicalEventTypes = new Set<HistoryEvent["eventType"]>([
+    "access_requested",
+    "access_approved",
+    "access_rejected",
+    "access_revoked",
+  ]);
+  return [
+    ...canonicalHistory,
+    ...inMemoryHistory.filter(event => !canonicalEventTypes.has(event.eventType)),
+  ].sort((left, right) => right.createdAt - left.createdAt);
 }
