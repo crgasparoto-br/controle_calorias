@@ -1,7 +1,9 @@
 name: Agent-first gate
 
 on:
-  pull_request:
+  push:
+    branches:
+      - fix/779-auditoria-callback-meta
 
 permissions:
   contents: write
