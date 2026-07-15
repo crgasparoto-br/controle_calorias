@@ -69,12 +69,6 @@ export async function getWhatsAppMealGoalProgress(
       goalCalories: effectiveGoalCalories,
       exerciseCalories,
       includeExerciseCalories: appliedGoal.includeExerciseCalories,
-      consumedProteinGrams: dayTotals.totals.protein,
-      targetProteinGrams: appliedGoal.proteinGrams,
-      consumedCarbsGrams: dayTotals.totals.carbs,
-      targetCarbsGrams: appliedGoal.carbsGrams,
-      consumedFatGrams: dayTotals.totals.fat,
-      targetFatGrams: appliedGoal.fatGrams,
     };
   } catch (error) {
     logInferenceEvent({
