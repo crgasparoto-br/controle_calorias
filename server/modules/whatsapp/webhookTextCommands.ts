@@ -1,7 +1,7 @@
 import { getDb, listUserMeals, logPersistenceWarning, relabelUserMeals } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { formatWhatsAppMacro, formatWhatsAppReplyTime } from "./replyFormatting";
-import { buildWhatsAppCallbackId } from "./interactiveCallback";
+import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
 import {
   buildWhatsAppActionCancelledReplyMessage,
@@ -165,13 +165,12 @@ async function applyClaimedGenericConfirmation(
 
 export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhookMessage, userId: number) {
   const pendingRow = await pendingOperationRepository.getActivePendingOperation(userId);
-  if (!pendingRow || pendingRow.type !== PENDING_CONFIRMATION_TYPE) {
-    return null;
-  }
-  const pending = pendingRow.target as PendingWhatsAppConfirmation;
+  if (!pendingRow || pendingRow.type !== PENDING_CONFIRMATION_TYPE) return null;
 
   if (isCancellationMessage(message)) {
-    await pendingOperationRepository.cancelPendingOperation(pendingRow.id);
+    const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CANCEL_ACTION);
+    if (claim.status !== "claimed") return null;
+    const pending = claim.pendingOperation.target as PendingWhatsAppConfirmation;
     return {
       handled: true,
       reply: buildWhatsAppActionCancelledReplyMessage("Tudo certo. Não alterei nenhum registro histórico."),
@@ -180,17 +179,10 @@ export async function handlePendingWhatsAppConfirmation(message: WhatsAppWebhook
     };
   }
 
-  if (!isConfirmationMessage(message)) {
-    return null;
-  }
-
-  const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });
-  if (!claim.claimed) {
-    // Outra requisição/instância já consumiu esta pendência (issue #766: consumo atômico, no máximo uma execução).
-    return null;
-  }
-
-  return applyClaimedGenericConfirmation(userId, pending);
+  if (!isConfirmationMessage(message)) return null;
+  const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_CONFIRMATION_TYPE, CONFIRM_ACTION);
+  if (claim.status !== "claimed") return null;
+  return applyClaimedGenericConfirmation(userId, claim.pendingOperation.target as PendingWhatsAppConfirmation);
 }
 
 /**

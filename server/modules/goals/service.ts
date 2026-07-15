@@ -1,9 +1,11 @@
-import { getDb, getUserNutritionGoal, upsertNutritionGoal } from "../../db";
+import { getDb, getUserNutritionGoal, listUserExercisesByDate, upsertNutritionGoal } from "../../db";
 import { createDrizzleNutritionGoalsRepository } from "../../repositories/nutritionGoalsRepository";
 import type { NutritionGoal } from "../../../drizzle/schema";
 import { assessNutritionGoalInput } from "@shared/nutritionSafety";
 import type { NutritionGoalSafetyIssue } from "@shared/nutritionSafety";
 import { GoalInput } from "./schemas";
+import { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";
+import { sumExercises } from "../exercises/store";
 
 type GoalValidationIssue = NutritionGoalSafetyIssue | {
   code: "conflicting_goal_version" | "conflicting_goal_exception_version";
@@ -529,5 +531,25 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
     versions: savedContext.versions,
     exceptionVersions: savedContext.exceptionVersions,
     safetyWarnings: savedAssessment.warnings,
+  };
+}
+
+
+export async function getEffectiveNutritionGoalForDate(userId: number, dateKey: string) {
+  const [goalSummary, exercises] = await Promise.all([
+    getNutritionGoalForDate(userId, dateKey),
+    listUserExercisesByDate(userId, dateKey),
+  ]);
+  const exerciseCalories = Math.max(0, sumExercises(exercises));
+  const effectiveGoalCalories = calculateAdjustedGoalCalories(
+    goalSummary.today.calories,
+    exerciseCalories,
+    goalSummary.today.includeExerciseCalories,
+  );
+  return {
+    effectiveGoalCalories,
+    exerciseCalories,
+    includeExerciseCalories: goalSummary.today.includeExerciseCalories,
+    appliedGoal: goalSummary.today,
   };
 }

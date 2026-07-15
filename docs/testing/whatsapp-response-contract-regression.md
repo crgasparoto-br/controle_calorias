@@ -1,6 +1,6 @@
 # Matriz de regressão do contrato de respostas do WhatsApp
 
-Issue: #780 (baseline da epic #779). Esta matriz inventaria todos os pontos que produzem ou enviam respostas pelo WhatsApp antes da migração para o contrato único de resposta, e associa cada fluxo à subissue responsável pela migração (#781–#788).
+Issue: #780 (baseline da epic #779). A matriz preserva o inventário histórico e registra o estado final após a migração #781–#788. A coluna de lacuna deve ser interpretada como baseline quando o item estiver marcado como concluído abaixo.
 
 Os textos legados descritos aqui **não são contrato permanente**: a coluna "Resposta desejada" indica o destino aprovado na #779. Os testes de caracterização protegem efeitos de domínio, rota, quantidade/ordem de mensagens, persistência da resposta e idempotência — não o texto literal.
 
@@ -36,7 +36,7 @@ Todas as chamadas à Cloud API vivem em [server/modules/whatsapp/webhookUtils.ts
 | `sendWhatsAppImageBufferMessage` | upload `/media` + `image` | fallback da imagem anotada |
 | `markWhatsAppMessageAsRead` | status read | não é mensagem outbound |
 
-Integrações fora do módulo chamam essas mesmas funções: `server/modules/onboarding/webGreetingService.ts`, `server/modules/professionals/service.ts`, `server/modules/healthIntegrations/strava/exercises.ts`. Não há outra chamada direta a `graph.facebook.com` fora de `webhookUtils.ts`.
+Onboarding, profissionais e Strava montam `WhatsAppLogicalReply` e chamam `replyTransport`. Chamadas à Cloud API ficam restritas a `webhookUtils.ts`, `replyTransport.ts` e ao adaptador separado de acknowledgement; `architecture:check` protege essa fronteira.
 
 `simulateWhatsappInbound` ([server/modules/whatsapp/service.ts](../../server/modules/whatsapp/service.ts), via tRPC) percorre a cadeia de intents e **retorna** `reply` para o chamador web — não envia pela Cloud API.
 
@@ -67,10 +67,10 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 
 | Fluxo | Entrada | Cadeia | Efeito de domínio | Builder/transporte atuais | Outbound atual | Resposta desejada | Testes existentes | Lacuna |
 |---|---|---|---|---|---|---|---|---|
-| Resumo/relatório de período | `resumo de hoje` | intent webhook → `buildExerciseAwarePeriodReportReply` (builder local) | nenhum (consulta) | builder local com `Meta estimada`/`Meta ajustada` e **chamada própria a `calculateAdjustedGoalCalories`** | 1 mensagem | somente `Meta`, diferença `consumo - meta`, macros `P`/`C`/`G` com `•`; meta final vem do domínio (#756) | `whatsappIntentWebhook.test.ts` (parcial) | **risco #756**: regra da meta duplicada no webhook; formato legado congela `Meta estimada/ajustada` |
+| Resumo/relatório de período | `resumo de hoje` | intent webhook → bundle canônico de relatórios | nenhum (consulta) | builder central recebe a meta efetiva do domínio | 1 mensagem | somente `Meta`, diferença `consumo - meta`, macros `P`/`C`/`G` com `•` | `whatsappIntentWebhook.test.ts`, `replyMessages.test.ts` | concluído (#784) |
 | Clarificação de período pendente | `resumo` → `ontem` | pendência `period_report_clarification` em `whatsappPendingOperations` | nenhum | texto de clarificação | 1 + 1 mensagens | lista/botões de período (#782) | `whatsappIntentWebhook.test.ts` | pendência textual |
 | Água por texto | `300 ml de água` | intent webhook → `executeWhatsappTextIntent` (water_logged) | 1 water log | reply do intent (`replyMessages.buildWhatsAppWaterLoggedReplyMessage` ou texto do intent) | 1 mensagem | diferença em relação à meta de água | `waterFoodText.test.ts`, baseline | formato sem meta |
-| Água + alimento na mesma mensagem | `300ml água\n1 pão` | intent webhook divide (`splitWhatsAppWaterAndFoodText`) e repassa alimento | água 1x + refeição 1x | `buildMixedWaterReply` local + resposta da refeição | 2 respostas funcionais (água e refeição) | uma sequência coordenada do contrato central | `whatsappIntentWebhook.test.ts`, `waterFoodText.test.ts` | duas respostas lógicas para uma entrada |
+| Água + alimento na mesma mensagem | `300ml água\n1 pão` | intent webhook divide (`splitWhatsAppWaterAndFoodText`) e repassa alimento | água 1x + refeição 1x | blocos centrais compostos antes do envio final | 1 resposta funcional consolidada | uma sequência coordenada do contrato central | `whatsappIntentWebhook.test.ts`, `waterFoodText.test.ts` | concluído (#785) |
 | Água por texto no fallback base | água detectada só no webhook base | base webhook (`detectWaterLogFromMessage`) | 1 water log | `webhookTextCommands.buildWaterLogReply` | ack + 1 resposta | caminho único (intent), formato central | `whatsappWebhook.test.ts` | builder duplicado de água |
 | Peso por texto | `pesei 82,5 kg` | intent webhook (`detectWeightLogFromText`) | peso atualizado 1x | builder local `buildWeightLogReply` (duplicado no base webhook) | 1 mensagem | variação sem juízo de valor, formato central | baseline; `whatsappWebhook.test.ts` | builders duplicados; sem variação |
 | Peso sem valor | `quero registrar meu peso` | intent webhook | nenhum registro | texto local de clarificação | 1 mensagem | clarificação central | baseline | builder local |
@@ -81,7 +81,7 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 
 | Fluxo | Entrada | Cadeia | Efeito de domínio | Builder/transporte atuais | Outbound atual | Resposta desejada | Testes existentes | Lacuna |
 |---|---|---|---|---|---|---|---|---|
-| Imagem de refeição | foto de prato | annotated webhook | 1 refeição + consolidação; mídia vinculada | `buildWhatsAppMealReplyMessage`/consolidado + quick edit; `sendWhatsAppImageMessage`/buffer para anotada | read receipt + ack + resposta funcional + imagem anotada (ou fallback textual) | uma resposta lógica: texto final + mídia auxiliar; ack apenas em processamento lento | `whatsappAnnotatedImageWebhook.test.ts`, `annotatedImage.test.ts`, baseline | ordem física e ack fora do lifecycle — coberto pela baseline |
+| Imagem de refeição | foto de prato | annotated webhook | 1 refeição + consolidação; mídia vinculada | resposta lógica central com texto primário e imagem auxiliar | read receipt + ack apenas se lento + resposta funcional | uma resposta lógica; falha da mídia não repete domínio | `whatsappAnnotatedImageWebhook.test.ts`, `annotatedImage.test.ts`, baseline | concluído (#785) |
 | Imagem não reconhecida | foto ruim | annotated webhook (`MealInferenceError`) | nenhum registro | texto local | ack + 1 resposta | erro central sem detalhe técnico | `whatsappAnnotatedImageWebhook.test.ts` | builder local |
 | Falha ao gerar/enviar anotada | idem imagem | annotated webhook | refeição já registrada; sem re-execução | textos locais `ANNOTATED_IMAGE_*` | ack + resposta funcional + fallback textual da anotada | mídia auxiliar opcional, sem segunda resposta funcional | `whatsappAnnotatedImageWebhook.test.ts` | fallback textual da anotada é gravado como outbound extra |
 | Áudio | áudio "comi 2 ovos" | base webhook (transcrição → intent ou nutricional) | refeição/água/peso conforme transcrição | mesmos builders do texto | ack + 1 resposta funcional (sem transcrição exibida) | resposta final da ação correspondente | `whatsappWebhook.audioTranscription.test.ts`, `whatsappAudioHydrationWebhook.test.ts` | ack obrigatório mesmo no caminho rápido |
@@ -102,7 +102,7 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 | Fluxo | Entrada | Cadeia | Efeito de domínio | Builder/transporte atuais | Outbound atual | Resposta desejada | Testes existentes | Lacuna |
 |---|---|---|---|---|---|---|---|---|
 | Lead sem cadastro | mensagem de telefone desconhecido | idempotency webhook (`handleOnboardingLeadMessage`) | lead criado | texto local + botão `Finalizar cadastro` (fallback texto+URL) | 1 mensagem | onboarding em duas mensagens, informar `/`; contrato central | `whatsappImageIdempotencyWebhook.test.ts` | fora do lifecycle (sem usuário); builder local |
-| Boas-vindas pós-cadastro (web) | conclusão de cadastro no site | `onboarding/webGreetingService` (2 envios) | nenhum | textos locais | 2 mensagens proativas | sequência do contrato central | `modules/onboarding/*.test.ts` | builder local |
+| Boas-vindas pós-cadastro (web) | conclusão de cadastro no site | `onboarding/webGreetingService` | nenhum | sequência central de duas mensagens, incluindo orientação sobre `/` | 2 mensagens físicas em 1 resposta lógica proativa | sequência do contrato central | `modules/onboarding/*.test.ts` | concluído (#788) |
 | Pedido de acesso profissional | profissional solicita acesso (web) | `professionals/service` notifica paciente | pendência de autorização criada em `whatsappPendingOperations` (`type: professional_access`) além do registro próprio de acesso | botões `Autorizar`/`Recusar` (issue #782) com texto `AUTORIZAR/NEGAR <código>` mantido como fallback no corpo da mensagem | 1 mensagem proativa | ✅ migrado (#782) | `professionalPatientFlow.test.ts`, `whatsappAuthorization.test.ts`, `messageRouter.interactiveCallback.test.ts` | — |
 | Decisão do paciente | botão `Autorizar`/`Recusar` (ou texto `autorizo`/`nego`) | gate central (`interactiveCallback` → `completeWhatsAppProfessionalAccessCallback`) ou intent webhook (`looksLikeProfessionalAccessDecision`) | autorização aplicada 1x; repetição (botão ou texto) não muda decisão já consumida, pois `access.status` deixa de ser `"pending"` | resposta central sanitizada; IDs internos nunca aparecem no callback opaco | 1 mensagem | ✅ migrado (#782) para o caminho por botão; matcher textual amplo do fallback continua sem alteração | `professionalPatientFlow.test.ts`, `messageRouter.interactiveCallback.test.ts` | matcher textual amplo do fallback ainda pode capturar outros textos (não migrado, fora do escopo da #782) |
 | Conteúdo suspeito | prompt injection | guards em intent/annotated/base | nenhum registro | `buildSuspiciousWhatsAppContentReply` | 1 mensagem | erro de segurança central, sem detalhe técnico | `promptInjectionGuard.test.ts`, `whatsappWebhook.secret.test.ts` | três pontos de envio distintos |
@@ -117,12 +117,12 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 | `sendAndLogTextReply` (intent webhook) | quase-transporte central: envia, loga, grava outbound, marca processado | base para o transporte central integrado ao lifecycle — #781 |
 | Builders locais (intent webhook, base webhook, idempotency webhook, `webhookTextCommands`, integrações) | duplicam água/peso/resumo/refeição | migrar e remover — #783–#787, remoção final #788 |
 | `whatsappPendingOperations` | confirmação genérica, seleção/confirmação de exclusão, clarificação de período, autorização profissional (`professional_access`), seleção ambígua de item para ajuste de gramas/substituição (`meal_item_selection`, #783) | ✅ reutilizada para botões/listas/callbacks com validação de usuário, expiração e consumo idempotente via `interactiveCallback.ts` — #782 e #783; sem store paralelo |
-| Acks e read receipts | ack em imagem sempre; ack no base webhook para texto/áudio; nunca gravados como resposta funcional | no máximo 1 ack em processamento lento; nenhum no caminho rápido — #785 |
+| Acks e read receipts | read receipt separado; ack cancelável e nunca gravado como resposta funcional | no máximo 1 ack em processamento lento; nenhum no caminho rápido — concluído #785 |
 
 ## Contratos da #756 e riscos para a tela de Relatórios
 
 - A configuração "exercícios aumentam a meta" (#756) é aplicada no domínio (`shared/reportsGoalAnalytics.calculateAdjustedGoalCalories` consumido pelas telas e por `goalProgressService`).
-- **Risco mapeado**: `buildExerciseAwarePeriodReportReply` em `whatsappIntentWebhook.ts` chama `calculateAdjustedGoalCalories` diretamente e formata `Meta estimada`/`Meta ajustada`. A #784 deve passar a receber a meta final do domínio, sem recalcular, e usar somente `Meta`.
+- **Risco encerrado (#784)**: o WhatsApp recebe a meta efetiva do domínio e usa somente `Meta`; o gate de arquitetura proíbe `calculateAdjustedGoalCalories`, `Meta estimada` e `Meta ajustada` nos fluxos WhatsApp.
 - A tela de Relatórios (`client/`, `goals-and-reports.md`) não é tocada por esta epic; qualquer mudança em `shared/reportsGoalAnalytics` está fora de escopo das subissues de resposta.
 - Critério de regressão: nenhum formatter/handler do WhatsApp pode passar a executar `calculateAdjustedGoalCalories` ou regra equivalente após a #784; a #788 adiciona proteção arquitetural para isso.
 

@@ -5,7 +5,7 @@ import type { MealItemInput } from "../meals/schemas";
 import { formatWhatsAppConsolidationDateKey } from "./mealConsolidation";
 import type { WhatsappInterpretedIntent } from "./intentSchema";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
-import { buildWhatsAppCallbackId } from "./interactiveCallback";
+import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { buttonsReply, listReply, type WhatsAppLogicalReply } from "./replyContract";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage, buildWhatsAppMealActionReplyMessage } from "./replyMessages";
 
@@ -615,7 +615,8 @@ export async function executeWhatsappDeleteIntent(userId: number, input: { text?
   if (pendingRow && pendingRow.type === PENDING_DELETE_TYPE) {
     const pending = pendingRow.target as PendingDeleteOperation;
     if (isCancellationText(normalized)) {
-      await pendingOperationRepository.cancelPendingOperation(pendingRow.id);
+      const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CANCEL_ACTION);
+      if (claim.status !== "claimed") return null;
       return buildCancellationResult();
     }
 
@@ -633,8 +634,8 @@ export async function executeWhatsappDeleteIntent(userId: number, input: { text?
             data: { destructiveActionBlocked: true, candidateCount: pending.candidates.length },
           };
         }
-        const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });
-        if (!claim.claimed) return null;
+        const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, `${SELECT_ACTION_PREFIX}${selectedIndex}`);
+        if (claim.status !== "claimed") return null;
         const created = await pendingOperationRepository.createPendingOperation({
           userId,
           type: PENDING_DELETE_TYPE,
@@ -656,9 +657,9 @@ export async function executeWhatsappDeleteIntent(userId: number, input: { text?
     }
 
     if (isConfirmationText(normalized)) {
-      const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });
-      if (!claim.claimed) return null;
-      return confirmPendingDelete(userId, pending);
+      const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CONFIRM_ACTION);
+      if (claim.status !== "claimed") return null;
+      return confirmPendingDelete(userId, claim.pendingOperation.target as PendingDeleteIntent);
     }
   }
 

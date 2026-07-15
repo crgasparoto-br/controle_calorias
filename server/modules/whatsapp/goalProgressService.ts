@@ -1,83 +1,61 @@
-import {
-  getUserDayMealTotals,
-  getUserNutritionGoal,
-  listUserExercisesByDate,
-  logInferenceEvent,
-} from "../../db";
-import { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";
-import { sumExercises } from "../exercises/store";
+import { getUserDayMealTotals, getUserNutritionGoal, logInferenceEvent } from "../../db";
 import { formatDateKeyInSaoPaulo } from "./webhookUtils";
 import type { WhatsAppMealGoalProgress } from "./replyMessages";
-
-type AppliedGoal = {
-  calories: number;
-  proteinGrams: number;
-  carbsGrams: number;
-  fatGrams: number;
-  includeExerciseCalories: boolean;
-};
 
 function safeLogGoalWarning(input: Parameters<typeof logInferenceEvent>[0]) {
   try {
     logInferenceEvent(input);
   } catch {
-    // Alguns testes isolam o webhook com mocks parciais de db. A ausência do
-    // logger não pode transformar um fallback opcional de meta em rejeição não tratada.
+    // Mocks parciais de db não podem transformar um fallback opcional em rejeição não tratada.
   }
 }
 
-async function resolveAppliedGoal(userId: number, dateKey: string): Promise<AppliedGoal> {
-  const current = await getUserNutritionGoal(userId);
-  if (!process.env.DATABASE_URL) return current.today;
+async function resolveEffectiveGoal(userId: number, dateKey: string) {
+  if (!process.env.DATABASE_URL) {
+    const current = await getUserNutritionGoal(userId);
+    return {
+      effectiveGoalCalories: current.today.calories,
+      exerciseCalories: 0,
+      includeExerciseCalories: current.today.includeExerciseCalories,
+    };
+  }
 
   try {
-    const { getNutritionGoalForDate } = await import("../goals/service");
-    return (await getNutritionGoalForDate(userId, dateKey)).today;
+    const { getEffectiveNutritionGoalForDate } = await import("../goals/service");
+    return getEffectiveNutritionGoalForDate(userId, dateKey);
   } catch (error) {
+    const current = await getUserNutritionGoal(userId);
     safeLogGoalWarning({
       userId,
       origin: "whatsapp",
       status: "warning",
       eventType: "whatsapp.goal_history_fallback",
-      detail: error instanceof Error ? error.message : "Falha ao resolver versão histórica da meta.",
+      detail: error instanceof Error ? error.message : "Falha ao resolver meta efetiva histórica.",
     });
-    return current.today;
+    return {
+      effectiveGoalCalories: current.today.calories,
+      exerciseCalories: 0,
+      includeExerciseCalories: current.today.includeExerciseCalories,
+    };
   }
 }
 
-async function resolveExerciseCalories(userId: number, dateKey: string) {
-  if (!process.env.DATABASE_URL) return 0;
-  const exercises = await listUserExercisesByDate(userId, dateKey);
-  return Math.max(0, sumExercises(exercises));
-}
-
-/**
- * Resolve meta e exercícios pelo próprio usuário e pela data da refeição.
- * Não utiliza contexto de lote indexado apenas por data, evitando mistura entre
- * usuários processados no mesmo webhook.
- */
 export async function getWhatsAppMealGoalProgress(
   userId: number,
   occurredAt: Date,
 ): Promise<WhatsAppMealGoalProgress | null> {
   try {
     const dateKey = formatDateKeyInSaoPaulo(occurredAt);
-    const [appliedGoal, dayTotals, exerciseCalories] = await Promise.all([
-      resolveAppliedGoal(userId, dateKey),
+    const [goal, dayTotals] = await Promise.all([
+      resolveEffectiveGoal(userId, dateKey),
       getUserDayMealTotals(userId, dateKey),
-      resolveExerciseCalories(userId, dateKey),
     ]);
-    const effectiveGoalCalories = calculateAdjustedGoalCalories(
-      appliedGoal.calories,
-      exerciseCalories,
-      appliedGoal.includeExerciseCalories,
-    );
 
     return {
       consumedCalories: dayTotals.totals.calories,
-      goalCalories: effectiveGoalCalories,
-      exerciseCalories,
-      includeExerciseCalories: appliedGoal.includeExerciseCalories,
+      goalCalories: goal.effectiveGoalCalories,
+      exerciseCalories: goal.exerciseCalories,
+      includeExerciseCalories: goal.includeExerciseCalories,
     };
   } catch (error) {
     safeLogGoalWarning({
