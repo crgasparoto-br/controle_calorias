@@ -67,7 +67,6 @@ export async function getWhatsAppMealGoalProgress(
     return {
       consumedCalories: dayTotals.totals.calories,
       goalCalories: effectiveGoalCalories,
-      effectiveGoalCalories,
       exerciseCalories,
       includeExerciseCalories: appliedGoal.includeExerciseCalories,
       consumedProteinGrams: dayTotals.totals.protein,
