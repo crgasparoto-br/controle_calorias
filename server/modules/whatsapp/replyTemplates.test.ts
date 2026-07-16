@@ -81,6 +81,15 @@ describe("replyTemplates", () => {
     ]);
   });
 
+  it("nunca usa o rótulo composto de saldo", () => {
+    const lines = buildWhatsAppGoalProgressLines({
+      consumedCalories: 2100,
+      effectiveGoalCalories: 2000,
+    });
+
+    expect(lines.join("\n")).not.toContain("Superávit/Déficit");
+  });
+
   it("normaliza os valores exibidos antes de classificar equilíbrio", () => {
     expect(buildWhatsAppCalorieBalanceLine({
       consumedCalories: 2000.4,
