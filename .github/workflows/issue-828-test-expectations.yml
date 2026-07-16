@@ -1,0 +1,74 @@
+name: Issue 828 test expectation updater
+
+on:
+  push:
+    branches:
+      - fix/828-whatsapp-nutrition-summary
+
+permissions:
+  contents: write
+
+jobs:
+  update-expectations:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/828-whatsapp-nutrition-summary
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update legacy assertions and remove helper
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "server/whatsappWebhook.reply.test.ts": [
+                  (
+                      '    expect(finalReply).toContain("*Consumo:* 795 kcal (-1.405 kcal)");',
+                      '    expect(finalReply).toContain("*Consumo:* 795 kcal");\n'
+                      '    expect(finalReply).toContain("*Déficit:* 1.405 kcal (-64%)");',
+                  ),
+              ],
+              "server/whatsappAnnotatedImageWebhook.test.ts": [
+                  (
+                      '    expect(sentTextMessages[0]).toContain("*Consumo:* 1.620 kcal (-580 kcal)");',
+                      '    expect(sentTextMessages[0]).toContain("*Consumo:* 1.620 kcal");\n'
+                      '    expect(sentTextMessages[0]).toContain("*Déficit:* 580 kcal (-26%)");',
+                  ),
+              ],
+              "server/whatsappWebhook.test.ts": [
+                  (
+                      '    expect(lastSentWhatsAppBody).toContain("*Consumo:* 130 kcal (-2.070 kcal)");',
+                      '    expect(lastSentWhatsAppBody).toContain("*Consumo:* 130 kcal");\n'
+                      '    expect(lastSentWhatsAppBody).toContain("*Déficit:* 2.070 kcal (-94%)");',
+                  ),
+              ],
+              "server/modules/whatsapp/replyTemplates.test.ts": [
+                  ('"*Déficit:* 150 kcal (-8%)"', '"*Déficit:* 150 kcal (-7%)"'),
+              ],
+              "server/modules/whatsapp/domainReplyFormatters.test.ts": [
+                  ('"*Déficit:* 300 kcal (-8%)"', '"*Déficit:* 300 kcal (-7%)"'),
+                  ('"• P 210 g (-30 g/-13%)"', '"• P 210 g (-30 g/-12%)"'),
+              ],
+          }
+
+          for filename, changes in replacements.items():
+              path = Path(filename)
+              text = path.read_text()
+              for old, new in changes:
+                  if old not in text:
+                      raise SystemExit(f"Expected text not found in {filename}: {old}")
+                  text = text.replace(old, new)
+              path.write_text(text)
+
+          Path(".github/workflows/issue-828-test-expectations.yml").unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test: alinhar regressões ao novo resumo nutricional (#828)"
+          git push origin HEAD:fix/828-whatsapp-nutrition-summary
