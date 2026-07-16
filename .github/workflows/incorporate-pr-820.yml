@@ -1,0 +1,142 @@
+name: Incorporate PR 820 into PR 819
+
+on:
+  push:
+    branches:
+      - fix/779-concluir-auditoria
+
+permissions:
+  contents: write
+
+jobs:
+  incorporate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR 819 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply PR 820 changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("server/whatsappIntentWebhook.ts")
+          source = source_path.read_text(encoding="utf-8")
+
+          import_needle = 'import { executeWhatsappGramsAdjustmentIntent } from "./modules/whatsapp/gramsAdjustmentIntent";\n'
+          import_replacement = import_needle + 'import { executeWhatsappGramsIncrementIntent } from "./modules/whatsapp/gramsIncrementIntent";\nimport { parseMealCommandFromWhatsApp } from "./modules/whatsapp/mealCommandParser";\n'
+          if 'executeWhatsappGramsIncrementIntent' not in source:
+              assert source.count(import_needle) == 1, "Import anchor not found exactly once"
+              source = source.replace(import_needle, import_replacement, 1)
+
+          helper_needle = '''function looksLikeTonicWaterFood(text: string) {
+            const normalized = normalizeText(text);
+            return /\\bagua\\s+tonicas?\\b/.test(normalized);
+          }
+
+          '''
+          helper_block = '''function looksLikeTonicWaterFood(text: string) {
+            const normalized = normalizeText(text);
+            return /\\bagua\\s+tonicas?\\b/.test(normalized);
+          }
+
+          // Comandos de adição de alimento ("adicionar 100 g de feijão no almoço") compartilham
+          // verbos com incrementos de gramas; eles devem seguir para o fluxo de adição em
+          // executeWhatsappTextIntent em vez de serem tratados como incremento de item existente.
+          function isFoodAdditionCommand(text: string, receivedAt: Date) {
+            const parsed = parseMealCommandFromWhatsApp(text, { referenceDate: receivedAt });
+            return parsed.intent === "add_items_to_meal" && Boolean(parsed.mealType) && parsed.items.length > 0;
+          }
+
+          '''
+          if 'function isFoodAdditionCommand' not in source:
+              assert source.count(helper_needle) == 1, "Helper anchor not found exactly once"
+              source = source.replace(helper_needle, helper_block, 1)
+
+          handler_needle = '  let nutritionFallback: WhatsappLlmNutritionFallback | null = null;\n'
+          handler_block = '''  const gramsIncrementResult = isFoodAdditionCommand(textForIntent, occurredAt)
+            ? null
+            : await executeWhatsappGramsIncrementIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+          if (gramsIncrementResult) {
+            markTextIntentMessageHandled(message.id);
+            await clearPendingTextIntentContext(userId);
+            await sendAndLogTextReply({
+              userId,
+              sourcePhone,
+              userMessage: text,
+              reply: gramsIncrementResult.reply,
+              eventType: gramsIncrementResult.eventType,
+              detail: gramsIncrementResult.detail,
+              status: gramsIncrementResult.action === "clarification_needed" ? "warning" : "success",
+              mealId: extractMealId(gramsIncrementResult.data),
+              occurredAtMs,
+              lifecycleHandle,
+              interactiveReply: gramsIncrementResult.interactiveReply,
+            });
+            return true;
+          }
+
+          ''' + handler_needle
+          if 'const gramsIncrementResult = isFoodAdditionCommand' not in source:
+              assert source.count(handler_needle) == 1, "Handler anchor not found exactly once"
+              source = source.replace(handler_needle, handler_block, 1)
+
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("server/whatsappIntentWebhook.test.ts")
+          tests = test_path.read_text(encoding="utf-8")
+          test_anchor = '  it("substitui gramas do alimento existente e não delega para inferência nutricional", async () => {\n'
+          new_tests = '''  it("aumenta gramas na refeição citada pelo nome mesmo quando não é a última", async () => {
+            listMealsMock.mockResolvedValue([
+              { id: 35, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T15:30:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [bananaItem] },
+              { id: 34, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] },
+            ]);
+            updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: (input as { mealId: number }).mealId, ...input }));
+            const req = createTextWebhookRequest("aumentar 30g do arroz do almoço", { id: "increment-rice-labeled-meal" });
+            const res = createResponse();
+
+            await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+            expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+              mealId: 34,
+              items: [expect.objectContaining({ foodName: "Arroz branco", estimatedGrams: 180, portionText: "180 g" })],
+            }));
+            expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+            expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_grams_adjusted" }));
+            expect(sentMessages.at(-1)).toContain("de 150 g para 180 g");
+          });
+
+          it("mantém adição de alimento com refeição nomeada no fluxo de adição, sem tratar como incremento", async () => {
+            listMealsMock.mockResolvedValue([
+              { id: 36, userId: 42, mealLabel: "Almoço", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] },
+            ]);
+            updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: (input as { mealId: number }).mealId, ...input }));
+            const req = createTextWebhookRequest("Adicionar 100g de feijão no almoço", { id: "add-beans-to-lunch" });
+            const res = createResponse();
+
+            await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+            expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", eventType: "whatsapp.intent.meal_item_added" }));
+            expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+              mealId: 36,
+              items: [riceItem, expect.objectContaining({ estimatedGrams: 100 })],
+            }));
+          });
+
+          '''
+          if 'increment-rice-labeled-meal' not in tests:
+              assert tests.count(test_anchor) == 1, "Test anchor not found exactly once"
+              tests = tests.replace(test_anchor, new_tests + test_anchor, 1)
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/whatsappIntentWebhook.ts server/whatsappIntentWebhook.test.ts
+          git rm .github/workflows/incorporate-pr-820.yml
+          git commit -m "feat(whatsapp): incorporar correção de incremento por refeição da PR #820"
+          git push origin HEAD:fix/779-concluir-auditoria
