@@ -1,15 +1,17 @@
 name: Apply issue 796 WhatsApp
 
 on:
-  push:
+  pull_request:
+    types: [opened, reopened, synchronize]
     branches:
-      - feat/796-timezone-whatsapp
+      - feat/795-timezone-backend-reports
 
 permissions:
   contents: write
 
 jobs:
   apply-whatsapp:
+    if: github.head_ref == 'feat/796-timezone-whatsapp'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout implementation branch
