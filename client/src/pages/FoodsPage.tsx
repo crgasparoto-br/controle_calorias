@@ -34,6 +34,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
+import { canDeleteLegacyFood, getFoodCardActionState } from "./foodsPageState";
 import { MEASUREMENT_UNIT_SUGGESTIONS } from "../../../shared/measurementUnits";
 import { PencilLine, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -307,10 +308,11 @@ export default function FoodsPage() {
                                 favorite: !food.isFavorite,
                               })
                             }
-                            canDelete={
-                              food.isUserCreated &&
-                              food.createdByUserId === user?.id
-                            }
+                            canDelete={canDeleteLegacyFood({
+                              isUserCreated: food.isUserCreated,
+                              createdByUserId: food.createdByUserId,
+                              currentUserId: user?.id,
+                            })}
                             isDeletePending={
                               deleteFood.isPending &&
                               foodToDelete?.id === food.id
@@ -686,6 +688,11 @@ function FoodResultCard({
   isDeletePending: boolean;
   onDelete: () => void;
 }) {
+  const actionState = getFoodCardActionState({
+    isFavoritePending,
+    isDeletePending,
+  });
+
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -724,6 +731,7 @@ function FoodResultCard({
               size="icon"
               className="rounded-full"
               onClick={onEdit}
+              disabled={actionState.editDisabled}
               aria-label={`Editar ${food.name}`}
             >
               <PencilLine className="h-4 w-4" />
@@ -735,7 +743,7 @@ function FoodResultCard({
             size="icon"
             className="rounded-full"
             onClick={onToggleFavorite}
-            disabled={isFavoritePending}
+            disabled={actionState.favoriteDisabled}
             aria-label={
               food.isFavorite
                 ? `Remover ${food.name} dos favoritos`
@@ -753,7 +761,7 @@ function FoodResultCard({
               size="sm"
               className="rounded-full"
               onClick={onDelete}
-              disabled={isDeletePending}
+              disabled={actionState.deleteDisabled}
               aria-label={`Excluir alimento ${food.name}`}
             >
               <Trash2 className="mr-2 h-4 w-4" />

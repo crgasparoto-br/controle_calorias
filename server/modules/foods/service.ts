@@ -310,8 +310,8 @@ async function replaceCustomFoodAliases(
 }
 
 const legacyFoodDeletionService = createLegacyFoodDeletionService({
-  getDb,
-  searchFoods,
+  getDb: () => getDb(),
+  searchFoods: (userId, query, limit) => searchFoods(userId, query, limit),
   onWarning: (scope, error) =>
     console.warn(
       `[Foods] ${scope}:`,

@@ -472,6 +472,79 @@ describe("foods catalog service", () => {
     ]);
   });
 
+  it("reuses a new active own entry after the old identity was deprecated", async () => {
+    const global = catalogRow({
+      id: 20,
+      name: "Panqueca",
+      aliases: "[]",
+      status: "active",
+    });
+    const deprecatedOwn = catalogRow({
+      id: 21,
+      name: "Panqueca",
+      aliases: "[]",
+      status: "deprecated",
+      isUserCreated: 1,
+      createdByUserId: 7,
+    });
+    const activeOwn = catalogRow({
+      id: 99,
+      name: "Panqueca",
+      aliases: "[]",
+      status: "active",
+      isUserCreated: 1,
+      createdByUserId: 7,
+    });
+    const repository = createFakeFoodCatalogRepository({
+      findForResolution: vi.fn(async () => [global, deprecatedOwn, activeOwn]),
+      insert: vi.fn(async () => 100),
+    });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
+
+    const resolved = await service.resolveFoodCatalogIds(
+      [{ canonicalName: "Panqueca", foodName: "Panqueca" } as any],
+      7
+    );
+
+    expect(resolved.get("Panqueca")).toBe(99);
+    expect(repository.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a direct id owned by another user even if a repository returns it", async () => {
+    const foreignFood = catalogRow({
+      id: 88,
+      name: "Panqueca",
+      aliases: "[]",
+      status: "active",
+      isUserCreated: 1,
+      createdByUserId: 8,
+    });
+    const repository = createFakeFoodCatalogRepository({
+      findForResolution: vi.fn(async () => [foreignFood]),
+    });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
+
+    const resolved = await service.resolveFoodCatalogIds(
+      [
+        {
+          foodCatalogId: 88,
+          canonicalName: "Panqueca",
+          foodName: "Panqueca",
+        } as any,
+      ],
+      7
+    );
+
+    expect(resolved.has("catalog:88")).toBe(false);
+    expect(resolved.has("Panqueca")).toBe(false);
+  });
+
   it("clears user-created foods and favorites from memory", async () => {
     const service = createService();
     const created = await service.createUserFood(3, {

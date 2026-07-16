@@ -149,9 +149,7 @@ function foodAlreadyMatchesInput(food: FoodSearchItem, input: FoodUpsertInput) {
 
 export function createFoodsService(deps: {
   foodCatalogRepository: FoodCatalogRepository;
-  findMealItemsWithDates: (
-    userId: number
-  ) => Promise<
+  findMealItemsWithDates: (userId: number) => Promise<
     Array<{
       canonicalName?: string | null;
       foodName: string;
@@ -624,12 +622,15 @@ export function createFoodsService(deps: {
         : (await deps.foodCatalogRepository.findAll()).filter(
             row => !row.createdByUserId || row.createdByUserId === userId
           );
-      const activeRows = rows.filter(
+      const scopedRows = rows.filter(
+        row => !row.createdByUserId || row.createdByUserId === userId
+      );
+      const activeRows = scopedRows.filter(
         row =>
           (row.status ?? "active") === "active" &&
           !isFoodDeprecatedInMemory(userId, row.id)
       );
-      const deprecatedOwnRows = rows.filter(
+      const deprecatedOwnRows = scopedRows.filter(
         row =>
           row.createdByUserId === userId &&
           (row.status ?? "active") === "deprecated"
@@ -640,6 +641,7 @@ export function createFoodsService(deps: {
           .flatMap(rowIdentityKeys)
       );
       const blockedKeys = getDeprecatedIdentityKeys(userId);
+      for (const key of activeOwnKeys) blockedKeys.delete(key);
       for (const row of deprecatedOwnRows) {
         for (const key of rowIdentityKeys(row)) {
           if (!activeOwnKeys.has(key)) blockedKeys.add(key);
