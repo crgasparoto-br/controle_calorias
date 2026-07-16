@@ -1,4 +1,5 @@
 import { tryCreateQuickEditLinkForMeal } from "../quickEdit/service";
+import { enrichWhatsAppMealActionReply } from "./mealActionReplyEnrichment";
 import { logicalReplyFromLegacyText, withAuxiliaryImage, withCtaUrl, type WhatsAppLogicalReply } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
 import type { MessageLifecycleHandle } from "./messageLifecycle";
@@ -14,7 +15,12 @@ function canReplacePrimaryWithCta(reply: WhatsAppLogicalReply) {
 export async function buildWhatsAppLogicalReplyForDelivery(input: {
   userId: number; replyText: string; mealId?: number | null; logicalReply?: WhatsAppLogicalReply; auxiliaryImage?: WhatsAppAuxiliaryImage | null;
 }) {
-  let reply = input.logicalReply ?? logicalReplyFromLegacyText(input.replyText);
+  const replyText = await enrichWhatsAppMealActionReply({
+    userId: input.userId,
+    replyText: input.replyText,
+    mealId: input.mealId,
+  });
+  let reply = input.logicalReply ?? logicalReplyFromLegacyText(replyText);
   if (input.mealId && canReplacePrimaryWithCta(reply)) {
     try {
       const link = await tryCreateQuickEditLinkForMeal({ userId: input.userId, mealId: input.mealId });
