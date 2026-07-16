@@ -66,7 +66,7 @@ describe("replyTemplates", () => {
       "*Meta:* 2.000 kcal",
       "*Exercícios:* 350 kcal",
       "*Consumo:* 1.850 kcal",
-      "*Déficit:* 150 kcal (-8%)",
+      "*Déficit:* 150 kcal (-7%)",
     ]);
   });
 
@@ -102,7 +102,7 @@ describe("replyTemplates", () => {
     })).toEqual([
       "*Meta:* 2.000 kcal",
       "*Consumo:* 1.850 kcal",
-      "*Déficit:* 150 kcal (-8%)",
+      "*Déficit:* 150 kcal (-7%)",
       "",
       "*Macronutrientes*",
       "• P 110 g (-10 g/-8%)",

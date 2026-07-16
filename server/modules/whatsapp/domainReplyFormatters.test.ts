@@ -21,10 +21,10 @@ describe("domainReplyFormatters", () => {
       "*Meta:* 4.000 kcal",
       "*Exercícios:* 500 kcal",
       "*Consumo:* 3.700 kcal",
-      "*Déficit:* 300 kcal (-8%)",
+      "*Déficit:* 300 kcal (-7%)",
       "",
       "*Macronutrientes*",
-      "• P 210 g (-30 g/-13%)",
+      "• P 210 g (-30 g/-12%)",
       "• C 300 g (-20 g/-6%)",
       "• G 110 g (+10 g/+10%)",
     ]);
