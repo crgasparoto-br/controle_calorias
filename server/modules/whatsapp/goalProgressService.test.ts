@@ -34,6 +34,12 @@ describe("goalProgressService", () => {
         effectiveGoalCalories: baseGoal + exerciseCalories,
         exerciseCalories,
         includeExerciseCalories: true,
+        appliedGoal: {
+          calories: baseGoal,
+          proteinGrams: 120,
+          carbsGrams: 150,
+          fatGrams: 50,
+        },
       };
     });
   });
@@ -61,6 +67,19 @@ describe("goalProgressService", () => {
       goalCalories: 2200,
       consumedCalories: 1850,
       exerciseCalories: 300,
+    });
+  });
+
+  it("mapeia consumo diário e metas de macros sem ajustá-las por exercício", async () => {
+    const result = await getWhatsAppMealGoalProgress(101, new Date("2026-07-15T15:00:00-03:00"));
+
+    expect(result).toMatchObject({
+      consumedProteinGrams: 110,
+      targetProteinGrams: 120,
+      consumedCarbsGrams: 130,
+      targetCarbsGrams: 150,
+      consumedFatGrams: 55,
+      targetFatGrams: 50,
     });
   });
 
