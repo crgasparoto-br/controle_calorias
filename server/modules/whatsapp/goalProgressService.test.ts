@@ -19,6 +19,15 @@ import { getWhatsAppMealGoalProgress } from "./goalProgressService";
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
 
+function appliedGoal(calories = 2000) {
+  return {
+    calories,
+    proteinGrams: 120,
+    carbsGrams: 150,
+    fatGrams: 50,
+  };
+}
+
 describe("goalProgressService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -34,12 +43,7 @@ describe("goalProgressService", () => {
         effectiveGoalCalories: baseGoal + exerciseCalories,
         exerciseCalories,
         includeExerciseCalories: true,
-        appliedGoal: {
-          calories: baseGoal,
-          proteinGrams: 120,
-          carbsGrams: 150,
-          fatGrams: 50,
-        },
+        appliedGoal: appliedGoal(baseGoal),
       };
     });
   });
@@ -79,6 +83,26 @@ describe("goalProgressService", () => {
       consumedCarbsGrams: 130,
       targetCarbsGrams: 150,
       consumedFatGrams: 55,
+      targetFatGrams: 50,
+    });
+  });
+
+  it("preserva a meta efetiva sem somar exercícios quando a configuração está desativada", async () => {
+    getEffectiveNutritionGoalForDateMock.mockResolvedValue({
+      effectiveGoalCalories: 2000,
+      exerciseCalories: 300,
+      includeExerciseCalories: false,
+      appliedGoal: appliedGoal(),
+    });
+
+    const result = await getWhatsAppMealGoalProgress(101, new Date("2026-07-15T15:00:00-03:00"));
+
+    expect(result).toMatchObject({
+      goalCalories: 2000,
+      exerciseCalories: 300,
+      includeExerciseCalories: false,
+      targetProteinGrams: 120,
+      targetCarbsGrams: 150,
       targetFatGrams: 50,
     });
   });
