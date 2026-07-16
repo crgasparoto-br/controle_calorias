@@ -19,6 +19,7 @@ export type WhatsAppArchitectureRule =
   | "cloud-api-payload"
   | "send-import-outside-transport"
   | "legacy-goal-label"
+  | "goal-rule-duplication"
   | "ai-final-text-schema";
 
 export type WhatsAppArchitectureAllowlistEntry = {
@@ -131,6 +132,16 @@ export function findWhatsAppResponseArchitectureViolationsWithAllowlist(
     if (/Meta (estimada|ajustada)/.test(content) && !isAllowed(allowlist, path, "legacy-goal-label")) {
       violations.push(
         `whatsapp response: rótulo legado de meta ("Meta estimada"/"Meta ajustada") em código de produção: ${path}`,
+      );
+    }
+
+    if (
+      /whatsapp/i.test(path) &&
+      content.includes("calculateAdjustedGoalCalories") &&
+      !isAllowed(allowlist, path, "goal-rule-duplication")
+    ) {
+      violations.push(
+        `whatsapp response: fluxo WhatsApp não pode recalcular a regra da #756 (calculateAdjustedGoalCalories); a meta efetiva vem do domínio de metas: ${path}`,
       );
     }
 

@@ -71,6 +71,27 @@ describe("guard arquitetural do contrato de respostas (issue #788)", () => {
       expect(violations[0]).toContain("Meta estimada");
     });
 
+    it("bloqueia fluxo WhatsApp que recalcula a regra de meta da #756", () => {
+      const violations = findWhatsAppResponseArchitectureViolations([
+        {
+          path: "server/modules/whatsapp/rogueGoal.ts",
+          content: `const goal = calculateAdjustedGoalCalories(base, burned, include);`,
+        },
+      ]);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]).toContain("calculateAdjustedGoalCalories");
+    });
+
+    it("permite a regra de meta nos domínios fora do WhatsApp", () => {
+      const violations = findWhatsAppResponseArchitectureViolations([
+        {
+          path: "server/modules/goals/service.ts",
+          content: `const goal = calculateAdjustedGoalCalories(base, burned, include);`,
+        },
+      ]);
+      expect(violations).toHaveLength(0);
+    });
+
     it("bloqueia schema de ação estruturada que aceita texto final da IA", () => {
       const violations = findWhatsAppResponseArchitectureViolations([
         {
