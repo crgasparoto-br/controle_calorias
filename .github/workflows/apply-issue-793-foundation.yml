@@ -1,0 +1,50 @@
+name: Apply issue 793 foundation
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  apply-foundation:
+    if: github.head_ref == 'feat/793-centralizar-timezone'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/793-centralizar-timezone
+          fetch-depth: 0
+
+      - name: Apply reviewed foundation change
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .github/issue-793-foundation.patch.gz.b64 | gzip -dc > /tmp/foundation.patch
+          git apply --index /tmp/foundation.patch
+
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const previousPath = 'drizzle/meta/0023_snapshot.json';
+          const nextPath = 'drizzle/meta/0024_snapshot.json';
+          const previous = JSON.parse(fs.readFileSync(previousPath, 'utf8'));
+          const next = structuredClone(previous);
+          next.prevId = previous.id;
+          next.id = crypto.randomUUID();
+          next.tables.userProfiles.columns.timezone.default = "'America/Sao_Paulo'";
+          fs.writeFileSync(nextPath, `${JSON.stringify(next, null, 2)}\n`);
+          NODE
+
+          rm -f .github/issue-793-foundation.patch.gz.b64
+          rm -f .github/workflows/apply-issue-793-foundation.yml
+          git add -A
+          git diff --cached --check
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(timezone): establish effective user timezone contract (#794)'
+          git push origin HEAD:feat/793-centralizar-timezone
