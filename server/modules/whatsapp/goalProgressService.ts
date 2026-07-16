@@ -3,6 +3,15 @@ import { getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
 import type { WhatsAppMealGoalProgress } from "./replyMessages";
 
+type WhatsAppMealGoalProgressWithMacros = WhatsAppMealGoalProgress & {
+  consumedProteinGrams: number;
+  targetProteinGrams: number;
+  consumedCarbsGrams: number;
+  targetCarbsGrams: number;
+  consumedFatGrams: number;
+  targetFatGrams: number;
+};
+
 function safeLogGoalWarning(input: Parameters<typeof logInferenceEvent>[0]) {
   try {
     logInferenceEvent(input);
@@ -31,7 +40,7 @@ export async function getWhatsAppMealGoalProgress(
   userId: number,
   occurredAt: Date,
   explicitTimeZone?: string,
-): Promise<WhatsAppMealGoalProgress | null> {
+): Promise<WhatsAppMealGoalProgressWithMacros | null> {
   try {
     const timeZone = explicitTimeZone ?? await getWhatsAppOperationTimeZone(userId);
     const dateKey = getDateKeyInTimeZone(occurredAt, timeZone);
@@ -46,6 +55,12 @@ export async function getWhatsAppMealGoalProgress(
       goalCalories: goal.effectiveGoalCalories,
       exerciseCalories: goal.exerciseCalories,
       includeExerciseCalories: goal.includeExerciseCalories,
+      consumedProteinGrams: dayTotals.totals.protein,
+      targetProteinGrams: goal.appliedGoal.proteinGrams,
+      consumedCarbsGrams: dayTotals.totals.carbs,
+      targetCarbsGrams: goal.appliedGoal.carbsGrams,
+      consumedFatGrams: dayTotals.totals.fat,
+      targetFatGrams: goal.appliedGoal.fatGrams,
     };
   } catch (error) {
     safeLogGoalWarning({
