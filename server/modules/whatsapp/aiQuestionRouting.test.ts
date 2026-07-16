@@ -17,6 +17,8 @@ vi.mock("../../db", () => ({
   getUserWhatsappConnection: getUserWhatsappConnectionMock,
   logInferenceEvent: logInferenceEventMock,
   upsertUserWhatsappConnection: upsertUserWhatsappConnectionMock,
+  getDb: vi.fn(),
+  logPersistenceWarning: vi.fn(),
 }));
 
 vi.mock("../meals/service", () => ({
@@ -126,12 +128,12 @@ describe("simulateWhatsappInbound slash AI question routing", () => {
     expect(executeWhatsappAiQuestionIntentMock).toHaveBeenCalledWith(42, {
       text: "100 g arroz",
       receivedAt: expect.any(Date),
-      userTimezone: undefined,
+      userTimezone: "America/Sao_Paulo",
     });
     expect(processMealDraftMock).toHaveBeenCalledWith(42, {
       source: "whatsapp",
       text: "100 g arroz",
-    });
+    }, "America/Sao_Paulo");
     expect(result).toEqual(expect.objectContaining({ draftId: "draft-1" }));
   });
 });

@@ -37,18 +37,19 @@ describe("WhatsApp auxiliary reply messages", () => {
       periodLabel: "semana",
       mealCount: 2,
       mealBreakdownLines: [
-        "Jantar: 198 kcal",
-        "* Prot. 37 g | Carb. 0 g | Gord. 4 g",
+        "• *Jantar*",
+        "198 kcal | P 37 g | C 0 g | G 4 g",
       ],
       goalSummaryLines: [
-        "*Análise sobre a Meta:*",
-        "• Meta estimada: 15.400 kcal",
+        "*Meta:* 15.400 kcal",
+        "*Consumo:* 469 kcal (-14.931 kcal)",
       ],
     });
 
     expect(reply).toContain("*Resumo de semana*");
     expect(reply).toContain("Refeições registradas: 2");
-    expect(reply).toContain("Jantar: 198 kcal");
-    expect(reply).toContain("*Análise sobre a Meta:*");
+    expect(reply).toContain("• *Jantar*");
+    expect(reply).toContain("198 kcal | P 37 g | C 0 g | G 4 g");
+    expect(reply).toContain("*Meta:* 15.400 kcal");
   });
 });

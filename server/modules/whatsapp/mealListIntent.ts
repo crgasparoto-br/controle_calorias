@@ -1,7 +1,27 @@
 import { listMeals } from "../meals/service";
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import type { MealDraftItem } from "../../nutritionEngine";
+import { buildWhatsAppMealContextLine } from "./replyMessages";
+import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
+import {
+  addDaysToZonedDate,
+  endOfZonedDay,
+  formatReplyDate,
+  getZonedParts,
+  makeDateInTimeZone,
+  startOfZonedDay,
+} from "./intent/dateTime";
+import {
+  buildWhatsAppBlock,
+  buildWhatsAppFoodLines,
+  buildWhatsAppMealTotalLines,
+  buildWhatsAppSeparator,
+  buildWhatsAppTitle,
+  formatWhatsAppNutritionTotalsLine,
+  type WhatsAppFoodReplyItem,
+  type WhatsAppNutritionTotals,
+} from "./replyTemplates";
 
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 
 export type WhatsappMealListIntentResult = {
   action: "meal_foods_listed" | "clarification_needed";
@@ -22,15 +42,6 @@ type MealListIntent = {
   kind: "latest" | "by_label" | "day";
   mealLabel?: string;
   referenceDate?: Date;
-};
-
-type ZonedParts = {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
 };
 
 type MealGroup = {
@@ -57,83 +68,13 @@ function formatNumber(value: number) {
   return ptBrNumberFormatter.format(value);
 }
 
-function formatReplyDate(date: Date) {
-  return date.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: SAO_PAULO_TIME_ZONE,
-  });
-}
-
-function getZonedParts(date: Date, timeZone = SAO_PAULO_TIME_ZONE): ZonedParts {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]));
-  const hour = Number(parts.hour);
-  return {
-    year: Number(parts.year),
-    month: Number(parts.month),
-    day: Number(parts.day),
-    hour: hour === 24 ? 0 : hour,
-    minute: Number(parts.minute),
-    second: Number(parts.second),
-  };
-}
-
-function makeDateInTimeZone(parts: ZonedParts, timeZone = SAO_PAULO_TIME_ZONE) {
-  const utcGuess = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second));
-  const actualParts = getZonedParts(utcGuess, timeZone);
-  const desiredUtcMinutes = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) / 60_000;
-  const actualUtcMinutes = Date.UTC(
-    actualParts.year,
-    actualParts.month - 1,
-    actualParts.day,
-    actualParts.hour,
-    actualParts.minute,
-    actualParts.second,
-  ) / 60_000;
-  const offsetMinutes = actualUtcMinutes - desiredUtcMinutes;
-  return new Date(utcGuess.getTime() - offsetMinutes * 60_000);
-}
-
-function addDaysToZonedDate(parts: ZonedParts, days: number) {
-  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, parts.hour, parts.minute, parts.second));
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-    hour: parts.hour,
-    minute: parts.minute,
-    second: parts.second,
-  };
-}
-
-function startOfZonedDay(date: Date) {
-  const parts = getZonedParts(date);
-  return makeDateInTimeZone({ ...parts, hour: 0, minute: 0, second: 0 });
-}
-
-function endOfZonedDay(date: Date) {
-  const parts = getZonedParts(date);
-  return makeDateInTimeZone({ ...parts, hour: 23, minute: 59, second: 59 });
-}
-
-function resolveRelativeDate(normalized: string, receivedAt: Date) {
-  const referenceParts = getZonedParts(receivedAt);
+function resolveRelativeDate(normalized: string, receivedAt: Date, timeZone: string) {
+  const referenceParts = getZonedParts(receivedAt, timeZone);
   if (/\banteontem\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -2));
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -2), timeZone);
   }
   if (/\bontem\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -1));
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -1), timeZone);
   }
   return receivedAt;
 }
@@ -154,7 +95,7 @@ function asksForFoodList(normalized: string) {
       && /\b(alimentos?|itens?|comidas?|registrad[oa]s?|refeicao|refeicoes|registros?)\b/.test(normalized));
 }
 
-function parseMealListIntent(text: string, receivedAt: Date): MealListIntent | null {
+function parseMealListIntent(text: string, receivedAt: Date, timeZone: string): MealListIntent | null {
   const normalized = normalizeText(text);
   if (!asksForFoodList(normalized)) {
     return null;
@@ -164,7 +105,7 @@ function parseMealListIntent(text: string, receivedAt: Date): MealListIntent | n
     return { kind: "latest" };
   }
 
-  const referenceDate = resolveRelativeDate(normalized, receivedAt);
+  const referenceDate = resolveRelativeDate(normalized, receivedAt, timeZone);
   const mealLabel = parseMealLabel(normalized);
   if (mealLabel) {
     return {
@@ -188,21 +129,41 @@ function mealLabelMatches(candidate: string, target: string) {
     || normalizedTarget.includes(normalizedCandidate);
 }
 
-function isMealInsideDay(meal: ExistingMeal, referenceDate: Date) {
+function isMealInsideDay(meal: ExistingMeal, referenceDate: Date, timeZone: string) {
   const occurredAt = new Date(meal.occurredAt).getTime();
-  return occurredAt >= startOfZonedDay(referenceDate).getTime() && occurredAt <= endOfZonedDay(referenceDate).getTime();
+  return occurredAt >= startOfZonedDay(referenceDate, timeZone).getTime() && occurredAt <= endOfZonedDay(referenceDate, timeZone).getTime();
 }
 
-function findMealByLabelAndDate(meals: ExistingMeal[], mealLabel: string, referenceDate: Date) {
-  return meals.find(meal => mealLabelMatches(meal.mealLabel, mealLabel) && isMealInsideDay(meal, referenceDate)) ?? null;
+function findMealByLabelAndDate(meals: ExistingMeal[], mealLabel: string, referenceDate: Date, timeZone: string) {
+  return meals.find(meal => mealLabelMatches(meal.mealLabel, mealLabel) && isMealInsideDay(meal, referenceDate, timeZone)) ?? null;
 }
 
-function formatItemLine(item: MealDraftItem) {
-  const portion = item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada");
-  return `• ${portion} de ${item.foodName} - ${formatNumber(item.calories)} kcal | Prot. ${formatNumber(item.protein)} g | Carb. ${formatNumber(item.carbs)} g | Gord. ${formatNumber(item.fat)} g`;
+/** Converte um item de refeição (domínio) para o bloco de item central (issue #781/#783). */
+function toReplyItem(item: MealDraftItem): WhatsAppFoodReplyItem {
+  return {
+    foodName: item.foodName,
+    canonicalName: item.canonicalName,
+    category: (item as { category?: unknown }).category,
+    classification: (item as { classification?: unknown }).classification,
+    tags: (item as { tags?: unknown }).tags,
+    portionText: item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada"),
+    estimatedGrams: item.estimatedGrams ?? 0,
+    source: item.source,
+    calories: Number(item.calories || 0),
+    protein: Number(item.protein || 0),
+    carbs: Number(item.carbs || 0),
+    fat: Number(item.fat || 0),
+  };
 }
 
-function sumMealItems(items: MealDraftItem[]) {
+function buildItemBlockLines(items: MealDraftItem[]) {
+  return items.flatMap((item, index) => [
+    ...buildWhatsAppFoodLines(toReplyItem(item)),
+    ...(index < items.length - 1 ? [buildWhatsAppSeparator()] : []),
+  ]);
+}
+
+function sumMealItems(items: MealDraftItem[]): WhatsAppNutritionTotals {
   return items.reduce(
     (acc, item) => ({
       calories: acc.calories + Number(item.calories || 0),
@@ -212,14 +173,6 @@ function sumMealItems(items: MealDraftItem[]) {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 },
   );
-}
-
-function formatTotals(totals: ReturnType<typeof sumMealItems>) {
-  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
-}
-
-function formatMealSubtotal(items: MealDraftItem[]) {
-  return `Subtotal da refeição: ${formatTotals(sumMealItems(items))}`;
 }
 
 function groupMealsByLabel(meals: ExistingMeal[]) {
@@ -235,56 +188,79 @@ function groupMealsByLabel(meals: ExistingMeal[]) {
   return [...groups.values()];
 }
 
-function formatMealListReply(meal: ExistingMeal, isLatest: boolean) {
+/** Consulta de uma refeição e seus alimentos usando os mesmos blocos de contexto/item/total do registro (issue #783). */
+export function formatMealListReply(meal: ExistingMeal, isLatest: boolean, timeZone = DEFAULT_APP_TIME_ZONE) {
   const items = meal.items ?? [];
   const mealDate = new Date(meal.occurredAt);
   const title = isLatest
-    ? `Alimentos da última refeição (${meal.mealLabel}):`
-    : `Alimentos de ${meal.mealLabel} em ${formatReplyDate(mealDate)}:`;
+    ? `Alimentos da última refeição (${meal.mealLabel})`
+    : `Alimentos de ${meal.mealLabel} em ${formatReplyDate(mealDate, timeZone)}`;
+  const contextLine = buildWhatsAppMealContextLine(meal.mealLabel, meal.occurredAt);
 
   if (!items.length) {
-    return `${title}\n\nEncontrei a refeição, mas ela não tem alimentos registrados.`;
+    return buildWhatsAppBlock([
+      buildWhatsAppTitle(title, { bold: true }),
+      buildWhatsAppSeparator(),
+      contextLine,
+      buildWhatsAppSeparator(),
+      "Encontrei a refeição, mas ela não tem alimentos registrados.",
+    ]);
   }
 
-  return [
-    title,
-    "",
-    ...items.map(formatItemLine),
-    "",
-    `Total: ${formatTotals(sumMealItems(items))}`,
-  ].join("\n");
+  return buildWhatsAppBlock([
+    buildWhatsAppTitle(title, { bold: true }),
+    buildWhatsAppSeparator(),
+    contextLine,
+    buildWhatsAppSeparator(),
+    ...buildItemBlockLines(items),
+    buildWhatsAppSeparator(),
+    ...buildWhatsAppMealTotalLines(sumMealItems(items)),
+  ]);
 }
 
-function formatDayMealGroup(group: MealGroup) {
-  const itemLines = group.items.length ? group.items.map(formatItemLine) : ["• Sem alimentos detalhados."];
+function formatDayMealGroupLines(group: MealGroup) {
+  const contextLine = buildWhatsAppMealContextLine(group.label);
+  if (!group.items.length) {
+    return [contextLine, "Sem alimentos detalhados."];
+  }
   return [
-    `${group.label}:`,
-    ...itemLines,
-    ...(group.items.length ? [formatMealSubtotal(group.items)] : []),
+    contextLine,
+    ...buildItemBlockLines(group.items),
+    buildWhatsAppSeparator(),
+    ...buildWhatsAppMealTotalLines(sumMealItems(group.items)),
   ];
 }
 
-function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date) {
-  const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate));
-  const dateLabel = formatReplyDate(referenceDate);
+export function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date, timeZone = DEFAULT_APP_TIME_ZONE, now: Date = new Date()) {
+  const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate, timeZone));
+  const dateLabel = formatReplyDate(referenceDate, timeZone);
+  // "hoje" é relativo ao timestamp da mensagem no timezone do usuário (#784).
+  const titleLabel = dateLabel === formatReplyDate(now, timeZone)
+    ? "Alimentos registrados hoje"
+    : `Alimentos registrados em ${dateLabel}`;
   if (!mealsInDay.length) {
-    return `Não encontrei alimentos registrados em ${dateLabel}.`;
+    return buildWhatsAppBlock([
+      buildWhatsAppTitle(titleLabel, { bold: true }),
+      buildWhatsAppSeparator(),
+      "Não encontrei alimentos registrados nessa data.",
+    ]);
   }
 
   const groups = groupMealsByLabel(mealsInDay);
   const lines = groups.flatMap((group, index) => {
-    const groupLines = formatDayMealGroup(group);
-    return index === groups.length - 1 ? groupLines : [...groupLines, ""];
+    const groupLines = formatDayMealGroupLines(group);
+    return index === groups.length - 1 ? groupLines : [...groupLines, buildWhatsAppSeparator()];
   });
   const allItems = groups.flatMap(group => group.items);
 
-  return [
-    `Alimentos registrados em ${dateLabel}:`,
-    "",
+  return buildWhatsAppBlock([
+    buildWhatsAppTitle(titleLabel, { bold: true }),
+    buildWhatsAppSeparator(),
     ...lines,
-    "",
-    `Total do dia: ${formatTotals(sumMealItems(allItems))}`,
-  ].join("\n");
+    buildWhatsAppSeparator(),
+    "Total do dia:",
+    formatWhatsAppNutritionTotalsLine(sumMealItems(allItems)),
+  ]);
 }
 
 export async function executeWhatsappMealListIntent(userId: number, input: { text?: string | null; receivedAt?: Date }): Promise<WhatsappMealListIntentResult | null> {
@@ -292,18 +268,19 @@ export async function executeWhatsappMealListIntent(userId: number, input: { tex
   if (!text) return null;
 
   const receivedAt = input.receivedAt ?? new Date();
-  const intent = parseMealListIntent(text, receivedAt);
+  const timeZone = await getWhatsAppUserTimeZone(userId);
+  const intent = parseMealListIntent(text, receivedAt, timeZone);
   if (!intent) return null;
 
   const meals = await listMeals(userId);
   if (intent.kind === "day") {
     const referenceDate = intent.referenceDate ?? receivedAt;
-    const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate));
+    const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate, timeZone));
     return {
       action: "meal_foods_listed",
-      reply: formatDayMealListReply(meals, referenceDate),
+      reply: formatDayMealListReply(meals, referenceDate, timeZone, receivedAt),
       eventType: "whatsapp.intent.meal_foods_listed",
-      detail: `Lista de alimentos enviada para ${formatReplyDate(referenceDate)} com ${mealsInDay.length} refeição(ões).`,
+      detail: `Lista de alimentos enviada para ${formatReplyDate(referenceDate, timeZone)} com ${mealsInDay.length} refeição(ões).`,
       data: {
         referenceDate: referenceDate.toISOString(),
         mealCount: mealsInDay.length,
@@ -314,12 +291,12 @@ export async function executeWhatsappMealListIntent(userId: number, input: { tex
 
   const targetMeal = intent.kind === "latest"
     ? meals.find(meal => (meal.items?.length ?? 0) > 0) ?? meals[0] ?? null
-    : findMealByLabelAndDate(meals, intent.mealLabel!, intent.referenceDate!);
+    : findMealByLabelAndDate(meals, intent.mealLabel!, intent.referenceDate!, timeZone);
 
   if (!targetMeal) {
     const missingLabel = intent.kind === "latest"
       ? "a última refeição"
-      : `a refeição ${intent.mealLabel} em ${formatReplyDate(intent.referenceDate!)}`;
+      : `a refeição ${intent.mealLabel} em ${formatReplyDate(intent.referenceDate!, timeZone)}`;
     return {
       action: "clarification_needed",
       reply: `Não encontrei ${missingLabel}. Confira se ela já foi registrada ou me diga outra refeição/data.`,
@@ -333,7 +310,7 @@ export async function executeWhatsappMealListIntent(userId: number, input: { tex
 
   return {
     action: "meal_foods_listed",
-    reply: formatMealListReply(targetMeal, intent.kind === "latest"),
+    reply: formatMealListReply(targetMeal, intent.kind === "latest", timeZone),
     eventType: "whatsapp.intent.meal_foods_listed",
     detail: `Lista de alimentos enviada para a refeição ${targetMeal.mealLabel} (${targetMeal.id}).`,
     data: {

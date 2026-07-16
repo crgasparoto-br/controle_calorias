@@ -92,6 +92,14 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
       onboarding: {
+        timeZone: {
+          useQuery: () => ({
+            data: { timeZone: "America/Sao_Paulo", source: "profile", fallbackReason: null },
+            isSuccess: true,
+            isLoading: false,
+            isError: false,
+          }),
+        },
         profile: {
           useQuery: () => ({ data: null, isLoading: false, error: null }),
         },
@@ -251,6 +259,7 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
       professionals: {
+        patientTimeZone: { useQuery: () => ({ data: null, isLoading: false, isError: false }) },
         profile: { useQuery: () => ({ data: null }) },
         upsertProfile: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
         requestAccess: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },

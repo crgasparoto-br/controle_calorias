@@ -132,7 +132,7 @@ describe("meals service characterization", () => {
 
     expect(storagePutMock).not.toHaveBeenCalled();
     expect(transcribeAudioMock).not.toHaveBeenCalled();
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: "arroz e frango",
       transcript: undefined,
       imageUrl: undefined,
@@ -145,7 +145,9 @@ describe("meals service characterization", () => {
           occurrenceCount: 3,
         },
       ],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       42,
       "web",

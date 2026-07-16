@@ -2,10 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../whatsapp/webhookUtils", () => ({
   sendWhatsAppTextMessage: vi.fn(async () => ({ ok: true, detail: "sent" })),
+  sendWhatsAppInteractiveButtonsMessage: vi.fn(async () => ({ ok: true, detail: "sent" })),
+  sendWhatsAppInteractiveListMessage: vi.fn(async () => ({ ok: true, detail: "sent" })),
+  sendWhatsAppInteractiveUrlButtonMessage: vi.fn(async () => ({ ok: true, usedFallback: false, detail: "sent" })),
+  sendWhatsAppImageMessage: vi.fn(async () => ({ ok: true, detail: "sent" })),
+  sendWhatsAppImageBufferMessage: vi.fn(async () => ({ ok: true, detail: "sent" })),
 }));
 
 import { upsertUserWhatsappConnection } from "../../db";
-import { sendWhatsAppTextMessage } from "../whatsapp/webhookUtils";
+import { sendWhatsAppInteractiveButtonsMessage } from "../whatsapp/webhookUtils";
 import {
   buildProfessionalAccessAuthorizationMessage,
   buildProfessionalAccessDecisionCode,
@@ -16,12 +21,12 @@ import {
   upsertProfessionalProfile,
 } from "./service";
 
-const mockedSendWhatsAppTextMessage = vi.mocked(sendWhatsAppTextMessage);
+const mockedSendWhatsAppInteractiveButtonsMessage = vi.mocked(sendWhatsAppInteractiveButtonsMessage);
 
 describe("professional WhatsApp authorization", () => {
   beforeEach(() => {
-    mockedSendWhatsAppTextMessage.mockClear();
-    mockedSendWhatsAppTextMessage.mockResolvedValue({ ok: true, detail: "sent" });
+    mockedSendWhatsAppInteractiveButtonsMessage.mockClear();
+    mockedSendWhatsAppInteractiveButtonsMessage.mockResolvedValue({ ok: true, detail: "sent" });
   });
 
   it("monta mensagem com opções claras de autorização e negativa", () => {
@@ -70,9 +75,13 @@ describe("professional WhatsApp authorization", () => {
 
     expect(access.status).toBe("pending");
     expect(access.authorizationMessage?.status).toBe("sent");
-    expect(mockedSendWhatsAppTextMessage).toHaveBeenCalledWith(
+    expect(mockedSendWhatsAppInteractiveButtonsMessage).toHaveBeenCalledWith(
       "5511999999402",
       expect.stringContaining(`AUTORIZAR ${code}`),
+      expect.arrayContaining([
+        expect.objectContaining({ title: "Autorizar" }),
+        expect.objectContaining({ title: "Recusar" }),
+      ]),
     );
 
     const response = await processProfessionalAccessWhatsappResponse(patientUserId, `AUTORIZAR ${code}`);
@@ -125,7 +134,7 @@ describe("professional WhatsApp authorization", () => {
   it("registra falha de envio para exibição ao profissional", async () => {
     const professionalUserId = 405;
     const patientUserId = 406;
-    mockedSendWhatsAppTextMessage.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 500 Internal Server Error" });
+    mockedSendWhatsAppInteractiveButtonsMessage.mockResolvedValueOnce({ ok: false, detail: "Meta retornou 500 Internal Server Error" });
     await upsertProfessionalProfile(professionalUserId, {
       displayName: "Dra. Beatriz",
       active: true,

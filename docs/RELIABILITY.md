@@ -80,3 +80,13 @@ pnpm db:check-integrity
 - Recalcular totais nutricionais no backend a partir dos itens validados.
 - Falha de visual auxiliar deve degradar para ausência de imagem, nunca para falha de refeição.
 - Rodar smoke test web e WhatsApp antes de ativar em produção.
+
+## Mutações multirrefeição pelo WhatsApp
+
+Solicitações compostas de ajuste ou substituição usam uma unidade lógica compensável:
+
+- tentativas persistem refeição e snapshots sem incrementar hábitos ou uso de catálogo;
+- somente a última escrita do lote reconstrói hábitos de forma idempotente a partir das refeições atuais;
+- falha intermediária restaura todas as refeições tentadas em ordem inversa e reconstrói novamente o estado derivado;
+- falha durante a restauração nunca comunica sucesso ou restauração completa ao usuário;
+- a resposta funcional só é enviada depois do sucesso integral pelo transporte lógico central.

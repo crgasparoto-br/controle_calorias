@@ -12,8 +12,8 @@ Fonte: `server/nutritionRouter.ts`.
 | `assistant` | 1 | 0 | 1 | protected | Sugestões alimentares assistidas |
 | `foodPhotoAnalysis` | 4 | 1 | 3 | protected | Análise, consulta, rejeição e confirmação de fotos |
 | `healthIntegrations` | 5 | 2 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
-| `professionals` | 16 | 7 | 9 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
-| `onboarding` | 2 | 1 | 1 | protected | Conclusão de onboarding nutricional |
+| `professionals` | 17 | 8 | 9 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
+| `onboarding` | 3 | 2 | 1 | protected | Conclusão de onboarding nutricional |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
 | `dashboard` | 2 | 2 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
@@ -73,6 +73,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `approveAccess` | mutation | protected |
 | `revokeAccess` | mutation | protected |
 | `respondGoalSuggestion` | mutation | protected |
+| `patientTimeZone` | query | protected |
 | `patientDashboard` | query | protected |
 | `patientPeriodBundle` | query | protected |
 | `addComment` | mutation | protected |
@@ -86,6 +87,7 @@ Fonte: `server/nutritionRouter.ts`.
 | Procedure | Operação | Escopo |
 |---|---|---|
 | `profile` | query | protected |
+| `timeZone` | query | protected |
 | `complete` | mutation | protected |
 
 ### mealSchedules

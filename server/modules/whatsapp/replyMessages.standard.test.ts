@@ -5,13 +5,11 @@ import {
   buildWhatsAppActionConfirmationRequestReplyMessage,
   buildWhatsAppActionConfirmedReplyMessage,
   buildWhatsAppAmbiguousItemReplyMessage,
-  buildWhatsAppAudioTranscriptionFailureReplyMessage,
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
   buildWhatsAppPartialAudioTranscriptionReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
   buildWhatsAppSecurityBlockedReplyMessage,
-  buildWhatsAppWeightLoggedReplyMessage,
 } from "./replyMessages";
 
 describe("standard WhatsApp reply builders", () => {
@@ -38,11 +36,9 @@ describe("standard WhatsApp reply builders", () => {
     expect(buildWhatsAppActionCancelledReplyMessage("Nada foi alterado.")).toContain("*Alteração cancelada*");
   });
 
-  it("padroniza erros recuperáveis, segurança, áudio e peso", () => {
+  it("padroniza erros recuperáveis, segurança e áudio parcial", () => {
     expect(buildWhatsAppRecoverableErrorReplyMessage("Tente novamente.")).toContain("*Não consegui concluir agora*");
     expect(buildWhatsAppSecurityBlockedReplyMessage()).toContain("*Não posso seguir essa instrução*");
-    expect(buildWhatsAppAudioTranscriptionFailureReplyMessage("EMPTY_TRANSCRIPT")).toContain("*Não consegui concluir agora*");
     expect(buildWhatsAppPartialAudioTranscriptionReplyMessage()).toContain("*Áudio não transcrito*");
-    expect(buildWhatsAppWeightLoggedReplyMessage({ weightLabel: "66,3", occurredAtLabel: "12:30" })).toContain("*Peso atualizado*");
   });
 });

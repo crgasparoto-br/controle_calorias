@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { getBrowserTimeZone, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
+import { formatDateTimeInTimeZone, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import {
   formatCalories,
   formatCountPtBr,
@@ -43,12 +44,12 @@ const ONBOARDING_DEFAULTS = {
   mainDifficulty: "falta_de_planejamento" as const,
 };
 
-function buildDefaultExerciseForm() {
-  return { activityType: "Corrida", durationMinutes: formatIntegerInputPtBr(45), caloriesBurned: formatIntegerInputPtBr(450), occurredAt: toDateTimeLocalValue(new Date()), notes: "" };
+function buildDefaultExerciseForm(timeZone: string) {
+  return { activityType: "Corrida", durationMinutes: formatIntegerInputPtBr(45), caloriesBurned: formatIntegerInputPtBr(450), occurredAt: toDateTimeLocalValue(new Date(), timeZone), notes: "" };
 }
 
-function buildDefaultWaterForm() {
-  return { amountMl: formatIntegerInputPtBr(300), occurredAt: toDateTimeLocalValue(new Date()), dailyTargetMl: formatIntegerInputPtBr(2500) };
+function buildDefaultWaterForm(timeZone: string) {
+  return { amountMl: formatIntegerInputPtBr(300), occurredAt: toDateTimeLocalValue(new Date(), timeZone), dailyTargetMl: formatIntegerInputPtBr(2500) };
 }
 
 function minutesFromTime(value: string) {
@@ -91,13 +92,14 @@ function suggestMealLabelFromSchedules(value: string, schedules: MealScheduleSta
 
 export default function LogMealPage() {
   const utils = trpc.useUtils();
+  const effectiveTimeZone = useEffectiveUserTimeZone();
+  const userTimeZone = effectiveTimeZone.timeZone;
   const favoritesQuery = trpc.nutrition.meals.favorites.useQuery();
   const schedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
-  const overviewQuery = trpc.nutrition.dashboard.overview.useQuery();
-  const reportsBundleQuery = trpc.nutrition.reports.bundle.useQuery();
+  const overviewQuery = trpc.nutrition.dashboard.overview.useQuery(undefined, { enabled: effectiveTimeZone.isReady });
+  const reportsBundleQuery = trpc.nutrition.reports.bundle.useQuery(undefined, { enabled: effectiveTimeZone.isReady });
   const waterGoalQuery = trpc.nutrition.water.goal.useQuery();
   const profileQuery = trpc.nutrition.onboarding.profile.useQuery();
-  const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
   const mealSchedules = schedulesQuery.data as MealScheduleState[] | undefined;
   const defaultMealLabel = suggestMealLabelFromSchedules(toDateTimeLocalValue(undefined, userTimeZone), mealSchedules) ?? "almoço";
 
@@ -108,15 +110,25 @@ export default function LogMealPage() {
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [mealLabel, setMealLabel] = useState("");
   const [notes, setNotes] = useState("");
-  const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocalValue());
+  const [occurredAt, setOccurredAt] = useState(() => toDateTimeLocalValue(new Date(), userTimeZone));
   const [editableItems, setEditableItems] = useState<MealItemState[]>([]);
   const [manualMeal, setManualMeal] = useState(() => createManualMealState(defaultMealLabel));
-  const [exerciseForm, setExerciseForm] = useState(buildDefaultExerciseForm);
-  const [waterForm, setWaterForm] = useState(buildDefaultWaterForm);
+  const [exerciseForm, setExerciseForm] = useState(() => buildDefaultExerciseForm(userTimeZone));
+  const [waterForm, setWaterForm] = useState(() => buildDefaultWaterForm(userTimeZone));
   const [weightValue, setWeightValue] = useState("");
-  const [weightMeasuredAt, setWeightMeasuredAt] = useState(() => toDateTimeLocalValue(new Date()));
+  const [weightMeasuredAt, setWeightMeasuredAt] = useState(() => toDateTimeLocalValue(new Date(), userTimeZone));
   const [areWaterLogsExpanded, setAreWaterLogsExpanded] = useState(false);
   const [areExerciseLogsExpanded, setAreExerciseLogsExpanded] = useState(false);
+
+  React.useEffect(() => {
+    if (!effectiveTimeZone.isReady) return;
+    const nowLocal = toDateTimeLocalValue(new Date(), userTimeZone);
+    setOccurredAt(nowLocal);
+    setManualMeal(current => current.mealId ? current : createManualMealState(suggestMealLabelFromSchedules(nowLocal, mealSchedules) ?? "almoço", nowLocal));
+    setExerciseForm(buildDefaultExerciseForm(userTimeZone));
+    setWaterForm(current => ({ ...buildDefaultWaterForm(userTimeZone), dailyTargetMl: current.dailyTargetMl }));
+    setWeightMeasuredAt(nowLocal);
+  }, [effectiveTimeZone.isReady, userTimeZone]);
 
   React.useEffect(() => {
     if (waterGoalQuery.data?.dailyTargetMl) {
@@ -149,6 +161,7 @@ export default function LogMealPage() {
       utils.nutrition.reports.weekly.invalidate(),
       utils.nutrition.reports.bundle.invalidate(),
       utils.nutrition.onboarding.profile.invalidate(),
+      utils.nutrition.onboarding.timeZone.invalidate(),
       utils.nutrition.water.goal.invalidate(),
       utils.nutrition.water.list.invalidate(),
     ]);
@@ -213,9 +226,9 @@ export default function LogMealPage() {
 
   const saveFavoriteMeal = trpc.nutrition.meals.saveFavorite.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Refeição salva como favorita."); }, onError: error => toast.error(error.message || "Não foi possível favoritar a refeição.") });
   const reuseFavoriteMeal = trpc.nutrition.meals.reuseFavorite.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Refeição favorita reutilizada."); setActiveTab("manual"); }, onError: error => toast.error(error.message || "Não foi possível reutilizar a favorita.") });
-  const createExercise = trpc.nutrition.exercises.create.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Exercício registrado com sucesso."); setExerciseForm(buildDefaultExerciseForm()); }, onError: error => toast.error(error.message || "Não foi possível registrar o exercício.") });
+  const createExercise = trpc.nutrition.exercises.create.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Exercício registrado com sucesso."); setExerciseForm(buildDefaultExerciseForm(userTimeZone)); }, onError: error => toast.error(error.message || "Não foi possível registrar o exercício.") });
   const removeExercise = trpc.nutrition.exercises.remove.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Exercício removido com sucesso."); }, onError: error => toast.error(error.message || "Não foi possível remover o exercício.") });
-  const createWaterLog = trpc.nutrition.water.create.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Consumo de água registrado com sucesso."); setWaterForm(current => ({ ...current, amountMl: formatIntegerInputPtBr(300), occurredAt: toDateTimeLocalValue(new Date()) })); }, onError: error => toast.error(error.message || "Não foi possível registrar a água.") });
+  const createWaterLog = trpc.nutrition.water.create.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Consumo de água registrado com sucesso."); setWaterForm(current => ({ ...current, amountMl: formatIntegerInputPtBr(300), occurredAt: toDateTimeLocalValue(new Date(), userTimeZone) })); }, onError: error => toast.error(error.message || "Não foi possível registrar a água.") });
   const updateWaterGoal = trpc.nutrition.water.updateGoal.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Meta diária de água atualizada."); }, onError: error => toast.error(error.message || "Não foi possível atualizar a meta.") });
   const removeWaterLog = trpc.nutrition.water.remove.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Consumo de água removido com sucesso."); }, onError: error => toast.error(error.message || "Não foi possível remover o consumo.") });
   const updateWeight = trpc.nutrition.onboarding.complete.useMutation({ onSuccess: async () => { await invalidateViews(); toast.success("Peso atualizado com sucesso."); }, onError: error => toast.error(error.message || "Não foi possível atualizar o peso.") });
@@ -247,14 +260,28 @@ export default function LogMealPage() {
     });
   };
 
+  const resolveOwnerDateTime = (value: string) => {
+    try {
+      zonedDateTimeLocalToIso(value, userTimeZone);
+      return value;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Informe uma data e um horário válidos.");
+      return null;
+    }
+  };
+
   const handleExerciseSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    createExercise.mutate({ activityType: exerciseForm.activityType.trim(), durationMinutes: parseIntegerInputPtBr(exerciseForm.durationMinutes), caloriesBurned: parseIntegerInputPtBr(exerciseForm.caloriesBurned), occurredAt: zonedDateTimeLocalToIso(exerciseForm.occurredAt), notes: exerciseForm.notes.trim() || undefined });
+    const dateTimeLocal = resolveOwnerDateTime(exerciseForm.occurredAt);
+    if (!dateTimeLocal) return;
+    createExercise.mutate({ activityType: exerciseForm.activityType.trim(), durationMinutes: parseIntegerInputPtBr(exerciseForm.durationMinutes), caloriesBurned: parseIntegerInputPtBr(exerciseForm.caloriesBurned), dateTimeLocal, notes: exerciseForm.notes.trim() || undefined });
   };
 
   const handleWaterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    createWaterLog.mutate({ amountMl: waterAmountValue, occurredAt: zonedDateTimeLocalToIso(waterForm.occurredAt) });
+    const dateTimeLocal = resolveOwnerDateTime(waterForm.occurredAt);
+    if (!dateTimeLocal) return;
+    createWaterLog.mutate({ amountMl: waterAmountValue, dateTimeLocal });
   };
 
   const handleWeightSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -268,12 +295,14 @@ export default function LogMealPage() {
       toast.error("Informe um peso entre 25 kg e 350 kg.");
       return;
     }
+    const weightMeasuredAtLocal = resolveOwnerDateTime(weightMeasuredAt);
+    if (!weightMeasuredAtLocal) return;
     updateWeight.mutate({
       name: profile.name?.trim() || "Usuário",
       birthDate: profile.birthDate,
       heightCm: profile.heightCm,
       currentWeightKg: parsedWeight,
-      weightMeasuredAt: zonedDateTimeLocalToIso(weightMeasuredAt, userTimeZone),
+      weightMeasuredAtLocal,
       weightEntryNote: "Peso atualizado na tela Registrar.",
       objective: profile.objective ?? ONBOARDING_DEFAULTS.objective,
       activityLevel: profile.activityLevel ?? ONBOARDING_DEFAULTS.activityLevel,
@@ -282,6 +311,7 @@ export default function LogMealPage() {
       dietaryRestrictions: profile.dietaryRestrictions ?? [],
       eatingRoutine: profile.eatingRoutine ?? ONBOARDING_DEFAULTS.eatingRoutine,
       mainDifficulty: profile.mainDifficulty ?? ONBOARDING_DEFAULTS.mainDifficulty,
+      timezone: profile.timezone ?? userTimeZone,
     });
   };
 
@@ -297,7 +327,9 @@ export default function LogMealPage() {
     const items = manualMeal.items.map(item => ({ ...item, foodName: item.foodName.trim(), canonicalName: item.canonicalName.trim() || item.foodName.trim(), portionText: item.portionText.trim() || "1 porção", confidence: Number(item.confidence || 1) }));
     if (!manualMeal.mealLabel.trim()) return toast.error("Informe o nome da refeição.");
     if (!items.length || items.some(item => !item.foodName)) return toast.error("Preencha ao menos um alimento na refeição manual.");
-    const payload = { mealLabel: manualMeal.mealLabel.trim(), occurredAt: zonedDateTimeLocalToIso(manualMeal.occurredAt, userTimeZone), notes: manualMeal.notes.trim() || undefined, items };
+    const dateTimeLocal = resolveOwnerDateTime(manualMeal.occurredAt);
+    if (!dateTimeLocal) return;
+    const payload = { mealLabel: manualMeal.mealLabel.trim(), dateTimeLocal, notes: manualMeal.notes.trim() || undefined, items };
     if (manualMeal.mealId) return updateMeal.mutate({ mealId: manualMeal.mealId, ...payload });
     createManualMeal.mutate(payload);
   };
@@ -318,7 +350,10 @@ export default function LogMealPage() {
       </div>
       <div className="flex flex-wrap gap-2">
         {favoritesQuery.data.map(favorite => (
-          <Button key={favorite.id} type="button" variant="outline" className="rounded-full" onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(manualMeal.occurredAt, userTimeZone) })} disabled={reuseFavoriteMeal.isPending}>
+          <Button key={favorite.id} type="button" variant="outline" className="rounded-full" onClick={() => {
+            const dateTimeLocal = resolveOwnerDateTime(manualMeal.occurredAt);
+            if (dateTimeLocal) reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, dateTimeLocal });
+          }} disabled={reuseFavoriteMeal.isPending}>
             <Star className="mr-2 h-4 w-4" />
             {favorite.name}
           </Button>
@@ -357,11 +392,11 @@ export default function LogMealPage() {
               <Input id="record-water-occurred-at" type="datetime-local" value={waterForm.occurredAt} onChange={event => setWaterForm(current => ({ ...current, occurredAt: event.target.value }))} />
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">{[200, 300, 500].map(shortcut => <Button key={shortcut} type="button" variant="outline" className="rounded-full" onClick={() => createWaterLog.mutate({ amountMl: shortcut, occurredAt: new Date().toISOString() })} disabled={createWaterLog.isPending}>+ {formatCountPtBr(shortcut, " ml")}</Button>)}</div>
+          <div className="grid gap-2 sm:grid-cols-3">{[200, 300, 500].map(shortcut => <Button key={shortcut} type="button" variant="outline" className="rounded-full" onClick={() => createWaterLog.mutate({ amountMl: shortcut, dateTimeLocal: toDateTimeLocalValue(new Date(), userTimeZone) })} disabled={createWaterLog.isPending}>+ {formatCountPtBr(shortcut, " ml")}</Button>)}</div>
           <Button type="submit" className="w-full rounded-full" disabled={createWaterLog.isPending || isWaterAmountInvalid}>{createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}</Button>
         </form>
         <CollapsibleQuickLogs title="Registros recentes de água" count={waterLogs.length} emptyText="Nenhum consumo de água foi registrado ainda." isExpanded={areWaterLogsExpanded} onToggle={() => setAreWaterLogsExpanded(current => !current)}>
-          {waterLogs.map(log => <QuickLog key={log.id} title={formatCountPtBr(log.amountMl, " ml")} subtitle={new Date(Number(log.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeWaterLog.mutate({ waterLogId: log.id })} disabled={removeWaterLog.isPending} />)}
+          {waterLogs.map(log => <QuickLog key={log.id} title={formatCountPtBr(log.amountMl, " ml")} subtitle={formatDateTimeInTimeZone(Number(log.occurredAt), userTimeZone)} actionLabel="Remover" onAction={() => removeWaterLog.mutate({ waterLogId: log.id })} disabled={removeWaterLog.isPending} />)}
         </CollapsibleQuickLogs>
       </CardContent>
     </Card>
@@ -385,7 +420,7 @@ export default function LogMealPage() {
           <Button type="submit" className="w-full rounded-full" disabled={createExercise.isPending}>{createExercise.isPending ? "Salvando exercício..." : "Registrar exercício"}</Button>
         </form>
         <CollapsibleQuickLogs title="Registros recentes de exercícios" count={exerciseLogs.length} emptyText="Nenhum exercício foi registrado ainda." isExpanded={areExerciseLogsExpanded} onToggle={() => setAreExerciseLogsExpanded(current => !current)}>
-          {exerciseLogs.map(exercise => <QuickLog key={exercise.id} title={exercise.activityType} subtitle={`${formatCountPtBr(exercise.durationMinutes, " min")} · ${formatCalories(exercise.caloriesBurned)}`} extra={new Date(Number(exercise.occurredAt)).toLocaleString("pt-BR")} actionLabel="Remover" onAction={() => removeExercise.mutate({ exerciseId: exercise.id })} disabled={removeExercise.isPending} />)}
+          {exerciseLogs.map(exercise => <QuickLog key={exercise.id} title={exercise.activityType} subtitle={`${formatCountPtBr(exercise.durationMinutes, " min")} · ${formatCalories(exercise.caloriesBurned)}`} extra={formatDateTimeInTimeZone(Number(exercise.occurredAt), userTimeZone)} actionLabel="Remover" onAction={() => removeExercise.mutate({ exerciseId: exercise.id })} disabled={removeExercise.isPending} />)}
         </CollapsibleQuickLogs>
       </CardContent>
     </Card>
@@ -416,6 +451,23 @@ export default function LogMealPage() {
       </CardContent>
     </Card>
   );
+
+  if (!effectiveTimeZone.isReady) {
+    return (
+      <DashboardLayout>
+        <Card>
+          <CardHeader>
+            <CardTitle>Carregando configuração de horário</CardTitle>
+            <CardDescription>
+              {effectiveTimeZone.isError
+                ? "Não foi possível carregar o fuso horário do perfil. Recarregue a página antes de registrar dados."
+                : "Aguarde a confirmação do fuso horário do perfil para registrar datas e horários."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -454,7 +506,9 @@ export default function LogMealPage() {
               previewTotals={previewTotals}
               onConfirm={() => {
                 if (!draft?.draftId) return toast.error("Clique em Registrar antes de salvar a refeição.");
-                confirmMeal.mutate({ draftId: draft.draftId, mealLabel: (mealLabel || draft.processed.detectedMealLabel || "").trim(), occurredAt: zonedDateTimeLocalToIso(occurredAt, userTimeZone), notes: notes || undefined, items: editableItems });
+                const dateTimeLocal = resolveOwnerDateTime(occurredAt);
+                if (!dateTimeLocal) return;
+                confirmMeal.mutate({ draftId: draft.draftId, mealLabel: (mealLabel || draft.processed.detectedMealLabel || "").trim(), dateTimeLocal, notes: notes || undefined, items: editableItems });
               }}
               isConfirmPending={confirmMeal.isPending}
             />

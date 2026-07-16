@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import {
   buildExpectedWhatsappRegressionActual,
   runWhatsappRegressionCase,
@@ -100,7 +101,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
   {
     id: "conversation-clarify-food-quantity",
     title: "Registro com baixa quantidade seguido de esclarecimento",
-    timezone: "America/Sao_Paulo",
+    timezone: DEFAULT_APP_TIME_ZONE,
     critical: true,
     turns: [
       {
@@ -141,7 +142,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
         foods: ["arroz"],
         mealLabel: null,
         localDate: "2026-06-16",
-        timezone: "America/Sao_Paulo",
+        timezone: DEFAULT_APP_TIME_ZONE,
         status: "created",
       }],
       pending: null,
@@ -153,7 +154,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
   {
     id: "conversation-option-selection",
     title: "Selecao por numero apos lista de opcoes",
-    timezone: "America/Sao_Paulo",
+    timezone: DEFAULT_APP_TIME_ZONE,
     critical: true,
     turns: [
       {
@@ -194,7 +195,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
         foods: ["iogurte zero marca exemplo"],
         mealLabel: null,
         localDate: "2026-06-16",
-        timezone: "America/Sao_Paulo",
+        timezone: DEFAULT_APP_TIME_ZONE,
         status: "created",
       }],
       pending: null,
@@ -206,7 +207,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
   {
     id: "conversation-correction-after-record",
     title: "Correcao posterior vinculada ao registro anterior",
-    timezone: "America/Sao_Paulo",
+    timezone: DEFAULT_APP_TIME_ZONE,
     critical: true,
     turns: [
       {
@@ -247,7 +248,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
         foods: ["arroz"],
         mealLabel: "almoco",
         localDate: "2026-06-16",
-        timezone: "America/Sao_Paulo",
+        timezone: DEFAULT_APP_TIME_ZONE,
         status: "unchanged",
       }],
       pending: { id: "pending-replace-rice", kind: "correction_target", status: "active", referenceId: "meal-rice" },
@@ -259,7 +260,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
   {
     id: "conversation-cancel-pending",
     title: "Cancelamento consome pendencia sem persistir",
-    timezone: "America/Sao_Paulo",
+    timezone: DEFAULT_APP_TIME_ZONE,
     critical: true,
     turns: [
       {
@@ -303,7 +304,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
   {
     id: "conversation-relative-date-timezone",
     title: "Data relativa usa fuso horario do usuario",
-    timezone: "America/Sao_Paulo",
+    timezone: DEFAULT_APP_TIME_ZONE,
     critical: true,
     turns: [
       {
@@ -329,7 +330,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
         foods: ["sopa"],
         mealLabel: "jantar",
         localDate: "2026-06-15",
-        timezone: "America/Sao_Paulo",
+        timezone: DEFAULT_APP_TIME_ZONE,
         status: "created",
       }],
       pending: null,
@@ -341,7 +342,7 @@ export const whatsappConversationRegressionCases: WhatsappConversationRegression
   {
     id: "conversation-expired-pending-selection",
     title: "Resposta a pendencia expirada nao aplica acao antiga",
-    timezone: "America/Sao_Paulo",
+    timezone: DEFAULT_APP_TIME_ZONE,
     critical: true,
     turns: [
       {

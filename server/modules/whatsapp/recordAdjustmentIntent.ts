@@ -1,26 +1,25 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { listMeals } from "../meals/service";
-import {
-  buildWhatsappClarificationOptionsData,
-  buildWhatsappClarificationPrompt,
-  type WhatsappClarificationOption,
-} from "./clarificationOptions";
+import { executeWhatsappDeleteIntent } from "./deleteIntent";
+import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
+import { handleQuantityCorrectionIntent } from "./intent/gramsAdjustmentHandlers";
+import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
+import type { WhatsAppLogicalReply } from "./replyContract";
 
-type WhatsappRecordAdjustmentInput = {
+export type WhatsappRecordAdjustmentInput = {
   text?: string | null;
   receivedAt?: Date;
   userTimezone?: string | null;
 };
 
-type WhatsappRecordAdjustmentResult = {
+export type WhatsappRecordAdjustmentResult = {
   handled: true;
-  action:
-    | "record_adjustment_confirmation_needed"
-    | "record_adjustment_selection_needed"
-    | "record_adjustment_clarification_needed";
+  action: string;
   reply: string;
   eventType: string;
   detail: string;
   data?: Record<string, unknown>;
+  interactiveReply?: WhatsAppLogicalReply;
 };
 
 type ExistingMeal = Awaited<ReturnType<typeof listMeals>>[number];
@@ -31,10 +30,9 @@ type AdjustmentIntent =
   | { kind: "replace_item"; sourceFood: string; targetFood: string }
   | { kind: "remove_item"; targetFood: string }
   | { kind: "remove_last_meal" }
-  | { kind: "incomplete"; reason: string };
+  | { kind: "incomplete" };
 
 const RECENT_ADJUSTMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
-const FALLBACK_TIMEZONE = "America/Sao_Paulo";
 
 function normalizeText(value: string) {
   return value
@@ -47,34 +45,34 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(value);
-}
+function detectAdjustmentIntent(text: string): AdjustmentIntent | null {
+  const trimmed = text.trim();
+  const normalized = normalizeText(trimmed);
 
-function resolveDisplayTimezone(timezone?: string | null) {
-  try {
-    if (timezone) {
-      new Intl.DateTimeFormat("pt-BR", { timeZone: timezone }).format(new Date());
-      return timezone;
-    }
-  } catch {
-    return FALLBACK_TIMEZONE;
+  if (/^(?:apaga|apagar|remove|remover|exclui|excluir)\s+(?:o\s+|a\s+)?(?:ultimo|ultima)$/.test(normalized)) {
+    return { kind: "remove_last_meal" };
   }
-  return FALLBACK_TIMEZONE;
-}
+  if (/^(?:corrige|corrigir|altera|alterar|ajusta|ajustar|troca|trocar|remove|remover|apaga|apagar|exclui|excluir)\s+(?:isso|esse|essa|ultimo|ultima)$/.test(normalized)) {
+    return { kind: "incomplete" };
+  }
 
-function formatMealDate(value: ExistingMeal["occurredAt"], timezone?: string | null) {
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: resolveDisplayTimezone(timezone),
-  });
-}
+  const quantityMatch = /^(?:era|corrige(?:\s+(?:para|pra))?|corrigir(?:\s+(?:para|pra))?|ajusta(?:\s+(?:para|pra))?|ajustar(?:\s+(?:para|pra))?)\s+(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|ml|l|un|unidade|unidades|fatia|fatias|porcao|porcoes|porção|porções)$/iu.exec(trimmed);
+  if (quantityMatch) {
+    return { kind: "quantity", quantity: Number(quantityMatch[1].replace(",", ".")), unit: quantityMatch[2].toLowerCase() };
+  }
 
-function getItemName(item: ExistingMealItem) {
-  return item.foodName || item.canonicalName || "item";
+  const replaceMatch = /^(?:troca|trocar|substitui|substituir|nao\s+(?:e|era)|não\s+(?:é|era))\s+(.+?)\s+(?:por|pelo|pela|e\s+sim|é|e)\s+(.+)$/iu.exec(trimmed);
+  if (replaceMatch) {
+    return { kind: "replace_item", sourceFood: replaceMatch[1].trim(), targetFood: replaceMatch[2].trim() };
+  }
+
+  if (/^(?:apaga|apagar|remove|remover|exclui|excluir)\s+(?:a\s+)?(?:refeicao|refeição|ultima\s+refeicao|última\s+refeição|ultimo\s+lancamento|último\s+lançamento)$/iu.test(trimmed)) {
+    return { kind: "remove_last_meal" };
+  }
+
+  const removeItemMatch = /^(?:remove|remover|apaga|apagar|exclui|excluir)\s+(?:o\s+|a\s+|um\s+|uma\s+)?(.+)$/iu.exec(trimmed);
+  if (removeItemMatch?.[1]?.trim()) return { kind: "remove_item", targetFood: removeItemMatch[1].trim() };
+  return null;
 }
 
 function getRecentMeals(meals: ExistingMeal[], receivedAt: Date) {
@@ -87,213 +85,17 @@ function getRecentMeals(meals: ExistingMeal[], receivedAt: Date) {
     .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 }
 
-function detectAdjustmentIntent(text: string): AdjustmentIntent | null {
-  const trimmed = text.trim();
-  const normalized = normalizeText(trimmed);
-
-  if (/^(?:apaga|apagar|remove|remover|exclui|excluir)\s+(?:o\s+|a\s+)?(?:ultimo|ultima)$/.test(normalized)) {
-    return { kind: "remove_last_meal" };
-  }
-
-  if (/^(?:corrige|corrigir|altera|alterar|ajusta|ajustar|troca|trocar|remove|remover|apaga|apagar|exclui|excluir)\s+(?:isso|esse|essa|ultimo|ultima)$/.test(normalized)) {
-    return { kind: "incomplete", reason: "missing_target" };
-  }
-
-  const quantityMatch = /^(?:era|corrige(?:\s+(?:para|pra))?|corrigir(?:\s+(?:para|pra))?|ajusta(?:\s+(?:para|pra))?|ajustar(?:\s+(?:para|pra))?)\s+(\d+(?:[,.]\d+)?)\s*(g|gr|gramas?|kg|ml|l|un|unidade|unidades|fatia|fatias|porcao|porcoes|porção|porções)$/iu.exec(trimmed);
-  if (quantityMatch) {
-    return {
-      kind: "quantity",
-      quantity: Number(quantityMatch[1].replace(",", ".")),
-      unit: quantityMatch[2].toLowerCase(),
-    };
-  }
-
-  const replaceMatch = /^(?:troca|trocar|substitui|substituir|nao\s+(?:e|era)|não\s+(?:é|era))\s+(.+?)\s+(?:por|pelo|pela|e\s+sim|é|e)\s+(.+)$/iu.exec(trimmed);
-  if (replaceMatch) {
-    return {
-      kind: "replace_item",
-      sourceFood: replaceMatch[1].trim(),
-      targetFood: replaceMatch[2].trim(),
-    };
-  }
-
-  const removeMealMatch = /^(?:apaga|apagar|remove|remover|exclui|excluir)\s+(?:a\s+)?(?:refeicao|refeição|ultima\s+refeicao|última\s+refeição|ultimo\s+lancamento|último\s+lançamento)$/iu.exec(trimmed);
-  if (removeMealMatch) {
-    return { kind: "remove_last_meal" };
-  }
-
-  const removeItemMatch = /^(?:remove|remover|apaga|apagar|exclui|excluir)\s+(?:o\s+|a\s+|um\s+|uma\s+)?(.+)$/iu.exec(trimmed);
-  if (removeItemMatch) {
-    const targetFood = removeItemMatch[1].trim();
-    if (targetFood) return { kind: "remove_item", targetFood };
-  }
-
-  return null;
+function itemName(item: ExistingMealItem) {
+  return item.foodName || item.canonicalName || "item";
 }
 
-function itemMatchScore(item: ExistingMealItem, targetFood: string) {
-  const target = normalizeText(targetFood);
-  const itemText = normalizeText(`${item.foodName ?? ""} ${item.canonicalName ?? ""}`);
-  if (!target || !itemText) return 0;
-  if (itemText === target) return 4;
-  if (itemText.includes(target) || target.includes(normalizeText(getItemName(item)))) return 3;
-
-  const targetWords = new Set(target.split(" ").filter(Boolean));
-  const itemWords = new Set(itemText.split(" ").filter(Boolean));
-  const overlap = [...targetWords].filter(word => itemWords.has(word)).length;
-  return overlap >= Math.max(1, Math.min(2, targetWords.size)) ? overlap : 0;
-}
-
-function findItemCandidates(meals: ExistingMeal[], targetFood: string) {
-  return meals.flatMap(meal => (meal.items ?? [])
-    .map((item, itemIndex) => ({ meal, item, itemIndex, score: itemMatchScore(item, targetFood) }))
-    .filter(candidate => candidate.score > 0))
-    .sort((a, b) => b.score - a.score || new Date(b.meal.occurredAt).getTime() - new Date(a.meal.occurredAt).getTime());
-}
-
-function buildNoRecentMealResponse(intent: AdjustmentIntent): WhatsappRecordAdjustmentResult {
+function clarification(detail: string): WhatsappRecordAdjustmentResult {
   return {
     handled: true,
-    action: "record_adjustment_clarification_needed",
-    reply: "Nao encontrei uma refeicao recente segura para ajustar. Me diga qual refeicao e qual item devo alterar.",
+    action: "clarification_needed",
+    reply: "Preciso saber qual item ou refeição você quer ajustar. Exemplo: troque arroz por arroz integral, ou corrija para 150 g.",
     eventType: "whatsapp.records.adjustment_clarification_needed",
-    detail: `Comando de ajuste ${intent.kind} sem refeicao recente dentro da janela segura.`,
-    data: { adjustmentKind: intent.kind, recentWindowHours: 24 },
-  };
-}
-
-function buildAdjustmentOptionValue(input: {
-  intent: AdjustmentIntent;
-  meal: ExistingMeal;
-  item: ExistingMealItem;
-  itemIndex: number;
-  timezone?: string | null;
-}) {
-  return {
-    adjustmentKind: input.intent.kind,
-    mealId: input.meal.id,
-    mealLabel: input.meal.mealLabel,
-    itemIndex: input.itemIndex,
-    itemName: getItemName(input.item),
-    ...(input.intent.kind === "quantity" ? { quantity: input.intent.quantity, unit: input.intent.unit } : {}),
-    ...(input.intent.kind === "replace_item" ? { sourceFood: input.intent.sourceFood, targetFood: input.intent.targetFood } : {}),
-    ...(input.intent.kind === "remove_item" ? { targetFood: input.intent.targetFood } : {}),
-    userTimezone: resolveDisplayTimezone(input.timezone),
-  };
-}
-
-function buildOptionsResponse(targetFood: string, candidates: ReturnType<typeof findItemCandidates>, intent: AdjustmentIntent, timezone?: string | null): WhatsappRecordAdjustmentResult {
-  const options: WhatsappClarificationOption[] = candidates.slice(0, 5).map((candidate) => ({
-    id: `${candidate.meal.id}:${candidate.itemIndex}`,
-    label: `${getItemName(candidate.item)} em ${candidate.meal.mealLabel} (${formatMealDate(candidate.meal.occurredAt, timezone)})`,
-    value: buildAdjustmentOptionValue({
-      intent,
-      meal: candidate.meal,
-      item: candidate.item,
-      itemIndex: candidate.itemIndex,
-      timezone,
-    }),
-  }));
-  return {
-    handled: true,
-    action: "record_adjustment_selection_needed",
-    reply: buildWhatsappClarificationPrompt({
-      question: `Encontrei mais de um item possível para "${targetFood}". Qual deles devo usar?`,
-      options,
-    }),
-    eventType: "whatsapp.records.adjustment_selection_needed",
-    detail: "Comando de ajuste encontrou multiplos alvos possiveis e abriu selecao segura.",
-    data: {
-      adjustmentKind: intent.kind,
-      targetFood,
-      ...(intent.kind === "quantity" ? { quantity: intent.quantity, unit: intent.unit } : {}),
-      ...(intent.kind === "replace_item" ? { sourceFood: intent.sourceFood, replacementTargetFood: intent.targetFood } : {}),
-      userTimezone: resolveDisplayTimezone(timezone),
-      clarificationQuestion: `Encontrei mais de um item possível para "${targetFood}". Qual deles devo usar?`,
-      ...buildWhatsappClarificationOptionsData(options),
-    },
-  };
-}
-
-function buildMissingTargetResponse(intent: AdjustmentIntent): WhatsappRecordAdjustmentResult {
-  return {
-    handled: true,
-    action: "record_adjustment_clarification_needed",
-    reply: "Preciso saber qual item ou refeicao voce quer ajustar. Exemplo: troque arroz por arroz integral, ou corrija para 150 g.",
-    eventType: "whatsapp.records.adjustment_clarification_needed",
-    detail: `Comando de ajuste ${intent.kind} sem alvo suficiente.`,
-    data: { adjustmentKind: intent.kind },
-  };
-}
-
-function buildQuantityConfirmation(meal: ExistingMeal, item: ExistingMealItem, quantity: number, unit: string, timezone?: string | null): WhatsappRecordAdjustmentResult {
-  return {
-    handled: true,
-    action: "record_adjustment_confirmation_needed",
-    reply: `Confirme antes de eu alterar: ajustar ${getItemName(item)} em ${meal.mealLabel} (${formatMealDate(meal.occurredAt, timezone)}) para ${formatNumber(quantity)} ${unit}?`,
-    eventType: "whatsapp.records.adjustment_confirmation_needed",
-    detail: "Correcao de quantidade com alvo unico exige confirmacao antes de persistir.",
-    data: {
-      adjustmentKind: "quantity",
-      mealId: meal.id,
-      mealLabel: meal.mealLabel,
-      itemName: getItemName(item),
-      quantity,
-      unit,
-      userTimezone: resolveDisplayTimezone(timezone),
-    },
-  };
-}
-
-function buildReplaceConfirmation(meal: ExistingMeal, item: ExistingMealItem, targetFood: string, timezone?: string | null): WhatsappRecordAdjustmentResult {
-  return {
-    handled: true,
-    action: "record_adjustment_confirmation_needed",
-    reply: `Confirme antes de eu alterar: trocar ${getItemName(item)} por ${targetFood} em ${meal.mealLabel} (${formatMealDate(meal.occurredAt, timezone)})?`,
-    eventType: "whatsapp.records.adjustment_confirmation_needed",
-    detail: "Troca de alimento com alvo unico exige confirmacao antes de persistir.",
-    data: {
-      adjustmentKind: "replace_item",
-      mealId: meal.id,
-      mealLabel: meal.mealLabel,
-      sourceFood: getItemName(item),
-      targetFood,
-      userTimezone: resolveDisplayTimezone(timezone),
-    },
-  };
-}
-
-function buildRemoveItemConfirmation(meal: ExistingMeal, item: ExistingMealItem, timezone?: string | null): WhatsappRecordAdjustmentResult {
-  return {
-    handled: true,
-    action: "record_adjustment_confirmation_needed",
-    reply: `Confirme antes de eu remover: ${getItemName(item)} de ${meal.mealLabel} (${formatMealDate(meal.occurredAt, timezone)})?`,
-    eventType: "whatsapp.records.adjustment_confirmation_needed",
-    detail: "Remocao de alimento com alvo unico exige confirmacao antes de persistir.",
-    data: {
-      adjustmentKind: "remove_item",
-      mealId: meal.id,
-      mealLabel: meal.mealLabel,
-      itemName: getItemName(item),
-      userTimezone: resolveDisplayTimezone(timezone),
-    },
-  };
-}
-
-function buildRemoveMealConfirmation(meal: ExistingMeal, timezone?: string | null): WhatsappRecordAdjustmentResult {
-  return {
-    handled: true,
-    action: "record_adjustment_confirmation_needed",
-    reply: `Confirme antes de eu remover a ultima refeicao: ${meal.mealLabel} de ${formatMealDate(meal.occurredAt, timezone)} com ${(meal.items ?? []).length} item(ns).`,
-    eventType: "whatsapp.records.adjustment_confirmation_needed",
-    detail: "Remocao de ultima refeicao exige confirmacao antes de persistir.",
-    data: {
-      adjustmentKind: "remove_last_meal",
-      mealId: meal.id,
-      mealLabel: meal.mealLabel,
-      itemCount: (meal.items ?? []).length,
-      userTimezone: resolveDisplayTimezone(timezone),
-    },
+    detail,
   };
 }
 
@@ -303,41 +105,50 @@ export async function executeWhatsappRecordAdjustmentIntent(
 ): Promise<WhatsappRecordAdjustmentResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
-
   const intent = detectAdjustmentIntent(text);
   if (!intent) return null;
-  if (intent.kind === "incomplete") return buildMissingTargetResponse(intent);
+  if (intent.kind === "incomplete") return clarification("Comando de ajuste sem alvo suficiente.");
 
-  const receivedAt = input.receivedAt ?? new Date();
-  const recentMeals = getRecentMeals(await listMeals(userId), receivedAt);
-  if (!recentMeals.length) return buildNoRecentMealResponse(intent);
-
-  if (intent.kind === "remove_last_meal") {
-    return buildRemoveMealConfirmation(recentMeals[0], input.userTimezone);
+  if (intent.kind === "remove_item" || intent.kind === "remove_last_meal") {
+    return executeWhatsappDeleteIntent(userId, { text, timeZone: input.userTimezone }) as Promise<WhatsappRecordAdjustmentResult | null>;
   }
 
-  if (intent.kind === "quantity") {
-    const latestMeal = recentMeals[0];
-    const latestItems = latestMeal.items ?? [];
-    if (latestItems.length === 1) {
-      return buildQuantityConfirmation(latestMeal, latestItems[0], intent.quantity, intent.unit, input.userTimezone);
-    }
-    if (latestItems.length > 1) {
-      return buildOptionsResponse("quantidade informada", latestItems.map((item, itemIndex) => ({ meal: latestMeal, item, itemIndex, score: 1 })), intent, input.userTimezone);
-    }
-    return buildMissingTargetResponse(intent);
-  }
-
-  const targetFood = intent.kind === "replace_item" ? intent.sourceFood : intent.targetFood;
-  const candidates = findItemCandidates(recentMeals, targetFood);
-  if (!candidates.length) return buildMissingTargetResponse(intent);
-  if (candidates.length > 1 && candidates[0].score === candidates[1].score) {
-    return buildOptionsResponse(targetFood, candidates, intent, input.userTimezone);
-  }
-
-  const selected = candidates[0];
   if (intent.kind === "replace_item") {
-    return buildReplaceConfirmation(selected.meal, selected.item, intent.targetFood, input.userTimezone);
+    return handleFoodReplacementIntents(userId, [{ fromFood: intent.sourceFood, toFood: intent.targetFood }], input.userTimezone ?? DEFAULT_APP_TIME_ZONE);
   }
-  return buildRemoveItemConfirmation(selected.meal, selected.item, input.userTimezone);
+
+  const recentMeals = getRecentMeals(await listMeals(userId), input.receivedAt ?? new Date());
+  const latestMeal = recentMeals[0];
+  if (!latestMeal?.items?.length) return clarification("Correção de quantidade sem refeição recente disponível.");
+
+  if (latestMeal.items.length === 1) {
+    return handleQuantityCorrectionIntent(userId, {
+      previousQuantity: null,
+      previousUnit: null,
+      nextQuantity: intent.quantity,
+      nextUnit: intent.unit,
+    });
+  }
+
+  const pending = await createPendingMealItemSelection(userId, {
+    targetFood: "item da última refeição",
+    action: { kind: "quantity_absolute", quantity: intent.quantity, unit: intent.unit },
+    contextLabel: "na última refeição",
+    resultTitle: "Quantidade corrigida",
+    candidates: latestMeal.items.map((item, itemIndex) => ({
+      mealId: latestMeal.id,
+      mealLabel: latestMeal.mealLabel,
+      itemIndex,
+      itemName: itemName(item),
+    })),
+  });
+  return pending;
 }
+
+export const contextUsage: import("./intentContext").IntentContextUsage = {
+  usesRecentWindow: true,
+  usesSummary: false,
+  usesPendingOperation: true,
+  usesLongTermMemory: false,
+  requiresFreshDbQuery: true,
+};

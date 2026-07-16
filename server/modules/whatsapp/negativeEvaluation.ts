@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import {
   buildExpectedWhatsappRegressionActual,
   runWhatsappRegressionCase,
@@ -198,7 +199,7 @@ export const whatsappNegativeEvaluationCases: WhatsappNegativeEvaluationCase[] =
     id: "negative-expired-selection-multiturn",
     category: "ambiguous_or_insufficient",
     input: { text: "opcao 2", inputType: "multi_turn", anonymized: true },
-    initialContext: { pendingKind: "expired_selection", referencedHistoryId: "expired-options", timezone: "America/Sao_Paulo" },
+    initialContext: { pendingKind: "expired_selection", referencedHistoryId: "expired-options", timezone: DEFAULT_APP_TIME_ZONE },
     expected: {
       intent: "ambiguous",
       schemaVersion: "whatsapp-intent-output/v1",

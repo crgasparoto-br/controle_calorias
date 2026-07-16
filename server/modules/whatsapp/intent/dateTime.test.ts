@@ -20,7 +20,7 @@ describe("parseReportPeriod", () => {
 
     expectConcretePeriod(period);
     expect(period.start.toISOString()).toBe("2026-06-29T03:00:00.000Z");
-    expect(period.end.toISOString()).toBe("2026-07-06T02:59:59.000Z");
+    expect(period.end.toISOString()).toBe("2026-07-06T02:59:59.999Z");
     expect(period.label).toBe("semana passada (29/06/2026 a 05/07/2026)");
   });
 
@@ -29,7 +29,7 @@ describe("parseReportPeriod", () => {
 
     expectConcretePeriod(period);
     expect(period.start.toISOString()).toBe("2026-07-06T03:00:00.000Z");
-    expect(period.end.toISOString()).toBe("2026-07-13T02:59:59.000Z");
+    expect(period.end.toISOString()).toBe("2026-07-13T02:59:59.999Z");
     expect(period.label).toBe("semana");
   });
 
@@ -38,7 +38,7 @@ describe("parseReportPeriod", () => {
 
     expectConcretePeriod(period);
     expect(period.start.toISOString()).toBe("2026-07-01T03:00:00.000Z");
-    expect(period.end.toISOString()).toBe("2026-07-08T02:59:59.000Z");
+    expect(period.end.toISOString()).toBe("2026-07-08T02:59:59.999Z");
     expect(period.label).toBe("últimos 7 dias");
   });
 
@@ -47,7 +47,7 @@ describe("parseReportPeriod", () => {
 
     expectConcretePeriod(period);
     expect(period.start.toISOString()).toBe("2026-06-01T03:00:00.000Z");
-    expect(period.end.toISOString()).toBe("2026-07-01T02:59:59.000Z");
+    expect(period.end.toISOString()).toBe("2026-07-01T02:59:59.999Z");
     expect(period.label).toBe("mês passado (01/06/2026 a 30/06/2026)");
   });
 

@@ -4,7 +4,7 @@ const getDbMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
 const getUserWhatsappConnectionMock = vi.fn();
 const logInferenceEventMock = vi.fn();
-const sendWhatsAppTextMessageMock = vi.fn();
+const sendWhatsAppLogicalReplyMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getDb: getDbMock,
@@ -13,8 +13,8 @@ vi.mock("../../db", () => ({
   logInferenceEvent: logInferenceEventMock,
 }));
 
-vi.mock("../whatsapp/webhookUtils", () => ({
-  sendWhatsAppTextMessage: sendWhatsAppTextMessageMock,
+vi.mock("../whatsapp/replyTransport", () => ({
+  sendWhatsAppLogicalReply: sendWhatsAppLogicalReplyMock,
 }));
 
 const { buildWelcomeMessage, sendOnboardingWelcomeWhatsapp } = await import("./webGreetingService");
@@ -46,73 +46,26 @@ const VALID_GOAL_SUMMARY = {
 };
 
 describe("buildWelcomeMessage", () => {
-  it("substitui nome, meta e objetivo corretamente", () => {
+  it("usa a mensagem canônica de onboarding sem interpolar dados sensíveis", () => {
     const msg = buildWelcomeMessage("Maria Silva", 1800, "emagrecer");
-    expect(msg).toContain("Olá, Maria!");
-    expect(msg).toContain("1800 kcal");
-    expect(msg).toContain("Perder peso");
-  });
-
-  it("usa apenas o primeiro nome", () => {
-    const msg = buildWelcomeMessage("João Pedro Santos", 2000, "manter_peso");
-    expect(msg).toContain("Olá, João!");
-    expect(msg).not.toContain("Pedro");
-  });
-
-  it("usa fallback amigável quando nome é nulo", () => {
-    const msg = buildWelcomeMessage(null, 1500, "ganhar_massa");
-    expect(msg).toContain("Olá, tudo bem!");
-  });
-
-  it("usa fallback amigável quando nome é string vazia", () => {
-    const msg = buildWelcomeMessage("", 1500, "melhorar_habitos");
-    expect(msg).toContain("Olá, tudo bem!");
-  });
-
-  it("arredonda a meta calórica para inteiro", () => {
-    const msg = buildWelcomeMessage("Ana", 1823.7, "emagrecer");
-    expect(msg).toContain("1824 kcal");
-  });
-
-  it("exibe 'Não informado' quando objetivo é nulo", () => {
-    const msg = buildWelcomeMessage("Carlos", 2100, null);
-    expect(msg).toContain("Não informado");
-  });
-
-  it("exibe 'Não informado' quando objetivo não está no mapa", () => {
-    const msg = buildWelcomeMessage("Carlos", 2100, "objetivo_inexistente");
-    expect(msg).toContain("Não informado");
+    expect(msg).toContain("*Bem-vindo ao Controle de Calorias!*");
+    expect(msg).not.toContain("Maria");
+    expect(msg).not.toContain("1800 kcal");
   });
 
   it("contém instruções de registro por WhatsApp", () => {
     const msg = buildWelcomeMessage("Bia", 1600, "manter_peso");
-    expect(msg).toContain("Café da manhã");
-    expect(msg).toContain("Almoço");
+    expect(msg).toContain("Registrar refeições por texto, foto ou áudio");
   });
 
   it("contém instrução sobre plataforma web", () => {
     const msg = buildWelcomeMessage("Bia", 1600, "manter_peso");
-    expect(msg).toContain("plataforma web");
+    expect(msg).toContain("sistema pela web");
   });
 
   it("contém dica de formato de mensagem", () => {
     const msg = buildWelcomeMessage("Bia", 1600, "manter_peso");
-    expect(msg).toContain("150g de arroz");
-  });
-
-  it("mapeia objetivo 'Manter o peso' corretamente", () => {
-    const msg = buildWelcomeMessage("Test", 2000, "manter_peso");
-    expect(msg).toContain("Manter o peso");
-  });
-
-  it("mapeia objetivo 'Ganhar massa muscular' corretamente", () => {
-    const msg = buildWelcomeMessage("Test", 2500, "ganhar_massa");
-    expect(msg).toContain("Ganhar massa muscular");
-  });
-
-  it("mapeia objetivo 'Melhorar os hábitos alimentares' corretamente", () => {
-    const msg = buildWelcomeMessage("Test", 2000, "melhorar_habitos");
-    expect(msg).toContain("Melhorar os hábitos alimentares");
+    expect(msg).toContain("/Quais alimentos têm mais proteína?");
   });
 });
 
@@ -122,11 +75,15 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
     getUserNutritionGoalMock.mockReset();
     getUserWhatsappConnectionMock.mockReset();
     logInferenceEventMock.mockReset();
-    sendWhatsAppTextMessageMock.mockReset();
+    sendWhatsAppLogicalReplyMock.mockReset();
 
     getDbMock.mockResolvedValue(null);
     getUserNutritionGoalMock.mockResolvedValue(VALID_GOAL_SUMMARY);
-    sendWhatsAppTextMessageMock.mockResolvedValue({ ok: true, detail: "ok" });
+    sendWhatsAppLogicalReplyMock.mockImplementation(async (_to: string, reply: { messages: unknown[] }) => ({
+      ok: true,
+      primaryOk: true,
+      sends: reply.messages.map(message => ({ message, ok: true, detail: "ok" })),
+    }));
   });
 
   it("envia mensagem para usuário novo com telefone e meta válidos", async () => {
@@ -135,9 +92,9 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
 
     await sendOnboardingWelcomeWhatsapp(uid);
 
-    expect(sendWhatsAppTextMessageMock).toHaveBeenCalledOnce();
-    const [, body] = sendWhatsAppTextMessageMock.mock.calls[0];
-    expect(body).toContain("1800 kcal");
+    expect(sendWhatsAppLogicalReplyMock).toHaveBeenCalledOnce();
+    const [, reply] = sendWhatsAppLogicalReplyMock.mock.calls[0];
+    expect(reply.messages).toHaveLength(2);
 
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: uid,
@@ -152,7 +109,7 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
 
     await sendOnboardingWelcomeWhatsapp(uid);
 
-    expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalled();
+    expect(sendWhatsAppLogicalReplyMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: uid,
       eventType: "whatsapp.welcome_skipped_no_phone",
@@ -166,7 +123,7 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
 
     await sendOnboardingWelcomeWhatsapp(uid);
 
-    expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalled();
+    expect(sendWhatsAppLogicalReplyMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       eventType: "whatsapp.welcome_skipped_no_phone",
     }));
@@ -182,7 +139,7 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
 
     await sendOnboardingWelcomeWhatsapp(uid);
 
-    expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalled();
+    expect(sendWhatsAppLogicalReplyMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       eventType: "whatsapp.welcome_skipped_no_goal",
     }));
@@ -195,7 +152,7 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
 
     await sendOnboardingWelcomeWhatsapp(uid);
 
-    expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalled();
+    expect(sendWhatsAppLogicalReplyMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       eventType: "whatsapp.welcome_skipped_no_goal",
     }));
@@ -206,21 +163,51 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
     getUserWhatsappConnectionMock.mockResolvedValue(makeConnection(uid));
 
     await sendOnboardingWelcomeWhatsapp(uid);
-    expect(sendWhatsAppTextMessageMock).toHaveBeenCalledOnce();
+    expect(sendWhatsAppLogicalReplyMock).toHaveBeenCalledOnce();
 
-    sendWhatsAppTextMessageMock.mockClear();
+    sendWhatsAppLogicalReplyMock.mockClear();
     logInferenceEventMock.mockClear();
 
     await sendOnboardingWelcomeWhatsapp(uid);
-    expect(sendWhatsAppTextMessageMock).not.toHaveBeenCalled();
+    expect(sendWhatsAppLogicalReplyMock).not.toHaveBeenCalled();
+  });
+
+
+  it("retoma somente a mensagem pendente após falha parcial", async () => {
+    const uid = freshUserId();
+    getUserWhatsappConnectionMock.mockResolvedValue(makeConnection(uid));
+    sendWhatsAppLogicalReplyMock
+      .mockResolvedValueOnce({
+        ok: false,
+        primaryOk: true,
+        sends: [
+          { ok: true, detail: "ok" },
+          { ok: false, detail: "falha na segunda mensagem" },
+        ],
+      })
+      .mockImplementationOnce(async (_to: string, reply: { messages: unknown[] }) => ({
+        ok: true,
+        primaryOk: true,
+        sends: reply.messages.map(message => ({ message, ok: true, detail: "ok" })),
+      }));
+
+    await sendOnboardingWelcomeWhatsapp(uid);
+    await sendOnboardingWelcomeWhatsapp(uid);
+
+    expect(sendWhatsAppLogicalReplyMock).toHaveBeenCalledTimes(2);
+    const [, firstReply] = sendWhatsAppLogicalReplyMock.mock.calls[0];
+    const [, retryReply] = sendWhatsAppLogicalReplyMock.mock.calls[1];
+    expect(firstReply.messages).toHaveLength(2);
+    expect(retryReply.messages).toHaveLength(1);
+    expect(retryReply.messages[0].body).toContain("Sua meta nutricional");
   });
 
   it("registra log de aviso quando provedor WhatsApp retorna erro", async () => {
     const uid = freshUserId();
     getUserWhatsappConnectionMock.mockResolvedValue(makeConnection(uid));
-    sendWhatsAppTextMessageMock.mockResolvedValue({
-      ok: false,
-      detail: "Meta retornou 500 Internal Server Error no envio da resposta automática.",
+    sendWhatsAppLogicalReplyMock.mockResolvedValue({
+      primaryOk: false,
+      sends: [{ ok: false, detail: "Meta retornou 500 Internal Server Error no envio da resposta automática." }],
     });
 
     await sendOnboardingWelcomeWhatsapp(uid);
@@ -234,7 +221,7 @@ describe("sendOnboardingWelcomeWhatsapp", () => {
   it("não quebra o fluxo quando um erro inesperado é lançado", async () => {
     const uid = freshUserId();
     getUserWhatsappConnectionMock.mockResolvedValue(makeConnection(uid));
-    sendWhatsAppTextMessageMock.mockRejectedValue(new Error("Timeout de rede"));
+    sendWhatsAppLogicalReplyMock.mockRejectedValue(new Error("Timeout de rede"));
 
     await expect(sendOnboardingWelcomeWhatsapp(uid)).resolves.toBeUndefined();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({

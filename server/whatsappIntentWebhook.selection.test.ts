@@ -99,6 +99,7 @@ describe("text webhook persisted delete selection", () => {
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const payload = init?.body ? JSON.parse(String(init.body)) : {};
       if (payload?.text?.body) sentMessages.push(payload.text.body);
+      if (payload?.interactive?.body?.text) sentMessages.push(payload.interactive.body.text);
       return { ok: true, json: async () => ({}) } as Response;
     }) as typeof fetch;
   });

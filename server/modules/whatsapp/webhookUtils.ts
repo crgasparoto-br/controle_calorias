@@ -10,6 +10,11 @@ export type WhatsAppWebhookMessage = {
   text?: { body?: string };
   image?: { id?: string; mime_type?: string; caption?: string };
   audio?: { id?: string; mime_type?: string };
+  interactive?: {
+    type?: "button_reply" | "list_reply";
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string; description?: string };
+  };
 };
 
 export type ExtractedWhatsAppWebhookMessage = WhatsAppWebhookMessage & {
@@ -67,17 +72,6 @@ export function resolveWhatsAppMessageOccurredAt(message: Pick<WhatsAppWebhookMe
   return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
 }
 
-export function formatDateKeyInSaoPaulo(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
 export function stripDiacritics(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -92,6 +86,19 @@ export function normalizeWhatsAppIntentText(value: string) {
 
 export function getWhatsAppMessageTextBody(message: Pick<WhatsAppWebhookMessage, "text" | "image">) {
   return message.text?.body?.trim() || message.image?.caption?.trim() || "";
+}
+
+/**
+ * ID opaco de uma resposta de botão ou lista interativa (issue #782). Não é texto
+ * livre do usuário: nunca deve ser reinterpretado como comando textual nem passado
+ * ao fallback nutricional. A resolução vive em `interactiveCallback.ts`.
+ */
+export function getWhatsAppInteractiveReplyId(message: Pick<WhatsAppWebhookMessage, "interactive">): string | null {
+  return message.interactive?.button_reply?.id?.trim() || message.interactive?.list_reply?.id?.trim() || null;
+}
+
+export function isWhatsAppInteractiveReplyMessage(message: Pick<WhatsAppWebhookMessage, "interactive">) {
+  return Boolean(getWhatsAppInteractiveReplyId(message));
 }
 
 export async function sendWhatsAppImageMessage(to: string, imageUrl: string, caption: string) {
@@ -438,6 +445,126 @@ export async function sendWhatsAppInteractiveUrlButtonMessage(
         detail: fallbackError instanceof Error ? fallbackError.message : "Falha desconhecida ao enviar fallback textual do WhatsApp.",
       };
     }
+  }
+}
+
+export type WhatsAppInteractiveButtonSpec = { id: string; title: string };
+export type WhatsAppInteractiveListRowSpec = { id: string; title: string; description?: string };
+export type WhatsAppInteractiveListSectionSpec = { title?: string; rows: WhatsAppInteractiveListRowSpec[] };
+
+export async function sendWhatsAppInteractiveButtonsMessage(
+  to: string,
+  bodyText: string,
+  buttons: WhatsAppInteractiveButtonSpec[],
+) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de botões.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: { text: bodyText },
+          action: {
+            buttons: buttons.map(button => ({
+              type: "reply",
+              reply: { id: button.id, title: button.title },
+            })),
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio dos botões.`,
+      };
+    }
+
+    return { ok: true, detail: "Botões enviados com sucesso." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar botões do WhatsApp.",
+    };
+  }
+}
+
+export async function sendWhatsAppInteractiveListMessage(
+  to: string,
+  bodyText: string,
+  buttonText: string,
+  sections: WhatsAppInteractiveListSectionSpec[],
+) {
+  let config;
+  try {
+    config = await requireWhatsAppSendConfig();
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Credenciais do WhatsApp não configuradas para envio de lista.",
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v22.0/${config.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: bodyText },
+          action: {
+            button: buttonText,
+            sections: sections.map(section => ({
+              ...(section.title ? { title: section.title } : {}),
+              rows: section.rows.map(row => ({
+                id: row.id,
+                title: row.title,
+                ...(row.description ? { description: row.description } : {}),
+              })),
+            })),
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: `Meta retornou ${response.status} ${response.statusText} no envio da lista.`,
+      };
+    }
+
+    return { ok: true, detail: "Lista enviada com sucesso." };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao enviar lista do WhatsApp.",
+    };
   }
 }
 

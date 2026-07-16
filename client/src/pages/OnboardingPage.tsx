@@ -450,12 +450,20 @@ export default function OnboardingPage() {
     onSuccess: async (result) => {
       await Promise.all([
         utils.nutrition.onboarding.profile.invalidate(),
-        ...(result.recalculatedGoals ? [
-          utils.nutrition.goals.get.invalidate(),
-          utils.nutrition.dashboard.overview.invalidate(),
-          utils.nutrition.dashboard.today.invalidate(),
-          utils.nutrition.reports.weekly.invalidate(),
-        ] : []),
+        utils.nutrition.onboarding.timeZone.invalidate(),
+        utils.nutrition.dashboard.overview.invalidate(),
+        utils.nutrition.dashboard.today.invalidate(),
+        utils.nutrition.meals.list.invalidate(),
+        utils.nutrition.meals.dayTotals.invalidate(),
+        utils.nutrition.exercises.list.invalidate(),
+        utils.nutrition.water.list.invalidate(),
+        utils.nutrition.reports.weekly.invalidate(),
+        utils.nutrition.reports.bundle.invalidate(),
+        utils.nutrition.reports.periodBundle.invalidate(),
+        utils.nutrition.professionals.patientTimeZone.invalidate(),
+        utils.nutrition.professionals.patientDashboard.invalidate(),
+        utils.nutrition.professionals.patientPeriodBundle.invalidate(),
+        ...(result.recalculatedGoals ? [utils.nutrition.goals.get.invalidate()] : []),
       ]);
 
       if (shouldAttachWhatsappPhone) {

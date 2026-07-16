@@ -20,7 +20,16 @@
 import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 import { executeWhatsappAiQuestionIntent, isWhatsappAiQuestionText } from "./aiQuestionAssistant";
-import { handlePendingWhatsAppConfirmation } from "./webhookTextCommands";
+import { handlePendingWhatsAppConfirmation, completeWhatsappGenericConfirmationCallback, PENDING_CONFIRMATION_TYPE } from "./webhookTextCommands";
+import { claimWhatsAppInteractiveCallback } from "./interactiveCallback";
+import { completeWhatsappDeleteInteractiveCallback, PENDING_DELETE_TYPE } from "./deleteIntent";
+import { completeMealItemSelectionInteractiveCallback, PENDING_MEAL_ITEM_SELECTION_TYPE } from "./mealItemSelectionCallback";
+import {
+  completeWhatsappPeriodReportCallback,
+  isExpectedWhatsappPeriodReportAction,
+  PENDING_PERIOD_REPORT_TYPE,
+} from "./periodReportClarification";
+import { buildWhatsAppCallbackUnavailableReplyMessage } from "./replyMessages";
 import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
@@ -28,10 +37,87 @@ const pendingOperationRepository = createDrizzleWhatsAppPendingOperationReposito
   onWarning: logPersistenceWarning,
 });
 
+const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
+
+export type WhatsAppInteractiveCallbackResult = {
+  handled: true;
+  action?: string;
+  reply: string;
+  eventType: string;
+  detail: string;
+  data?: Record<string, unknown>;
+  interactiveReply?: import("./replyContract").WhatsAppLogicalReply;
+};
+
 export type WhatsAppPrecedenceGateResult =
   | { step: "ai_question"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappAiQuestionIntent>>> }
+  | { step: "interactive_callback"; result: WhatsAppInteractiveCallbackResult }
   | { step: "generic_confirmation"; result: NonNullable<Awaited<ReturnType<typeof handlePendingWhatsAppConfirmation>>> }
   | { step: "continue_pipeline" };
+
+function buildUnavailableInteractiveCallbackResult(): WhatsAppInteractiveCallbackResult {
+  return {
+    handled: true,
+    reply: buildWhatsAppCallbackUnavailableReplyMessage(),
+    eventType: "whatsapp.interactive_callback.unavailable",
+    detail: "Callback de botão/lista inválido, expirado, já consumido ou cancelado.",
+  };
+}
+
+/**
+ * Ponto único de resolução de botões/listas (issue #782): reivindica a
+ * pendência referenciada pelo ID opaco do callback e despacha para o
+ * resolvedor do domínio correspondente ao `type` persistido em
+ * `whatsappPendingOperations`. Nenhum domínio consome a pendência de novo.
+ */
+async function resolveWhatsAppInteractiveCallback(
+  userId: number,
+  interactiveReplyId: string,
+  receivedAt?: Date,
+  sourcePhone?: string | null,
+  userTimezone?: string | null,
+): Promise<WhatsAppInteractiveCallbackResult> {
+  const expectedTypes = [
+    PENDING_DELETE_TYPE,
+    PENDING_MEAL_ITEM_SELECTION_TYPE,
+    PENDING_CONFIRMATION_TYPE,
+    PENDING_PROFESSIONAL_ACCESS_TYPE,
+    PENDING_PERIOD_REPORT_TYPE,
+  ] as const;
+  const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt, {
+    sourcePhone,
+    expectedTypes,
+    isExpectedAction: (type, action) => {
+      if (type === PENDING_PROFESSIONAL_ACCESS_TYPE) return action === "authorize" || action === "reject";
+      if (type === PENDING_CONFIRMATION_TYPE) return action === "confirm" || action === "cancel";
+      if (type === PENDING_PERIOD_REPORT_TYPE) return isExpectedWhatsappPeriodReportAction(action);
+      if (type === PENDING_DELETE_TYPE || type === PENDING_MEAL_ITEM_SELECTION_TYPE) {
+        return action === "confirm" || action === "cancel" || /^select:\d+$/.test(action);
+      }
+      return false;
+    },
+  });
+  if (claim.status !== "claimed") {
+    return buildUnavailableInteractiveCallbackResult();
+  }
+
+  switch (claim.pendingOperation.type) {
+    case PENDING_DELETE_TYPE:
+      return completeWhatsappDeleteInteractiveCallback(userId, claim.pendingOperation, claim.action, userTimezone ?? undefined);
+    case PENDING_MEAL_ITEM_SELECTION_TYPE:
+      return completeMealItemSelectionInteractiveCallback(userId, claim.pendingOperation, claim.action);
+    case PENDING_CONFIRMATION_TYPE:
+      return completeWhatsappGenericConfirmationCallback(userId, claim.pendingOperation, claim.action);
+    case PENDING_PERIOD_REPORT_TYPE:
+      return completeWhatsappPeriodReportCallback(userId, claim.action, receivedAt);
+    case PENDING_PROFESSIONAL_ACCESS_TYPE: {
+      const { completeWhatsAppProfessionalAccessCallback } = await import("../professionals/service");
+      return completeWhatsAppProfessionalAccessCallback(userId, claim.pendingOperation, claim.action);
+    }
+    default:
+      return buildUnavailableInteractiveCallbackResult();
+  }
+}
 
 /**
  * Resolve os passos 2 e 3 da ordem de precedência. Deve ser chamado antes de
@@ -48,7 +134,16 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   text?: string | null;
   receivedAt?: Date;
   userTimezone?: string | null;
+  /** ID opaco de `button_reply`/`list_reply` (issue #782). Resolvido antes de qualquer outra precedência: um clique nunca é reinterpretado como texto livre nem cai no fallback nutricional. */
+  interactiveReplyId?: string | null;
+  /** Telefone de origem validado contra a conexão ativa antes de consumir callback. */
+  sourcePhone?: string | null;
 }): Promise<WhatsAppPrecedenceGateResult> {
+  if (input.interactiveReplyId) {
+    const result = await resolveWhatsAppInteractiveCallback(input.userId, input.interactiveReplyId, input.receivedAt, input.sourcePhone, input.userTimezone);
+    return { step: "interactive_callback", result };
+  }
+
   if (isWhatsappAiQuestionText(input.text)) {
     const result = await executeWhatsappAiQuestionIntent(input.userId, {
       text: input.text,

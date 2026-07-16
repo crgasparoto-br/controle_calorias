@@ -2,6 +2,8 @@
 
 O projeto permanece como um monólito orientado a produto. Frontend, backend, autenticação, integrações, persistência e contratos tipados ficam no mesmo repositório para acelerar evolução, reduzir coordenação operacional e simplificar validação por agentes.
 
+A plataforma possui duas experiências de primeira classe — Área do Paciente e Área Profissional — sobre os mesmos serviços de domínio. A separação é de navegação, autorização, casos de uso e apresentação; não representa divisão em aplicações, identidades ou microserviços independentes.
+
 ## Stack principal
 
 | Camada | Tecnologia | Responsabilidade |
@@ -17,20 +19,75 @@ O projeto permanece como um monólito orientado a produto. Frontend, backend, au
 ## Fronteiras de camadas
 
 ```text
-client/src/pages              -> composição de tela e chamadas tRPC
-client/src/components         -> componentes reutilizáveis de UI
-server/nutritionRouter        -> composição de routers, autenticação, schemas e serviços
-server/modules/*              -> regra de negócio por domínio
-server/repositories/*         -> acesso a dados reutilizável por domínio
-server/_core/openaiClient.ts  -> cliente oficial da OpenAI, isolado do domínio
+client/src/pages               -> composição de tela e chamadas tRPC
+client/src/components          -> componentes reutilizáveis de UI
+server/nutritionRouter         -> composição de routers, autenticação, schemas e serviços
+server/modules/*               -> regra de negócio por domínio
+server/modules/timeZone/service.ts -> resolução central do timezone efetivo por dono dos dados
+server/repositories/*          -> acesso a dados reutilizável por domínio
+server/_core/openaiClient.ts   -> cliente oficial da OpenAI, isolado do domínio
 server/_core/geminiProvider.ts -> implementação do provider Gemini (Google Generative AI)
-server/_core/aiProvider.ts    -> interface interna e factory que seleciona o provider ativo
+server/_core/aiProvider.ts     -> interface interna e factory que seleciona o provider ativo
 server/_core/voiceTranscription.ts -> helper de transcrição baseado no provider interno
 server/_core/imageGeneration.ts -> helper visual auxiliar opcional, não bloqueante
-server/db.ts                  -> persistência legada e funções agregadoras ainda centralizadas
-drizzzle/schema.ts            -> fonte de verdade do modelo relacional
-shared/*                      -> tipos, cálculos e mensagens sem dependência de ambiente
+server/db.ts                   -> persistência legada e funções agregadoras ainda centralizadas
+drizzle/schema.ts              -> fonte de verdade do modelo relacional
+shared/*                       -> tipos, cálculos e mensagens sem dependência de ambiente
 ```
+
+## Fronteiras das áreas de experiência
+
+A decisão de produto canônica está em `docs/product-specs/product-experience-model.md`.
+
+### Área do Paciente
+
+- Corresponde à experiência pessoal já desenvolvida.
+- Deve funcionar com ou sem vínculo profissional.
+- É responsável por registro, revisão, histórico, metas pessoais, relatórios, peso, exercícios, integrações e configurações do próprio usuário.
+- Não deve depender de perfil profissional, assinatura profissional ou existência de vínculo para executar fluxos pessoais permitidos.
+- Não deve conter regras exclusivas de gestão de carteira ou prontuário profissional.
+
+### Área Profissional
+
+- É um contexto próprio de navegação e trabalho para usuários com perfil profissional ativo.
+- Deve consumir os mesmos serviços canônicos de refeições, metas, relatórios, peso, exercícios, timezone e WhatsApp, sem duplicar cálculos.
+- Deve validar no backend o perfil profissional, o vínculo vigente, o consentimento e o paciente alvo.
+- Não deve importar páginas pessoais para simular a sessão do paciente nem usar impersonação.
+- Toda mutação profissional deve carregar ator profissional e paciente afetado de forma separada.
+- A tela única com abas existente deve ser preservada durante a transição, mas a direção arquitetural é evoluir para páginas próprias de dashboard, carteira, prontuário, acompanhamento, mensagens, relatórios e configurações.
+
+### Serviços compartilhados
+
+Os domínios compartilhados continuam independentes das telas que os consomem:
+
+- serviços de refeições não devem conhecer dashboard profissional;
+- cálculos de metas e relatórios devem produzir contratos canônicos reutilizáveis;
+- resolução de timezone usa sempre o dono dos dados;
+- transporte e serialização do WhatsApp permanecem centrais;
+- autorização profissional envolve ator e paciente, mas não deve duplicar autenticação;
+- billing concede entitlements e limites, mas não define a identidade da conta nem implementa a experiência profissional.
+
+### Auditoria e autoria
+
+Operações profissionais que alterem ou orientem o acompanhamento devem preservar, conforme o caso:
+
+- profissional responsável;
+- paciente afetado;
+- data e hora;
+- estado anterior e novo estado;
+- vigência;
+- justificativa;
+- origem da ação: manual, automática ou sugerida pela IA.
+
+A IA não deve executar mutações profissionais automaticamente. Sugestões precisam passar por fluxo explícito e autorizado.
+
+### Separação de entregas
+
+- Correções da Área do Paciente não devem absorver novas telas profissionais.
+- Infraestrutura compartilhada deve ser implementada uma vez e consumida pelas duas áreas.
+- A evolução da Área Profissional deve possuir épica e subissues próprias.
+- Billing e experiência profissional permanecem programas separados, ligados por contratos de entitlement e dependências explícitas.
+- Refatoração de domínio não deve ser misturada com mudança visual ou ampliação de produto sem necessidade técnica comprovada.
 
 ### Fronteiras do webhook do WhatsApp
 
@@ -42,6 +99,8 @@ shared/*                      -> tipos, cálculos e mensagens sem dependência d
 - `mealConsolidationService.ts` / `mealConsolidation.ts` -> consolidação de refeições do mesmo dia/tipo (ver #663).
 
 A assinatura pública exportada por `server/whatsappWebhook.ts` (`handleWhatsAppWebhook`, `verifyWhatsAppWebhook`, `__resetWhatsAppWebhookDeduplicationForTests`) deve ser preservada ao mover código para esses módulos.
+
+Fluxos de comunicação profissional devem reutilizar o contrato central de mensagens e o transporte oficial. Não criar cliente, formatter ou fila paralela somente para a Área Profissional.
 
 ## Regras de dependência
 
@@ -55,6 +114,10 @@ A assinatura pública exportada por `server/whatsappWebhook.ts` (`handleWhatsApp
 - Falha de imagem auxiliar nunca deve bloquear criação ou confirmação de refeição.
 - Fluxos multimodais devem usar imagem e áudio inline para inferência e transcrição quando houver mídia anexada; upload para storage serve persistência e não pode ser pré-requisito para a IA consumir a mídia.
 - Dependências legadas remanescentes devem ficar documentadas e fora do fluxo principal de refeição.
+- Páginas profissionais podem reutilizar componentes visuais genéricos, mas não devem importar páginas da Área do Paciente.
+- Regras profissionais devem viver em módulos de domínio/serviço, não em tabs ou páginas React.
+- Cálculos de metas, relatórios e timezone devem ter uma fonte canônica compartilhada.
+- Autorização profissional não pode depender apenas da visibilidade do menu ou da rota no frontend.
 
 ## Plano de extração de `server/db.ts`
 
@@ -88,7 +151,9 @@ Proibições:
 - não logar texto cru de refeição, transcrição, tokens, URLs assinadas ou telefone completo;
 - não enviar dados sensíveis para analytics;
 - não retornar detalhes internos de erro para o usuário final;
-- não persistir novo dado sensível sem documentar finalidade, retenção e exclusão.
+- não persistir novo dado sensível sem documentar finalidade, retenção e exclusão;
+- não expor dados de um paciente a profissional sem vínculo vigente e escopo autorizado;
+- não misturar dados pessoais do nutricionista com dados do paciente selecionado.
 
 ## Comandos de qualidade
 

@@ -144,18 +144,17 @@ describe("buildWhatsAppMealReplyMessage", () => {
     const reply = buildWhatsAppMealReplyMessage(processed, {
       registeredAt: new Date("2026-06-04T16:00:00.000Z"),
       goalProgress: {
-        consumedCalories: 1165,
-        goalCalories: 2000,
-        exerciseCalories: 200,
-      },
+      consumedCalories: 1165,
+      effectiveGoalCalories: 2200,
+      exerciseCalories: 200,
+    },
     });
 
-    expect(reply).toContain("Meta de hoje:");
-    expect(reply).toContain("* Meta estimada: 2.000 kcal");
-    expect(reply).toContain("* Exercícios: 200 kcal");
-    expect(reply).toContain("* Meta ajustada: 2.200 kcal");
-    expect(reply).toContain("* Consumo: 1.165 kcal");
-    expect(reply).toContain("* Déficit: 1.035 kcal");
+    expect(reply).toContain("*Meta:* 2.200 kcal");
+    expect(reply).toContain("*Exercícios:* 200 kcal");
+    expect(reply).toContain("*Consumo:* 1.165 kcal (-1.035 kcal)");
+    expect(reply).not.toContain("Meta estimada");
+    expect(reply).not.toContain("Meta ajustada");
   });
 
   it("não inclui link de edição no corpo do texto (link é enviado como botão separado)", () => {

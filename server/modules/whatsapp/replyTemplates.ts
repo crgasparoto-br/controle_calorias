@@ -1,4 +1,3 @@
-import { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";
 import { resolveFoodIcon, type FoodIconInput } from "./foodIcons";
 
 export type WhatsAppNutritionTotals = {
@@ -15,10 +14,19 @@ export type WhatsAppFoodReplyItem = FoodIconInput & WhatsAppNutritionTotals & {
 };
 
 export type WhatsAppGoalProgressInput = {
-  consumedCalories: number;
-  goalCalories: number;
-  exerciseCalories?: number;
+  consumedCalories?: number | null;
+  /** Meta final aplicável, já calculada fora do formatter conforme a configuração da #756. */
+  effectiveGoalCalories?: number | null;
+  /** Alias legado temporário; deve conter a meta efetiva, nunca a meta-base. */
+  goalCalories?: number | null;
+  exerciseCalories?: number | null;
   includeExerciseCalories?: boolean;
+  consumedProteinGrams?: number | null;
+  targetProteinGrams?: number | null;
+  consumedCarbsGrams?: number | null;
+  targetCarbsGrams?: number | null;
+  consumedFatGrams?: number | null;
+  targetFatGrams?: number | null;
 };
 
 export function formatWhatsAppNumber(value: number) {
@@ -78,18 +86,25 @@ export function formatWhatsAppPortionText(item: WhatsAppFoodReplyItem) {
 }
 
 export function formatWhatsAppFoodDescription(item: WhatsAppFoodReplyItem) {
-  const estimationLabel = item.source === "heuristic" ? " (estimado)" : "";
-  return `${item.foodName ?? "Alimento"} — ${formatWhatsAppPortionText(item)}${estimationLabel}`.trim();
+  return `${item.foodName ?? "Alimento"} — ${formatWhatsAppPortionText(item)}`.trim();
 }
 
 export function formatWhatsAppFoodLine(item: WhatsAppFoodReplyItem) {
   return `• ${resolveFoodIcon(item)} ${formatWhatsAppFoodDescription(item)}`;
 }
 
+/** Item cuja nutrição não veio integralmente do catálogo confiável e foi estimada pela IA (issue #783). */
+export function isWhatsAppEstimatedFoodItem(item: WhatsAppFoodReplyItem) {
+  return item.source !== "catalog";
+}
+
+export const WHATSAPP_ESTIMATED_NUTRITION_WARNING = "⚠️ Valores nutricionais estimados pela IA.";
+
 export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
   return [
     formatWhatsAppFoodLine(item),
     formatWhatsAppMacroLine(item),
+    ...(isWhatsAppEstimatedFoodItem(item) ? [WHATSAPP_ESTIMATED_NUTRITION_WARNING] : []),
   ];
 }
 
@@ -100,24 +115,43 @@ export function buildWhatsAppMealTotalLines(totals: WhatsAppNutritionTotals) {
   ];
 }
 
+function formatSignedDifference(value: number, unit: "kcal" | "g") {
+  const rounded = Math.round(value * 10) / 10;
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${formatWhatsAppNumber(rounded)} ${unit}`;
+}
+
+function buildMacroProgressLine(label: "P" | "C" | "G", consumed: number | null | undefined, target: number | null | undefined) {
+  if (typeof consumed !== "number" || typeof target !== "number") return null;
+  return `• ${label} ${formatWhatsAppNumber(consumed)} g (${formatSignedDifference(consumed - target, "g")})`;
+}
+
 export function buildWhatsAppGoalProgressLines(progress: WhatsAppGoalProgressInput | null | undefined) {
-  if (!progress || progress.goalCalories <= 0) {
+  const effectiveGoalCalories = progress?.effectiveGoalCalories ?? progress?.goalCalories;
+  if (!progress || typeof effectiveGoalCalories !== "number" || effectiveGoalCalories <= 0) {
     return [];
   }
 
-  const consumedCalories = Math.max(0, Math.round(progress.consumedCalories));
-  const goalCalories = Math.round(progress.goalCalories);
-  const exerciseCalories = Math.max(0, Math.round(progress.exerciseCalories ?? 0));
-  const adjustedGoalCalories = calculateAdjustedGoalCalories(goalCalories, exerciseCalories, progress.includeExerciseCalories ?? true);
-  const balanceCalories = adjustedGoalCalories - consumedCalories;
-  const balanceLabel = balanceCalories >= 0 ? "Déficit" : "Superávit";
+  const consumedCalories = typeof progress.consumedCalories === "number"
+    ? Math.max(0, Math.round(progress.consumedCalories))
+    : null;
+  const finalGoalCalories = Math.round(effectiveGoalCalories);
+  const calorieDifference = consumedCalories === null ? null : consumedCalories - finalGoalCalories;
+  const exerciseCalories = typeof progress.exerciseCalories === "number"
+    ? Math.max(0, Math.round(progress.exerciseCalories))
+    : null;
+  const macroLines = [
+    buildMacroProgressLine("P", progress.consumedProteinGrams, progress.targetProteinGrams),
+    buildMacroProgressLine("C", progress.consumedCarbsGrams, progress.targetCarbsGrams),
+    buildMacroProgressLine("G", progress.consumedFatGrams, progress.targetFatGrams),
+  ].filter((line): line is string => Boolean(line));
 
   return [
-    "Meta de hoje:",
-    `* Meta estimada: ${formatWhatsAppNumber(goalCalories)} kcal`,
-    ...(exerciseCalories > 0 ? [`* Exercícios: ${formatWhatsAppNumber(exerciseCalories)} kcal`] : []),
-    `* Meta ajustada: ${formatWhatsAppNumber(adjustedGoalCalories)} kcal`,
-    `* Consumo: ${formatWhatsAppNumber(consumedCalories)} kcal`,
-    `* ${balanceLabel}: ${formatWhatsAppNumber(Math.abs(balanceCalories))} kcal`,
+    `*Meta:* ${formatWhatsAppNumber(finalGoalCalories)} kcal`,
+    ...(exerciseCalories !== null ? [`*Exercícios:* ${formatWhatsAppNumber(exerciseCalories)} kcal`] : []),
+    ...(consumedCalories === null
+      ? []
+      : [`*Consumo:* ${formatWhatsAppNumber(consumedCalories)} kcal (${formatSignedDifference(calorieDifference!, "kcal")})`]),
+    ...(macroLines.length ? [buildWhatsAppSeparator(), "*Macronutrientes*", ...macroLines] : []),
   ];
 }

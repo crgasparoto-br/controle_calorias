@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import { buildWhatsAppClarificationReplyMessage, buildWhatsAppMealActionReplyMessage } from "../replyMessages";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
@@ -12,14 +13,14 @@ import {
 } from "./mealItemHelpers";
 import type { CoffeeAdditionIntent, CoffeeLorCapsuleIntent, ExistingMeal, FoodAdditionIntent, WhatsappIntentResult } from "./types";
 
-export async function handleFoodAdditionIntent(userId: number, addition: FoodAdditionIntent): Promise<WhatsappIntentResult> {
+export async function handleFoodAdditionIntent(userId: number, addition: FoodAdditionIntent, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, addition.mealLabel, addition.date);
+  const targetMeal = findMealByLabel(meals, addition.mealLabel, addition.date, timeZone);
   if (!targetMeal) {
     return {
       handled: true,
       action: "clarification_needed",
-      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(addition.date)}. Me diga em qual refeição devo adicionar ${addition.items[0]?.foodName ?? "o alimento"}.`),
+      reply: buildWhatsAppClarificationReplyMessage(`Não encontrei a refeição ${addition.mealLabel} em ${formatReplyDate(addition.date, timeZone)}. Me diga em qual refeição devo adicionar ${addition.items[0]?.foodName ?? "o alimento"}.`),
       eventType: "whatsapp.intent.clarification_needed",
       detail: "Pedido para adicionar alimento sem refeição compatível no dia indicado.",
     };
@@ -43,7 +44,7 @@ export async function handleFoodAdditionIntent(userId: number, addition: FoodAdd
       reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
         title: "Alimento adicionado",
         actionLines: [
-          `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
+          `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
         ],
       }),
       eventType: "whatsapp.intent.meal_item_added",
@@ -70,7 +71,7 @@ export async function handleFoodAdditionIntent(userId: number, addition: FoodAdd
     reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
       title: "Alimentos adicionados",
       actionLines: [
-        `Adicionado à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}: ${formatAddedItemsList(addedItems)}.`,
+        `Adicionado à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}: ${formatAddedItemsList(addedItems)}.`,
       ],
     }),
     eventType: "whatsapp.intent.meal_item_added",
@@ -94,7 +95,7 @@ export async function handleFoodAdditionIntent(userId: number, addition: FoodAdd
   };
 }
 
-export async function handleCoffeeAdditionIntent(userId: number, text: string, addition: CoffeeAdditionIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
+export async function handleCoffeeAdditionIntent(userId: number, text: string, addition: CoffeeAdditionIntent, receivedAt: Date, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
   if (!addition.cups || !addition.mealLabel) {
     return {
       handled: true,
@@ -105,9 +106,9 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
     };
   }
 
-  const targetDate = resolveRelativeOccurredAt(text, receivedAt);
+  const targetDate = resolveRelativeOccurredAt(text, receivedAt, timeZone);
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, addition.mealLabel, targetDate);
+  const targetMeal = findMealByLabel(meals, addition.mealLabel, targetDate, timeZone);
   if (!targetMeal) {
     return {
       handled: true,
@@ -150,13 +151,13 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
   };
 }
 
-export async function handleCoffeeLorCapsuleIntent(userId: number, text: string, intent: CoffeeLorCapsuleIntent, receivedAt: Date): Promise<WhatsappIntentResult> {
+export async function handleCoffeeLorCapsuleIntent(userId: number, text: string, intent: CoffeeLorCapsuleIntent, receivedAt: Date, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
   let targetMeal: ExistingMeal | undefined;
 
   if (intent.mealLabel) {
-    const targetDate = resolveRelativeOccurredAt(text, receivedAt);
+    const targetDate = resolveRelativeOccurredAt(text, receivedAt, timeZone);
     const meals = await listMeals(userId);
-    targetMeal = findMealByLabel(meals, intent.mealLabel, targetDate);
+    targetMeal = findMealByLabel(meals, intent.mealLabel, targetDate, timeZone);
     if (!targetMeal) {
       return {
         handled: true,

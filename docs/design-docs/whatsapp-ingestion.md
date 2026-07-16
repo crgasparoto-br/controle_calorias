@@ -10,6 +10,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Serviço de WhatsApp em `server/modules/whatsapp/service.ts`.
 - Interpretação de comandos de texto em `server/modules/whatsapp/intentActions.ts`.
 - Formatação de respostas nutricionais em `server/modules/whatsapp/replyMessages.ts`.
+- Contrato central de resposta em `server/modules/whatsapp/replyContract.ts` e transporte central em `server/modules/whatsapp/replyTransport.ts` (epic #779, issue #781) — ver seção "Contrato central de resposta" abaixo.
 - Edição rápida pública em `server/modules/quickEdit/*`, com token opaco, hash persistido e rota web `/quick-edit/:token`.
 - Wrapper de idempotência de imagens em `server/whatsappImageIdempotencyWebhook.ts`, responsável por absorver reentregas do mesmo `message.id` de imagem antes do processamento pesado.
 - Wrapper do webhook real em `server/whatsappIntentWebhook.ts`, executado antes do fallback de inferência nutricional.
@@ -31,7 +32,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Falha ao gerar link de edição rápida deve gerar aviso operacional e não deve bloquear o registro da refeição nem a resposta nutricional principal.
 - Simulações devem usar dados controlados e não depender de chamadas externas reais.
 - Mensagens suportadas de texto, imagem e áudio devem ser marcadas como lidas no WhatsApp antes do processamento pesado.
-- Mensagens suportadas de texto, imagem e áudio devem receber uma resposta inicial informando que o conteúdo foi recebido e está sendo processado, exceto quando um texto puro for interpretado como ação e receber resposta final própria antes da inferência.
+- Texto não recebe acknowledgement. Imagem e áudio recebem no máximo um acknowledgement somente quando o processamento ultrapassa o limiar configurado; o caminho rápido envia diretamente a resposta final.
 - Reentregas do mesmo `message.id` de imagem devem ser absorvidas antes do fluxo nutricional para evitar acknowledgements e refeições duplicadas enquanto a reserva de idempotência estiver ativa.
 - Apenas mensagens de texto puro, sem imagem e sem áudio, podem ser tratadas pelo interpretador de ações antes do acknowledgement e antes do fluxo nutricional.
 - Áudios sem imagem podem ser transcritos e, depois da resposta inicial de processamento, a transcrição pode ser tratada pelo mesmo interpretador de ações antes da inferência nutricional.
@@ -59,7 +60,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Pedidos de resumo, relatório ou balanço devem exigir período explícito, aceitar períodos como `hoje`, `ontem`, `semana`, `mês`, `últimos 7 dias` ou intervalo `01/06 a 03/06`, e responder com totais do período.
 - Quando um pedido de resumo vier sem período, o sistema deve manter contexto temporário para que a próxima mensagem textual curta, como `hoje`, `ontem` ou `semana`, complete o pedido em vez de cair no fluxo de registro de refeição.
 - Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a meta estimada do período quando a meta estiver disponível.
-- Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber uma notificação curta pelo WhatsApp com duração, nome do treino, calorias queimadas, data e botão `Ver resumo do dia`.
+- Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber a resposta canônica de exercício com atividade, duração, calorias, data, indicação de estimativa quando aplicável e botão `Ver exercício`.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
 - Quando o interpretador de texto tratar a mensagem ou transcrição, o webhook real deve registrar evento de inferência com `origin: "whatsapp"`, responder com a mensagem interpretada e impedir que o mesmo conteúdo crie refeição por fallback.
 - Respostas finais de refeição no WhatsApp devem usar linguagem simples, sem títulos técnicos como `Alimentos e macros`, e devem listar alimentos, porções, calorias, proteína, carboidratos e gorduras por item.
@@ -80,6 +81,67 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - O wrapper de imagem anotada deve usar a mesma consolidação pós-salvamento do webhook principal para evitar que uma foto enviada depois de uma refeição abra bloco separado apenas pelo horário.
 - Comandos destrutivos por alimento devem procurar no contexto lógico seguro do dia/refeição e considerar `foodName`, `canonicalName` e nomes originais/preservados quando existirem, pedindo confirmação quando houver múltiplos candidatos.
 - O campo `occurredAt` deve continuar disponível como metadado de ocorrência para horário exibido, ordenação, auditoria e interpretação temporal, mas não deve ser usado sozinho como identidade da refeição lógica.
+
+## Contrato central de resposta
+
+A epic #779 centraliza os envios funcionais em um contrato tipado e em um único transporte. Refeições, resumos, água, peso, exercícios, mídia, IA, onboarding e profissionais já usam essa infraestrutura; chamadas diretas à Cloud API ficam restritas aos adaptadores de transporte e acknowledgement.
+
+### Dois níveis
+
+- **Mensagem outbound** (`WhatsAppOutboundMessage`, em `replyContract.ts`): uma unidade física enviada à Cloud API — `text`, `cta_url` (link/CTA, inclusive edição rápida), `buttons` (até 3 botões de resposta), `list` (lista interativa por seções) ou imagem (`image_url`/`image_buffer`).
+- **Resposta lógica** (`WhatsAppLogicalReply`): a sequência ordenada de mensagens físicas que pertence à mesma ação funcional, com um `kind`:
+  - `functional`: resolve a mensagem do usuário; é a única gravada no `messageLifecycle`.
+  - `acknowledgement`: "estou processando"; nunca é gravada como resposta funcional.
+
+Builders de domínio (`replyMessages.ts`, `replyTemplates.ts`) continuam existindo e retornando `string`; `logicalReplyFromLegacyText` adapta esse texto para uma mensagem de texto do contrato sem exigir migração imediata dos fluxos que ainda os consomem diretamente.
+
+### Transporte central
+
+`replyTransport.sendWhatsAppLogicalReply(to, reply, lifecycle?)` é o único serializador de uma resposta lógica:
+
+- Valida restrições do provedor (`validateWhatsAppOutboundMessage`, ex.: máximo de 3 botões, título de até 20 caracteres) antes de qualquer chamada de rede; uma mensagem rejeitada nunca chega à Cloud API e o detalhe de validação nunca é enviado ao usuário.
+- Envia cada mensagem física na ordem definida pelo array `messages`, reutilizando as funções de envio já concentradas em `webhookUtils.ts` (`sendWhatsAppTextMessage`, `sendWhatsAppInteractiveUrlButtonMessage`, `sendWhatsAppInteractiveButtonsMessage`, `sendWhatsAppInteractiveListMessage`, `sendWhatsAppImageMessage`/`sendWhatsAppImageBufferMessage`) — não há nova chamada direta a `graph.facebook.com` fora desse módulo.
+- Grava a resposta funcional no `messageLifecycle` (`recordOutboundReply`) exatamente uma vez por resposta lógica, dependendo apenas do sucesso da mensagem primária (índice 0). Falha em mídia auxiliar (ex.: imagem anotada) não impede a gravação nem repete a mutação de domínio já concluída; falha na mensagem primária não grava outbound e o chamador não deve reexecutar a mutação de domínio nem desviar para outro intent.
+- Quando chamado sem `lifecycle` (ex.: `simulateWhatsappInbound`, que apenas retorna `reply` ao chamador tRPC), não tenta gravar nada — o transporte não cria persistência paralela.
+
+### Compatibilidade incremental
+
+- Um fluxo não pode enviar simultaneamente pelo adapter antigo (`sendWhatsAppTextMessage`/`sendAndLogTextReply` chamados diretamente pelo handler) e pelo novo transporte para a mesma ação; a migração de cada domínio substitui o caminho por completo na subissue correspondente.
+- Formatters de meta que forem adaptados ao contrato central devem receber o valor final calculado pelo domínio e não podem chamar `calculateAdjustedGoalCalories` nem recalcular a regra da #756; o formatter legado `buildWhatsAppGoalProgressLines` ainda faz esse cálculo e será corrigido na migração de resumos/metas (#784), não nesta issue.
+- Adapters legados (`logicalReplyFromLegacyText`, exports antigos de `replyMessages.ts`/`replyTemplates.ts`, funções de envio direto em `webhookUtils.ts`) só são removidos na #788, depois que todos os domínios migrarem.
+
+### Botões, listas e callbacks idempotentes (issue #782)
+
+A epic #779 estende o contrato central para perguntas interativas com botões e listas, resolvidas com a mesma persistência e idempotência já usadas para confirmação/seleção por texto — `whatsappPendingOperations` continua sendo a única fonte de verdade; não existe store paralelo para callbacks.
+
+- **Reconhecimento inbound**: `server/modules/whatsapp/webhookUtils.ts` reconhece `interactive.button_reply`/`interactive.list_reply` e expõe `getWhatsAppInteractiveReplyId(message)`. Uma mensagem interativa nunca é reinterpretada como texto livre nem cai no fallback nutricional: `canInterpretTextIntent` em `whatsappIntentWebhook.ts` a admite mesmo sem `text.body`, e o gate de precedência resolve o callback antes de qualquer classificação de intenção.
+- **ID opaco assinado**: `server/modules/whatsapp/interactiveCallback.ts` gera e valida IDs de callback (`buildWhatsAppCallbackId`/`parseWhatsAppCallbackId`) assinados por HMAC (chave derivada de `JWT_SECRET`). O ID carrega apenas o ID da pendência e a ação escolhida — nunca `userId`, `mealId`, `itemId` ou qualquer dado sensível — e uma assinatura adulterada é rejeitada antes de qualquer consulta ao banco.
+- **Claim central**: `claimWhatsAppInteractiveCallback` valida usuário, telefone/canal ativo, tipo da pendência, ação permitida, estado e expiração antes do compare-and-set. Reentrega, clique duplo ou corrida resultam em no máximo um consumo bem-sucedido; rejeições anteriores ao claim não consomem a pendência.
+
+### Retry após mutação
+
+O inbound só é concluído depois que uma resposta funcional primária é entregue e persistida. Se a mutação de domínio terminou mas o envio falhou, os vínculos `mealId`, `waterLogId` e `weightEntryId` permitem reconstruir a resposta a partir do estado persistido, sem repetir a mutação. A chave de idempotência da resposta outbound é derivada do inbound, garantindo no máximo uma resposta funcional armazenada por mensagem.
+- **Despacho por domínio**: `server/modules/whatsapp/messageRouter.ts` reivindica o callback uma única vez e despacha pelo `type` persistido em `whatsappPendingOperations` para o resolvedor do domínio (exclusão, confirmação genérica de reclassificação, autorização profissional), que revalida o recurso atual no banco antes de mutar e nunca consome a pendência de novo. Um recurso que não corresponde mais ao estado esperado (ex.: ação `confirm` sobre uma pendência de seleção já superada) recebe a mensagem central `⚠️ Registro não encontrado`.
+- **Fluxos obrigatórios**: exclusão exibe `Confirmar`/`Cancelar` e nunca executa antes da confirmação; uma seleção ambígua com mais de uma opção usa lista interativa (com linha `Cancelar`) e, ao ser escolhida, avança para a confirmação por botões em vez de excluir silenciosamente; autorização profissional exibe `Autorizar`/`Recusar` vinculados à mesma pendência criada ao notificar o profissional, mantendo o texto `AUTORIZAR <código>`/`NEGAR <código>` como fallback compatível — os dois caminhos resolvem a mesma decisão e a repetição não muda uma decisão já aplicada, pois o recurso (`access.status`) deixa de estar `"pending"` após a primeira aplicação.
+- **Transporte**: `server/modules/whatsapp/webhookUtils.ts` ganhou `sendWhatsAppInteractiveButtonsMessage`/`sendWhatsAppInteractiveListMessage`; o envio efetivo passa por `replyTransport.sendWhatsAppLogicalReply`, que grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica, igual aos demais fluxos migrados ao contrato central.
+
+### Unificação de refeições e ações sobre alimentos (issue #783)
+
+A epic #779 unifica todos os pontos que registram, atualizam, consultam ou excluem refeições/alimentos por WhatsApp para reutilizar os mesmos blocos de item e total (`buildWhatsAppFoodLines`/`buildWhatsAppMealTotalLines` em `replyTemplates.ts`), acessados via `buildWhatsAppMealActionReplyMessage`/`buildWhatsAppConsolidatedMealReplyMessage`/`buildWhatsAppMealReplyMessage` (`replyMessages.ts`).
+
+- **Fonte de verdade pós-mutação**: `datedFoodAdditionIntent.ts`, `contextualFoodReplacementIntent.ts`, `gramsAdjustmentIntent.ts`, `gramsIncrementIntent.ts` e `deleteIntent.ts` recarregam a refeição (`listMeals`/`updateMeal`/`removeMeal`) antes de montar a resposta; nenhum desses fluxos monta a resposta a partir do payload anterior à mutação.
+- **Builders locais removidos**: `buildMealFullSummary` (duplicado em `whatsappIntentWebhook.ts`, que produzia uma segunda seção "Resumo da refeição" logo abaixo da resposta central de `datedFoodAdditionIntent.ts`) e `formatMealSummary`/`formatTotalsLine` (duplicados em `contextualFoodReplacementIntent.ts`) foram removidos; ambos os fluxos agora produzem uma única seção com os blocos centrais.
+- **Substituição e ajuste de quantidade diretos**: quando o alvo é inequívoco, a mutação é aplicada sem pedido de confirmação.
+- **Ambiguidade por botões/lista**: `server/modules/whatsapp/mealItemSelectionCallback.ts` generaliza o padrão de seleção ambígua da exclusão (#782) para ajuste de gramas, correção de quantidade em contexto curto e substituição de alimento. Cada candidato preserva `mealId`, rótulo, índice e nome do item; duplicidades na mesma refeição permanecem candidatos distintos.
+- **Encadeamento completo e ordenado**: mensagens com uma ação clara e uma ou mais ações ambíguas não escrevem antes da última escolha. Substituições e ajustes de gramas preservam todas as ações seguintes em `remainingSelections`, incluindo destino, delta e quantidade específicos de cada ação.
+- **Caminhos equivalentes**: `recordAdjustmentIntent.ts`, `gramsAdjustmentIntent.ts` e `gramsIncrementIntent.ts`, inclusive quando exercitados pelo simulador, delegam aos mesmos handlers canônicos e mantêm os metadados de pendência e consulta fresca.
+- **Operações multirrefeição**: `mealBatchMutation.ts` mantém o pipeline canônico de `updateMeal` e aplica compensação em ordem inversa se qualquer atualização falhar. A compensação inclui a chamada que lançou erro, pois ela pode ter persistido a refeição antes de falhar em um efeito complementar. Sucesso só é respondido depois de todas as gravações.
+- **Entrega lógica única**: `logicalReplyDelivery.ts` compõe texto, CTA opaco e imagem auxiliar em uma única `WhatsAppLogicalReply`; os webhooks enviam a resposta funcional pelo transporte central e registram somente o conteúdo primário no lifecycle.
+- **CTA após callbacks**: resultados interativos preservam `data.mealId`; quando a refeição ainda existe, a resposta final mantém a edição rápida.
+- **Exclusão de alimento**: após a confirmação (botões `Confirmar`/`Cancelar` da #782), `deleteIntent.ts` recarrega a refeição e mostra os itens restantes com `buildWhatsAppMealActionReplyMessage`; quando o item excluído era o último, a refeição é removida e a resposta é uma confirmação textual simples (não há refeição para exibir).
+- **Exclusão de refeição**: a confirmação final continua textual, já que não existe registro remanescente para renderizar nos blocos centrais.
+- **Alimento estimado pela IA**: `buildWhatsAppFoodLines` inclui `WHATSAPP_ESTIMATED_NUTRITION_WARNING` (`⚠️ Valores nutricionais estimados pela IA.`) abaixo dos itens `heuristic` e `hybrid`; itens `catalog` não recebem o aviso, e os totais incluem os itens estimados.
+- **Fora de escopo**: seleção temporal, consolidação, catálogo, cálculo nutricional, schema de persistência e a regra de meta ajustada da #756 não foram alterados; o link de edição rápida (já integrado ao contrato central desde #781) foi apenas preservado.
 
 ## Validação recomendada
 
@@ -135,3 +197,30 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Testar token ausente, telefone oficial usado como telefone de usuário e vínculo inexistente.
 - Testar que resposta outbound usa sempre `WHATSAPP_PHONE_NUMBER_ID`.
 - Testar que importação de exercício novo do Strava envia notificação WhatsApp com botão `Ver resumo do dia` quando houver vínculo ativo.
+- Testar que o contrato central rejeita botões acima do máximo suportado ou com título longo demais antes de qualquer chamada de rede.
+- Testar que o transporte central grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica, mesmo com múltiplas mensagens físicas (texto + imagem auxiliar).
+- Testar que acknowledgement nunca é gravado como resposta funcional pelo transporte central, mesmo com envio bem-sucedido.
+- Testar que falha na mensagem primária do transporte central não grava outbound no lifecycle, e que falha apenas na mídia auxiliar não impede a gravação da resposta já entregue.
+- Testar que o transporte central serializa botões e listas no formato interativo esperado pela Cloud API sem chamada real ao provedor.
+- Testar que um callback de botão/lista opaco é validado (dono, estado, expiração) e consumido por compare-and-set antes de qualquer efeito de domínio, e que reentrega, clique duplo ou corrida concorrente resultam em no máximo um consumo bem-sucedido.
+- Testar que um callback de outro usuário, expirado, adulterado ou de pendência inexistente retorna a mensagem central de indisponibilidade sem revelar o estado exato nem IDs internos.
+- Testar que a exclusão por botão só executa após `Confirmar`, que `Cancelar` não altera o domínio, e que uma seleção ambígua por lista avança para confirmação por botões em vez de excluir diretamente.
+- Testar que autorização/recusa profissional por botão aplica a decisão uma única vez e que repetir o clique ou o texto equivalente não muda uma decisão já consumida.
+- Testar que o webhook real reconhece `button_reply` recebido pela Cloud API e resolve a exclusão pendente sem passar pelo fallback nutricional.
+
+
+## Invariantes finais da epic #779
+
+- Toda resposta funcional passa pelo contrato lógico e pelo delivery central; acknowledgement é operacional, cancelável e nunca substitui a resposta funcional.
+- Valores de meta são calculados no domínio. Formatters não recalculam a regra da #756, não multiplicam a meta atual por dias e não transformam ausência em zero.
+- Datas e períodos usam o timezone do perfil, com `America/Sao_Paulo` somente como fallback.
+- Ambiguidades de ações estruturadas usam pendência persistente, callback opaco e revalidação do banco antes da mutação.
+- Onboarding composto retoma apenas mensagens físicas ainda não entregues após falha parcial.
+- Erros de mídia, conta não vinculada e indisponibilidade são sanitizados e não expõem provider, payload, telefone completo ou identificadores internos.
+- O gate arquitetural impede novos payloads, envios e builders paralelos fora dos módulos autorizados.
+
+## Timezone da operação
+
+A entrada canônica cria um escopo temporal request-scoped. Após identificar o usuário e confirmar que a mensagem não é uma reentrega já processada, o sistema resolve o timezone efetivo uma vez e o propaga por todo o pipeline. O timestamp recebido permanece absoluto; data lógica, rótulo de refeição, água, peso, relatórios, perguntas com `/` e agrupamentos usam o timezone resolvido.
+
+Falha técnica ao consultar o perfil interrompe a mensagem com erro recuperável e não aciona o fallback nutricional. A ordem de idempotência e os vínculos de domínio permanecem inalterados.

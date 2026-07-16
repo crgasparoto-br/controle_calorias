@@ -39,6 +39,7 @@ import { executeWhatsappGramsAdjustmentIntent } from "./gramsAdjustmentIntent";
 import { executeWhatsappGramsIncrementIntent } from "./gramsIncrementIntent";
 import { resolveWhatsappTemporalContext } from "./temporalContext";
 import { isWhatsAppWaterOnlyText, splitWhatsAppWaterAndFoodText } from "./waterFoodText";
+import { resolveInjectedWhatsAppTimeZone } from "./timeZoneContext";
 
 export class OfficialWhatsappNumberError extends Error {
   constructor() {
@@ -238,10 +239,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return duplicateResult;
   }
 
+  const timeZoneResolution = resolveInjectedWhatsAppTimeZone(input.userTimezone);
+  const userTimezone = timeZoneResolution.timeZone;
+  const timezoneSource = timeZoneResolution.source === "profile" ? "configured" : "fallback";
+
   const aiQuestion = await executeWhatsappAiQuestionIntent(userId, {
     text,
     receivedAt,
-    userTimezone: input.userTimezone,
+    userTimezone,
   });
   if (aiQuestion) {
     logInferenceEvent({
@@ -265,7 +270,8 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   const temporalResolution = resolveWhatsappTemporalContext({
     text,
     receivedAt,
-    userTimezone: input.userTimezone,
+    userTimezone,
+    timezoneSource,
   });
   if (temporalResolution.clarification) {
     return logAndReturnTemporalClarification(userId, temporalResolution.clarification);
@@ -298,6 +304,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   const datedFoodAddition = await logAndReturnInterpretedIntent(userId, await executeWhatsappDatedFoodAdditionIntent(userId, {
     text,
     receivedAt,
+    userTimezone,
   }), { text, receivedAt });
   if (datedFoodAddition) {
     return temporalResolution.context
@@ -312,6 +319,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       const interpretedWater = await executeWhatsappTextIntent(userId, {
         text: waterLine.text,
         receivedAt,
+        userTimezone,
       });
       if (!interpretedWater) {
         throw new Error(`Não foi possível registrar a hidratação informada em "${waterLine.text}".`);
@@ -330,7 +338,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     const meal = await processMealDraft(userId, {
       source: "whatsapp",
       text: waterFoodSplit.foodText,
-    });
+    }, userTimezone);
 
     logInferenceEvent({
       userId,
@@ -368,13 +376,14 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
         eventType: "whatsapp.intent.food_correction_text_detected",
         detail: "Correção de texto detectada: hidratação foi substituída por alimento antes do processamento nutricional.",
       });
-      return processMealDraft(userId, { source: "whatsapp", text: toText });
+      return processMealDraft(userId, { source: "whatsapp", text: toText }, userTimezone);
     }
   }
 
   const gramsAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappGramsAdjustmentIntent(userId, {
     text,
     receivedAt,
+    userTimezone,
   }), { text, receivedAt });
   if (gramsAdjustment) {
     return temporalResolution.context
@@ -385,6 +394,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   const gramsIncrement = await logAndReturnInterpretedIntent(userId, await executeWhatsappGramsIncrementIntent(userId, {
     text,
     receivedAt,
+    userTimezone,
   }), { text, receivedAt });
   if (gramsIncrement) {
     return temporalResolution.context
@@ -395,7 +405,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   const recordAdjustment = await logAndReturnInterpretedIntent(userId, await executeWhatsappRecordAdjustmentIntent(userId, {
     text,
     receivedAt,
-    userTimezone: temporalResolution.context?.userTimezone ?? input.userTimezone,
+    userTimezone: temporalResolution.context?.userTimezone ?? userTimezone,
   }), { text, receivedAt });
   if (recordAdjustment) {
     return temporalResolution.context
@@ -408,6 +418,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     : await logAndReturnInterpretedIntent(userId, await executeWhatsappTextIntent(userId, {
       text,
       receivedAt,
+      userTimezone,
     }), { text, receivedAt });
   if (interpreted) {
     return temporalResolution.context
@@ -415,7 +426,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       : interpreted;
   }
 
-  const llmRaw = await executeWhatsappLlmIntent(userId, { text, receivedAt, messageId: input.messageId });
+  const llmRaw = await executeWhatsappLlmIntent(userId, { text, receivedAt, messageId: input.messageId, userTimezone });
   // WhatsappLlmNutritionFallback (handled: false) não é um resultado de intent tratado — ignorar aqui
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, llmRaw && "handled" in llmRaw && !llmRaw.handled ? null : llmRaw as Exclude<typeof llmRaw, { handled: false }>, { text, receivedAt });
   if (llmInterpreted) {
@@ -442,7 +453,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return logAndReturnRouterResult(userId, route);
   }
 
-  const meal = await processMealDraft(userId, { source: "whatsapp", text });
+  const meal = await processMealDraft(userId, { source: "whatsapp", text }, userTimezone);
   return temporalResolution.context
     ? { ...meal, temporalContext: temporalResolution.context }
     : meal;

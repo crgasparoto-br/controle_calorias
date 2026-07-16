@@ -26,6 +26,16 @@ vi.mock("@/lib/dateTime", () => ({
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     nutrition: {
+      onboarding: {
+        timeZone: {
+          useQuery: () => ({
+            data: { timeZone: "America/Sao_Paulo", source: "profile", fallbackReason: null },
+            isSuccess: true,
+            isLoading: false,
+            isError: false,
+          }),
+        },
+      },
       healthIntegrations: {
         syncedRecords: {
           useQuery: (input: Record<string, unknown>) => syncedRecordsUseQueryMock(input),

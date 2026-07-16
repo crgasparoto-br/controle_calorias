@@ -22,6 +22,7 @@ Permitir que atividades externas de saúde, inicialmente Strava, alimentem o di�
 - Quando a atividade não tiver calorias confiáveis, o sistema pode usar fallback local documentado, mas deve preservar a origem externa e evitar mascarar a ausência do dado real.
 - Sincronizações repetidas não devem criar exercícios duplicados para a mesma atividade externa.
 - A mensagem WhatsApp de exercício importado deve ser enviada apenas uma vez por atividade externa Strava; atualizações posteriores do mesmo exercício devem atualizar/ignorar o registro sem reenviar a notificação, salvo regra explícita futura.
+- A notificação usa o contrato central de exercício, informa atividade, duração, calorias, data e se o gasto foi estimado, com CTA `Ver exercício`; não afirma impacto sobre a meta calórica.
 - A interface deve deixar claro se o provedor está conectado, pendente de configuração, desconectado ou com erro operacional.
 - Falhas de sincronização devem ser tratadas de forma recuperável e sanitizada, sem expor tokens, payload bruto ou dados sensíveis em logs/mensagens.
 - Desconexão ou revogação deve impedir novas sincronizações e respeitar os fluxos de exportação/exclusão de privacidade.

@@ -55,6 +55,10 @@ vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
   createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
 }));
 
+vi.mock("./modules/whatsapp/goalProgressService", () => ({
+  getWhatsAppMealGoalProgress: vi.fn(async () => null),
+}));
+
 vi.mock("./_core/voiceTranscription", () => ({
   transcribeAudio: vi.fn(),
 }));
@@ -154,16 +158,6 @@ function expectMessageMarkedAsRead(messageId: string) {
   );
 }
 
-function expectProcessingAcknowledgement() {
-  expect(global.fetch).toHaveBeenCalledWith(
-    expect.stringContaining("/phone-number-test/messages"),
-    expect.objectContaining({
-      method: "POST",
-      body: expect.stringContaining("Recebi sua imagem e estou processando"),
-    }),
-  );
-}
-
 function findFetchCallByBody(expectedBodyPart: string) {
   return vi.mocked(global.fetch).mock.calls.find(([, init]) => {
     const body = init && "body" in init ? init.body : undefined;
@@ -231,7 +225,6 @@ describe("whatsappWebhook image inbound", () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(createWhatsAppOkResponse())
-      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -265,15 +258,16 @@ describe("whatsappWebhook image inbound", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.image-inline");
-    expectProcessingAcknowledgement();
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
       transcript: undefined,
       imageUrl: expectedDataUrl,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",
@@ -301,13 +295,15 @@ describe("whatsappWebhook image inbound", () => {
     const expectedDataUrl = `data:image/jpeg;base64,${Buffer.from("image-test").toString("base64")}`;
 
     expect(res.statusCode).toBe(200);
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: "47g",
       transcript: undefined,
       imageUrl: expectedDataUrl,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
   });
 
   it("envia imagem anotada quando o overlay local retorna URL", async () => {
@@ -391,7 +387,7 @@ describe("whatsappWebhook image inbound", () => {
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       eventType: "whatsapp.annotated_image_skipped",
       status: "warning",
-      detail: expect.stringContaining("fallback local"),
+      detail: expect.stringContaining("registro nutricional foi preservado"),
     }));
   });
 
@@ -407,15 +403,16 @@ describe("whatsappWebhook image inbound", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.image-storage-fallback");
-    expectProcessingAcknowledgement();
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
       transcript: undefined,
       imageUrl: expectedDataUrl,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",
@@ -446,11 +443,11 @@ describe("whatsappWebhook image inbound", () => {
     expect(processMealInputMock).toHaveBeenCalledTimes(1);
     expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
     expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
-    expect(findFetchCallByBody("Recebi sua imagem e estou processando")).toBeTruthy();
+    expect(findFetchCallByBody("Recebi sua imagem e estou processando")).toBeFalsy();
     const acknowledgementCalls = vi.mocked(global.fetch).mock.calls.filter(([, init]) => {
       const body = init && "body" in init ? init.body : undefined;
       return typeof body === "string" && body.includes("Recebi sua imagem e estou processando");
     });
-    expect(acknowledgementCalls).toHaveLength(1);
+    expect(acknowledgementCalls).toHaveLength(0);
   });
 });

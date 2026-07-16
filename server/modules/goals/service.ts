@@ -1,9 +1,12 @@
-import { getDb, getUserNutritionGoal, upsertNutritionGoal } from "../../db";
+import { getDb, getUserNutritionGoal, listUserExercisesByDate, upsertNutritionGoal } from "../../db";
 import { createDrizzleNutritionGoalsRepository } from "../../repositories/nutritionGoalsRepository";
 import type { NutritionGoal } from "../../../drizzle/schema";
 import { assessNutritionGoalInput } from "@shared/nutritionSafety";
 import type { NutritionGoalSafetyIssue } from "@shared/nutritionSafety";
 import { GoalInput } from "./schemas";
+import { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";
+import { sumExercises } from "../exercises/store";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 
 type GoalValidationIssue = NutritionGoalSafetyIssue | {
   code: "conflicting_goal_version" | "conflicting_goal_exception_version";
@@ -80,16 +83,18 @@ const nutritionGoalsRepository = createDrizzleNutritionGoalsRepository({
 
 const inFlightGoalRowsByUserId = new Map<number, Promise<NutritionGoal[] | null>>();
 
-function todayDateKey() {
-  return new Date().toISOString().slice(0, 10);
+function todayDateKey(timeZone = DEFAULT_APP_TIME_ZONE) {
+  return getDateKeyInTimeZone(new Date(), timeZone);
 }
 
 function startOfUtcDate(dateKey: string) {
-  return new Date(`${dateKey}T00:00:00.000Z`);
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
 function logicalUtcDate(dateKey: string) {
-  return new Date(`${dateKey}T12:00:00.000Z`);
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12));
 }
 
 function dateKeyFromDate(value: Date | string | number) {
@@ -480,13 +485,13 @@ export async function getNutritionGoalForDate(userId: number, date: string) {
   };
 }
 
-export async function updateNutritionGoal(userId: number, input: GoalInput) {
+export async function updateNutritionGoal(userId: number, input: GoalInput, timeZone = DEFAULT_APP_TIME_ZONE) {
   const assessment = assessNutritionGoalInput(input);
   if (assessment.blockers.length) {
     throw new UnsafeNutritionGoalError(assessment.blockers);
   }
 
-  const startDate = input.startDate ?? todayDateKey();
+  const startDate = input.startDate ?? todayDateKey(timeZone);
   const rows = await listGoalRows(userId);
 
   if (!rows) {
@@ -529,5 +534,51 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
     versions: savedContext.versions,
     exceptionVersions: savedContext.exceptionVersions,
     safetyWarnings: savedAssessment.warnings,
+  };
+}
+
+
+async function resolveAppliedGoalForDate(userId: number, dateKey: string) {
+  try {
+    return (await getNutritionGoalForDate(userId, dateKey)).today;
+  } catch {
+    // Fallback canônico já usado quando não há histórico de vigência: a meta
+    // atual do usuário. Sem meta atual válida, não há meta efetiva a exibir.
+    const goal = await getUserNutritionGoal(userId);
+    if (typeof goal?.today?.calories !== "number") {
+      throw new Error("Meta nutricional atual indisponível para resolver a meta efetiva.");
+    }
+    return goal.today;
+  }
+}
+
+async function listExercisesForGoalDate(userId: number, dateKey: string, timeZone: string) {
+  try {
+    return (await listUserExercisesByDate(userId, dateKey, timeZone)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getEffectiveNutritionGoalForDate(
+  userId: number,
+  dateKey: string,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
+  const [appliedGoal, exercises] = await Promise.all([
+    resolveAppliedGoalForDate(userId, dateKey),
+    listExercisesForGoalDate(userId, dateKey, timeZone),
+  ]);
+  const exerciseCalories = Math.max(0, sumExercises(exercises));
+  const effectiveGoalCalories = calculateAdjustedGoalCalories(
+    appliedGoal.calories,
+    exerciseCalories,
+    appliedGoal.includeExerciseCalories,
+  );
+  return {
+    effectiveGoalCalories,
+    exerciseCalories,
+    includeExerciseCalories: appliedGoal.includeExerciseCalories,
+    appliedGoal,
   };
 }

@@ -1,10 +1,19 @@
 import { getDb, logPersistenceWarning } from "../../db";
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { listMeals, removeMeal, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { formatWhatsAppConsolidationDateKey } from "./mealConsolidation";
 import type { WhatsappInterpretedIntent } from "./intentSchema";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
+import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";
+import { buttonsReply, listReply, type WhatsAppLogicalReply } from "./replyContract";
+import { buildWhatsAppCallbackResourceNotFoundReplyMessage, buildWhatsAppMealActionReplyMessage } from "./replyMessages";
+
+const CONFIRM_ACTION = "confirm";
+const CANCEL_ACTION = "cancel";
+const SELECT_ACTION_PREFIX = "select:";
+const MAX_LIST_ROW_TITLE_LENGTH = 24;
 
 export type WhatsappDeleteIntentKind = "delete_food_from_meal" | "delete_meal" | "unknown_delete";
 
@@ -25,6 +34,8 @@ export type WhatsappDeleteIntentResult = {
   eventType: string;
   detail: string;
   data: Record<string, unknown>;
+  /** Quando presente, o transporte central deve enviar botões/lista (issue #782) em vez do texto simples de `reply`. */
+  interactiveReply?: WhatsAppLogicalReply;
 };
 
 type PendingDeleteIntent = {
@@ -52,7 +63,7 @@ type FoodMatch = {
 };
 
 const PENDING_DELETE_TTL_MS = 10 * 60 * 1000;
-const PENDING_DELETE_TYPE = "delete";
+export const PENDING_DELETE_TYPE = "delete";
 const PENDING_DELETE_ORIGIN = "deleteIntent";
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb,
@@ -148,35 +159,53 @@ function parseSelectionIndex(normalized: string) {
   return numeric ? Number(numeric[1]) - 1 : null;
 }
 
-function formatMealReference(pending: Pick<PendingDeleteIntent, "mealLabel" | "mealOccurredAt">) {
+function formatMealReference(
+  pending: Pick<PendingDeleteIntent, "mealLabel" | "mealOccurredAt">,
+  timeZone: string,
+) {
   const date = new Date(pending.mealOccurredAt);
   const time = Number.isNaN(date.getTime())
     ? ""
-    : ` às ${date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })}`;
+    : ` às ${date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone })}`;
   return `${pending.mealLabel}${time}`;
 }
 
-function buildPendingMealDeleteReply(pending: PendingDeleteIntent) {
+function buildPendingMealDeleteReply(pending: PendingDeleteIntent, timeZone: string) {
   return [
-    `Encontrei a refeição mais recente: ${formatMealReference(pending)}.`,
+    `Encontrei a refeição mais recente: ${formatMealReference(pending, timeZone)}.`,
     "Responda SIM para confirmar a exclusão dessa refeição ou CANCELAR para desistir.",
     "Não excluí nada ainda e não registrei nenhum alimento novo.",
   ].join("\n\n");
 }
 
-function buildPendingFoodDeleteReply(pending: PendingDeleteIntent) {
+function buildPendingFoodDeleteReply(pending: PendingDeleteIntent, timeZone: string) {
   return [
-    `Encontrei o item ${pending.itemName} em ${formatMealReference(pending)}.`,
+    `Encontrei o item ${pending.itemName} em ${formatMealReference(pending, timeZone)}.`,
     "Responda SIM para confirmar a remoção desse alimento ou CANCELAR para desistir.",
     "Não removi nada ainda e não registrei nenhum alimento novo.",
   ].join("\n\n");
 }
 
-function buildPendingResult(pending: PendingDeleteIntent): WhatsappDeleteIntentResult {
+function buildConfirmCancelButtonsReply(bodyText: string, pendingOperationId: number): WhatsAppLogicalReply {
+  return buttonsReply(bodyText, [
+    { id: buildWhatsAppCallbackId(pendingOperationId, CONFIRM_ACTION), title: "Confirmar" },
+    { id: buildWhatsAppCallbackId(pendingOperationId, CANCEL_ACTION), title: "Cancelar" },
+  ]);
+}
+
+function buildPendingResult(
+  pending: PendingDeleteIntent,
+  pendingOperationId: number | undefined,
+  timeZone: string,
+): WhatsappDeleteIntentResult {
+  const reply = pending.kind === "delete_meal"
+    ? buildPendingMealDeleteReply(pending, timeZone)
+    : buildPendingFoodDeleteReply(pending, timeZone);
   return {
     handled: true,
     action: "clarification_needed",
-    reply: pending.kind === "delete_meal" ? buildPendingMealDeleteReply(pending) : buildPendingFoodDeleteReply(pending),
+    reply,
+    ...(pendingOperationId ? { interactiveReply: buildConfirmCancelButtonsReply(reply, pendingOperationId) } : {}),
     eventType: pending.kind === "delete_meal"
       ? "whatsapp.intent.delete_meal_confirmation_requested"
       : "whatsapp.intent.delete_food_confirmation_requested",
@@ -189,6 +218,17 @@ function buildPendingResult(pending: PendingDeleteIntent): WhatsappDeleteIntentR
       itemIndex: pending.itemIndex ?? null,
       destructiveActionBlocked: true,
     },
+  };
+}
+
+function buildCallbackResourceNotFoundResult(): WhatsappDeleteIntentResult {
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: buildWhatsAppCallbackResourceNotFoundReplyMessage(),
+    eventType: "whatsapp.intent.delete_callback_resource_not_found",
+    detail: "Callback de exclusão resolvido, mas o alvo não corresponde mais ao estado esperado no momento da execução.",
+    data: { destructiveActionBlocked: true },
   };
 }
 
@@ -286,7 +326,7 @@ function findFoodMatchesInLogicalContext(meals: ListedMeal[], referenceMeal: Lis
   })));
 }
 
-async function createPendingFoodDelete(userId: number, meal: ListedMeal, itemIndex: number) {
+async function createPendingFoodDelete(userId: number, meal: ListedMeal, itemIndex: number, timeZone: string) {
   const item = meal.items[itemIndex];
   const pending: PendingDeleteIntent = {
     kind: "delete_food_from_meal",
@@ -296,14 +336,14 @@ async function createPendingFoodDelete(userId: number, meal: ListedMeal, itemInd
     itemIndex,
     itemName: item.foodName,
   };
-  await pendingOperationRepository.createPendingOperation({
+  const created = await pendingOperationRepository.createPendingOperation({
     userId,
     type: PENDING_DELETE_TYPE,
     origin: PENDING_DELETE_ORIGIN,
     ttlMs: PENDING_DELETE_TTL_MS,
     target: pending,
   });
-  return buildPendingResult(pending);
+  return buildPendingResult(pending, created?.id, timeZone);
 }
 
 function buildAmbiguousFoodMatchesReply(targetFoodName: string, matches: FoodMatch[]) {
@@ -311,6 +351,23 @@ function buildAmbiguousFoodMatchesReply(targetFoodName: string, matches: FoodMat
     .map((match, index) => `${index + 1}. ${match.item.foodName} em ${match.meal.mealLabel}`)
     .join("\n");
   return `Encontrei mais de um alimento parecido com "${targetFoodName}" no contexto do dia. Qual deseja remover?\n${options}\n\nResponda com o número ou ordinal, por exemplo: o segundo.`;
+}
+
+function truncateListRowTitle(title: string) {
+  return title.length > MAX_LIST_ROW_TITLE_LENGTH ? `${title.slice(0, MAX_LIST_ROW_TITLE_LENGTH - 1)}…` : title;
+}
+
+function buildSelectionListReply(bodyText: string, pendingOperationId: number, candidates: PendingDeleteIntent[]): WhatsAppLogicalReply {
+  return listReply(bodyText, "Ver opções", [
+    {
+      rows: candidates.map((candidate, index) => ({
+        id: buildWhatsAppCallbackId(pendingOperationId, `${SELECT_ACTION_PREFIX}${index}`),
+        title: truncateListRowTitle(`${index + 1}. ${candidate.itemName ?? "Alimento"}`),
+        description: candidate.mealLabel,
+      })),
+    },
+    { rows: [{ id: buildWhatsAppCallbackId(pendingOperationId, CANCEL_ACTION), title: "Cancelar" }] },
+  ]);
 }
 
 async function createPendingDeleteSelection(userId: number, targetFoodName: string, matches: FoodMatch[]) {
@@ -323,24 +380,30 @@ async function createPendingDeleteSelection(userId: number, targetFoodName: stri
     itemName: match.item.foodName,
   }));
   const pending: PendingDeleteSelection = { kind: "selection", targetFoodName, candidates };
-  await pendingOperationRepository.createPendingOperation({
+  const created = await pendingOperationRepository.createPendingOperation({
     userId,
     type: PENDING_DELETE_TYPE,
     origin: PENDING_DELETE_ORIGIN,
     ttlMs: PENDING_DELETE_TTL_MS,
     target: pending,
   });
+  const reply = buildAmbiguousFoodMatchesReply(targetFoodName, matches);
   return {
     handled: true,
     action: "clarification_needed",
-    reply: buildAmbiguousFoodMatchesReply(targetFoodName, matches),
+    reply,
+    ...(created ? { interactiveReply: buildSelectionListReply(reply, created.id, candidates) } : {}),
     eventType: "whatsapp.intent.delete_food_selection_requested",
     detail: "Seleção destrutiva persistida antes da confirmação; nenhum item foi removido.",
     data: { destructiveActionBlocked: true, candidateCount: candidates.length },
   } satisfies WhatsappDeleteIntentResult;
 }
 
-async function requestDeleteConfirmation(userId: number, detection: WhatsappDeleteIntentDetection): Promise<WhatsappDeleteIntentResult> {
+async function requestDeleteConfirmation(
+  userId: number,
+  detection: WhatsappDeleteIntentDetection,
+  timeZone: string,
+): Promise<WhatsappDeleteIntentResult> {
   const meals = await listMeals(userId);
   const latestMeal = findLatestMealForDelete(meals);
   if (!latestMeal) {
@@ -359,14 +422,14 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
       mealLabel: latestMeal.mealLabel,
       mealOccurredAt: new Date(latestMeal.occurredAt).toISOString(),
     };
-    await pendingOperationRepository.createPendingOperation({
+    const created = await pendingOperationRepository.createPendingOperation({
       userId,
       type: PENDING_DELETE_TYPE,
       origin: PENDING_DELETE_ORIGIN,
       ttlMs: PENDING_DELETE_TTL_MS,
       target: pending,
     });
-    return buildPendingResult(pending);
+    return buildPendingResult(pending, created?.id, timeZone);
   }
 
   const items = latestMeal.items ?? [];
@@ -388,12 +451,12 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
         detail: "Comando destrutivo de último alimento sem itens na refeição recente.",
       });
     }
-    return createPendingFoodDelete(userId, latestMeal, items.length - 1);
+    return createPendingFoodDelete(userId, latestMeal, items.length - 1, timeZone);
   }
 
   if (detection.targetFoodName) {
     const matches = findFoodMatchesInLogicalContext(meals, latestMeal, detection.targetFoodName);
-    if (matches.length === 1) return createPendingFoodDelete(userId, matches[0].meal, matches[0].itemIndex);
+    if (matches.length === 1) return createPendingFoodDelete(userId, matches[0].meal, matches[0].itemIndex, timeZone);
     if (matches.length > 1) return createPendingDeleteSelection(userId, detection.targetFoodName, matches);
     return buildClarificationResult({
       ...detection,
@@ -408,10 +471,14 @@ async function requestDeleteConfirmation(userId: number, detection: WhatsappDele
     return createPendingDeleteSelection(userId, "alimento", matches);
   }
 
-  return createPendingFoodDelete(userId, latestMeal, items.length - 1);
+  return createPendingFoodDelete(userId, latestMeal, items.length - 1, timeZone);
 }
 
-async function confirmPendingDelete(userId: number, pending: PendingDeleteIntent): Promise<WhatsappDeleteIntentResult> {
+async function confirmPendingDelete(
+  userId: number,
+  pending: PendingDeleteIntent,
+  timeZone: string,
+): Promise<WhatsappDeleteIntentResult> {
   if (pending.kind === "delete_meal") {
     const currentMeal = (await listMeals(userId)).find(meal => meal.id === pending.mealId);
     if (!currentMeal) {
@@ -428,7 +495,7 @@ async function confirmPendingDelete(userId: number, pending: PendingDeleteIntent
     return {
       handled: true,
       action: "meal_deleted",
-      reply: `Excluí a refeição ${formatMealReference(pending)}.`,
+      reply: `Excluí a refeição ${formatMealReference(pending, timeZone)}.`,
       eventType: "whatsapp.intent.meal_deleted",
       detail: `Refeição ${pending.mealId} excluída após confirmação por mensagem no WhatsApp.`,
       data: { mealId: pending.mealId, deleteIntentKind: pending.kind },
@@ -473,7 +540,7 @@ async function confirmPendingDelete(userId: number, pending: PendingDeleteIntent
     return {
       handled: true,
       action: "meal_deleted",
-      reply: `Removi ${item.foodName}. Como era o único item, excluí também a refeição ${formatMealReference(pending)}.`,
+      reply: `Removi ${item.foodName}. Como era o único item, excluí também a refeição ${formatMealReference(pending, timeZone)}.`,
       eventType: "whatsapp.intent.meal_deleted_after_last_item_removed",
       detail: `Último alimento da refeição ${latestMeal.id} removido após confirmação; refeição excluída.`,
       data: { mealId: latestMeal.id, deleteIntentKind: pending.kind, removedFoodName: item.foodName },
@@ -491,7 +558,12 @@ async function confirmPendingDelete(userId: number, pending: PendingDeleteIntent
   return {
     handled: true,
     action: "meal_item_deleted",
-    reply: `Removi ${item.foodName} da refeição ${formatMealReference(pending)}.`,
+    // Fonte de verdade da resposta (issue #783): mostra a refeição já recarregada com os itens restantes
+    // e os totais atuais, reutilizando o mesmo bloco central do registro/adição, em vez de citar só o item removido.
+    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
+      title: "Alimento removido",
+      actionLines: [`Removi ${item.foodName} da refeição ${formatMealReference(pending, timeZone)}.`],
+    }),
     eventType: "whatsapp.intent.meal_item_deleted",
     detail: `Alimento ${item.foodName} removido da refeição ${latestMeal.id} após confirmação por mensagem no WhatsApp.`,
     data: { mealId: updatedMeal.id, deleteIntentKind: pending.kind, removedFoodName: item.foodName },
@@ -552,16 +624,21 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
   };
 }
 
-export async function executeWhatsappDeleteIntent(userId: number, input: { text?: string | null }): Promise<WhatsappDeleteIntentResult | null> {
+export async function executeWhatsappDeleteIntent(
+  userId: number,
+  input: { text?: string | null; timeZone?: string | null },
+): Promise<WhatsappDeleteIntentResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
+  const timeZone = input.timeZone ?? DEFAULT_APP_TIME_ZONE;
 
   const normalized = normalizeDeleteIntentText(text);
   const pendingRow: WhatsAppPendingOperationRecord | null = await pendingOperationRepository.getActivePendingOperation(userId);
   if (pendingRow && pendingRow.type === PENDING_DELETE_TYPE) {
     const pending = pendingRow.target as PendingDeleteOperation;
     if (isCancellationText(normalized)) {
-      await pendingOperationRepository.cancelPendingOperation(pendingRow.id);
+      const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CANCEL_ACTION);
+      if (claim.status !== "claimed") return null;
       return buildCancellationResult();
     }
 
@@ -579,16 +656,16 @@ export async function executeWhatsappDeleteIntent(userId: number, input: { text?
             data: { destructiveActionBlocked: true, candidateCount: pending.candidates.length },
           };
         }
-        const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });
-        if (!claim.claimed) return null;
-        await pendingOperationRepository.createPendingOperation({
+        const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, `${SELECT_ACTION_PREFIX}${selectedIndex}`);
+        if (claim.status !== "claimed") return null;
+        const created = await pendingOperationRepository.createPendingOperation({
           userId,
           type: PENDING_DELETE_TYPE,
           origin: PENDING_DELETE_ORIGIN,
           ttlMs: PENDING_DELETE_TTL_MS,
           target: selected,
         });
-        return buildPendingResult(selected);
+        return buildPendingResult(selected, created?.id, timeZone);
       }
 
       return {
@@ -602,16 +679,57 @@ export async function executeWhatsappDeleteIntent(userId: number, input: { text?
     }
 
     if (isConfirmationText(normalized)) {
-      const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });
-      if (!claim.claimed) return null;
-      return confirmPendingDelete(userId, pending);
+      const claim = await claimWhatsAppTextPendingOperation(userId, PENDING_DELETE_TYPE, CONFIRM_ACTION);
+      if (claim.status !== "claimed") return null;
+      return confirmPendingDelete(userId, claim.pendingOperation.target as PendingDeleteIntent, timeZone);
     }
   }
 
   const detection = detectWhatsappDeleteIntent(text);
   if (!detection) return null;
   if (detection.kind === "unknown_delete") return buildClarificationResult(detection);
-  return requestDeleteConfirmation(userId, detection);
+  return requestDeleteConfirmation(userId, detection, timeZone);
+}
+
+/**
+ * Resolve um callback de botão/lista já reivindicado (issue #782): o chamador
+ * (`messageRouter.ts`) já validou dono/estado/expiração e consumiu a versão via
+ * `claimWhatsAppInteractiveCallback`, então esta função apenas executa o efeito
+ * de domínio correspondente à ação, sem consumir novamente a pendência.
+ */
+export async function completeWhatsappDeleteInteractiveCallback(
+  userId: number,
+  pendingOperation: Pick<WhatsAppPendingOperationRecord, "target">,
+  action: string,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+): Promise<WhatsappDeleteIntentResult> {
+  const pending = pendingOperation.target as PendingDeleteOperation;
+
+  if (action === CANCEL_ACTION) {
+    return buildCancellationResult();
+  }
+
+  if (action === CONFIRM_ACTION) {
+    if (pending.kind === "selection") return buildCallbackResourceNotFoundResult();
+    return confirmPendingDelete(userId, pending, timeZone);
+  }
+
+  if (action.startsWith(SELECT_ACTION_PREFIX) && pending.kind === "selection") {
+    const index = Number(action.slice(SELECT_ACTION_PREFIX.length));
+    const selected = pending.candidates[index];
+    if (!selected) return buildCallbackResourceNotFoundResult();
+
+    const created = await pendingOperationRepository.createPendingOperation({
+      userId,
+      type: PENDING_DELETE_TYPE,
+      origin: PENDING_DELETE_ORIGIN,
+      ttlMs: PENDING_DELETE_TTL_MS,
+      target: selected,
+    });
+    return buildPendingResult(selected, created?.id, timeZone);
+  }
+
+  return buildCallbackResourceNotFoundResult();
 }
 
 export function toWhatsappDeleteInterpretedIntent(detection: WhatsappDeleteIntentDetection): WhatsappInterpretedIntent {

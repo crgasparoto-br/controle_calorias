@@ -1,5 +1,5 @@
 import { roundNutritionValue } from "../../../shared/mealTotals";
-import { getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { canUseMemoryPersistenceFallback } from "../../repositories/memoryFallback";
 import type { ExerciseRecord, ExercisesRepository, ExternalExerciseImportStatus } from "../../repositories/exercisesRepository";
 
@@ -29,7 +29,7 @@ function withExternalImportStatus(exercise: ExerciseEntry, status: ExternalExerc
 
 export function createExercisesService(deps: {
   exercisesRepository: ExercisesRepository;
-  buildOccurredAtRange: (date: string) => { startAt: Date; endAt: Date };
+  buildOccurredAtRange: (date: string, timeZone: string) => { startAt: Date; endAt: Date };
   onEvent: (entry: { userId: number; origin: "web"; status: "success"; eventType: string; detail: string }) => void;
 }) {
   const exerciseStore = new Map<number, ExerciseEntry[]>();
@@ -52,12 +52,12 @@ export function createExercisesService(deps: {
     return exercisesForUser.slice().sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
   }
 
-  async function listExercisesByDate(userId: number, date: string) {
-    const range = deps.buildOccurredAtRange(date);
+  async function listExercisesByDate(userId: number, date: string, timeZone = DEFAULT_APP_TIME_ZONE) {
+    const range = deps.buildOccurredAtRange(date, timeZone);
     const dbExercises = await deps.exercisesRepository.findByUserIdAndRange(userId, range.startAt, range.endAt);
     const exercisesForUser = dbExercises ?? (canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : []);
     return exercisesForUser
-      .filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt)) === date)
+      .filter(exercise => getDateKeyInTimeZone(Number(exercise.occurredAt), timeZone) === date)
       .slice()
       .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
   }
@@ -66,7 +66,7 @@ export function createExercisesService(deps: {
     const dbExercises = await deps.exercisesRepository.findByUserIdAndRange(userId, startAt, endAt);
     const exercisesForUser = dbExercises ?? (canUseMemoryPersistenceFallback() ? exerciseStore.get(userId) ?? [] : []);
     return exercisesForUser
-      .filter(exercise => Number(exercise.occurredAt) >= startAt.getTime() && Number(exercise.occurredAt) <= endAt.getTime())
+      .filter(exercise => Number(exercise.occurredAt) >= startAt.getTime() && Number(exercise.occurredAt) < endAt.getTime())
       .slice()
       .sort((a, b) => Number(b.occurredAt) - Number(a.occurredAt));
   }

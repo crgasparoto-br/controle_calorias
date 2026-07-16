@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MealDraftItem } from "../../nutritionEngine";
+import { buildWhatsAppFoodLines, formatWhatsAppNutritionTotalsLine } from "./replyTemplates";
 
 const listMealsMock = vi.fn();
 
@@ -23,41 +24,42 @@ function item(input: Partial<MealDraftItem> & Pick<MealDraftItem, "foodName" | "
   };
 }
 
+/** Bloco de item central esperado (mesmo builder do registro/adição, issue #781/#783). */
+function itemBlockLines(mealItem: MealDraftItem) {
+  return buildWhatsAppFoodLines(mealItem as unknown as Parameters<typeof buildWhatsAppFoodLines>[0]);
+}
+
+function totalsLine(items: MealDraftItem[]) {
+  const totals = items.reduce(
+    (acc, mealItem) => ({
+      calories: acc.calories + Number(mealItem.calories || 0),
+      protein: acc.protein + Number(mealItem.protein || 0),
+      carbs: acc.carbs + Number(mealItem.carbs || 0),
+      fat: acc.fat + Number(mealItem.fat || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+  return formatWhatsAppNutritionTotalsLine(totals);
+}
+
 describe("executeWhatsappMealListIntent", () => {
+  const salada = item({ foodName: "salada", calories: 40, protein: 1.2, carbs: 5, fat: 1.5 });
+  const sopa = item({ foodName: "sopa", calories: 180, protein: 8, carbs: 20, fat: 6 });
+  const arroz = item({ foodName: "arroz", calories: 130, protein: 2.7, carbs: 28, fat: 0.3 });
+  const frango = item({ foodName: "frango", portionText: "120 g", estimatedGrams: 120, calories: 198, protein: 37.2, carbs: 0, fat: 4.3 });
+  const pao = item({ foodName: "pão", calories: 140, protein: 4.5, carbs: 28, fat: 1.5 });
+
   beforeEach(() => {
     listMealsMock.mockReset();
     listMealsMock.mockResolvedValue([
-      {
-        id: 3,
-        mealLabel: "Jantar",
-        occurredAt: "2026-06-19T22:00:00.000Z",
-        items: [item({ foodName: "sopa", calories: 180, protein: 8, carbs: 20, fat: 6 })],
-      },
-      {
-        id: 4,
-        mealLabel: "Almoço",
-        occurredAt: "2026-06-20T16:20:00.000Z",
-        items: [item({ foodName: "salada", calories: 40, protein: 1.2, carbs: 5, fat: 1.5 })],
-      },
-      {
-        id: 2,
-        mealLabel: "Almoço",
-        occurredAt: "2026-06-20T15:30:00.000Z",
-        items: [
-          item({ foodName: "arroz", calories: 130, protein: 2.7, carbs: 28, fat: 0.3 }),
-          item({ foodName: "frango", portionText: "120 g", estimatedGrams: 120, calories: 198, protein: 37.2, carbs: 0, fat: 4.3 }),
-        ],
-      },
-      {
-        id: 1,
-        mealLabel: "Café da manhã",
-        occurredAt: "2026-06-20T10:00:00.000Z",
-        items: [item({ foodName: "pão", calories: 140, protein: 4.5, carbs: 28, fat: 1.5 })],
-      },
+      { id: 3, mealLabel: "Jantar", occurredAt: "2026-06-19T22:00:00.000Z", items: [sopa] },
+      { id: 4, mealLabel: "Almoço", occurredAt: "2026-06-20T16:20:00.000Z", items: [salada] },
+      { id: 2, mealLabel: "Almoço", occurredAt: "2026-06-20T15:30:00.000Z", items: [arroz, frango] },
+      { id: 1, mealLabel: "Café da manhã", occurredAt: "2026-06-20T10:00:00.000Z", items: [pao] },
     ]);
   });
 
-  it("lista alimentos da refeição por label e data relativa de hoje", async () => {
+  it("lista alimentos da refeição por label e data relativa de hoje usando o bloco central de item/total", async () => {
     const result = await executeWhatsappMealListIntent(42, {
       text: "listar alimentos do almoço de hoje",
       receivedAt: new Date("2026-06-20T20:14:00-03:00"),
@@ -68,9 +70,12 @@ describe("executeWhatsappMealListIntent", () => {
       eventType: "whatsapp.intent.meal_foods_listed",
       data: expect.objectContaining({ mealId: 4, itemCount: 1 }),
     });
-    expect(result?.reply).toContain("Alimentos de Almoço em 20/06/2026:");
-    expect(result?.reply).toContain("100 g de salada - 40 kcal");
-    expect(result?.reply).toContain("Total: 40 kcal");
+    expect(result?.reply).toContain("Alimentos de Almoço em 20/06/2026");
+    for (const line of itemBlockLines(salada)) {
+      expect(result?.reply).toContain(line);
+    }
+    expect(result?.reply).toContain("Total da refeição:");
+    expect(result?.reply).toContain(totalsLine([salada]));
     expect(result?.reply).not.toContain("às");
   });
 
@@ -82,8 +87,10 @@ describe("executeWhatsappMealListIntent", () => {
 
     expect(result?.action).toBe("meal_foods_listed");
     expect(result?.data).toEqual(expect.objectContaining({ mealId: 3, mealLabel: "Jantar" }));
-    expect(result?.reply).toContain("Alimentos de Jantar em 19/06/2026:");
-    expect(result?.reply).toContain("100 g de sopa - 180 kcal");
+    expect(result?.reply).toContain("Alimentos de Jantar em 19/06/2026");
+    for (const line of itemBlockLines(sopa)) {
+      expect(result?.reply).toContain(line);
+    }
     expect(result?.reply).not.toContain("às");
   });
 
@@ -95,11 +102,11 @@ describe("executeWhatsappMealListIntent", () => {
 
     expect(result?.action).toBe("meal_foods_listed");
     expect(result?.data).toEqual(expect.objectContaining({ mealId: 3 }));
-    expect(result?.reply).toContain("Alimentos da última refeição (Jantar):");
+    expect(result?.reply).toContain("Alimentos da última refeição (Jantar)");
     expect(result?.reply).not.toContain("às");
   });
 
-  it("lista comandos genéricos de alimentos agrupados por refeição do dia", async () => {
+  it("lista comandos genéricos de alimentos agrupados por refeição do dia com totais atuais", async () => {
     const result = await executeWhatsappMealListIntent(42, {
       text: "Liste os alimentos",
       receivedAt: new Date("2026-06-20T20:14:00-03:00"),
@@ -110,19 +117,22 @@ describe("executeWhatsappMealListIntent", () => {
       eventType: "whatsapp.intent.meal_foods_listed",
       data: expect.objectContaining({ mealCount: 3, itemCount: 4 }),
     });
-    expect(result?.reply).toContain("Alimentos registrados em 20/06/2026:");
-    expect(result?.reply).toContain("Almoço:");
-    expect(result?.reply).toContain("100 g de salada - 40 kcal");
-    expect(result?.reply).toContain("100 g de arroz - 130 kcal");
-    expect(result?.reply).toContain("120 g de frango - 198 kcal");
-    expect(result?.reply).toContain("Subtotal da refeição: 368 kcal | Prot. 41,1 g | Carb. 33 g | Gord. 6,1 g");
-    expect(result?.reply).toContain("Café da manhã:");
-    expect(result?.reply).toContain("100 g de pão - 140 kcal");
-    expect(result?.reply).toContain("Subtotal da refeição: 140 kcal | Prot. 4,5 g | Carb. 28 g | Gord. 1,5 g");
+    expect(result?.reply).toContain("Alimentos registrados hoje");
+    expect(result?.reply).toContain("Almoço");
+    for (const line of [...itemBlockLines(salada), ...itemBlockLines(arroz), ...itemBlockLines(frango)]) {
+      expect(result?.reply).toContain(line);
+    }
+    expect(result?.reply).toContain(totalsLine([salada, arroz, frango]));
+    expect(result?.reply).toContain("Café da manhã");
+    for (const line of itemBlockLines(pao)) {
+      expect(result?.reply).toContain(line);
+    }
+    expect(result?.reply).toContain(totalsLine([pao]));
     expect(result?.reply).not.toContain("Almoço às");
     expect(result?.reply).not.toContain("Café da manhã às");
     expect(result?.reply).not.toContain("sopa");
-    expect(result?.reply).toContain("Total do dia: 508 kcal | Prot. 45,6 g | Carb. 61 g | Gord. 7,6 g");
+    expect(result?.reply).toContain("Total do dia:");
+    expect(result?.reply).toContain(totalsLine([salada, arroz, frango, pao]));
   });
 
   it("trata 'o que comi hoje' como consulta de alimentos do dia", async () => {
@@ -132,11 +142,11 @@ describe("executeWhatsappMealListIntent", () => {
     });
 
     expect(result?.action).toBe("meal_foods_listed");
-    expect(result?.reply).toContain("Alimentos registrados em 20/06/2026:");
-    expect(result?.reply).toContain("Almoço:");
+    expect(result?.reply).toContain("Alimentos registrados hoje");
+    expect(result?.reply).toContain("Almoço");
     expect(result?.reply).toContain("arroz");
     expect(result?.reply).toContain("pão");
-    expect(result?.reply).toContain("Subtotal da refeição:");
+    expect(result?.reply).toContain("Total da refeição:");
     expect(result?.reply).not.toContain("às");
   });
 
@@ -147,7 +157,8 @@ describe("executeWhatsappMealListIntent", () => {
     });
 
     expect(result?.action).toBe("meal_foods_listed");
-    expect(result?.reply).toBe("Não encontrei alimentos registrados em 21/06/2026.");
+    expect(result?.reply).toContain("Alimentos registrados hoje");
+    expect(result?.reply).toContain("Não encontrei alimentos registrados nessa data.");
     expect(result?.data).toEqual(expect.objectContaining({ mealCount: 0, itemCount: 0 }));
   });
 
