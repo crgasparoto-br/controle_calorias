@@ -1,4 +1,10 @@
-import { buildWhatsAppBlock, buildWhatsAppSeparator, formatWhatsAppNumber } from "./replyTemplates";
+import {
+  buildWhatsAppBlock,
+  buildWhatsAppCalorieBalanceLine,
+  buildWhatsAppMacroProgressLine,
+  buildWhatsAppSeparator,
+  formatWhatsAppNumber,
+} from "./replyTemplates";
 
 function formatSigned(value: number, unit: "kcal" | "g" | "ml" | "kg") {
   const rounded = Math.round(value * 10) / 10;
@@ -17,29 +23,32 @@ export type WhatsAppPeriodProgress = {
   targetFatGrams?: number | null;
 };
 
-function macroLine(label: "P" | "C" | "G", consumed?: number | null, target?: number | null) {
-  if (typeof consumed !== "number" || typeof target !== "number") return null;
-  return `• ${label} ${formatWhatsAppNumber(consumed)} g (${formatSigned(consumed - target, "g")})`;
-}
-
 export function buildWhatsAppCanonicalPeriodProgressLines(progress: WhatsAppPeriodProgress) {
-  const hasGoal = typeof progress.effectiveGoalCalories === "number";
+  const hasGoal = typeof progress.effectiveGoalCalories === "number"
+    && Number.isFinite(progress.effectiveGoalCalories)
+    && progress.effectiveGoalCalories > 0;
   const macroLines = [
-    macroLine("P", progress.consumedProteinGrams, progress.targetProteinGrams),
-    macroLine("C", progress.consumedCarbsGrams, progress.targetCarbsGrams),
-    macroLine("G", progress.consumedFatGrams, progress.targetFatGrams),
+    buildWhatsAppMacroProgressLine("P", progress.consumedProteinGrams, progress.targetProteinGrams),
+    buildWhatsAppMacroProgressLine("C", progress.consumedCarbsGrams, progress.targetCarbsGrams),
+    buildWhatsAppMacroProgressLine("G", progress.consumedFatGrams, progress.targetFatGrams),
   ].filter((line): line is string => Boolean(line));
+  const balanceLine = hasGoal
+    ? buildWhatsAppCalorieBalanceLine({
+      consumedCalories: progress.consumedCalories,
+      effectiveGoalCalories: progress.effectiveGoalCalories,
+      precision: 1,
+    })
+    : null;
 
   return [
     hasGoal
       ? `*Meta:* ${formatWhatsAppNumber(progress.effectiveGoalCalories!)} kcal`
       : "*Meta:* não disponível para este período",
-    ...(typeof progress.exerciseCalories === "number"
+    ...(typeof progress.exerciseCalories === "number" && Number.isFinite(progress.exerciseCalories)
       ? [`*Exercícios:* ${formatWhatsAppNumber(progress.exerciseCalories)} kcal`]
       : []),
-    hasGoal
-      ? `*Consumo:* ${formatWhatsAppNumber(progress.consumedCalories)} kcal (${formatSigned(progress.consumedCalories - progress.effectiveGoalCalories!, "kcal")})`
-      : `*Consumo:* ${formatWhatsAppNumber(progress.consumedCalories)} kcal`,
+    `*Consumo:* ${formatWhatsAppNumber(progress.consumedCalories)} kcal`,
+    ...(balanceLine ? [balanceLine] : []),
     ...(macroLines.length ? [buildWhatsAppSeparator(), "*Macronutrientes*", ...macroLines] : []),
   ];
 }
