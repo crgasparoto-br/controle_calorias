@@ -1,0 +1,35 @@
+name: Apply issue 796 WhatsApp
+
+on:
+  pull_request:
+    branches:
+      - feat/795-timezone-backend-reports
+
+permissions:
+  contents: write
+
+jobs:
+  apply-whatsapp:
+    if: github.head_ref == 'feat/796-timezone-whatsapp'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/796-timezone-whatsapp
+          fetch-depth: 0
+
+      - name: Apply reviewed WhatsApp change
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/issue-796-patch.part* | base64 -d | gzip -dc > /tmp/issue796.patch
+          git am /tmp/issue796.patch
+          rm -f .github/issue-796-patch.part*
+          rm -f .github/workflows/apply-issue-796-whatsapp.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: remove issue 796 transfer artifacts'
+          git push origin HEAD:feat/796-timezone-whatsapp
