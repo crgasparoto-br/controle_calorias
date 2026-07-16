@@ -5,6 +5,8 @@ import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { executeWhatsappGramsAdjustmentIntent } from "./modules/whatsapp/gramsAdjustmentIntent";
+import { executeWhatsappGramsIncrementIntent } from "./modules/whatsapp/gramsIncrementIntent";
+import { parseMealCommandFromWhatsApp } from "./modules/whatsapp/mealCommandParser";
 import { resolveTextMealItemSelection } from "./modules/whatsapp/mealItemSelectionCallback";
 import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
 import { executeWhatsappLlmIntent, type WhatsappLlmNutritionFallback } from "./modules/whatsapp/llmIntentActions";
@@ -110,6 +112,14 @@ function normalizeText(value: string) {
 function looksLikeTonicWaterFood(text: string) {
   const normalized = normalizeText(text);
   return /\bagua\s+tonicas?\b/.test(normalized);
+}
+
+// Comandos de adição de alimento ("adicionar 100 g de feijão no almoço") compartilham
+// verbos com incrementos de gramas; eles devem seguir para o fluxo de adição em
+// executeWhatsappTextIntent em vez de serem tratados como incremento de item existente.
+function isFoodAdditionCommand(text: string, receivedAt: Date) {
+  const parsed = parseMealCommandFromWhatsApp(text, { referenceDate: receivedAt });
+  return parsed.intent === "add_items_to_meal" && Boolean(parsed.mealType) && parsed.items.length > 0;
 }
 
 function normalizeTextPreservingQuantities(value: string) {
@@ -757,6 +767,28 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       occurredAtMs,
       lifecycleHandle,
       interactiveReply: gramsAdjustmentResult.interactiveReply,
+    });
+    return true;
+  }
+
+  const gramsIncrementResult = isFoodAdditionCommand(textForIntent, occurredAt)
+    ? null
+    : await executeWhatsappGramsIncrementIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+  if (gramsIncrementResult) {
+    markTextIntentMessageHandled(message.id);
+    await clearPendingTextIntentContext(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: gramsIncrementResult.reply,
+      eventType: gramsIncrementResult.eventType,
+      detail: gramsIncrementResult.detail,
+      status: gramsIncrementResult.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractMealId(gramsIncrementResult.data),
+      occurredAtMs,
+      lifecycleHandle,
+      interactiveReply: gramsIncrementResult.interactiveReply,
     });
     return true;
   }
