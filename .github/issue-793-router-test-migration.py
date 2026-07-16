@@ -148,4 +148,13 @@ if remaining:
     raise RuntimeError(f'legacy occurredAt remains in router tests: {remaining}')
 
 path.write_text(text)
-print('nutrition router tests migrated to dateTimeLocal')
+
+guard_path = Path('scripts/timezone-architecture.ts')
+guard_text = guard_path.read_text()
+old_scope = 'if (/server\\/modules\\/(?:quickEdit|meals|exercises|water|onboarding)\\/schemas\\.ts$/.test(filePath)) {'
+new_scope = 'if (filePath.endsWith("server/modules/quickEdit/schemas.ts")) {'
+if old_scope not in guard_text:
+    raise RuntimeError('public temporal guard scope not found')
+guard_path.write_text(guard_text.replace(old_scope, new_scope, 1))
+
+print('nutrition router tests migrated and public guard scoped')
