@@ -335,6 +335,37 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
   });
 
+  it("água + alimento na mesma mensagem compõe uma única resposta funcional diferida (#785)", async () => {
+    const req = createTextWebhookRequest("300 ml de água\n1 pão francês", {
+      id: "water-food-mixed",
+      timestamp: "1780502400",
+    });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    // Água registrada exatamente uma vez.
+    expect(createWaterLogMock).toHaveBeenCalledTimes(1);
+    expect(createWaterLogMock).toHaveBeenCalledWith(42, expect.objectContaining({ amountMl: 300 }));
+    // O intent webhook não envia outbound próprio para a água: o bloco entra
+    // como prefixo diferido da resposta nutricional do webhook base.
+    expect(sentMessages).toHaveLength(0);
+    expect(handleWhatsAppWebhookMock).toHaveBeenCalledTimes(1);
+    const forwardedReq = handleWhatsAppWebhookMock.mock.calls[0][0];
+    const forwardedText = forwardedReq.body.entry[0].changes[0].value.messages[0].text.body;
+    expect(forwardedText).toContain("pão francês");
+    expect(forwardedText).not.toContain("água");
+
+    const { getWhatsAppDeferredLogicalReply, composeWhatsAppDeferredReplyText } = await import("./modules/whatsapp/deferredLogicalReply");
+    const deferred = getWhatsAppDeferredLogicalReply(forwardedReq, "water-food-mixed");
+    expect(deferred).not.toBeNull();
+    expect(deferred?.prefixBlocks.join("\n")).toContain("Água registrada");
+    expect(deferred?.domainLinks).toEqual([{ waterLogId: 91 }]);
+    const composed = composeWhatsAppDeferredReplyText(deferred, "🍽️ *Almoço*");
+    expect(composed.indexOf("Água registrada")).toBeLessThan(composed.indexOf("🍽️ *Almoço*"));
+  });
+
   it("registra peso pela intenção textual e não delega para criação de refeição", async () => {
     const req = createTextWebhookRequest("peso 80,5 kg", {
       id: "weight-current",
