@@ -80,12 +80,17 @@ jobs:
           } >> "$result"
 
           for log in /tmp/check.log /tmp/test.log /tmp/architecture.log /tmp/docs.log /tmp/build.log /tmp/agent.log /tmp/ci_docs.log; do
-            echo "===== $log ====="
-            tail -n 120 "$log"
+            {
+              echo
+              echo "## $log"
+              echo '```text'
+              tail -n 180 "$log"
+              echo '```'
+            } >> "$result"
           done
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$result"
-          git commit -m "chore: record issue 801 validation"
+          git commit -m "chore: record issue 801 validation logs"
           git push origin HEAD:feat/801-soft-delete-food-catalog
