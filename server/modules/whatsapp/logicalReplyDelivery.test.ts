@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const quickEditMock = vi.hoisted(() => vi.fn());
+const enrichReplyMock = vi.hoisted(() => vi.fn());
 const sendMock = vi.hoisted(() => vi.fn());
 vi.mock("../quickEdit/service", () => ({ tryCreateQuickEditLinkForMeal: quickEditMock }));
+vi.mock("./mealActionReplyEnrichment", () => ({ enrichWhatsAppMealActionReply: enrichReplyMock }));
 vi.mock("./replyTransport", () => ({ sendWhatsAppLogicalReply: sendMock }));
 
 import { buildWhatsAppLogicalReplyForDelivery, sendWhatsAppLogicalDomainReply } from "./logicalReplyDelivery";
@@ -12,6 +14,7 @@ describe("logicalReplyDelivery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     quickEditMock.mockResolvedValue({ url: "https://app.test/quick-edit/token" });
+    enrichReplyMock.mockImplementation(async ({ replyText }: { replyText: string }) => replyText);
     sendMock.mockImplementation(async (_to, reply) => ({ ok: true, primaryOk: true, recorded: true, sends: reply.messages.map((message: unknown) => ({ message, ok: true, detail: "ok" })) }));
   });
 
@@ -22,6 +25,18 @@ describe("logicalReplyDelivery", () => {
       { type: "image_url", url: "https://img.test/a.png", caption: "Imagem anotada" },
     ]);
     expect(reply.recordText).toBe("Refeição registrada");
+  });
+
+  it("enriquece o texto antes de compor CTA e persistência da resposta lógica", async () => {
+    enrichReplyMock.mockResolvedValue("Refeição atualizada\n\n*Meta:* 2.000 kcal");
+
+    const reply = await buildWhatsAppLogicalReplyForDelivery({ userId: 42, mealId: 10, replyText: "Refeição atualizada" });
+
+    expect(enrichReplyMock).toHaveBeenCalledWith({ userId: 42, mealId: 10, replyText: "Refeição atualizada" });
+    expect(reply.messages).toEqual([
+      { type: "cta_url", bodyText: "Refeição atualizada\n\n*Meta:* 2.000 kcal", buttonText: "Editar refeição", url: "https://app.test/quick-edit/token" },
+    ]);
+    expect(reply.recordText).toBe("Refeição atualizada\n\n*Meta:* 2.000 kcal");
   });
 
   it("não substitui lista por CTA", async () => {
