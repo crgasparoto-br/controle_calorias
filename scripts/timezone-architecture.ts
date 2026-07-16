@@ -121,6 +121,16 @@ export function findTimeZoneArchitectureViolations(files: TimeZoneArchitectureFi
       });
     }
 
+    if (filePath === "server/nutritionRouter.ts") {
+      addPatternViolations({
+        filePath,
+        content: file.content,
+        pattern: /\.input\(\s*confirmFoodPhotoAnalysisSchema\s*\)/g,
+        message: "Confirmação pública de foto expõe o schema temporal absoluto interno",
+        failures,
+      });
+    }
+
     // Leitura do perfil dentro de iteração é um forte indício de N+1 temporal.
     addPatternViolations({
       filePath,

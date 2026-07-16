@@ -20,6 +20,6 @@ Telas profissionais consultam `nutrition.professionals.patientTimeZone`. Filtros
 
 ## Validação autoritativa de mutações temporais
 
-Formulários autenticados enviam `dateTimeLocal` como horário civil. A mutation resolve o timezone efetivo do dono e converte no servidor com o helper central. `occurredAt` absoluto permanece contrato interno para persistência e providers, não entrada pública dos formulários. Isso impede que clientes alterados contornem a política de DST ou usem o timezone do navegador como autoridade.
+Formulários autenticados, inclusive a confirmação de análise de foto, enviam `dateTimeLocal` como horário civil. A mutation resolve o timezone efetivo do dono e converte no servidor com o helper central. `occurredAt` absoluto permanece contrato interno para persistência e providers, não entrada pública dos formulários. Isso impede que clientes alterados contornem a política de DST ou usem o timezone do navegador como autoridade.
 
 A validação local da interface melhora a experiência, mas não substitui a validação do servidor: toda mutação temporal user-scoped repete a conversão civil e a política de DST antes da persistência.

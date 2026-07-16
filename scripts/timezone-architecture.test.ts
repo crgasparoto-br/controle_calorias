@@ -53,6 +53,14 @@ describe("timezone architecture guard", () => {
     ]);
   });
 
+  it("bloqueia schema temporal absoluto na confirmação pública de foto", () => {
+    expect(violations("server/nutritionRouter.ts", `
+      confirm: protectedProcedure.input(confirmFoodPhotoAnalysisSchema).mutation(handler),
+    `)).toEqual([
+      expect.stringContaining("Confirmação pública de foto"),
+    ]);
+  });
+
   it("permite o contrato central, fixtures e formatação explícita", () => {
     expect(findTimeZoneArchitectureViolations([
       { path: "shared/timeZone.ts", content: 'export const DEFAULT_APP_TIME_ZONE = "America/Sao_Paulo";' },

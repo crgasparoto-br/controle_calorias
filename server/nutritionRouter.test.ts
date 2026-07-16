@@ -868,18 +868,19 @@ describe("nutrition router", () => {
     const meal = await caller.nutrition.foodPhotoAnalysis.confirm({
       analysisId: analysis.id,
       mealLabel: "almoço",
-      occurredAt: "2026-04-22T15:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
       notes: "Confirmado após revisar a foto.",
       items: correctedItems,
     });
     const afterConfirm = await caller.nutrition.meals.list();
 
     expect(meal.items[0].foodName).toBe("Arroz integral corrigido");
+    expect(new Date(Number(meal.occurredAt)).toISOString()).toBe("2026-04-22T15:00:00.000Z");
     expect(afterConfirm).toHaveLength(before.length + 1);
     await expect(caller.nutrition.foodPhotoAnalysis.confirm({
       analysisId: analysis.id,
       mealLabel: "almoço",
-      occurredAt: "2026-04-22T15:30:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:30:00.000Z"),
       items: correctedItems,
     })).rejects.toThrow("precisa estar pronta");
   });

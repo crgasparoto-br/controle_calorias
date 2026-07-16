@@ -248,6 +248,9 @@ const updateExerciseMutationSchema = updateExerciseSchema
 const waterLogMutationSchema = waterLogSchema
   .omit({ occurredAt: true })
   .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const confirmFoodPhotoAnalysisMutationSchema = confirmFoodPhotoAnalysisSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
 
 function toOwnerOccurredAt(dateTimeLocal: string, timeZone: string) {
   try {
@@ -291,15 +294,21 @@ export const nutritionRouter = router({
     }),
     reject: protectedProcedure.input(rejectFoodPhotoAnalysisSchema).mutation(async ({ ctx, input }) => rejectFoodPhotoAnalysis(ctx.user.id, input.analysisId)),
     confirm: protectedProcedure
-      .input(confirmFoodPhotoAnalysisSchema)
+      .input(confirmFoodPhotoAnalysisMutationSchema)
       .mutation(async ({ ctx, input }) => {
-        const result = await confirmFoodPhotoAnalysis(ctx.user.id, input);
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...confirmationInput } = input;
+        const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+        const result = await confirmFoodPhotoAnalysis(ctx.user.id, {
+          ...confirmationInput,
+          occurredAt,
+        });
         void analyticsService.track("meal_created", {
           source: "ai_draft",
           meal_label_category: mealLabelCategory(input.mealLabel),
           item_count: input.items.length,
           has_notes: Boolean(input.notes?.trim()),
-          scheduled_for_future: new Date(input.occurredAt).getTime() > Date.now(),
+          scheduled_for_future: new Date(occurredAt).getTime() > Date.now(),
         });
         return result;
       }),
