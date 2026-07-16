@@ -85,21 +85,23 @@ describe("mealActionReplyEnrichment", () => {
     expect(goalProgressMock).toHaveBeenCalledWith(42, new Date("2026-07-15T15:00:00.000Z"), "America/Los_Angeles");
   });
 
-  it("enriquece várias refeições do mesmo dia reutilizando uma única consulta de progresso", async () => {
+  it("enriquece várias refeições do mesmo dia sem confundir refeição histórica idêntica", async () => {
+    const historicalDinner = meal(9, "Jantar", "2026-07-14T23:00:00.000Z", [beansItem]);
     const lunch = meal(10, "Almoço", "2026-07-15T15:00:00.000Z", [riceItem]);
     const dinner = meal(11, "Jantar", "2026-07-15T23:00:00.000Z", [beansItem]);
-    listMealsMock.mockResolvedValue([lunch, dinner]);
+    listMealsMock.mockResolvedValue([historicalDinner, lunch, dinner]);
     const original = [
       buildWhatsAppMealActionReplyMessage(lunch, { title: "Alimentos ajustados" }),
       buildWhatsAppMealActionReplyMessage(dinner, { title: "Alimentos ajustados" }),
     ].join("\n\n");
 
-    const reply = await enrichWhatsAppMealActionReply({ userId: 42, replyText: original });
+    const reply = await enrichWhatsAppMealActionReply({ userId: 42, mealId: 10, replyText: original });
 
     expect(reply.match(/\*Meta:\* 2\.000 kcal/g)).toHaveLength(2);
     expect(reply).toContain("🍽️ *Almoço* — 08:00");
     expect(reply).toContain("🍽️ *Jantar* — 16:00");
     expect(goalProgressMock).toHaveBeenCalledOnce();
+    expect(goalProgressMock).toHaveBeenCalledWith(42, new Date("2026-07-15T15:00:00.000Z"), "America/Los_Angeles");
   });
 
   it("preserva a resposta principal quando o progresso não pode ser resolvido", async () => {
