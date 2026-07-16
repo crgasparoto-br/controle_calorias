@@ -81,7 +81,7 @@ describe("simulateWhatsappInbound canonical action reply", () => {
     });
 
     const result = await simulateWhatsappInbound(42, {
-      text: "adicionar 100 g de arroz ao almoço",
+      text: "mensagem de ação canônica",
       receivedAt: new Date("2026-07-15T15:00:00.000Z"),
       userTimezone: "America/Sao_Paulo",
       messageId: "canonical-action-1",
