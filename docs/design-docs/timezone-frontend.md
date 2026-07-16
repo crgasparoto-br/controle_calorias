@@ -4,7 +4,9 @@
 
 As telas autenticadas consultam `nutrition.onboarding.timeZone` e usam o timezone efetivo retornado pelo backend. O navegador não participa de filtros, agrupamentos, consultas ou mutações vinculadas ao usuário.
 
-Consultas dependentes de calendário permanecem desabilitadas até a resolução do timezone. Durante o carregamento, `DEFAULT_APP_TIME_ZONE` pode ser usado somente para renderização transitória; ele não autoriza persistência temporal.
+Consultas dependentes de calendário permanecem desabilitadas enquanto a resolução do timezone está pendente. Se a consulta terminar com erro, o shell e as leituras podem continuar em modo degradado com `DEFAULT_APP_TIME_ZONE` para preservar a navegação e evitar carregamento infinito. Nesse estado, `useEffectiveUserTimeZone` mantém `isAuthoritative=false`, `isUsingFallback=true` e o erro original em `resolutionError` para diagnóstico.
+
+O fallback do cliente não se torna autoridade de persistência. Formulários enviam valores civis e o backend resolve novamente o timezone do dono antes de converter ou persistir instantes temporais.
 
 ## Conversões e cache
 
