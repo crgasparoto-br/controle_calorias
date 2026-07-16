@@ -8,13 +8,18 @@ if (fs.existsSync('server/modules/foods/legacyDeletion.ts')) {
 }
 
 const payloadDir = 'scripts/issue-801-payload';
+const overrideDir = 'scripts/issue-801-payload-v2';
 if (!fs.existsSync(payloadDir)) {
   throw new Error('Issue 801 patch payload directory was not found.');
 }
 
 const encoded = fs.readdirSync(payloadDir)
   .sort()
-  .map(fileName => fs.readFileSync(path.join(payloadDir, fileName), 'utf8').trim())
+  .map(fileName => {
+    const overridePath = path.join(overrideDir, fileName);
+    const sourcePath = fs.existsSync(overridePath) ? overridePath : path.join(payloadDir, fileName);
+    return fs.readFileSync(sourcePath, 'utf8').trim();
+  })
   .join('');
 const compressed = Buffer.from(encoded, 'base64');
 const scriptPath = '/tmp/apply-issue-801.cjs';
