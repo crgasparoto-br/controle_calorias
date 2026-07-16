@@ -50,7 +50,8 @@ A base legada `foodCatalog`, consumida pela busca de alimentos e pelo resolvedor
 - apenas a entrada própria do usuário autenticado pode ser depreciada;
 - a depreciação e a remoção do favorito acontecem na mesma transação;
 - uma identidade própria depreciada bloqueia fallback nominal para um alimento global equivalente, permitindo que a próxima classificação da IA crie uma nova entrada ativa;
-- uma seleção manual explícita de um alimento global ativo continua permitida.
+- uma seleção manual explícita de um alimento global ativo continua permitida;
+- após o commit da exclusão, stores e caches ativos removem o alimento e o favorito, mantendo apenas a referência histórica e a supressão de matching.
 
 Refeições antigas mantêm seus snapshots e podem consultar a entrada depreciada por ID, sem recolocá-la na base ativa.
 

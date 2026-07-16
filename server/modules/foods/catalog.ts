@@ -8,6 +8,7 @@ import {
   clearDeprecatedFoodRegistry,
   getDeprecatedIdentityKeys,
   isFoodDeprecatedInMemory,
+  registerDeprecatedFoodCleanup,
 } from "./deprecationRegistry";
 
 export type FoodSearchItem = {
@@ -164,6 +165,24 @@ export function createFoodsService(deps: {
 }) {
   const userFoodStore = new Map<number, FoodSearchItem[]>();
   const favoriteFoodStore = new Map<number, Set<number>>();
+
+  registerDeprecatedFoodCleanup((deprecatedUserId, foodId) => {
+    const foods = userFoodStore.get(deprecatedUserId);
+    if (foods) {
+      userFoodStore.set(
+        deprecatedUserId,
+        foods.filter(food => food.id !== foodId)
+      );
+    }
+
+    const favorites = favoriteFoodStore.get(deprecatedUserId);
+    if (favorites) {
+      const updatedFavorites = new Set(favorites);
+      updatedFavorites.delete(foodId);
+      favoriteFoodStore.set(deprecatedUserId, updatedFavorites);
+    }
+  });
+
   let foodIdSequence = 10000;
   let dbSearchContext: {
     userId: number;

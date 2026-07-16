@@ -1,6 +1,14 @@
 const deprecatedIdsByUser = new Map<number, Set<number>>();
 const deprecatedKeysByUser = new Map<number, Set<string>>();
 
+type DeprecatedFoodCleanup = (userId: number, foodId: number) => void;
+const deprecatedFoodCleanups = new Set<DeprecatedFoodCleanup>();
+
+export function registerDeprecatedFoodCleanup(cleanup: DeprecatedFoodCleanup) {
+  deprecatedFoodCleanups.add(cleanup);
+  return () => deprecatedFoodCleanups.delete(cleanup);
+}
+
 function normalizeIdentity(value: string) {
   return value
     .normalize("NFD")
@@ -25,6 +33,10 @@ export function registerDeprecatedFood(
     if (key) keys.add(key);
   }
   deprecatedKeysByUser.set(userId, keys);
+
+  for (const cleanup of deprecatedFoodCleanups) {
+    cleanup(userId, foodId);
+  }
 }
 
 export function isFoodDeprecatedInMemory(userId: number, foodId: number) {

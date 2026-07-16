@@ -10,6 +10,13 @@ export function canDeleteLegacyFood(params: {
   );
 }
 
+export function removeFoodFromActiveList<T extends { id: number }>(
+  foods: T[] | undefined,
+  foodId: number
+) {
+  return foods?.filter(food => food.id !== foodId);
+}
+
 export function getFoodCardActionState(params: {
   isFavoritePending: boolean;
   isDeletePending: boolean;

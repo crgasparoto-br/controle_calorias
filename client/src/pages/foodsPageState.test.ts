@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { canDeleteLegacyFood, getFoodCardActionState } from "./foodsPageState";
+import {
+  canDeleteLegacyFood,
+  getFoodCardActionState,
+  removeFoodFromActiveList,
+} from "./foodsPageState";
 
 describe("foods page action state", () => {
   it("allows deletion only for an entry created by the current user", () => {
@@ -24,6 +28,19 @@ describe("foods page action state", () => {
         currentUserId: 7,
       })
     ).toBe(false);
+  });
+
+  it("removes only the confirmed food from active cache data", () => {
+    expect(
+      removeFoodFromActiveList(
+        [
+          { id: 10, name: "Sleep Koala" },
+          { id: 11, name: "Aveia" },
+        ],
+        10
+      )
+    ).toEqual([{ id: 11, name: "Aveia" }]);
+    expect(removeFoodFromActiveList(undefined, 10)).toBeUndefined();
   });
 
   it("blocks edit, favorite and duplicate delete actions while deleting", () => {

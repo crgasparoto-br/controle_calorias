@@ -34,7 +34,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { canDeleteLegacyFood, getFoodCardActionState } from "./foodsPageState";
+import {
+  canDeleteLegacyFood,
+  getFoodCardActionState,
+  removeFoodFromActiveList,
+} from "./foodsPageState";
 import { MEASUREMENT_UNIT_SUGGESTIONS } from "../../../shared/measurementUnits";
 import { PencilLine, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -122,6 +126,14 @@ export default function FoodsPage() {
 
   const deleteFood = trpc.nutrition.foods.delete.useMutation({
     onSuccess: async result => {
+      utils.nutrition.foods.search.setData(
+        { query, limit: 30 },
+        current => removeFoodFromActiveList(current, result.foodId)
+      );
+      utils.nutrition.foods.recent.setData(
+        undefined,
+        current => removeFoodFromActiveList(current, result.foodId)
+      );
       if (form.foodId === result.foodId) setForm(emptyForm);
       setFoodToDelete(null);
       await Promise.all([
