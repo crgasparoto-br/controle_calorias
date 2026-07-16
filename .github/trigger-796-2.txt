@@ -1,0 +1,1 @@
+trigger apply issue 796 after workflow fix
