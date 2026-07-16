@@ -166,6 +166,6 @@ describe("whatsappWebhook audio hydration", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(transcribeAudioMock).toHaveBeenCalledOnce();
     expect(processMealInputMock).not.toHaveBeenCalled();
-    expect(sentWhatsAppBodies.some(body => body.includes("Registrei 300 ml de água"))).toBe(true);
+    expect(sentWhatsAppBodies.some(body => body.includes("Água registrada") && body.includes("300 ml"))).toBe(true);
   });
 });

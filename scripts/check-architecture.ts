@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { findWhatsAppResponseArchitectureViolations } from "./whatsapp-response-architecture";
 
 const root = process.cwd();
 const failures: string[] = [];
@@ -109,6 +110,13 @@ for (const file of walk("server")) {
   if (/from\s+["'][^"']*client\//.test(content)) {
     fail(`server não deve importar client: ${file}`);
   }
+}
+
+const whatsappArchitectureFiles = walk("server")
+  .filter(file => /\.ts$/.test(file))
+  .map(file => ({ path: file, content: read(file) }));
+for (const violation of findWhatsAppResponseArchitectureViolations(whatsappArchitectureFiles)) {
+  fail(violation);
 }
 
 const routerPath = "server/nutritionRouter.ts";

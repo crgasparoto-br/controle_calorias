@@ -8,7 +8,7 @@ import { redactSensitiveText } from "../../privacy";
 import { getNutritionGoal } from "../goals/service";
 import { buildWhatsAppCallbackId } from "../whatsapp/interactiveCallback";
 import { buttonsReply, type WhatsAppLogicalReply } from "../whatsapp/replyContract";
-import { sendWhatsAppLogicalReply } from "../whatsapp/replyTransport";
+import { sendWhatsAppStandaloneLogicalReply } from "../whatsapp/logicalReplyDelivery";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "../whatsapp/replyMessages";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
@@ -563,7 +563,7 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
         { id: buildWhatsAppCallbackId(pendingOperation.id, REJECT_ACTION), title: "Recusar" },
       ])
     : { kind: "functional", messages: [{ type: "text", body: message }] };
-  const sendResult = await sendWhatsAppLogicalReply(connection.phoneNumber, reply);
+  const { result: sendResult } = await sendWhatsAppStandaloneLogicalReply(connection.phoneNumber, reply);
   const result = { ok: sendResult.primaryOk, detail: sendResult.sends[0]?.detail ?? "Falha desconhecida ao enviar autorização pelo WhatsApp." };
   const sent: ProfessionalPatientAccess = result.ok
     ? {

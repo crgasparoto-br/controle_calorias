@@ -151,7 +151,18 @@ function hasAmbiguity(intent: WhatsappInterpretedIntent) {
 }
 
 function allowsExplicitAcceptance(intent: WhatsappInterpretedIntent) {
-  return intent.intent === "add_foods_to_meal" && !intent.requiresConfirmation;
+  switch (intent.intent) {
+    case "add_foods_to_meal":
+      return !intent.requiresConfirmation;
+    // Substituicao e ajuste de quantidade claros sao aplicados diretamente
+    // (decisao da epic #779); ambiguidade real entre candidatos segue para a
+    // selecao persistente criada pelo executor (#782/#783).
+    case "replace_food_in_meal":
+    case "edit_food_quantity":
+      return !intent.requiresConfirmation && isContextResolved(intent);
+    default:
+      return false;
+  }
 }
 
 function evaluateAutonomyForRuntimeIntent(intent: WhatsappInterpretedIntent) {

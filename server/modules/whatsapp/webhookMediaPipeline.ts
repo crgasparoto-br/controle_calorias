@@ -6,10 +6,11 @@ import {
   logInferenceEvent,
 } from "../../db";
 import { storagePut } from "../../storage";
+import { buildWhatsAppPartialAudioTranscriptionReplyMessage } from "./replyMessages";
 import {
-  buildWhatsAppAudioTranscriptionFailureReplyMessage,
-  buildWhatsAppPartialAudioTranscriptionReplyMessage,
-} from "./replyMessages";
+  buildWhatsAppAudioNotUnderstoodReplyMessage,
+  buildWhatsAppAudioProcessingFailureReplyMessage,
+} from "./mediaReplyMessages";
 import * as messageLifecycle from "./messageLifecycle";
 import {
   buildMediaDataUrl,
@@ -114,7 +115,9 @@ function buildAudioTranscriptionFailure(input: {
   return {
     ...input,
     provider: AUDIO_TRANSCRIPTION_PROVIDER,
-    reply: buildWhatsAppAudioTranscriptionFailureReplyMessage(input.code),
+    reply: input.code === "EMPTY_TRANSCRIPT"
+      ? buildWhatsAppAudioNotUnderstoodReplyMessage()
+      : buildWhatsAppAudioProcessingFailureReplyMessage(),
     partialTextReply: buildWhatsAppPartialAudioTranscriptionReplyMessage(),
   };
 }

@@ -1,9 +1,11 @@
-import { getDb, getUserNutritionGoal, upsertNutritionGoal } from "../../db";
+import { getDb, getUserNutritionGoal, listUserExercisesByDate, upsertNutritionGoal } from "../../db";
 import { createDrizzleNutritionGoalsRepository } from "../../repositories/nutritionGoalsRepository";
 import type { NutritionGoal } from "../../../drizzle/schema";
 import { assessNutritionGoalInput } from "@shared/nutritionSafety";
 import type { NutritionGoalSafetyIssue } from "@shared/nutritionSafety";
 import { GoalInput } from "./schemas";
+import { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";
+import { sumExercises } from "../exercises/store";
 
 type GoalValidationIssue = NutritionGoalSafetyIssue | {
   code: "conflicting_goal_version" | "conflicting_goal_exception_version";
@@ -529,5 +531,47 @@ export async function updateNutritionGoal(userId: number, input: GoalInput) {
     versions: savedContext.versions,
     exceptionVersions: savedContext.exceptionVersions,
     safetyWarnings: savedAssessment.warnings,
+  };
+}
+
+
+async function resolveAppliedGoalForDate(userId: number, dateKey: string) {
+  try {
+    return (await getNutritionGoalForDate(userId, dateKey)).today;
+  } catch {
+    // Fallback canônico já usado quando não há histórico de vigência: a meta
+    // atual do usuário. Sem meta atual válida, não há meta efetiva a exibir.
+    const goal = await getUserNutritionGoal(userId);
+    if (typeof goal?.today?.calories !== "number") {
+      throw new Error("Meta nutricional atual indisponível para resolver a meta efetiva.");
+    }
+    return goal.today;
+  }
+}
+
+async function listExercisesForGoalDate(userId: number, dateKey: string) {
+  try {
+    return (await listUserExercisesByDate(userId, dateKey)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getEffectiveNutritionGoalForDate(userId: number, dateKey: string) {
+  const [appliedGoal, exercises] = await Promise.all([
+    resolveAppliedGoalForDate(userId, dateKey),
+    listExercisesForGoalDate(userId, dateKey),
+  ]);
+  const exerciseCalories = Math.max(0, sumExercises(exercises));
+  const effectiveGoalCalories = calculateAdjustedGoalCalories(
+    appliedGoal.calories,
+    exerciseCalories,
+    appliedGoal.includeExerciseCalories,
+  );
+  return {
+    effectiveGoalCalories,
+    exerciseCalories,
+    includeExerciseCalories: appliedGoal.includeExerciseCalories,
+    appliedGoal,
   };
 }

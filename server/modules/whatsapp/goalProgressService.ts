@@ -1,26 +1,66 @@
-import { getUserDayMealTotals, getUserNutritionGoal, logInferenceEvent } from "../../db";
-import { formatDateKeyInSaoPaulo } from "./webhookUtils";
+import { getUserDayMealTotals, logInferenceEvent } from "../../db";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { getUserOnboardingProfile } from "../onboarding/profileRead";
 import type { WhatsAppMealGoalProgress } from "./replyMessages";
 
-export async function getWhatsAppMealGoalProgress(userId: number, occurredAt: Date): Promise<WhatsAppMealGoalProgress | null> {
+function safeLogGoalWarning(input: Parameters<typeof logInferenceEvent>[0]) {
   try {
-    const [goalSummary, dayTotals] = await Promise.all([
-      getUserNutritionGoal(userId),
-      getUserDayMealTotals(userId, formatDateKeyInSaoPaulo(occurredAt)),
+    logInferenceEvent(input);
+  } catch {
+    // Mocks parciais de db não podem transformar um fallback opcional em rejeição não tratada.
+  }
+}
+
+async function resolveUserTimeZone(userId: number) {
+  try {
+    return (await getUserOnboardingProfile(userId))?.timezone ?? DEFAULT_APP_TIME_ZONE;
+  } catch {
+    return DEFAULT_APP_TIME_ZONE;
+  }
+}
+
+async function resolveEffectiveGoal(userId: number, dateKey: string) {
+  try {
+    const { getEffectiveNutritionGoalForDate } = await import("../goals/service");
+    return await getEffectiveNutritionGoalForDate(userId, dateKey);
+  } catch (error) {
+    safeLogGoalWarning({
+      userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.goal_history_unavailable",
+      detail: error instanceof Error ? error.message : "Falha ao resolver meta efetiva histórica.",
+    });
+    return null;
+  }
+}
+
+export async function getWhatsAppMealGoalProgress(
+  userId: number,
+  occurredAt: Date,
+): Promise<WhatsAppMealGoalProgress | null> {
+  try {
+    const timeZone = await resolveUserTimeZone(userId);
+    const dateKey = getDateKeyInTimeZone(occurredAt, timeZone);
+    const [goal, dayTotals] = await Promise.all([
+      resolveEffectiveGoal(userId, dateKey),
+      getUserDayMealTotals(userId, dateKey),
     ]);
+    if (!goal) return null;
 
     return {
       consumedCalories: dayTotals.totals.calories,
-      goalCalories: goalSummary.today.calories,
-      includeExerciseCalories: goalSummary.today.includeExerciseCalories,
+      goalCalories: goal.effectiveGoalCalories,
+      exerciseCalories: goal.exerciseCalories,
+      includeExerciseCalories: goal.includeExerciseCalories,
     };
   } catch (error) {
-    logInferenceEvent({
+    safeLogGoalWarning({
       userId,
       origin: "whatsapp",
       status: "warning",
       eventType: "whatsapp.goal_progress_warning",
-      detail: error instanceof Error ? error.message : "Falha desconhecida ao calcular progresso da meta para resposta do WhatsApp.",
+      detail: error instanceof Error ? error.message : "Falha desconhecida ao resolver progresso de meta para resposta do WhatsApp.",
     });
     return null;
   }

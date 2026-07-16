@@ -1503,7 +1503,7 @@ function classifyWeeklyDay(day: Awaited<ReturnType<typeof getWeeklySummary>>[num
   return "within" as const;
 }
 
-async function listUserWeightEntries(userId: number) {
+export async function listUserWeightEntries(userId: number) {
   const dbEntries = await loadWeightEntriesFromDb(userId);
   if (dbEntries) {
     if (canUseMemoryPersistenceFallback()) {

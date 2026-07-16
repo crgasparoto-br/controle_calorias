@@ -225,7 +225,7 @@ export function sumMealItems(items: MealItemInput[]): NutritionTotals {
 }
 
 export function formatTotalsLine(totals: NutritionTotals) {
-  return `${formatNumber(totals.calories)} kcal | Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`;
+  return `${formatNumber(totals.calories)} kcal | P ${formatNumber(totals.protein)} g | C ${formatNumber(totals.carbs)} g | G ${formatNumber(totals.fat)} g`;
 }
 
 export function formatAddedItemsList(items: MealItemInput[]) {

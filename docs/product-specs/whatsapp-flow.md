@@ -1,5 +1,14 @@
 # Especificação de produto: fluxo WhatsApp
 
+## Contrato de resposta da epic #779
+
+- Cada inbound produz no máximo uma resposta funcional lógica; texto, CTA e mídia auxiliar podem formar uma sequência física única.
+- A resposta funcional é enviada apenas pelo transporte central e persistida uma vez no lifecycle. Acknowledgements não contam como resposta e só aparecem quando mídia ultrapassa o limiar de processamento.
+- Reentregas não repetem mutações. Se o domínio foi alterado e a entrega falhou, a resposta é reconstruída pelos vínculos persistidos.
+- Água e alimento na mesma entrada são consolidados na resposta final. Imagem anotada é mídia auxiliar e sua falha não cria outra resposta funcional.
+- Perguntas livres à IA começam com `/`; sem `/`, a mensagem segue o roteamento de registros, consultas e alterações.
+- Resumos usam somente `Meta`, consumo, diferença e macros `P`/`C`/`G`, com a meta efetiva fornecida pelo domínio.
+
 ## Objetivo
 
 Oferecer registro conversacional de refeições usando um único número oficial da solução e identificando o usuário final pelo telefone de origem da mensagem.
@@ -75,3 +84,14 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Exclusão por alimento, como `Excluir o chocolate`, busca candidatos no contexto lógico do dia/refeição e pede confirmação quando houver ambiguidade.
 - Nome específico informado pelo usuário, como produto, marca ou tipo/qualificador, é preservado na exibição mesmo quando a referência nutricional/canônica usada internamente for genérica.
 - Marca e tipo/qualificador informados no texto influenciam o match nutricional antes do fallback para alimento genérico.
+
+
+## Invariantes finais da epic #779
+
+- Toda resposta funcional passa pelo contrato lógico e pelo delivery central; acknowledgement é operacional, cancelável e nunca substitui a resposta funcional.
+- Valores de meta são calculados no domínio. Formatters não recalculam a regra da #756, não multiplicam a meta atual por dias e não transformam ausência em zero.
+- Datas e períodos usam o timezone do perfil, com `America/Sao_Paulo` somente como fallback.
+- Ambiguidades de ações estruturadas usam pendência persistente, callback opaco e revalidação do banco antes da mutação.
+- Onboarding composto retoma apenas mensagens físicas ainda não entregues após falha parcial.
+- Erros de mídia, conta não vinculada e indisponibilidade são sanitizados e não expõem provider, payload, telefone completo ou identificadores internos.
+- O gate arquitetural impede novos payloads, envios e builders paralelos fora dos módulos autorizados.

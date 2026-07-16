@@ -22,6 +22,7 @@ import {
 } from "./intent/parsers";
 import { parseReportPeriod } from "./intent/dateTime";
 import type { WhatsappIntentInput, WhatsappIntentResult } from "./intent/types";
+import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
 
 export type { WhatsappIntentResult, WhatsappIntentInput } from "./intent/types";
 
@@ -47,6 +48,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   }
 
   const receivedAt = input.receivedAt ?? new Date();
+  const userTimeZone = await getWhatsAppUserTimeZone(userId);
   const waterIntent = parseWaterIntent(text);
   if (waterIntent?.kind === "clarification") {
     return {
@@ -58,7 +60,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     };
   }
   if (waterIntent?.kind === "water") {
-    return handleWaterIntent(userId, text, receivedAt, waterIntent.amountMl);
+    return handleWaterIntent(userId, text, receivedAt, waterIntent.amountMl, userTimeZone);
   }
 
   const quantityCorrection = parseQuantityCorrectionIntent(text, receivedAt);
@@ -105,7 +107,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     return handleSnackSuggestionIntent();
   }
 
-  const reportPeriod = parseReportPeriod(text, receivedAt);
+  const reportPeriod = parseReportPeriod(text, receivedAt, userTimeZone);
   if (!reportPeriod) {
     return null;
   }
@@ -119,5 +121,5 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     };
   }
 
-  return handlePeriodReportIntent(userId, reportPeriod);
+  return handlePeriodReportIntent(userId, reportPeriod, userTimeZone);
 }
