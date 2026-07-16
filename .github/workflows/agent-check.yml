@@ -8,20 +8,18 @@ on:
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   agent-check:
-    if: github.actor != 'github-actions[bot]'
     name: Agent-first gate
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: feat/801-soft-delete-food-catalog
-          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -37,65 +35,81 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Restore official gate and validate
-        shell: bash
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Tests
         run: |
-          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
-          set +e
-          overall=0
-          result="issue-801-validation.md"
+          if ! pnpm test > /tmp/vitest.log 2>&1; then
+            echo "Vitest failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/vitest.log
+            exit 1
+          fi
+          tail -n 80 /tmp/vitest.log
+
+      - name: Upload Vitest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-vitest-log
+          path: /tmp/vitest.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Agent check
+        run: pnpm agent:check
+
+      - name: CI gate docs check
+        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
+
+      - name: Database integrity check
+        if: ${{ env.DATABASE_URL != '' }}
+        run: |
+          pnpm db:check-integrity
           {
-            echo "# Issue 801 final validation"
-            echo
-            echo "Commit validated: $(git rev-parse HEAD)"
-            echo
-            echo "The official Agent-first workflow was restored before running the commands."
-            echo
-            echo "| Command | Exit code |"
-            echo "|---|---:|"
-          } > "$result"
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo "- pnpm db:check-integrity"
+            echo ""
+            echo "Database integrity: executed with DATABASE_URL."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          run_check() {
-            name="$1"
-            shift
-            log="/tmp/${name}.log"
-            "$@" > "$log" 2>&1
-            code=$?
-            echo "| \`$*\` | $code |" >> "$result"
-            if [ "$code" -ne 0 ]; then
-              overall=1
-            fi
-          }
-
-          run_check check pnpm check
-          run_check test pnpm test
-          run_check architecture pnpm architecture:check
-          run_check docs pnpm docs:check
-          run_check build pnpm build
-          run_check agent pnpm agent:check
-          run_check ci_docs pnpm exec tsx scripts/check-ci-gate-docs.ts
-
+      - name: Database integrity check skipped
+        if: ${{ env.DATABASE_URL == '' }}
+        run: |
+          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
           {
-            echo
-            echo "Overall exit code: $overall"
-            echo
-            echo "Database integrity: validated by the separate WhatsApp context TiDB gate."
-          } >> "$result"
-
-          for log in /tmp/check.log /tmp/test.log /tmp/architecture.log /tmp/docs.log /tmp/build.log /tmp/agent.log /tmp/ci_docs.log; do
-            if [ -s "$log" ]; then
-              {
-                echo
-                echo "## $log"
-                echo '```text'
-                tail -n 120 "$log"
-                echo '```'
-              } >> "$result"
-            fi
-          done
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/agent-check.yml "$result"
-          git commit -m "chore: restore gate and record issue 801 validation"
-          git push origin HEAD:feat/801-soft-delete-food-catalog
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo ""
+            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"
