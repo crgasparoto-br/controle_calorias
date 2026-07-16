@@ -659,27 +659,26 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
   }
 
   const gramsIncrementResult = isFoodAdditionCommand(textForIntent, occurredAt)
-  ? null
-  : await executeWhatsappGramsIncrementIntent(userId, { text: textForIntent, receivedAt: occurredAt });
-if (gramsIncrementResult) {
-  markTextIntentMessageHandled(message.id);
-  await clearPendingTextIntentContext(userId);
-  await sendAndLogTextReply({
-    userId,
-    sourcePhone,
-    userMessage: text,
-    reply: gramsIncrementResult.reply,
-    eventType: gramsIncrementResult.eventType,
-    detail: gramsIncrementResult.detail,
-    status: gramsIncrementResult.action === "clarification_needed" ? "warning" : "success",
-    mealId: extractMealId(gramsIncrementResult.data),
-    occurredAtMs,
-    lifecycleHandle,
-    interactiveReply: gramsIncrementResult.interactiveReply,
-  });
-  return true;
-}
-
+    ? null
+    : await executeWhatsappGramsIncrementIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+  if (gramsIncrementResult) {
+    markTextIntentMessageHandled(message.id);
+    await clearPendingTextIntentContext(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: gramsIncrementResult.reply,
+      eventType: gramsIncrementResult.eventType,
+      detail: gramsIncrementResult.detail,
+      status: gramsIncrementResult.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractMealId(gramsIncrementResult.data),
+      occurredAtMs,
+      lifecycleHandle,
+      interactiveReply: gramsIncrementResult.interactiveReply,
+    });
+    return true;
+  }
   let nutritionFallback: WhatsappLlmNutritionFallback | null = null;
   let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: occurredAt });
   if (!result && shouldTryContextualLlmIntent(textForIntent)) {
