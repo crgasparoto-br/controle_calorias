@@ -5,6 +5,7 @@ import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
 
 type MealActionReplyMeal = Parameters<typeof buildWhatsAppMealActionReplyMessage>[0];
 type MealActionReplyOptions = Parameters<typeof buildWhatsAppMealActionReplyMessage>[1];
+type MealGoalProgress = Awaited<ReturnType<typeof getWhatsAppMealGoalProgress>>;
 
 export type WhatsAppMealActionReplyEntry = {
   meal: MealActionReplyMeal;
@@ -38,7 +39,7 @@ export async function composeWhatsAppMealActionReplies(input: {
 
   for (const entry of input.entries) {
     const occurredAt = normalizeMealDate(entry.meal);
-    let goalProgress = null;
+    let goalProgress: MealGoalProgress = null;
 
     if (occurredAt) {
       const dateKey = getDateKeyInTimeZone(occurredAt, timeZone);
