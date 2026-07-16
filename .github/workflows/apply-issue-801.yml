@@ -74,7 +74,7 @@ jobs:
           rm -f issue-801-apply.log
           rm -f scripts/apply-issue-801.cjs.gz.b64
           rm -f scripts/bootstrap-issue-801.cjs
-          rm -rf scripts/issue-801-payload
+          rm -rf scripts/issue-801-payload scripts/issue-801-payload-v2
           rm -f .github/workflows/apply-issue-801.yml
           git checkout origin/develop -- .github/workflows/agent-check.yml
           git config user.name "github-actions[bot]"
