@@ -19,10 +19,10 @@ import {
   type WhatsappContextReadMode,
 } from "./conversationContextRollout";
 import { compareWhatsappIntentInShadow, isShadowIntentComparisonEnabled } from "./shadowIntentComparison";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 
 const MAX_CONTEXT_MEALS = 6;
 const MAX_CONTEXT_ITEMS_PER_MEAL = 8;
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const RECENT_MESSAGES_FETCH_LIMIT = 50;
 
 const defaultConversationRepository: WhatsAppConversationRepository = createDrizzleWhatsAppConversationRepository({
@@ -84,19 +84,8 @@ export type WhatsappContextMeal = {
   }>;
 };
 
-function startOfSaoPauloDay(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: SAO_PAULO_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return new Date(`${values.year}-${values.month}-${values.day}T00:00:00-03:00`);
-}
-
-function sameSaoPauloDay(left: Date, right: Date) {
-  return startOfSaoPauloDay(left).getTime() === startOfSaoPauloDay(right).getTime();
+function sameLogicalDay(left: Date, right: Date, timeZone: string) {
+  return getDateKeyInTimeZone(left, timeZone) === getDateKeyInTimeZone(right, timeZone);
 }
 
 function compactMealItem(item: MealDraftItem) {
@@ -169,6 +158,7 @@ export async function buildWhatsappIntentContext(
     consumer?: ConversationContextConsumer;
     flow?: WhatsappContextFlow;
     conversationRepository?: WhatsAppConversationRepository;
+    timeZone?: string;
   } = {},
 ): Promise<WhatsappIntentContext> {
   const receivedAt = options.receivedAt ?? new Date();
@@ -176,10 +166,11 @@ export async function buildWhatsappIntentContext(
   const budget = CONTEXT_BUDGETS[consumer];
   const flow = options.flow ?? getActiveWhatsappContextFlow("text");
   const conversationRepository = options.conversationRepository ?? defaultConversationRepository;
+  const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
 
   const meals = (await listMeals(userId)).slice(0, MAX_CONTEXT_MEALS);
   const compactMeals = meals.map(compactMeal);
-  const mealsToday = compactMeals.filter(meal => sameSaoPauloDay(new Date(meal.occurredAt), receivedAt));
+  const mealsToday = compactMeals.filter(meal => sameLogicalDay(new Date(meal.occurredAt), receivedAt, timeZone));
   const recentFoodNames = Array.from(new Set(
     compactMeals.flatMap(meal => meal.items.map(item => item.foodName).filter(Boolean)),
   )).slice(0, 20);
@@ -226,7 +217,7 @@ export async function buildWhatsappIntentContext(
   const commonContext = {
     version: "whatsapp-intent-context/v2" as const,
     nowIso: receivedAt.toISOString(),
-    timezone: SAO_PAULO_TIME_ZONE,
+    timezone: timeZone,
     mealAliases: {
       "café da manhã": ["cafe da manha", "café", "cafe", "manha", "manhã", "desjejum"],
       "almoço": ["almoco"],

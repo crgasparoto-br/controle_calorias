@@ -47,7 +47,8 @@ function dateAtNoon(date: string) {
 }
 
 function dateStart(date: string) {
-  return new Date(`${date}T00:00:00Z`).getTime();
+  const [year, month, day] = date.split("-").map(Number);
+  return Date.UTC(year, month - 1, day);
 }
 
 function formatDate(date: string) {

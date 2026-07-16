@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import {
   buildExpectedWhatsappConversationActual,
   runWhatsappConversationRegressionCase,
@@ -121,7 +122,7 @@ export const whatsappOfflineReplayExampleCases: WhatsappRegressionCase[] = [
 function defaultInitialState(input?: Partial<WhatsappOfflineReplayInitialState>): WhatsappOfflineReplayInitialState {
   return {
     userId: input?.userId ?? 42,
-    timezone: input?.timezone ?? "America/Sao_Paulo",
+    timezone: input?.timezone ?? DEFAULT_APP_TIME_ZONE,
     pending: input?.pending ?? null,
     historyIds: input?.historyIds ?? [],
     memoryKeys: input?.memoryKeys ?? [],

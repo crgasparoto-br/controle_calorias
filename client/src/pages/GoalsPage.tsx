@@ -19,6 +19,8 @@ import {
   parseDecimalInputPtBr,
   parseIntegerInputPtBr,
 } from "@/lib/numberFormat";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
+import { toDateInputValue as toOwnerDateInputValue } from "@/lib/dateTime";
 import { trpc } from "@/lib/trpc";
 import { AlertCircle, CalendarRange, Goal, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -108,13 +110,6 @@ const DURATION_OPTIONS: Array<{ value: DurationType; label: string }> = [
   { value: "always", label: "Sempre" },
 ];
 
-function toDateInputValue(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function dateKeyFromDateLike(value?: Date | string | number | null) {
   if (!value) return undefined;
   return new Date(value).toISOString().slice(0, 10);
@@ -125,7 +120,7 @@ function getWeekdayLabel(weekday: number) {
 }
 
 function dateKeyToLogicalUtcDate(dateKey: string) {
-  return new Date(`${dateKey || toDateInputValue()}T12:00:00Z`);
+  return new Date(`${dateKey}T12:00:00Z`);
 }
 
 function getUtcWeekdayIndex(date: Date) {
@@ -234,7 +229,7 @@ function createGoalTargetForm(goal: GoalTargetBase, inputMode: MacroInputMode = 
   return inputMode === "percent" ? applyPercentagesToGoal(form, percentages) : form;
 }
 
-function buildException(weekday: number, startDate = toDateInputValue()): GoalExceptionForm {
+function buildException(weekday: number, startDate: string): GoalExceptionForm {
   return {
     weekday,
     startDate,
@@ -320,11 +315,15 @@ function ExerciseCaloriesToggle({ checked, onChange }: { checked: boolean; onCha
 
 export default function GoalsPage() {
   const utils = trpc.useUtils();
-  const goalQuery = trpc.nutrition.goals.get.useQuery();
+  const effectiveTimeZone = useEffectiveUserTimeZone();
+  const userTimeZone = effectiveTimeZone.timeZone;
+  const todayDateKey = toOwnerDateInputValue(new Date(), userTimeZone);
+  const goalQuery = trpc.nutrition.goals.get.useQuery(undefined, { enabled: effectiveTimeZone.isReady });
   const updateGoal = trpc.nutrition.goals.update.useMutation({
     onSuccess: async result => {
       await Promise.all([
         utils.nutrition.goals.get.invalidate(),
+        utils.nutrition.onboarding.timeZone.invalidate(),
         utils.nutrition.dashboard.overview.invalidate(),
         utils.nutrition.dashboard.today.invalidate(),
         utils.nutrition.reports.weekly.invalidate(),
@@ -338,7 +337,7 @@ export default function GoalsPage() {
     onError: error => toast.error(error.message || SAFE_NUTRITION_MESSAGES.couldNotUpdateGoals),
   });
 
-  const [startDate, setStartDate] = useState(() => goalQuery.data?.startDate ?? toDateInputValue());
+  const [startDate, setStartDate] = useState(() => goalQuery.data?.startDate ?? todayDateKey);
   const [includeExerciseCalories, setIncludeExerciseCalories] = useState(() => goalQuery.data?.today.includeExerciseCalories ?? true);
   const [defaultGoal, setDefaultGoal] = useState<GoalTargetForm>(() => goalQuery.data ? createGoalTargetForm({
     calories: goalQuery.data.defaultGoal.calories,
@@ -347,7 +346,7 @@ export default function GoalsPage() {
     fatGrams: goalQuery.data.defaultGoal.fatGrams,
   }, "percent") : createGoalTargetForm(DEFAULT_GOAL_BASE, "percent"));
   const [exceptions, setExceptions] = useState<GoalExceptionForm[]>(() => {
-    const fallbackStartDate = goalQuery.data?.startDate ?? toDateInputValue();
+    const fallbackStartDate = goalQuery.data?.startDate ?? todayDateKey;
     return goalQuery.data ? normalizeExceptionsForEditing(goalQuery.data.exceptions, fallbackStartDate).map(exception => ({
       id: exception.id,
       weekday: exception.weekday,
@@ -365,7 +364,7 @@ export default function GoalsPage() {
   useEffect(() => {
     if (!goalQuery.data) return;
 
-    const fallbackStartDate = goalQuery.data.startDate ?? toDateInputValue();
+    const fallbackStartDate = goalQuery.data.startDate ?? todayDateKey;
     setStartDate(fallbackStartDate);
     setIncludeExerciseCalories(goalQuery.data.today.includeExerciseCalories ?? true);
     setDefaultGoal(createGoalTargetForm({
@@ -387,7 +386,7 @@ export default function GoalsPage() {
         fatGrams: exception.fatGrams,
       }),
     })));
-  }, [goalQuery.data]);
+  }, [goalQuery.data, todayDateKey]);
 
   const goalVersions = (goalQuery.data?.versions ?? []) as GoalVersionQuery[];
   const exceptionVersions = (goalQuery.data?.exceptionVersions ?? []) as GoalExceptionVersionQuery[];
@@ -571,6 +570,23 @@ export default function GoalsPage() {
         ...toGoalPayload(exception),
       })),
     });
+  }
+
+  if (!effectiveTimeZone.isReady) {
+    return (
+      <DashboardLayout>
+        <Card>
+          <CardHeader>
+            <CardTitle>Carregando fuso horário do perfil</CardTitle>
+            <CardDescription>
+              {effectiveTimeZone.isError
+                ? "Não foi possível carregar a configuração temporal do perfil."
+                : "Aguarde para editar metas com a data correta do perfil."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </DashboardLayout>
+    );
   }
 
   return (

@@ -36,6 +36,8 @@
 - Refeições futuras devem salvar consumo real em itens de refeição com snapshot nutricional, sem duplicar dados globais do catálogo.
 - Alterações futuras em `foods` não devem recalcular refeições antigas silenciosamente.
 - Dados sincronizados de integrações de saúde devem ser apagados quando o usuário desconectar o provider correspondente.
+- `userProfiles.timezone` usa `America/Sao_Paulo` como default persistido; `UTC` e qualquer IANA válido já salvo são preservados.
+- Decisões de data lógica devem consumir o contrato de `docs/design-docs/timezone.md`; não criar fallback local nem limites fixos em meia-noite UTC.
 
 ## Catálogo global de alimentos
 

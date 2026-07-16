@@ -54,3 +54,11 @@ For record adjustments, display dates now use the resolved user timezone instead
 ## Boundaries
 
 This implementation makes temporal decisions explicit and traceable in the WhatsApp pipeline. Durable storage of structured temporal history belongs to #410. Full execution of future dated or retroactive persistence still depends on the specific save/update flows and their validation rules.
+
+## Contrato canônico da epic #793
+
+No webhook real, o timezone é resolvido somente depois que o telefone é associado ao usuário e depois da verificação persistente de duplicidade, mas antes de qualquer decisão temporal. A cadeia HTTP inteira compartilha um contexto request-scoped que memoriza uma única `Promise` de resolução por usuário; texto, imagem, áudio, comandos `/`, callbacks e fallbacks reutilizam esse resultado.
+
+A leitura usa exclusivamente `resolveEffectiveUserTimeZone`. Perfil ausente, valor vazio ou IANA inválido produzem fallback estruturado e auditável. Erro técnico de banco lança `UserTimeZoneResolutionError` e interrompe o processamento; ele nunca é reinterpretado como perfil ausente.
+
+O simulador continua aceitando `userTimezone` por injeção, mas valida esse valor com `resolveUserTimeZoneValue`, o mesmo contrato puro usado pelo backend.

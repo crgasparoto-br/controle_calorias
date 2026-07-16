@@ -23,6 +23,7 @@ client/src/pages               -> composição de tela e chamadas tRPC
 client/src/components          -> componentes reutilizáveis de UI
 server/nutritionRouter         -> composição de routers, autenticação, schemas e serviços
 server/modules/*               -> regra de negócio por domínio
+server/modules/timeZone/service.ts -> resolução central do timezone efetivo por dono dos dados
 server/repositories/*          -> acesso a dados reutilizável por domínio
 server/_core/openaiClient.ts   -> cliente oficial da OpenAI, isolado do domínio
 server/_core/geminiProvider.ts -> implementação do provider Gemini (Google Generative AI)

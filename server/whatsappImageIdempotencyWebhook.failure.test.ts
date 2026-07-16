@@ -18,6 +18,14 @@ vi.mock("./modules/whatsapp/conversationContextRollout", () => ({
   withWhatsappContextFlow: async (_flow: string, operation: () => Promise<unknown>) => operation(),
 }));
 
+vi.mock("./modules/whatsapp/timeZoneContext", () => ({
+  resolveWhatsAppOperationTimeZone: vi.fn(async () => ({
+    timeZone: "America/Sao_Paulo",
+    source: "fallback",
+    fallbackReason: "profile_missing",
+  })),
+}));
+
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => ({ conversationId: 1, messageId: 10, wasNewInsert: true })),
   claimMessageForProcessing: vi.fn(async () => true),

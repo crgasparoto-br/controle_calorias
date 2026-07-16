@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
@@ -239,6 +240,7 @@ async function updateLatestMealItemGrams(input: {
   resolveNextGrams: (previousGrams: number) => number;
   selectionAction: MealItemSelectionAction;
   detail: string;
+  timeZone: string;
 }) {
   const meals = await listMeals(input.userId);
   if (!meals.length) {
@@ -252,7 +254,7 @@ async function updateLatestMealItemGrams(input: {
   }
 
   const mutableMeals = toMutableMeals(meals);
-  const target = resolveTargetMealItemInMeals(mutableMeals, input.targetFood);
+  const target = resolveTargetMealItemInMeals(mutableMeals, input.targetFood, input.timeZone);
   if (target.kind === "ambiguous") {
     return ambiguousTargetReply({
       userId: input.userId,
@@ -306,6 +308,7 @@ async function handleMultiGramsChange(input: {
   changes: Array<{ targetFood: string | null; delta: number }>;
   detailPrefix: string;
   mealLabel?: string | null;
+  timeZone: string;
 }): Promise<WhatsappIntentResult> {
   const allMeals = await listMeals(input.userId);
   const normalizedMealLabel = input.mealLabel
@@ -344,7 +347,7 @@ async function handleMultiGramsChange(input: {
   const notFound: string[] = [];
 
   for (const change of input.changes) {
-    const target = resolveTargetMealItemInMeals(mutableMeals, change.targetFood);
+    const target = resolveTargetMealItemInMeals(mutableMeals, change.targetFood, input.timeZone);
     if (target.kind === "ambiguous") {
       pending.push({
         targetFood: change.targetFood,
@@ -470,6 +473,7 @@ async function handleMultiGramsChange(input: {
 
 type MealGramsScopeOptions = {
   mealLabel?: string | null;
+  timeZone?: string;
 };
 
 export async function handleMealItemMultiAdjustment(
@@ -482,6 +486,7 @@ export async function handleMealItemMultiAdjustment(
     changes: adjustments.map(item => ({ targetFood: item.targetFood, delta: -item.gramsDelta })),
     detailPrefix: "Pedido de ajuste de gramas",
     mealLabel: options.mealLabel,
+    timeZone: options.timeZone ?? DEFAULT_APP_TIME_ZONE,
   });
 }
 
@@ -495,15 +500,17 @@ export async function handleMealItemMultiIncrement(
     changes: increments.map(item => ({ targetFood: item.targetFood, delta: item.gramsDelta })),
     detailPrefix: "Pedido de incremento de gramas",
     mealLabel: options.mealLabel,
+    timeZone: options.timeZone ?? DEFAULT_APP_TIME_ZONE,
   });
 }
 
-export async function handleMealItemReplacement(userId: number, replacement: { targetFood: string; nextGrams: number }): Promise<WhatsappIntentResult> {
+export async function handleMealItemReplacement(userId: number, replacement: { targetFood: string; nextGrams: number }, timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
   return updateLatestMealItemGrams({
     userId,
     targetFood: replacement.targetFood,
     resolveNextGrams: () => replacement.nextGrams,
     selectionAction: { kind: "grams_absolute", grams: replacement.nextGrams },
     detail: `Quantidade de ${replacement.targetFood} substituída para ${formatNumber(replacement.nextGrams)} g via WhatsApp.`,
+    timeZone,
   });
 }

@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { createUserWaterLog, getUserIdByWhatsappPhone, listUserExercises, logInferenceEvent } from "./db";
 import {
   extractIndexedWhatsAppWebhookMessages,
-  formatDateKeyInSaoPaulo,
   normalizeWhatsAppIntentText,
   resolveWhatsAppMessageOccurredAt,
   type IndexedWhatsAppWebhookMessage,
@@ -34,6 +33,8 @@ import {
   buildWhatsAppWaterImageClarificationReplyMessage,
 } from "./modules/whatsapp/replyMessages";
 import { getWhatsAppWaterProgress } from "./modules/whatsapp/userMeasurementReplyContext";
+import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
+import { getDateKeyInTimeZone } from "../shared/timeZone";
 
 const fallbackMessageDeduplicationCache = createMessageDeduplicationCache();
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
@@ -334,12 +335,16 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(req: Request, r
 async function resolveGoalProgressContext(messages: IndexedWhatsAppWebhookMessage[]) {
   const sourcePhone = messages[0]?.message.from;
   if (!sourcePhone) return { exerciseCaloriesByDateKey: {} };
+  const userId = await getUserIdByWhatsappPhone(sourcePhone);
+  if (!userId) return { exerciseCaloriesByDateKey: {} };
+  const { timeZone } = await resolveWhatsAppOperationTimeZone(userId);
   try {
-    const userId = await getUserIdByWhatsappPhone(sourcePhone);
-    if (!userId) return { exerciseCaloriesByDateKey: {} };
     const exercises = await listUserExercises(userId);
     return {
-      exerciseCaloriesByDateKey: buildWhatsAppExerciseCaloriesByDateKey(exercises ?? [], formatDateKeyInSaoPaulo),
+      exerciseCaloriesByDateKey: buildWhatsAppExerciseCaloriesByDateKey(
+        exercises ?? [],
+        occurredAt => getDateKeyInTimeZone(occurredAt, timeZone),
+      ),
     };
   } catch {
     return { exerciseCaloriesByDateKey: {} };

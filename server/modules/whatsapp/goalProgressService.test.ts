@@ -5,14 +5,14 @@ const dbMocks = vi.hoisted(() => ({
   logInferenceEvent: vi.fn(),
 }));
 const getEffectiveNutritionGoalForDateMock = vi.hoisted(() => vi.fn());
-const getUserOnboardingProfileMock = vi.hoisted(() => vi.fn());
+const getWhatsAppOperationTimeZoneMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../db", () => dbMocks);
 vi.mock("../goals/service", () => ({
   getEffectiveNutritionGoalForDate: getEffectiveNutritionGoalForDateMock,
 }));
-vi.mock("../onboarding/profileRead", () => ({
-  getUserOnboardingProfile: getUserOnboardingProfileMock,
+vi.mock("./timeZoneContext", () => ({
+  getWhatsAppOperationTimeZone: getWhatsAppOperationTimeZoneMock,
 }));
 
 import { getWhatsAppMealGoalProgress } from "./goalProgressService";
@@ -23,7 +23,7 @@ describe("goalProgressService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.DATABASE_URL = "mysql://test";
-    getUserOnboardingProfileMock.mockResolvedValue({ timezone: "America/Sao_Paulo" });
+    getWhatsAppOperationTimeZoneMock.mockResolvedValue("America/Sao_Paulo");
     dbMocks.getUserDayMealTotals.mockResolvedValue({
       totals: { calories: 1850, protein: 110, carbs: 130, fat: 55 },
     });
@@ -49,14 +49,14 @@ describe("goalProgressService", () => {
 
     expect(first).toMatchObject({ goalCalories: 2300, exerciseCalories: 300 });
     expect(second).toMatchObject({ goalCalories: 2080, exerciseCalories: 80 });
-    expect(getEffectiveNutritionGoalForDateMock).toHaveBeenNthCalledWith(1, 101, "2026-07-15");
-    expect(getEffectiveNutritionGoalForDateMock).toHaveBeenNthCalledWith(2, 202, "2026-07-15");
+    expect(getEffectiveNutritionGoalForDateMock).toHaveBeenNthCalledWith(1, 101, "2026-07-15", "America/Sao_Paulo");
+    expect(getEffectiveNutritionGoalForDateMock).toHaveBeenNthCalledWith(2, 202, "2026-07-15", "America/Sao_Paulo");
   });
 
   it("usa a versão histórica da meta aplicável à data da refeição", async () => {
     const result = await getWhatsAppMealGoalProgress(101, new Date("2026-07-14T15:00:00-03:00"));
 
-    expect(getEffectiveNutritionGoalForDateMock).toHaveBeenCalledWith(101, "2026-07-14");
+    expect(getEffectiveNutritionGoalForDateMock).toHaveBeenCalledWith(101, "2026-07-14", expect.any(String));
     expect(result).toMatchObject({
       goalCalories: 2200,
       consumedCalories: 1850,
@@ -65,12 +65,12 @@ describe("goalProgressService", () => {
   });
 
   it("resolve a data lógica no timezone do usuário", async () => {
-    getUserOnboardingProfileMock.mockResolvedValue({ timezone: "America/Los_Angeles" });
+    getWhatsAppOperationTimeZoneMock.mockResolvedValue("America/Los_Angeles");
 
     await getWhatsAppMealGoalProgress(101, new Date("2026-07-15T02:00:00.000Z"));
 
-    expect(getEffectiveNutritionGoalForDateMock).toHaveBeenCalledWith(101, "2026-07-14");
-    expect(dbMocks.getUserDayMealTotals).toHaveBeenCalledWith(101, "2026-07-14");
+    expect(getEffectiveNutritionGoalForDateMock).toHaveBeenCalledWith(101, "2026-07-14", expect.any(String));
+    expect(dbMocks.getUserDayMealTotals).toHaveBeenCalledWith(101, "2026-07-14", "America/Los_Angeles");
   });
 
   it("omite o bloco de meta quando a resolução histórica falha", async () => {

@@ -3,10 +3,11 @@ import { eq, lt } from "drizzle-orm";
 import { ENV } from "../../_core/env";
 import { getDb, logInferenceEvent } from "../../db";
 import { quickEditTokens } from "../../../drizzle/schema";
+import { toDateTimeLocalValueInTimeZone, zonedDateTimeLocalToDate, ZonedDateTimeError } from "../../../shared/timeZone";
 import { listExercises, updateExercise } from "../exercises/service";
-import type { UpdateExerciseInput } from "../exercises/schemas";
+import { resolveEffectiveUserTimeZone } from "../timeZone/service";
+import type { QuickEditExerciseUpdateInput, QuickEditMealUpdateInput } from "./schemas";
 import { listMeals, removeMeal, updateMeal } from "../meals/service";
-import type { UpdateMealInput } from "../meals/schemas";
 
 const QUICK_EDIT_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_TOKEN_ATTEMPTS_PER_WINDOW = 30;
@@ -45,6 +46,36 @@ type SignedExerciseTokenPayload = {
 const tokenStore = new Map<string, QuickEditTokenRow>();
 const tokenAttemptBuckets = new Map<string, TokenAttemptBucket>();
 let quickEditTokenSequence = 1;
+
+
+export class QuickEditTemporalInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QuickEditTemporalInputError";
+  }
+}
+
+type QuickEditTemporalPayload = { dateTimeLocal: string };
+
+function resolveQuickEditOccurredAt(
+  input: QuickEditTemporalPayload,
+  currentOccurredAt: string | number | Date,
+  timeZone: string,
+) {
+  const originalLocal = toDateTimeLocalValueInTimeZone(currentOccurredAt, timeZone);
+  if (originalLocal === input.dateTimeLocal.slice(0, 16)) {
+    return new Date(currentOccurredAt).toISOString();
+  }
+
+  try {
+    return zonedDateTimeLocalToDate(input.dateTimeLocal, timeZone).toISOString();
+  } catch (error) {
+    if (error instanceof ZonedDateTimeError) {
+      throw new QuickEditTemporalInputError(error.message);
+    }
+    throw error;
+  }
+}
 
 export class QuickEditTokenError extends Error {
   constructor() {
@@ -344,8 +375,10 @@ export async function getQuickEditMeal(token: string) {
     detail: "Página de edição rápida acessada por link temporário.",
   });
 
+  const timeZone = await resolveEffectiveUserTimeZone(row.userId);
   return {
     meal: toPublicMealView(meal),
+    timeZone: timeZone.timeZone,
     expiresAt: new Date(row.expiresAt).toISOString(),
   };
 }
@@ -371,16 +404,24 @@ export async function getQuickEditExercise(token: string) {
     detail: "Página de edição rápida de exercício acessada por link temporário.",
   });
 
+  const timeZone = await resolveEffectiveUserTimeZone(payload.userId);
   return {
     exercise: toPublicExerciseView(exercise),
+    timeZone: timeZone.timeZone,
     expiresAt: new Date(payload.exp).toISOString(),
   };
 }
 
-export async function updateQuickEditMeal(token: string, input: Omit<UpdateMealInput, "mealId">) {
+export async function updateQuickEditMeal(token: string, input: QuickEditMealUpdateInput["meal"]) {
   const row = await findQuickEditToken(token);
+  const currentMeal = (await listMeals(row.userId)).find(item => item.id === row.mealId);
+  if (!currentMeal) throw new QuickEditTokenError();
+  const { dateTimeLocal, ...changes } = input;
+  const timeZone = await resolveEffectiveUserTimeZone(row.userId);
+  const resolvedOccurredAt = resolveQuickEditOccurredAt({ dateTimeLocal }, currentMeal.occurredAt, timeZone.timeZone);
   const meal = await updateMeal(row.userId, {
-    ...input,
+    ...changes,
+    occurredAt: resolvedOccurredAt,
     mealId: row.mealId,
   });
 
@@ -410,10 +451,14 @@ export async function deleteQuickEditMeal(token: string) {
   return meal;
 }
 
-export async function updateQuickEditExercise(token: string, input: Omit<UpdateExerciseInput, "exerciseId">) {
-  const { payload } = await findQuickEditExercise(token);
+export async function updateQuickEditExercise(token: string, input: QuickEditExerciseUpdateInput["exercise"]) {
+  const { payload, exercise: currentExercise } = await findQuickEditExercise(token);
+  const { dateTimeLocal, ...changes } = input;
+  const timeZone = await resolveEffectiveUserTimeZone(payload.userId);
+  const resolvedOccurredAt = resolveQuickEditOccurredAt({ dateTimeLocal }, currentExercise.occurredAt, timeZone.timeZone);
   const exercise = await updateExercise(payload.userId, {
-    ...input,
+    ...changes,
+    occurredAt: resolvedOccurredAt,
     exerciseId: payload.exerciseId,
   });
 

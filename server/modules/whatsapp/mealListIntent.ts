@@ -1,7 +1,16 @@
 import { listMeals } from "../meals/service";
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { buildWhatsAppMealContextLine } from "./replyMessages";
 import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
+import {
+  addDaysToZonedDate,
+  endOfZonedDay,
+  formatReplyDate,
+  getZonedParts,
+  makeDateInTimeZone,
+  startOfZonedDay,
+} from "./intent/dateTime";
 import {
   buildWhatsAppBlock,
   buildWhatsAppFoodLines,
@@ -13,7 +22,6 @@ import {
   type WhatsAppNutritionTotals,
 } from "./replyTemplates";
 
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 
 export type WhatsappMealListIntentResult = {
   action: "meal_foods_listed" | "clarification_needed";
@@ -34,15 +42,6 @@ type MealListIntent = {
   kind: "latest" | "by_label" | "day";
   mealLabel?: string;
   referenceDate?: Date;
-};
-
-type ZonedParts = {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
 };
 
 type MealGroup = {
@@ -67,76 +66,6 @@ function normalizeText(value: string) {
 
 function formatNumber(value: number) {
   return ptBrNumberFormatter.format(value);
-}
-
-function formatReplyDate(date: Date, timeZone: string) {
-  return date.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone,
-  });
-}
-
-function getZonedParts(date: Date, timeZone = SAO_PAULO_TIME_ZONE): ZonedParts {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]));
-  const hour = Number(parts.hour);
-  return {
-    year: Number(parts.year),
-    month: Number(parts.month),
-    day: Number(parts.day),
-    hour: hour === 24 ? 0 : hour,
-    minute: Number(parts.minute),
-    second: Number(parts.second),
-  };
-}
-
-function makeDateInTimeZone(parts: ZonedParts, timeZone = SAO_PAULO_TIME_ZONE) {
-  const utcGuess = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second));
-  const actualParts = getZonedParts(utcGuess, timeZone);
-  const desiredUtcMinutes = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) / 60_000;
-  const actualUtcMinutes = Date.UTC(
-    actualParts.year,
-    actualParts.month - 1,
-    actualParts.day,
-    actualParts.hour,
-    actualParts.minute,
-    actualParts.second,
-  ) / 60_000;
-  const offsetMinutes = actualUtcMinutes - desiredUtcMinutes;
-  return new Date(utcGuess.getTime() - offsetMinutes * 60_000);
-}
-
-function addDaysToZonedDate(parts: ZonedParts, days: number) {
-  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, parts.hour, parts.minute, parts.second));
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-    hour: parts.hour,
-    minute: parts.minute,
-    second: parts.second,
-  };
-}
-
-function startOfZonedDay(date: Date, timeZone: string) {
-  const parts = getZonedParts(date, timeZone);
-  return makeDateInTimeZone({ ...parts, hour: 0, minute: 0, second: 0 }, timeZone);
-}
-
-function endOfZonedDay(date: Date, timeZone: string) {
-  const parts = getZonedParts(date, timeZone);
-  return makeDateInTimeZone({ ...parts, hour: 23, minute: 59, second: 59 }, timeZone);
 }
 
 function resolveRelativeDate(normalized: string, receivedAt: Date, timeZone: string) {
@@ -260,7 +189,7 @@ function groupMealsByLabel(meals: ExistingMeal[]) {
 }
 
 /** Consulta de uma refeição e seus alimentos usando os mesmos blocos de contexto/item/total do registro (issue #783). */
-export function formatMealListReply(meal: ExistingMeal, isLatest: boolean, timeZone = SAO_PAULO_TIME_ZONE) {
+export function formatMealListReply(meal: ExistingMeal, isLatest: boolean, timeZone = DEFAULT_APP_TIME_ZONE) {
   const items = meal.items ?? [];
   const mealDate = new Date(meal.occurredAt);
   const title = isLatest
@@ -302,7 +231,7 @@ function formatDayMealGroupLines(group: MealGroup) {
   ];
 }
 
-export function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date, timeZone = SAO_PAULO_TIME_ZONE, now: Date = new Date()) {
+export function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date, timeZone = DEFAULT_APP_TIME_ZONE, now: Date = new Date()) {
   const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate, timeZone));
   const dateLabel = formatReplyDate(referenceDate, timeZone);
   // "hoje" é relativo ao timestamp da mensagem no timezone do usuário (#784).

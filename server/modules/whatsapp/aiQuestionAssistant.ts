@@ -5,9 +5,10 @@ import {
   isOpenAiConfigured,
 } from "../../_core/openaiClient";
 import { logInferenceEvent } from "../../db";
+import { addCalendarDays, getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
 
 const AI_QUESTION_PREFIX = "/";
-const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
 const MAX_REPLY_LENGTH = 1_500;
 
 type InsightsService = typeof import("../insights/service");
@@ -45,23 +46,6 @@ type UserKnowledgeBase = {
   currentWeek: WeeklyReportBundle;
   last30Days: PeriodReportBundle;
 };
-
-function getDateKeyInTimeZone(date: Date, timeZone = DEFAULT_TIME_ZONE) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function addDays(date: Date, days: number) {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result;
-}
 
 export function isWhatsappAiQuestionText(text?: string | null) {
   return Boolean(text?.trim().startsWith(AI_QUESTION_PREFIX));
@@ -157,18 +141,18 @@ function compactKnowledgeBase(knowledgeBase: UserKnowledgeBase) {
   };
 }
 
-async function buildUserKnowledgeBase(userId: number, receivedAt: Date, timeZone = DEFAULT_TIME_ZONE): Promise<UserKnowledgeBase> {
+async function buildUserKnowledgeBase(userId: number, receivedAt: Date, timeZone: string): Promise<UserKnowledgeBase> {
   const {
     getDashboardTodayOverview,
     getPeriodReportBundle,
     getWeeklyReportBundle,
   } = await import("../insights/service");
   const endDate = getDateKeyInTimeZone(receivedAt, timeZone);
-  const startDate = getDateKeyInTimeZone(addDays(receivedAt, -29), timeZone);
+  const startDate = addCalendarDays(endDate, -29);
   const [today, currentWeek, last30Days] = await Promise.all([
-    getDashboardTodayOverview(userId, { date: endDate, includeQualityDetails: true }),
-    getWeeklyReportBundle(userId, 0),
-    getPeriodReportBundle(userId, { startDate, endDate }),
+    getDashboardTodayOverview(userId, { date: endDate, includeQualityDetails: true }, timeZone),
+    getWeeklyReportBundle(userId, 0, timeZone),
+    getPeriodReportBundle(userId, { startDate, endDate }, timeZone),
   ]);
 
   return {
@@ -249,7 +233,7 @@ export async function executeWhatsappAiQuestionIntent(
   }
 
   const receivedAt = input.receivedAt ?? new Date();
-  const timeZone = input.userTimezone || DEFAULT_TIME_ZONE;
+  const timeZone = input.userTimezone ?? await getWhatsAppOperationTimeZone(userId);
 
   try {
     const knowledgeBase = await buildUserKnowledgeBase(userId, receivedAt, timeZone);

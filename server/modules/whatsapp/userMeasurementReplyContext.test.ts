@@ -3,15 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getUserWaterGoalMock = vi.hoisted(() => vi.fn());
 const listUserWaterLogsMock = vi.hoisted(() => vi.fn());
 const listUserWeightEntriesMock = vi.hoisted(() => vi.fn());
-const getUserOnboardingProfileMock = vi.hoisted(() => vi.fn());
+const getWhatsAppOperationTimeZoneMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../db", () => ({
   getUserWaterGoal: getUserWaterGoalMock,
   listUserWaterLogs: listUserWaterLogsMock,
   listUserWeightEntries: listUserWeightEntriesMock,
 }));
-vi.mock("../onboarding/profileRead", () => ({
-  getUserOnboardingProfile: getUserOnboardingProfileMock,
+vi.mock("./timeZoneContext", () => ({
+  getWhatsAppOperationTimeZone: getWhatsAppOperationTimeZoneMock,
 }));
 
 const { getWhatsAppWaterProgress, getWhatsAppWeightVariation } = await import("./userMeasurementReplyContext");
@@ -19,7 +19,7 @@ const { getWhatsAppWaterProgress, getWhatsAppWeightVariation } = await import(".
 describe("userMeasurementReplyContext", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getUserOnboardingProfileMock.mockResolvedValue({ timezone: "America/Sao_Paulo" });
+    getWhatsAppOperationTimeZoneMock.mockResolvedValue("America/Sao_Paulo");
   });
 
   it("soma somente a água do dia lógico solicitado", async () => {
@@ -40,7 +40,7 @@ describe("userMeasurementReplyContext", () => {
 
 
   it("usa o timezone do usuário para separar os dias de hidratação", async () => {
-    getUserOnboardingProfileMock.mockResolvedValue({ timezone: "America/Los_Angeles" });
+    getWhatsAppOperationTimeZoneMock.mockResolvedValue("America/Los_Angeles");
     getUserWaterGoalMock.mockResolvedValue({ dailyTargetMl: 2500 });
     listUserWaterLogsMock.mockResolvedValue([
       { amountMl: 500, occurredAt: "2026-07-15T02:00:00.000Z" },

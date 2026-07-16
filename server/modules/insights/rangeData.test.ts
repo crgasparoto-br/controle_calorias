@@ -120,12 +120,12 @@ describe("report range data loaders", () => {
       meal(3, "2026-06-24", 300),
     ]);
 
-    const result = await listReportMealsByDateRange(1, reportRange, { includeMedia: false });
+    const result = await listReportMealsByDateRange(1, reportRange, "UTC", { includeMedia: false });
 
     expect(mocks.findMealsByRange).toHaveBeenCalledWith(1, expect.objectContaining({ includeMedia: false }));
     const rangeOptions = mocks.findMealsByRange.mock.calls[0][1];
-    expect(rangeOptions.startAt.toISOString()).toBe("2026-06-21T00:00:00.000Z");
-    expect(rangeOptions.endAt.toISOString()).toBe("2026-06-25T00:00:00.000Z");
+    expect(rangeOptions.startAt.toISOString()).toBe("2026-06-22T00:00:00.000Z");
+    expect(rangeOptions.endAt.toISOString()).toBe("2026-06-24T00:00:00.000Z");
     expect(result.map(item => item.id)).toEqual([2, 1]);
     expect(result[0].totals).toMatchObject({ calories: 200, protein: 2, carbs: 20, fat: 1 });
   });
@@ -134,7 +134,7 @@ describe("report range data loaders", () => {
     mocks.findMealsByRange.mockResolvedValue([]);
     mocks.listUserMeals.mockResolvedValue([meal(1, "2026-06-22"), meal(2, "2026-06-24")]);
 
-    const result = await listReportMealsByDateRange(1, reportRange, { includeMedia: false });
+    const result = await listReportMealsByDateRange(1, reportRange, "UTC", { includeMedia: false });
 
     expect(mocks.listUserMeals).not.toHaveBeenCalled();
     expect(result).toEqual([]);
@@ -144,7 +144,7 @@ describe("report range data loaders", () => {
     mocks.findMealsByRange.mockResolvedValue(null);
     mocks.listUserMeals.mockResolvedValue([meal(1, "2026-06-22"), meal(2, "2026-06-24")]);
 
-    const result = await listReportMealsByDateRange(1, reportRange, { includeMedia: false });
+    const result = await listReportMealsByDateRange(1, reportRange, "UTC", { includeMedia: false });
 
     expect(mocks.listUserMeals).toHaveBeenCalledWith(1);
     expect(result.map(item => item.id)).toEqual([1]);
@@ -163,8 +163,8 @@ describe("report range data loaders", () => {
     ]);
 
     const [exercises, waterLogs] = await Promise.all([
-      listReportExercisesByDateRange(1, reportRange),
-      listReportWaterLogsByDateRange(1, reportRange),
+      listReportExercisesByDateRange(1, reportRange, "UTC"),
+      listReportWaterLogsByDateRange(1, reportRange, "UTC"),
     ]);
 
     expect(mocks.findExercisesByRange).toHaveBeenCalledTimes(1);
@@ -172,4 +172,13 @@ describe("report range data loaders", () => {
     expect(exercises.map(item => item.id)).toEqual([2, 1]);
     expect(waterLogs.map(item => item.id)).toEqual([2, 1]);
   });
+
+  it("constrói limites UTC a partir do calendário local, inclusive durante DST", async () => {
+    await listReportMealsByDateRange(1, { startDate: "2026-03-08", endDate: "2026-03-08" }, "America/New_York");
+
+    const rangeOptions = mocks.findMealsByRange.mock.calls[0][1];
+    expect(rangeOptions.startAt.toISOString()).toBe("2026-03-08T05:00:00.000Z");
+    expect(rangeOptions.endAt.toISOString()).toBe("2026-03-09T04:00:00.000Z");
+  });
+
 });

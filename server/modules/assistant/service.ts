@@ -3,6 +3,7 @@ import { invokeLLM } from "../../_core/llm";
 import { redactSensitiveText, safeLogDetail } from "../../privacy";
 import { calculateMealTotals } from "../../../shared/mealTotals";
 import { assistantSuggestionSchema, type AssistantRequestInput, type AssistantSuggestion } from "./schemas";
+import { getEffectiveUserTimeZone } from "../timeZone/service";
 
 const EDUCATIONAL_NOTICE = "Sugestões educativas para apoiar sua rotina alimentar. Elas não substituem orientação de nutricionista, médico ou outro profissional de saúde.";
 
@@ -49,8 +50,9 @@ function buildFallbackSuggestion(input: AssistantRequestInput, context: Awaited<
 }
 
 async function buildAssistantContext(userId: number) {
+  const timeZone = await getEffectiveUserTimeZone(userId);
   const [dashboard, profile] = await Promise.all([
-    getDashboardSnapshot(userId),
+    getDashboardSnapshot(userId, timeZone),
     getFoodAssistantProfile(userId),
   ]);
 

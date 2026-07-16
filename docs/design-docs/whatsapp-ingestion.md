@@ -218,3 +218,9 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - Onboarding composto retoma apenas mensagens físicas ainda não entregues após falha parcial.
 - Erros de mídia, conta não vinculada e indisponibilidade são sanitizados e não expõem provider, payload, telefone completo ou identificadores internos.
 - O gate arquitetural impede novos payloads, envios e builders paralelos fora dos módulos autorizados.
+
+## Timezone da operação
+
+A entrada canônica cria um escopo temporal request-scoped. Após identificar o usuário e confirmar que a mensagem não é uma reentrega já processada, o sistema resolve o timezone efetivo uma vez e o propaga por todo o pipeline. O timestamp recebido permanece absoluto; data lógica, rótulo de refeição, água, peso, relatórios, perguntas com `/` e agrupamentos usam o timezone resolvido.
+
+Falha técnica ao consultar o perfil interrompe a mensagem com erro recuperável e não aciona o fallback nutricional. A ordem de idempotência e os vínculos de domínio permanecem inalterados.

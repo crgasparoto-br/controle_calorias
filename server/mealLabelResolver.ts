@@ -1,5 +1,6 @@
 import { normalizeText } from "./mealTextParsing";
 import type { MealProcessingInput } from "./nutritionEngineTypes";
+import { DEFAULT_APP_TIME_ZONE, getDateTimePartsInTimeZone } from "../shared/timeZone";
 
 const DEFAULT_MEAL_LABEL_BY_TIME = [
   { mealLabel: "Café da manhã", startTime: "05:00", endTime: "10:59" },
@@ -36,17 +37,9 @@ function parseDateInput(value: MealProcessingInput["occurredAt"]) {
   return new Date();
 }
 
-function getLocalTimeMinutes(date: Date, timeZone = "America/Sao_Paulo") {
-  const formatter = new Intl.DateTimeFormat("pt-BR", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(date);
-  const hour = Number(parts.find(part => part.type === "hour")?.value ?? "0");
-  const minute = Number(parts.find(part => part.type === "minute")?.value ?? "0");
-  return (hour * 60) + minute;
+function getLocalTimeMinutes(date: Date, timeZone = DEFAULT_APP_TIME_ZONE) {
+  const parts = getDateTimePartsInTimeZone(date, timeZone);
+  return (parts.hour * 60) + parts.minute;
 }
 
 export function inferMealLabelByTime(occurredAt: MealProcessingInput["occurredAt"], timeZone?: string) {

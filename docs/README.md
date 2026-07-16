@@ -39,6 +39,11 @@ Exemplos principais:
 
 - `design-docs/nutrition-engine.md`
 - `design-docs/database-persistence.md`
+- `design-docs/timezone.md`
+- `design-docs/timezone-backend-reports.md`
+- `design-docs/timezone-frontend.md`
+- `design-docs/quick-edit-timezone.md`
+- `design-docs/timezone-architecture-guard.md`
 - `design-docs/photo-analysis-catalog-integration.md`
 - `design-docs/manual-meal-catalog-search.md`
 - `design-docs/food-portions-household-measures.md`

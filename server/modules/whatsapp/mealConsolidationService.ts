@@ -1,4 +1,5 @@
 import type { MealDraftItem } from "../../nutritionEngine";
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { resolveWhatsAppMealConsolidationTarget, type WhatsAppMealConsolidationCandidate } from "./mealConsolidation";
 
 export type WhatsAppConsolidationSavedMeal = WhatsAppMealConsolidationCandidate & {
@@ -35,6 +36,7 @@ function toOccurredAtIso(value: number | string | Date) {
 export async function consolidateWhatsAppMealAfterSave(
   deps: WhatsAppMealConsolidationServiceDeps,
   savedMeal: WhatsAppConsolidationSavedMeal,
+  timeZone = DEFAULT_APP_TIME_ZONE,
 ): Promise<WhatsAppMealConsolidationServiceResult> {
   const meals = await deps.listUserMeals(savedMeal.userId);
   const target = resolveWhatsAppMealConsolidationTarget({
@@ -42,6 +44,7 @@ export async function consolidateWhatsAppMealAfterSave(
     mealLabel: savedMeal.mealLabel,
     occurredAt: savedMeal.occurredAt,
     meals,
+    timeZone,
   });
 
   if (target.action === "create") {
