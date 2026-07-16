@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildWhatsAppCanonicalExerciseReply,
   buildWhatsAppCanonicalPeriodProgressLines,
   buildWhatsAppCanonicalWaterReply,
   buildWhatsAppCanonicalWeightReply,
@@ -92,5 +93,23 @@ describe("domainReplyFormatters", () => {
       variationKg: -0.4,
       occurredAtLabel: "hoje, 08:00",
     })).toContain("*Variação:* -0,4 kg");
+  });
+
+  it("preserva o contrato do formatter de exercícios", () => {
+    const reply = buildWhatsAppCanonicalExerciseReply({
+      activity: "Corrida",
+      durationMinutes: 45,
+      distanceKm: 8.2,
+      calories: 520,
+      occurredAtLabel: "hoje, 07:00",
+      caloriesEstimated: true,
+    });
+
+    expect(reply).toContain("🏃 *Exercício registrado*");
+    expect(reply).toContain("*Atividade:* Corrida");
+    expect(reply).toContain("*Duração:* 45 min");
+    expect(reply).toContain("*Distância:* 8,2 km");
+    expect(reply).toContain("*Calorias:* 520 kcal");
+    expect(reply).toContain("⚠️ Calorias estimadas pelo sistema.");
   });
 });
