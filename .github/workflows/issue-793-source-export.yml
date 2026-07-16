@@ -1,0 +1,27 @@
+name: Issue 793 source export
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    if: github.head_ref == 'feat/793-centralizar-timezone'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-793-source
+          path: |
+            .
+            !.git
+          include-hidden-files: true
+          retention-days: 1
