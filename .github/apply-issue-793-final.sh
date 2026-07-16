@@ -5,7 +5,6 @@ git config user.name 'github-actions[bot]'
 git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 cat .github/issue-793-final.part00 \
     .github/issue-793-final.part01 \
-    .github/issue-793-final.part02 \
     .github/issue-793-final.part03 \
     .github/issue-793-final.part04 \
   | base64 -d > /tmp/issue793.patch.xz
