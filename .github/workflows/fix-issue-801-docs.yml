@@ -1,4 +1,4 @@
-name: Restore issue 801 schema documentation
+name: Minimize issue 801 schema diff
 
 on:
   pull_request:
@@ -29,32 +29,39 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Support formatted Drizzle declarations
+      - name: Restore compact schema and apply only issue 801 fields
         run: |
+          git fetch origin develop
+          git show origin/develop:drizzle/schema.ts > drizzle/schema.ts
+          git show origin/develop:scripts/generate-db-schema-doc.ts > scripts/generate-db-schema-doc.ts
           node <<'NODE'
           const fs = require('node:fs');
-          const path = 'scripts/generate-db-schema-doc.ts';
+          const path = 'drizzle/schema.ts';
           let source = fs.readFileSync(path, 'utf8');
-          source = source.replace(
-            '/^\\s*(\\w+):\\s*(?:int|double|text|timestamp|varchar|mysqlEnum)\\("([^"]+)"/gm',
-            '/^\\s*(\\w+):\\s*(?:int|double|boolean|json|text|timestamp|varchar|mysqlEnum)\\("([^"]+)"/gm'
-          );
-          source = source.replace(
-            '/export const (\\w+) = mysqlTable\\("([^"]+)"/g',
-            '/export const (\\w+) = mysqlTable\\(\\s*"([^"]+)"\\s*,/g'
-          );
+
+          const columnAnchor = '  createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),\n  createdAt: timestamp("createdAt").defaultNow().notNull(),';
+          const columnReplacement = '  createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),\n  status: mysqlEnum("status", ["active", "deprecated"]).default("active").notNull(),\n  createdAt: timestamp("createdAt").defaultNow().notNull(),';
+          if (!source.includes(columnAnchor)) throw new Error('foodCatalog column anchor not found');
+          source = source.replace(columnAnchor, columnReplacement);
+
+          const indexAnchor = '  foodTypeIdx: index("foodCatalog_foodType_idx").on(table.foodType),\n  barcodeUnique: uniqueIndex("foodCatalog_barcode_unique").on(table.barcode),';
+          const indexReplacement = '  foodTypeIdx: index("foodCatalog_foodType_idx").on(table.foodType),\n  statusIdx: index("foodCatalog_status_idx").on(table.status),\n  barcodeUnique: uniqueIndex("foodCatalog_barcode_unique").on(table.barcode),';
+          if (!source.includes(indexAnchor)) throw new Error('foodCatalog index anchor not found');
+          source = source.replace(indexAnchor, indexReplacement);
+
           fs.writeFileSync(path, source);
           NODE
-          pnpm exec prettier --write scripts/generate-db-schema-doc.ts
+
           pnpm docs:generate:db
           grep -Fq '| `users` | `users` |' docs/generated/db-schema.md
-          grep -Fq '| `foodCatalog` | `foodCatalog` |' docs/generated/db-schema.md
+          grep -Fq '| `foodCatalog` | `foodCatalog` | 28 |' docs/generated/db-schema.md
+          pnpm check
           pnpm docs:check
 
-      - name: Commit documentation fix
+      - name: Commit minimized schema change
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scripts/generate-db-schema-doc.ts docs/generated/db-schema.md
-          git commit -m "fix: preserve generated schema documentation (#801)"
+          git add drizzle/schema.ts scripts/generate-db-schema-doc.ts docs/generated/db-schema.md
+          git commit -m "refactor: minimize food catalog schema diff (#801)"
           git push origin HEAD:feat/801-soft-delete-food-catalog
