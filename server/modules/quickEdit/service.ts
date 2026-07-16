@@ -55,33 +55,26 @@ export class QuickEditTemporalInputError extends Error {
   }
 }
 
-type QuickEditTemporalPayload = { occurredAt?: string; dateTimeLocal?: string };
+type QuickEditTemporalPayload = { dateTimeLocal: string };
 
 function resolveQuickEditOccurredAt(
   input: QuickEditTemporalPayload,
   currentOccurredAt: string | number | Date,
   timeZone: string,
 ) {
-  if (input.dateTimeLocal) {
-    const originalLocal = toDateTimeLocalValueInTimeZone(currentOccurredAt, timeZone);
-    if (originalLocal === input.dateTimeLocal.slice(0, 16)) {
-      return new Date(currentOccurredAt).toISOString();
-    }
-
-    try {
-      return zonedDateTimeLocalToDate(input.dateTimeLocal, timeZone).toISOString();
-    } catch (error) {
-      if (error instanceof ZonedDateTimeError) {
-        throw new QuickEditTemporalInputError(error.message);
-      }
-      throw error;
-    }
+  const originalLocal = toDateTimeLocalValueInTimeZone(currentOccurredAt, timeZone);
+  if (originalLocal === input.dateTimeLocal.slice(0, 16)) {
+    return new Date(currentOccurredAt).toISOString();
   }
 
-  if (!input.occurredAt || Number.isNaN(new Date(input.occurredAt).getTime())) {
-    throw new QuickEditTemporalInputError("Informe uma data e um horário válidos.");
+  try {
+    return zonedDateTimeLocalToDate(input.dateTimeLocal, timeZone).toISOString();
+  } catch (error) {
+    if (error instanceof ZonedDateTimeError) {
+      throw new QuickEditTemporalInputError(error.message);
+    }
+    throw error;
   }
-  return input.occurredAt;
 }
 
 export class QuickEditTokenError extends Error {
@@ -423,9 +416,9 @@ export async function updateQuickEditMeal(token: string, input: QuickEditMealUpd
   const row = await findQuickEditToken(token);
   const currentMeal = (await listMeals(row.userId)).find(item => item.id === row.mealId);
   if (!currentMeal) throw new QuickEditTokenError();
-  const { dateTimeLocal, occurredAt, ...changes } = input;
+  const { dateTimeLocal, ...changes } = input;
   const timeZone = await resolveEffectiveUserTimeZone(row.userId);
-  const resolvedOccurredAt = resolveQuickEditOccurredAt({ dateTimeLocal, occurredAt }, currentMeal.occurredAt, timeZone.timeZone);
+  const resolvedOccurredAt = resolveQuickEditOccurredAt({ dateTimeLocal }, currentMeal.occurredAt, timeZone.timeZone);
   const meal = await updateMeal(row.userId, {
     ...changes,
     occurredAt: resolvedOccurredAt,
@@ -460,9 +453,9 @@ export async function deleteQuickEditMeal(token: string) {
 
 export async function updateQuickEditExercise(token: string, input: QuickEditExerciseUpdateInput["exercise"]) {
   const { payload, exercise: currentExercise } = await findQuickEditExercise(token);
-  const { dateTimeLocal, occurredAt, ...changes } = input;
+  const { dateTimeLocal, ...changes } = input;
   const timeZone = await resolveEffectiveUserTimeZone(payload.userId);
-  const resolvedOccurredAt = resolveQuickEditOccurredAt({ dateTimeLocal, occurredAt }, currentExercise.occurredAt, timeZone.timeZone);
+  const resolvedOccurredAt = resolveQuickEditOccurredAt({ dateTimeLocal }, currentExercise.occurredAt, timeZone.timeZone);
   const exercise = await updateExercise(payload.userId, {
     ...changes,
     occurredAt: resolvedOccurredAt,

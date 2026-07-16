@@ -111,6 +111,16 @@ export function findTimeZoneArchitectureViolations(files: TimeZoneArchitectureFi
       }
     }
 
+    if (filePath.endsWith("server/modules/quickEdit/schemas.ts")) {
+      addPatternViolations({
+        filePath,
+        content: file.content,
+        pattern: /occurredAt\s*:\s*z\./g,
+        message: "Contrato público temporal aceita occurredAt absoluto",
+        failures,
+      });
+    }
+
     // Leitura do perfil dentro de iteração é um forte indício de N+1 temporal.
     addPatternViolations({
       filePath,

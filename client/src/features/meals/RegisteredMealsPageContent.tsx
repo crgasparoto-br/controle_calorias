@@ -16,7 +16,7 @@ import {
   type PeriodScope,
 } from "@/lib/dateRanges";
 import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
-import { toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { toDateInputValue, toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarPlus, ChevronDown, Droplets, Dumbbell, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
@@ -758,7 +758,7 @@ export function RegisteredMealsPage() {
             : manualMeal.occurredAt;
           return {
             mealId,
-            occurredAt: zonedDateTimeLocalToIso(occurredAtLocal, userTimeZone),
+            dateTimeLocal: occurredAtLocal,
             items: itemsByMealId.get(mealId) ?? [],
           };
         }),
@@ -769,7 +769,7 @@ export function RegisteredMealsPage() {
     updateMeal.mutate({
       mealId: manualMeal.mealId,
       mealLabel: manualMeal.mealLabel,
-      occurredAt: zonedDateTimeLocalToIso(manualMeal.occurredAt, userTimeZone),
+      dateTimeLocal: manualMeal.occurredAt,
       notes: manualMeal.notes.trim() || undefined,
       items: normalizedItems,
     });
@@ -778,7 +778,7 @@ export function RegisteredMealsPage() {
   const handleCopyMealGroup = (group: RegisteredMealGroupViewModel) => {
     copyMealGroup.mutate({
       mealIds: groupMealIds(group),
-      occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone),
+      dateTimeLocal: `${copyTargetDay}T12:00`,
       mealLabel: group.mealLabel,
     });
   };
@@ -961,7 +961,7 @@ export function RegisteredMealsPage() {
                     type="button"
                     variant="outline"
                     className="rounded-full"
-                    onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone) })}
+                    onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, dateTimeLocal: `${copyTargetDay}T12:00` })}
                     disabled={reuseFavoriteMeal.isPending}
                   >
                     <CalendarPlus className="mr-2 h-4 w-4" />

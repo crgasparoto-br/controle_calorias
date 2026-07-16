@@ -129,23 +129,6 @@ describe("quickEdit service", () => {
     await expect(getQuickEditMeal(link.token)).rejects.toThrow("Link de edição inválido ou expirado.");
   });
 
-  it("atualiza a refeição vinculada ao token sem aceitar mealId externo", async () => {
-    const { createQuickEditLinkForMeal, updateQuickEditMeal } = await import("./service");
-    const link = await createQuickEditLinkForMeal({ userId: 123, mealId: 456 });
-    listMealsMock.mockResolvedValue([meal]);
-    updateMealMock.mockResolvedValue({ ...meal, mealLabel: "Jantar ajustado" });
-
-    await updateQuickEditMeal(link.token, {
-      mealLabel: "Jantar ajustado",
-      occurredAt: new Date().toISOString(),
-      items: meal.items,
-    });
-
-    expect(updateMealMock).toHaveBeenCalledWith(123, expect.objectContaining({
-      mealId: 456,
-      mealLabel: "Jantar ajustado",
-    }));
-  });
 
   it("converte horário civil no timezone do dono", async () => {
     const { createQuickEditLinkForMeal, updateQuickEditMeal } = await import("./service");

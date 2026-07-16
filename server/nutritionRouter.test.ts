@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_APP_TIME_ZONE, toDateTimeLocalValueInTimeZone } from "../shared/timeZone";
 import type { TrpcContext } from "./_core/context";
 
 vi.mock("./modules/whatsapp/llmIntentActions", () => ({
@@ -56,6 +57,10 @@ vi.mock("./nutritionEngine", async () => {
 const { appRouter } = await import("./routers");
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+
+function ownerDateTimeLocal(value: string | number | Date) {
+  return toDateTimeLocalValueInTimeZone(value, DEFAULT_APP_TIME_ZONE);
+}
 
 function createNutritionContext(userId: number, role: "user" | "admin" = "user"): TrpcContext {
   const user: AuthenticatedUser = {
@@ -282,7 +287,7 @@ describe("nutrition router", () => {
 
     const meal = await caller.nutrition.meals.createManual({
       mealLabel: "almoço",
-      occurredAt: "2026-04-22T15:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
       notes: "Almoço simples preparado em casa.",
       items: [
         {
@@ -319,7 +324,7 @@ describe("nutrition router", () => {
     const editedMeal = await caller.nutrition.meals.update({
       mealId: meal.id,
       mealLabel: "almoço",
-      occurredAt: "2026-04-22T15:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
       notes: "Porção ajustada após revisar o prato.",
       items: [
         {
@@ -353,7 +358,7 @@ describe("nutrition router", () => {
 
     const copiedMeal = await caller.nutrition.meals.copy({
       mealId: editedMeal.id,
-      occurredAt: "2026-04-23T15:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-23T15:00:00.000Z"),
       mealLabel: "almoço",
     });
 
@@ -396,7 +401,7 @@ describe("nutrition router", () => {
     const savedMeal = await caller.nutrition.meals.confirm({
       draftId: simulated.draftId,
       mealLabel: simulated.processed.detectedMealLabel,
-      occurredAt: new Date().toISOString(),
+      dateTimeLocal: ownerDateTimeLocal(new Date().toISOString()),
       items: simulated.processed.items,
     });
 
@@ -469,7 +474,7 @@ describe("nutrition router", () => {
 
     await caller.nutrition.meals.createManual({
       mealLabel: "lanche",
-      occurredAt: "2026-04-22T15:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
       items: [
         {
           foodName: "Banana prata teste",
@@ -486,7 +491,7 @@ describe("nutrition router", () => {
         },
       ],
     });
-    await caller.nutrition.water.create({ amountMl: 300, occurredAt: "2026-04-22T16:00:00.000Z" });
+    await caller.nutrition.water.create({ amountMl: 300, dateTimeLocal: ownerDateTimeLocal("2026-04-22T16:00:00.000Z")});
 
     const overview = await caller.nutrition.dashboard.overview();
     const weekly = (await caller.nutrition.reports.weekly()).weekly;
@@ -519,7 +524,7 @@ describe("nutrition router", () => {
 
       await caller.nutrition.meals.createManual({
         mealLabel: "ceia",
-        occurredAt: "2026-04-22T00:30:00-03:00",
+        dateTimeLocal: ownerDateTimeLocal("2026-04-22T00:30:00-03:00"),
         items: [{
           foodName: "Refeição local",
           canonicalName: "Refeição local",
@@ -537,7 +542,7 @@ describe("nutrition router", () => {
 
       await caller.nutrition.meals.createManual({
         mealLabel: "jantar",
-        occurredAt: "2026-04-21T23:30:00-03:00",
+        dateTimeLocal: ownerDateTimeLocal("2026-04-21T23:30:00-03:00"),
         items: [{
           foodName: "Refeição anterior local",
           canonicalName: "Refeição anterior local",
@@ -557,9 +562,9 @@ describe("nutrition router", () => {
         activityType: "Caminhada local",
         durationMinutes: 20,
         caloriesBurned: 40,
-        occurredAt: "2026-04-22T00:45:00-03:00",
+        dateTimeLocal: ownerDateTimeLocal("2026-04-22T00:45:00-03:00"),
       });
-      await caller.nutrition.water.create({ amountMl: 250, occurredAt: "2026-04-22T00:50:00-03:00" });
+      await caller.nutrition.water.create({ amountMl: 250, dateTimeLocal: ownerDateTimeLocal("2026-04-22T00:50:00-03:00")});
 
       const weekly = (await caller.nutrition.reports.weekly()).weekly;
       const overview = await caller.nutrition.dashboard.overview();
@@ -594,7 +599,7 @@ describe("nutrition router", () => {
     for (const [index, date] of ["2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24"].entries()) {
       await caller.nutrition.meals.createManual({
         mealLabel: index === 4 ? "lanche" : "almoço",
-        occurredAt: `${date}T15:00:00.000Z`,
+        dateTimeLocal: ownerDateTimeLocal(`${date}T15:00:00.000Z`),
         items: [{
           foodName: `Refeição consistente ${index}`,
           canonicalName: `Refeição consistente ${index}`,
@@ -612,7 +617,7 @@ describe("nutrition router", () => {
     }
 
     for (const date of ["2026-04-20", "2026-04-21", "2026-04-22"]) {
-      await caller.nutrition.water.create({ amountMl: 300, occurredAt: `${date}T16:00:00.000Z` });
+      await caller.nutrition.water.create({ amountMl: 300, dateTimeLocal: ownerDateTimeLocal(`${date}T16:00:00.000Z`)});
     }
 
     const meals = await caller.nutrition.meals.list();
@@ -686,7 +691,7 @@ describe("nutrition router", () => {
 
     const meal = await caller.nutrition.meals.createManual({
       mealLabel: "almoço",
-      occurredAt: "2026-04-22T15:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
       items: [
         {
           foodName: "Arroz",
@@ -738,7 +743,7 @@ describe("nutrition router", () => {
 
     await caller.nutrition.meals.createManual({
       mealLabel: "almoço",
-      occurredAt: "2026-04-20T15:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-20T15:00:00.000Z"),
       items: [{
         foodName: "Dia dentro",
         canonicalName: "Dia dentro",
@@ -756,7 +761,7 @@ describe("nutrition router", () => {
 
     await caller.nutrition.meals.createManual({
       mealLabel: "jantar",
-      occurredAt: "2026-04-21T22:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-21T22:00:00.000Z"),
       items: [{
         foodName: "Dia acima",
         canonicalName: "Dia acima",
@@ -776,7 +781,7 @@ describe("nutrition router", () => {
       activityType: "Caminhada",
       durationMinutes: 45,
       caloriesBurned: 300,
-      occurredAt: "2026-04-21T23:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-21T23:00:00.000Z"),
     });
 
     const progress = await caller.nutrition.reports.weeklyProgress();
@@ -800,7 +805,7 @@ describe("nutrition router", () => {
 
     const breakfast = await caller.nutrition.meals.createManual({
       mealLabel: "café da manhã",
-      occurredAt: "2026-04-21T10:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-21T10:00:00.000Z"),
       items: [
         {
           foodName: "Ovo",
@@ -820,12 +825,12 @@ describe("nutrition router", () => {
 
     const copied = await caller.nutrition.meals.copy({
       mealId: breakfast.id,
-      occurredAt: "2026-04-22T10:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T10:00:00.000Z"),
     });
     const favorite = await caller.nutrition.meals.saveFavorite({ mealId: breakfast.id, name: "Café com ovos" });
     const reused = await caller.nutrition.meals.reuseFavorite({
       favoriteMealId: favorite.id,
-      occurredAt: "2026-04-23T10:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-23T10:00:00.000Z"),
     });
 
     expect(copied.id).not.toBe(breakfast.id);
@@ -938,7 +943,7 @@ describe("nutrition router", () => {
 
     await patient.nutrition.meals.createManual({
       mealLabel: "almoço",
-      occurredAt: "2026-04-22T15:00:00.000Z",
+      dateTimeLocal: ownerDateTimeLocal("2026-04-22T15:00:00.000Z"),
       items: [{
         foodName: "Prato do paciente",
         canonicalName: "Prato do paciente",
@@ -1073,7 +1078,7 @@ describe("nutrition router", () => {
     await caller.nutrition.meals.confirm({
       draftId: simulated.draftId,
       mealLabel: simulated.processed.detectedMealLabel,
-      occurredAt: new Date().toISOString(),
+      dateTimeLocal: ownerDateTimeLocal(new Date().toISOString()),
       items: simulated.processed.items,
     });
 
@@ -1081,7 +1086,7 @@ describe("nutrition router", () => {
       activityType: "Corrida leve",
       durationMinutes: 45,
       caloriesBurned: 320,
-      occurredAt: new Date().toISOString(),
+      dateTimeLocal: ownerDateTimeLocal(new Date().toISOString()),
       notes: "Rodagem de recuperação",
     });
 
@@ -1104,7 +1109,7 @@ describe("nutrition router", () => {
       activityType: "Corrida moderada",
       durationMinutes: 50,
       caloriesBurned: 410,
-      occurredAt: new Date().toISOString(),
+      dateTimeLocal: ownerDateTimeLocal(new Date().toISOString()),
       notes: "Treino com progressão",
     });
     const updatedListAfterEdit = await caller.nutrition.exercises.list();

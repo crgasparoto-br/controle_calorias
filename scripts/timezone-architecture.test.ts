@@ -45,6 +45,14 @@ describe("timezone architecture guard", () => {
     ]);
   });
 
+  it("bloqueia occurredAt absoluto em contrato público temporal", () => {
+    expect(violations("server/modules/quickEdit/schemas.ts", `
+      const quickEditMealMutationSchema = z.object({ occurredAt: z.string() });
+    `)).toEqual([
+      expect.stringContaining("Contrato público temporal aceita occurredAt absoluto"),
+    ]);
+  });
+
   it("permite o contrato central, fixtures e formatação explícita", () => {
     expect(findTimeZoneArchitectureViolations([
       { path: "shared/timeZone.ts", content: 'export const DEFAULT_APP_TIME_ZONE = "America/Sao_Paulo";' },

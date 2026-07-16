@@ -11,7 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
-import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { SAFE_NUTRITION_MESSAGES } from "@shared/safeMessages";
@@ -206,7 +206,7 @@ export default function Home() {
 
     saveAssistantMeal.mutate({
       mealLabel: "jantar",
-      occurredAt: zonedDateTimeLocalToIso(`${selectedDate}T12:00`, userTimeZone),
+      dateTimeLocal: `${selectedDate}T12:00`,
       notes: "Sugestão educativa do assistente alimentar.",
       items: assistantSuggestion.suggestedFoods.map(food => ({
         foodName: food.foodName,

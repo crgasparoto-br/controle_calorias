@@ -262,7 +262,8 @@ export default function LogMealPage() {
 
   const resolveOwnerDateTime = (value: string) => {
     try {
-      return zonedDateTimeLocalToIso(value, userTimeZone);
+      zonedDateTimeLocalToIso(value, userTimeZone);
+      return value;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Informe uma data e um horário válidos.");
       return null;
@@ -271,16 +272,16 @@ export default function LogMealPage() {
 
   const handleExerciseSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const occurredAtIso = resolveOwnerDateTime(exerciseForm.occurredAt);
-    if (!occurredAtIso) return;
-    createExercise.mutate({ activityType: exerciseForm.activityType.trim(), durationMinutes: parseIntegerInputPtBr(exerciseForm.durationMinutes), caloriesBurned: parseIntegerInputPtBr(exerciseForm.caloriesBurned), occurredAt: occurredAtIso, notes: exerciseForm.notes.trim() || undefined });
+    const dateTimeLocal = resolveOwnerDateTime(exerciseForm.occurredAt);
+    if (!dateTimeLocal) return;
+    createExercise.mutate({ activityType: exerciseForm.activityType.trim(), durationMinutes: parseIntegerInputPtBr(exerciseForm.durationMinutes), caloriesBurned: parseIntegerInputPtBr(exerciseForm.caloriesBurned), dateTimeLocal, notes: exerciseForm.notes.trim() || undefined });
   };
 
   const handleWaterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const occurredAtIso = resolveOwnerDateTime(waterForm.occurredAt);
-    if (!occurredAtIso) return;
-    createWaterLog.mutate({ amountMl: waterAmountValue, occurredAt: occurredAtIso });
+    const dateTimeLocal = resolveOwnerDateTime(waterForm.occurredAt);
+    if (!dateTimeLocal) return;
+    createWaterLog.mutate({ amountMl: waterAmountValue, dateTimeLocal });
   };
 
   const handleWeightSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -294,14 +295,14 @@ export default function LogMealPage() {
       toast.error("Informe um peso entre 25 kg e 350 kg.");
       return;
     }
-    const weightMeasuredAtIso = resolveOwnerDateTime(weightMeasuredAt);
-    if (!weightMeasuredAtIso) return;
+    const weightMeasuredAtLocal = resolveOwnerDateTime(weightMeasuredAt);
+    if (!weightMeasuredAtLocal) return;
     updateWeight.mutate({
       name: profile.name?.trim() || "Usuário",
       birthDate: profile.birthDate,
       heightCm: profile.heightCm,
       currentWeightKg: parsedWeight,
-      weightMeasuredAt: weightMeasuredAtIso,
+      weightMeasuredAtLocal,
       weightEntryNote: "Peso atualizado na tela Registrar.",
       objective: profile.objective ?? ONBOARDING_DEFAULTS.objective,
       activityLevel: profile.activityLevel ?? ONBOARDING_DEFAULTS.activityLevel,
@@ -326,9 +327,9 @@ export default function LogMealPage() {
     const items = manualMeal.items.map(item => ({ ...item, foodName: item.foodName.trim(), canonicalName: item.canonicalName.trim() || item.foodName.trim(), portionText: item.portionText.trim() || "1 porção", confidence: Number(item.confidence || 1) }));
     if (!manualMeal.mealLabel.trim()) return toast.error("Informe o nome da refeição.");
     if (!items.length || items.some(item => !item.foodName)) return toast.error("Preencha ao menos um alimento na refeição manual.");
-    const occurredAtIso = resolveOwnerDateTime(manualMeal.occurredAt);
-    if (!occurredAtIso) return;
-    const payload = { mealLabel: manualMeal.mealLabel.trim(), occurredAt: occurredAtIso, notes: manualMeal.notes.trim() || undefined, items };
+    const dateTimeLocal = resolveOwnerDateTime(manualMeal.occurredAt);
+    if (!dateTimeLocal) return;
+    const payload = { mealLabel: manualMeal.mealLabel.trim(), dateTimeLocal, notes: manualMeal.notes.trim() || undefined, items };
     if (manualMeal.mealId) return updateMeal.mutate({ mealId: manualMeal.mealId, ...payload });
     createManualMeal.mutate(payload);
   };
@@ -350,8 +351,8 @@ export default function LogMealPage() {
       <div className="flex flex-wrap gap-2">
         {favoritesQuery.data.map(favorite => (
           <Button key={favorite.id} type="button" variant="outline" className="rounded-full" onClick={() => {
-            const occurredAtIso = resolveOwnerDateTime(manualMeal.occurredAt);
-            if (occurredAtIso) reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: occurredAtIso });
+            const dateTimeLocal = resolveOwnerDateTime(manualMeal.occurredAt);
+            if (dateTimeLocal) reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, dateTimeLocal });
           }} disabled={reuseFavoriteMeal.isPending}>
             <Star className="mr-2 h-4 w-4" />
             {favorite.name}
@@ -391,7 +392,7 @@ export default function LogMealPage() {
               <Input id="record-water-occurred-at" type="datetime-local" value={waterForm.occurredAt} onChange={event => setWaterForm(current => ({ ...current, occurredAt: event.target.value }))} />
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">{[200, 300, 500].map(shortcut => <Button key={shortcut} type="button" variant="outline" className="rounded-full" onClick={() => createWaterLog.mutate({ amountMl: shortcut, occurredAt: new Date().toISOString() })} disabled={createWaterLog.isPending}>+ {formatCountPtBr(shortcut, " ml")}</Button>)}</div>
+          <div className="grid gap-2 sm:grid-cols-3">{[200, 300, 500].map(shortcut => <Button key={shortcut} type="button" variant="outline" className="rounded-full" onClick={() => createWaterLog.mutate({ amountMl: shortcut, dateTimeLocal: toDateTimeLocalValue(new Date(), userTimeZone) })} disabled={createWaterLog.isPending}>+ {formatCountPtBr(shortcut, " ml")}</Button>)}</div>
           <Button type="submit" className="w-full rounded-full" disabled={createWaterLog.isPending || isWaterAmountInvalid}>{createWaterLog.isPending ? "Salvando consumo..." : "Registrar água"}</Button>
         </form>
         <CollapsibleQuickLogs title="Registros recentes de água" count={waterLogs.length} emptyText="Nenhum consumo de água foi registrado ainda." isExpanded={areWaterLogsExpanded} onToggle={() => setAreWaterLogsExpanded(current => !current)}>
@@ -505,9 +506,9 @@ export default function LogMealPage() {
               previewTotals={previewTotals}
               onConfirm={() => {
                 if (!draft?.draftId) return toast.error("Clique em Registrar antes de salvar a refeição.");
-                const occurredAtIso = resolveOwnerDateTime(occurredAt);
-                if (!occurredAtIso) return;
-                confirmMeal.mutate({ draftId: draft.draftId, mealLabel: (mealLabel || draft.processed.detectedMealLabel || "").trim(), occurredAt: occurredAtIso, notes: notes || undefined, items: editableItems });
+                const dateTimeLocal = resolveOwnerDateTime(occurredAt);
+                if (!dateTimeLocal) return;
+                confirmMeal.mutate({ draftId: draft.draftId, mealLabel: (mealLabel || draft.processed.detectedMealLabel || "").trim(), dateTimeLocal, notes: notes || undefined, items: editableItems });
               }}
               isConfirmPending={confirmMeal.isPending}
             />

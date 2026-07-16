@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { getDateKeyInTimeZone } from "../shared/timeZone";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import { analyticsService } from "./analyticsService";
@@ -32,6 +33,8 @@ import {
 } from "./modules/exercises/schemas";
 import { getNutritionGoalForDate, UnsafeNutritionGoalError, updateNutritionGoal } from "./modules/goals/service";
 import { getEffectiveUserTimeZone, resolveEffectiveUserTimeZone } from "./modules/timeZone/service";
+import { OwnerLocalDateTimeInputError, resolveOwnerLocalDateTime } from "./modules/timeZone/civilInput";
+import { ownerDateTimeLocalSchema } from "./modules/timeZone/schemas";
 import { goalSchema } from "./modules/goals/schemas";
 import { getGamification, updateGamificationSettings } from "./modules/gamification/service";
 import { gamificationSettingsSchema } from "./modules/gamification/schemas";
@@ -77,7 +80,7 @@ import {
 } from "./modules/insights/service";
 import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
-import { onboardingSchema } from "./modules/onboarding/schemas";
+import { onboardingMutationSchema } from "./modules/onboarding/schemas";
 import { sendOnboardingWelcomeWhatsapp } from "./modules/onboarding/webGreetingService";
 import {
   listMealSchedules,
@@ -114,6 +117,7 @@ import {
   copyMealSchema,
   dayTotalsSchema,
   manualMealSchema,
+  mealItemSchema,
   processMealDraftSchema,
   removeMealGroupSchema,
   removeMealSchema,
@@ -207,6 +211,53 @@ function daysBetweenDates(from: string | number, to: string | number) {
   const toDate = new Date(to);
   if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 0;
   return Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000);
+}
+
+const manualMealMutationSchema = manualMealSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const updateMealMutationSchema = updateMealSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const confirmMealMutationSchema = confirmMealSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const copyMealMutationSchema = copyMealSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const copyMealGroupMutationSchema = copyMealGroupSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const reuseFavoriteMealMutationSchema = reuseFavoriteMealSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const updateMealGroupMutationSchema = z.object({
+  mealLabel: z.string().trim().min(1).max(80),
+  meals: z.array(z.object({
+    mealId: z.number().int().positive(),
+    dateTimeLocal: ownerDateTimeLocalSchema.optional(),
+    items: z.array(mealItemSchema),
+  })).min(1).max(50),
+});
+const exerciseMutationSchema = exerciseSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const updateExerciseMutationSchema = updateExerciseSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+const waterLogMutationSchema = waterLogSchema
+  .omit({ occurredAt: true })
+  .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
+
+function toOwnerOccurredAt(dateTimeLocal: string, timeZone: string) {
+  try {
+    return resolveOwnerLocalDateTime(dateTimeLocal, timeZone);
+  } catch (error) {
+    if (error instanceof OwnerLocalDateTimeInputError) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+    }
+    throw error;
+  }
 }
 
 export const nutritionRouter = router({
@@ -356,8 +407,14 @@ export const nutritionRouter = router({
   onboarding: router({
     profile: protectedProcedure.query(async ({ ctx }) => getUserOnboardingProfile(ctx.user.id)),
     timeZone: protectedProcedure.query(async ({ ctx }) => resolveEffectiveUserTimeZone(ctx.user.id)),
-    complete: protectedProcedure.input(onboardingSchema).mutation(async ({ ctx, input }) => {
-      const result = await completeOnboarding(ctx.user.id, input);
+    complete: protectedProcedure.input(onboardingMutationSchema).mutation(async ({ ctx, input }) => {
+      const { weightMeasuredAtLocal, ...profileInput } = input;
+      const result = await completeOnboarding(ctx.user.id, {
+        ...profileInput,
+        weightMeasuredAt: weightMeasuredAtLocal
+          ? toOwnerOccurredAt(weightMeasuredAtLocal, input.timezone)
+          : undefined,
+      });
       void analyticsService.track("onboarding_completed", {
         objective: input.objective,
         activity_level: input.activityLevel,
@@ -502,14 +559,17 @@ export const nutritionRouter = router({
       const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
       return getDayTotals(ctx.user.id, input.date, timeZone);
     }),
-    createManual: protectedProcedure.input(manualMealSchema).mutation(async ({ ctx, input }) => {
-      const result = await createManualMeal(ctx.user.id, input);
+    createManual: protectedProcedure.input(manualMealMutationSchema).mutation(async ({ ctx, input }) => {
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const { dateTimeLocal, ...mealInput } = input;
+      const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+      const result = await createManualMeal(ctx.user.id, { ...mealInput, occurredAt });
       void analyticsService.track("meal_created", {
         source: "web",
         meal_label_category: mealLabelCategory(input.mealLabel),
         item_count: input.items.length,
         has_notes: Boolean(input.notes?.trim()),
-        scheduled_for_future: new Date(input.occurredAt).getTime() > Date.now(),
+        scheduled_for_future: new Date(occurredAt).getTime() > Date.now(),
       });
       void analyticsService.track("meal_item_added", {
         source: "web",
@@ -519,17 +579,33 @@ export const nutritionRouter = router({
       return result;
     }),
     update: protectedProcedure
-      .input(updateMealSchema)
-      .mutation(async ({ ctx, input }) => updateMeal(ctx.user.id, input)),
-    updateGroup: protectedProcedure
-      .input(updateMealGroupSchema)
-      .mutation(async ({ ctx, input }) => updateMealGroup(ctx.user.id, input)),
-    copy: protectedProcedure
-      .input(copyMealSchema)
+      .input(updateMealMutationSchema)
       .mutation(async ({ ctx, input }) => {
-        const result = await copyMeal(ctx.user.id, input);
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...mealInput } = input;
+        return updateMeal(ctx.user.id, { ...mealInput, occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone) });
+      }),
+    updateGroup: protectedProcedure
+      .input(updateMealGroupMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        return updateMealGroup(ctx.user.id, {
+          mealLabel: input.mealLabel,
+          meals: input.meals.map(({ dateTimeLocal, ...meal }) => ({
+            ...meal,
+            occurredAt: dateTimeLocal ? toOwnerOccurredAt(dateTimeLocal, timeZone) : undefined,
+          })),
+        });
+      }),
+    copy: protectedProcedure
+      .input(copyMealMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...copyInput } = input;
+        const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+        const result = await copyMeal(ctx.user.id, { ...copyInput, occurredAt });
         void analyticsService.track("meal_copied", {
-          target_offset_days: daysBetweenDates(Date.now(), input.occurredAt),
+          target_offset_days: daysBetweenDates(Date.now(), occurredAt),
         });
         void analyticsService.track("meal_created", {
           source: "copy",
@@ -541,12 +617,15 @@ export const nutritionRouter = router({
         return result;
       }),
     copyGroup: protectedProcedure
-      .input(copyMealGroupSchema)
+      .input(copyMealGroupMutationSchema)
       .mutation(async ({ ctx, input }) => {
-        const result = await copyMealGroup(ctx.user.id, input);
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...copyInput } = input;
+        const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+        const result = await copyMealGroup(ctx.user.id, { ...copyInput, occurredAt });
         void analyticsService.track("meal_group_copied", {
           item_count: result.items.length,
-          target_offset_days: daysBetweenDates(Date.now(), input.occurredAt),
+          target_offset_days: daysBetweenDates(Date.now(), occurredAt),
         });
         void analyticsService.track("meal_created", {
           source: "copy",
@@ -573,9 +652,14 @@ export const nutritionRouter = router({
         return result;
       }),
     reuseFavorite: protectedProcedure
-      .input(reuseFavoriteMealSchema)
+      .input(reuseFavoriteMealMutationSchema)
       .mutation(async ({ ctx, input }) => {
-        const result = await reuseMealFavorite(ctx.user.id, input);
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...favoriteInput } = input;
+        const result = await reuseMealFavorite(ctx.user.id, {
+          ...favoriteInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
         void analyticsService.track("meal_created", {
           source: "favorite",
           meal_label_category: mealLabelCategory(result.mealLabel),
@@ -598,16 +682,19 @@ export const nutritionRouter = router({
         return processMealDraft(ctx.user.id, input, timeZone);
       }),
     confirm: protectedProcedure
-      .input(confirmMealSchema)
+      .input(confirmMealMutationSchema)
       .mutation(async ({ ctx, input }) => {
         try {
-          const result = await confirmMeal(ctx.user.id, input);
+          const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+          const { dateTimeLocal, ...confirmationInput } = input;
+          const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+          const result = await confirmMeal(ctx.user.id, { ...confirmationInput, occurredAt });
           void analyticsService.track("meal_created", {
             source: "ai_draft",
             meal_label_category: mealLabelCategory(input.mealLabel),
             item_count: input.items.length,
             has_notes: Boolean(input.notes?.trim()),
-            scheduled_for_future: new Date(input.occurredAt).getTime() > Date.now(),
+            scheduled_for_future: new Date(occurredAt).getTime() > Date.now(),
           });
           void analyticsService.track("meal_item_added", {
             source: "ai_draft",
@@ -627,10 +714,18 @@ export const nutritionRouter = router({
 
   exercises: router({
     list: protectedProcedure.query(async ({ ctx }) => listExercises(ctx.user.id)),
-    create: protectedProcedure.input(exerciseSchema).mutation(async ({ ctx, input }) => createExercise(ctx.user.id, input)),
+    create: protectedProcedure.input(exerciseMutationSchema).mutation(async ({ ctx, input }) => {
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const { dateTimeLocal, ...exerciseInput } = input;
+      return createExercise(ctx.user.id, { ...exerciseInput, occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone) });
+    }),
     update: protectedProcedure
-      .input(updateExerciseSchema)
-      .mutation(async ({ ctx, input }) => updateExercise(ctx.user.id, input)),
+      .input(updateExerciseMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...exerciseInput } = input;
+        return updateExercise(ctx.user.id, { ...exerciseInput, occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone) });
+      }),
     remove: protectedProcedure
       .input(removeExerciseSchema)
       .mutation(async ({ ctx, input }) => removeExercise(ctx.user.id, input.exerciseId)),
@@ -640,7 +735,11 @@ export const nutritionRouter = router({
     goal: protectedProcedure.query(async ({ ctx }) => getWaterGoal(ctx.user.id)),
     updateGoal: protectedProcedure.input(waterGoalSchema).mutation(async ({ ctx, input }) => updateWaterGoal(ctx.user.id, input)),
     list: protectedProcedure.query(async ({ ctx }) => listWaterLogs(ctx.user.id)),
-    create: protectedProcedure.input(waterLogSchema).mutation(async ({ ctx, input }) => createWaterLog(ctx.user.id, input)),
+    create: protectedProcedure.input(waterLogMutationSchema).mutation(async ({ ctx, input }) => {
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const { dateTimeLocal, ...waterInput } = input;
+      return createWaterLog(ctx.user.id, { ...waterInput, occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone) });
+    }),
     remove: protectedProcedure
       .input(removeWaterLogSchema)
       .mutation(async ({ ctx, input }) => removeWaterLog(ctx.user.id, input.waterLogId)),

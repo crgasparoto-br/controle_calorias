@@ -12,3 +12,8 @@ Regras:
 - salvar o mesmo minuto civil preserva o instante original completo, inclusive segundos e milissegundos;
 - token inválido, expirado ou de outro registro não revela timezone nem dados do dono;
 - falha técnica ao resolver perfil/timezone interrompe a alteração, sem fallback silencioso.
+
+
+## Contrato público de atualização
+
+As mutations públicas aceitam somente `dateTimeLocal`. O caminho legado com `occurredAt` absoluto foi removido; a conversão e a validação de DST são executadas exclusivamente no backend usando o timezone do dono resolvido após a validação do token.

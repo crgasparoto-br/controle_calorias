@@ -12,34 +12,17 @@ const localDateTimeSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/, "Informe uma data e um horário local válidos.")
   .max(19);
 
-function requireOneTemporalValue(
-  input: { occurredAt?: string; dateTimeLocal?: string },
-  ctx: z.RefinementCtx,
-) {
-  if (Boolean(input.occurredAt) === Boolean(input.dateTimeLocal)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["dateTimeLocal"],
-      message: "Informe exatamente um horário para a edição.",
-    });
-  }
-}
-
 const quickEditMealPayloadSchema = updateMealSchema
   .omit({ mealId: true, occurredAt: true })
   .extend({
-    occurredAt: z.string().min(1).optional(),
-    dateTimeLocal: localDateTimeSchema.optional(),
-  })
-  .superRefine(requireOneTemporalValue);
+    dateTimeLocal: localDateTimeSchema,
+  });
 
 const quickEditExercisePayloadSchema = updateExerciseSchema
   .omit({ exerciseId: true, occurredAt: true })
   .extend({
-    occurredAt: z.string().min(1).optional(),
-    dateTimeLocal: localDateTimeSchema.optional(),
-  })
-  .superRefine(requireOneTemporalValue);
+    dateTimeLocal: localDateTimeSchema,
+  });
 
 export const quickEditMealUpdateSchema = quickEditTokenSchema.extend({
   meal: quickEditMealPayloadSchema,
