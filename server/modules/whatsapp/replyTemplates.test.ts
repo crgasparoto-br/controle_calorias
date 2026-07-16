@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildWhatsAppBlock,
+  buildWhatsAppCalorieBalanceLine,
   buildWhatsAppFoodLines,
   buildWhatsAppGoalProgressLines,
   buildWhatsAppMealTotalLines,
@@ -47,16 +48,16 @@ describe("replyTemplates", () => {
     expect(buildWhatsAppFoodLines({ ...banana, source: "heuristic" })).toHaveLength(3);
   });
 
-  it("mantém o contrato existente do total da refeição", () => {
+  it("destaca em negrito o total da refeição e seus valores", () => {
     const totals = { calories: 247.5, protein: 46.5, carbs: 0, fat: 5.4 };
     expect(buildWhatsAppMealTotalLines(totals)).toEqual([
-      "Total da refeição:",
-      "247,5 kcal | P 46,5 g | C 0 g | G 5,4 g",
+      "*Total da refeição:*",
+      "*247,5 kcal | P 46,5 g | C 0 g | G 5,4 g*",
     ]);
     expect(formatWhatsAppNutritionTotalsLine(totals)).toBe("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");
   });
 
-  it("formata meta final e diferença como consumo menos meta", () => {
+  it("separa consumo e déficit usando a meta efetiva", () => {
     expect(buildWhatsAppGoalProgressLines({
       consumedCalories: 1850,
       effectiveGoalCalories: 2000,
@@ -64,7 +65,8 @@ describe("replyTemplates", () => {
     })).toEqual([
       "*Meta:* 2.000 kcal",
       "*Exercícios:* 350 kcal",
-      "*Consumo:* 1.850 kcal (-150 kcal)",
+      "*Consumo:* 1.850 kcal",
+      "*Déficit:* 150 kcal (-8%)",
     ]);
   });
 
@@ -74,11 +76,20 @@ describe("replyTemplates", () => {
       goalCalories: 2000,
     })).toEqual([
       "*Meta:* 2.000 kcal",
-      "*Consumo:* 2.100 kcal (+100 kcal)",
+      "*Consumo:* 2.100 kcal",
+      "*Superávit:* 100 kcal (+5%)",
     ]);
   });
 
-  it("inclui macronutrientes somente quando consumo e meta estão disponíveis", () => {
+  it("normaliza os valores exibidos antes de classificar equilíbrio", () => {
+    expect(buildWhatsAppCalorieBalanceLine({
+      consumedCalories: 2000.4,
+      effectiveGoalCalories: 2000.49,
+      precision: 0,
+    })).toBe("*Equilíbrio:* 0 kcal (0%)");
+  });
+
+  it("inclui consumo, diferença e percentual de macronutrientes", () => {
     expect(buildWhatsAppGoalProgressLines({
       consumedCalories: 1850,
       effectiveGoalCalories: 2000,
@@ -90,12 +101,31 @@ describe("replyTemplates", () => {
       targetFatGrams: 50,
     })).toEqual([
       "*Meta:* 2.000 kcal",
-      "*Consumo:* 1.850 kcal (-150 kcal)",
+      "*Consumo:* 1.850 kcal",
+      "*Déficit:* 150 kcal (-8%)",
       "",
       "*Macronutrientes*",
-      "• P 110 g (-10 g)",
-      "• C 130 g (-20 g)",
-      "• G 55 g (+5 g)",
+      "• P 110 g (-10 g/-8%)",
+      "• C 130 g (-20 g/-13%)",
+      "• G 55 g (+5 g/+10%)",
+    ]);
+  });
+
+  it("omite somente o macro cuja meta esteja ausente ou inválida", () => {
+    expect(buildWhatsAppGoalProgressLines({
+      consumedCalories: 2000,
+      effectiveGoalCalories: 2000,
+      consumedProteinGrams: 100,
+      targetProteinGrams: 0,
+      consumedCarbsGrams: 150,
+      targetCarbsGrams: 150,
+    })).toEqual([
+      "*Meta:* 2.000 kcal",
+      "*Consumo:* 2.000 kcal",
+      "*Equilíbrio:* 0 kcal (0%)",
+      "",
+      "*Macronutrientes*",
+      "• C 150 g (0 g/0%)",
     ]);
   });
 });
