@@ -41,7 +41,7 @@ describe("Sleep Koala deletion regression", () => {
   it("deprecia a associação antiga, limpa os stores e persiste a classificação atual", async () => {
     const rows = [row()];
     const favorites = new Set<number>();
-    const insertIds = [21, 99];
+    const insertIds = [3001, 3002];
     let insertIndex = 0;
     let databaseAvailable = true;
 
@@ -109,7 +109,7 @@ describe("Sleep Koala deletion regression", () => {
       source: "ai_estimated",
       foodType: "branded",
     });
-    expect(created.id).toBe(21);
+    expect(created.id).toBe(3001);
     await foodsService.upsertFavoriteFood(7, created.id, true);
 
     const execute = vi.fn(async () => {
@@ -192,7 +192,7 @@ describe("Sleep Koala deletion regression", () => {
       7
     );
     expect(resolvedOldDraft.has(`catalog:${created.id}`)).toBe(false);
-    expect(resolvedOldDraft.get("Sleep Koala")).toBe(99);
+    expect(resolvedOldDraft.get("Sleep Koala")).toBe(3002);
     expect(resolvedOldDraft.get("Sleep Koala")).not.toBe(20);
     expect(insert).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -209,7 +209,7 @@ describe("Sleep Koala deletion regression", () => {
       [{ foodName: "Sleep Koala", canonicalName: "Sleep Koala" } as any],
       7
     );
-    expect(resolvedNextRegistration.get("Sleep Koala")).toBe(99);
+    expect(resolvedNextRegistration.get("Sleep Koala")).toBe(3002);
     expect(insert).toHaveBeenCalledTimes(2);
   });
 });
