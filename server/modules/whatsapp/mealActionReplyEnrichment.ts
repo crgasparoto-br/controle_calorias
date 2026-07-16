@@ -12,10 +12,21 @@ function replaceOnce(value: string, search: string, replacement: string) {
   return `${value.slice(0, index)}${replacement}${value.slice(index + search.length)}`;
 }
 
-function prioritizeMeal<T extends { id: number }>(meals: T[], mealId?: number | null) {
+function prioritizeMealsForReply<T extends { id: number; occurredAt: number | string | Date }>(
+  meals: T[],
+  mealId: number | null | undefined,
+  timeZone: string,
+) {
   if (!mealId) return meals;
   const selected = meals.find(meal => meal.id === mealId);
-  return selected ? [selected, ...meals.filter(meal => meal.id !== mealId)] : meals;
+  if (!selected) return meals;
+
+  const selectedDateKey = getDateKeyInTimeZone(new Date(selected.occurredAt), timeZone);
+  return [
+    selected,
+    ...meals.filter(meal => meal.id !== mealId
+      && getDateKeyInTimeZone(new Date(meal.occurredAt), timeZone) === selectedDateKey),
+  ];
 }
 
 function insertProgressAfterMealTotal(input: {
@@ -49,7 +60,7 @@ export async function enrichWhatsAppMealActionReply(input: {
 
   try {
     const timeZone = input.timeZone ?? await getWhatsAppOperationTimeZone(input.userId);
-    const meals = prioritizeMeal(await listMeals(input.userId), input.mealId);
+    const meals = prioritizeMealsForReply(await listMeals(input.userId), input.mealId, timeZone);
     const progressByDate = new Map<string, ReturnType<typeof getWhatsAppMealGoalProgress>>();
     let replyText = input.replyText;
 
