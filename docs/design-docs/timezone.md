@@ -54,4 +54,8 @@ Exemplos obrigatórios de regressão:
 2. altera o default da coluna;
 3. não altera valores IANA válidos, inclusive `UTC`.
 
-Valores legados inválidos são tratados pelo fallback central até que exista uma correção comprovadamente segura para o registro específico.
+Valores legados inválidos são tratados pelo fallback central até que exista uma correção comprovadamente segura para o registro específico. Em produção, a compatibilidade de runtime apenas verifica o formato esperado da coluna e exige a migration versionada; reparos automáticos permanecem restritos a ambientes locais/de teste.
+
+## Validação da fundação
+
+A fundação deve manter testes determinísticos para IANA válido fora da lista visual, fallback estruturado, erro de banco, preservação de `UTC`, limites UTC semiabertos e transições reais de DST. O gate completo inclui `pnpm agent:check` e `pnpm build`; `pnpm db:check-integrity` é executado quando houver `DATABASE_URL` disponível.
