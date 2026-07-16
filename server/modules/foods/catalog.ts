@@ -4,6 +4,11 @@ import { foodCatalogDirectKey } from "../../foodCatalogKeys";
 import type { FoodCatalogRepository } from "../../repositories/foodCatalogRepository";
 import type { MealDraftItem } from "../../nutritionEngine";
 import type { FoodProcessingLevel } from "../../../shared/reportsGoalAnalytics";
+import {
+  clearDeprecatedFoodRegistry,
+  getDeprecatedIdentityKeys,
+  isFoodDeprecatedInMemory,
+} from "./deprecationRegistry";
 
 export type FoodSearchItem = {
   id: number;
@@ -24,6 +29,7 @@ export type FoodSearchItem = {
   foodType: "generic" | "branded";
   isUserCreated: boolean;
   createdByUserId?: number | null;
+  status?: "active" | "deprecated";
   isFavorite: boolean;
   lastUsedAt?: number | null;
 };
@@ -46,28 +52,32 @@ export type FoodUpsertInput = {
   foodType: "generic" | "branded";
 };
 
-const referenceFoods: FoodSearchItem[] = FOOD_CATALOG_REFERENCE.map((food, index) => ({
-  id: index + 1,
-  name: food.name,
-  brandName: null,
-  servingSize: food.gramsPerServing,
-  servingUnit: food.servingLabel.replace(String(food.gramsPerServing), "").trim() || "porção",
-  calories: food.calories,
-  protein: food.protein,
-  carbs: food.carbs,
-  fat: food.fat,
-  fiber: null,
-  processingLevel: food.processingLevel,
-  isFruit: false,
-  isVegetable: false,
-  isUltraProcessed: false,
-  source: "catalog",
-  foodType: "generic",
-  isUserCreated: false,
-  createdByUserId: null,
-  isFavorite: false,
-  lastUsedAt: null,
-}));
+const referenceFoods: FoodSearchItem[] = FOOD_CATALOG_REFERENCE.map(
+  (food, index) => ({
+    id: index + 1,
+    name: food.name,
+    brandName: null,
+    servingSize: food.gramsPerServing,
+    servingUnit:
+      food.servingLabel.replace(String(food.gramsPerServing), "").trim() ||
+      "porção",
+    calories: food.calories,
+    protein: food.protein,
+    carbs: food.carbs,
+    fat: food.fat,
+    fiber: null,
+    processingLevel: food.processingLevel,
+    isFruit: false,
+    isVegetable: false,
+    isUltraProcessed: false,
+    source: "catalog",
+    foodType: "generic",
+    isUserCreated: false,
+    createdByUserId: null,
+    isFavorite: false,
+    lastUsedAt: null,
+  })
+);
 
 export function normalizeCatalogText(value: string) {
   return value
@@ -79,7 +89,9 @@ export function normalizeCatalogText(value: string) {
 }
 
 function toSlug(value: string) {
-  const normalized = normalizeCatalogText(value).replace(/[\s_]+/g, "-").replace(/-+/g, "-");
+  const normalized = normalizeCatalogText(value)
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-");
   return normalized || `food-${Date.now()}`;
 }
 
@@ -93,7 +105,10 @@ function rankFoods(food: FoodSearchItem, query: string) {
   return exact + favorite + recent + userCreated;
 }
 
-function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[] {
+function parseJsonArray<T>(
+  value: string | null | undefined,
+  fallback: T[]
+): T[] {
   if (!value) return fallback;
   try {
     const parsed = JSON.parse(value) as T[];
@@ -103,40 +118,59 @@ function parseJsonArray<T>(value: string | null | undefined, fallback: T[]): T[]
   }
 }
 
-function setResolvedCatalogId(resolved: Map<string, number>, key: string | null | undefined, foodCatalogId: number) {
+function setResolvedCatalogId(
+  resolved: Map<string, number>,
+  key: string | null | undefined,
+  foodCatalogId: number
+) {
   if (key?.trim()) {
     resolved.set(key, foodCatalogId);
   }
 }
 
 function foodAlreadyMatchesInput(food: FoodSearchItem, input: FoodUpsertInput) {
-  return food.name === input.name
-    && (food.brandName ?? null) === (input.brandName ?? null)
-    && food.servingSize === input.servingSize
-    && food.servingUnit === input.servingUnit
-    && food.calories === input.calories
-    && food.protein === input.protein
-    && food.carbs === input.carbs
-    && food.fat === input.fat
-    && (food.fiber ?? null) === (input.fiber ?? null)
-    && food.isFruit === (input.isFruit ?? false)
-    && food.isVegetable === (input.isVegetable ?? false)
-    && food.isUltraProcessed === (input.isUltraProcessed ?? false)
-    && food.source === (input.source || "manual")
-    && food.foodType === input.foodType;
+  return (
+    food.name === input.name &&
+    (food.brandName ?? null) === (input.brandName ?? null) &&
+    food.servingSize === input.servingSize &&
+    food.servingUnit === input.servingUnit &&
+    food.calories === input.calories &&
+    food.protein === input.protein &&
+    food.carbs === input.carbs &&
+    food.fat === input.fat &&
+    (food.fiber ?? null) === (input.fiber ?? null) &&
+    food.isFruit === (input.isFruit ?? false) &&
+    food.isVegetable === (input.isVegetable ?? false) &&
+    food.isUltraProcessed === (input.isUltraProcessed ?? false) &&
+    food.source === (input.source || "manual") &&
+    food.foodType === input.foodType
+  );
 }
 
 export function createFoodsService(deps: {
   foodCatalogRepository: FoodCatalogRepository;
-  findMealItemsWithDates: (userId: number) => Promise<Array<{ canonicalName?: string | null; foodName: string; occurredAt: number }>>;
-  getUserMealsMemory: (userId: number) => Array<{ items: MealDraftItem[]; occurredAt: number }>;
+  findMealItemsWithDates: (
+    userId: number
+  ) => Promise<
+    Array<{
+      canonicalName?: string | null;
+      foodName: string;
+      occurredAt: number;
+    }>
+  >;
+  getUserMealsMemory: (
+    userId: number
+  ) => Array<{ items: MealDraftItem[]; occurredAt: number }>;
   getDb: () => Promise<unknown>;
   onWarning: (scope: string, error: unknown) => void;
 }) {
   const userFoodStore = new Map<number, FoodSearchItem[]>();
   const favoriteFoodStore = new Map<number, Set<number>>();
   let foodIdSequence = 10000;
-  let dbSearchContext: { userId: number; promise: Promise<FoodSearchItem[]> } | null = null;
+  let dbSearchContext: {
+    userId: number;
+    promise: Promise<FoodSearchItem[]>;
+  } | null = null;
 
   function getMemoryFoodsForUser(userId: number) {
     const favorites = favoriteFoodStore.get(userId) ?? new Set<number>();
@@ -147,25 +181,34 @@ export function createFoodsService(deps: {
     for (const meal of recentMeals) {
       for (const item of meal.items) {
         const key = normalizeCatalogText(item.canonicalName || item.foodName);
-        recentByName.set(key, Math.max(recentByName.get(key) ?? 0, meal.occurredAt));
+        recentByName.set(
+          key,
+          Math.max(recentByName.get(key) ?? 0, meal.occurredAt)
+        );
       }
     }
 
-    return [...userFoods, ...referenceFoods].map(food => {
-      const lastUsedAt = recentByName.get(normalizeCatalogText(food.name)) ?? food.lastUsedAt ?? null;
-      return {
-        ...food,
-        isFavorite: favorites.has(food.id),
-        lastUsedAt,
-      };
-    });
+    return [...userFoods, ...referenceFoods]
+      .filter(food => !isFoodDeprecatedInMemory(userId, food.id))
+      .map(food => {
+        const lastUsedAt =
+          recentByName.get(normalizeCatalogText(food.name)) ??
+          food.lastUsedAt ??
+          null;
+        return {
+          ...food,
+          isFavorite: favorites.has(food.id),
+          lastUsedAt,
+        };
+      });
   }
 
   async function loadFavoriteFoodIdsFromDb(userId: number) {
     const db = await deps.getDb();
     if (!db) return favoriteFoodStore.get(userId) ?? new Set<number>();
 
-    const ids = await deps.foodCatalogRepository.findFavoriteIdsByUserId(userId);
+    const ids =
+      await deps.foodCatalogRepository.findFavoriteIdsByUserId(userId);
     favoriteFoodStore.set(userId, ids);
     return ids;
   }
@@ -188,48 +231,77 @@ export function createFoodsService(deps: {
     }
   }
 
+  function mapCatalogRow(
+    row: Awaited<ReturnType<FoodCatalogRepository["findAll"]>>[number],
+    favorites: Set<number>,
+    usage: Map<string, number>
+  ): FoodSearchItem {
+    return {
+      id: row.id,
+      name: row.name,
+      brandName: row.brandName,
+      servingSize: row.gramsPerServing,
+      servingUnit: row.servingUnit,
+      calories: row.calories,
+      protein: row.protein,
+      carbs: row.carbs,
+      fat: row.fat,
+      fiber: row.fiber,
+      processingLevel: row.processingLevel ?? undefined,
+      isFruit: row.isFruit === 1,
+      isVegetable: row.isVegetable === 1,
+      isUltraProcessed: row.isUltraProcessed === 1,
+      source: row.dataSource,
+      foodType: row.foodType,
+      isUserCreated: row.isUserCreated === 1,
+      createdByUserId: row.createdByUserId,
+      status: row.status ?? "active",
+      isFavorite:
+        (row.status ?? "active") === "active" && favorites.has(row.id),
+      lastUsedAt: usage.get(normalizeCatalogText(row.name)) ?? null,
+    };
+  }
+
   async function loadDbSearchFoods(userId: number) {
-    const [favorites, rows, usage] = await Promise.all([
+    const [favorites, allRows, usage] = await Promise.all([
       loadFavoriteFoodIdsFromDb(userId),
-      deps.foodCatalogRepository.findAll(),
+      deps.foodCatalogRepository.findActiveForUser
+        ? deps.foodCatalogRepository.findActiveForUser(userId)
+        : deps.foodCatalogRepository.findAll(),
       loadRecentFoodUsageFromDb(userId),
     ]);
 
-    return rows
+    return allRows
+      .filter(row => (row.status ?? "active") === "active")
       .filter(row => !row.createdByUserId || row.createdByUserId === userId)
-      .map(row => {
-        const lastUsedAt = usage.get(normalizeCatalogText(row.name)) ?? null;
-        return {
-          id: row.id,
-          name: row.name,
-          brandName: row.brandName,
-          servingSize: row.gramsPerServing,
-          servingUnit: row.servingUnit,
-          calories: row.calories,
-          protein: row.protein,
-          carbs: row.carbs,
-          fat: row.fat,
-          fiber: row.fiber,
-          processingLevel: row.processingLevel ?? undefined,
-          isFruit: row.isFruit === 1,
-          isVegetable: row.isVegetable === 1,
-          isUltraProcessed: row.isUltraProcessed === 1,
-          source: row.dataSource,
-          foodType: row.foodType,
-          isUserCreated: row.isUserCreated === 1,
-          createdByUserId: row.createdByUserId,
-          isFavorite: favorites.has(row.id),
-          lastUsedAt,
-        } satisfies FoodSearchItem;
-      });
+      .filter(row => !isFoodDeprecatedInMemory(userId, row.id))
+      .map(row => mapCatalogRow(row, favorites, usage));
   }
 
   async function getFoodsByIds(userId: number, ids: number[]) {
     if (!ids.length) return [];
+    const uniqueIds = Array.from(new Set(ids));
+    const db = await deps.getDb();
 
-    const uniqueIds = new Set(ids);
-    const foods = await getDbSearchFoods(userId);
-    return foods.filter(food => uniqueIds.has(food.id));
+    if (!db) {
+      const historicalFoods = [
+        ...(userFoodStore.get(userId) ?? []),
+        ...referenceFoods,
+      ];
+      return historicalFoods.filter(food => uniqueIds.includes(food.id));
+    }
+
+    const [favorites, rows] = await Promise.all([
+      loadFavoriteFoodIdsFromDb(userId),
+      deps.foodCatalogRepository.findByIdsForUser
+        ? deps.foodCatalogRepository.findByIdsForUser(userId, uniqueIds)
+        : deps.foodCatalogRepository
+            .findAll()
+            .then(allRows => allRows.filter(row => uniqueIds.includes(row.id))),
+    ]);
+    return rows
+      .filter(row => !row.createdByUserId || row.createdByUserId === userId)
+      .map(row => mapCatalogRow(row, favorites, new Map()));
   }
 
   async function getDbSearchFoods(userId: number) {
@@ -259,10 +331,20 @@ export function createFoodsService(deps: {
         return foods
           .filter(food => {
             if (!normalizedQuery) return true;
-            const haystack = normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`);
-            return haystack.includes(normalizedQuery) || fuzzyMatchesWords(normalizedQuery, haystack);
+            const haystack = normalizeCatalogText(
+              `${food.name} ${food.brandName ?? ""}`
+            );
+            return (
+              haystack.includes(normalizedQuery) ||
+              fuzzyMatchesWords(normalizedQuery, haystack)
+            );
           })
-          .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
+          .sort(
+            (a, b) =>
+              rankFoods(b, query) - rankFoods(a, query) ||
+              (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) ||
+              a.name.localeCompare(b.name)
+          )
           .slice(0, limit);
       } catch (error) {
         deps.onWarning("Food search read skipped", error);
@@ -270,16 +352,33 @@ export function createFoodsService(deps: {
     }
 
     return getMemoryFoodsForUser(userId)
-      .filter(food => !normalizedQuery || normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`).includes(normalizedQuery))
-      .sort((a, b) => rankFoods(b, query) - rankFoods(a, query) || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name))
+      .filter(
+        food =>
+          !normalizedQuery ||
+          normalizeCatalogText(`${food.name} ${food.brandName ?? ""}`).includes(
+            normalizedQuery
+          )
+      )
+      .sort(
+        (a, b) =>
+          rankFoods(b, query) - rankFoods(a, query) ||
+          (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) ||
+          a.name.localeCompare(b.name)
+      )
       .slice(0, limit);
   }
 
   async function listRecentFoods(userId: number, limit = 10) {
-    return (await searchFoods(userId, "", 100)).filter(food => food.lastUsedAt).slice(0, limit);
+    return (await searchFoods(userId, "", 100))
+      .filter(food => food.lastUsedAt)
+      .slice(0, limit);
   }
 
-  async function upsertFavoriteFood(userId: number, foodId: number, favorite: boolean) {
+  async function upsertFavoriteFood(
+    userId: number,
+    foodId: number,
+    favorite: boolean
+  ) {
     const favorites = new Set(favoriteFoodStore.get(userId) ?? []);
     if (favorite) favorites.add(foodId);
     else favorites.delete(foodId);
@@ -299,7 +398,10 @@ export function createFoodsService(deps: {
     }
 
     const [food] = await searchFoods(userId, "", 200);
-    return (await searchFoods(userId, "", 200)).find(item => item.id === foodId) ?? food;
+    return (
+      (await searchFoods(userId, "", 200)).find(item => item.id === foodId) ??
+      food
+    );
   }
 
   async function createUserFood(userId: number, input: FoodUpsertInput) {
@@ -360,12 +462,20 @@ export function createFoodsService(deps: {
     return food;
   }
 
-  async function updateUserFood(userId: number, input: FoodUpsertInput & { foodId: number }) {
+  async function updateUserFood(
+    userId: number,
+    input: FoodUpsertInput & { foodId: number }
+  ) {
     const current = userFoodStore.get(userId) ?? [];
     let existing = current.find(food => food.id === input.foodId);
     if (!existing) {
       const dbFoods = await searchFoods(userId, "", 200);
-      existing = dbFoods.find(food => food.id === input.foodId && food.isUserCreated && food.createdByUserId === userId);
+      existing = dbFoods.find(
+        food =>
+          food.id === input.foodId &&
+          food.isUserCreated &&
+          food.createdByUserId === userId
+      );
       if (!existing) {
         throw new Error("Alimento criado pelo usuário não encontrado.");
       }
@@ -395,29 +505,36 @@ export function createFoodsService(deps: {
     const db = await deps.getDb();
     if (db) {
       try {
-        const updatedRows = await deps.foodCatalogRepository.update(input.foodId, userId, {
-          name: input.name,
-          brandName: input.brandName ?? null,
-          foodType: input.foodType,
-          dataSource: input.source || "manual",
-          servingLabel: `${input.servingSize} ${input.servingUnit}`,
-          servingUnit: input.servingUnit,
-          gramsPerServing: input.servingSize,
-          calories: input.calories,
-          protein: input.protein,
-          carbs: input.carbs,
-          fat: input.fat,
-          fiber: input.fiber ?? null,
-          isFruit: input.isFruit ? 1 : 0,
-          isVegetable: input.isVegetable ? 1 : 0,
-          isUltraProcessed: input.isUltraProcessed ? 1 : 0,
-        });
+        const updatedRows = await deps.foodCatalogRepository.update(
+          input.foodId,
+          userId,
+          {
+            name: input.name,
+            brandName: input.brandName ?? null,
+            foodType: input.foodType,
+            dataSource: input.source || "manual",
+            servingLabel: `${input.servingSize} ${input.servingUnit}`,
+            servingUnit: input.servingUnit,
+            gramsPerServing: input.servingSize,
+            calories: input.calories,
+            protein: input.protein,
+            carbs: input.carbs,
+            fat: input.fat,
+            fiber: input.fiber ?? null,
+            isFruit: input.isFruit ? 1 : 0,
+            isVegetable: input.isVegetable ? 1 : 0,
+            isUltraProcessed: input.isUltraProcessed ? 1 : 0,
+          }
+        );
 
         if (updatedRows < 1 && !foodAlreadyMatchesInput(existing, input)) {
           throw new Error("Alimento criado pelo usuário não encontrado.");
         }
       } catch (error) {
-        if (error instanceof Error && error.message === "Alimento criado pelo usuário não encontrado.") {
+        if (
+          error instanceof Error &&
+          error.message === "Alimento criado pelo usuário não encontrado."
+        ) {
           throw error;
         }
 
@@ -426,16 +543,28 @@ export function createFoodsService(deps: {
       }
     }
 
-    userFoodStore.set(userId, [updated, ...current.filter(food => food.id !== input.foodId)]);
+    userFoodStore.set(userId, [
+      updated,
+      ...current.filter(food => food.id !== input.foodId),
+    ]);
     return updated;
   }
 
   function buildAutoClassifiedCatalogSlug(userId: number, name: string) {
-    const base = normalizeCatalogText(name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "alimento";
-    return `user-${userId}-${base}-${Date.now()}-${Math.round(Math.random() * 1e6)}`.slice(0, 128);
+    const base =
+      normalizeCatalogText(name)
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "alimento";
+    return `user-${userId}-${base}-${Date.now()}-${Math.round(Math.random() * 1e6)}`.slice(
+      0,
+      128
+    );
   }
 
-  async function createAutoClassifiedCatalogEntry(userId: number, item: MealDraftItem) {
+  async function createAutoClassifiedCatalogEntry(
+    userId: number,
+    item: MealDraftItem
+  ) {
     const classification = item.classification;
     if (!classification || !item.estimatedGrams || item.estimatedGrams <= 0) {
       return null;
@@ -443,7 +572,10 @@ export function createFoodsService(deps: {
 
     try {
       const foodId = await deps.foodCatalogRepository.insert({
-        slug: buildAutoClassifiedCatalogSlug(userId, item.canonicalName || item.foodName),
+        slug: buildAutoClassifiedCatalogSlug(
+          userId,
+          item.canonicalName || item.foodName
+        ),
         name: item.canonicalName || item.foodName,
         aliases: JSON.stringify([item.foodName].filter(Boolean)),
         brandName: item.brand ?? null,
@@ -459,7 +591,8 @@ export function createFoodsService(deps: {
         fiber: classification.fiberGrams,
         isFruit: classification.isFruit ? 1 : 0,
         isVegetable: classification.isVegetable ? 1 : 0,
-        isUltraProcessed: classification.processingLevel === "ultra_processed" ? 1 : 0,
+        isUltraProcessed:
+          classification.processingLevel === "ultra_processed" ? 1 : 0,
         processingLevel: classification.processingLevel,
         classificationSource: "ai_estimated",
         classificationConfidence: item.confidence,
@@ -473,31 +606,67 @@ export function createFoodsService(deps: {
     }
   }
 
+  function rowIdentityKeys(
+    row: Awaited<ReturnType<FoodCatalogRepository["findAll"]>>[number]
+  ) {
+    return [row.name, ...parseJsonArray<string>(row.aliases, [])]
+      .map(normalizeCatalogText)
+      .filter(Boolean);
+  }
+
   async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number) {
     const db = await deps.getDb();
-    if (!db || !items.length) {
-      return new Map<string, number>();
-    }
+    if (!db || !items.length) return new Map<string, number>();
 
     try {
-      const rows = await deps.foodCatalogRepository.findAll();
-      const validCatalogIds = new Set(rows.map(row => row.id));
-      const catalogIndex = new Map<string, number>();
-
-      for (const row of rows) {
-        const aliases = parseJsonArray<string>(row.aliases, []);
-        const keys = [row.name, ...aliases].map(normalizeCatalogText);
-        for (const key of keys) {
-          if (key) {
-            catalogIndex.set(key, row.id);
-          }
+      const rows = deps.foodCatalogRepository.findForResolution
+        ? await deps.foodCatalogRepository.findForResolution(userId)
+        : (await deps.foodCatalogRepository.findAll()).filter(
+            row => !row.createdByUserId || row.createdByUserId === userId
+          );
+      const activeRows = rows.filter(
+        row =>
+          (row.status ?? "active") === "active" &&
+          !isFoodDeprecatedInMemory(userId, row.id)
+      );
+      const deprecatedOwnRows = rows.filter(
+        row =>
+          row.createdByUserId === userId &&
+          (row.status ?? "active") === "deprecated"
+      );
+      const activeOwnKeys = new Set(
+        activeRows
+          .filter(row => row.createdByUserId === userId)
+          .flatMap(rowIdentityKeys)
+      );
+      const blockedKeys = getDeprecatedIdentityKeys(userId);
+      for (const row of deprecatedOwnRows) {
+        for (const key of rowIdentityKeys(row)) {
+          if (!activeOwnKeys.has(key)) blockedKeys.add(key);
         }
+      }
+
+      const validCatalogIds = new Set(activeRows.map(row => row.id));
+      const catalogIndex = new Map<string, number>();
+      for (const row of activeRows.filter(row => !row.createdByUserId)) {
+        for (const key of rowIdentityKeys(row)) {
+          if (!blockedKeys.has(key)) catalogIndex.set(key, row.id);
+        }
+      }
+      for (const row of activeRows.filter(
+        row => row.createdByUserId === userId
+      )) {
+        for (const key of rowIdentityKeys(row)) catalogIndex.set(key, row.id);
       }
 
       const resolved = new Map<string, number>();
       for (const item of items) {
         const directId = Number(item.foodCatalogId);
-        if (Number.isFinite(directId) && directId > 0 && validCatalogIds.has(directId)) {
+        if (
+          Number.isFinite(directId) &&
+          directId > 0 &&
+          validCatalogIds.has(directId)
+        ) {
           resolved.set(foodCatalogDirectKey(directId), directId);
           setResolvedCatalogId(resolved, item.canonicalName, directId);
           setResolvedCatalogId(resolved, item.foodName, directId);
@@ -506,7 +675,11 @@ export function createFoodsService(deps: {
 
         const directKey = normalizeCatalogText(item.canonicalName);
         const fallbackKey = normalizeCatalogText(item.foodName);
-        const resolvedId = catalogIndex.get(directKey) ?? catalogIndex.get(fallbackKey);
+        const nominalMatchBlocked =
+          blockedKeys.has(directKey) || blockedKeys.has(fallbackKey);
+        const resolvedId = nominalMatchBlocked
+          ? undefined
+          : (catalogIndex.get(directKey) ?? catalogIndex.get(fallbackKey));
         if (resolvedId) {
           setResolvedCatalogId(resolved, item.canonicalName, resolvedId);
           setResolvedCatalogId(resolved, item.foodName, resolvedId);
@@ -514,9 +687,15 @@ export function createFoodsService(deps: {
         }
 
         if (!resolved.has(directKey) && !resolved.has(fallbackKey)) {
-          const createdId = await createAutoClassifiedCatalogEntry(userId, item);
+          const createdId = await createAutoClassifiedCatalogEntry(
+            userId,
+            item
+          );
           if (createdId) {
-            catalogIndex.set(directKey, createdId);
+            if (directKey) catalogIndex.set(directKey, createdId);
+            if (fallbackKey) catalogIndex.set(fallbackKey, createdId);
+            blockedKeys.delete(directKey);
+            blockedKeys.delete(fallbackKey);
             setResolvedCatalogId(resolved, item.canonicalName, createdId);
             setResolvedCatalogId(resolved, item.foodName, createdId);
           }
@@ -532,6 +711,7 @@ export function createFoodsService(deps: {
   function clearMemory(userId: number) {
     userFoodStore.delete(userId);
     favoriteFoodStore.delete(userId);
+    clearDeprecatedFoodRegistry(userId);
   }
 
   return {

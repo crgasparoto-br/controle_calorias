@@ -1,18 +1,41 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
 import UXState from "@/components/UXState";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
 import { MEASUREMENT_UNIT_SUGGESTIONS } from "../../../shared/measurementUnits";
-import { PencilLine, Plus, Search, Star } from "lucide-react";
+import { PencilLine, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -58,6 +81,11 @@ function toNumber(value: string) {
 export default function FoodsPage() {
   const [query, setQuery] = useState("");
   const [form, setForm] = useState<FoodFormState>(emptyForm);
+  const [foodToDelete, setFoodToDelete] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const { user } = useAuth();
   const utils = trpc.useUtils();
   const foods = trpc.nutrition.foods.search.useQuery({ query, limit: 30 });
   const recent = trpc.nutrition.foods.recent.useQuery();
@@ -91,32 +119,57 @@ export default function FoodsPage() {
     onError: error => toast.error(error.message),
   });
 
+  const deleteFood = trpc.nutrition.foods.delete.useMutation({
+    onSuccess: async result => {
+      if (form.foodId === result.foodId) setForm(emptyForm);
+      setFoodToDelete(null);
+      await Promise.all([
+        utils.nutrition.foods.search.invalidate(),
+        utils.nutrition.foods.recent.invalidate(),
+      ]);
+      toast.success("Alimento removido da sua base ativa.");
+    },
+    onError: error => toast.error(error.message),
+  });
+
   const submitLabel = form.foodId ? "Salvar alimento" : "Criar alimento";
   const visibleFoods = foods.data ?? [];
   const recentFoods = recent.data ?? [];
-  const favoriteCount = useMemo(() => visibleFoods.filter(food => food.isFavorite).length, [visibleFoods]);
-  const userCreatedCount = useMemo(() => visibleFoods.filter(food => food.isUserCreated).length, [visibleFoods]);
+  const favoriteCount = useMemo(
+    () => visibleFoods.filter(food => food.isFavorite).length,
+    [visibleFoods]
+  );
+  const userCreatedCount = useMemo(
+    () => visibleFoods.filter(food => food.isUserCreated).length,
+    [visibleFoods]
+  );
   const classifiedCount = useMemo(
-    () => visibleFoods.filter(food => food.isFruit || food.isVegetable || food.isUltraProcessed).length,
-    [visibleFoods],
+    () =>
+      visibleFoods.filter(
+        food => food.isFruit || food.isVegetable || food.isUltraProcessed
+      ).length,
+    [visibleFoods]
   );
 
-  const formPayload = useMemo(() => ({
-    name: form.name,
-    brandName: form.brandName || null,
-    servingSize: toNumber(form.servingSize),
-    servingUnit: form.servingUnit,
-    calories: toNumber(form.calories),
-    protein: toNumber(form.protein),
-    carbs: toNumber(form.carbs),
-    fat: toNumber(form.fat),
-    fiber: form.fiber ? toNumber(form.fiber) : null,
-    isFruit: form.isFruit,
-    isVegetable: form.isVegetable,
-    isUltraProcessed: form.isUltraProcessed,
-    source: form.source || "manual",
-    foodType: form.foodType,
-  }), [form]);
+  const formPayload = useMemo(
+    () => ({
+      name: form.name,
+      brandName: form.brandName || null,
+      servingSize: toNumber(form.servingSize),
+      servingUnit: form.servingUnit,
+      calories: toNumber(form.calories),
+      protein: toNumber(form.protein),
+      carbs: toNumber(form.carbs),
+      fat: toNumber(form.fat),
+      fiber: form.fiber ? toNumber(form.fiber) : null,
+      isFruit: form.isFruit,
+      isVegetable: form.isVegetable,
+      isUltraProcessed: form.isUltraProcessed,
+      source: form.source || "manual",
+      foodType: form.foodType,
+    }),
+    [form]
+  );
 
   return (
     <DashboardLayout>
@@ -127,10 +180,26 @@ export default function FoodsPage() {
           description="Busque alimentos, marque favoritos e cadastre itens próprios para deixar seus próximos registros mais rápidos e consistentes."
           stats={
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <IntroStat label="Resultados" value={String(visibleFoods.length)} helper="alimentos encontrados" />
-              <IntroStat label="Favoritos" value={String(favoriteCount)} helper="na busca atual" />
-              <IntroStat label="Recentes" value={String(recentFoods.length)} helper="usados nos últimos registros" />
-              <IntroStat label="Classificados" value={String(classifiedCount)} helper="fruta, vegetal ou ultraprocessado" />
+              <IntroStat
+                label="Resultados"
+                value={String(visibleFoods.length)}
+                helper="alimentos encontrados"
+              />
+              <IntroStat
+                label="Favoritos"
+                value={String(favoriteCount)}
+                helper="na busca atual"
+              />
+              <IntroStat
+                label="Recentes"
+                value={String(recentFoods.length)}
+                helper="usados nos últimos registros"
+              />
+              <IntroStat
+                label="Classificados"
+                value={String(classifiedCount)}
+                helper="fruta, vegetal ou ultraprocessado"
+              />
             </div>
           }
         />
@@ -140,13 +209,40 @@ export default function FoodsPage() {
             <Tabs defaultValue="search" className="space-y-4">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <TabsList className="h-auto w-full flex-wrap rounded-2xl p-1 sm:w-auto">
-                  <TabsTrigger value="search" className="min-w-[130px] rounded-xl px-4 py-2">Busca</TabsTrigger>
-                  <TabsTrigger value="recent" className="min-w-[130px] rounded-xl px-4 py-2">Recentes</TabsTrigger>
+                  <TabsTrigger
+                    value="search"
+                    className="min-w-[130px] rounded-xl px-4 py-2"
+                  >
+                    Busca
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="recent"
+                    className="min-w-[130px] rounded-xl px-4 py-2"
+                  >
+                    Recentes
+                  </TabsTrigger>
                 </TabsList>
                 <div className="grid gap-3 sm:grid-cols-3 xl:w-[32rem]">
-                  <SurfaceStat label="Busca atual" value={query.trim() ? query : "sem filtro"} />
-                  <SurfaceStat label="Criados por você" value={userCreatedCount ? `${userCreatedCount} editáveis` : "nenhum neste filtro"} />
-                  <SurfaceStat label="Favoritos" value={favoriteCount ? `${favoriteCount} em destaque` : "sem favoritos neste filtro"} />
+                  <SurfaceStat
+                    label="Busca atual"
+                    value={query.trim() ? query : "sem filtro"}
+                  />
+                  <SurfaceStat
+                    label="Criados por você"
+                    value={
+                      userCreatedCount
+                        ? `${userCreatedCount} editáveis`
+                        : "nenhum neste filtro"
+                    }
+                  />
+                  <SurfaceStat
+                    label="Favoritos"
+                    value={
+                      favoriteCount
+                        ? `${favoriteCount} em destaque`
+                        : "sem favoritos neste filtro"
+                    }
+                  />
                 </div>
               </div>
 
@@ -158,7 +254,12 @@ export default function FoodsPage() {
                   <CardContent className="space-y-4">
                     <div className="relative">
                       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input className="pl-9" value={query} onChange={event => setQuery(event.target.value)} placeholder="Ex.: arroz, iogurte, whey..." />
+                      <Input
+                        className="pl-9"
+                        value={query}
+                        onChange={event => setQuery(event.target.value)}
+                        placeholder="Ex.: arroz, iogurte, whey..."
+                      />
                     </div>
 
                     {foods.isLoading ? (
@@ -180,24 +281,43 @@ export default function FoodsPage() {
                             key={food.id}
                             food={food}
                             isFavoritePending={favoriteFood.isPending}
-                            onEdit={() => setForm({
-                              foodId: food.id,
-                              name: food.name,
-                              brandName: food.brandName ?? "",
-                              servingSize: String(food.servingSize),
-                              servingUnit: food.servingUnit,
-                              calories: String(food.calories),
-                              protein: String(food.protein),
-                              carbs: String(food.carbs),
-                              fat: String(food.fat),
-                              fiber: food.fiber == null ? "" : String(food.fiber),
-                              isFruit: food.isFruit,
-                              isVegetable: food.isVegetable,
-                              isUltraProcessed: food.isUltraProcessed,
-                              source: food.source,
-                              foodType: food.foodType,
-                            })}
-                            onToggleFavorite={() => favoriteFood.mutate({ foodId: food.id, favorite: !food.isFavorite })}
+                            onEdit={() =>
+                              setForm({
+                                foodId: food.id,
+                                name: food.name,
+                                brandName: food.brandName ?? "",
+                                servingSize: String(food.servingSize),
+                                servingUnit: food.servingUnit,
+                                calories: String(food.calories),
+                                protein: String(food.protein),
+                                carbs: String(food.carbs),
+                                fat: String(food.fat),
+                                fiber:
+                                  food.fiber == null ? "" : String(food.fiber),
+                                isFruit: food.isFruit,
+                                isVegetable: food.isVegetable,
+                                isUltraProcessed: food.isUltraProcessed,
+                                source: food.source,
+                                foodType: food.foodType,
+                              })
+                            }
+                            onToggleFavorite={() =>
+                              favoriteFood.mutate({
+                                foodId: food.id,
+                                favorite: !food.isFavorite,
+                              })
+                            }
+                            canDelete={
+                              food.isUserCreated &&
+                              food.createdByUserId === user?.id
+                            }
+                            isDeletePending={
+                              deleteFood.isPending &&
+                              foodToDelete?.id === food.id
+                            }
+                            onDelete={() =>
+                              setFoodToDelete({ id: food.id, name: food.name })
+                            }
                           />
                         ))}
                       </div>
@@ -216,7 +336,10 @@ export default function FoodsPage() {
                 <Card className="border-0 shadow-sm">
                   <CardHeader>
                     <CardTitle>Usados recentemente</CardTitle>
-                    <CardDescription>Atalhos rápidos para retomar buscas comuns sem digitar de novo.</CardDescription>
+                    <CardDescription>
+                      Atalhos rápidos para retomar buscas comuns sem digitar de
+                      novo.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {recent.isLoading ? (
@@ -230,8 +353,13 @@ export default function FoodsPage() {
                             className="rounded-2xl border bg-background p-4 text-left transition hover:border-primary/30 hover:bg-primary/5"
                             onClick={() => setQuery(food.name)}
                           >
-                            <p className="font-medium tracking-tight text-foreground">{food.name}</p>
-                            <p className="mt-1 text-sm text-muted-foreground">Toque para trazer este alimento para a busca principal.</p>
+                            <p className="font-medium tracking-tight text-foreground">
+                              {food.name}
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Toque para trazer este alimento para a busca
+                              principal.
+                            </p>
                           </button>
                         ))}
                       </div>
@@ -251,28 +379,76 @@ export default function FoodsPage() {
           <div className="space-y-6">
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle>{form.foodId ? "Editar alimento" : "Criar alimento"}</CardTitle>
-                <CardDescription>Informe a quantidade da porção separada da unidade de medida. A unidade aceita abreviações e medidas caseiras, como g, ml, un, scoop ou long neck.</CardDescription>
+                <CardTitle>
+                  {form.foodId ? "Editar alimento" : "Criar alimento"}
+                </CardTitle>
+                <CardDescription>
+                  Informe a quantidade da porção separada da unidade de medida.
+                  A unidade aceita abreviações e medidas caseiras, como g, ml,
+                  un, scoop ou long neck.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <form className="space-y-4" onSubmit={event => {
-                  event.preventDefault();
-                  if (form.foodId) {
-                    updateFood.mutate({ foodId: form.foodId, ...formPayload });
-                  } else {
-                    createFood.mutate(formPayload);
-                  }
-                }}>
-                  <Field label="Nome" value={form.name} onChange={name => setForm(current => ({ ...current, name }))} />
-                  <Field label="Marca" value={form.brandName} onChange={brandName => setForm(current => ({ ...current, brandName, foodType: brandName ? "branded" : current.foodType }))} />
+                <form
+                  className="space-y-4"
+                  onSubmit={event => {
+                    event.preventDefault();
+                    if (form.foodId) {
+                      updateFood.mutate({
+                        foodId: form.foodId,
+                        ...formPayload,
+                      });
+                    } else {
+                      createFood.mutate(formPayload);
+                    }
+                  }}
+                >
+                  <Field
+                    label="Nome"
+                    value={form.name}
+                    onChange={name =>
+                      setForm(current => ({ ...current, name }))
+                    }
+                  />
+                  <Field
+                    label="Marca"
+                    value={form.brandName}
+                    onChange={brandName =>
+                      setForm(current => ({
+                        ...current,
+                        brandName,
+                        foodType: brandName ? "branded" : current.foodType,
+                      }))
+                    }
+                  />
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Quantidade da porção" value={form.servingSize} type="number" helper="Apenas o número. Ex.: 100, 330, 1." onChange={servingSize => setForm(current => ({ ...current, servingSize }))} />
-                    <MeasurementUnitField value={form.servingUnit} onChange={servingUnit => setForm(current => ({ ...current, servingUnit }))} />
+                    <Field
+                      label="Quantidade da porção"
+                      value={form.servingSize}
+                      type="number"
+                      helper="Apenas o número. Ex.: 100, 330, 1."
+                      onChange={servingSize =>
+                        setForm(current => ({ ...current, servingSize }))
+                      }
+                    />
+                    <MeasurementUnitField
+                      value={form.servingUnit}
+                      onChange={servingUnit =>
+                        setForm(current => ({ ...current, servingUnit }))
+                      }
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Tipo</Label>
-                    <Select value={form.foodType} onValueChange={(foodType: "generic" | "branded") => setForm(current => ({ ...current, foodType }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={form.foodType}
+                      onValueChange={(foodType: "generic" | "branded") =>
+                        setForm(current => ({ ...current, foodType }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="generic">Genérico</SelectItem>
                         <SelectItem value="branded">Marca</SelectItem>
@@ -280,24 +456,90 @@ export default function FoodsPage() {
                     </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Calorias" value={form.calories} type="number" onChange={calories => setForm(current => ({ ...current, calories }))} />
-                    <Field label="Proteínas" value={form.protein} type="number" onChange={protein => setForm(current => ({ ...current, protein }))} />
-                    <Field label="Carboidratos" value={form.carbs} type="number" onChange={carbs => setForm(current => ({ ...current, carbs }))} />
-                    <Field label="Gorduras" value={form.fat} type="number" onChange={fat => setForm(current => ({ ...current, fat }))} />
-                    <Field label="Fibras" value={form.fiber} type="number" onChange={fiber => setForm(current => ({ ...current, fiber }))} />
+                    <Field
+                      label="Calorias"
+                      value={form.calories}
+                      type="number"
+                      onChange={calories =>
+                        setForm(current => ({ ...current, calories }))
+                      }
+                    />
+                    <Field
+                      label="Proteínas"
+                      value={form.protein}
+                      type="number"
+                      onChange={protein =>
+                        setForm(current => ({ ...current, protein }))
+                      }
+                    />
+                    <Field
+                      label="Carboidratos"
+                      value={form.carbs}
+                      type="number"
+                      onChange={carbs =>
+                        setForm(current => ({ ...current, carbs }))
+                      }
+                    />
+                    <Field
+                      label="Gorduras"
+                      value={form.fat}
+                      type="number"
+                      onChange={fat =>
+                        setForm(current => ({ ...current, fat }))
+                      }
+                    />
+                    <Field
+                      label="Fibras"
+                      value={form.fiber}
+                      type="number"
+                      onChange={fiber =>
+                        setForm(current => ({ ...current, fiber }))
+                      }
+                    />
                   </div>
                   <div className="space-y-3 rounded-2xl border bg-muted/20 p-4">
                     <Label>Classificação alimentar</Label>
-                    <FoodCheckbox label="Fruta" checked={form.isFruit} onCheckedChange={isFruit => setForm(current => ({ ...current, isFruit }))} />
-                    <FoodCheckbox label="Vegetal" checked={form.isVegetable} onCheckedChange={isVegetable => setForm(current => ({ ...current, isVegetable }))} />
-                    <FoodCheckbox label="Ultraprocessado" checked={form.isUltraProcessed} onCheckedChange={isUltraProcessed => setForm(current => ({ ...current, isUltraProcessed }))} />
+                    <FoodCheckbox
+                      label="Fruta"
+                      checked={form.isFruit}
+                      onCheckedChange={isFruit =>
+                        setForm(current => ({ ...current, isFruit }))
+                      }
+                    />
+                    <FoodCheckbox
+                      label="Vegetal"
+                      checked={form.isVegetable}
+                      onCheckedChange={isVegetable =>
+                        setForm(current => ({ ...current, isVegetable }))
+                      }
+                    />
+                    <FoodCheckbox
+                      label="Ultraprocessado"
+                      checked={form.isUltraProcessed}
+                      onCheckedChange={isUltraProcessed =>
+                        setForm(current => ({ ...current, isUltraProcessed }))
+                      }
+                    />
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <Button type="submit" className="rounded-full" disabled={createFood.isPending || updateFood.isPending}>
+                    <Button
+                      type="submit"
+                      className="rounded-full"
+                      disabled={createFood.isPending || updateFood.isPending}
+                    >
                       <Plus className="mr-2 h-4 w-4" />
                       {submitLabel}
                     </Button>
-                    {form.foodId ? <Button type="button" variant="outline" className="rounded-full" onClick={() => setForm(emptyForm)}>Cancelar</Button> : null}
+                    {form.foodId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={() => setForm(emptyForm)}
+                      >
+                        Cancelar
+                      </Button>
+                    ) : null}
                   </div>
                 </form>
               </CardContent>
@@ -306,22 +548,85 @@ export default function FoodsPage() {
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle>Boas entradas para cadastro</CardTitle>
-                <CardDescription>Referência rápida para manter a base mais consistente e útil nos próximos registros.</CardDescription>
+                <CardDescription>
+                  Referência rápida para manter a base mais consistente e útil
+                  nos próximos registros.
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
-                <FlowStep title="1. Nome claro" text="Prefira o nome mais reconhecível do alimento antes de detalhar marca ou classificação." />
-                <FlowStep title="2. Quantidade + unidade" text="Separe a quantidade da porção da unidade de medida. Ex.: quantidade 1 e unidade long neck; quantidade 30 e unidade scoop." />
-                <FlowStep title="3. Classificação útil" text="Marque fruta, vegetal ou ultraprocessado quando isso ajudar leitura de qualidade alimentar depois." />
+                <FlowStep
+                  title="1. Nome claro"
+                  text="Prefira o nome mais reconhecível do alimento antes de detalhar marca ou classificação."
+                />
+                <FlowStep
+                  title="2. Quantidade + unidade"
+                  text="Separe a quantidade da porção da unidade de medida. Ex.: quantidade 1 e unidade long neck; quantidade 30 e unidade scoop."
+                />
+                <FlowStep
+                  title="3. Classificação útil"
+                  text="Marque fruta, vegetal ou ultraprocessado quando isso ajudar leitura de qualidade alimentar depois."
+                />
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={Boolean(foodToDelete)}
+        onOpenChange={open => {
+          if (!open && !deleteFood.isPending) setFoodToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Excluir “{foodToDelete?.name}” da base ativa?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                O alimento deixará de aparecer nas buscas, recentes e favoritos.
+              </span>
+              <span className="block">
+                Refeições e relatórios anteriores continuarão preservados.
+              </span>
+              <span className="block">
+                Em um próximo registro pela IA, uma nova classificação ativa
+                poderá ser criada com os dados atuais.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteFood.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteFood.isPending || !foodToDelete}
+              onClick={event => {
+                event.preventDefault();
+                if (foodToDelete && !deleteFood.isPending)
+                  deleteFood.mutate({ foodId: foodToDelete.id });
+              }}
+            >
+              {deleteFood.isPending ? "Excluindo..." : "Excluir alimento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
 
-function IntroStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+function IntroStat({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
       <p className="text-sm text-muted-foreground">{label}</p>
@@ -334,8 +639,12 @@ function IntroStat({ label, value, helper }: { label: string; value: string; hel
 function SurfaceStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-background px-4 py-3 shadow-sm">
-      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-sm font-medium leading-6 text-foreground">{value}</p>
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-medium leading-6 text-foreground">
+        {value}
+      </p>
     </div>
   );
 }
@@ -345,6 +654,9 @@ function FoodResultCard({
   isFavoritePending,
   onEdit,
   onToggleFavorite,
+  canDelete,
+  isDeletePending,
+  onDelete,
 }: {
   food: {
     id: number;
@@ -359,6 +671,7 @@ function FoodResultCard({
     servingUnit: string;
     source: string;
     isUserCreated: boolean;
+    createdByUserId?: number | null;
     isFavorite: boolean;
     calories: number;
     protein: number;
@@ -369,6 +682,9 @@ function FoodResultCard({
   isFavoritePending: boolean;
   onEdit: () => void;
   onToggleFavorite: () => void;
+  canDelete: boolean;
+  isDeletePending: boolean;
+  onDelete: () => void;
 }) {
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -376,24 +692,74 @@ function FoodResultCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold tracking-tight">{food.name}</p>
-            {food.brandName ? <Badge variant="secondary">{food.brandName}</Badge> : null}
-            <Badge variant="outline">{food.foodType === "branded" ? "Marca" : "Genérico"}</Badge>
-            {food.lastUsedAt ? <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Recente</Badge> : null}
+            {food.brandName ? (
+              <Badge variant="secondary">{food.brandName}</Badge>
+            ) : null}
+            <Badge variant="outline">
+              {food.foodType === "branded" ? "Marca" : "Genérico"}
+            </Badge>
+            {food.lastUsedAt ? (
+              <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                Recente
+              </Badge>
+            ) : null}
             {food.isFruit ? <Badge variant="secondary">Fruta</Badge> : null}
-            {food.isVegetable ? <Badge variant="secondary">Vegetal</Badge> : null}
-            {food.isUltraProcessed ? <Badge variant="outline">Ultraprocessado</Badge> : null}
+            {food.isVegetable ? (
+              <Badge variant="secondary">Vegetal</Badge>
+            ) : null}
+            {food.isUltraProcessed ? (
+              <Badge variant="outline">Ultraprocessado</Badge>
+            ) : null}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{food.servingSize} {food.servingUnit} por porção · origem: {food.source}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {food.servingSize} {food.servingUnit} por porção · origem:{" "}
+            {food.source}
+          </p>
         </div>
         <div className="flex gap-2">
           {food.isUserCreated ? (
-            <Button type="button" variant="outline" size="icon" className="rounded-full" onClick={onEdit}>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="rounded-full"
+              onClick={onEdit}
+              aria-label={`Editar ${food.name}`}
+            >
               <PencilLine className="h-4 w-4" />
             </Button>
           ) : null}
-          <Button type="button" variant={food.isFavorite ? "default" : "outline"} size="icon" className="rounded-full" onClick={onToggleFavorite} disabled={isFavoritePending}>
-            <Star className={food.isFavorite ? "h-4 w-4 fill-current" : "h-4 w-4"} />
+          <Button
+            type="button"
+            variant={food.isFavorite ? "default" : "outline"}
+            size="icon"
+            className="rounded-full"
+            onClick={onToggleFavorite}
+            disabled={isFavoritePending}
+            aria-label={
+              food.isFavorite
+                ? `Remover ${food.name} dos favoritos`
+                : `Adicionar ${food.name} aos favoritos`
+            }
+          >
+            <Star
+              className={food.isFavorite ? "h-4 w-4 fill-current" : "h-4 w-4"}
+            />
           </Button>
+          {canDelete ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="rounded-full"
+              onClick={onDelete}
+              disabled={isDeletePending}
+              aria-label={`Excluir alimento ${food.name}`}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {isDeletePending ? "Excluindo..." : "Excluir alimento"}
+            </Button>
+          ) : null}
         </div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -406,43 +772,100 @@ function FoodResultCard({
   );
 }
 
-function FoodCheckbox({ label, checked, onCheckedChange }: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) {
+function FoodCheckbox({
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  label: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
   return (
     <label className="flex items-center gap-2 text-sm">
-      <Checkbox checked={checked} onCheckedChange={value => onCheckedChange(value === true)} />
+      <Checkbox
+        checked={checked}
+        onCheckedChange={value => onCheckedChange(value === true)}
+      />
       {label}
     </label>
   );
 }
 
-function Macro({ label, value, unit = "" }: { label: string; value: number; unit?: string }) {
+function Macro({
+  label,
+  value,
+  unit = "",
+}: {
+  label: string;
+  value: number;
+  unit?: string;
+}) {
   return (
     <div className="rounded-xl bg-muted/50 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-semibold">{Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}{unit}</p>
+      <p className="font-semibold">
+        {Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+        {unit}
+      </p>
     </div>
   );
 }
 
-function Field({ label, value, onChange, type = "text", helper }: { label: string; value: string; onChange: (value: string) => void; type?: string; helper?: string }) {
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  helper,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  helper?: string;
+}) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Input type={type} step={type === "number" ? "0.1" : undefined} value={value} onChange={event => onChange(event.target.value)} />
-      {helper ? <p className="text-xs leading-5 text-muted-foreground">{helper}</p> : null}
+      <Input
+        type={type}
+        step={type === "number" ? "0.1" : undefined}
+        value={value}
+        onChange={event => onChange(event.target.value)}
+      />
+      {helper ? (
+        <p className="text-xs leading-5 text-muted-foreground">{helper}</p>
+      ) : null}
     </div>
   );
 }
 
-function MeasurementUnitField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function MeasurementUnitField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <div className="space-y-2">
       <Label>Unidade de medida</Label>
-      <Input list="measurement-unit-suggestions" value={value} onChange={event => onChange(event.target.value)} placeholder="g, ml, un, scoop..." />
+      <Input
+        list="measurement-unit-suggestions"
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        placeholder="g, ml, un, scoop..."
+      />
       <datalist id="measurement-unit-suggestions">
-        {MEASUREMENT_UNIT_SUGGESTIONS.map(unit => <option key={unit} value={unit} />)}
+        {MEASUREMENT_UNIT_SUGGESTIONS.map(unit => (
+          <option key={unit} value={unit} />
+        ))}
       </datalist>
-      <p className="text-xs leading-5 text-muted-foreground">Aceita medidas livres, como gr, ml, un, scoop, long neck, lata ou xícara.</p>
+      <p className="text-xs leading-5 text-muted-foreground">
+        Aceita medidas livres, como gr, ml, un, scoop, long neck, lata ou
+        xícara.
+      </p>
     </div>
   );
 }

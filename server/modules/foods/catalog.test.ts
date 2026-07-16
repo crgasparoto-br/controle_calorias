@@ -6,7 +6,9 @@ import type {
   FoodCatalogUpdateInput,
 } from "../../repositories/foodCatalogRepository";
 
-function createFakeFoodCatalogRepository(overrides: Partial<FoodCatalogRepository> = {}): FoodCatalogRepository {
+function createFakeFoodCatalogRepository(
+  overrides: Partial<FoodCatalogRepository> = {}
+): FoodCatalogRepository {
   return {
     findAll: vi.fn(async () => []),
     findFavoriteIdsByUserId: vi.fn(async () => new Set<number>()),
@@ -18,7 +20,9 @@ function createFakeFoodCatalogRepository(overrides: Partial<FoodCatalogRepositor
   } as FoodCatalogRepository;
 }
 
-function createService(overrides: Partial<Parameters<typeof createFoodsService>[0]> = {}) {
+function createService(
+  overrides: Partial<Parameters<typeof createFoodsService>[0]> = {}
+) {
   return createFoodsService({
     foodCatalogRepository: createFakeFoodCatalogRepository(),
     findMealItemsWithDates: async () => [],
@@ -55,7 +59,9 @@ function catalogRow(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 
-function createMutableFoodCatalogRepository(options: { updateError?: Error } = {}) {
+function createMutableFoodCatalogRepository(
+  options: { updateError?: Error } = {}
+) {
   let nextId = 3000;
   const rows: any[] = [];
 
@@ -63,61 +69,67 @@ function createMutableFoodCatalogRepository(options: { updateError?: Error } = {
     findAll: vi.fn(async () => rows as any),
     insert: vi.fn(async (input: FoodCatalogInsertInput) => {
       const id = nextId++;
-      rows.unshift(catalogRow({
-        id,
-        slug: input.slug,
-        name: input.name,
-        aliases: input.aliases,
-        brandName: input.brandName,
-        foodType: input.foodType,
-        dataSource: input.dataSource,
-        servingLabel: input.servingLabel,
-        servingUnit: input.servingUnit,
-        gramsPerServing: input.gramsPerServing,
-        calories: input.calories,
-        protein: input.protein,
-        carbs: input.carbs,
-        fat: input.fat,
-        fiber: input.fiber,
-        isFruit: input.isFruit,
-        isVegetable: input.isVegetable,
-        isUltraProcessed: input.isUltraProcessed,
-        processingLevel: input.processingLevel ?? null,
-        classificationSource: input.classificationSource ?? null,
-        classificationConfidence: input.classificationConfidence ?? null,
-        isUserCreated: input.isUserCreated,
-        createdByUserId: input.createdByUserId,
-      }));
+      rows.unshift(
+        catalogRow({
+          id,
+          slug: input.slug,
+          name: input.name,
+          aliases: input.aliases,
+          brandName: input.brandName,
+          foodType: input.foodType,
+          dataSource: input.dataSource,
+          servingLabel: input.servingLabel,
+          servingUnit: input.servingUnit,
+          gramsPerServing: input.gramsPerServing,
+          calories: input.calories,
+          protein: input.protein,
+          carbs: input.carbs,
+          fat: input.fat,
+          fiber: input.fiber,
+          isFruit: input.isFruit,
+          isVegetable: input.isVegetable,
+          isUltraProcessed: input.isUltraProcessed,
+          processingLevel: input.processingLevel ?? null,
+          classificationSource: input.classificationSource ?? null,
+          classificationConfidence: input.classificationConfidence ?? null,
+          isUserCreated: input.isUserCreated,
+          createdByUserId: input.createdByUserId,
+        })
+      );
       return id;
     }),
-    update: vi.fn(async (foodId: number, userId: number, input: FoodCatalogUpdateInput) => {
-      if (options.updateError) {
-        throw options.updateError;
+    update: vi.fn(
+      async (foodId: number, userId: number, input: FoodCatalogUpdateInput) => {
+        if (options.updateError) {
+          throw options.updateError;
+        }
+
+        const row = rows.find(
+          item => item.id === foodId && item.createdByUserId === userId
+        );
+        if (!row) return 0;
+
+        Object.assign(row, {
+          name: input.name,
+          brandName: input.brandName,
+          foodType: input.foodType,
+          dataSource: input.dataSource,
+          servingLabel: input.servingLabel,
+          servingUnit: input.servingUnit,
+          gramsPerServing: input.gramsPerServing,
+          calories: input.calories,
+          protein: input.protein,
+          carbs: input.carbs,
+          fat: input.fat,
+          fiber: input.fiber,
+          isFruit: input.isFruit,
+          isVegetable: input.isVegetable,
+          isUltraProcessed: input.isUltraProcessed,
+        });
+
+        return 1;
       }
-
-      const row = rows.find(item => item.id === foodId && item.createdByUserId === userId);
-      if (!row) return 0;
-
-      Object.assign(row, {
-        name: input.name,
-        brandName: input.brandName,
-        foodType: input.foodType,
-        dataSource: input.dataSource,
-        servingLabel: input.servingLabel,
-        servingUnit: input.servingUnit,
-        gramsPerServing: input.gramsPerServing,
-        calories: input.calories,
-        protein: input.protein,
-        carbs: input.carbs,
-        fat: input.fat,
-        fiber: input.fiber,
-        isFruit: input.isFruit,
-        isVegetable: input.isVegetable,
-        isUltraProcessed: input.isUltraProcessed,
-      });
-
-      return 1;
-    }),
+    ),
   });
 
   return { repository, rows };
@@ -158,7 +170,11 @@ describe("foods catalog service", () => {
 
     const results = await service.searchFoods(1, "tapioca");
     expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({ name: "Tapioca com queijo", isUserCreated: true, createdByUserId: 1 });
+    expect(results[0]).toMatchObject({
+      name: "Tapioca com queijo",
+      isUserCreated: true,
+      createdByUserId: 1,
+    });
   });
 
   it("toggles favorite state in memory and reflects it back in search results", async () => {
@@ -186,7 +202,10 @@ describe("foods catalog service", () => {
     const repository = createFakeFoodCatalogRepository({
       findAll: vi.fn(async () => [catalogRow()]),
     });
-    const service = createService({ foodCatalogRepository: repository, getDb: async () => ({}) });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
 
     const resolved = await service.resolveFoodCatalogIds([
       { canonicalName: "arroz cozido", foodName: "arroz" } as any,
@@ -198,13 +217,26 @@ describe("foods catalog service", () => {
 
   it("keeps only direct catalog ids that exist before meal persistence", async () => {
     const repository = createFakeFoodCatalogRepository({
-      findAll: vi.fn(async () => [catalogRow({ id: 10, name: "Banana", aliases: "[]" })]),
+      findAll: vi.fn(async () => [
+        catalogRow({ id: 10, name: "Banana", aliases: "[]" }),
+      ]),
     });
-    const service = createService({ foodCatalogRepository: repository, getDb: async () => ({}) });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
 
     const resolved = await service.resolveFoodCatalogIds([
-      { foodCatalogId: 10, canonicalName: "texto divergente", foodName: "texto divergente" } as any,
-      { foodCatalogId: 999, canonicalName: "sem cadastro", foodName: "sem cadastro" } as any,
+      {
+        foodCatalogId: 10,
+        canonicalName: "texto divergente",
+        foodName: "texto divergente",
+      } as any,
+      {
+        foodCatalogId: 999,
+        canonicalName: "sem cadastro",
+        foodName: "sem cadastro",
+      } as any,
     ]);
 
     expect(resolved.get("catalog:10")).toBe(10);
@@ -215,12 +247,25 @@ describe("foods catalog service", () => {
 
   it("falls back to catalog aliases when a direct catalog id is invalid", async () => {
     const repository = createFakeFoodCatalogRepository({
-      findAll: vi.fn(async () => [catalogRow({ id: 20, name: "Aveia", aliases: JSON.stringify(["flocos de aveia"]) })]),
+      findAll: vi.fn(async () => [
+        catalogRow({
+          id: 20,
+          name: "Aveia",
+          aliases: JSON.stringify(["flocos de aveia"]),
+        }),
+      ]),
     });
-    const service = createService({ foodCatalogRepository: repository, getDb: async () => ({}) });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
 
     const resolved = await service.resolveFoodCatalogIds([
-      { foodCatalogId: 999, canonicalName: "sem id valido", foodName: "flocos de aveia" } as any,
+      {
+        foodCatalogId: 999,
+        canonicalName: "sem id valido",
+        foodName: "flocos de aveia",
+      } as any,
     ]);
 
     expect(resolved.get("sem id valido")).toBe(20);
@@ -230,7 +275,10 @@ describe("foods catalog service", () => {
 
   it("persists edits to user-created WhatsApp/AI foods and returns updated data on a later search", async () => {
     const { repository, rows } = createMutableFoodCatalogRepository();
-    const service = createService({ foodCatalogRepository: repository, getDb: async () => ({}) });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
 
     const created = await service.createUserFood(42, whatsappFood);
 
@@ -243,7 +291,11 @@ describe("foods catalog service", () => {
       source: "ai_estimated",
     });
 
-    const searchResults = await service.searchFoods(42, "panqueca ajustada", 10);
+    const searchResults = await service.searchFoods(
+      42,
+      "panqueca ajustada",
+      10
+    );
 
     expect(rows[0]).toMatchObject({
       id: created.id,
@@ -275,23 +327,149 @@ describe("foods catalog service", () => {
 
     const created = await service.createUserFood(43, whatsappFood);
 
-    await expect(service.updateUserFood(43, {
-      ...whatsappFood,
-      foodId: created.id,
-      name: "Panqueca que não deve aparecer",
-      calories: 300,
-    })).rejects.toThrow("Não foi possível salvar o alimento. Tente novamente.");
+    await expect(
+      service.updateUserFood(43, {
+        ...whatsappFood,
+        foodId: created.id,
+        name: "Panqueca que não deve aparecer",
+        calories: 300,
+      })
+    ).rejects.toThrow("Não foi possível salvar o alimento. Tente novamente.");
 
     const failedSearch = await service.searchFoods(43, "não deve aparecer", 10);
     const originalSearch = await service.searchFoods(43, "panqueca criada", 10);
 
-    expect(onWarning).toHaveBeenCalledWith("Food update persistence failed", updateError);
+    expect(onWarning).toHaveBeenCalledWith(
+      "Food update persistence failed",
+      updateError
+    );
     expect(failedSearch).toHaveLength(0);
     expect(originalSearch[0]).toMatchObject({
       id: created.id,
       name: "Panqueca criada pelo WhatsApp",
       calories: 210,
     });
+  });
+
+  it("does not reuse a deprecated own identity or fall back to an equivalent global food", async () => {
+    const global = catalogRow({
+      id: 20,
+      name: "Panqueca",
+      aliases: "[]",
+      status: "active",
+    });
+    const deprecatedOwn = catalogRow({
+      id: 21,
+      name: "Panqueca",
+      aliases: "[]",
+      status: "deprecated",
+      isUserCreated: 1,
+      createdByUserId: 7,
+    });
+    const repository = createFakeFoodCatalogRepository({
+      findForResolution: vi.fn(async () => [global, deprecatedOwn]),
+      insert: vi.fn(async () => 99),
+    });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
+
+    const resolved = await service.resolveFoodCatalogIds(
+      [
+        {
+          foodCatalogId: 21,
+          canonicalName: "Panqueca",
+          foodName: "Panqueca",
+          estimatedGrams: 100,
+          portionText: "100 g",
+          unit: "g",
+          calories: 180,
+          protein: 7,
+          carbs: 25,
+          fat: 6,
+          confidence: 0.9,
+          classification: {
+            fiberGrams: 2,
+            isFruit: false,
+            isVegetable: false,
+            processingLevel: "processed",
+          },
+        } as any,
+      ],
+      7
+    );
+
+    expect(resolved.get("Panqueca")).toBe(99);
+    expect(resolved.has("catalog:21")).toBe(false);
+    expect(repository.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        calories: 180,
+        protein: 7,
+        carbs: 25,
+        fat: 6,
+        createdByUserId: 7,
+      })
+    );
+  });
+
+  it("accepts an explicit active global id even when an old own identity is deprecated", async () => {
+    const global = catalogRow({
+      id: 20,
+      name: "Panqueca",
+      aliases: "[]",
+      status: "active",
+    });
+    const deprecatedOwn = catalogRow({
+      id: 21,
+      name: "Panqueca",
+      aliases: "[]",
+      status: "deprecated",
+      isUserCreated: 1,
+      createdByUserId: 7,
+    });
+    const repository = createFakeFoodCatalogRepository({
+      findForResolution: vi.fn(async () => [global, deprecatedOwn]),
+    });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
+
+    const resolved = await service.resolveFoodCatalogIds(
+      [
+        {
+          foodCatalogId: 20,
+          canonicalName: "Panqueca",
+          foodName: "Panqueca",
+        } as any,
+      ],
+      7
+    );
+    expect(resolved.get("catalog:20")).toBe(20);
+  });
+
+  it("keeps deprecated own foods available only through historical id lookup", async () => {
+    const deprecatedOwn = catalogRow({
+      id: 21,
+      name: "Panqueca",
+      status: "deprecated",
+      isUserCreated: 1,
+      createdByUserId: 7,
+    });
+    const repository = createFakeFoodCatalogRepository({
+      findActiveForUser: vi.fn(async () => []),
+      findByIdsForUser: vi.fn(async () => [deprecatedOwn]),
+    });
+    const service = createService({
+      foodCatalogRepository: repository,
+      getDb: async () => ({}),
+    });
+
+    expect(await service.searchFoods(7, "Panqueca")).toEqual([]);
+    await expect(service.getFoodsByIds(7, [21])).resolves.toEqual([
+      expect.objectContaining({ id: 21, status: "deprecated" }),
+    ]);
   });
 
   it("clears user-created foods and favorites from memory", async () => {
