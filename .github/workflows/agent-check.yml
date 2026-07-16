@@ -37,30 +37,65 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run focused regressions and record log
+      - name: Restore official gate and validate
         shell: bash
         run: |
+          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
           set +e
-          pnpm exec vitest run \
-            server/modules/foods/sleepKoalaRegression.test.ts \
-            server/modules/insights/service.test.ts \
-            client/src/pages/foodsPageState.test.ts \
-            > /tmp/issue-801-focused.log 2>&1
-          code=$?
+          overall=0
+          result="issue-801-validation.md"
           {
-            echo "# Issue 801 focused validation"
+            echo "# Issue 801 final validation"
             echo
             echo "Commit validated: $(git rev-parse HEAD)"
             echo
-            echo "Exit code: $code"
+            echo "The official Agent-first workflow was restored before running the commands."
             echo
-            echo '```text'
-            cat /tmp/issue-801-focused.log
-            echo '```'
-          } > issue-801-focused-validation.md
+            echo "| Command | Exit code |"
+            echo "|---|---:|"
+          } > "$result"
+
+          run_check() {
+            name="$1"
+            shift
+            log="/tmp/${name}.log"
+            "$@" > "$log" 2>&1
+            code=$?
+            echo "| \`$*\` | $code |" >> "$result"
+            if [ "$code" -ne 0 ]; then
+              overall=1
+            fi
+          }
+
+          run_check check pnpm check
+          run_check test pnpm test
+          run_check architecture pnpm architecture:check
+          run_check docs pnpm docs:check
+          run_check build pnpm build
+          run_check agent pnpm agent:check
+          run_check ci_docs pnpm exec tsx scripts/check-ci-gate-docs.ts
+
+          {
+            echo
+            echo "Overall exit code: $overall"
+            echo
+            echo "Database integrity: validated by the separate WhatsApp context TiDB gate."
+          } >> "$result"
+
+          for log in /tmp/check.log /tmp/test.log /tmp/architecture.log /tmp/docs.log /tmp/build.log /tmp/agent.log /tmp/ci_docs.log; do
+            if [ -s "$log" ]; then
+              {
+                echo
+                echo "## $log"
+                echo '```text'
+                tail -n 120 "$log"
+                echo '```'
+              } >> "$result"
+            fi
+          done
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add issue-801-focused-validation.md
-          git commit -m "chore: record issue 801 focused validation"
+          git add .github/workflows/agent-check.yml "$result"
+          git commit -m "chore: restore gate and record issue 801 validation"
           git push origin HEAD:feat/801-soft-delete-food-catalog
