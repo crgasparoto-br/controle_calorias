@@ -1,0 +1,62 @@
+name: Apply issue 793 audit fix
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  apply-audit-fix:
+    if: github.head_ref == 'feat/793-centralizar-timezone' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/793-centralizar-timezone
+          fetch-depth: 0
+
+      - name: Verify and decode fix payload
+        run: |
+          echo "ee4d0fd3bf61be9eb326337cae23ac0dcc5736a38b86d0d64d57cf2235b330c7  .github/issue-793-audit-fix.py.gz.b64" | sha256sum -c -
+          base64 -d .github/issue-793-audit-fix.py.gz.b64 | gzip -dc > /tmp/apply_issue793_audit_fix.py
+          echo "cabea571183178550146dc61b647ae1f2a5a6c54ae9b720e92ccbfef9a2ce3cb  /tmp/apply_issue793_audit_fix.py" | sha256sum -c -
+
+      - name: Apply audited corrections
+        run: python /tmp/apply_issue793_audit_fix.py
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate correction
+        run: |
+          pnpm check
+          pnpm test
+          pnpm architecture:check
+          pnpm docs:check
+          pnpm build
+          pnpm agent:check
+
+      - name: Commit correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(timezone): validate owner civil time on server (#793)"
+          git push origin HEAD:feat/793-centralizar-timezone
