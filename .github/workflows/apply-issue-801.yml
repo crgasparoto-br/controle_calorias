@@ -1,21 +1,22 @@
 name: Apply issue 801 implementation
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/801-soft-delete-food-catalog
+      - develop
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]'
+    if: github.head_ref == 'feat/801-soft-delete-food-catalog' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - uses: actions/setup-node@v4
         with:
