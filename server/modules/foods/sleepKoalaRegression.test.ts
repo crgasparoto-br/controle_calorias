@@ -157,6 +157,13 @@ describe("Sleep Koala deletion regression", () => {
         item => item.id === created.id
       )
     ).toBe(false);
+    await expect(foodsService.getFoodsByIds(7, [created.id])).resolves.toEqual([
+      expect.objectContaining({
+        id: created.id,
+        status: "deprecated",
+        isFavorite: false,
+      }),
+    ]);
 
     databaseAvailable = true;
     const currentAnalysis = {

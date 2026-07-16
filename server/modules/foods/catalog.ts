@@ -164,11 +164,26 @@ export function createFoodsService(deps: {
   onWarning: (scope: string, error: unknown) => void;
 }) {
   const userFoodStore = new Map<number, FoodSearchItem[]>();
+  const historicalUserFoodStore = new Map<number, FoodSearchItem[]>();
   const favoriteFoodStore = new Map<number, Set<number>>();
 
   registerDeprecatedFoodCleanup((deprecatedUserId, foodId) => {
     const foods = userFoodStore.get(deprecatedUserId);
     if (foods) {
+      const deprecatedFoods = foods
+        .filter(food => food.id === foodId)
+        .map(food => ({
+          ...food,
+          status: "deprecated" as const,
+          isFavorite: false,
+        }));
+      if (deprecatedFoods.length) {
+        const historicalFoods = historicalUserFoodStore.get(deprecatedUserId) ?? [];
+        historicalUserFoodStore.set(deprecatedUserId, [
+          ...deprecatedFoods,
+          ...historicalFoods.filter(food => food.id !== foodId),
+        ]);
+      }
       userFoodStore.set(
         deprecatedUserId,
         foods.filter(food => food.id !== foodId)
@@ -303,6 +318,7 @@ export function createFoodsService(deps: {
     if (!db) {
       const historicalFoods = [
         ...(userFoodStore.get(userId) ?? []),
+        ...(historicalUserFoodStore.get(userId) ?? []),
         ...referenceFoods,
       ];
       return historicalFoods.filter(food => uniqueIds.includes(food.id));
@@ -731,6 +747,7 @@ export function createFoodsService(deps: {
 
   function clearMemory(userId: number) {
     userFoodStore.delete(userId);
+    historicalUserFoodStore.delete(userId);
     favoriteFoodStore.delete(userId);
     clearDeprecatedFoodRegistry(userId);
   }
