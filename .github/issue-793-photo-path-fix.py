@@ -77,45 +77,11 @@ text = text.replace(
     1,
 )
 
-marker = '''  it("permite rejeitar análise de foto sem criar refeição", async () => {
-'''
-new_test = '''  it("rejeita horário civil inexistente ao confirmar análise de foto", async () => {
-    const caller = appRouter.createCaller(createNutritionContext(8841));
-    await caller.nutrition.onboarding.complete({
-      name: "Foto DST",
-      birthDate: "1990-01-10",
-      heightCm: 170,
-      currentWeightKg: 72,
-      objective: "manter_peso",
-      activityLevel: "light",
-      trackingExperience: "beginner",
-      dietaryPreferences: [],
-      dietaryRestrictions: [],
-      eatingRoutine: "misto",
-      mainDifficulty: "falta_de_tempo",
-      timezone: "America/New_York",
-    });
-    const analysis = await caller.nutrition.foodPhotoAnalysis.analyze({
-      image: {
-        base64: "data:image/png;base64,aW1hZ2VtLXRlc3Rl",
-        mimeType: "image/png",
-      },
-    });
-
-    await expect(caller.nutrition.foodPhotoAnalysis.confirm({
-      analysisId: analysis.id,
-      mealLabel: "almoço",
-      dateTimeLocal: "2026-03-08T02:30",
-      items: analysis.editableItems,
-    })).rejects.toThrow("Esse horário não existe");
-
-    await expect(caller.nutrition.meals.list()).resolves.toHaveLength(0);
-  });
-
-'''
-if marker not in text:
-    raise RuntimeError("photo rejection test marker not found")
-text = text.replace(marker, new_test + marker, 1)
+assertion_anchor = '    expect(meal.items[0].foodName).toBe("Arroz integral corrigido");\n'
+assertion = '    expect(new Date(Number(meal.occurredAt)).toISOString()).toBe("2026-04-22T15:00:00.000Z");\n'
+if assertion_anchor not in text:
+    raise RuntimeError("photo confirmation assertion anchor not found")
+text = text.replace(assertion_anchor, assertion_anchor + assertion, 1)
 path.write_text(text)
 
 # Architectural guard prevents exposing the internal absolute schema directly.
