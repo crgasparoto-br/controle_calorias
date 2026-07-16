@@ -1,10 +1,11 @@
-import { calculateMealTotals } from "../../../shared/mealTotals";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { listMeals } from "../meals/service";
 import { getWhatsAppMealGoalProgress } from "./goalProgressService";
 import { buildWhatsAppMealContextLine } from "./replyMessages";
-import { buildWhatsAppGoalProgressLines, buildWhatsAppMealTotalLines } from "./replyTemplates";
+import { buildWhatsAppGoalProgressLines } from "./replyTemplates";
 import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
+
+const MEAL_TOTAL_TITLE = "*Total da refeição:*";
 
 function replaceOnce(value: string, search: string, replacement: string) {
   const index = value.indexOf(search);
@@ -32,16 +33,20 @@ function prioritizeMealsForReply<T extends { id: number; occurredAt: number | st
 function insertProgressAfterMealTotal(input: {
   replyText: string;
   contextLine: string;
-  totalBlock: string;
   progressBlock: string;
 }) {
   const contextIndex = input.replyText.indexOf(input.contextLine);
   if (contextIndex < 0) return input.replyText;
 
-  const totalIndex = input.replyText.indexOf(input.totalBlock, contextIndex);
-  if (totalIndex < 0) return input.replyText;
+  const titleIndex = input.replyText.indexOf(MEAL_TOTAL_TITLE, contextIndex);
+  if (titleIndex < 0) return input.replyText;
 
-  const insertionIndex = totalIndex + input.totalBlock.length;
+  const valuesStart = titleIndex + MEAL_TOTAL_TITLE.length + 1;
+  const valuesEnd = input.replyText.indexOf("\n", valuesStart);
+  const insertionIndex = valuesEnd < 0 ? input.replyText.length : valuesEnd;
+  const valuesLine = input.replyText.slice(valuesStart, insertionIndex);
+  if (!valuesLine.startsWith("*") || !valuesLine.endsWith("*")) return input.replyText;
+
   const suffix = input.replyText.slice(insertionIndex);
   if (suffix.startsWith(`\n\n${input.progressBlock}`)) return input.replyText;
 
@@ -54,7 +59,7 @@ export async function enrichWhatsAppMealActionReply(input: {
   mealId?: number | null;
   timeZone?: string;
 }) {
-  if (!input.replyText.includes("*Total da refeição:*") || input.replyText.includes("*Meta:*")) {
+  if (!input.replyText.includes(MEAL_TOTAL_TITLE) || input.replyText.includes("*Meta:*")) {
     return input.replyText;
   }
 
@@ -86,11 +91,9 @@ export async function enrichWhatsAppMealActionReply(input: {
       const progressLines = buildWhatsAppGoalProgressLines(await progressPromise);
       if (!progressLines.length) continue;
 
-      const totalBlock = buildWhatsAppMealTotalLines(calculateMealTotals(meal.items ?? [])).join("\n");
       replyText = insertProgressAfterMealTotal({
         replyText,
         contextLine: effectiveContextLine,
-        totalBlock,
         progressBlock: progressLines.join("\n"),
       });
     }
