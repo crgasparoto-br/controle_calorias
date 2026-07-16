@@ -1,0 +1,35 @@
+name: Apply issue 796 WhatsApp
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - feat/795-timezone-backend-reports
+
+permissions:
+  contents: write
+
+jobs:
+  apply-whatsapp:
+    if: github.head_ref == 'feat/796-timezone-whatsapp'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/796-timezone-whatsapp
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Apply reviewed WhatsApp change
+        shell: bash
+        run: bash .github/apply-796.sh
+
+      - name: Upload transfer diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-796-transfer-diagnostics
+          path: /tmp/issue796-diagnostics
+          if-no-files-found: error
+          retention-days: 1
