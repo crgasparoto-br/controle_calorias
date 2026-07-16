@@ -120,6 +120,11 @@ function buildProcessingFailureReply(message: WhatsAppWebhookMessage, error: unk
       ? buildWhatsAppAudioNotUnderstoodReplyMessage()
       : buildWhatsAppAudioProcessingFailureReplyMessage();
   }
+  // MealInferenceError carrega uma clarificação de domínio escrita para o
+  // usuário (ex.: quantidade inválida); não descartar essa orientação.
+  if (notRecognized && error instanceof MealInferenceError && error.message.trim()) {
+    return buildWhatsAppRecoverableErrorReplyMessage(error.message.trim());
+  }
   return buildWhatsAppRecoverableErrorReplyMessage("Não foi possível concluir sua solicitação agora. Tente novamente em alguns instantes.");
 }
 

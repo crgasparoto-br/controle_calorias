@@ -251,5 +251,17 @@ export function evaluateWhatsappAutonomyPolicy(input: WhatsappAutonomyPolicyInpu
     });
   }
 
+  // Quando a regra exige aceite explicito e ele foi dado (instrucao clara do
+  // usuario, sem ambiguidade e com contexto resolvido), a confirmacao exigida
+  // ja esta satisfeita: a acao pode executar (decisao da epic #779 para
+  // substituicoes e ajustes de quantidade claros).
+  if (ruleConfig.requiresExplicitAcceptance && input.explicitAcceptance && ruleConfig.defaultOutcome === "confirm") {
+    return decisionFromRule(ruleConfig, input, {
+      autonomyLevel: "automatico",
+      outcome: "execute",
+      reason: "Aceite explicito do usuario satisfaz a confirmacao exigida pela politica.",
+    });
+  }
+
   return decisionFromRule(ruleConfig, input);
 }

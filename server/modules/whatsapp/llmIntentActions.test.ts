@@ -198,7 +198,7 @@ describe("executeWhatsappLlmIntent", () => {
     }));
     expect(result?.reply).toContain("Alimentos registrados hoje");
     expect(result?.reply).toContain("Almoço");
-    expect(result?.reply).toContain("100 g");
+    expect(result?.reply).toContain("100g");
     expect(result?.reply).toContain("Arroz");
     expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       action: "llm_intent_list_meal_records",
@@ -451,7 +451,7 @@ describe("executeWhatsappLlmIntent", () => {
 
     expect(result).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      reply: expect.stringContaining("Nao consegui concluir"),
+      reply: expect.stringContaining("Não consegui concluir"),
     }));
     expect(createManualMealMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();

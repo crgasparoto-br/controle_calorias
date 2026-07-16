@@ -632,7 +632,7 @@ async function handleListMeals(userId: number, intent: WhatsappInterpretedIntent
     };
   }
 
-  const canonicalReply = formatDayMealListReply(filteredMeals, receivedAt, timeZone);
+  const canonicalReply = formatDayMealListReply(filteredMeals, receivedAt, timeZone, receivedAt);
 
   return {
     handled: true,

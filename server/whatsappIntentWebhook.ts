@@ -31,6 +31,10 @@ import {
 import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
 import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
 import { setWhatsAppDeferredLogicalReply } from "./modules/whatsapp/deferredLogicalReply";
+import {
+  buildWhatsappPeriodReportClarificationListReply,
+  PENDING_PERIOD_REPORT_TYPE,
+} from "./modules/whatsapp/periodReportClarification";
 import type { DomainLinkInput } from "./repositories/whatsappConversationRepository";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { buildWhatsAppCanonicalWeightReply } from "./modules/whatsapp/domainReplyFormatters";
@@ -55,7 +59,6 @@ type TextIntentResult =
 type TextIntentHandlingResult = boolean | { passthroughText: string; intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null };
 const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
-const PERIOD_REPORT_PENDING_TYPE = "period_report_clarification";
 const PERIOD_REPORT_PENDING_ORIGIN = "whatsappIntentWebhook";
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb,
@@ -244,29 +247,34 @@ function markTextIntentMessageHandled(messageId?: string) {
 
 async function getPendingTextIntentContext(userId: number) {
   const pending = await pendingOperationRepository.getActivePendingOperation(userId);
-  if (!pending || pending.type !== PERIOD_REPORT_PENDING_TYPE) return null;
+  if (!pending || pending.type !== PENDING_PERIOD_REPORT_TYPE) return null;
   return { kind: "period_report" as const, id: pending.id };
 }
 
 async function clearPendingTextIntentContext(userId: number) {
   const pending = await pendingOperationRepository.getActivePendingOperation(userId);
-  if (pending && pending.type === PERIOD_REPORT_PENDING_TYPE) {
+  if (pending && pending.type === PENDING_PERIOD_REPORT_TYPE) {
     await pendingOperationRepository.cancelPendingOperation(pending.id);
   }
 }
 
 async function rememberPendingTextIntentContext(userId: number, result: TextIntentResult) {
   if (result.action === "clarification_needed" && result.detail === "Pedido de relatório sem período explícito.") {
-    await pendingOperationRepository.createPendingOperation({
+    const pending = await pendingOperationRepository.createPendingOperation({
       userId,
-      type: PERIOD_REPORT_PENDING_TYPE,
+      type: PENDING_PERIOD_REPORT_TYPE,
       origin: PERIOD_REPORT_PENDING_ORIGIN,
       ttlMs: TEXT_INTENT_CONTEXT_TTL_MS,
       target: { kind: "period_report" },
     });
-    return;
+    // Pergunta com escolhas objetivas usa lista interativa (#782); o fallback
+    // textual ("ontem", "semana"...) continua resolvendo a mesma pendência.
+    return pending?.id
+      ? buildWhatsappPeriodReportClarificationListReply(pending.id, result.reply)
+      : null;
   }
   await clearPendingTextIntentContext(userId);
+  return null;
 }
 
 export function __resetWhatsAppTextIntentContextForTests() {
@@ -668,7 +676,7 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
   }
 
   markTextIntentMessageHandled(message.id);
-  await rememberPendingTextIntentContext(userId, result);
+  const pendingInteractiveReply = await rememberPendingTextIntentContext(userId, result);
   await sendAndLogTextReply({
     userId,
     sourcePhone,
@@ -680,7 +688,7 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
     mealId: extractMealId(result.data),
     occurredAtMs,
     lifecycleHandle,
-    interactiveReply: "interactiveReply" in result ? result.interactiveReply : undefined,
+    interactiveReply: pendingInteractiveReply ?? ("interactiveReply" in result ? result.interactiveReply : undefined),
   });
   return true;
   }

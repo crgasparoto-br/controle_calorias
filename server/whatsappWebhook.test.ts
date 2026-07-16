@@ -432,8 +432,7 @@ describe("whatsappWebhook", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
     expect(savedMeals.length).toBeGreaterThan(0);
-    expect(lastSentWhatsAppBody).toContain("Conta não identificada");
-    expect(lastSentWhatsAppBody).toContain("Verifique o telefone cadastrado no sistema web");
+    expect(lastSentWhatsAppBody).toBeNull();
   });
 
   it("ignora mensagens recebidas por um WhatsApp Phone Number ID diferente do canal fixo configurado", async () => {
@@ -794,6 +793,8 @@ describe("whatsappWebhook", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).not.toHaveBeenCalled();
-    expect(lastSentWhatsAppBody).toBeNull();
+    // Contrato #787: conta não identificada recebe mensagem de segurança central.
+    expect(lastSentWhatsAppBody).toContain("Conta não identificada");
+    expect(lastSentWhatsAppBody).toContain("Verifique o telefone cadastrado no sistema web");
   });
 });

@@ -302,12 +302,16 @@ function formatDayMealGroupLines(group: MealGroup) {
   ];
 }
 
-export function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date, timeZone = SAO_PAULO_TIME_ZONE) {
+export function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Date, timeZone = SAO_PAULO_TIME_ZONE, now: Date = new Date()) {
   const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate, timeZone));
   const dateLabel = formatReplyDate(referenceDate, timeZone);
+  // "hoje" é relativo ao timestamp da mensagem no timezone do usuário (#784).
+  const titleLabel = dateLabel === formatReplyDate(now, timeZone)
+    ? "Alimentos registrados hoje"
+    : `Alimentos registrados em ${dateLabel}`;
   if (!mealsInDay.length) {
     return buildWhatsAppBlock([
-      buildWhatsAppTitle(`Alimentos registrados em ${dateLabel}`, { bold: true }),
+      buildWhatsAppTitle(titleLabel, { bold: true }),
       buildWhatsAppSeparator(),
       "Não encontrei alimentos registrados nessa data.",
     ]);
@@ -321,7 +325,7 @@ export function formatDayMealListReply(meals: ExistingMeal[], referenceDate: Dat
   const allItems = groups.flatMap(group => group.items);
 
   return buildWhatsAppBlock([
-    buildWhatsAppTitle(`Alimentos registrados em ${dateLabel}`, { bold: true }),
+    buildWhatsAppTitle(titleLabel, { bold: true }),
     buildWhatsAppSeparator(),
     ...lines,
     buildWhatsAppSeparator(),
@@ -345,7 +349,7 @@ export async function executeWhatsappMealListIntent(userId: number, input: { tex
     const mealsInDay = meals.filter(meal => isMealInsideDay(meal, referenceDate, timeZone));
     return {
       action: "meal_foods_listed",
-      reply: formatDayMealListReply(meals, referenceDate, timeZone),
+      reply: formatDayMealListReply(meals, referenceDate, timeZone, receivedAt),
       eventType: "whatsapp.intent.meal_foods_listed",
       detail: `Lista de alimentos enviada para ${formatReplyDate(referenceDate, timeZone)} com ${mealsInDay.length} refeição(ões).`,
       data: {
