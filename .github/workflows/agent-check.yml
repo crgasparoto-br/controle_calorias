@@ -35,6 +35,34 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Apply issue 801 implementation
+        run: node scripts/bootstrap-issue-801.cjs
+
+      - name: Format issue 801 sources
+        run: |
+          pnpm exec prettier --write \
+            drizzle/schema.ts \
+            drizzle/meta/_journal.json \
+            drizzle/meta/0025_snapshot.json \
+            server/schemaCompatibility.ts \
+            server/repositories/foodCatalogRepository.ts \
+            server/modules/foods/deprecationRegistry.ts \
+            server/modules/foods/legacyDeletion.ts \
+            server/modules/foods/legacyDeletion.test.ts \
+            server/modules/foods/catalog.ts \
+            server/modules/foods/catalog.test.ts \
+            server/modules/foods/service.ts \
+            server/modules/foods/schemas.ts \
+            server/nutritionRouter.ts \
+            client/src/pages/FoodsPage.tsx \
+            docs/design-docs/custom-foods.md \
+            docs/product-specs/meal-registration.md
+
+      - name: Regenerate issue 801 documentation
+        run: |
+          pnpm docs:generate:db
+          pnpm docs:generate:trpc
+
       - name: TypeScript check
         run: pnpm check
 
@@ -113,3 +141,24 @@ jobs:
             echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
             echo "Vercel preview/deploy checks are complementary and do not replace this gate."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect issue 801 generated files
+        if: always()
+        run: |
+          mkdir -p /tmp/issue-801-export
+          {
+            git diff --name-only -z
+            git ls-files --others --exclude-standard -z
+          } | sort -zu | while IFS= read -r -d '' file; do
+            mkdir -p "/tmp/issue-801-export/$(dirname "$file")"
+            cp "$file" "/tmp/issue-801-export/$file"
+          done
+
+      - name: Upload issue 801 generated files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-801-generated-files
+          path: /tmp/issue-801-export
+          if-no-files-found: error
+          retention-days: 3
