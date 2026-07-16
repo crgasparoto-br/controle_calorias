@@ -7,13 +7,63 @@ const outputPath = path.join(root, "docs/generated/db-schema.md");
 const checkOnly = process.argv.includes("--check");
 
 type ColumnInfo = { propertyName: string; columnName: string };
-type TableInfo = { exportName: string; tableName: string; columns: ColumnInfo[] };
+type TableInfo = {
+  exportName: string;
+  tableName: string;
+  columns: ColumnInfo[];
+};
 
-const tableFragments = ["user", "profile", "goal", "favorite", "badge", "recipe", "meal", "habit", "summary", "exercise", "weight", "water", "preference", "restriction", "whatsapp", "inference", "log", "media"];
-const columnFragments = ["email", "name", "age", "birth", "height", "weight", "objective", "activity", "routine", "difficulty", "timezone", "text", "transcript", "note", "media", "reason", "json", "url", "detail", "preference", "restriction", "label", "severity", "occurred", "measured"];
+const tableFragments = [
+  "user",
+  "profile",
+  "goal",
+  "favorite",
+  "badge",
+  "recipe",
+  "meal",
+  "habit",
+  "summary",
+  "exercise",
+  "weight",
+  "water",
+  "preference",
+  "restriction",
+  "whatsapp",
+  "inference",
+  "log",
+  "media",
+];
+const columnFragments = [
+  "email",
+  "name",
+  "age",
+  "birth",
+  "height",
+  "weight",
+  "objective",
+  "activity",
+  "routine",
+  "difficulty",
+  "timezone",
+  "text",
+  "transcript",
+  "note",
+  "media",
+  "reason",
+  "json",
+  "url",
+  "detail",
+  "preference",
+  "restriction",
+  "label",
+  "severity",
+  "occurred",
+  "measured",
+];
 
 function readRequiredFile(filePath: string) {
-  if (!existsSync(filePath)) throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
+  if (!existsSync(filePath))
+    throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
   return readFileSync(filePath, "utf8");
 }
 
@@ -42,13 +92,16 @@ function findMatchingBrace(source: string, start: number) {
 }
 
 function parseColumns(source: string): ColumnInfo[] {
-  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:int|double|text|timestamp|varchar|mysqlEnum)\("([^"]+)"/gm))
-    .map(match => ({ propertyName: match[1], columnName: match[2] }));
+  return Array.from(
+    source.matchAll(
+      /^\s*(\w+):\s*(?:int|double|boolean|json|text|timestamp|varchar|mysqlEnum)\("([^"]+)"/gm
+    )
+  ).map(match => ({ propertyName: match[1], columnName: match[2] }));
 }
 
 function parseTables(source: string): TableInfo[] {
   const tables: TableInfo[] = [];
-  const tableRegex = /export const (\w+) = mysqlTable\("([^"]+)"/g;
+  const tableRegex = /export const (\w+) = mysqlTable\(\s*"([^"]+)"\s*,/g;
   for (const match of source.matchAll(tableRegex)) {
     const columnsStart = source.indexOf("{", match.index ?? 0);
     const columnsEnd = findMatchingBrace(source, columnsStart);
@@ -67,11 +120,17 @@ function hasFragment(value: string, fragments: string[]) {
 }
 
 function tableClass(table: TableInfo) {
-  return hasFragment(table.tableName, tableFragments) ? "Requer atenção" : "Baixa";
+  return hasFragment(table.tableName, tableFragments)
+    ? "Requer atenção"
+    : "Baixa";
 }
 
 function selectedColumns(table: TableInfo) {
-  return table.columns.filter(column => hasFragment(column.propertyName, columnFragments) || hasFragment(column.columnName, columnFragments));
+  return table.columns.filter(
+    column =>
+      hasFragment(column.propertyName, columnFragments) ||
+      hasFragment(column.columnName, columnFragments)
+  );
 }
 
 function generateMarkdown(tables: TableInfo[]) {
@@ -89,7 +148,9 @@ function generateMarkdown(tables: TableInfo[]) {
   ];
 
   for (const table of tables) {
-    lines.push(`| \`${table.exportName}\` | \`${table.tableName}\` | ${table.columns.length} | ${tableClass(table)} |`);
+    lines.push(
+      `| \`${table.exportName}\` | \`${table.tableName}\` | ${table.columns.length} | ${tableClass(table)} |`
+    );
   }
 
   lines.push("", "## Tabelas sensíveis conhecidas", "");
@@ -101,14 +162,21 @@ function generateMarkdown(tables: TableInfo[]) {
   lines.push("| Tabela física | Campos detectados |");
   lines.push("|---|---|");
   for (const table of tables) {
-    const fields = selectedColumns(table).map(column => `\`${column.columnName}\``);
-    if (fields.length) lines.push(`| \`${table.tableName}\` | ${fields.join(", ")} |`);
+    const fields = selectedColumns(table).map(
+      column => `\`${column.columnName}\``
+    );
+    if (fields.length)
+      lines.push(`| \`${table.tableName}\` | ${fields.join(", ")} |`);
   }
 
   lines.push("", "## Relações críticas", "");
   lines.push("- A maioria dos dados de domínio referencia `users.id`.");
-  lines.push("- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`.");
-  lines.push("- `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento.");
+  lines.push(
+    "- `meals` possui `mealItems`, `mealMedia` e pode ser referenciada por `mealInferences`."
+  );
+  lines.push(
+    "- `mealFavorites`, `foodFavorites`, `userGamificationSettings` e `userBadges` alimentam personalização e engajamento."
+  );
   lines.push("");
   return `${lines.join("\n")}\n`;
 }
@@ -117,7 +185,9 @@ const generated = generateMarkdown(parseTables(readRequiredFile(sourcePath)));
 if (checkOnly) {
   const current = readRequiredFile(outputPath);
   if (current !== generated) {
-    console.error("docs/generated/db-schema.md está desatualizado. Rode `pnpm docs:generate:db` e commit as mudanças.");
+    console.error(
+      "docs/generated/db-schema.md está desatualizado. Rode `pnpm docs:generate:db` e commit as mudanças."
+    );
     process.exit(1);
   }
   console.log("docs/generated/db-schema.md está atualizado.");
