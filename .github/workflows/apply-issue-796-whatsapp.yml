@@ -1,16 +1,15 @@
 name: Apply issue 796 WhatsApp
 
 on:
-  pull_request:
+  push:
     branches:
-      - feat/795-timezone-backend-reports
+      - feat/796-timezone-whatsapp
 
 permissions:
   contents: write
 
 jobs:
   apply-whatsapp:
-    if: github.head_ref == 'feat/796-timezone-whatsapp'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout implementation branch
@@ -28,6 +27,7 @@ jobs:
           cat .github/issue-796-patch.part* | base64 -d | gzip -dc > /tmp/issue796.patch
           git am /tmp/issue796.patch
           rm -f .github/issue-796-patch.part*
+          rm -f .github/trigger-796-2.txt
           rm -f .github/workflows/apply-issue-796-whatsapp.yml
           git add -A
           git diff --cached --check
