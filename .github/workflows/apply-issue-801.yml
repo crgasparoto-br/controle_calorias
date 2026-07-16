@@ -1,0 +1,67 @@
+name: Apply issue 801 implementation
+
+on:
+  push:
+    branches:
+      - feat/801-soft-delete-food-catalog
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Restore and apply implementation
+        run: |
+          base64 --decode scripts/apply-issue-801.cjs.gz.b64 | gzip --decompress > /tmp/apply-issue-801.cjs
+          node /tmp/apply-issue-801.cjs
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Format changed sources
+        run: |
+          pnpm exec prettier --write \
+            drizzle/schema.ts \
+            drizzle/meta/_journal.json \
+            drizzle/meta/0025_snapshot.json \
+            server/schemaCompatibility.ts \
+            server/repositories/foodCatalogRepository.ts \
+            server/modules/foods/deprecationRegistry.ts \
+            server/modules/foods/legacyDeletion.ts \
+            server/modules/foods/legacyDeletion.test.ts \
+            server/modules/foods/catalog.ts \
+            server/modules/foods/catalog.test.ts \
+            server/modules/foods/service.ts \
+            server/modules/foods/schemas.ts \
+            server/nutritionRouter.ts \
+            client/src/pages/FoodsPage.tsx \
+            docs/design-docs/custom-foods.md \
+            docs/product-specs/meal-registration.md
+
+      - name: Regenerate derived documentation
+        run: |
+          pnpm docs:generate:db
+          pnpm docs:generate:trpc
+
+      - name: Commit implementation
+        run: |
+          rm -f scripts/apply-issue-801.cjs.gz.b64
+          rm -f .github/workflows/apply-issue-801.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: implement soft deletion for legacy food catalog (#801)"
+          git push origin HEAD:feat/801-soft-delete-food-catalog
