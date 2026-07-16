@@ -101,7 +101,7 @@ async function buildCanonicalPeriodData(userId: number, period: PeriodRange, tim
     const bundle = await getPeriodReportBundle(userId, {
       startDate: getDateKeyInTimeZone(period.start, timeZone),
       endDate: getDateKeyInTimeZone(period.end, timeZone),
-    });
+    }, timeZone);
 
     return {
       mealCount: bundle.mealsByDate.reduce((count, group) => count + group.items.length, 0),

@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { handleMealItemMultiAdjustment } from "./intent/gramsAdjustmentHandlers";
 
 export type WhatsappGramsAdjustmentResult = Awaited<ReturnType<typeof handleMealItemMultiAdjustment>>;
@@ -48,11 +49,11 @@ function parse(text: string) {
 
 export async function executeWhatsappGramsAdjustmentIntent(
   userId: number,
-  input: { text?: string | null; receivedAt?: Date },
+  input: { text?: string | null; receivedAt?: Date; userTimezone?: string },
 ): Promise<WhatsappGramsAdjustmentResult | null> {
   const parsed = input.text ? parse(input.text) : null;
   if (!parsed) return null;
-  return handleMealItemMultiAdjustment(userId, parsed.adjustments, { mealLabel: parsed.mealLabel });
+  return handleMealItemMultiAdjustment(userId, parsed.adjustments, { mealLabel: parsed.mealLabel, timeZone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE });
 }
 
 export const contextUsage: import("./intentContext").IntentContextUsage = {

@@ -254,6 +254,36 @@ export function zonedDateTimeLocalToIso(value: string, timeZone: string) {
   return zonedDateTimeLocalToDate(value, timeZone).toISOString();
 }
 
+export function normalizeDateTimeParts(parts: DateTimeParts): DateTimeParts {
+  const normalized = new Date(Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  ));
+  return {
+    year: normalized.getUTCFullYear(),
+    month: normalized.getUTCMonth() + 1,
+    day: normalized.getUTCDate(),
+    hour: normalized.getUTCHours(),
+    minute: normalized.getUTCMinutes(),
+    second: normalized.getUTCSeconds(),
+  };
+}
+
+export function zonedDateTimePartsToDate(
+  parts: DateTimeParts,
+  timeZone: string,
+  options: { normalizeOverflow?: boolean } = {},
+) {
+  const value = options.normalizeOverflow ? normalizeDateTimeParts(parts) : parts;
+  const localValue = `${value.year}-${pad(value.month)}-${pad(value.day)}`
+    + `T${pad(value.hour)}:${pad(value.minute)}:${pad(value.second)}`;
+  return zonedDateTimeLocalToDate(localValue, timeZone);
+}
+
 function assertDateKey(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new ZonedDateTimeError("invalid_format", "Informe a data no formato AAAA-MM-DD.");
@@ -267,6 +297,16 @@ export function addCalendarDays(dateKey: string, days: number) {
   const [year, month, day] = assertDateKey(dateKey).split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0, 0));
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+
+export function addCalendarMonths(dateKey: string, months: number) {
+  const [year, month, day] = assertDateKey(dateKey).split("-").map(Number);
+  const targetMonth = new Date(Date.UTC(year, month - 1 + months, 1, 12, 0, 0, 0));
+  const targetYear = targetMonth.getUTCFullYear();
+  const targetMonthIndex = targetMonth.getUTCMonth();
+  const lastDay = new Date(Date.UTC(targetYear, targetMonthIndex + 1, 0, 12, 0, 0, 0)).getUTCDate();
+  return `${targetYear}-${pad(targetMonthIndex + 1)}-${pad(Math.min(day, lastDay))}`;
 }
 
 export function getUtcRangeForLocalDate(

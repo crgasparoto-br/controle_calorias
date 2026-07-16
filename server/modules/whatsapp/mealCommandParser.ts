@@ -1,4 +1,6 @@
 import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { addDaysToZonedDate, getZonedParts, makeDateInTimeZone } from "./intent/dateTime";
 import { normalizeWhatsAppIntentText, stripDiacritics } from "./webhookUtils";
 import { joinUnitWords } from "./quantityUnitVocabulary";
 
@@ -45,9 +47,8 @@ export type MealCommandContext = {
   referenceDate?: Date;
   recentMealType?: string | null;
   recentDate?: Date | null;
+  timeZone?: string;
 };
-
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 const QUANTITY_UNIT_PATTERN = joinUnitWords([
   "gramas",
   "quilos",
@@ -95,15 +96,6 @@ const KNOWN_BRANDS = [
   "Budweiser",
 ];
 
-type ZonedParts = {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
-};
-
 type ParsedQuantity = {
   quantity: number;
   unit: string;
@@ -150,70 +142,20 @@ function stripTrailingDate(value: string) {
   return value.replace(/\s+(?:de\s+)?(?:hoje|ontem|anteontem|amanh[aã])\s*$/i, "").trim();
 }
 
-function getZonedParts(date: Date, timeZone = SAO_PAULO_TIME_ZONE): ZonedParts {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]));
-  const hour = Number(parts.hour);
-  return {
-    year: Number(parts.year),
-    month: Number(parts.month),
-    day: Number(parts.day),
-    hour: hour === 24 ? 0 : hour,
-    minute: Number(parts.minute),
-    second: Number(parts.second),
-  };
-}
-
-function makeDateInTimeZone(parts: ZonedParts, timeZone = SAO_PAULO_TIME_ZONE) {
-  const utcGuess = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second));
-  const actualParts = getZonedParts(utcGuess, timeZone);
-  const desiredUtcMinutes = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) / 60_000;
-  const actualUtcMinutes = Date.UTC(
-    actualParts.year,
-    actualParts.month - 1,
-    actualParts.day,
-    actualParts.hour,
-    actualParts.minute,
-    actualParts.second,
-  ) / 60_000;
-  const offsetMinutes = actualUtcMinutes - desiredUtcMinutes;
-  return new Date(utcGuess.getTime() - offsetMinutes * 60_000);
-}
-
-function addDaysToZonedDate(parts: ZonedParts, days: number) {
-  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, parts.hour, parts.minute, parts.second));
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-    hour: parts.hour,
-    minute: parts.minute,
-    second: parts.second,
-  };
-}
-
 function resolveCommandDate(input: string, context: MealCommandContext) {
   const referenceDate = context.referenceDate ?? new Date();
   const normalized = normalizeText(input);
-  const referenceParts = getZonedParts(referenceDate);
+  const timeZone = context.timeZone ?? DEFAULT_APP_TIME_ZONE;
+  const referenceParts = getZonedParts(referenceDate, timeZone);
 
   if (/\banteontem\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -2));
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -2), timeZone);
   }
   if (/\bontem\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -1));
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -1), timeZone);
   }
   if (/\bamanha\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, 1));
+    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, 1), timeZone);
   }
   if (/\bhoje\b/.test(normalized)) {
     return referenceDate;

@@ -1,20 +1,20 @@
 import { getUserWaterGoal, listUserWaterLogs, listUserWeightEntries } from "../../db";
-import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
-import { getUserOnboardingProfile } from "../onboarding/profileRead";
+import { getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
 
 export async function getWhatsAppUserTimeZone(userId: number) {
-  try {
-    return (await getUserOnboardingProfile(userId))?.timezone ?? DEFAULT_APP_TIME_ZONE;
-  } catch {
-    return DEFAULT_APP_TIME_ZONE;
-  }
+  return getWhatsAppOperationTimeZone(userId);
 }
 
-export async function getWhatsAppWaterProgress(userId: number, occurredAt: Date) {
-  const [goal, logs, timeZone] = await Promise.all([
+export async function getWhatsAppWaterProgress(
+  userId: number,
+  occurredAt: Date,
+  explicitTimeZone?: string,
+) {
+  const timeZone = explicitTimeZone ?? await getWhatsAppOperationTimeZone(userId);
+  const [goal, logs] = await Promise.all([
     getUserWaterGoal(userId),
     listUserWaterLogs(userId),
-    getWhatsAppUserTimeZone(userId),
   ]);
   const targetDateKey = getDateKeyInTimeZone(occurredAt, timeZone);
   const totalMl = logs

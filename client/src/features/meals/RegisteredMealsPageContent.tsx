@@ -15,7 +15,8 @@ import {
   toMonthInputValue,
   type PeriodScope,
 } from "@/lib/dateRanges";
-import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
+import { toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarPlus, ChevronDown, Droplets, Dumbbell, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
@@ -209,8 +210,8 @@ function formatExerciseNotesLabel(notes?: string | null) {
   return notes?.replace(/\s*Refer[eê]ncia externa:\s*strava:\d+\./gi, "").trim() ?? "";
 }
 
-function initialSelectedDay() {
-  const fallback = toDateInputValue();
+function initialSelectedDay(timeZone: string) {
+  const fallback = toDateInputValue(new Date(), timeZone);
   if (typeof window === "undefined") return fallback;
 
   const date = new URLSearchParams(window.location.search).get("date");
@@ -483,17 +484,28 @@ function ExerciseOperationalRecord({ exercise, userTimeZone }: { exercise: Exerc
 
 export function RegisteredMealsPage() {
   const utils = trpc.useUtils();
-  const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
-  const [initialDay] = useState(initialSelectedDay);
+  const effectiveTimeZone = useEffectiveUserTimeZone();
+  const userTimeZone = effectiveTimeZone.timeZone;
+  const [initialDay] = useState(() => initialSelectedDay(userTimeZone));
   const [periodScope, setPeriodScope] = useState<PeriodScope>("day");
   const [selectedDay, setSelectedDay] = useState(initialDay);
   const [selectedMonth, setSelectedMonth] = useState(() => toMonthInputValue(new Date(), userTimeZone));
   const [rangeStart, setRangeStart] = useState(() => toDateInputValue(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), userTimeZone));
-  const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
+  const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue(new Date(), userTimeZone));
   const [copyTargetDay, setCopyTargetDay] = useState(initialDay);
   const [manualMeal, setManualMeal] = useState<ManualMealEditState>(createRegisteredEditState);
   const [areMealGroupsCollapsed, setAreMealGroupsCollapsed] = useState(false);
   const [areDayDetailsCollapsed, setAreDayDetailsCollapsed] = useState(false);
+
+  React.useEffect(() => {
+    if (!effectiveTimeZone.isReady) return;
+    const currentDay = initialSelectedDay(userTimeZone);
+    setSelectedDay(currentDay);
+    setCopyTargetDay(currentDay);
+    setSelectedMonth(toMonthInputValue(new Date(), userTimeZone));
+    setRangeStart(toDateInputValue(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), userTimeZone));
+    setRangeEnd(toDateInputValue(new Date(), userTimeZone));
+  }, [effectiveTimeZone.isReady, userTimeZone]);
 
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
@@ -879,6 +891,16 @@ export function RegisteredMealsPage() {
       </CardContent>
     </Card>
   ) : null;
+
+  if (!effectiveTimeZone.isReady) {
+    return (
+      <DashboardLayout>
+        <div className="rounded-2xl border bg-background p-6 text-sm text-muted-foreground">
+          {effectiveTimeZone.isError ? "Não foi possível carregar o fuso horário do perfil." : "Carregando o fuso horário do perfil..."}
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getWeekOffsetFromToday } from "@/lib/dateRanges";
-import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
+import { toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import {
@@ -128,12 +129,13 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 }
 
 export default function ReportsGoalInsightsPanel() {
-  const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
-  const selectedDay = React.useMemo(() => toDateInputValue(), []);
+  const effectiveTimeZone = useEffectiveUserTimeZone();
+  const userTimeZone = effectiveTimeZone.timeZone;
+  const selectedDay = React.useMemo(() => toDateInputValue(new Date(), userTimeZone), [userTimeZone]);
   const weekOffset = React.useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
-  const reportBundle = trpc.nutrition.reports.bundle.useQuery({ weekOffset });
+  const reportBundle = trpc.nutrition.reports.bundle.useQuery({ weekOffset }, { enabled: effectiveTimeZone.isReady });
 
-  if (reportBundle.isLoading) {
+  if (!effectiveTimeZone.isReady || reportBundle.isLoading) {
     return <section className="mt-6 grid gap-4 lg:grid-cols-3"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-32 rounded-2xl" /></section>;
   }
 

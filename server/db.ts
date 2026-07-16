@@ -1589,7 +1589,7 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
     getWeeklySummary(userId, timeZone),
     getHabitSnapshots(userId),
   ]);
-  const gamification = await getUserGamification(userId, weekly);
+  const gamification = await getUserGamification(userId, weekly, timeZone);
 
   const weeklyConsumed = addMealTotals(weekly);
   const weeklyBurnedCalories = weekly.reduce((acc, day) => acc + Number(day.exerciseCalories ?? 0), 0);

@@ -88,11 +88,13 @@ function todayDateKey(timeZone = DEFAULT_APP_TIME_ZONE) {
 }
 
 function startOfUtcDate(dateKey: string) {
-  return new Date(`${dateKey}T00:00:00.000Z`);
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
 function logicalUtcDate(dateKey: string) {
-  return new Date(`${dateKey}T12:00:00.000Z`);
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12));
 }
 
 function dateKeyFromDate(value: Date | string | number) {

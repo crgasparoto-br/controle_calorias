@@ -72,17 +72,6 @@ export function resolveWhatsAppMessageOccurredAt(message: Pick<WhatsAppWebhookMe
   return new Date(String(message.timestamp).length <= 10 ? parsed * 1000 : parsed);
 }
 
-export function formatDateKeyInSaoPaulo(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
 export function stripDiacritics(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }

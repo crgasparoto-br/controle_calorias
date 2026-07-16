@@ -75,6 +75,7 @@ async function resolveWhatsAppInteractiveCallback(
   interactiveReplyId: string,
   receivedAt?: Date,
   sourcePhone?: string | null,
+  userTimezone?: string | null,
 ): Promise<WhatsAppInteractiveCallbackResult> {
   const expectedTypes = [
     PENDING_DELETE_TYPE,
@@ -102,7 +103,7 @@ async function resolveWhatsAppInteractiveCallback(
 
   switch (claim.pendingOperation.type) {
     case PENDING_DELETE_TYPE:
-      return completeWhatsappDeleteInteractiveCallback(userId, claim.pendingOperation, claim.action);
+      return completeWhatsappDeleteInteractiveCallback(userId, claim.pendingOperation, claim.action, userTimezone ?? undefined);
     case PENDING_MEAL_ITEM_SELECTION_TYPE:
       return completeMealItemSelectionInteractiveCallback(userId, claim.pendingOperation, claim.action);
     case PENDING_CONFIRMATION_TYPE:
@@ -139,7 +140,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   sourcePhone?: string | null;
 }): Promise<WhatsAppPrecedenceGateResult> {
   if (input.interactiveReplyId) {
-    const result = await resolveWhatsAppInteractiveCallback(input.userId, input.interactiveReplyId, input.receivedAt, input.sourcePhone);
+    const result = await resolveWhatsAppInteractiveCallback(input.userId, input.interactiveReplyId, input.receivedAt, input.sourcePhone, input.userTimezone);
     return { step: "interactive_callback", result };
   }
 

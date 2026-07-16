@@ -1,4 +1,5 @@
 import type { MealProcessingResult } from "../../nutritionEngine";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { getWhatsAppExerciseCaloriesForDateKey } from "./goalProgressContext";
 import {
   buildWhatsAppBlock,
@@ -21,6 +22,7 @@ export type WhatsAppMealGoalProgress = {
 export type WhatsAppMealReplyOptions = {
   registeredAt?: Date;
   goalProgress?: WhatsAppMealGoalProgress | null;
+  timeZone?: string;
 };
 
 export type WhatsAppConsolidatedMealReplyInput = {
@@ -42,22 +44,14 @@ export type WhatsAppAuxiliaryReplyOptions = {
 
 export type WhatsAppAudioTranscriptionFailureCode = "INVALID_FORMAT" | "FILE_TOO_LARGE" | "EMPTY_TRANSCRIPT" | "TRANSCRIPTION_FAILED" | string;
 
-function formatDateKeyInSaoPaulo(date?: Date) {
-  if (!date) return undefined;
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
+function formatReplyDateKey(date: Date | undefined, timeZone: string) {
+  return date ? getDateKeyInTimeZone(date, timeZone) : undefined;
 }
 
-function formatTimeInSaoPaulo(date?: Date) {
+function formatReplyTime(date: Date | undefined, timeZone: string) {
   if (!date) return undefined;
   return new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
+    timeZone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -70,9 +64,9 @@ function normalizeReplyDate(date?: Date | number | string | null) {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
-function buildMealTitle(mealLabel?: string | null, registeredAt?: Date, consolidated = false) {
+function buildMealTitle(mealLabel: string | null | undefined, registeredAt: Date | undefined, consolidated = false, timeZone = DEFAULT_APP_TIME_ZONE) {
   const label = mealLabel?.trim();
-  const time = formatTimeInSaoPaulo(registeredAt);
+  const time = formatReplyTime(registeredAt, timeZone);
   const suffix = time ? ` às ${time}hs.` : ".";
   if (!label || label.toLowerCase() === "refeição") {
     return buildWhatsAppTitle(`${consolidated ? "Refeição atualizada" : "Refeição registrada"}${suffix}`, { bold: true });
@@ -81,14 +75,14 @@ function buildMealTitle(mealLabel?: string | null, registeredAt?: Date, consolid
 }
 
 /** Bloco canônico de contexto reutilizado por registro, atualização, consulta e ações (issue #783). */
-export function buildWhatsAppMealContextLine(mealLabel?: string | null, occurredAt?: Date | number | string | null) {
+export function buildWhatsAppMealContextLine(mealLabel?: string | null, occurredAt?: Date | number | string | null, timeZone = DEFAULT_APP_TIME_ZONE) {
   const label = mealLabel?.trim() || "Refeição";
-  const time = formatTimeInSaoPaulo(normalizeReplyDate(occurredAt));
+  const time = formatReplyTime(normalizeReplyDate(occurredAt), timeZone);
   return `🍽️ ${buildWhatsAppTitle(label, { bold: true })}${time ? ` — ${time}` : ""}`;
 }
 
-function buildMealGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt?: Date) {
-  const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatDateKeyInSaoPaulo(registeredAt));
+function buildMealGoalProgressLines(progress: WhatsAppMealGoalProgress | null | undefined, registeredAt: Date | undefined, timeZone: string) {
+  const contextualExerciseCalories = getWhatsAppExerciseCaloriesForDateKey(formatReplyDateKey(registeredAt, timeZone));
   return buildWhatsAppGoalProgressLines(progress
     ? { ...progress, exerciseCalories: progress.exerciseCalories ?? contextualExerciseCalories ?? 0 }
     : null);
@@ -316,23 +310,26 @@ export function buildWhatsAppPeriodReportReplyMessage(params: { periodLabel: str
 
 export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
   const registeredAt = options.registeredAt;
-  const title = buildMealTitle(processed.detectedMealLabel, registeredAt);
-  const contextLine = buildWhatsAppMealContextLine(processed.detectedMealLabel, registeredAt);
-  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+  const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
+  const title = buildMealTitle(processed.detectedMealLabel, registeredAt, false, timeZone);
+  const contextLine = buildWhatsAppMealContextLine(processed.detectedMealLabel, registeredAt, timeZone);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt, timeZone);
   return buildMealReplyBody({ title, contextLine, sourceText: processed.sourceText, items: processed.items, totals: processed.totals, goalLines });
 }
 
 export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
-  const title = buildMealTitle(meal.mealLabel, registeredAt, true);
-  const contextLine = buildWhatsAppMealContextLine(meal.mealLabel, registeredAt);
-  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+  const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
+  const title = buildMealTitle(meal.mealLabel, registeredAt, true, timeZone);
+  const contextLine = buildWhatsAppMealContextLine(meal.mealLabel, registeredAt, timeZone);
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt, timeZone);
   return buildMealReplyBody({ title, contextLine, items: meal.items, totals: sumReplyItems(meal.items), goalLines });
 }
 
 export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealActionReplyOptions) {
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
-  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt);
+  const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt, timeZone);
   const actionLines = options.actionLines?.filter(Boolean).map(normalizeActionLine) ?? [];
   const mealResultLabel = options.mealResultState === "registered" ? "Refeição registrada:" : "Refeição atualizada:";
 
@@ -341,7 +338,7 @@ export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMe
     ...(actionLines.length ? [buildWhatsAppSeparator(), ...actionLines] : []),
     buildWhatsAppSeparator(),
     mealResultLabel,
-    buildWhatsAppMealContextLine(meal.mealLabel, registeredAt),
+    buildWhatsAppMealContextLine(meal.mealLabel, registeredAt, timeZone),
     ...buildMealItemLines(meal.items),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(sumReplyItems(meal.items)),

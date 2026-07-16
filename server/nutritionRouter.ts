@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { getDateKeyInTimeZone } from "../shared/timeZone";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import { analyticsService } from "./analyticsService";
 import { exportUserPrivacyData, requestUserAccountDeletion } from "./db";
@@ -29,8 +30,8 @@ import {
   removeExerciseSchema,
   updateExerciseSchema,
 } from "./modules/exercises/schemas";
-import { getNutritionGoal, UnsafeNutritionGoalError, updateNutritionGoal } from "./modules/goals/service";
-import { getEffectiveUserTimeZone } from "./modules/timeZone/service";
+import { getNutritionGoalForDate, UnsafeNutritionGoalError, updateNutritionGoal } from "./modules/goals/service";
+import { getEffectiveUserTimeZone, resolveEffectiveUserTimeZone } from "./modules/timeZone/service";
 import { goalSchema } from "./modules/goals/schemas";
 import { getGamification, updateGamificationSettings } from "./modules/gamification/service";
 import { gamificationSettingsSchema } from "./modules/gamification/schemas";
@@ -175,6 +176,7 @@ import {
   approvePatientAccess,
   getProfessionalPatientDashboard,
   getProfessionalPatientPeriodBundle,
+  getProfessionalPatientTimeZone,
   getProfessionalProfile,
   listPatientAccessRequests,
   listProfessionalAccesses,
@@ -323,6 +325,9 @@ export const nutritionRouter = router({
           });
         }
       }),
+    patientTimeZone: protectedProcedure
+      .input(patientIdSchema)
+      .query(async ({ ctx, input }) => getProfessionalPatientTimeZone(ctx.user.id, input.patientId)),
     patientDashboard: protectedProcedure
       .input(patientIdSchema)
       .query(async ({ ctx, input }) => getProfessionalPatientDashboard(ctx.user.id, input.patientId, input.weekOffset)),
@@ -350,6 +355,7 @@ export const nutritionRouter = router({
 
   onboarding: router({
     profile: protectedProcedure.query(async ({ ctx }) => getUserOnboardingProfile(ctx.user.id)),
+    timeZone: protectedProcedure.query(async ({ ctx }) => resolveEffectiveUserTimeZone(ctx.user.id)),
     complete: protectedProcedure.input(onboardingSchema).mutation(async ({ ctx, input }) => {
       const result = await completeOnboarding(ctx.user.id, input);
       void analyticsService.track("onboarding_completed", {
@@ -391,7 +397,10 @@ export const nutritionRouter = router({
   }),
 
   goals: router({
-    get: protectedProcedure.query(async ({ ctx }) => getNutritionGoal(ctx.user.id)),
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      return getNutritionGoalForDate(ctx.user.id, getDateKeyInTimeZone(new Date(), timeZone));
+    }),
     update: protectedProcedure.input(goalSchema).mutation(async ({ ctx, input }) => {
       try {
         const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
@@ -415,7 +424,10 @@ export const nutritionRouter = router({
   }),
 
   gamification: router({
-    get: protectedProcedure.query(async ({ ctx }) => getGamification(ctx.user.id)),
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      return getGamification(ctx.user.id, timeZone);
+    }),
     updateSettings: protectedProcedure
       .input(gamificationSettingsSchema)
       .mutation(async ({ ctx, input }) => updateGamificationSettings(ctx.user.id, input)),

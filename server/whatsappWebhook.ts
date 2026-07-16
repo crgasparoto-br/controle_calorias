@@ -33,7 +33,7 @@ import {
 } from "./modules/whatsapp/processingAcknowledgement";
 import { sendWhatsAppProcessingAcknowledgement } from "./modules/whatsapp/processingAcknowledgementDelivery";
 import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
-import { getWhatsAppUserTimeZone, getWhatsAppWaterProgress, getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
+import { getWhatsAppWaterProgress, getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
 import {
   detectWaterLogFromMessage,
   detectWeightLogFromMessage,
@@ -59,6 +59,7 @@ import {
 import { MealInferenceError, MealProcessingResult, processMealInput } from "./nutritionEngine";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
 import { calculateMealTotals } from "../shared/mealTotals";
+import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import {
   beginInboundMessage,
   markMessageProcessed,
@@ -85,8 +86,8 @@ function formatWhatsAppOccurredAt(occurredAt: Date, timeZone: string) {
   });
 }
 
-async function buildCanonicalWaterReply(userId: number, amountMl: number, occurredAt: Date) {
-  const progress = await getWhatsAppWaterProgress(userId, occurredAt);
+async function buildCanonicalWaterReply(userId: number, amountMl: number, occurredAt: Date, timeZone: string) {
+  const progress = await getWhatsAppWaterProgress(userId, occurredAt, timeZone);
   return formatCanonicalWaterReply({
     amountMl,
     totalMl: progress.totalMl,
@@ -96,11 +97,8 @@ async function buildCanonicalWaterReply(userId: number, amountMl: number, occurr
   });
 }
 
-async function buildCanonicalWeightReply(userId: number, weightKg: number, occurredAt: Date) {
-  const [{ variationKg }, timeZone] = await Promise.all([
-    getWhatsAppWeightVariation(userId, occurredAt, weightKg),
-    getWhatsAppUserTimeZone(userId),
-  ]);
+async function buildCanonicalWeightReply(userId: number, weightKg: number, occurredAt: Date, timeZone: string) {
+  const { variationKg } = await getWhatsAppWeightVariation(userId, occurredAt, weightKg);
   return formatCanonicalWeightReply({
     weightKg,
     variationKg,
@@ -403,9 +401,13 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
     }
 
     try {
+      const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
+      const userTimezone = timeZoneResolution.timeZone;
+
       const aiQuestionResult = await executeWhatsappAiQuestionIntent(userId, {
         text: message.text?.body,
         receivedAt: resolveWhatsAppMessageOccurredAt(message),
+        userTimezone,
       });
       if (aiQuestionResult) {
         logInferenceEvent({
@@ -506,7 +508,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: "Consumo de água registrado pelo WhatsApp.",
         });
 
-        const waterReply = await buildCanonicalWaterReply(userId, waterLog.amountMl, occurredAt);
+        const waterReply = await buildCanonicalWaterReply(userId, waterLog.amountMl, occurredAt, userTimezone);
         const replyResult = await sendFinalText(waterReply);
         if (!replyResult.ok) {
           logInferenceEvent({
@@ -523,7 +525,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const weightLog = detectWeightLogFromMessage(message);
       if (weightLog) {
         const occurredAt = resolveWhatsAppMessageOccurredAt(message);
-        const weightReply = await buildCanonicalWeightReply(userId, weightLog.weightKg, occurredAt);
+        const weightReply = await buildCanonicalWeightReply(userId, weightLog.weightKg, occurredAt, userTimezone);
         const persistedWeight = await ensureWhatsAppWeightEntry(userId, {
           weightKg: weightLog.weightKg,
           measuredAt: occurredAt,
@@ -600,6 +602,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         const interpreted = await executeWhatsappTextIntent(userId, {
           text: prepared.transcript,
           receivedAt: resolveWhatsAppMessageOccurredAt(message),
+          userTimezone,
         });
 
         if (interpreted) {
@@ -615,14 +618,16 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         }
       }
 
+      const occurredAt = resolveWhatsAppMessageOccurredAt(message);
       const processed = await processMealInput({
         text: prepared.text,
         transcript: prepared.transcript,
         imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
         audioUrl: prepared.audioUrl,
         habits: await getHabitSnapshots(userId),
+        occurredAt,
+        timeZone: userTimezone,
       });
-      const occurredAt = resolveWhatsAppMessageOccurredAt(message);
 
       if (message.image?.id) {
         const waterSplit = splitMealItemsForWaterHydration(processed.items);
@@ -648,7 +653,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
         if (!waterSplit.remainingItems.length) {
           if (waterSplit.waterVolumeMl > 0) {
-            const waterReply = await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt);
+            const waterReply = await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt, userTimezone);
             const replyResult = await sendFinalText(waterReply);
             if (!replyResult.ok) {
               logInferenceEvent({
@@ -676,7 +681,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             continue;
           }
         } else if (waterSplit.waterVolumeMl > 0) {
-          responsePrefixBlocks.push(await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt));
+          responsePrefixBlocks.push(await buildCanonicalWaterReply(userId, waterSplit.waterVolumeMl, occurredAt, userTimezone));
         }
       }
 
@@ -735,6 +740,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           removeUserMeal,
         },
         savedMeal,
+        userTimezone,
       );
 
       const replyMeal = consolidationResult.meal;
@@ -754,15 +760,17 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         items: replyMeal.items ?? [],
         totals: calculateMealTotals(replyMeal.items ?? []),
       };
-      const goalProgress = await getWhatsAppMealGoalProgress(userId, occurredAt);
+      const goalProgress = await getWhatsAppMealGoalProgress(userId, occurredAt, userTimezone);
       const mealReplyText = consolidationResult.action === "updated"
         ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
             registeredAt: occurredAt,
             goalProgress,
+            timeZone: userTimezone,
           })
         : buildWhatsAppMealReplyMessage(persistedReplyInput, {
             registeredAt: occurredAt,
             goalProgress,
+            timeZone: userTimezone,
           });
       const auxiliaryImage: WhatsAppAuxiliaryImage | null = annotatedImage?.url
         ? { url: annotatedImage.url, caption: "Imagem anotada com os alimentos identificados." }

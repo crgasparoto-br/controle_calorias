@@ -68,4 +68,16 @@ describe("resolveTargetMealItemInMeals", () => {
     expect(result.candidates.map(candidate => candidate.index)).toEqual([0, 1]);
     expect(result.candidates.every(candidate => candidate.meal.id === 10)).toBe(true);
   });
+  it("usa o timezone do dono ao limitar a busca às refeições do dia", () => {
+    const meals = [
+      { id: 20, mealLabel: "Ceia", occurredAt: "2026-07-13T02:00:00.000Z", items: [item("Iogurte")] },
+      { id: 21, mealLabel: "Jantar", occurredAt: "2026-07-12T22:00:00.000Z", items: [item("Queijo minas")] },
+    ];
+
+    expect(resolveTargetMealItemInMeals(meals, "queijo", "America/Sao_Paulo")).toEqual(
+      expect.objectContaining({ kind: "matched", meal: expect.objectContaining({ id: 21 }) }),
+    );
+    expect(resolveTargetMealItemInMeals(meals, "queijo", "Europe/Lisbon")).toEqual({ kind: "none" });
+  });
+
 });

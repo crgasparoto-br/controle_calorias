@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import type { GamificationRepository } from "../../repositories/gamificationRepository";
 
 type BadgeCode =
@@ -188,7 +189,7 @@ export function createGamificationService(deps: {
     return badges;
   }
 
-  async function getUserGamification(userId: number, weekly?: WeeklyGamificationDay[], timeZone = "America/Sao_Paulo") {
+  async function getUserGamification(userId: number, weekly?: WeeklyGamificationDay[], timeZone = DEFAULT_APP_TIME_ZONE) {
     const enabled = await getGamificationEnabled(userId);
     const history = await loadUserBadges(userId);
 

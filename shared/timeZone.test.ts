@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_APP_TIME_ZONE,
+  addCalendarMonths,
   getDateKeyInTimeZone,
   getUtcRangeForInclusiveLocalDateRange,
   getWeekDateKeys,
@@ -13,6 +14,7 @@ import {
   toLogicalDateInTimeZone,
   ZonedDateTimeError,
   zonedDateTimeLocalToDate,
+  zonedDateTimePartsToDate,
 } from "./timeZone";
 
 describe("shared timezone helpers", () => {
@@ -83,6 +85,24 @@ describe("shared timezone helpers", () => {
   it("escolhe a primeira ocorrencia no horario ambiguo do fim do DST", () => {
     expect(zonedDateTimeLocalToDate("2026-11-01T01:30", "America/New_York").toISOString())
       .toBe("2026-11-01T05:30:00.000Z");
+  });
+
+  it("normaliza componentes civis apenas dentro do helper central", () => {
+    expect(zonedDateTimePartsToDate({
+      year: 2026,
+      month: 0,
+      day: 1,
+      hour: 0,
+      minute: 0,
+      second: 0,
+    }, "Europe/Lisbon", { normalizeOverflow: true }).toISOString())
+      .toBe("2025-12-01T00:00:00.000Z");
+  });
+
+  it("avança meses civis preservando e limitando o dia", () => {
+    expect(addCalendarMonths("2026-01-31", 1)).toBe("2026-02-28");
+    expect(addCalendarMonths("2024-01-31", 1)).toBe("2024-02-29");
+    expect(addCalendarMonths("2026-03-15", -1)).toBe("2026-02-15");
   });
 
   it("converte periodo civil inclusivo em intervalo UTC semiaberto", () => {

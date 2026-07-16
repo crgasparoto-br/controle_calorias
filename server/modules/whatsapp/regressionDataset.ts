@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { containsDirectIdentifier } from "../aiLearningPrivacy";
 import {
   parseWhatsappInterpretedIntent,
@@ -196,7 +197,7 @@ export const whatsappRegressionCases: WhatsappRegressionCase[] = [
     id: "isolated-number-with-pending-portion",
     category: "isolated_number",
     input: { text: "80", inputType: "text", anonymized: true },
-    initialContext: { pendingKind: "food_quantity", referencedHistoryId: "history-previous-meal", timezone: "America/Sao_Paulo" },
+    initialContext: { pendingKind: "food_quantity", referencedHistoryId: "history-previous-meal", timezone: DEFAULT_APP_TIME_ZONE },
     expected: {
       intent: "add_foods_to_meal",
       schemaVersion: "whatsapp-intent-output/v1",
@@ -212,7 +213,7 @@ export const whatsappRegressionCases: WhatsappRegressionCase[] = [
     id: "correction-replace-rice-potato",
     category: "record_adjustment",
     input: { text: "nao era arroz, era batata", inputType: "text", anonymized: true },
-    initialContext: { pendingKind: null, referencedHistoryId: "history-meal-rice", timezone: "America/Sao_Paulo" },
+    initialContext: { pendingKind: null, referencedHistoryId: "history-meal-rice", timezone: DEFAULT_APP_TIME_ZONE },
     expected: {
       intent: "replace_food_in_meal",
       schemaVersion: "whatsapp-intent-output/v1",

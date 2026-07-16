@@ -48,7 +48,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   }
 
   const receivedAt = input.receivedAt ?? new Date();
-  const userTimeZone = await getWhatsAppUserTimeZone(userId);
+  const userTimeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
   const waterIntent = parseWaterIntent(text);
   if (waterIntent?.kind === "clarification") {
     return {
@@ -70,37 +70,37 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
 
   const gramsReplacement = parseMealItemGramsReplacement(text);
   if (gramsReplacement) {
-    return handleMealItemReplacement(userId, gramsReplacement);
+    return handleMealItemReplacement(userId, gramsReplacement, userTimeZone);
   }
 
   const coffeeCapsule = parseCoffeeLorCapsuleIntent(text);
   if (coffeeCapsule) {
-    return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt);
+    return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt, userTimeZone);
   }
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
   if (coffeeAddition) {
-    return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt);
+    return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt, userTimeZone);
   }
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   if (foodAddition) {
-    return handleFoodAdditionIntent(userId, foodAddition);
+    return handleFoodAdditionIntent(userId, foodAddition, userTimeZone);
   }
 
   const gramsIncrements = parseMealItemGramsIncrementMulti(text);
   if (gramsIncrements) {
-    return withCanonicalGramsMetadata(await handleMealItemMultiIncrement(userId, gramsIncrements));
+    return withCanonicalGramsMetadata(await handleMealItemMultiIncrement(userId, gramsIncrements, { timeZone: userTimeZone }));
   }
 
   const gramsAdjustments = parseMealItemGramsAdjustmentMulti(text);
   if (gramsAdjustments) {
-    return withCanonicalGramsMetadata(await handleMealItemMultiAdjustment(userId, gramsAdjustments));
+    return withCanonicalGramsMetadata(await handleMealItemMultiAdjustment(userId, gramsAdjustments, { timeZone: userTimeZone }));
   }
 
   const foodReplacements = parseFoodReplacementIntents(text);
   if (foodReplacements) {
-    return handleFoodReplacementIntents(userId, foodReplacements);
+    return handleFoodReplacementIntents(userId, foodReplacements, userTimeZone);
   }
 
   if (parseSnackSuggestionIntent(text)) {
