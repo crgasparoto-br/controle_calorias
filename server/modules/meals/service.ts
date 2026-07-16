@@ -19,6 +19,7 @@ import {
   updateUserMeal,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
+import { DEFAULT_APP_TIME_ZONE, addCalendarDays, getDateKeyInTimeZone, getDateTimePartsInTimeZone, zonedDateTimeLocalToIso } from "../../../shared/timeZone";
 import { storagePut } from "../../storage";
 import { transcribeAudio } from "../../_core/voiceTranscription";
 import {
@@ -54,17 +55,6 @@ type MealItemQuantityUnit = {
 
 type MaybeMealItemQuantityUnit = Partial<MealItemQuantityUnit>;
 
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
-
-type ZonedParts = {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
-};
-
 function normalizeTemporalText(value: string) {
   return value
     .normalize("NFD")
@@ -75,75 +65,35 @@ function normalizeTemporalText(value: string) {
     .trim();
 }
 
-function getZonedParts(date: Date, timeZone = SAO_PAULO_TIME_ZONE): ZonedParts {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]));
-  const hour = Number(parts.hour);
-  return {
-    year: Number(parts.year),
-    month: Number(parts.month),
-    day: Number(parts.day),
-    hour: hour === 24 ? 0 : hour,
-    minute: Number(parts.minute),
-    second: Number(parts.second),
-  };
+function padTemporalPart(value: number) {
+  return String(value).padStart(2, "0");
 }
 
-function makeDateInTimeZone(parts: ZonedParts, timeZone = SAO_PAULO_TIME_ZONE) {
-  const utcGuess = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second));
-  const actualParts = getZonedParts(utcGuess, timeZone);
-  const desiredUtcMinutes = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) / 60_000;
-  const actualUtcMinutes = Date.UTC(
-    actualParts.year,
-    actualParts.month - 1,
-    actualParts.day,
-    actualParts.hour,
-    actualParts.minute,
-    actualParts.second,
-  ) / 60_000;
-  const offsetMinutes = actualUtcMinutes - desiredUtcMinutes;
-  return new Date(utcGuess.getTime() - offsetMinutes * 60_000);
-}
-
-function addDaysToZonedDate(parts: ZonedParts, days: number) {
-  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, parts.hour, parts.minute, parts.second));
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-    hour: parts.hour,
-    minute: parts.minute,
-    second: parts.second,
-  };
-}
-
-function resolveSuggestedOccurredAtFromText(text?: string | null, referenceDate = new Date()) {
+function resolveSuggestedOccurredAtFromText(
+  text?: string | null,
+  referenceDate = new Date(),
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
   const normalized = normalizeTemporalText(text ?? "");
   if (!normalized) {
     return null;
   }
 
-  const referenceParts = getZonedParts(referenceDate);
-  if (/\banteontem\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -2)).toISOString();
-  }
-  if (/\bontem\b/.test(normalized)) {
-    return makeDateInTimeZone(addDaysToZonedDate(referenceParts, -1)).toISOString();
-  }
   if (/\bhoje\b/.test(normalized)) {
     return referenceDate.toISOString();
   }
 
-  return null;
+  const dayOffset = /\banteontem\b/.test(normalized) ? -2 : /\bontem\b/.test(normalized) ? -1 : null;
+  if (dayOffset === null) {
+    return null;
+  }
+
+  const parts = getDateTimePartsInTimeZone(referenceDate, timeZone);
+  const targetDate = addCalendarDays(getDateKeyInTimeZone(referenceDate, timeZone), dayOffset);
+  return zonedDateTimeLocalToIso(
+    `${targetDate}T${padTemporalPart(parts.hour)}:${padTemporalPart(parts.minute)}:${padTemporalPart(parts.second)}`,
+    timeZone,
+  );
 }
 
 function extractBase64Payload(value: string) {
@@ -318,8 +268,8 @@ export async function listMeals(userId: number) {
   return (await listUserMeals(userId)).map(decorateMealWithImageUrl);
 }
 
-export async function getDayTotals(userId: number, date: string) {
-  return getUserDayMealTotals(userId, date);
+export async function getDayTotals(userId: number, date: string, timeZone = DEFAULT_APP_TIME_ZONE) {
+  return getUserDayMealTotals(userId, date, timeZone);
 }
 
 export async function createManualMeal(userId: number, input: ManualMealInput) {
@@ -406,7 +356,11 @@ export async function reuseMealFavorite(userId: number, input: ReuseFavoriteMeal
   return decorateMealWithImageUrl(await reuseFavoriteMeal({ userId, ...input }));
 }
 
-export async function processMealDraft(userId: number, input: ProcessMealDraftInput) {
+export async function processMealDraft(
+  userId: number,
+  input: ProcessMealDraftInput,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
   const [resolvedImage, resolvedAudio] = await Promise.all([
     resolveDraftImage({ userId, media: input.image }),
     resolveDraftAudio({ userId, source: input.source, media: input.audio }),
@@ -439,6 +393,8 @@ export async function processMealDraft(userId: number, input: ProcessMealDraftIn
     imageUrl: resolvedImage.imageUrl,
     audioUrl: resolvedAudio.audioUrl,
     habits: await getHabitSnapshots(userId),
+    occurredAt: new Date(),
+    timeZone,
   }));
 
   const draft = createPendingMealInference(
@@ -447,7 +403,7 @@ export async function processMealDraft(userId: number, input: ProcessMealDraftIn
     processed,
     [resolvedImage.media, resolvedAudio.media].filter(Boolean) as NonNullable<Awaited<ReturnType<typeof uploadMedia>>>[],
   );
-  const suggestedOccurredAt = resolveSuggestedOccurredAtFromText(input.text);
+  const suggestedOccurredAt = resolveSuggestedOccurredAtFromText(input.text, new Date(), timeZone);
 
   return {
     draftId: draft.draftId,

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { getBrowserTimeZone, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { MealItemEditor, SummaryPill } from "@/features/meals/components";
@@ -52,8 +52,8 @@ function QuickEditErrorState({ message }: { message: string }) {
 export default function QuickEditMealPage() {
   const [, params] = useRoute("/quick-edit/:token");
   const token = params?.token ?? "";
-  const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
   const mealQuery = trpc.quickEdit.getMeal.useQuery({ token }, { enabled: Boolean(token), retry: false });
+  const userTimeZone = mealQuery.data?.timeZone;
   const [mealDeleted, setMealDeleted] = React.useState(false);
   const updateMeal = trpc.quickEdit.updateMeal.useMutation({
     onSuccess: () => toast.success("Refeição atualizada com sucesso."),
@@ -74,7 +74,7 @@ export default function QuickEditMealPage() {
 
   React.useEffect(() => {
     const meal = mealQuery.data?.meal;
-    if (!meal) return;
+    if (!meal || !userTimeZone) return;
 
     setMealLabel(meal.mealLabel);
     setNotes(meal.notes ?? "");
@@ -125,7 +125,7 @@ export default function QuickEditMealPage() {
       token,
       meal: {
         mealLabel: mealLabel.trim(),
-        occurredAt: zonedDateTimeLocalToIso(occurredAt, userTimeZone),
+        dateTimeLocal: occurredAt,
         notes: notes.trim() || undefined,
         items: normalizedItems,
       },
@@ -229,7 +229,7 @@ export default function QuickEditMealPage() {
 
         <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-2xl flex-col gap-2 sm:flex-row">
-            <Button type="button" className="rounded-full" variant={isDeletingMeal ? "destructive" : "default"} onClick={handleSave} disabled={isSaving || mealDeleted}>
+            <Button type="button" className="rounded-full" variant={isDeletingMeal ? "destructive" : "default"} onClick={handleSave} disabled={isSaving || mealDeleted || !userTimeZone}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isDeletingMeal ? <Trash2 className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
               {isDeletingMeal ? "Excluir refeição" : "Salvar ajustes"}
             </Button>

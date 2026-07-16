@@ -281,13 +281,15 @@ describe("whatsappWebhook smoke", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(getUserIdByWhatsappPhoneMock).toHaveBeenCalledWith("5511999999999");
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: "arroz e frango",
       transcript: undefined,
       imageUrl: undefined,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
       draftId: "draft-smoke-text",
@@ -453,13 +455,15 @@ describe("whatsappWebhook smoke", () => {
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
       transcript: "arroz e feijão",
       imageUrl: undefined,
       audioUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/audio\/audio-[0-9a-f-]{36}\.ogg$/),
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     const audioUrl = processMealInputMock.mock.calls[0][0].audioUrl;
     expect(audioUrl).not.toContain("5511999999999");
     expect(audioUrl).not.toContain("audio-media-id");
@@ -517,13 +521,15 @@ describe("whatsappWebhook smoke", () => {
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
       transcript: "arroz e feijão",
       imageUrl: undefined,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",

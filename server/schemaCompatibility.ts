@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import { DEFAULT_APP_TIME_ZONE } from "../shared/timeZone";
 
 type Connection = mysql.Connection;
 type RuntimeSchemaCompatibilityMode = "repair" | "verify";
@@ -82,7 +83,7 @@ const USER_PROFILE_COLUMNS: ColumnCompatibility[] = [
   { name: "eatingRoutine", sql: "`eatingRoutine` enum('cozinha_em_casa','come_fora','delivery','marmita','misto') NULL" },
   { name: "mainDifficulty", sql: "`mainDifficulty` enum('fome','ansiedade','falta_de_tempo','beliscos','doces','comer_fora','falta_de_planejamento') NULL" },
   { name: "onboardingCompletedAt", sql: "`onboardingCompletedAt` timestamp NULL" },
-  { name: "timezone", sql: "`timezone` varchar(80) DEFAULT 'UTC' NOT NULL" },
+  { name: "timezone", sql: `\`timezone\` varchar(80) DEFAULT '${DEFAULT_APP_TIME_ZONE}' NOT NULL` },
   { name: "locale", sql: "`locale` varchar(16) DEFAULT 'pt-BR' NOT NULL" },
 ];
 
@@ -285,6 +286,51 @@ async function ensureQuickEditTokensTable(
   return { added: ["quickEditTokens"], pending: [] };
 }
 
+async function normalizeUserProfilesTimezone(
+  connection: Connection,
+  mode: RuntimeSchemaCompatibilityMode
+): Promise<Pick<RuntimeSchemaCompatibilityResult, "updated" | "pending">> {
+  if (!(await tableExists(connection, "userProfiles"))) {
+    return { updated: [], pending: [] };
+  }
+
+  if (!(await columnExists(connection, "userProfiles", "timezone"))) {
+    return { updated: [], pending: [] };
+  }
+
+  const metadata = await getColumnMetadata(connection, "userProfiles", "timezone");
+  const defaultValue = metadata?.columnDefault == null ? null : String(metadata.columnDefault);
+  const hasExpectedShape = metadata?.isNullable === "NO" && defaultValue === DEFAULT_APP_TIME_ZONE;
+
+  if (hasExpectedShape) {
+    return { updated: [], pending: [] };
+  }
+
+  if (mode === "verify") {
+    return {
+      updated: [],
+      pending: [
+        createIssue(
+          "column_shape",
+          "userProfiles",
+          `Column userProfiles.timezone must be NOT NULL with DEFAULT ${DEFAULT_APP_TIME_ZONE} according to the current Drizzle schema.`,
+          "timezone"
+        ),
+      ],
+    };
+  }
+
+  await connection.execute(
+    "UPDATE `userProfiles` SET `timezone` = ? WHERE `timezone` IS NULL OR TRIM(`timezone`) = ''",
+    [DEFAULT_APP_TIME_ZONE]
+  );
+  await connection.execute(
+    `ALTER TABLE \`userProfiles\` MODIFY COLUMN \`timezone\` varchar(80) NOT NULL DEFAULT '${DEFAULT_APP_TIME_ZONE}'`
+  );
+
+  return { updated: ["userProfiles.timezone"], pending: [] };
+}
+
 async function normalizeNutritionGoalsWeekday(
   connection: Connection,
   mode: RuntimeSchemaCompatibilityMode
@@ -373,6 +419,7 @@ export async function ensureRuntimeSchemaCompatibility(): Promise<RuntimeSchemaC
     mergeResult(result, await ensureWhatsappOnboardingLeadsTable(connection, mode));
     mergeResult(result, await ensureQuickEditTokensTable(connection, mode));
     mergeResult(result, await normalizeNutritionGoalsWeekday(connection, mode));
+    mergeResult(result, await normalizeUserProfilesTimezone(connection, mode));
 
     if (mode === "verify" && result.pending.length > 0) {
       throw new RuntimeSchemaCompatibilityError(result.pending);

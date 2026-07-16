@@ -4,6 +4,7 @@ import {
   deleteQuickEditMeal,
   getQuickEditExercise,
   getQuickEditMeal,
+  QuickEditTemporalInputError,
   QuickEditTokenError,
   updateQuickEditExercise,
   updateQuickEditMeal,
@@ -16,6 +17,10 @@ import {
 } from "./schemas";
 
 function toPublicQuickEditError(error: unknown) {
+  if (error instanceof QuickEditTemporalInputError) {
+    return new TRPCError({ code: "BAD_REQUEST", message: error.message });
+  }
+
   if (error instanceof QuickEditTokenError) {
     return new TRPCError({
       code: "NOT_FOUND",

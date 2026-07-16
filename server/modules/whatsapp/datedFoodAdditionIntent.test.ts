@@ -53,9 +53,11 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
       receivedAt: new Date("2026-06-30T14:00:00.000Z"),
     });
 
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: expect.stringContaining("canelone"),
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       mealLabel: "jantar",
       occurredAt: expect.stringMatching(/^2026-06-29T/),

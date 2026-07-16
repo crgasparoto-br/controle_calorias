@@ -31,6 +31,10 @@ vi.mock("../../quickEdit/service", () => ({
   tryCreateQuickEditLinkForExercise: quickEditMocks.tryCreateQuickEditLinkForExercise,
 }));
 
+vi.mock("../../timeZone/service", () => ({
+  getEffectiveUserTimeZone: vi.fn(async () => "America/Sao_Paulo"),
+}));
+
 vi.mock("../../whatsapp/replyTransport", () => ({
   sendWhatsAppLogicalReply: whatsappMocks.sendWhatsAppLogicalReply,
 }));

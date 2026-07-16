@@ -259,13 +259,15 @@ describe("whatsappWebhook image inbound", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.image-inline");
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
       transcript: undefined,
       imageUrl: expectedDataUrl,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",
@@ -293,13 +295,15 @@ describe("whatsappWebhook image inbound", () => {
     const expectedDataUrl = `data:image/jpeg;base64,${Buffer.from("image-test").toString("base64")}`;
 
     expect(res.statusCode).toBe(200);
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: "47g",
       transcript: undefined,
       imageUrl: expectedDataUrl,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
   });
 
   it("envia imagem anotada quando o overlay local retorna URL", async () => {
@@ -400,13 +404,15 @@ describe("whatsappWebhook image inbound", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.image-storage-fallback");
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
       transcript: undefined,
       imageUrl: expectedDataUrl,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",

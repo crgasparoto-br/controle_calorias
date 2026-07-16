@@ -4,6 +4,7 @@ import {
   answerProfessionalPatientQuestion,
   approvePatientAccess,
   buildPhoneLookupCandidates,
+  getProfessionalPatientTimeZone,
   getProfessionalProfile,
   listPatientAccessRequests,
   listProfessionalAccesses,
@@ -201,6 +202,37 @@ describe("professional access requests", () => {
         status: "pending",
       }),
     ]));
+  });
+});
+
+describe("professional patient timezone", () => {
+  it("bloqueia a leitura sem vínculo aprovado", async () => {
+    const professionalUserId = 24160;
+    const patientUserId = 24161;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+
+    await expect(getProfessionalPatientTimeZone(professionalUserId, patientUserId))
+      .rejects.toThrow("Acesso profissional não autorizado");
+  });
+
+  it("expõe somente a resolução temporal após autorização", async () => {
+    const professionalUserId = 24170;
+    const patientUserId = 24171;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Souza",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Acompanhamento semanal",
+    });
+    await approvePatientAccess(patientUserId, access.id);
+
+    await expect(getProfessionalPatientTimeZone(professionalUserId, patientUserId))
+      .resolves.toMatchObject({ timeZone: expect.any(String), source: expect.any(String) });
   });
 });
 

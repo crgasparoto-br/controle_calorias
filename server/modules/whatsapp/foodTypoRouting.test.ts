@@ -89,7 +89,7 @@ describe("simulateWhatsappInbound food typo routing", () => {
     expect(processMealDraftMock).toHaveBeenCalledWith(42, {
       source: "whatsapp",
       text: normalizedText,
-    });
+    }, "America/Sao_Paulo");
     expect(result).toEqual(expect.objectContaining({ draftId: "draft-food-typo" }));
   });
 

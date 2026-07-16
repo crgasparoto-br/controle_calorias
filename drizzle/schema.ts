@@ -30,7 +30,7 @@ export const userProfiles = mysqlTable("userProfiles", {
   eatingRoutine: mysqlEnum("eatingRoutine", ["cozinha_em_casa", "come_fora", "delivery", "marmita", "misto"]),
   mainDifficulty: mysqlEnum("mainDifficulty", ["fome", "ansiedade", "falta_de_tempo", "beliscos", "doces", "comer_fora", "falta_de_planejamento"]),
   onboardingCompletedAt: timestamp("onboardingCompletedAt"),
-  timezone: varchar("timezone", { length: 80 }).default("UTC").notNull(),
+  timezone: varchar("timezone", { length: 80 }).default("America/Sao_Paulo").notNull(),
   locale: varchar("locale", { length: 16 }).default("pt-BR").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

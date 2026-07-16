@@ -425,3 +425,7 @@ Não bloqueiam as fases iniciais:
 - campos clínicos ampliados para avaliações futuras;
 - regras para assistentes, equipes e clínicas;
 - critérios nutricionais avançados para alertas de proteína, peso e comportamento alimentar.
+
+## Timezone do paciente
+
+Consultas, filtros, agrupamentos e horários de dados clínico-nutricionais usam o timezone efetivo da pessoa acompanhada. O timezone do profissional é usado somente em datas operacionais do próprio vínculo. A interface não deve disparar consultas de período antes de conhecer o timezone do paciente selecionado.

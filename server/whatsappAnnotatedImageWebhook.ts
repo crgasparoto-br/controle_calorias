@@ -3,6 +3,7 @@ import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHab
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
 import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
+import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import {
@@ -84,14 +85,6 @@ function wasAnnotatedImageMessageAlreadyHandled(messageId?: string) {
 
 function markAnnotatedImageMessageHandled(messageId?: string) {
   annotatedImageMessageDeduplicationCache.markHandled(messageId);
-}
-
-function formatReplyTime(date: Date) {
-  return date.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  });
 }
 
 async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedImageMessage> {
@@ -177,6 +170,7 @@ async function processImageMealInputWithFallback(input: {
   prepared: PreparedImageMessage;
   occurredAt: Date;
   intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null;
+  userTimezone: string;
 }): Promise<MealProcessingResult | null> {
   try {
     return await processMealInput({
@@ -184,7 +178,7 @@ async function processImageMealInputWithFallback(input: {
       imageUrl: input.prepared.imageAnalysisUrl || input.prepared.imageUrl,
       habits: await getHabitSnapshots(input.userId),
       occurredAt: input.occurredAt,
-      timeZone: "America/Sao_Paulo",
+      timeZone: input.userTimezone,
       intentHint: input.intentHint ?? undefined,
     });
   } catch (error) {
@@ -362,6 +356,9 @@ async function tryHandleAnnotatedImageMessage(
       allowRawContentStorage: true,
     });
 
+    const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
+    const userTimezone = timeZoneResolution.timeZone;
+
     const readResult = await markWhatsAppMessageAsRead(message.id);
     if (!readResult.ok) {
       await logWhatsAppOperationWarning({
@@ -415,7 +412,7 @@ async function tryHandleAnnotatedImageMessage(
     // encaminhar para o handler de texto em vez de processar como alimento.
     const captionText = prepared.text?.trim();
     if (captionText) {
-      const deleteResult = await executeWhatsappDeleteIntent(userId, { text: captionText });
+      const deleteResult = await executeWhatsappDeleteIntent(userId, { text: captionText, timeZone: userTimezone });
       if (deleteResult) {
         await sendAnnotatedImageFallbackText({
           userId,
@@ -439,6 +436,7 @@ async function tryHandleAnnotatedImageMessage(
       prepared,
       occurredAt,
       intentHint,
+      userTimezone,
     });
 
     if (!processed) {
@@ -490,6 +488,7 @@ async function tryHandleAnnotatedImageMessage(
         removeUserMeal,
       },
       savedMeal,
+      userTimezone,
     );
     const replyMeal = consolidationResult.meal;
     await recordDomainLink(lifecycleHandle, { mealId: replyMeal.id });
@@ -508,15 +507,17 @@ async function tryHandleAnnotatedImageMessage(
       items: replyMeal.items ?? [],
       totals: calculateMealTotals(replyMeal.items ?? []),
     };
-    const goalProgress = await getWhatsAppMealGoalProgress(userId, occurredAt);
+    const goalProgress = await getWhatsAppMealGoalProgress(userId, occurredAt, userTimezone);
     const mealReplyText = consolidationResult.action === "updated"
       ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
           registeredAt: occurredAt,
           goalProgress,
+          timeZone: userTimezone,
         })
       : buildWhatsAppMealReplyMessage(persistedReplyInput, {
           registeredAt: occurredAt,
           goalProgress,
+          timeZone: userTimezone,
         });
     const auxiliaryImage: WhatsAppAuxiliaryImage | null = annotatedImage.url
       ? { url: annotatedImage.url, caption: "Imagem anotada com os alimentos identificados." }

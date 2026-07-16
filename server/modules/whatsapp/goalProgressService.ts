@@ -1,6 +1,6 @@
 import { getUserDayMealTotals, logInferenceEvent } from "../../db";
-import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
-import { getUserOnboardingProfile } from "../onboarding/profileRead";
+import { getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { getWhatsAppOperationTimeZone } from "./timeZoneContext";
 import type { WhatsAppMealGoalProgress } from "./replyMessages";
 
 function safeLogGoalWarning(input: Parameters<typeof logInferenceEvent>[0]) {
@@ -11,18 +11,10 @@ function safeLogGoalWarning(input: Parameters<typeof logInferenceEvent>[0]) {
   }
 }
 
-async function resolveUserTimeZone(userId: number) {
-  try {
-    return (await getUserOnboardingProfile(userId))?.timezone ?? DEFAULT_APP_TIME_ZONE;
-  } catch {
-    return DEFAULT_APP_TIME_ZONE;
-  }
-}
-
-async function resolveEffectiveGoal(userId: number, dateKey: string) {
+async function resolveEffectiveGoal(userId: number, dateKey: string, timeZone: string) {
   try {
     const { getEffectiveNutritionGoalForDate } = await import("../goals/service");
-    return await getEffectiveNutritionGoalForDate(userId, dateKey);
+    return await getEffectiveNutritionGoalForDate(userId, dateKey, timeZone);
   } catch (error) {
     safeLogGoalWarning({
       userId,
@@ -38,13 +30,14 @@ async function resolveEffectiveGoal(userId: number, dateKey: string) {
 export async function getWhatsAppMealGoalProgress(
   userId: number,
   occurredAt: Date,
+  explicitTimeZone?: string,
 ): Promise<WhatsAppMealGoalProgress | null> {
   try {
-    const timeZone = await resolveUserTimeZone(userId);
+    const timeZone = explicitTimeZone ?? await getWhatsAppOperationTimeZone(userId);
     const dateKey = getDateKeyInTimeZone(occurredAt, timeZone);
     const [goal, dayTotals] = await Promise.all([
-      resolveEffectiveGoal(userId, dateKey),
-      getUserDayMealTotals(userId, dateKey),
+      resolveEffectiveGoal(userId, dateKey, timeZone),
+      getUserDayMealTotals(userId, dateKey, timeZone),
     ]);
     if (!goal) return null;
 

@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import { roundNutritionValue } from "../../../../shared/mealTotals";
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import { getCatalogCache } from "../../../catalogRuntime";
@@ -250,10 +251,10 @@ export function findTargetMealItem(items: MealItemInput[], targetFood: string | 
   return target.kind === "matched" ? { item: target.item, index: target.index } : null;
 }
 
-export function findMealByLabel<T extends { mealLabel: string; occurredAt: number | string | Date }>(meals: T[], mealLabel: string, referenceDate: Date) {
+export function findMealByLabel<T extends { mealLabel: string; occurredAt: number | string | Date }>(meals: T[], mealLabel: string, referenceDate: Date, timeZone = DEFAULT_APP_TIME_ZONE) {
   const normalizedLabel = normalizeIntentText(mealLabel);
-  const dayStart = startOfZonedDay(referenceDate).getTime();
-  const dayEnd = endOfZonedDay(referenceDate).getTime();
+  const dayStart = startOfZonedDay(referenceDate, timeZone).getTime();
+  const dayEnd = endOfZonedDay(referenceDate, timeZone).getTime();
   const matches = meals.filter(meal => {
     const candidate = normalizeIntentText(meal.mealLabel);
     return candidate === normalizedLabel || candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate);

@@ -12,7 +12,7 @@ import {
 } from "../../db";
 import { calculateDayTotals, roundNutritionValue } from "../../../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../../../shared/safeMessages";
-import { getDateKeyInTimeZone, getWeekdayIndexInTimeZone, toLogicalDateInTimeZone } from "../../../shared/timeZone";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone, getWeekDateKeys, listCalendarDateKeys } from "../../../shared/timeZone";
 import { calculateAdjustedGoalCalories, calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
 import { getNutritionGoalForDate } from "../goals/service";
 import { calculateQualityIndicators, createFoodLookup } from "./foodQuality";
@@ -23,15 +23,15 @@ import {
 } from "./rangeData";
 import { weeklyInsightService } from "./weeklyInsightService";
 
-function mealDateKey(meal: { occurredAt: number }) {
-  return getDateKeyInTimeZone(meal.occurredAt);
+function mealDateKey(meal: { occurredAt: number }, timeZone: string) {
+  return getDateKeyInTimeZone(meal.occurredAt, timeZone);
 }
 
-function groupMealsByDate(meals: Awaited<ReturnType<typeof listUserMeals>>) {
+function groupMealsByDate(meals: Awaited<ReturnType<typeof listUserMeals>>, timeZone: string) {
   const groups = new Map<string, Awaited<ReturnType<typeof listUserMeals>>>();
 
   meals.forEach(meal => {
-    const key = mealDateKey(meal);
+    const key = mealDateKey(meal, timeZone);
     const currentGroup = groups.get(key) ?? [];
     currentGroup.push(meal);
     groups.set(key, currentGroup);
@@ -97,32 +97,6 @@ function buildWeeklyInsights(progress: Awaited<ReturnType<typeof getWeeklyProgre
   };
 }
 
-function resolveWeekDates(weekOffset = 0) {
-  const referenceDate = toLogicalDateInTimeZone(new Date());
-  referenceDate.setUTCDate(referenceDate.getUTCDate() + (weekOffset * 7));
-
-  const monday = new Date(referenceDate);
-  monday.setUTCDate(referenceDate.getUTCDate() - getWeekdayIndexInTimeZone(referenceDate));
-
-  return Array.from({ length: 7 }).map((_, index) => {
-    const current = new Date(monday);
-    current.setUTCDate(monday.getUTCDate() + index);
-    return current;
-  });
-}
-
-function listDateKeysInRange(startDate: string, endDate: string) {
-  const dates: string[] = [];
-  const cursor = new Date(`${startDate}T12:00:00Z`);
-  const limit = new Date(`${endDate}T12:00:00Z`);
-
-  while (cursor <= limit) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return dates;
-}
 
 function formatPeriodDateLabel(date: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -240,7 +214,7 @@ function groupRangeItemsByDate<T>(dates: string[], items: T[], getDate: (item: T
   return dates.map(date => groups.get(date) ?? []);
 }
 
-async function loadReportRangeData(userId: number, dates: string[]): Promise<ReportRangeData> {
+async function loadReportRangeData(userId: number, dates: string[], timeZone: string): Promise<ReportRangeData> {
   const startDate = dates[0];
   const endDate = dates[dates.length - 1];
   if (!startDate || !endDate) {
@@ -249,16 +223,16 @@ async function loadReportRangeData(userId: number, dates: string[]): Promise<Rep
 
   const range = { startDate, endDate };
   const [meals, exercises, waterLogs] = await Promise.all([
-    listReportMealsByDateRange(userId, range, { includeMedia: false }),
-    listReportExercisesByDateRange(userId, range),
-    listReportWaterLogsByDateRange(userId, range),
+    listReportMealsByDateRange(userId, range, timeZone, { includeMedia: false }),
+    listReportExercisesByDateRange(userId, range, timeZone),
+    listReportWaterLogsByDateRange(userId, range, timeZone),
   ]);
 
   return {
     dates,
-    mealsByDay: groupRangeItemsByDate(dates, meals, mealDateKey),
-    exercisesByDay: groupRangeItemsByDate(dates, exercises, exercise => getDateKeyInTimeZone(Number(exercise.occurredAt))),
-    waterLogsByDay: groupRangeItemsByDate(dates, waterLogs, log => getDateKeyInTimeZone(Number(log.occurredAt))),
+    mealsByDay: groupRangeItemsByDate(dates, meals, meal => mealDateKey(meal, timeZone)),
+    exercisesByDay: groupRangeItemsByDate(dates, exercises, exercise => getDateKeyInTimeZone(Number(exercise.occurredAt), timeZone)),
+    waterLogsByDay: groupRangeItemsByDate(dates, waterLogs, log => getDateKeyInTimeZone(Number(log.occurredAt), timeZone)),
   };
 }
 
@@ -486,12 +460,17 @@ function buildHabitAnalyticsFromRange(
   };
 }
 
-async function buildWeeklyReportSummary(userId: number, weekOffset = 0, options: WeeklyReportSummaryOptions = {}) {
-  const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
+async function buildWeeklyReportSummary(
+  userId: number,
+  weekOffset = 0,
+  options: WeeklyReportSummaryOptions = {},
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
+  const dateKeys = getWeekDateKeys(new Date(), timeZone, weekOffset);
   const [goalsByDate, waterGoal, rangeData] = await Promise.all([
     Promise.all(dateKeys.map(date => getNutritionGoalForDate(userId, date))),
     getUserWaterGoal(userId),
-    loadReportRangeData(userId, dateKeys),
+    loadReportRangeData(userId, dateKeys, timeZone),
   ]);
   const foodLookup = options.includeFoodQualityDetails
     ? await buildFoodLookupForMeals(userId, rangeData.mealsByDay)
@@ -612,15 +591,15 @@ function buildWeeklyProgressFromSummary(
   };
 }
 
-export async function getDashboardOverview(userId: number) {
-  const todayOverview = await getDashboardTodayOverview(userId, { includeQualityDetails: true });
+export async function getDashboardOverview(userId: number, timeZone = DEFAULT_APP_TIME_ZONE) {
+  const todayOverview = await getDashboardTodayOverview(userId, { includeQualityDetails: true }, timeZone);
   const { goal, today, meals, exercises, water } = todayOverview;
 
   const [weekly, habits] = await Promise.all([
-    buildWeeklyReportSummary(userId, 0, { includeFoodQualityDetails: true }),
+    buildWeeklyReportSummary(userId, 0, { includeFoodQualityDetails: true }, timeZone),
     getHabitSnapshots(userId),
   ]);
-  const gamification = await getUserGamification(userId, weekly);
+  const gamification = await getUserGamification(userId, weekly, timeZone);
 
   const weeklyConsumed = weekly.reduce(
     (acc, day) => ({
@@ -703,14 +682,18 @@ export async function getDashboardOverview(userId: number) {
   };
 }
 
-export async function getDashboardTodayOverview(userId: number, options: { date?: string; includeQualityDetails?: boolean } = {}) {
-  const selectedDate = options.date ?? getDateKeyInTimeZone(new Date());
+export async function getDashboardTodayOverview(
+  userId: number,
+  options: { date?: string; includeQualityDetails?: boolean } = {},
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
+  const selectedDate = options.date ?? getDateKeyInTimeZone(new Date(), timeZone);
   const [goal, waterGoal, todaysMeals, todaysExercises, todaysWaterLogs] = await Promise.all([
     getNutritionGoalForDate(userId, selectedDate),
     getUserWaterGoal(userId),
-    listUserMealsByDate(userId, selectedDate, { includeMedia: false }),
-    listUserExercisesByDate(userId, selectedDate),
-    listUserWaterLogsByDate(userId, selectedDate),
+    listUserMealsByDate(userId, selectedDate, { includeMedia: false, timeZone }),
+    listUserExercisesByDate(userId, selectedDate, timeZone),
+    listUserWaterLogsByDate(userId, selectedDate, timeZone),
   ]);
   const plannedGoal = goal.today;
   const todayTotals = calculateDayTotals(todaysMeals);
@@ -768,11 +751,11 @@ export async function getDashboardTodayOverview(userId: number, options: { date?
   };
 }
 
-export async function getWeeklyReport(userId: number, weekOffset = 0) {
-  const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
+export async function getWeeklyReport(userId: number, weekOffset = 0, timeZone = DEFAULT_APP_TIME_ZONE) {
+  const dateKeys = getWeekDateKeys(new Date(), timeZone, weekOffset);
   const [weekly, fallbackProgress] = await Promise.all([
-    buildWeeklyReportSummary(userId, weekOffset, { includeFoodQualityDetails: true }),
-    getWeeklyProgress(userId),
+    buildWeeklyReportSummary(userId, weekOffset, { includeFoodQualityDetails: true }, timeZone),
+    getWeeklyProgress(userId, timeZone),
   ]);
 
   return {
@@ -782,33 +765,33 @@ export async function getWeeklyReport(userId: number, weekOffset = 0) {
   };
 }
 
-export async function getWeeklyProgressReport(userId: number, weekOffset = 0) {
+export async function getWeeklyProgressReport(userId: number, weekOffset = 0, timeZone = DEFAULT_APP_TIME_ZONE) {
   const [days, fallbackProgress] = await Promise.all([
-    buildWeeklyReportSummary(userId, weekOffset),
-    getWeeklyProgress(userId),
+    buildWeeklyReportSummary(userId, weekOffset, {}, timeZone),
+    getWeeklyProgress(userId, timeZone),
   ]);
 
   return buildWeeklyProgressFromSummary(days, fallbackProgress);
 }
 
-export async function getWeeklyInsightsReport(userId: number, weekOffset = 0) {
-  const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
+export async function getWeeklyInsightsReport(userId: number, weekOffset = 0, timeZone = DEFAULT_APP_TIME_ZONE) {
+  const dateKeys = getWeekDateKeys(new Date(), timeZone, weekOffset);
   const range = { startDate: dateKeys[0], endDate: dateKeys[dateKeys.length - 1] };
   const [progress, weeklyMeals] = await Promise.all([
-    getWeeklyProgressReport(userId, weekOffset),
-    listReportMealsByDateRange(userId, range, { includeMedia: false }),
+    getWeeklyProgressReport(userId, weekOffset, timeZone),
+    listReportMealsByDateRange(userId, range, timeZone, { includeMedia: false }),
   ]);
 
   return buildWeeklyInsights(progress, weeklyMeals);
 }
 
-export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
-  const dateKeys = resolveWeekDates(weekOffset).map(day => getDateKeyInTimeZone(day));
+export async function getWeeklyReportBundle(userId: number, weekOffset = 0, timeZone = DEFAULT_APP_TIME_ZONE) {
+  const dateKeys = getWeekDateKeys(new Date(), timeZone, weekOffset);
   const range = { startDate: dateKeys[0], endDate: dateKeys[dateKeys.length - 1] };
   const [weekly, fallbackProgress, weeklyMeals] = await Promise.all([
-    buildWeeklyReportSummary(userId, weekOffset, { includeFoodQualityDetails: true }),
-    getWeeklyProgress(userId),
-    listReportMealsByDateRange(userId, range, { includeMedia: false }),
+    buildWeeklyReportSummary(userId, weekOffset, { includeFoodQualityDetails: true }, timeZone),
+    getWeeklyProgress(userId, timeZone),
+    listReportMealsByDateRange(userId, range, timeZone, { includeMedia: false }),
   ]);
   const progress = buildWeeklyProgressFromSummary(weekly, fallbackProgress);
 
@@ -816,7 +799,7 @@ export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
     weekly,
     progress,
     insights: buildWeeklyInsights(progress, weeklyMeals),
-    mealsByDate: groupMealsByDate(weeklyMeals),
+    mealsByDate: groupMealsByDate(weeklyMeals, timeZone),
     quality: buildAggregateQuality(weekly),
   };
 }
@@ -824,18 +807,19 @@ export async function getWeeklyReportBundle(userId: number, weekOffset = 0) {
 export async function getPeriodReportBundle(
   userId: number,
   range: { startDate: string; endDate: string },
+  timeZone = DEFAULT_APP_TIME_ZONE,
 ) {
-  const dates = listDateKeysInRange(range.startDate, range.endDate);
+  const dates = listCalendarDateKeys(range.startDate, range.endDate);
   const [goalsByDate, waterGoal, progress, rangeData] = await Promise.all([
     Promise.all(dates.map(date => getNutritionGoalForDate(userId, date))),
     getUserWaterGoal(userId),
-    getWeeklyProgress(userId),
-    loadReportRangeData(userId, dates),
+    getWeeklyProgress(userId, timeZone),
+    loadReportRangeData(userId, dates, timeZone),
   ]);
   const habitAnalytics = buildHabitAnalyticsFromRange(waterGoal, rangeData, range);
   const meals = rangeData.mealsByDay.flat();
   const totals = calculateDayTotals(meals);
-  const mealsByDate = groupMealsByDate(meals);
+  const mealsByDate = groupMealsByDate(meals, timeZone);
   const foodLookup = await buildFoodLookupForMeals(userId, rangeData.mealsByDay);
   const daily = dates.map((date, index) => {
     const planned = goalsByDate[index]?.today ?? goalsByDate[0].today;
@@ -901,11 +885,12 @@ export async function getPeriodReportBundle(
 export async function getHabitAnalyticsReport(
   userId: number,
   range: { startDate: string; endDate: string },
+  timeZone = DEFAULT_APP_TIME_ZONE,
 ) {
-  const dates = listDateKeysInRange(range.startDate, range.endDate);
+  const dates = listCalendarDateKeys(range.startDate, range.endDate);
   const [waterGoal, rangeData] = await Promise.all([
     getUserWaterGoal(userId),
-    loadReportRangeData(userId, dates),
+    loadReportRangeData(userId, dates, timeZone),
   ]);
 
   return buildHabitAnalyticsFromRange(waterGoal, rangeData, range);

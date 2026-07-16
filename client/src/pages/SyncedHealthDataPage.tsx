@@ -6,6 +6,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
 import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatIntegerPtBr, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
@@ -182,12 +183,12 @@ type SyncedHealthRecord = {
   metadata?: RecordMetadata | null;
 };
 
-function startOfDate(value: string) {
-  return zonedDateTimeLocalToIso(`${value}T00:00`);
+function startOfDate(value: string, timeZone: string) {
+  return zonedDateTimeLocalToIso(`${value}T00:00`, timeZone);
 }
 
-function endOfDate(value: string) {
-  const end = new Date(zonedDateTimeLocalToIso(`${value}T23:59`));
+function endOfDate(value: string, timeZone: string) {
+  const end = new Date(zonedDateTimeLocalToIso(`${value}T23:59`, timeZone));
   end.setSeconds(59, 999);
   return end.toISOString();
 }
@@ -235,7 +236,9 @@ function formatSelectedDateSubtitle(dateKey: string) {
 }
 
 export default function SyncedHealthDataPage() {
-  const todayKey = toDateInputValue();
+  const effectiveTimeZone = useEffectiveUserTimeZone();
+  const userTimeZone = effectiveTimeZone.timeZone;
+  const todayKey = React.useMemo(() => toDateInputValue(new Date(), userTimeZone), [userTimeZone]);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [dataType, setDataType] = useState("all");
   const [activityType, setActivityType] = useState("all");
@@ -245,16 +248,20 @@ export default function SyncedHealthDataPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const effectiveDataType = activityType === "all" ? dataType : "activity";
 
+  React.useEffect(() => {
+    if (effectiveTimeZone.isReady) setSelectedDate(todayKey);
+  }, [effectiveTimeZone.isReady, todayKey]);
+
   const syncedRecords = trpc.nutrition.healthIntegrations.syncedRecords.useQuery({
     provider: source === "all" ? undefined : source as HealthProvider,
     dataType: effectiveDataType === "all" ? undefined : effectiveDataType as HealthDataType,
     activityType: activityType === "all" ? undefined : activityType,
-    from: startOfDate(selectedDate),
-    to: endOfDate(selectedDate),
+    from: startOfDate(selectedDate, userTimeZone),
+    to: endOfDate(selectedDate, userTimeZone),
     q: query.trim() || undefined,
     limit: PAGE_SIZE,
     offset,
-  });
+  }, { enabled: effectiveTimeZone.isReady });
 
   const records = (syncedRecords.data?.items ?? []) as SyncedHealthRecord[];
   const sources = syncedRecords.data?.sources ?? [];

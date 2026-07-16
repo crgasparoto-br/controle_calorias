@@ -65,6 +65,7 @@ type WhatsappLlmIntentInput = {
   text?: string | null;
   receivedAt?: Date;
   messageId?: string | null;
+  userTimezone?: string | null;
 };
 
 type ExistingMeal = {
@@ -690,7 +691,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   }
 
   const receivedAt = input.receivedAt ?? new Date();
-  const timeZone = await getWhatsAppUserTimeZone(userId);
+  const timeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
   const idempotencyKey = buildIdempotencyKey(userId, text, receivedAt, input.messageId);
   // Passa a pendência operacional ativa (se houver) para o classificador saber que uma
   // resposta pode estar resolvendo uma seleção/confirmação/exclusão em aberto (issue #766).
@@ -698,7 +699,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   const pendingClarification = activePendingOperation
     ? { kind: activePendingOperation.type, originalIntent: activePendingOperation.origin }
     : null;
-  const context = await buildWhatsappIntentContext(userId, { receivedAt, pendingClarification });
+  const context = await buildWhatsappIntentContext(userId, { receivedAt, pendingClarification, timeZone });
   const interpretation = await interpretWhatsappMessageWithDiagnostics(text, context);
   const intent = interpretation.intent;
   learnWhatsappIntentAliasFromConfirmation({ userId, text, intent, receivedAt });

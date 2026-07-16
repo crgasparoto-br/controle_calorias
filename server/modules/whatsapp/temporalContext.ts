@@ -1,4 +1,7 @@
-type WhatsappTemporalDateKind = "today" | "yesterday" | "tomorrow" | "day_before_yesterday" | "weekday";
+import { resolveInjectedWhatsAppTimeZone } from "./timeZoneContext";
+
+type WhatsappTemporalDateKind =
+  "today" | "yesterday" | "tomorrow" | "day_before_yesterday" | "weekday";
 
 type WhatsappTemporalContext = {
   temporalExpression: string;
@@ -28,9 +31,8 @@ type WhatsappTemporalInput = {
   text?: string | null;
   receivedAt: Date;
   userTimezone?: string | null;
+  timezoneSource?: "configured" | "fallback";
 };
-
-const DEFAULT_FALLBACK_TIMEZONE = "America/Sao_Paulo";
 
 const WEEKDAYS: Record<string, number> = {
   domingo: 0,
@@ -68,23 +70,6 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function isValidTimezone(timezone: string) {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function resolveTimezone(userTimezone?: string | null) {
-  const configured = userTimezone?.trim();
-  if (configured && isValidTimezone(configured)) {
-    return { userTimezone: configured, timezoneSource: "configured" as const };
-  }
-  return { userTimezone: DEFAULT_FALLBACK_TIMEZONE, timezoneSource: "fallback" as const };
-}
-
 function getLocalDateParts(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -93,12 +78,15 @@ function getLocalDateParts(date: Date, timeZone: string) {
     day: "2-digit",
     weekday: "short",
   }).formatToParts(date);
-  const get = (type: string) => parts.find(part => part.type === type)?.value ?? "";
+  const get = (type: string) =>
+    parts.find(part => part.type === type)?.value ?? "";
   const year = Number(get("year"));
   const month = Number(get("month"));
   const day = Number(get("day"));
   const weekdayText = get("weekday").toLowerCase();
-  const weekday = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(weekdayText.slice(0, 3));
+  const weekday = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(
+    weekdayText.slice(0, 3)
+  );
   return { year, month, day, weekday };
 }
 
@@ -119,7 +107,11 @@ function getIsoWeekday(isoDate: string) {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
 
-function resolveWeekdayDate(referenceDate: string, targetWeekday: number, direction: "past" | "future") {
+function resolveWeekdayDate(
+  referenceDate: string,
+  targetWeekday: number,
+  direction: "past" | "future"
+) {
   const currentWeekday = getIsoWeekday(referenceDate);
   if (direction === "past") {
     const delta = (currentWeekday - targetWeekday + 7) % 7 || 7;
@@ -137,9 +129,11 @@ function detectMealSlot(normalized: string) {
 }
 
 function weekdayFromText(normalized: string) {
-  return Object.entries(WEEKDAYS)
-    .sort((a, b) => b[0].length - a[0].length)
-    .find(([label]) => new RegExp(`\\b${label}\\b`).test(normalized)) ?? null;
+  return (
+    Object.entries(WEEKDAYS)
+      .sort((a, b) => b[0].length - a[0].length)
+      .find(([label]) => new RegExp(`\\b${label}\\b`).test(normalized)) ?? null
+  );
 }
 
 function buildClarification(input: {
@@ -152,7 +146,8 @@ function buildClarification(input: {
   return {
     handled: true,
     action: "temporal_context_clarification_needed",
-    reply: "Preciso de uma data mais específica para continuar com segurança. Diga, por exemplo, 'sábado passado', 'próximo sábado', 'ontem' ou uma data completa.",
+    reply:
+      "Preciso de uma data mais específica para continuar com segurança. Diga, por exemplo, 'sábado passado', 'próximo sábado', 'ontem' ou uma data completa.",
     eventType: "whatsapp.time.temporal_clarification_needed",
     detail: `Referencia temporal ambigua: ${input.reason}.`,
     data: {
@@ -165,17 +160,29 @@ function buildClarification(input: {
   };
 }
 
-export function resolveWhatsappTemporalContext(input: WhatsappTemporalInput): WhatsappTemporalResolution {
+export function resolveWhatsappTemporalContext(
+  input: WhatsappTemporalInput
+): WhatsappTemporalResolution {
   const text = input.text?.trim();
   if (!text) return { context: null, clarification: null };
 
   const normalized = normalizeText(text);
-  const { userTimezone, timezoneSource } = resolveTimezone(input.userTimezone);
+  const timeZoneResolution = resolveInjectedWhatsAppTimeZone(
+    input.userTimezone
+  );
+  const userTimezone = timeZoneResolution.timeZone;
+  const timezoneSource =
+    input.timezoneSource ??
+    (timeZoneResolution.source === "profile" ? "configured" : "fallback");
   const localParts = getLocalDateParts(input.receivedAt, userTimezone);
   const localReferenceDate = toIsoDate(localParts);
   const mealSlot = detectMealSlot(normalized);
 
-  const buildContext = (temporalExpression: string, resolvedDate: string, dateKind: WhatsappTemporalDateKind): WhatsappTemporalContext => ({
+  const buildContext = (
+    temporalExpression: string,
+    resolvedDate: string,
+    dateKind: WhatsappTemporalDateKind
+  ): WhatsappTemporalContext => ({
     temporalExpression,
     resolvedDate,
     mealSlot,
@@ -186,16 +193,40 @@ export function resolveWhatsappTemporalContext(input: WhatsappTemporalInput): Wh
   });
 
   if (/\banteontem\b/.test(normalized)) {
-    return { context: buildContext("anteontem", addLocalDays(localReferenceDate, -2), "day_before_yesterday"), clarification: null };
+    return {
+      context: buildContext(
+        "anteontem",
+        addLocalDays(localReferenceDate, -2),
+        "day_before_yesterday"
+      ),
+      clarification: null,
+    };
   }
   if (/\bontem\b/.test(normalized)) {
-    return { context: buildContext("ontem", addLocalDays(localReferenceDate, -1), "yesterday"), clarification: null };
+    return {
+      context: buildContext(
+        "ontem",
+        addLocalDays(localReferenceDate, -1),
+        "yesterday"
+      ),
+      clarification: null,
+    };
   }
   if (/\bamanha\b/.test(normalized)) {
-    return { context: buildContext("amanha", addLocalDays(localReferenceDate, 1), "tomorrow"), clarification: null };
+    return {
+      context: buildContext(
+        "amanha",
+        addLocalDays(localReferenceDate, 1),
+        "tomorrow"
+      ),
+      clarification: null,
+    };
   }
   if (/\bhoje\b/.test(normalized)) {
-    return { context: buildContext("hoje", localReferenceDate, "today"), clarification: null };
+    return {
+      context: buildContext("hoje", localReferenceDate, "today"),
+      clarification: null,
+    };
   }
 
   if (/\bsemana passada\b/.test(normalized)) {
@@ -214,11 +245,33 @@ export function resolveWhatsappTemporalContext(input: WhatsappTemporalInput): Wh
   const weekdayMatch = weekdayFromText(normalized);
   if (weekdayMatch) {
     const [weekdayLabel, weekday] = weekdayMatch;
-    if (new RegExp(`\\b(?:sabado|domingo|segunda(?: feira)?|terca(?: feira)?|quarta(?: feira)?|quinta(?: feira)?|sexta(?: feira)?) passado\\b`).test(normalized)) {
-      return { context: buildContext(`${weekdayLabel} passado`, resolveWeekdayDate(localReferenceDate, weekday, "past"), "weekday"), clarification: null };
+    if (
+      new RegExp(
+        `\\b(?:sabado|domingo|segunda(?: feira)?|terca(?: feira)?|quarta(?: feira)?|quinta(?: feira)?|sexta(?: feira)?) passado\\b`
+      ).test(normalized)
+    ) {
+      return {
+        context: buildContext(
+          `${weekdayLabel} passado`,
+          resolveWeekdayDate(localReferenceDate, weekday, "past"),
+          "weekday"
+        ),
+        clarification: null,
+      };
     }
-    if (new RegExp(`\\bproximo (?:sabado|domingo|segunda(?: feira)?|terca(?: feira)?|quarta(?: feira)?|quinta(?: feira)?|sexta(?: feira)?)\\b`).test(normalized)) {
-      return { context: buildContext(`proximo ${weekdayLabel}`, resolveWeekdayDate(localReferenceDate, weekday, "future"), "weekday"), clarification: null };
+    if (
+      new RegExp(
+        `\\bproximo (?:sabado|domingo|segunda(?: feira)?|terca(?: feira)?|quarta(?: feira)?|quinta(?: feira)?|sexta(?: feira)?)\\b`
+      ).test(normalized)
+    ) {
+      return {
+        context: buildContext(
+          `proximo ${weekdayLabel}`,
+          resolveWeekdayDate(localReferenceDate, weekday, "future"),
+          "weekday"
+        ),
+        clarification: null,
+      };
     }
     return {
       context: null,
@@ -233,7 +286,10 @@ export function resolveWhatsappTemporalContext(input: WhatsappTemporalInput): Wh
   }
 
   if (mealSlot) {
-    return { context: buildContext(mealSlot, localReferenceDate, "today"), clarification: null };
+    return {
+      context: buildContext(mealSlot, localReferenceDate, "today"),
+      clarification: null,
+    };
   }
 
   return { context: null, clarification: null };

@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
 import { toDateInputValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatPercentPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
@@ -150,10 +151,18 @@ function recordsHref(dateKey: string) {
 
 export default function Home() {
   const utils = trpc.useUtils();
-  const todayKey = toDateInputValue();
+  const effectiveTimeZone = useEffectiveUserTimeZone();
+  const userTimeZone = effectiveTimeZone.timeZone;
+  const todayKey = React.useMemo(() => toDateInputValue(new Date(), userTimeZone), [userTimeZone]);
   const [selectedDate, setSelectedDate] = React.useState(todayKey);
+  React.useEffect(() => {
+    if (effectiveTimeZone.isReady) setSelectedDate(todayKey);
+  }, [effectiveTimeZone.isReady, todayKey]);
   const isViewingToday = selectedDate === todayKey;
-  const overview = trpc.nutrition.dashboard.today.useQuery({ date: selectedDate });
+  const overview = trpc.nutrition.dashboard.today.useQuery(
+    { date: selectedDate },
+    { enabled: effectiveTimeZone.isReady },
+  );
   const [assistantMessage, setAssistantMessage] = React.useState("");
   const [assistantSuggestion, setAssistantSuggestion] = React.useState<AssistantSuggestion | null>(null);
 
@@ -197,7 +206,7 @@ export default function Home() {
 
     saveAssistantMeal.mutate({
       mealLabel: "jantar",
-      occurredAt: zonedDateTimeLocalToIso(`${selectedDate}T12:00`),
+      occurredAt: zonedDateTimeLocalToIso(`${selectedDate}T12:00`, userTimeZone),
       notes: "Sugestão educativa do assistente alimentar.",
       items: assistantSuggestion.suggestedFoods.map(food => ({
         foodName: food.foodName,
@@ -269,7 +278,7 @@ export default function Home() {
     return Array.from(mealsByLabel.values());
   }, [selectedDayMeals]);
 
-  if (overview.isLoading) {
+  if (!effectiveTimeZone.isReady || overview.isLoading) {
     return (
       <DashboardLayout>
         <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -283,7 +292,7 @@ export default function Home() {
     );
   }
 
-  if (overview.isError) {
+  if (effectiveTimeZone.isError || overview.isError) {
     return (
       <DashboardLayout>
         <div className="mx-auto max-w-7xl">

@@ -41,7 +41,8 @@ import type { DomainLinkInput } from "./repositories/whatsappConversationReposit
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
 import { buildWhatsAppCanonicalWeightReply } from "./modules/whatsapp/domainReplyFormatters";
 import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
-import { getWhatsAppUserTimeZone, getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
+import { getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
+import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
@@ -392,6 +393,8 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
   }
 
   async function handleTextIntentAfterLifecycleBegin(userId: number): Promise<TextIntentHandlingResult> {
+  const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
+  const userTimezone = timeZoneResolution.timeZone;
   const safety = inspectWhatsAppUserContentSafety(text, "text");
   if (!safety.safe) {
     markTextIntentMessageHandled(message.id);
@@ -415,7 +418,7 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
   // compartilhado, antes de qualquer classificação de intenção (exclusão, ajuste,
   // substituição, LLM etc).
   const interactiveReplyId = getWhatsAppInteractiveReplyId(message);
-  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, interactiveReplyId, sourcePhone });
+  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, userTimezone, interactiveReplyId, sourcePhone });
   if (precedenceGate.step !== "continue_pipeline") {
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -478,7 +481,7 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
   }
 
   if (weightLog?.kind === "weight") {
-    const timeZone = await getWhatsAppUserTimeZone(userId);
+    const timeZone = userTimezone;
     const { variationKg } = await getWhatsAppWeightVariation(userId, occurredAt, weightLog.weightKg);
     const persistedWeight = await ensureWhatsAppWeightEntry(userId, {
       weightKg: weightLog.weightKg,
@@ -520,7 +523,7 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
   if (mixedWaterFood) {
     const waterResults: TextIntentResult[] = [];
     for (const waterLine of mixedWaterFood.waterLines) {
-      const result = await executeWhatsappTextIntent(userId, { text: waterLine.text, receivedAt: occurredAt });
+      const result = await executeWhatsappTextIntent(userId, { text: waterLine.text, receivedAt: occurredAt, userTimezone });
       if (!result || result.action !== "water_logged") {
         await sendAndLogTextReply({
           userId,
@@ -580,7 +583,7 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
     return true;
   }
 
-  const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent });
+  const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent, timeZone: userTimezone });
   if (deleteIntentResult) {
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -680,7 +683,7 @@ async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebho
     return true;
   }
   let nutritionFallback: WhatsappLlmNutritionFallback | null = null;
-  let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+  let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: occurredAt, userTimezone });
   if (!result && shouldTryContextualLlmIntent(textForIntent)) {
     const llmResult = await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: occurredAt });
     if (llmResult && "handled" in llmResult && !llmResult.handled) {

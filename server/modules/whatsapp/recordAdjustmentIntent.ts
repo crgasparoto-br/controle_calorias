@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { listMeals } from "../meals/service";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
@@ -109,11 +110,11 @@ export async function executeWhatsappRecordAdjustmentIntent(
   if (intent.kind === "incomplete") return clarification("Comando de ajuste sem alvo suficiente.");
 
   if (intent.kind === "remove_item" || intent.kind === "remove_last_meal") {
-    return executeWhatsappDeleteIntent(userId, { text }) as Promise<WhatsappRecordAdjustmentResult | null>;
+    return executeWhatsappDeleteIntent(userId, { text, timeZone: input.userTimezone }) as Promise<WhatsappRecordAdjustmentResult | null>;
   }
 
   if (intent.kind === "replace_item") {
-    return handleFoodReplacementIntents(userId, [{ fromFood: intent.sourceFood, toFood: intent.targetFood }]);
+    return handleFoodReplacementIntents(userId, [{ fromFood: intent.sourceFood, toFood: intent.targetFood }], input.userTimezone ?? DEFAULT_APP_TIME_ZONE);
   }
 
   const recentMeals = getRecentMeals(await listMeals(userId), input.receivedAt ?? new Date());

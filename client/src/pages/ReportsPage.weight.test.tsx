@@ -117,7 +117,20 @@ function weightSummary() {
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     nutrition: {
+      onboarding: {
+        timeZone: {
+          useQuery: () => ({
+            data: { timeZone: "America/Sao_Paulo", source: "profile", fallbackReason: null },
+            isSuccess: true,
+            isLoading: false,
+            isError: false,
+          }),
+        },
+      },
       professionals: {
+        patientTimeZone: {
+          useQuery: () => ({ data: null, isLoading: false, isError: false }),
+        },
         patientPeriodBundle: {
           useQuery: () => ({ data: null, isLoading: false, isError: false }),
         },

@@ -59,7 +59,11 @@ describe("executeWhatsappRecordAdjustmentIntent", () => {
   it("aplica substituição clara diretamente pelo handler canônico", async () => {
     const result = await executeWhatsappRecordAdjustmentIntent(42, { text: "troca arroz branco por arroz integral" });
 
-    expect(handleFoodReplacementIntentsMock).toHaveBeenCalledWith(42, [{ fromFood: "arroz branco", toFood: "arroz integral" }]);
+    expect(handleFoodReplacementIntentsMock).toHaveBeenCalledWith(
+      42,
+      [{ fromFood: "arroz branco", toFood: "arroz integral" }],
+      "America/Sao_Paulo",
+    );
     expect(result?.action).toBe("meal_item_replaced");
   });
 

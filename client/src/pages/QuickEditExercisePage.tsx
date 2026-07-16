@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { getBrowserTimeZone, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { Activity, CheckCircle2, Clock, Flame, Loader2, MessageCircle, Save } from "lucide-react";
@@ -43,8 +43,8 @@ function StatPill({ icon: Icon, label, value }: { icon: typeof Activity; label: 
 export default function QuickEditExercisePage() {
   const [, params] = useRoute("/quick-edit/exercise/:token");
   const token = params?.token ?? "";
-  const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
   const exerciseQuery = trpc.quickEdit.getExercise.useQuery({ token }, { enabled: Boolean(token), retry: false });
+  const userTimeZone = exerciseQuery.data?.timeZone;
   const updateExercise = trpc.quickEdit.updateExercise.useMutation({
     onSuccess: () => toast.success("Exercício atualizado com sucesso."),
     onError: error => toast.error(error.message || "Não foi possível salvar o exercício."),
@@ -58,7 +58,7 @@ export default function QuickEditExercisePage() {
 
   React.useEffect(() => {
     const exercise = exerciseQuery.data?.exercise;
-    if (!exercise) return;
+    if (!exercise || !userTimeZone) return;
 
     setActivityType(exercise.activityType);
     setDurationMinutes(String(exercise.durationMinutes));
@@ -101,7 +101,7 @@ export default function QuickEditExercisePage() {
         activityType: normalizedActivityType,
         durationMinutes: normalizedDuration,
         caloriesBurned: normalizedCalories,
-        occurredAt: zonedDateTimeLocalToIso(occurredAt, userTimeZone),
+        dateTimeLocal: occurredAt,
         notes: notes.trim() || undefined,
       },
     });
@@ -175,7 +175,7 @@ export default function QuickEditExercisePage() {
 
         <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-2xl flex-col gap-2 sm:flex-row">
-            <Button type="button" className="rounded-full" onClick={handleSave} disabled={updateExercise.isPending}>
+            <Button type="button" className="rounded-full" onClick={handleSave} disabled={updateExercise.isPending || !userTimeZone}>
               {updateExercise.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Salvar exercício
             </Button>

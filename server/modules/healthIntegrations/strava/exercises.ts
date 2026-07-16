@@ -22,6 +22,8 @@ import { STRAVA_ACTIVITY_NOTE_PREFIX } from "./constants";
 import { ensureValidStravaToken } from "./oauth";
 import { StravaRateLimitError, getStravaGlobalCooldownError, setStravaUserCooldown } from "./rateLimit";
 import type { StravaActivity, StravaExerciseImportSummary } from "./types";
+import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
+import { getEffectiveUserTimeZone } from "../../timeZone/service";
 
 const notifiedStravaActivityKeys = new Set<string>();
 
@@ -72,11 +74,11 @@ export function formatStravaExerciseDuration(minutes: number) {
   return String(Math.max(Math.round(minutes), 0)).padStart(2, "0");
 }
 
-export function formatStravaExerciseDate(occurredAt: string) {
+export function formatStravaExerciseDate(occurredAt: string, timeZone = DEFAULT_APP_TIME_ZONE) {
   return new Date(occurredAt).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
-    timeZone: "America/Sao_Paulo",
+    timeZone,
   });
 }
 
@@ -86,17 +88,24 @@ function buildStravaExerciseImportedWhatsAppMessage(input: {
   caloriesBurned: number;
   occurredAt: string;
   notes?: string | null;
+  timeZone?: string;
 }) {
   return buildWhatsAppCanonicalExerciseReply({
     activity: input.activityType,
     durationMinutes: input.durationMinutes,
     calories: input.caloriesBurned,
-    occurredAtLabel: formatStravaExerciseDate(input.occurredAt),
+    occurredAtLabel: formatStravaExerciseDate(input.occurredAt, input.timeZone),
     caloriesEstimated: /calorias estimadas/i.test(input.notes ?? ""),
   });
 }
 
-async function sendStravaExerciseImportedWhatsAppMessage(userId: number, externalId: string, exerciseId: number, exercise: ReturnType<typeof toStravaExerciseInput>) {
+async function sendStravaExerciseImportedWhatsAppMessage(
+  userId: number,
+  externalId: string,
+  exerciseId: number,
+  exercise: ReturnType<typeof toStravaExerciseInput>,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
   if (!exercise) return "skipped" as const;
 
   const notificationKey = buildStravaNotificationKey(userId, externalId);
@@ -127,7 +136,7 @@ async function sendStravaExerciseImportedWhatsAppMessage(userId: number, externa
       return "skipped" as const;
     }
 
-    const message = buildStravaExerciseImportedWhatsAppMessage(exercise);
+    const message = buildStravaExerciseImportedWhatsAppMessage({ ...exercise, timeZone });
     const quickEditLink = await tryCreateQuickEditLinkForExercise({ userId, exerciseId });
     const logicalReply = quickEditLink?.url
       ? withCtaUrl(textReply(message), { buttonText: "Ver exercício", url: quickEditLink.url })
@@ -357,6 +366,7 @@ async function resolveStravaActivityForImport(userId: number, activity: StravaAc
 }
 
 export async function upsertStravaActivitiesAsExercises(userId: number, activities: StravaActivity[]): Promise<StravaExerciseImportSummary> {
+  const timeZone = await getEffectiveUserTimeZone(userId);
   const existingExercises = await listExercises(userId);
   const summary: StravaExerciseImportSummary = {
     created: 0,
@@ -490,7 +500,7 @@ export async function upsertStravaActivitiesAsExercises(userId: number, activiti
         eventType: "strava.import.exercise_created",
         detail: `exercício criado com origem de calorias ${metadata.caloriesOrigin ?? "sem_calorias"}.`,
       });
-      const notificationStatus = await sendStravaExerciseImportedWhatsAppMessage(userId, externalId, persisted.id, exerciseInput);
+      const notificationStatus = await sendStravaExerciseImportedWhatsAppMessage(userId, externalId, persisted.id, exerciseInput, timeZone);
       if (notificationStatus === "sent") {
         summary.notificationsSent += 1;
         logStravaImportEvent({

@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import type { GamificationRepository } from "../../repositories/gamificationRepository";
 
 type BadgeCode =
@@ -65,8 +66,8 @@ export type WeeklyGamificationDay = {
 export function createGamificationService(deps: {
   gamificationRepository: GamificationRepository;
   getDb: () => Promise<unknown>;
-  getWeekStart: () => string;
-  getWeeklySummary: (userId: number) => Promise<WeeklyGamificationDay[]>;
+  getWeekStart: (timeZone: string) => string;
+  getWeeklySummary: (userId: number, timeZone: string) => Promise<WeeklyGamificationDay[]>;
   listFavoriteMeals: (userId: number) => Promise<unknown[]>;
   listUserMeals: (userId: number) => Promise<Array<{ occurredAt: number; source: "web" | "whatsapp" }>>;
   parseJsonObject: (value: string | null | undefined, fallback: Record<string, unknown>) => Record<string, unknown>;
@@ -188,7 +189,7 @@ export function createGamificationService(deps: {
     return badges;
   }
 
-  async function getUserGamification(userId: number, weekly?: WeeklyGamificationDay[]) {
+  async function getUserGamification(userId: number, weekly?: WeeklyGamificationDay[], timeZone = DEFAULT_APP_TIME_ZONE) {
     const enabled = await getGamificationEnabled(userId);
     const history = await loadUserBadges(userId);
 
@@ -201,8 +202,8 @@ export function createGamificationService(deps: {
       };
     }
 
-    const weekStart = deps.getWeekStart();
-    const weeklyData = weekly ?? await deps.getWeeklySummary(userId);
+    const weekStart = deps.getWeekStart(timeZone);
+    const weeklyData = weekly ?? await deps.getWeeklySummary(userId, timeZone);
     const earnedCandidates = await calculateEarnedBadgeCodes(userId, weeklyData);
     const newlyEarned: UserBadgeEntry[] = [];
 

@@ -95,3 +95,11 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Onboarding composto retoma apenas mensagens físicas ainda não entregues após falha parcial.
 - Erros de mídia, conta não vinculada e indisponibilidade são sanitizados e não expõem provider, payload, telefone completo ou identificadores internos.
 - O gate arquitetural impede novos payloads, envios e builders paralelos fora dos módulos autorizados.
+
+## Regra temporal do dono dos dados
+
+Todas as respostas e ações do WhatsApp usam o timezone efetivo do usuário vinculado ao telefone. A mesma mensagem deve produzir a mesma data lógica em texto, foto, áudio, botão/lista e pergunta iniciada por `/`. Alterar o timezone do perfil afeta operações futuras, sem regravar o histórico.
+
+## Timezone e edição rápida
+
+O WhatsApp interpreta datas relativas no timezone efetivo do usuário identificado pelo telefone. A edição rápida exibe e converte horários no timezone do dono do registro; o navegador não substitui essa configuração e o backend não confia em timezone enviado pelo cliente.
