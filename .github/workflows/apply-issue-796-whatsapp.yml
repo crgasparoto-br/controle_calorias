@@ -18,7 +18,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: feat/796-timezone-whatsapp
-          fetch-depth: 0
+          fetch-depth: 1
+          show-progress: false
 
       - name: Apply reviewed WhatsApp change
         shell: bash
@@ -32,6 +33,7 @@ jobs:
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then
+            cat /tmp/issue796-am.log
             git am --abort || true
             cp /tmp/issue796-am.log .github/issue-796-debug.txt
             git add .github/issue-796-debug.txt
