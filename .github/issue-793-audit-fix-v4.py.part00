@@ -1,0 +1,142 @@
+from pathlib import Path
+import re
+
+ROOT = Path.cwd()
+
+def read(path): return (ROOT/path).read_text()
+def write(path, text):
+    p=ROOT/path; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(text)
+def replace_once(path, old, new):
+    text=read(path)
+    if old not in text:
+        raise RuntimeError(f'Pattern not found in {path}: {old[:120]!r}')
+    write(path, text.replace(old,new,1))
+def regex_replace_once(path, pattern, repl, flags=0):
+    text=read(path)
+    new, count=re.subn(pattern,repl,text,count=1,flags=flags)
+    if count != 1:
+        raise RuntimeError(f'Regex count {count} in {path}: {pattern[:120]}')
+    write(path,new)
+
+# Central server-side civil input contract.
+write(Path('server/modules/timeZone/schemas.ts'), '''import { z } from "zod";
+
+export const ownerDateTimeLocalSchema = z
+  .string()
+  .trim()
+  .regex(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2})?$/, "Informe uma data e um horário local válidos.")
+  .max(19);
+''')
+write(Path('server/modules/timeZone/civilInput.ts'), '''import {
+  ZonedDateTimeError,
+  zonedDateTimeLocalToIso,
+} from "../../../shared/timeZone";
+
+export class OwnerLocalDateTimeInputError extends Error {
+  readonly code: ZonedDateTimeError["code"];
+
+  constructor(error: ZonedDateTimeError) {
+    super(error.message);
+    this.name = "OwnerLocalDateTimeInputError";
+    this.code = error.code;
+  }
+}
+
+export function resolveOwnerLocalDateTime(dateTimeLocal: string, timeZone: string) {
+  try {
+    return zonedDateTimeLocalToIso(dateTimeLocal, timeZone);
+  } catch (error) {
+    if (error instanceof ZonedDateTimeError) {
+      throw new OwnerLocalDateTimeInputError(error);
+    }
+    throw error;
+  }
+}
+''')
+write(Path('server/modules/timeZone/civilInput.test.ts'), '''import { describe, expect, it } from "vitest";
+import { OwnerLocalDateTimeInputError, resolveOwnerLocalDateTime } from "./civilInput";
+
+describe("owner local datetime input", () => {
+  it("converte o horário civil no timezone do dono", () => {
+    expect(resolveOwnerLocalDateTime("2026-07-16T14:30", "Europe/Lisbon"))
+      .toBe("2026-07-16T13:30:00.000Z");
+  });
+
+  it("rejeita horário inexistente no avanço do DST", () => {
+    expect(() => resolveOwnerLocalDateTime("2026-03-08T02:30", "America/New_York"))
+      .toThrow(OwnerLocalDateTimeInputError);
+  });
+
+  it("usa a primeira ocorrência no horário ambíguo", () => {
+    expect(resolveOwnerLocalDateTime("2026-11-01T01:30", "America/New_York"))
+      .toBe("2026-11-01T05:30:00.000Z");
+  });
+});
+''')
+
+# Onboarding public schema: civil weight time only.
+path=Path('server/modules/onboarding/schemas.ts')
+text=read(path)
+if 'ownerDateTimeLocalSchema' not in text:
+    text=text.replace('import { DEFAULT_APP_TIME_ZONE, normalizeUserTimeZone, USER_TIME_ZONE_OPTIONS } from "../../../shared/timeZone";\n',
+                      'import { DEFAULT_APP_TIME_ZONE, normalizeUserTimeZone, USER_TIME_ZONE_OPTIONS } from "../../../shared/timeZone";\nimport { ownerDateTimeLocalSchema } from "../timeZone/schemas";\n')
+if 'export const onboardingMutationSchema' not in text:
+    anchor='export const webWhatsappGreetingSchema = z.object({'
+    block='''export const onboardingMutationSchema = onboardingBaseSchema
+  .omit({ weightMeasuredAt: true })
+  .extend({ weightMeasuredAtLocal: ownerDateTimeLocalSchema.optional() })
+  .superRefine((input, ctx) => {
+    const ageYears = calculateAgeYearsFromBirthDate(input.birthDate);
+    if (ageYears === null) {
+      ctx.addIssue({ code: "custom", path: ["birthDate"], message: "Informe uma data de nascimento válida." });
+      return;
+    }
+
+    if (ageYears < 13 || ageYears > 120) {
+      ctx.addIssue({ code: "custom", path: ["birthDate"], message: "A idade calculada deve estar entre 13 e 120 anos." });
+    }
+  })
+  .transform(input => ({
+    ...input,
+    timezone: normalizeUserTimeZone(input.timezone),
+    ageYears: calculateAgeYearsFromBirthDate(input.birthDate) ?? 0,
+  }));
+
+'''
+    if anchor not in text: raise RuntimeError('onboarding anchor missing')
+    text=text.replace(anchor,block+anchor,1)
+write(path,text)
+
+# Quick edit requires civil time; remove absolute bypass.
+path=Path('server/modules/quickEdit/schemas.ts')
+text=read(path)
+text=re.sub(r'function requireOneTemporalValue\([\s\S]*?\n}\n\n', '', text, count=1)
+text=text.replace('''  .extend({
+    occurredAt: z.string().min(1).optional(),
+    dateTimeLocal: localDateTimeSchema.optional(),
+  })
+  .superRefine(requireOneTemporalValue);''','''  .extend({
+    dateTimeLocal: localDateTimeSchema,
+  });''')
+if 'occurredAt: z.string().min(1).optional()' in text or 'requireOneTemporalValue' in text:
+    raise RuntimeError('quick edit schema bypass still present')
+write(path,text)
+
+path=Path('server/modules/quickEdit/service.ts')
+text=read(path)
+text=text.replace('type QuickEditTemporalPayload = { occurredAt?: string; dateTimeLocal?: string };','type QuickEditTemporalPayload = { dateTimeLocal: string };')
+text=re.sub(r'''  if \(input\.dateTimeLocal\) \{\n([\s\S]*?)\n  \}\n\n  if \(!input\.occurredAt \|\| Number\.isNaN\(new Date\(input\.occurredAt\)\.getTime\(\)\)\) \{\n    throw new QuickEditTemporalInputError\("Informe uma data e um horário válidos\."\);\n  \}\n  return input\.occurredAt;''', r'''  const originalLocal = toDateTimeLocalValueInTimeZone(currentOccurredAt, timeZone);
+  if (originalLocal === input.dateTimeLocal.slice(0, 16)) {
+    return new Date(currentOccurredAt).toISOString();
+  }
+
+  try {
+    return zonedDateTimeLocalToDate(input.dateTimeLocal, timeZone).toISOString();
+  } catch (error) {
+    if (error instanceof ZonedDateTimeError) {
+      throw new QuickEditTemporalInputError(error.message);
+    }
+    throw error;
+  }''', text, count=1)
+text=text.replace('const { dateTimeLocal, occurredAt, ...changes } = input;','const { dateTimeLocal, ...changes } = input;')
+text=text.replace('resolveQuickEditOccurredAt({ dateTimeLocal, occurredAt }, currentMeal.occurredAt, timeZone.timeZone)','resolveQuickEditOccurredAt({ dateTimeLocal }, currentMeal
