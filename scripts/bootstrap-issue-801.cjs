@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const path = require('node:path');
 const zlib = require('node:zlib');
 const { spawnSync } = require('node:child_process');
 
@@ -6,12 +7,16 @@ if (fs.existsSync('server/modules/foods/legacyDeletion.ts')) {
   process.exit(0);
 }
 
-const payloadPath = 'scripts/apply-issue-801.cjs.gz.b64';
-if (!fs.existsSync(payloadPath)) {
-  throw new Error('Issue 801 patch payload was not found.');
+const payloadDir = 'scripts/issue-801-payload';
+if (!fs.existsSync(payloadDir)) {
+  throw new Error('Issue 801 patch payload directory was not found.');
 }
 
-const compressed = Buffer.from(fs.readFileSync(payloadPath, 'utf8').trim(), 'base64');
+const encoded = fs.readdirSync(payloadDir)
+  .sort()
+  .map(fileName => fs.readFileSync(path.join(payloadDir, fileName), 'utf8').trim())
+  .join('');
+const compressed = Buffer.from(encoded, 'base64');
 const scriptPath = '/tmp/apply-issue-801.cjs';
 fs.writeFileSync(scriptPath, zlib.gunzipSync(compressed));
 
