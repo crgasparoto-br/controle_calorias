@@ -1,0 +1,97 @@
+name: Apply issue 801 implementation
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'feat/801-soft-delete-food-catalog' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Restore and apply implementation
+        run: |
+          set +e
+          node scripts/bootstrap-issue-801.cjs > /tmp/issue-801-apply.log 2>&1
+          status=$?
+          cat /tmp/issue-801-apply.log
+          exit "$status"
+
+      - name: Upload apply diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-801-apply-log
+          path: /tmp/issue-801-apply.log
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Format changed sources
+        run: |
+          pnpm exec prettier --write \
+            drizzle/schema.ts \
+            drizzle/meta/_journal.json \
+            drizzle/meta/0025_snapshot.json \
+            server/schemaCompatibility.ts \
+            server/repositories/foodCatalogRepository.ts \
+            server/modules/foods/deprecationRegistry.ts \
+            server/modules/foods/legacyDeletion.ts \
+            server/modules/foods/legacyDeletion.test.ts \
+            server/modules/foods/catalog.ts \
+            server/modules/foods/catalog.test.ts \
+            server/modules/foods/service.ts \
+            server/modules/foods/schemas.ts \
+            server/nutritionRouter.ts \
+            client/src/pages/FoodsPage.tsx \
+            docs/design-docs/custom-foods.md \
+            docs/product-specs/meal-registration.md
+
+      - name: Regenerate derived documentation
+        run: |
+          pnpm docs:generate:db
+          pnpm docs:generate:trpc
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            client/src/pages/FoodsPage.tsx \
+            docs/design-docs/custom-foods.md \
+            docs/generated/db-schema.md \
+            docs/generated/trpc-routes.md \
+            docs/product-specs/meal-registration.md \
+            drizzle/0025_food_catalog_status.sql \
+            drizzle/meta/0025_snapshot.json \
+            drizzle/meta/_journal.json \
+            drizzle/schema.ts \
+            server/modules/foods/catalog.test.ts \
+            server/modules/foods/catalog.ts \
+            server/modules/foods/deprecationRegistry.ts \
+            server/modules/foods/legacyDeletion.test.ts \
+            server/modules/foods/legacyDeletion.ts \
+            server/modules/foods/schemas.ts \
+            server/modules/foods/service.ts \
+            server/nutritionRouter.ts \
+            server/repositories/foodCatalogRepository.ts \
+            server/schemaCompatibility.ts
+          git commit -m "feat: implement soft deletion for legacy food catalog (#801)"
+          git push origin HEAD:feat/801-soft-delete-food-catalog
