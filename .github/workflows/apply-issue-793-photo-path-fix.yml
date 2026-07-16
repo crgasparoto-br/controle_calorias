@@ -1,0 +1,69 @@
+name: Apply issue 793 photo path fix
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  apply-photo-path-fix:
+    if: github.head_ref == 'feat/793-centralizar-timezone' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/793-centralizar-timezone
+          fetch-depth: 0
+
+      - name: Verify and apply correction
+        run: |
+          echo "c8ca8b45040103e64ab94ab64a626a3c02f35bbbd6b22eb17fb3022bc2d297a6  .github/issue-793-photo-path-fix.py" | sha256sum -c -
+          python .github/issue-793-photo-path-fix.py
+          rm -f .github/issue-793-photo-path-fix.py
+          rm -f .github/workflows/apply-issue-793-photo-path-fix.yml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm check
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Agent check
+        run: pnpm agent:check
+
+      - name: Commit correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(timezone): validate photo confirmation civil time (#793)"
+          git push origin HEAD:feat/793-centralizar-timezone
