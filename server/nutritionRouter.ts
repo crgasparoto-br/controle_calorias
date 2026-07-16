@@ -30,6 +30,7 @@ import {
   updateExerciseSchema,
 } from "./modules/exercises/schemas";
 import { getNutritionGoal, UnsafeNutritionGoalError, updateNutritionGoal } from "./modules/goals/service";
+import { getEffectiveUserTimeZone } from "./modules/timeZone/service";
 import { goalSchema } from "./modules/goals/schemas";
 import { getGamification, updateGamificationSettings } from "./modules/gamification/service";
 import { gamificationSettingsSchema } from "./modules/gamification/schemas";
@@ -376,12 +377,14 @@ export const nutritionRouter = router({
 
   dashboard: router({
     overview: protectedProcedure.query(async ({ ctx }) => {
-      const result = await getDashboardOverview(ctx.user.id);
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const result = await getDashboardOverview(ctx.user.id, timeZone);
       void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
       return result;
     }),
     today: protectedProcedure.input(dashboardTodaySchema).query(async ({ ctx, input }) => {
-      const result = await getDashboardTodayOverview(ctx.user.id, { date: input?.date });
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const result = await getDashboardTodayOverview(ctx.user.id, { date: input?.date }, timeZone);
       void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
       return result;
     }),
@@ -391,7 +394,8 @@ export const nutritionRouter = router({
     get: protectedProcedure.query(async ({ ctx }) => getNutritionGoal(ctx.user.id)),
     update: protectedProcedure.input(goalSchema).mutation(async ({ ctx, input }) => {
       try {
-        const result = await updateNutritionGoal(ctx.user.id, input);
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await updateNutritionGoal(ctx.user.id, input, timeZone);
         void analyticsService.track("goal_updated", {
           exception_count: input.exceptions.length,
           has_safety_warnings: result.safetyWarnings.length > 0,
@@ -482,7 +486,10 @@ export const nutritionRouter = router({
 
   meals: router({
     list: protectedProcedure.query(async ({ ctx }) => listMeals(ctx.user.id)),
-    dayTotals: protectedProcedure.input(dayTotalsSchema).query(async ({ ctx, input }) => getDayTotals(ctx.user.id, input.date)),
+    dayTotals: protectedProcedure.input(dayTotalsSchema).query(async ({ ctx, input }) => {
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      return getDayTotals(ctx.user.id, input.date, timeZone);
+    }),
     createManual: protectedProcedure.input(manualMealSchema).mutation(async ({ ctx, input }) => {
       const result = await createManualMeal(ctx.user.id, input);
       void analyticsService.track("meal_created", {
@@ -574,7 +581,10 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) => removeMealGroup(ctx.user.id, input)),
     processDraft: protectedProcedure
       .input(processMealDraftSchema)
-      .mutation(async ({ ctx, input }) => processMealDraft(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        return processMealDraft(ctx.user.id, input, timeZone);
+      }),
     confirm: protectedProcedure
       .input(confirmMealSchema)
       .mutation(async ({ ctx, input }) => {
@@ -626,7 +636,8 @@ export const nutritionRouter = router({
 
   reports: router({
     periodBundle: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
-      const result = await getPeriodReportBundle(ctx.user.id, input);
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const result = await getPeriodReportBundle(ctx.user.id, input, timeZone);
       void analyticsService.track("period_report_viewed", {
         report_type: "habit_analytics",
         period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
@@ -634,7 +645,8 @@ export const nutritionRouter = router({
       return result;
     }),
     habitAnalytics: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
-      const result = await getHabitAnalyticsReport(ctx.user.id, input);
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const result = await getHabitAnalyticsReport(ctx.user.id, input, timeZone);
       void analyticsService.track("period_report_viewed", {
         report_type: "habit_analytics",
         period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
@@ -642,22 +654,26 @@ export const nutritionRouter = router({
       return result;
     }),
     bundle: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
-      const result = await getWeeklyReportBundle(ctx.user.id, input?.weekOffset ?? 0);
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const result = await getWeeklyReportBundle(ctx.user.id, input?.weekOffset ?? 0, timeZone);
       void analyticsService.track("weekly_report_viewed", { report_type: "bundle", week_offset: input?.weekOffset ?? 0 });
       return result;
     }),
     weekly: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
-      const result = await getWeeklyReport(ctx.user.id, input?.weekOffset ?? 0);
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const result = await getWeeklyReport(ctx.user.id, input?.weekOffset ?? 0, timeZone);
       void analyticsService.track("weekly_report_viewed", { report_type: "summary", week_offset: input?.weekOffset ?? 0 });
       return result;
     }),
     weeklyProgress: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
-      const result = await getWeeklyProgressReport(ctx.user.id, input?.weekOffset ?? 0);
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const result = await getWeeklyProgressReport(ctx.user.id, input?.weekOffset ?? 0, timeZone);
       void analyticsService.track("weekly_report_viewed", { report_type: "progress", week_offset: input?.weekOffset ?? 0 });
       return result;
     }),
     weeklyInsights: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
-      const result = await getWeeklyInsightsReport(ctx.user.id, input?.weekOffset ?? 0);
+      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+      const result = await getWeeklyInsightsReport(ctx.user.id, input?.weekOffset ?? 0, timeZone);
       void analyticsService.track("weekly_report_viewed", { report_type: "insights", week_offset: input?.weekOffset ?? 0 });
       return result;
     }),

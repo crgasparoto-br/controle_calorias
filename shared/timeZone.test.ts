@@ -3,6 +3,8 @@ import {
   DEFAULT_APP_TIME_ZONE,
   getDateKeyInTimeZone,
   getUtcRangeForInclusiveLocalDateRange,
+  getWeekDateKeys,
+  listCalendarDateKeys,
   getWeekdayIndexInTimeZone,
   isValidIanaTimeZone,
   normalizeUserTimeZone,
@@ -89,5 +91,35 @@ describe("shared timezone helpers", () => {
         startAt: new Date("2026-03-08T05:00:00.000Z"),
         endAt: new Date("2026-03-09T04:00:00.000Z"),
       });
+  });
+});
+
+describe("calendar ranges in user timezone", () => {
+  it("mantem a semana iniciando na segunda-feira local", () => {
+    expect(getWeekDateKeys("2026-05-25T02:30:00.000Z", "America/Sao_Paulo"))
+      .toEqual([
+        "2026-05-18",
+        "2026-05-19",
+        "2026-05-20",
+        "2026-05-21",
+        "2026-05-22",
+        "2026-05-23",
+        "2026-05-24",
+      ]);
+    expect(getWeekDateKeys("2026-05-25T02:30:00.000Z", "Europe/Lisbon"))
+      .toEqual([
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-27",
+        "2026-05-28",
+        "2026-05-29",
+        "2026-05-30",
+        "2026-05-31",
+      ]);
+  });
+
+  it("lista datas civis sem reinterpretar como timestamp", () => {
+    expect(listCalendarDateKeys("2026-03-07", "2026-03-09"))
+      .toEqual(["2026-03-07", "2026-03-08", "2026-03-09"]);
   });
 });

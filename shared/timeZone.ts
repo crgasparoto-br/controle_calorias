@@ -294,6 +294,35 @@ export function getUtcRangeForLocalDateRange(
   };
 }
 
+
+export function listCalendarDateKeys(startDateInclusive: string, endDateInclusive: string) {
+  assertDateKey(startDateInclusive);
+  assertDateKey(endDateInclusive);
+
+  if (startDateInclusive > endDateInclusive) {
+    throw new ZonedDateTimeError("invalid_format", "O fim do período deve ser igual ou posterior ao início.");
+  }
+
+  const dates: string[] = [];
+  let current = startDateInclusive;
+  while (current <= endDateInclusive) {
+    dates.push(current);
+    current = addCalendarDays(current, 1);
+  }
+  return dates;
+}
+
+export function getWeekDateKeys(
+  reference: number | string | Date,
+  timeZone: string,
+  weekOffset = 0,
+) {
+  const referenceKey = getDateKeyInTimeZone(reference, timeZone);
+  const weekdayIndex = getWeekdayIndexInTimeZone(reference, timeZone);
+  const monday = addCalendarDays(referenceKey, (-weekdayIndex) + (weekOffset * 7));
+  return Array.from({ length: 7 }, (_, index) => addCalendarDays(monday, index));
+}
+
 export function getUtcRangeForInclusiveLocalDateRange(
   startDateInclusive: string,
   endDateInclusive: string,

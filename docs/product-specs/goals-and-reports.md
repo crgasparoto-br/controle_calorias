@@ -10,6 +10,9 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - A meta geral deve iniciar a configuração de macronutrientes em percentual, exibindo a soma dos percentuais e os gramas derivados a partir da meta calórica informada.
 - Valores potencialmente inseguros devem gerar aviso ou bloqueio antes da persistência.
 - Relatórios semanais usam semana iniciando na segunda-feira.
+- Toda data lógica vinculada a um usuário usa o timezone efetivo do dono dos dados; o timezone do servidor, navegador ou profissional não substitui o perfil.
+- Dia, semana e período são convertidos para consultas UTC em intervalo semiaberto `[início inclusivo, fim exclusivo)`, preservando timestamps absolutos.
+- O timezone é resolvido uma vez por operação de Hoje/Relatórios e propagado às consultas, sem leitura de perfil por item ou por dia.
 - Refeições confirmadas devem exibir itens, porções, macros, calorias e horário.
 - Hoje e relatórios devem usar a mesma fonte de totais para evitar divergência.
 - Hoje permanece focado no dia selecionado, inicia em hoje e não deve depender de consultas históricas pesadas.
@@ -94,6 +97,8 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 
 ## Notas de implementação (backend)
 
+- A camada tRPC resolve `userProfiles.timezone` uma vez antes de chamar Hoje ou Relatórios. Em acesso profissional, a resolução usa o `patientUserId`, nunca o profissional autenticado.
+- `server/modules/insights/rangeData.ts` exige timezone explícito e constrói os limites do calendário local com `getUtcRangeForInclusiveLocalDateRange`; leituras vazias legítimas permanecem vazias, enquanto falhas continuam sendo propagadas/observadas em vez de mascaradas como sucesso.
 - `server/modules/insights/service.ts` monta os relatórios de semana (`buildWeeklyReportSummary`) e de dia/mês/período (`getPeriodReportBundle`) a partir das funções de intervalo em `server/modules/insights/rangeData.ts` (`listReportMealsByDateRange`, `listReportExercisesByDateRange`, `listReportWaterLogsByDateRange`), que buscam refeições, exercícios e água do intervalo inteiro em **uma única consulta por tipo de dado** (não mais uma consulta por dia do período) e agrupam os resultados em memória por data lógica (`getDateKeyInTimeZone`).
 - As metas diárias (`getNutritionGoalForDate`) ainda são buscadas dia a dia dentro do período; como a tabela de metas é pequena por usuário, isso não gera impacto de performance relevante hoje, mas é candidato a lote caso o período de análise cresça muito (ex.: relatórios anuais).
 - Tabelas usadas pelos relatórios (`meals`, `exercises`, `waterLogs`, `mealItems`) devem ter índices por `userId` (+ `status` e/ou `occurredAt` conforme o predicado usado). Ao alterar consultas de relatório, confirme que o predicado usado bate com um índice existente (`drizzle/schema.ts`) antes de assumir que a lentidão é só de código.

@@ -59,9 +59,9 @@ describe("report range data empty reads", () => {
   it("não carrega histórico completo quando o range do banco retorna vazio legitimamente", async () => {
     const range = { startDate: "2026-06-22", endDate: "2026-06-28" };
 
-    await expect(listReportMealsByDateRange(77, range)).resolves.toEqual([]);
-    await expect(listReportExercisesByDateRange(77, range)).resolves.toEqual([]);
-    await expect(listReportWaterLogsByDateRange(77, range)).resolves.toEqual([]);
+    await expect(listReportMealsByDateRange(77, range, "UTC")).resolves.toEqual([]);
+    await expect(listReportExercisesByDateRange(77, range, "UTC")).resolves.toEqual([]);
+    await expect(listReportWaterLogsByDateRange(77, range, "UTC")).resolves.toEqual([]);
 
     expect(dbMocks.listUserMeals).not.toHaveBeenCalled();
     expect(dbMocks.listUserExercises).not.toHaveBeenCalled();
@@ -74,9 +74,9 @@ describe("report range data empty reads", () => {
     repositoryMocks.exercises.findByUserIdAndRange.mockResolvedValue(null);
     repositoryMocks.water.findLogsByUserIdAndRange.mockResolvedValue(null);
 
-    await listReportMealsByDateRange(77, range);
-    await listReportExercisesByDateRange(77, range);
-    await listReportWaterLogsByDateRange(77, range);
+    await listReportMealsByDateRange(77, range, "UTC");
+    await listReportExercisesByDateRange(77, range, "UTC");
+    await listReportWaterLogsByDateRange(77, range, "UTC");
 
     expect(dbMocks.listUserMeals).toHaveBeenCalledTimes(1);
     expect(dbMocks.listUserExercises).toHaveBeenCalledTimes(1);
