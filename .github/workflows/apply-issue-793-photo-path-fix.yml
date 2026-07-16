@@ -22,7 +22,7 @@ jobs:
 
       - name: Verify and apply correction
         run: |
-          echo "c8ca8b45040103e64ab94ab64a626a3c02f35bbbd6b22eb17fb3022bc2d297a6  .github/issue-793-photo-path-fix.py" | sha256sum -c -
+          echo "0c75c3cd72a32555978be67ba1b8907f3f073eb4bada25ffc410f8d1cb8a9643  .github/issue-793-photo-path-fix.py" | sha256sum -c -
           python .github/issue-793-photo-path-fix.py
           rm -f .github/issue-793-photo-path-fix.py
           rm -f .github/workflows/apply-issue-793-photo-path-fix.yml
