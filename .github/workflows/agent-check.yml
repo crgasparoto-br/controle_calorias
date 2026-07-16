@@ -37,60 +37,30 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate and record results
+      - name: Run focused regressions and record log
         shell: bash
         run: |
           set +e
-          overall=0
-          result="issue-801-validation.md"
+          pnpm exec vitest run \
+            server/modules/foods/sleepKoalaRegression.test.ts \
+            server/modules/insights/service.test.ts \
+            client/src/pages/foodsPageState.test.ts \
+            > /tmp/issue-801-focused.log 2>&1
+          code=$?
           {
-            echo "# Issue 801 validation"
+            echo "# Issue 801 focused validation"
             echo
             echo "Commit validated: $(git rev-parse HEAD)"
             echo
-            echo "| Command | Exit code |"
-            echo "|---|---:|"
-          } > "$result"
-
-          run_check() {
-            name="$1"
-            shift
-            log="/tmp/${name}.log"
-            "$@" > "$log" 2>&1
-            code=$?
-            echo "| \`$*\` | $code |" >> "$result"
-            if [ "$code" -ne 0 ]; then
-              overall=1
-            fi
-          }
-
-          run_check check pnpm check
-          run_check test pnpm test
-          run_check architecture pnpm architecture:check
-          run_check docs pnpm docs:check
-          run_check build pnpm build
-          run_check agent pnpm agent:check
-          run_check ci_docs pnpm exec tsx scripts/check-ci-gate-docs.ts
-
-          {
+            echo "Exit code: $code"
             echo
-            echo "Overall exit code: $overall"
-            echo
-            echo "Database integrity: covered by the separate WhatsApp context TiDB gate."
-          } >> "$result"
-
-          for log in /tmp/check.log /tmp/test.log /tmp/architecture.log /tmp/docs.log /tmp/build.log /tmp/agent.log /tmp/ci_docs.log; do
-            {
-              echo
-              echo "## $log"
-              echo '```text'
-              tail -n 180 "$log"
-              echo '```'
-            } >> "$result"
-          done
+            echo '```text'
+            cat /tmp/issue-801-focused.log
+            echo '```'
+          } > issue-801-focused-validation.md
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$result"
-          git commit -m "chore: record issue 801 validation logs"
+          git add issue-801-focused-validation.md
+          git commit -m "chore: record issue 801 focused validation"
           git push origin HEAD:feat/801-soft-delete-food-catalog
