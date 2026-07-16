@@ -23,6 +23,8 @@ jobs:
 
       - name: Apply verified final patch
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash .github/apply-issue-793-final.sh
 
       - name: Upload reconstructed payload diagnostics
