@@ -39,22 +39,14 @@ function row(overrides: Record<string, unknown> = {}) {
 
 describe("Sleep Koala deletion regression", () => {
   it("deprecia a associação antiga, limpa os stores e persiste a classificação atual", async () => {
-    const rows = [
-      row(),
-      row({
-        id: 21,
-        slug: "sleep-koala-user-7",
-        dataSource: "ai_estimated",
-        isUserCreated: 1,
-        createdByUserId: 7,
-      }),
-    ];
-    const favorites = new Set([21]);
-    let nextId = 99;
+    const rows = [row()];
+    const favorites = new Set<number>();
+    const insertIds = [21, 99];
+    let insertIndex = 0;
     let databaseAvailable = true;
 
     const insert = vi.fn(async (input: FoodCatalogInsertInput) => {
-      const id = nextId++;
+      const id = insertIds[insertIndex++];
       rows.push(row({ id, ...input, status: "active" }));
       return id;
     });
@@ -62,21 +54,24 @@ describe("Sleep Koala deletion regression", () => {
     const repository: FoodCatalogRepository = {
       findAll: vi.fn(async () => rows),
       findActiveForUser: vi.fn(async userId =>
-        rows.filter(item =>
-          item.status === "active" &&
-          (item.createdByUserId == null || item.createdByUserId === userId)
+        rows.filter(
+          item =>
+            item.status === "active" &&
+            (item.createdByUserId == null || item.createdByUserId === userId)
         )
       ),
       findForResolution: vi.fn(async userId =>
-        rows.filter(item =>
-          (item.createdByUserId == null && item.status === "active") ||
-          item.createdByUserId === userId
+        rows.filter(
+          item =>
+            (item.createdByUserId == null && item.status === "active") ||
+            item.createdByUserId === userId
         )
       ),
       findByIdsForUser: vi.fn(async (userId, ids) =>
-        rows.filter(item =>
-          ids.includes(item.id) &&
-          (item.createdByUserId == null || item.createdByUserId === userId)
+        rows.filter(
+          item =>
+            ids.includes(item.id) &&
+            (item.createdByUserId == null || item.createdByUserId === userId)
         )
       ),
       findFavoriteIdsByUserId: vi.fn(async () => new Set(favorites)),
@@ -114,19 +109,24 @@ describe("Sleep Koala deletion regression", () => {
       source: "ai_estimated",
       foodType: "branded",
     });
+    expect(created.id).toBe(21);
     await foodsService.upsertFavoriteFood(7, created.id, true);
 
     const execute = vi.fn(async () => {
       const call = execute.mock.calls.length;
-      if (call == 1) {
-        return [[{
-          id: created.id,
-          name: "Sleep Koala",
-          aliases: JSON.stringify(["sleep koala suplemento"]),
-          status: "active",
-        }]];
+      if (call === 1) {
+        return [
+          [
+            {
+              id: created.id,
+              name: "Sleep Koala",
+              aliases: JSON.stringify(["sleep koala suplemento"]),
+              status: "active",
+            },
+          ],
+        ];
       }
-      if (call == 2) {
+      if (call === 2) {
         const owned = rows.find(item => item.id === created.id);
         if (owned) owned.status = "deprecated";
         return [{ affectedRows: 1 }];
@@ -138,8 +138,9 @@ describe("Sleep Koala deletion regression", () => {
     const deletionService = createLegacyFoodDeletionService({
       getDb: async () => ({
         execute,
-        transaction: async (callback: (transaction: { execute: typeof execute }) => Promise<unknown>) =>
-          callback({ execute }),
+        transaction: async (
+          callback: (transaction: { execute: typeof execute }) => Promise<unknown>
+        ) => callback({ execute }),
       }),
       searchFoods: foodsService.searchFoods,
       onWarning: vi.fn(),
@@ -186,7 +187,7 @@ describe("Sleep Koala deletion regression", () => {
     expect(resolvedOldDraft.has(`catalog:${created.id}`)).toBe(false);
     expect(resolvedOldDraft.get("Sleep Koala")).toBe(99);
     expect(resolvedOldDraft.get("Sleep Koala")).not.toBe(20);
-    expect(insert).toHaveBeenCalledWith(
+    expect(insert).toHaveBeenLastCalledWith(
       expect.objectContaining({
         calories: 42,
         protein: 8,
@@ -202,6 +203,6 @@ describe("Sleep Koala deletion regression", () => {
       7
     );
     expect(resolvedNextRegistration.get("Sleep Koala")).toBe(99);
-    expect(insert).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledTimes(2);
   });
 });
