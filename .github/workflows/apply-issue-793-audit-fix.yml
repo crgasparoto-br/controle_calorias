@@ -43,14 +43,69 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate correction
+      - name: TypeScript check
+        id: check
+        continue-on-error: true
+        run: pnpm check > /tmp/check.log 2>&1
+
+      - name: Tests
+        id: test
+        continue-on-error: true
+        run: pnpm test > /tmp/test.log 2>&1
+
+      - name: Architecture check
+        id: architecture
+        continue-on-error: true
+        run: pnpm architecture:check > /tmp/architecture.log 2>&1
+
+      - name: Documentation check
+        id: docs
+        continue-on-error: true
+        run: pnpm docs:check > /tmp/docs.log 2>&1
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: pnpm build > /tmp/build.log 2>&1
+
+      - name: Agent check
+        id: agent
+        continue-on-error: true
+        run: pnpm agent:check > /tmp/agent.log 2>&1
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-793-audit-fix-diagnostics
+          path: |
+            /tmp/check.log
+            /tmp/test.log
+            /tmp/architecture.log
+            /tmp/docs.log
+            /tmp/build.log
+            /tmp/agent.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Enforce validation result
         run: |
-          pnpm check
-          pnpm test
-          pnpm architecture:check
-          pnpm docs:check
-          pnpm build
-          pnpm agent:check
+          failed=0
+          for result in \
+            "${{ steps.check.outcome }}" \
+            "${{ steps.test.outcome }}" \
+            "${{ steps.architecture.outcome }}" \
+            "${{ steps.docs.outcome }}" \
+            "${{ steps.build.outcome }}" \
+            "${{ steps.agent.outcome }}"; do
+            if [ "$result" != "success" ]; then
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more validation gates failed. Inspect the diagnostics artifact."
+            exit 1
+          fi
 
       - name: Commit correction
         run: |
