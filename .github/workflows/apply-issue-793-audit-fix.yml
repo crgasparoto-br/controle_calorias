@@ -52,6 +52,11 @@ jobs:
       - name: Apply audited corrections
         run: python /tmp/apply_issue793_audit_fix.py
 
+      - name: Migrate router integration tests
+        run: |
+          echo "2d7a77385e02a695d5b26184316806f7d1c2d26b36a26495426026771ed828c4  .github/issue-793-router-test-migration.py" | sha256sum -c -
+          python .github/issue-793-router-test-migration.py
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
