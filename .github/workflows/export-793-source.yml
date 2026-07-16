@@ -1,4 +1,4 @@
-name: Export issue 793 source
+name: Export issue 793 tree
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  export-source:
+  export-tree:
     if: github.head_ref == 'feat/796-timezone-whatsapp'
     runs-on: ubuntu-latest
     steps:
@@ -21,13 +21,17 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Package source
+      - name: Capture tree metadata
         shell: bash
-        run: tar --exclude=.git --exclude=node_modules -czf /tmp/controle-calorias-793.tgz .
+        run: |
+          git rev-parse HEAD > /tmp/commit-sha.txt
+          git rev-parse HEAD^{tree} > /tmp/tree-sha.txt
 
-      - name: Upload source
+      - name: Upload tree metadata
         uses: actions/upload-artifact@v4
         with:
-          name: controle-calorias-793-source
-          path: /tmp/controle-calorias-793.tgz
+          name: controle-calorias-793-tree
+          path: |
+            /tmp/commit-sha.txt
+            /tmp/tree-sha.txt
           retention-days: 1
