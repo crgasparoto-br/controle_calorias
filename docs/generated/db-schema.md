@@ -10,7 +10,6 @@ Fonte: `drizzle/schema.ts`.
 |---|---|---:|---|
 | `users` | `users` | 10 | Requer atenção |
 | `userProfiles` | `userProfiles` | 18 | Requer atenção |
-| `nutritionGoals` | `nutritionGoals` | 14 | Requer atenção |
 | `foodBrands` | `foodBrands` | 7 | Baixa |
 | `foodSources` | `food_sources` | 9 | Baixa |
 | `foods` | `foods` | 21 | Baixa |
@@ -39,10 +38,10 @@ Fonte: `drizzle/schema.ts`.
 | `userRestrictions` | `userRestrictions` | 8 | Requer atenção |
 | `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
 | `whatsappConversations` | `whatsappConversations` | 11 | Requer atenção |
-| `whatsappConversationMessages` | `whatsappConversationMessages` | 23 | Requer atenção |
+| `whatsappConversationMessages` | `whatsappConversationMessages` | 22 | Requer atenção |
 | `whatsappMessageDomainLinks` | `whatsappMessageDomainLinks` | 8 | Requer atenção |
 | `whatsappConversationSummaries` | `whatsappConversationSummaries` | 9 | Requer atenção |
-| `whatsappPendingOperations` | `whatsappPendingOperations` | 11 | Requer atenção |
+| `whatsappPendingOperations` | `whatsappPendingOperations` | 10 | Requer atenção |
 | `appSecrets` | `appSecrets` | 6 | Baixa |
 | `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
@@ -51,7 +50,6 @@ Fonte: `drizzle/schema.ts`.
 
 - `users` via export `users`.
 - `userProfiles` via export `userProfiles`.
-- `nutritionGoals` via export `nutritionGoals`.
 - `foodCatalog` via export `foodCatalog`.
 - `foodFavorites` via export `foodFavorites`.
 - `userGamificationSettings` via export `userGamificationSettings`.
@@ -107,7 +105,7 @@ Fonte: `drizzle/schema.ts`.
 | `userRestrictions` | `restrictionType`, `label`, `severity`, `notes` |
 | `whatsappConnections` | `displayName` |
 | `whatsappConversations` | `lastActivityAt` |
-| `whatsappConversationMessages` | `externalMessageId`, `rawTextStored`, `text`, `sanitizedText`, `transcript`, `sanitizedTranscript`, `mediaStorageKey`, `mediaMimeType`, `captionText`, `respondsToMessageId`, `occurredAt` |
+| `whatsappConversationMessages` | `externalMessageId`, `text`, `sanitizedText`, `transcript`, `sanitizedTranscript`, `mediaStorageKey`, `mediaMimeType`, `captionText`, `respondsToMessageId`, `occurredAt` |
 | `whatsappMessageDomainLinks` | `messageId`, `weightEntryId` |
 | `whatsappConversationSummaries` | `summaryText`, `fromMessageId`, `toMessageId` |
 | `inferenceLogs` | `detail` |
