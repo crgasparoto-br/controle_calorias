@@ -60,6 +60,12 @@ Mensagens alimentares com quantidade, como `100g de arroz`, continuam autorizada
 1. logo após a guarda de idempotência, para respostas seguras imediatas;
 2. imediatamente antes de `processMealDraft`, para garantir que só mensagens alimentares elegíveis chegam ao parser nutricional.
 
+## Esclarecimento genérico canônico
+
+A mensagem genérica de baixa confiança possui uma única versão amigável, definida em `replyMessages.ts`. O roteador, o classificador determinístico e o fallback do executor LLM importam diretamente essa mesma constante; o builder canônico apenas aplica a formatação final da resposta.
+
+Perguntas específicas, como solicitação de quantidade, refeição ou item, continuam sendo fornecidas ao builder sem substituição textual.
+
 ## Limites
 
 Esta entrega não implementa o fluxo completo de remoção, gráficos, resposta profissional-paciente ou validação final de persistência. Esses pontos permanecem nas subissues específicas: #399, #418, #419 e #412.
@@ -78,3 +84,9 @@ Esta entrega não implementa o fluxo completo de remoção, gráficos, resposta 
 - comando de remoção textual sem fallback alimentar.
 
 `server/modules/whatsapp/service.test.ts` cobre a integração para impedir que ajuste numérico sem contexto chegue ao processamento de refeição.
+
+`server/modules/whatsapp/genericClarificationMessage.test.ts` cobre a fonte canônica e o fallback determinístico sem LLM. `server/modules/whatsapp/service.test.ts` valida a resposta pelo fluxo completo de entrada, e `server/modules/whatsapp/llmIntentActions.test.ts` cobre baixa confiança da LLM com texto genérico.
+
+Esses testes verificam a resposta final enviada pelo pipeline e impedem que as variantes antigas voltem a ser exibidas ao usuário.
+
+As asserções dos fluxos antigos também utilizam a constante compartilhada, evitando expectativas divergentes entre os testes e o comportamento de produção.

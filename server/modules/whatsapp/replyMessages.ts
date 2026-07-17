@@ -44,6 +44,12 @@ export type WhatsAppAuxiliaryReplyOptions = {
 
 export type WhatsAppAudioTranscriptionFailureCode = "INVALID_FORMAT" | "FILE_TOO_LARGE" | "EMPTY_TRANSCRIPT" | "TRANSCRIPTION_FAILED" | string;
 
+export const WHATSAPP_GENERIC_CLARIFICATION_MESSAGE = [
+  "Só preciso entender melhor o que você deseja 😊",
+  "Você quer registrar um alimento, corrigir uma refeição ou consultar seus registros?",
+  "Caso queira fazer uma pergunta, envie a mensagem novamente começando com `/`.",
+].join("\n\n");
+
 function formatReplyDateKey(date: Date | undefined, timeZone: string) {
   return date ? getDateKeyInTimeZone(date, timeZone) : undefined;
 }
@@ -158,7 +164,10 @@ export function buildWhatsAppAuxiliaryReplyMessage(options: WhatsAppAuxiliaryRep
 }
 
 export function buildWhatsAppClarificationReplyMessage(message: string) {
-  return buildWhatsAppAuxiliaryReplyMessage({ title: "Preciso de uma informação", lines: [message] });
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Preciso de uma informação",
+    lines: [message],
+  });
 }
 
 export function buildWhatsAppItemNotFoundReplyMessage(params: { target?: string | null; context?: string; instruction: string }) {

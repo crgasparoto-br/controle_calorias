@@ -18,6 +18,7 @@ import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
+  WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,
 } from "./replyMessages";
 import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
 import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
@@ -667,11 +668,14 @@ function buildHelpReply() {
 }
 
 function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmIntentResult {
+  const clarificationQuestion = intent.intent === "unknown"
+    ? WHATSAPP_GENERIC_CLARIFICATION_MESSAGE
+    : intent.clarificationQuestion ?? WHATSAPP_GENERIC_CLARIFICATION_MESSAGE;
+
   return {
     handled: true,
     action: "clarification_needed",
-    reply: buildWhatsAppClarificationReplyMessage(intent.clarificationQuestion
-      ?? "Não consegui entender com segurança. Diga se deseja registrar um alimento, corrigir uma refeição ou consultar seus registros."),
+    reply: buildWhatsAppClarificationReplyMessage(clarificationQuestion),
     eventType: "whatsapp.llm_intent.clarification_needed",
     detail: `Intencao ${intent.intent} exige esclarecimento antes de executar.`,
     data: {
