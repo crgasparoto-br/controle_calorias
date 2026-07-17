@@ -37,6 +37,7 @@ const useUtilsMock = vi.fn(() => ({
     exercises: { list: { invalidate: vi.fn() } },
     water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
     whatsapp: { status: { invalidate: vi.fn() } },
+    whatsappPreferences: { annotatedImage: { invalidate: vi.fn() } },
     professionals: {
       profile: { invalidate: vi.fn() },
       myAccesses: { invalidate: vi.fn() },
@@ -105,6 +106,14 @@ vi.mock("@/lib/trpc", () => ({
         },
         complete: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+      },
+      whatsappPreferences: {
+        annotatedImage: {
+          useQuery: () => ({ data: { enabled: false }, isLoading: false, isError: false }),
+        },
+        updateAnnotatedImage: {
+          useMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
         },
       },
       mealSchedules: {

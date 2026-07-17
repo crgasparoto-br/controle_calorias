@@ -70,8 +70,10 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Falha ao marcar a mensagem como lida ou enviar a resposta inicial deve gerar aviso operacional, mas não deve bloquear o processamento principal.
 - Falha ao enviar resposta de intenção interpretada deve gerar aviso operacional, mas não deve reprocessar a mensagem como refeição.
 - Imagens recebidas pelo WhatsApp devem ser baixadas pelo backend e enviadas inline para a inferência nutricional, sem depender de URL pública ou assinada do storage para a IA ler a mídia.
-- Quando uma refeição for registrada a partir de imagem, o WhatsApp deve enviar uma imagem auxiliar anotada com legendas dos alimentos, calorias e macronutrientes por item, baseada na foto original recebida.
-- A imagem auxiliar anotada gerada para uma refeição deve ser salva no storage e vinculada à mesma refeição em `mealMedia`, junto com a imagem original, para deixar claro quais alimentos foram identificados a partir daquela imagem.
+- Quando uma refeição for registrada a partir de imagem e a preferência `whatsapp_annotated_image_enabled` for exatamente `true`, o WhatsApp deve enviar uma imagem auxiliar anotada com legendas dos alimentos, calorias e macronutrientes por item, baseada na foto original recebida.
+- A preferência usa `userPreferences`, é autenticada por usuário, aceita booleano no contrato tRPC e persiste a representação canônica `true`/`false`. Ausência, valor diferente de `true` ou falha de leitura aplica o fallback desabilitado antes da geração.
+- A imagem auxiliar anotada gerada para uma refeição habilitada deve ser salva no storage e vinculada à mesma refeição em `mealMedia`, junto com a imagem original, para deixar claro quais alimentos foram identificados a partir daquela imagem. Com a preferência desabilitada, somente a política vigente da mídia original é aplicada.
+- Desativação intencional não produz warning de geração ou envio. Falha de leitura registra somente o evento sanitizado `whatsapp.annotated_image_preference_read_failed` e preserva o processamento nutricional.
 - Falha ao gerar, persistir ou enviar a imagem auxiliar anotada deve gerar no máximo aviso operacional e não deve bloquear o registro da refeição nem a resposta textual com os macros.
 - Áudios recebidos pelo WhatsApp devem ser baixados pelo backend e enviados inline para transcrição, sem depender de URL pública assinada do storage para o provider ler a mídia.
 - A URL persistida da mídia deve continuar sendo a URL do storage quando o storage estiver disponível, não a data URL inline usada apenas durante inferência ou transcrição.
@@ -187,6 +189,7 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - Testar que resposta final de imagem no WhatsApp usa o formato simplificado com `Itens`, `Total da refeição` e `Meta de hoje`.
 - Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição quando o storage estiver disponível.
 - Testar que imagem inbound pode gerar resposta visual anotada com a foto original, alimentos identificados, calorias e macros por item.
+- Testar que a preferência ausente, inválida, desabilitada ou indisponível impede geração, persistência e envio da imagem anotada sem afetar a mídia original e a resposta textual.
 - Testar que a imagem anotada gerada é vinculada à refeição em `mealMedia`, junto com a imagem original recebida pelo WhatsApp.
 - Testar que falha ao gerar, persistir ou enviar a imagem anotada não impede o registro da refeição nem a resposta textual.
 - Testar que imagem enviada após refeição compatível no mesmo dia é consolidada na refeição lógica existente, e não mantida como novo bloco apenas pelo `occurredAt`.

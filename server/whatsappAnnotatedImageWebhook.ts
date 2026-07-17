@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { buildSavedMedia, confirmPendingMeal, createPendingMealInference, getHabitSnapshots, getUserIdByWhatsappPhone, listUserMeals, logInferenceEvent, removeUserMeal, updateUserMeal } from "./db";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { generateAnnotatedMealImage } from "./modules/whatsapp/annotatedImage";
+import { getAnnotatedImagePreference } from "./modules/whatsapp/annotatedImagePreference";
 import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressService";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
@@ -457,7 +458,10 @@ async function tryHandleAnnotatedImageMessage(
       imageUrl: prepared.imageUrl,
     };
 
-    const annotatedImage = await generateAnnotatedMealImage(processedForPersistence, prepared.imageAnalysisUrl);
+    const annotatedImagePreference = await getAnnotatedImagePreference(userId);
+    const annotatedImage: AnnotatedImageResult = annotatedImagePreference.enabled
+      ? await generateAnnotatedMealImage(processedForPersistence, prepared.imageAnalysisUrl)
+      : {};
     const annotatedMedia = buildAnnotatedImageMedia(annotatedImage);
     if (annotatedMedia) {
       prepared.media.push(annotatedMedia);
@@ -559,7 +563,7 @@ async function tryHandleAnnotatedImageMessage(
         eventType: "whatsapp.annotated_image_sent",
         detail: `Imagem anotada enviada pelo WhatsApp. origem=${imageSource}${annotatedImage.skippedReason ? `; skippedReason=${annotatedImage.skippedReason}` : ""}.`,
       });
-    } else {
+    } else if (annotatedImagePreference.enabled) {
       const skipDetail = annotatedImage.detail || annotatedImage.skippedReason || "imagem auxiliar indisponível";
       logInferenceEvent({
         userId,
