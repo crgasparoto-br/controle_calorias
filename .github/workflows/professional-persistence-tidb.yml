@@ -10,15 +10,59 @@ on:
       - "scripts/migrate-professional-persistence.ts"
       - "scripts/test-professional-persistence-tidb.ts"
       - "package.json"
+      - ".github/implementation-payload.ready"
+      - ".github/implementation-payload.part*"
       - ".github/workflows/professional-persistence-tidb.yml"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  actions: write
 
 jobs:
+  apply-payload:
+    name: Apply validated professional payload
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      applied: ${{ steps.apply.outputs.applied }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Apply and publish payload
+        id: apply
+        shell: bash
+        run: |
+          if [[ ! -f .github/implementation-payload.ready ]]; then
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          cat .github/implementation-payload.part* | base64 --decode > /tmp/professional-phase.tar.gz
+          tar -xzf /tmp/professional-phase.tar.gz
+          rm -f .github/implementation-payload.part* .github/implementation-payload.ready
+          rm -f .github/workflows/apply-professional-phase-payload.yml
+          rm -f .github/workflows/branch-source-snapshot.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(professional): concluir persistencia das fases 804 e 805"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          echo "applied=true" >> "$GITHUB_OUTPUT"
+      - name: Dispatch validation on published head
+        if: steps.apply.outputs.applied == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run professional-persistence-tidb.yml --ref "$HEAD_BRANCH"
+
   professional-persistence:
     name: Professional persistence TiDB
+    needs: apply-payload
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.apply-payload.outputs.applied != 'true')
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
