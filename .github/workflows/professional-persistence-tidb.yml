@@ -46,11 +46,13 @@ jobs:
           docker logs --tail 100 professional-persistence-tidb
           exit 1
 
-      - name: Apply versioned migrations
-        run: pnpm db:push
+      - name: Apply current repository schema
+        run: pnpm exec drizzle-kit push --force
 
       - name: Ensure Drizzle metadata is stable
-        run: git diff --exit-code -- drizzle
+        run: |
+          pnpm exec drizzle-kit generate
+          git diff --exit-code -- drizzle
 
       - name: Validate professional migration and repository
         run: pnpm db:test:professionals
