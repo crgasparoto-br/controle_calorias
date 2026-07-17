@@ -44,6 +44,34 @@ export type WhatsAppAuxiliaryReplyOptions = {
 
 export type WhatsAppAudioTranscriptionFailureCode = "INVALID_FORMAT" | "FILE_TOO_LARGE" | "EMPTY_TRANSCRIPT" | "TRANSCRIPTION_FAILED" | string;
 
+export const WHATSAPP_GENERIC_CLARIFICATION_MESSAGE = [
+  "Só preciso entender melhor o que você deseja 😊",
+  "Você quer registrar um alimento, corrigir uma refeição ou consultar seus registros?",
+  "Caso queira fazer uma pergunta, envie a mensagem novamente começando com `/`.",
+].join("\n\n");
+
+function normalizeClarificationText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function normalizeWhatsAppClarificationMessage(message: string) {
+  const normalized = normalizeClarificationText(message);
+  const isGenericFallback = (
+    normalized.startsWith("nao entendi com seguranca")
+    || normalized.startsWith("nao consegui entender com seguranca")
+  )
+    && normalized.includes("registrar")
+    && normalized.includes("corrigir")
+    && normalized.includes("consultar");
+
+  return isGenericFallback ? WHATSAPP_GENERIC_CLARIFICATION_MESSAGE : message;
+}
+
 function formatReplyDateKey(date: Date | undefined, timeZone: string) {
   return date ? getDateKeyInTimeZone(date, timeZone) : undefined;
 }
@@ -158,7 +186,10 @@ export function buildWhatsAppAuxiliaryReplyMessage(options: WhatsAppAuxiliaryRep
 }
 
 export function buildWhatsAppClarificationReplyMessage(message: string) {
-  return buildWhatsAppAuxiliaryReplyMessage({ title: "Preciso de uma informação", lines: [message] });
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: "Preciso de uma informação",
+    lines: [normalizeWhatsAppClarificationMessage(message)],
+  });
 }
 
 export function buildWhatsAppItemNotFoundReplyMessage(params: { target?: string | null; context?: string; instruction: string }) {
