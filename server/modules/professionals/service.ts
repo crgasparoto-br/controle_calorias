@@ -16,6 +16,9 @@ import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
+import { professionalRepository } from "./persistenceService";
+import { legacyAccessToCanonical } from "./persistence";
+import type { UpsertCanonicalProfessionalAuthorizationInput } from "../../repositories/professionalRepository";
 
 export const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
 const PENDING_PROFESSIONAL_ACCESS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -36,6 +39,7 @@ import {
   type ProfessionalPatientAnswer,
   type ProfessionalPatientQuestionInput,
   type ProfessionalProfileInput,
+  type ProfessionalTrackingTransitionInput,
   type RequestPatientAccessInput,
 } from "./schemas";
 
@@ -129,7 +133,8 @@ type HistoryEvent = {
     | "comment_created"
     | "goal_suggested"
     | "meal_suggested"
-    | "patient_question_answered";
+    | "patient_question_answered"
+    | "tracking_transitioned";
   createdAt: number;
 };
 
@@ -424,6 +429,7 @@ async function persistAccessForBothSides(access: ProfessionalPatientAccess) {
   await Promise.all([
     persistAccessesForUser(access.professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY, mergeAccesses(professionalAccesses, access)),
     persistAccessesForUser(access.patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY, mergeAccesses(patientAccesses, access)),
+    persistCanonicalAuthorizationSnapshot(access),
   ]);
 }
 
@@ -478,6 +484,18 @@ async function parseStoredProfessionalProfile(userId: number, value: string): Pr
 }
 
 async function persistProfessionalProfile(profile: ProfessionalProfile) {
+  try {
+    await professionalRepository.upsertProfile({
+      userId: profile.userId,
+      displayName: profile.displayName,
+      registrationNumber: profile.registrationNumber,
+      active: profile.active,
+      now: new Date(profile.updatedAt),
+    });
+  } catch (error) {
+    logPersistenceWarning("professional.persistence.canonical_profile_write_failed", error);
+  }
+
   const db = await getDb();
   if (!db) return;
 
@@ -492,7 +510,51 @@ async function persistProfessionalProfile(profile: ProfessionalProfile) {
   });
 }
 
+function toCanonicalAuthorizationInput(access: ProfessionalPatientAccess): UpsertCanonicalProfessionalAuthorizationInput {
+  const { activePairKey: _activePairKey, ...canonical } = legacyAccessToCanonical(access, new Date());
+  return canonical;
+}
+
+async function persistCanonicalAuthorizationSnapshot(access: ProfessionalPatientAccess) {
+  try {
+    await professionalRepository.upsertAuthorization(toCanonicalAuthorizationInput(access));
+  } catch (error) {
+    logPersistenceWarning("professional.persistence.canonical_authorization_write_failed", error);
+  }
+}
+
+async function transitionCanonicalAuthorizationStatus(
+  access: ProfessionalPatientAccess,
+  nextStatus: "approved" | "rejected" | "revoked",
+  responseOrigin: AccessResponseOrigin,
+) {
+  try {
+    await professionalRepository.transitionAuthorization({
+      authorizationId: access.id,
+      patientUserId: access.patientUserId,
+      nextStatus,
+      responseOrigin,
+    });
+  } catch (error) {
+    logPersistenceWarning("professional.persistence.canonical_authorization_transition_failed", error);
+  }
+}
+
 async function loadPersistedProfessionalProfile(userId: number) {
+  const canonical = await professionalRepository.getProfile(userId);
+  if (canonical) {
+    const profile: ProfessionalProfile = {
+      userId: canonical.userId,
+      displayName: canonical.displayName,
+      registrationNumber: canonical.registrationNumber,
+      active: canonical.active,
+      createdAt: canonical.createdAt.getTime(),
+      updatedAt: canonical.updatedAt.getTime(),
+    };
+    profiles.set(userId, profile);
+    return profile;
+  }
+
   const db = await getDb();
   if (!db) return null;
 
@@ -649,6 +711,7 @@ async function applyProfessionalAccessWhatsappDecision(
         responseDecision: "rejected",
       };
 
+  await transitionCanonicalAuthorizationStatus(access, decision, responseOrigin);
   await persistAccessForBothSides(updated);
   const professionalProfile = await getProfessionalProfile(access.professionalUserId);
   pushHistory({
@@ -974,6 +1037,7 @@ export async function approvePatientAccess(patientUserId: number, accessId: stri
     responseOrigin: "web" as const,
     responseDecision: "approved" as const,
   };
+  await transitionCanonicalAuthorizationStatus(access, "approved", "web");
   await persistAccessForBothSides(approved);
   pushHistory({
     actorUserId: patientUserId,
@@ -997,6 +1061,7 @@ export async function revokePatientAccess(patientUserId: number, accessId: strin
     responseOrigin: "web" as const,
     responseDecision: "revoked" as const,
   };
+  await transitionCanonicalAuthorizationStatus(access, "revoked", "web");
   await persistAccessForBothSides(revoked);
   pushHistory({
     actorUserId: patientUserId,
@@ -1005,6 +1070,23 @@ export async function revokePatientAccess(patientUserId: number, accessId: strin
     eventType: "access_revoked",
   });
   return publicAccess(revoked);
+}
+
+export async function transitionPatientTracking(professionalUserId: number, input: ProfessionalTrackingTransitionInput) {
+  await assertActiveProfessionalProfile(professionalUserId);
+  const tracking = await professionalRepository.transitionTracking({
+    actorUserId: professionalUserId,
+    authorizationId: input.accessId,
+    nextStatus: input.status,
+    reason: input.reason,
+  });
+  pushHistory({
+    actorUserId: professionalUserId,
+    professionalUserId,
+    patientUserId: tracking.patientUserId,
+    eventType: "tracking_transitioned",
+  });
+  return tracking;
 }
 
 export async function getProfessionalPatientTimeZone(professionalUserId: number, patientUserId: number) {

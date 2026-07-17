@@ -199,6 +199,7 @@ import {
   professionalMealSuggestionSchema,
   professionalPatientQuestionSchema,
   professionalProfileSchema,
+  professionalTrackingTransitionSchema,
   requestPatientAccessSchema,
 } from "./modules/professionals/schemas";
 import {
@@ -216,6 +217,7 @@ import {
   revokePatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
+  transitionPatientTracking,
   upsertProfessionalProfile,
 } from "./modules/professionals/service";
 import {
@@ -450,6 +452,11 @@ export const nutritionRouter = router({
       .input(accessIdSchema)
       .mutation(async ({ ctx, input }) =>
         revokePatientAccess(ctx.user.id, input.accessId)
+      ),
+    transitionTracking: protectedProcedure
+      .input(professionalTrackingTransitionSchema)
+      .mutation(async ({ ctx, input }) =>
+        transitionPatientTracking(ctx.user.id, input)
       ),
     respondGoalSuggestion: protectedProcedure
       .input(goalSuggestionDecisionSchema)

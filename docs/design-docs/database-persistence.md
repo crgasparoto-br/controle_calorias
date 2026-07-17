@@ -72,11 +72,14 @@ O router de integrações grava os registros retornados por `sync`, consulta pri
 
 ## Fundação persistente da Área Profissional
 
-A migration `0024_professional_persistence_foundation.sql` cria o modelo canônico de perfil, autorização, acompanhamento e eventos de transição.
+A migration `0026_professional_persistence_foundation.sql` cria o modelo canônico de perfil, autorização, acompanhamento e eventos de transição.
 
 Durante o rollout, `server/repositories/professionalRepository.ts` mantém compatibilidade com as preferências legadas `professional_profile_v1`, `professional_accesses_v1` e `patient_professional_access_requests_v1`:
 
-- os fluxos web e WhatsApp leem e escrevem primeiro no repository canônico;
+- `server/modules/professionals/service.ts` escreve todo perfil e autorização no repository canônico (`upsertProfile`/`upsertAuthorization`/`transitionAuthorization`), que faz dual-write síncrono no JSON legado;
+- a leitura do perfil profissional consulta primeiro o repository canônico, com fallback para a preferência legada quando ainda não migrada;
+- a leitura de vínculos de acesso continua na preferência legada, mantida sincronizada pelo dual-write do repository a cada escrita canônica;
+- pausar, retomar e encerrar o acompanhamento (`professionals.transitionTracking`) é exposto somente pelo repository canônico, sem espelho em preferência JSON;
 - a leitura canônica importa preferências mais recentes de forma idempotente;
 - o `updatedAt` da preferência funciona como versão da origem para impedir que uma cópia antiga sobrescreva uma versão canônica mais nova;
 - escritas canônicas fazem dual-write temporário no JSON para consumidores ainda não migrados;
