@@ -81,13 +81,13 @@ describe("simulateWhatsappInbound canonical action reply", () => {
     });
 
     const result = await simulateWhatsappInbound(42, {
-      text: "mensagem de ação canônica",
+      text: "comi 100 g de arroz",
       receivedAt: new Date("2026-07-15T15:00:00.000Z"),
       userTimezone: "America/Sao_Paulo",
       messageId: "canonical-action-1",
     });
 
-    expect(executeWhatsappTextIntentMock).toHaveBeenCalled();
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledOnce();
     expect(result).toEqual(expect.objectContaining({
       action: "meal_item_added",
       reply: canonicalReply,
