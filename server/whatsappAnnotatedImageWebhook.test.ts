@@ -116,7 +116,7 @@ function createResponse(): MockResponse {
   };
 }
 
-function createImageWebhookRequest(messageId = "image-with-foods") {
+function createImageWebhookRequest(messageId = "image-with-foods", sourcePhone = "5511999999999") {
   return {
     body: {
       entry: [
@@ -130,7 +130,7 @@ function createImageWebhookRequest(messageId = "image-with-foods") {
                 messages: [
                   {
                     id: messageId,
-                    from: "5511999999999",
+                    from: sourcePhone,
                     timestamp: "1780502400",
                     type: "image",
                     image: {
@@ -393,6 +393,45 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(logInferenceEventMock).not.toHaveBeenCalledWith(expect.objectContaining({
       eventType: expect.stringMatching(/annotated_image_(skipped|reply_failed)/),
     }));
+
+    const duplicateResponse = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(createImageWebhookRequest("image-disabled") as never, duplicateResponse as never);
+    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
+    expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
+    expect(sentTextMessages).toHaveLength(1);
+  });
+
+  it("mantém registro, foto original e texto quando a leitura da preferência falha", async () => {
+    getAnnotatedImagePreferenceMock.mockResolvedValue({ enabled: false, readFailed: true });
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(createImageWebhookRequest("image-preference-read-failed") as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(createLocalMealPhotoOverlayMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      42,
+      "whatsapp",
+      expect.any(Object),
+      [expect.objectContaining({ storageKey: expect.stringContaining("whatsapp/image/") })],
+    );
+    expect(confirmPendingMealMock).toHaveBeenCalledOnce();
+    expect(sentTextMessages).toHaveLength(1);
+    expect(sentImageMessages).toHaveLength(0);
+  });
+
+  it("isola preferências habilitada e desabilitada entre dois usuários", async () => {
+    getUserIdByWhatsappPhoneMock.mockImplementation(async phone => phone === "5511888888888" ? 84 : 42);
+    getAnnotatedImagePreferenceMock.mockImplementation(async userId => ({ enabled: userId === 42, readFailed: false }));
+
+    await handleWhatsAppWebhookWithTextIntent(createImageWebhookRequest("image-user-enabled", "5511999999999") as never, createResponse() as never);
+    await handleWhatsAppWebhookWithTextIntent(createImageWebhookRequest("image-user-disabled", "5511888888888") as never, createResponse() as never);
+
+    expect(getAnnotatedImagePreferenceMock).toHaveBeenNthCalledWith(1, 42);
+    expect(getAnnotatedImagePreferenceMock).toHaveBeenNthCalledWith(2, 84);
+    expect(createLocalMealPhotoOverlayMock).toHaveBeenCalledTimes(1);
+    expect(sentImageMessages).toHaveLength(1);
+    expect(sentTextMessages).toHaveLength(2);
   });
 
   it("consolida a foto na refeição lógica existente do mesmo dia", async () => {
