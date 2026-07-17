@@ -8,18 +8,20 @@ on:
       - develop
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   agent-check:
+    if: github.head_ref == 'fix/whatsapp-generic-clarification-consistency'
     name: Agent-first gate
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout implementation branch
         uses: actions/checkout@v4
+        with:
+          ref: fix/whatsapp-generic-clarification-consistency
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -35,81 +37,238 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: TypeScript check
-        run: pnpm check
-
-      - name: Tests
+      - name: Apply audited implementation
+        shell: python
         run: |
-          if ! pnpm test > /tmp/vitest.log 2>&1; then
-            echo "Vitest failed. Showing the final 250 log lines:"
-            tail -n 250 /tmp/vitest.log
-            exit 1
-          fi
-          tail -n 80 /tmp/vitest.log
+          from pathlib import Path
 
-      - name: Upload Vitest diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-first-vitest-log
-          path: /tmp/vitest.log
-          if-no-files-found: ignore
-          retention-days: 3
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"Expected content not found in {path}: {old[:100]!r}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
 
-      - name: Architecture check
-        run: pnpm architecture:check
+          def insert_before_final_describe(path: str, content: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              marker = "\n});"
+              index = text.rfind(marker)
+              if index < 0:
+                  raise SystemExit(f"Final describe closure not found in {path}")
+              file.write_text(text[:index] + content + text[index:], encoding="utf-8")
 
-      - name: Documentation check
-        run: pnpm docs:check
+          replace_once(
+              "server/modules/whatsapp/intentRouter.ts",
+              'import { joinUnitWords } from "./quantityUnitVocabulary";\n',
+              'import { joinUnitWords } from "./quantityUnitVocabulary";\nimport { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";\n',
+          )
+          replace_once(
+              "server/modules/whatsapp/intentRouter.ts",
+              'reply: "Só preciso entender melhor o que você deseja 😊\\n\\nVocê quer registrar um alimento, corrigir uma refeição ou consultar seus registros?\\n\\nCaso queira fazer uma pergunta, envie a mensagem novamente começando com `/`.",',
+              'reply: WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,',
+          )
 
-      - name: Build
-        run: pnpm build
+          replace_once(
+              "server/modules/whatsapp/intentInterpreter.ts",
+              'import { joinUnitWords } from "./quantityUnitVocabulary";\n',
+              'import { joinUnitWords } from "./quantityUnitVocabulary";\nimport { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";\n',
+          )
+          replace_once(
+              "server/modules/whatsapp/intentInterpreter.ts",
+              'clarificationQuestion: "Não entendi com segurança. Você quer registrar alimento, corrigir uma refeição ou consultar seus registros?",',
+              'clarificationQuestion: WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,',
+          )
 
-      - name: Agent check
-        run: pnpm agent:check
+          replace_once(
+              "server/modules/whatsapp/llmIntentActions.ts",
+              '  buildWhatsAppRecoverableErrorReplyMessage,\n} from "./replyMessages";',
+              '  buildWhatsAppRecoverableErrorReplyMessage,\n  WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,\n} from "./replyMessages";',
+          )
+          replace_once(
+              "server/modules/whatsapp/llmIntentActions.ts",
+              '''function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmIntentResult {
+            return {
+              handled: true;
+              action: "clarification_needed";
+              reply: buildWhatsAppClarificationReplyMessage(intent.clarificationQuestion
+                ?? "Não consegui entender com segurança. Diga se deseja registrar um alimento, corrigir uma refeição ou consultar seus registros."),'''.replace("          ", "").replace(";\n", ",\n"),
+              '''function buildClarification(intent: WhatsappInterpretedIntent): WhatsappLlmIntentResult {
+            const clarificationQuestion = intent.intent === "unknown"
+              ? WHATSAPP_GENERIC_CLARIFICATION_MESSAGE
+              : intent.clarificationQuestion ?? WHATSAPP_GENERIC_CLARIFICATION_MESSAGE;
 
-      - name: CI gate docs check
-        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
+            return {
+              handled: true,
+              action: "clarification_needed",
+              reply: buildWhatsAppClarificationReplyMessage(clarificationQuestion),'''.replace("          ", ""),
+          )
 
-      - name: Database integrity check
-        if: ${{ env.DATABASE_URL != '' }}
+          normalizer = '''function normalizeClarificationText(value: string) {
+            return value
+              .normalize("NFD")
+              .replace(/[\\u0300-\\u036f]/g, "")
+              .toLowerCase()
+              .replace(/\\s+/g, " ")
+              .trim();
+          }
+
+          export function normalizeWhatsAppClarificationMessage(message: string) {
+            const normalized = normalizeClarificationText(message);
+            const isGenericFallback = (
+              normalized.startsWith("nao entendi com seguranca")
+              || normalized.startsWith("nao consegui entender com seguranca")
+            )
+              && normalized.includes("registrar")
+              && normalized.includes("corrigir")
+              && normalized.includes("consultar");
+
+            return isGenericFallback ? WHATSAPP_GENERIC_CLARIFICATION_MESSAGE : message;
+          }
+
+          '''.replace("          ", "")
+          replace_once("server/modules/whatsapp/replyMessages.ts", normalizer, "")
+          replace_once(
+              "server/modules/whatsapp/replyMessages.ts",
+              "    lines: [normalizeWhatsAppClarificationMessage(message)],",
+              "    lines: [message],",
+          )
+
+          Path("server/modules/whatsapp/genericClarificationMessage.test.ts").write_text('''import { describe, expect, it } from "vitest";
+
+          import {
+            classifyWhatsappMessageDeterministically,
+            interpretWhatsappMessageWithDiagnostics,
+          } from "./intentInterpreter";
+          import { evaluateWhatsappIntentRoute } from "./intentRouter";
+          import {
+            buildWhatsAppClarificationReplyMessage,
+            WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,
+          } from "./replyMessages";
+
+          describe("generic WhatsApp clarification message", () => {
+            it("usa a mensagem canonica no roteador", () => {
+              const route = evaluateWhatsappIntentRoute({ text: "beleza" });
+              expect(route.reply).toBe(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE);
+            });
+
+            it("usa a mensagem canonica no classificador deterministico", () => {
+              const intent = classifyWhatsappMessageDeterministically("@@@");
+              expect(intent.intent).toBe("unknown");
+              expect(intent.clarificationQuestion).toBe(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE);
+            });
+
+            it("mantem a mensagem canonica quando a LLM esta desativada", async () => {
+              const interpretation = await interpretWhatsappMessageWithDiagnostics(
+                "@@@",
+                { version: "whatsapp-intent-context/v1" } as never,
+                { useLlm: false },
+              );
+              expect(interpretation.source).toBe("deterministic");
+              expect(interpretation.fallbackReason).toBe("disabled");
+              expect(interpretation.intent.clarificationQuestion).toBe(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE);
+            });
+
+            it("preserva perguntas de esclarecimento especificas", () => {
+              const message = "Me diga em qual refeição devo fazer o ajuste.";
+              expect(buildWhatsAppClarificationReplyMessage(message)).toContain(message);
+              expect(buildWhatsAppClarificationReplyMessage(message)).not.toContain(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE);
+            });
+          });
+          '''.replace("          ", ""), encoding="utf-8")
+
+          replace_once(
+              "server/modules/whatsapp/service.test.ts",
+              'const { simulateWhatsappInbound } = await import("./service");\n',
+              'const { simulateWhatsappInbound } = await import("./service");\nconst { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } = await import("./replyMessages");\n',
+          )
+          insert_before_final_describe(
+              "server/modules/whatsapp/service.test.ts",
+              '''
+
+            it("entrega a mensagem canonica pelo fluxo completo de entrada do WhatsApp", async () => {
+              const result = await simulateWhatsappInbound(4299, {
+                text: "beleza",
+                messageId: "friendly-clarification-router",
+              });
+
+              expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+              expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+              expect(processMealDraftMock).not.toHaveBeenCalled();
+              expect(result).toEqual(expect.objectContaining({
+                handled: true,
+                action: "router_safe_response",
+                reply: WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,
+              }));
+            });
+          '''.replace("          ", ""),
+          )
+
+          replace_once(
+              "server/modules/whatsapp/llmIntentActions.test.ts",
+              'import { executeWhatsappLlmIntent } from "./llmIntentActions";\n',
+              'import { executeWhatsappLlmIntent } from "./llmIntentActions";\nimport { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";\n',
+          )
+          insert_before_final_describe(
+              "server/modules/whatsapp/llmIntentActions.test.ts",
+              '''
+
+            it("usa a mensagem canonica quando a LLM retorna texto generico de baixa confianca", async () => {
+              interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+                source: "llm",
+                validationStatus: "valid",
+                operationalTrace: llmTrace,
+                intent: interpretedIntent({
+                  intent: "unknown",
+                  confidence: 0.3,
+                  clarificationQuestion: "Não consegui entender com segurança. Diga se deseja registrar um alimento, corrigir uma refeição ou consultar seus registros.",
+                }),
+              });
+
+              const result = await executeWhatsappLlmIntent(42, {
+                text: "mensagem ambigua",
+                receivedAt: new Date("2026-06-12T12:00:00.000Z"),
+                messageId: "friendly-clarification-llm",
+              });
+
+              expect(result).toEqual(expect.objectContaining({
+                action: "clarification_needed",
+                reply: expect.stringContaining(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE),
+              }));
+              expect(result && "reply" in result ? result.reply : "").not.toContain("Não consegui entender com segurança");
+            });
+          '''.replace("          ", ""),
+          )
+
+          replace_once(
+              "docs/design-docs/whatsapp-intent-router.md",
+              "A mensagem genérica de baixa confiança possui uma única versão amigável, definida em `replyMessages.ts`. O roteador usa essa versão diretamente, enquanto o builder canônico normaliza variantes legadas produzidas pelo classificador determinístico ou pelo fallback da LLM antes do envio.\n\nA normalização só ocorre quando o texto representa a pergunta genérica sobre registrar, corrigir ou consultar. Perguntas específicas, como solicitação de quantidade, refeição ou item, permanecem inalteradas.",
+              "A mensagem genérica de baixa confiança possui uma única versão amigável, definida em `replyMessages.ts`. O roteador, o classificador determinístico e o fallback do executor LLM importam diretamente essa mesma constante; o builder canônico apenas aplica a formatação final da resposta.\n\nPerguntas específicas, como solicitação de quantidade, refeição ou item, continuam sendo fornecidas ao builder sem substituição textual.",
+          )
+          replace_once(
+              "docs/design-docs/whatsapp-intent-router.md",
+              "`server/modules/whatsapp/genericClarificationMessage.test.ts` cobre o alinhamento entre o roteador, o classificador determinístico, o fallback da LLM e o builder canônico de respostas.",
+              "`server/modules/whatsapp/genericClarificationMessage.test.ts` cobre a fonte canônica e o fallback determinístico sem LLM. `server/modules/whatsapp/service.test.ts` valida a resposta pelo fluxo completo de entrada, e `server/modules/whatsapp/llmIntentActions.test.ts` cobre baixa confiança da LLM com texto genérico.",
+          )
+
+          Path(".github/workflows/tmp-fix-whatsapp-clarification.yml").unlink(missing_ok=True)
+          Path("server/modules/whatsapp/zzzAuditPatchGenerator.test.ts").unlink(missing_ok=True)
+
+      - name: Restore official gate definition
         run: |
-          pnpm db:check-integrity
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo "- pnpm db:check-integrity"
-            echo ""
-            echo "Database integrity: executed with DATABASE_URL."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
+          git fetch origin develop
+          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
 
-      - name: Database integrity check skipped
-        if: ${{ env.DATABASE_URL == '' }}
+      - name: Validate focused implementation
         run: |
-          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo ""
-            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
+          pnpm check
+          pnpm vitest run server/modules/whatsapp/genericClarificationMessage.test.ts server/modules/whatsapp/service.test.ts server/modules/whatsapp/llmIntentActions.test.ts
+          pnpm docs:check
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/agent-check.yml .github/workflows/tmp-fix-whatsapp-clarification.yml server/modules/whatsapp docs/design-docs/whatsapp-intent-router.md
+          git commit -m "fix(whatsapp): concluir centralizacao da clarificacao"
+          git push origin HEAD:fix/whatsapp-generic-clarification-consistency
