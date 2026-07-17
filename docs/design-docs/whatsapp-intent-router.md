@@ -86,3 +86,5 @@ Esta entrega não implementa o fluxo completo de remoção, gráficos, resposta 
 `server/modules/whatsapp/service.test.ts` cobre a integração para impedir que ajuste numérico sem contexto chegue ao processamento de refeição.
 
 `server/modules/whatsapp/genericClarificationMessage.test.ts` cobre a fonte canônica e o fallback determinístico sem LLM. `server/modules/whatsapp/service.test.ts` valida a resposta pelo fluxo completo de entrada, e `server/modules/whatsapp/llmIntentActions.test.ts` cobre baixa confiança da LLM com texto genérico.
+
+Esses testes verificam a resposta final enviada pelo pipeline e impedem que as variantes antigas voltem a ser exibidas ao usuário.
