@@ -62,9 +62,9 @@ Mensagens alimentares com quantidade, como `100g de arroz`, continuam autorizada
 
 ## Esclarecimento genérico canônico
 
-A mensagem genérica de baixa confiança possui uma única versão amigável, definida em `replyMessages.ts`. O roteador usa essa versão diretamente, enquanto o builder canônico normaliza variantes legadas produzidas pelo classificador determinístico ou pelo fallback da LLM antes do envio.
+A mensagem genérica de baixa confiança possui uma única versão amigável, definida em `replyMessages.ts`. O roteador, o classificador determinístico e o fallback do executor LLM importam diretamente essa mesma constante; o builder canônico apenas aplica a formatação final da resposta.
 
-A normalização só ocorre quando o texto representa a pergunta genérica sobre registrar, corrigir ou consultar. Perguntas específicas, como solicitação de quantidade, refeição ou item, permanecem inalteradas.
+Perguntas específicas, como solicitação de quantidade, refeição ou item, continuam sendo fornecidas ao builder sem substituição textual.
 
 ## Limites
 
@@ -85,4 +85,4 @@ Esta entrega não implementa o fluxo completo de remoção, gráficos, resposta 
 
 `server/modules/whatsapp/service.test.ts` cobre a integração para impedir que ajuste numérico sem contexto chegue ao processamento de refeição.
 
-`server/modules/whatsapp/genericClarificationMessage.test.ts` cobre o alinhamento entre o roteador, o classificador determinístico, o fallback da LLM e o builder canônico de respostas.
+`server/modules/whatsapp/genericClarificationMessage.test.ts` cobre a fonte canônica e o fallback determinístico sem LLM. `server/modules/whatsapp/service.test.ts` valida a resposta pelo fluxo completo de entrada, e `server/modules/whatsapp/llmIntentActions.test.ts` cobre baixa confiança da LLM com texto genérico.

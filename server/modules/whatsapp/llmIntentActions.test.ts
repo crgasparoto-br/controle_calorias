@@ -35,6 +35,7 @@ vi.mock("./userMeasurementReplyContext", () => ({
 }));
 
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
+import { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";
 
 const llmTrace = {
   strategy: "llm_structured" as const,
@@ -465,4 +466,30 @@ describe("executeWhatsappLlmIntent", () => {
       })],
     }));
   });
+
+  it("usa a mensagem canonica quando a LLM retorna texto generico de baixa confianca", async () => {
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      operationalTrace: llmTrace,
+      intent: interpretedIntent({
+        intent: "unknown",
+        confidence: 0.3,
+        clarificationQuestion: "Não consegui entender com segurança. Diga se deseja registrar um alimento, corrigir uma refeição ou consultar seus registros.",
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, {
+      text: "mensagem ambigua",
+      receivedAt: new Date("2026-06-12T12:00:00.000Z"),
+      messageId: "friendly-clarification-llm",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      reply: expect.stringContaining(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE),
+    }));
+    expect(result && "reply" in result ? result.reply : "").not.toContain("Não consegui entender com segurança");
+  });
+
 });
