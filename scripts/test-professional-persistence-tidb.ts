@@ -1,8 +1,10 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
-import { getDb, shouldEnableRuntimeDatabaseSsl } from "../server/db";
+import { drizzle } from "drizzle-orm/mysql2";
+import { shouldEnableRuntimeDatabaseSsl } from "../server/db";
 import { createDrizzleProfessionalRepository } from "../server/repositories/professionalRepository";
+import { createDrizzleProfessionalContentRepository } from "../server/repositories/professionalContentRepository";
 
 const USER_IDS = [8061, 8062, 8063, 8064, 8065, 8066, 8067, 8071, 8072];
 const databaseUrl = process.env.DATABASE_URL;
@@ -44,17 +46,28 @@ async function main() {
       ? { uri: databaseUrl, ssl: { minVersion: "TLSv1.2" } }
       : databaseUrl
   );
+  const integrationDb = drizzle(connection);
+  const getIntegrationDb = async () => integrationDb;
   const warnings: Array<{ scope: string; error: string }> = [];
+  const onWarning = (scope: string, error: unknown) =>
+    warnings.push({
+      scope,
+      error: error instanceof Error ? error.message : "unknown",
+    });
   const repository = createDrizzleProfessionalRepository({
-    getDb,
-    onWarning: (scope, error) =>
-      warnings.push({
-        scope,
-        error: error instanceof Error ? error.message : "unknown",
-      }),
+    getDb: getIntegrationDb,
+    onWarning,
+  });
+  const contentRepository = createDrizzleProfessionalContentRepository({
+    getDb: getIntegrationDb,
+    onWarning,
   });
 
   try {
+    await connection.query("DELETE FROM `professionalHistoryEvents`");
+    await connection.query("DELETE FROM `professionalComments`");
+    await connection.query("DELETE FROM `professionalGoalSuggestions`");
+    await connection.query("DELETE FROM `professionalMealSuggestions`");
     await connection.query("DELETE FROM `professionalPatientTrackingEvents`");
     await connection.query("DELETE FROM `professionalPatientTrackings`");
     await connection.query("DELETE FROM `professionalPatientAuthorizations`");
@@ -249,13 +262,140 @@ async function main() {
     );
 
     const secondInstance = createDrizzleProfessionalRepository({
-      getDb,
+      getDb: getIntegrationDb,
       onWarning: () => undefined,
     });
     assert.equal(
       (await secondInstance.getApprovedAuthorization(8071, 8072))?.id,
       approved.id,
       "another instance must read the persisted state"
+    );
+
+    const contentCreatedAt = Date.parse("2026-07-14T22:00:00.000Z");
+    const comment = await contentRepository.createComment({
+      id: "comment-real-805",
+      professionalUserId: 8071,
+      patientUserId: 8072,
+      comment: "Comentário persistente de integração.",
+      createdAt: contentCreatedAt,
+    });
+    await contentRepository.createMealSuggestion({
+      id: "meal-real-805",
+      professionalUserId: 8071,
+      patientUserId: 8072,
+      mealLabel: "Almoço",
+      title: "Plano persistente",
+      description: "Arroz, feijão, proteína e vegetais.",
+      rationale: "Validar persistência entre instâncias.",
+      status: "sent",
+      createdAt: contentCreatedAt + 1_000,
+    });
+    await contentRepository.createGoalSuggestion({
+      id: "goal-real-805",
+      professionalUserId: 8071,
+      patientUserId: 8072,
+      rationale: "Validar decisão idempotente.",
+      status: "sent",
+      goal: {
+        defaultGoal: {
+          calories: 1800,
+          proteinGrams: 120,
+          carbsGrams: 190,
+          fatGrams: 55,
+        },
+        exceptions: [],
+      },
+      createdAt: contentCreatedAt + 2_000,
+    });
+
+    const contentSecondInstance = createDrizzleProfessionalContentRepository({
+      getDb: getIntegrationDb,
+      onWarning: () => undefined,
+    });
+    assert.equal(
+      (await contentSecondInstance.listComments(8071, 8072))[0]?.id,
+      comment.id,
+      "another instance must read the persisted professional comment"
+    );
+    assert.equal(
+      (await contentSecondInstance.listMealSuggestions(8071, 8072))[0]?.id,
+      "meal-real-805",
+      "another instance must read the persisted meal suggestion"
+    );
+
+    const [acceptedA, acceptedB] = await Promise.all([
+      contentRepository.transitionGoalSuggestion(
+        8072,
+        "goal-real-805",
+        "accepted",
+        contentCreatedAt + 3_000
+      ),
+      contentSecondInstance.transitionGoalSuggestion(
+        8072,
+        "goal-real-805",
+        "accepted",
+        contentCreatedAt + 3_000
+      ),
+    ]);
+    assert.equal(acceptedA.status, "accepted");
+    assert.equal(acceptedB.status, "accepted");
+    await assert.rejects(
+      () =>
+        contentRepository.transitionGoalSuggestion(
+          8072,
+          "goal-real-805",
+          "refused",
+          contentCreatedAt + 4_000
+        ),
+      /já foi respondida/
+    );
+
+    const [contentEventRows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT COUNT(*) AS total FROM `professionalHistoryEvents` WHERE `entityId` IN (?, ?, ?)",
+      ["comment-real-805", "meal-real-805", "goal-real-805"]
+    );
+    assert.equal(
+      Number(contentEventRows[0]?.total),
+      4,
+      "content and goal decision must create one durable event each"
+    );
+
+    const legacyGoal = {
+      id: "legacy-goal-805",
+      professionalUserId: 8061,
+      patientUserId: 8062,
+      rationale: "Sugestão legada",
+      status: "sent",
+      goal: {
+        defaultGoal: {
+          calories: 1750,
+          proteinGrams: 115,
+          carbsGrams: 180,
+          fatGrams: 54,
+        },
+        exceptions: [],
+      },
+      createdAt: contentCreatedAt,
+      sentAt: contentCreatedAt,
+      respondedAt: null,
+    };
+    await connection.query(
+      "INSERT INTO `userPreferences` (`userId`, `preferenceKey`, `preferenceValue`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `preferenceValue` = VALUES(`preferenceValue`)",
+      [
+        8062,
+        "patient_professional_goal_suggestions_v1",
+        JSON.stringify([legacyGoal]),
+      ]
+    );
+    const firstLegacyContent =
+      await contentRepository.migrateLegacyGoalSuggestions(8062);
+    const secondLegacyContent =
+      await contentRepository.migrateLegacyGoalSuggestions(8062);
+    assert.equal(firstLegacyContent.migrated, 1);
+    assert.equal(secondLegacyContent.migrated, 0);
+    assert.equal(
+      (await contentSecondInstance.listGoalSuggestionsByPatient(8062))[0]?.id,
+      legacyGoal.id
     );
 
     await repository.transitionAuthorization({

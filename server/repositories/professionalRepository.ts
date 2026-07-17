@@ -31,6 +31,16 @@ import {
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
 
+async function getProfessionalPersistenceDb(getDb: DbProvider) {
+  const db = await getDb();
+  if (!db && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "A persistência da Área Profissional está temporariamente indisponível."
+    );
+  }
+  return db;
+}
+
 export type UpsertCanonicalProfessionalProfileInput = {
   userId: number;
   displayName: string;
@@ -57,6 +67,15 @@ export type TransitionProfessionalTrackingInput = {
   authorizationId: string;
   nextStatus: ProfessionalTrackingStatus;
   reason?: string;
+  now?: Date;
+};
+
+export type UpdateProfessionalAuthorizationMessageInput = {
+  authorizationId: string;
+  professionalUserId: number;
+  status: "sent" | "failed" | "skipped";
+  sentAt: Date | null;
+  error: string | null;
   now?: Date;
 };
 
@@ -90,6 +109,9 @@ export type ProfessionalRepository = {
   ): Promise<CanonicalProfessionalAuthorization>;
   transitionAuthorization(
     input: TransitionProfessionalAuthorizationInput
+  ): Promise<CanonicalProfessionalAuthorization>;
+  updateAuthorizationMessage(
+    input: UpdateProfessionalAuthorizationMessageInput
   ): Promise<CanonicalProfessionalAuthorization>;
   getTrackingByAuthorization(
     authorizationId: string
@@ -439,7 +461,10 @@ export function createDrizzleProfessionalRepository(deps: {
       new Date(currentById.sourceUpdatedAt).getTime() >=
         input.sourceUpdatedAt.getTime()
     ) {
-      return { authorization: toCanonicalAuthorization(currentById), wrote: false };
+      return {
+        authorization: toCanonicalAuthorization(currentById),
+        wrote: false,
+      };
     }
 
     try {
@@ -480,7 +505,11 @@ export function createDrizzleProfessionalRepository(deps: {
             )
           )
           .limit(1);
-        if (existingPair) return { authorization: toCanonicalAuthorization(existingPair), wrote: false };
+        if (existingPair)
+          return {
+            authorization: toCanonicalAuthorization(existingPair),
+            wrote: false,
+          };
       }
       throw error;
     }
@@ -514,7 +543,7 @@ export function createDrizzleProfessionalRepository(deps: {
       return { migrated: 0, invalid: 1 };
     }
 
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       const current = fallbackProfiles.get(row.userId);
       if (
@@ -567,7 +596,7 @@ export function createDrizzleProfessionalRepository(deps: {
     sourceUpdatedAt: Date
   ) {
     const canonical = legacyAccessToCanonical(access, sourceUpdatedAt);
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       const current = fallbackAuthorizations.get(access.id);
       if (
@@ -581,9 +610,10 @@ export function createDrizzleProfessionalRepository(deps: {
     }
 
     try {
-      const { authorization: saved, wrote } = await persistAuthorizationCanonical(db, canonical, {
-        preserveNewerSource: true,
-      });
+      const { authorization: saved, wrote } =
+        await persistAuthorizationCanonical(db, canonical, {
+          preserveNewerSource: true,
+        });
       if (saved.id !== canonical.id) {
         warning(
           deps,
@@ -665,7 +695,7 @@ export function createDrizzleProfessionalRepository(deps: {
   }
 
   async function migrateLegacyUser(userId: number) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       return {
         scannedPreferences: 0,
@@ -694,7 +724,7 @@ export function createDrizzleProfessionalRepository(deps: {
     userId: number,
     role: "professional" | "patient"
   ) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) return;
     const oppositeKey =
       role === "professional"
@@ -725,7 +755,7 @@ export function createDrizzleProfessionalRepository(deps: {
   }
 
   async function getProfile(userId: number) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) return fallbackProfiles.get(userId) ?? null;
     await migrateLegacyUser(userId);
     const [row] = await db
@@ -737,7 +767,7 @@ export function createDrizzleProfessionalRepository(deps: {
   }
 
   async function upsertProfile(input: UpsertCanonicalProfessionalProfileInput) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) return fallbackProfile(input);
     const now = input.now ?? new Date();
     await db
@@ -779,7 +809,7 @@ export function createDrizzleProfessionalRepository(deps: {
   }
 
   async function listAuthorizationsByProfessional(professionalUserId: number) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       return [...fallbackAuthorizations.values()].filter(
         item => item.professionalUserId === professionalUserId
@@ -800,7 +830,7 @@ export function createDrizzleProfessionalRepository(deps: {
   }
 
   async function listAuthorizationsByPatient(patientUserId: number) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       return [...fallbackAuthorizations.values()].filter(
         item => item.patientUserId === patientUserId
@@ -818,7 +848,7 @@ export function createDrizzleProfessionalRepository(deps: {
   }
 
   async function getAuthorizationById(authorizationId: string) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) return fallbackAuthorizations.get(authorizationId) ?? null;
     const [row] = await db
       .select()
@@ -832,7 +862,7 @@ export function createDrizzleProfessionalRepository(deps: {
     professionalUserId: number,
     patientUserId: number
   ) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       return (
         [...fallbackAuthorizations.values()].find(
@@ -870,7 +900,7 @@ export function createDrizzleProfessionalRepository(deps: {
   async function upsertAuthorization(
     input: UpsertCanonicalProfessionalAuthorizationInput
   ) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) return fallbackAuthorization(input);
     const { authorization } = await persistAuthorizationCanonical(db, input, {
       preserveNewerSource: false,
@@ -892,7 +922,7 @@ export function createDrizzleProfessionalRepository(deps: {
     input: TransitionProfessionalAuthorizationInput
   ) {
     const now = input.now ?? new Date();
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       const current = fallbackAuthorizations.get(input.authorizationId);
       if (!current || current.patientUserId !== input.patientUserId) {
@@ -965,8 +995,72 @@ export function createDrizzleProfessionalRepository(deps: {
     return authorization;
   }
 
+  async function updateAuthorizationMessage(
+    input: UpdateProfessionalAuthorizationMessageInput
+  ) {
+    const now = input.now ?? new Date();
+    const error = input.error?.slice(0, 500) ?? null;
+    const db = await getProfessionalPersistenceDb(deps.getDb);
+    if (!db) {
+      const current = fallbackAuthorizations.get(input.authorizationId);
+      if (!current || current.professionalUserId !== input.professionalUserId) {
+        throw new Error("Solicitação de acesso não encontrada.");
+      }
+      const updated: CanonicalProfessionalAuthorization = {
+        ...current,
+        authorizationMessageStatus: input.status,
+        authorizationMessageSentAt: input.sentAt,
+        authorizationMessageError: error,
+        sourceUpdatedAt: now,
+        updatedAt: now,
+      };
+      fallbackAuthorizations.set(input.authorizationId, updated);
+      return updated;
+    }
+
+    const updateResult = await db
+      .update(professionalPatientAuthorizations)
+      .set({
+        authorizationMessageStatus: input.status,
+        authorizationMessageSentAt: input.sentAt,
+        authorizationMessageError: error,
+        sourceUpdatedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(professionalPatientAuthorizations.id, input.authorizationId),
+          eq(
+            professionalPatientAuthorizations.professionalUserId,
+            input.professionalUserId
+          )
+        )
+      );
+    if (getMysqlAffectedRows(updateResult) === 0) {
+      throw new Error("Solicitação de acesso não encontrada.");
+    }
+
+    const [row] = await db
+      .select()
+      .from(professionalPatientAuthorizations)
+      .where(eq(professionalPatientAuthorizations.id, input.authorizationId))
+      .limit(1);
+    if (!row) throw new Error("Solicitação de acesso não encontrada.");
+    const authorization = toCanonicalAuthorization(row);
+    try {
+      await writeLegacyAuthorization(db, authorization);
+    } catch {
+      warning(
+        deps,
+        "professional.persistence.legacy_authorization_dual_write_failed",
+        "legacy_write_failed"
+      );
+    }
+    return authorization;
+  }
+
   async function getTrackingByAuthorization(authorizationId: string) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) return fallbackTrackings.get(authorizationId) ?? null;
     const [row] = await db
       .select()
@@ -979,7 +1073,7 @@ export function createDrizzleProfessionalRepository(deps: {
   async function transitionTracking(
     input: TransitionProfessionalTrackingInput
   ) {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     const now = input.now ?? new Date();
     if (!db) {
       const authorization = fallbackAuthorizations.get(input.authorizationId);
@@ -1074,7 +1168,7 @@ export function createDrizzleProfessionalRepository(deps: {
   }
 
   async function migrateAllLegacyData() {
-    const db = await deps.getDb();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       return {
         scannedPreferences: 0,
@@ -1114,6 +1208,7 @@ export function createDrizzleProfessionalRepository(deps: {
     getApprovedAuthorization,
     upsertAuthorization,
     transitionAuthorization,
+    updateAuthorizationMessage,
     getTrackingByAuthorization,
     transitionTracking,
     migrateLegacyUser,

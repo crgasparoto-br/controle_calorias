@@ -6,28 +6,32 @@
 
 ## Tabelas críticas
 
-| Tabela                              | Papel                                                                     |
-| ----------------------------------- | ------------------------------------------------------------------------- |
-| `users`                             | Identidade interna e papel                                                |
-| `userProfiles`                      | Perfil nutricional e onboarding                                           |
-| `nutritionGoals`                    | Metas e exceções                                                          |
-| `food_sources`                      | Fontes nutricionais, versão e código de origem do catálogo global         |
-| `foods`                             | Catálogo alimentar global e alimentos personalizados por usuário          |
-| `food_aliases`                      | Nomes alternativos normalizados para busca no catálogo                    |
-| `food_portions`                     | Porções e medidas caseiras por alimento do catálogo                       |
-| `meals`                             | Cabeçalho da refeição                                                     |
-| `mealItems`                         | Itens nutricionais por refeição, incluindo snapshot nutricional histórico |
-| `mealMedia`                         | Referências de mídia                                                      |
-| `mealInferences`                    | Rascunhos e inferências de IA                                             |
-| `habitMemories`                     | Memória de hábitos alimentares                                            |
-| `healthSyncedRecords`               | Histórico persistido de dados importados de integrações de saúde          |
-| `professionalProfiles`              | Perfil profissional adicional à conta pessoal                             |
-| `professionalPatientAuthorizations` | Consentimento e revogação do acesso profissional aos dados do paciente    |
-| `professionalPatientTrackings`      | Situação operacional do acompanhamento, separada da autorização           |
-| `professionalPatientTrackingEvents` | Histórico auditável das transições do acompanhamento                      |
+| Tabela                              | Papel                                                                      |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| `users`                             | Identidade interna e papel                                                 |
+| `userProfiles`                      | Perfil nutricional e onboarding                                            |
+| `nutritionGoals`                    | Metas e exceções                                                           |
+| `food_sources`                      | Fontes nutricionais, versão e código de origem do catálogo global          |
+| `foods`                             | Catálogo alimentar global e alimentos personalizados por usuário           |
+| `food_aliases`                      | Nomes alternativos normalizados para busca no catálogo                     |
+| `food_portions`                     | Porções e medidas caseiras por alimento do catálogo                        |
+| `meals`                             | Cabeçalho da refeição                                                      |
+| `mealItems`                         | Itens nutricionais por refeição, incluindo snapshot nutricional histórico  |
+| `mealMedia`                         | Referências de mídia                                                       |
+| `mealInferences`                    | Rascunhos e inferências de IA                                              |
+| `habitMemories`                     | Memória de hábitos alimentares                                             |
+| `healthSyncedRecords`               | Histórico persistido de dados importados de integrações de saúde           |
+| `professionalProfiles`              | Perfil profissional adicional à conta pessoal                              |
+| `professionalPatientAuthorizations` | Consentimento e revogação do acesso profissional aos dados do paciente     |
+| `professionalPatientTrackings`      | Situação operacional do acompanhamento, separada da autorização            |
+| `professionalPatientTrackingEvents` | Histórico auditável das transições do acompanhamento                       |
+| `professionalComments`              | Comentários internos do profissional, isolados por profissional e paciente |
+| `professionalGoalSuggestions`       | Sugestões de meta com estado, versão e conteúdo nutricional                |
+| `professionalMealSuggestions`       | Sugestões de refeição/plano com estado e versão                            |
+| `professionalHistoryEvents`         | Linha do tempo profissional sem payload clínico bruto                      |
 | `whatsappConnections`               | Vínculo telefone do usuário ↔ usuário interno                             |
-| `inferenceLogs`                     | Logs seguros de inferência                                                |
-| `appSecrets`                        | Segredos operacionais criptografados                                      |
+| `inferenceLogs`                     | Logs seguros de inferência                                                 |
+| `appSecrets`                        | Segredos operacionais criptografados                                       |
 
 ## Regras
 
@@ -78,7 +82,7 @@ Durante o rollout, `server/repositories/professionalRepository.ts` mantém compa
 
 - `server/modules/professionals/service.ts` escreve todo perfil e autorização no repository canônico (`upsertProfile`/`upsertAuthorization`/`transitionAuthorization`), que faz dual-write síncrono no JSON legado;
 - a leitura do perfil profissional consulta primeiro o repository canônico, com fallback para a preferência legada quando ainda não migrada;
-- a leitura de vínculos de acesso continua na preferência legada, mantida sincronizada pelo dual-write do repository a cada escrita canônica;
+- a leitura de vínculos usa o repository canônico; preferências legadas são apenas origem de migração e espelho temporário de compatibilidade;
 - pausar, retomar e encerrar o acompanhamento (`professionals.transitionTracking`) é exposto somente pelo repository canônico, sem espelho em preferência JSON;
 - a leitura canônica importa preferências mais recentes de forma idempotente;
 - o `updatedAt` da preferência funciona como versão da origem para impedir que uma cópia antiga sobrescreva uma versão canônica mais nova;
@@ -88,9 +92,21 @@ Durante o rollout, `server/repositories/professionalRepository.ts` mantém compa
 - uma chave única para o par profissional-paciente impede solicitações equivalentes concorrentes enquanto o vínculo está pendente ou aprovado;
 - aprovação atualiza a autorização e cria acompanhamento/evento na mesma transação;
 - rejeição e revogação liberam o par para um convite posterior, preservando o histórico anterior;
-- pausa, retomada e encerramento usam atualização otimista e evento auditável transacional.
+- pausa, retomada e encerramento usam atualização otimista e evento auditável transacional;
+- em produção, ausência de conexão com o banco interrompe operações profissionais com erro sanitizado; o fallback volátil permanece restrito a testes e desenvolvimento permitido.
 
-Pendência conhecida: `professionals.history` (`listProfessionalHistory`) continua servido por um array em memória por processo, não pela leitura de `professionalPatientTrackingEvents`; os eventos são gravados corretamente no canônico, mas a tela de histórico ainda não os lê de volta, então não sobrevive a restart nem é compartilhada entre instâncias.
+A migration `0028_professional_actor_deletion_safety.sql` altera as referências de ator das transições para `ON DELETE SET NULL`: a autoria é preservada enquanto a conta existir, e a exclusão do titular não fica bloqueada por eventos históricos.
+
+A migration `0027_professional_content_persistence.sql` elimina a dependência de arrays locais para comentários, sugestões de meta/refeição e histórico profissional:
+
+- `server/repositories/professionalContentRepository.ts` é a fonte canônica para criação, leitura e transição desses registros;
+- comentário ou sugestão e seu evento de criação são gravados na mesma transação;
+- decisões de sugestão usam `version` e comparação otimista, são idempotentes quando repetidas com o mesmo resultado e não permitem regressão para outro estado final;
+- listagens usam ordem estável por `createdAt` e `id`, limite padrão de 100 e máximo de 200, com cursor interno para paginação;
+- o histórico guarda somente ator, profissional, paciente, tipo, entidade e data, sem copiar comentário, justificativa, meta ou conteúdo de refeição;
+- a preferência `patient_professional_goal_suggestions_v1` é importada de forma idempotente e recebe dual-write temporário durante a janela de rollout;
+- comentários, sugestões de refeição e eventos que existiam apenas na memória de uma instância antes do deploy não possuem fonte recuperável e não podem ser migrados retroativamente;
+- o fallback em memória continua restrito à execução sem banco usada pelos testes e pelo modo local permitido, nunca como fonte autoritativa quando `getDb()` retorna uma conexão.
 
 A aplicação da estrutura segue esta ordem:
 
@@ -105,4 +121,4 @@ A aplicação da estrutura segue esta ordem:
 - Rodar `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
 - Rodar `pnpm docs:check` após alterar schema ou docs geradas.
 - Rodar `pnpm db:migrate:professionals` mais de uma vez em homologação para confirmar idempotência antes do rollout em produção.
-- O workflow `Professional persistence TiDB gate` executa `pnpm db:push`, verifica estabilidade dos metadados Drizzle, cobre backfill, vínculo assimétrico, concorrência, transação de aprovação, leitura por outra instância e revogação imediata.
+- O workflow `Professional persistence TiDB gate` executa `pnpm db:push`, verifica estabilidade dos metadados Drizzle e cobre backfill, vínculo assimétrico, concorrência, transação de aprovação, leitura por outra instância, revogação imediata, persistência de comentários/sugestões/histórico e decisão idempotente de sugestão.

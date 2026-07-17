@@ -1,12 +1,23 @@
 export const PROFESSIONAL_PROFILE_PREFERENCE_KEY = "professional_profile_v1";
 export const PROFESSIONAL_ACCESSES_PREFERENCE_KEY = "professional_accesses_v1";
-export const PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY = "patient_professional_access_requests_v1";
+export const PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY =
+  "patient_professional_access_requests_v1";
 
-export type ProfessionalAuthorizationStatus = "pending" | "approved" | "rejected" | "revoked";
+export type ProfessionalAuthorizationStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "revoked";
 export type ProfessionalTrackingStatus = "active" | "paused" | "ended";
 export type ProfessionalAccessResponseOrigin = "web" | "whatsapp";
-export type ProfessionalAccessResponseDecision = "approved" | "rejected" | "revoked";
-export type ProfessionalAuthorizationMessageStatus = "sent" | "failed" | "skipped";
+export type ProfessionalAccessResponseDecision =
+  | "approved"
+  | "rejected"
+  | "revoked";
+export type ProfessionalAuthorizationMessageStatus =
+  | "sent"
+  | "failed"
+  | "skipped";
 
 export type CanonicalProfessionalProfile = {
   userId: number;
@@ -50,7 +61,7 @@ export type CanonicalProfessionalTracking = {
   pausedAt: Date | null;
   endedAt: Date | null;
   lastTransitionAt: Date;
-  lastTransitionByUserId: number;
+  lastTransitionByUserId: number | null;
   lastTransitionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -79,30 +90,45 @@ export type LegacyParseResult<T> = {
   issue: "invalid_json" | "invalid_shape" | null;
 };
 
-function isAuthorizationStatus(value: unknown): value is ProfessionalAuthorizationStatus {
-  return value === "pending" || value === "approved" || value === "rejected" || value === "revoked";
+function isAuthorizationStatus(
+  value: unknown
+): value is ProfessionalAuthorizationStatus {
+  return (
+    value === "pending" ||
+    value === "approved" ||
+    value === "rejected" ||
+    value === "revoked"
+  );
 }
 
-function isResponseOrigin(value: unknown): value is ProfessionalAccessResponseOrigin {
+function isResponseOrigin(
+  value: unknown
+): value is ProfessionalAccessResponseOrigin {
   return value === "web" || value === "whatsapp";
 }
 
-function isResponseDecision(value: unknown): value is ProfessionalAccessResponseDecision {
+function isResponseDecision(
+  value: unknown
+): value is ProfessionalAccessResponseDecision {
   return value === "approved" || value === "rejected" || value === "revoked";
 }
 
-function isAuthorizationMessageStatus(value: unknown): value is ProfessionalAuthorizationMessageStatus {
+function isAuthorizationMessageStatus(
+  value: unknown
+): value is ProfessionalAuthorizationMessageStatus {
   return value === "sent" || value === "failed" || value === "skipped";
 }
 
 function optionalTimestamp(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null;
 }
 
 export function parseLegacyProfessionalProfile(
   userId: number,
   value: string,
-  sourceUpdatedAt: Date,
+  sourceUpdatedAt: Date
 ): LegacyParseResult<CanonicalProfessionalProfile> {
   let parsed: unknown;
   try {
@@ -125,15 +151,19 @@ export function parseLegacyProfessionalProfile(
     return { value: null, issue: "invalid_shape" };
   }
 
-  const createdAtMs = optionalTimestamp(candidate.createdAt) ?? sourceUpdatedAt.getTime();
-  const updatedAtMs = optionalTimestamp(candidate.updatedAt) ?? sourceUpdatedAt.getTime();
+  const createdAtMs =
+    optionalTimestamp(candidate.createdAt) ?? sourceUpdatedAt.getTime();
+  const updatedAtMs =
+    optionalTimestamp(candidate.updatedAt) ?? sourceUpdatedAt.getTime();
   return {
     value: {
       userId,
       displayName: candidate.displayName.trim(),
-      registrationNumber: typeof candidate.registrationNumber === "string" && candidate.registrationNumber.trim()
-        ? candidate.registrationNumber.trim()
-        : undefined,
+      registrationNumber:
+        typeof candidate.registrationNumber === "string" &&
+        candidate.registrationNumber.trim()
+          ? candidate.registrationNumber.trim()
+          : undefined,
       active: candidate.active,
       sourceUpdatedAt,
       createdAt: new Date(createdAtMs),
@@ -143,7 +173,9 @@ export function parseLegacyProfessionalProfile(
   };
 }
 
-function normalizeLegacyAccess(value: unknown): LegacyProfessionalAccess | null {
+function normalizeLegacyAccess(
+  value: unknown
+): LegacyProfessionalAccess | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
   if (
@@ -170,22 +202,31 @@ function normalizeLegacyAccess(value: unknown): LegacyProfessionalAccess | null 
     revokedAt: optionalTimestamp(candidate.revokedAt),
     rejectedAt: optionalTimestamp(candidate.rejectedAt),
     respondedAt: optionalTimestamp(candidate.respondedAt),
-    responseOrigin: isResponseOrigin(candidate.responseOrigin) ? candidate.responseOrigin : null,
-    responseDecision: isResponseDecision(candidate.responseDecision) ? candidate.responseDecision : null,
-    authorizationMessageStatus: isAuthorizationMessageStatus(candidate.authorizationMessageStatus)
+    responseOrigin: isResponseOrigin(candidate.responseOrigin)
+      ? candidate.responseOrigin
+      : null,
+    responseDecision: isResponseDecision(candidate.responseDecision)
+      ? candidate.responseDecision
+      : null,
+    authorizationMessageStatus: isAuthorizationMessageStatus(
+      candidate.authorizationMessageStatus
+    )
       ? candidate.authorizationMessageStatus
       : null,
-    authorizationMessageSentAt: optionalTimestamp(candidate.authorizationMessageSentAt),
-    authorizationMessageError: typeof candidate.authorizationMessageError === "string"
-      ? candidate.authorizationMessageError.slice(0, 500)
-      : null,
+    authorizationMessageSentAt: optionalTimestamp(
+      candidate.authorizationMessageSentAt
+    ),
+    authorizationMessageError:
+      typeof candidate.authorizationMessageError === "string"
+        ? candidate.authorizationMessageError.slice(0, 500)
+        : null,
   };
 }
 
 export function parseLegacyProfessionalAccesses(
   ownerUserId: number,
   preferenceKey: string,
-  value: string,
+  value: string
 ): LegacyParseResult<LegacyProfessionalAccess[]> {
   let parsed: unknown;
   try {
@@ -201,9 +242,11 @@ export function parseLegacyProfessionalAccesses(
   const accesses = parsed
     .map(normalizeLegacyAccess)
     .filter((access): access is LegacyProfessionalAccess => Boolean(access))
-    .filter(access => preferenceKey === PROFESSIONAL_ACCESSES_PREFERENCE_KEY
-      ? access.professionalUserId === ownerUserId
-      : access.patientUserId === ownerUserId);
+    .filter(access =>
+      preferenceKey === PROFESSIONAL_ACCESSES_PREFERENCE_KEY
+        ? access.professionalUserId === ownerUserId
+        : access.patientUserId === ownerUserId
+    );
 
   return {
     value: accesses,
@@ -223,7 +266,7 @@ export function getAuthorizationActivePairKey(input: {
 
 export function legacyAccessToCanonical(
   access: LegacyProfessionalAccess,
-  sourceUpdatedAt: Date,
+  sourceUpdatedAt: Date
 ): Omit<CanonicalProfessionalAuthorization, "createdAt" | "updatedAt"> {
   return {
     id: access.id,
@@ -240,14 +283,17 @@ export function legacyAccessToCanonical(
     responseOrigin: access.responseOrigin,
     responseDecision: access.responseDecision,
     authorizationMessageStatus: access.authorizationMessageStatus,
-    authorizationMessageSentAt: access.authorizationMessageSentAt ? new Date(access.authorizationMessageSentAt) : null,
+    authorizationMessageSentAt: access.authorizationMessageSentAt
+      ? new Date(access.authorizationMessageSentAt)
+      : null,
     authorizationMessageError: access.authorizationMessageError,
     sourceUpdatedAt,
   };
 }
 
 export function canonicalAuthorizationToLegacy(
-  authorization: Pick<CanonicalProfessionalAuthorization,
+  authorization: Pick<
+    CanonicalProfessionalAuthorization,
     | "id"
     | "professionalUserId"
     | "patientUserId"
@@ -263,7 +309,7 @@ export function canonicalAuthorizationToLegacy(
     | "authorizationMessageStatus"
     | "authorizationMessageSentAt"
     | "authorizationMessageError"
-  >,
+  >
 ): LegacyProfessionalAccess {
   return {
     ...authorization,
@@ -272,13 +318,14 @@ export function canonicalAuthorizationToLegacy(
     revokedAt: authorization.revokedAt?.getTime() ?? null,
     rejectedAt: authorization.rejectedAt?.getTime() ?? null,
     respondedAt: authorization.respondedAt?.getTime() ?? null,
-    authorizationMessageSentAt: authorization.authorizationMessageSentAt?.getTime() ?? null,
+    authorizationMessageSentAt:
+      authorization.authorizationMessageSentAt?.getTime() ?? null,
   };
 }
 
 export function canTransitionProfessionalTracking(
   current: ProfessionalTrackingStatus,
-  next: ProfessionalTrackingStatus,
+  next: ProfessionalTrackingStatus
 ) {
   if (current === next) return true;
   if (current === "active") return next === "paused" || next === "ended";
@@ -288,9 +335,11 @@ export function canTransitionProfessionalTracking(
 
 export function assertProfessionalTrackingTransition(
   current: ProfessionalTrackingStatus,
-  next: ProfessionalTrackingStatus,
+  next: ProfessionalTrackingStatus
 ) {
   if (!canTransitionProfessionalTracking(current, next)) {
-    throw new Error(`Transição de acompanhamento inválida: ${current} -> ${next}.`);
+    throw new Error(
+      `Transição de acompanhamento inválida: ${current} -> ${next}.`
+    );
   }
 }

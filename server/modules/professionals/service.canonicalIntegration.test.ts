@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { professionalRepository } from "./persistenceService";
 import {
   approvePatientAccess,
+  processProfessionalAccessWhatsappResponse,
   requestPatientAccess,
   revokePatientAccess,
   transitionPatientTracking,
@@ -100,5 +101,54 @@ describe("service.ts writes through to the canonical professional persistence", 
         status: "ended",
       }),
     ).rejects.toThrow();
+  });
+
+  it("allows a new invitation after the previous request was rejected", async () => {
+    const professionalUserId = 80406;
+    const patientUserId = 80407;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Marina Lopes",
+      active: true,
+    });
+    const first = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Primeiro convite",
+    });
+    await processProfessionalAccessWhatsappResponse(patientUserId, "negar");
+
+    const second = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Novo convite após alinhamento",
+    });
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.status).toBe("pending");
+    await expect(
+      professionalRepository.getAuthorizationById(first.id),
+    ).resolves.toMatchObject({ status: "rejected" });
+  });
+
+  it("does not continue through the legacy path when the canonical transition fails", async () => {
+    const professionalUserId = 80408;
+    const patientUserId = 80409;
+    await upsertProfessionalProfile(professionalUserId, {
+      displayName: "Rafael Lima",
+      active: true,
+    });
+    const access = await requestPatientAccess(professionalUserId, {
+      patientContact: `user-${patientUserId}@example.com`,
+      reason: "Teste de falha canônica",
+    });
+    const transition = vi
+      .spyOn(professionalRepository, "transitionAuthorization")
+      .mockRejectedValueOnce(new Error("canonical unavailable"));
+
+    await expect(approvePatientAccess(patientUserId, access.id)).rejects.toThrow(
+      "canonical unavailable",
+    );
+    transition.mockRestore();
+    await expect(
+      professionalRepository.getAuthorizationById(access.id),
+    ).resolves.toMatchObject({ status: "pending" });
   });
 });

@@ -45,13 +45,13 @@ function findMatchingBrace(source: string, start: number) {
 }
 
 function parseColumns(source: string): ColumnInfo[] {
-  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:int|double|text|timestamp|varchar|mysqlEnum)\("([^"]+)"/gm))
+  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:boolean|double|int|json|mysqlEnum|text|timestamp|varchar)\("([^"]+)"/gm))
     .map(match => ({ propertyName: match[1], columnName: match[2] }));
 }
 
 function parseTables(source: string): TableInfo[] {
   const tables: TableInfo[] = [];
-  const tableRegex = /export const (\w+) = mysqlTable\("([^"]+)"/g;
+  const tableRegex = /export const (\w+) = mysqlTable\(\s*"([^"]+)"/g;
   for (const match of source.matchAll(tableRegex)) {
     const columnsStart = source.indexOf("{", match.index ?? 0);
     const columnsEnd = findMatchingBrace(source, columnsStart);

@@ -56,21 +56,25 @@ Dados profissionais críticos não devem continuar apenas em memória ou em form
 - Solicitações pendentes continuam visíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação ou iniciar nova sessão.
 - Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento.
 - Perfil, solicitações, vínculos e situação do acompanhamento permanecem consistentes após restart e entre instâncias.
-- Toda transição de autorização e acompanhamento é gravada nas tabelas canônicas (`professionalPatientTrackingEvents`) com ator, data e motivo, sobrevivendo a restart; o histórico exibido ao profissional (`professionals.history`) ainda é mantido em memória por processo — ler esse histórico das tabelas canônicas é pendência de acompanhamento desta fundação.
+- Transições de acompanhamento são gravadas em `professionalPatientTrackingEvents`; a linha do tempo exibida pela Área Profissional é lida de `professionalHistoryEvents`. Ambas preservam ator e data e sobrevivem a restart e múltiplas instâncias.
 - Dashboard profissional respeita vínculo aprovado.
-- Comentários não expõem dados de outras pessoas acompanhadas.
+- Comentários são persistidos em `professionalComments`, permanecem internos ao profissional que os criou e não expõem dados de outro vínculo.
 - Solicitação por e-mail ou celular encontra a pessoa correta ou retorna erro amigável.
 - Aprovações e revogações recebidas pela pessoa acompanhada ficam acessíveis em Configurações.
 - Dados autorizados incluem visão equivalente a Hoje e Relatórios, além das metas nutricionais atuais.
 - O profissional consegue registrar uma sugestão de ajuste de meta para pessoa autorizada.
-- Sugestões de meta registram status e ficam disponíveis na análise profissional da pessoa acompanhada.
+- Sugestões de meta são persistidas, registram status e versão, permanecem disponíveis após restart e usam decisão final idempotente.
 - A meta ativa da pessoa acompanhada não é alterada pela criação de uma sugestão profissional.
 - O profissional consegue registrar uma sugestão de refeição ou plano alimentar para pessoa autorizada.
-- Sugestões de refeição registram status e ficam disponíveis na análise profissional da pessoa acompanhada.
+- Sugestões de refeição são persistidas, registram status e versão e permanecem disponíveis após restart e entre instâncias.
 - O diário de refeições da pessoa acompanhada não é alterado pela criação de uma sugestão profissional.
 - O profissional consegue fazer perguntas com IA sobre uma pessoa autorizada.
 - A resposta com IA apresenta contexto citado e aviso educacional.
 - Perguntas com IA sobre pessoa sem acesso aprovado são bloqueadas.
+- Histórico, comentários e sugestões retornam no máximo 100 itens por consulta pública atual, em ordem estável decrescente; o repository suporta cursor para evolução da interface sem carregar listas ilimitadas.
+- Conteúdo que existia somente em arrays de processo antes da migration `0027_professional_content_persistence.sql` não é recuperável; a única fonte legada migrável nesta etapa é `patient_professional_goal_suggestions_v1`.
+- Em produção, indisponibilidade do banco bloqueia novas leituras e mutações profissionais com erro sanitizado; não há fallback volátil como fonte de verdade.
+- A exclusão de uma conta não é bloqueada por referências de autoria: eventos preservam o histórico com ator nulo após a remoção do titular.
 - A interface deixa claro quando os dados exibidos pertencem à pessoa selecionada, e não à conta pessoal do profissional.
 
 ## Estrutura alvo da Área Profissional
@@ -170,12 +174,12 @@ Estados iniciais aprovados:
 - **encerrado:** acompanhamento finalizado, sem novas intervenções;
 - revogação não é estado de acompanhamento, mas retirada da autorização.
 
-| Situação | Consultar histórico autorizado | Alterar metas | Enviar orientação | Gerar alertas |
-|---|---:|---:|---:|---:|
-| Ativo | Sim | Sim | Sim | Sim |
-| Pausado | Sim | Não | Apenas comunicação administrativa | Não |
-| Encerrado | Apenas histórico profissional necessário para auditoria | Não | Não | Não |
-| Autorização revogada | Não | Não | Não | Não |
+| Situação             |                          Consultar histórico autorizado | Alterar metas |                 Enviar orientação | Gerar alertas |
+| -------------------- | ------------------------------------------------------: | ------------: | --------------------------------: | ------------: |
+| Ativo                |                                                     Sim |           Sim |                               Sim |           Sim |
+| Pausado              |                                                     Sim |           Não | Apenas comunicação administrativa |           Não |
+| Encerrado            | Apenas histórico profissional necessário para auditoria |           Não |                               Não |           Não |
+| Autorização revogada |                                                     Não |           Não |                               Não |           Não |
 
 Pausa, retomada e encerramento devem registrar ator, data e motivo quando informado. O encerramento não apaga dados do paciente nem histórico auditável.
 

@@ -222,7 +222,6 @@ import {
 } from "./modules/professionals/service";
 import {
   listPatientGoalSuggestions,
-  recordProfessionalGoalSuggestion,
   respondPatientGoalSuggestion,
 } from "./modules/professionals/goalSuggestionApprovals";
 
@@ -503,11 +502,9 @@ export const nutritionRouter = router({
       ),
     suggestGoalAdjustment: protectedProcedure
       .input(professionalGoalSuggestionSchema)
-      .mutation(async ({ ctx, input }) => {
-        const suggestion = await suggestGoalAdjustment(ctx.user.id, input);
-        await recordProfessionalGoalSuggestion(suggestion);
-        return suggestion;
-      }),
+      .mutation(async ({ ctx, input }) =>
+        suggestGoalAdjustment(ctx.user.id, input)
+      ),
     suggestMealPlan: protectedProcedure
       .input(professionalMealSuggestionSchema)
       .mutation(async ({ ctx, input }) => suggestMealPlan(ctx.user.id, input)),

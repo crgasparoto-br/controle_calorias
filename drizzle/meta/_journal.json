@@ -176,6 +176,20 @@
       "when": 1784233800000,
       "tag": "0026_professional_persistence_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1784305451913,
+      "tag": "0027_professional_content_persistence",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1784305741362,
+      "tag": "0028_professional_actor_deletion_safety",
+      "breakpoints": true
     }
   ]
 }

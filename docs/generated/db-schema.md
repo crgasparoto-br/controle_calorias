@@ -10,6 +10,7 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 |---|---|---:|---|
 | `users` | `users` | 10 | Requer atenção |
 | `userProfiles` | `userProfiles` | 18 | Requer atenção |
+| `nutritionGoals` | `nutritionGoals` | 14 | Requer atenção |
 | `foodBrands` | `foodBrands` | 7 | Baixa |
 | `foodSources` | `food_sources` | 9 | Baixa |
 | `foods` | `foods` | 21 | Baixa |
@@ -38,22 +39,27 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `userRestrictions` | `userRestrictions` | 8 | Requer atenção |
 | `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
 | `whatsappConversations` | `whatsappConversations` | 11 | Requer atenção |
-| `whatsappConversationMessages` | `whatsappConversationMessages` | 22 | Requer atenção |
+| `whatsappConversationMessages` | `whatsappConversationMessages` | 23 | Requer atenção |
 | `whatsappMessageDomainLinks` | `whatsappMessageDomainLinks` | 8 | Requer atenção |
 | `whatsappConversationSummaries` | `whatsappConversationSummaries` | 9 | Requer atenção |
-| `whatsappPendingOperations` | `whatsappPendingOperations` | 10 | Requer atenção |
+| `whatsappPendingOperations` | `whatsappPendingOperations` | 11 | Requer atenção |
 | `appSecrets` | `appSecrets` | 6 | Baixa |
 | `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |
-| `professionalProfiles` | `professionalProfiles` | 6 | Requer atenção |
+| `professionalProfiles` | `professionalProfiles` | 7 | Requer atenção |
 | `professionalPatientAuthorizations` | `professionalPatientAuthorizations` | 19 | Requer atenção |
 | `professionalPatientTrackings` | `professionalPatientTrackings` | 13 | Requer atenção |
 | `professionalPatientTrackingEvents` | `professionalPatientTrackingEvents` | 9 | Requer atenção |
+| `professionalComments` | `professionalComments` | 5 | Requer atenção |
+| `professionalGoalSuggestions` | `professionalGoalSuggestions` | 11 | Requer atenção |
+| `professionalMealSuggestions` | `professionalMealSuggestions` | 14 | Requer atenção |
+| `professionalHistoryEvents` | `professionalHistoryEvents` | 9 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
 - `users` via export `users`.
 - `userProfiles` via export `userProfiles`.
+- `nutritionGoals` via export `nutritionGoals`.
 - `foodCatalog` via export `foodCatalog`.
 - `foodFavorites` via export `foodFavorites`.
 - `userGamificationSettings` via export `userGamificationSettings`.
@@ -83,6 +89,10 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 - `professionalPatientAuthorizations` via export `professionalPatientAuthorizations`.
 - `professionalPatientTrackings` via export `professionalPatientTrackings`.
 - `professionalPatientTrackingEvents` via export `professionalPatientTrackingEvents`.
+- `professionalComments` via export `professionalComments`.
+- `professionalGoalSuggestions` via export `professionalGoalSuggestions`.
+- `professionalMealSuggestions` via export `professionalMealSuggestions`.
+- `professionalHistoryEvents` via export `professionalHistoryEvents`.
 
 ## Campos sensíveis conhecidos
 
@@ -113,7 +123,7 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `userRestrictions` | `restrictionType`, `label`, `severity`, `notes` |
 | `whatsappConnections` | `displayName` |
 | `whatsappConversations` | `lastActivityAt` |
-| `whatsappConversationMessages` | `externalMessageId`, `text`, `sanitizedText`, `transcript`, `sanitizedTranscript`, `mediaStorageKey`, `mediaMimeType`, `captionText`, `respondsToMessageId`, `occurredAt` |
+| `whatsappConversationMessages` | `externalMessageId`, `rawTextStored`, `text`, `sanitizedText`, `transcript`, `sanitizedTranscript`, `mediaStorageKey`, `mediaMimeType`, `captionText`, `respondsToMessageId`, `occurredAt` |
 | `whatsappMessageDomainLinks` | `messageId`, `weightEntryId` |
 | `whatsappConversationSummaries` | `summaryText`, `fromMessageId`, `toMessageId` |
 | `inferenceLogs` | `detail` |
@@ -121,6 +131,10 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalPatientAuthorizations` | `professionalUserId`, `patientUserId`, `reason`, `authorizationMessageStatus`, `authorizationMessageSentAt`, `authorizationMessageError` |
 | `professionalPatientTrackings` | `authorizationId`, `professionalUserId`, `patientUserId`, `lastTransitionReason` |
 | `professionalPatientTrackingEvents` | `authorizationId`, `actorUserId`, `reason`, `occurredAt` |
+| `professionalComments` | `professionalUserId`, `patientUserId` |
+| `professionalGoalSuggestions` | `professionalUserId`, `patientUserId` |
+| `professionalMealSuggestions` | `professionalUserId`, `patientUserId`, `mealLabel`, `notes` |
+| `professionalHistoryEvents` | `actorUserId`, `professionalUserId`, `patientUserId`, `occurredAt` |
 
 ## Relações críticas
 

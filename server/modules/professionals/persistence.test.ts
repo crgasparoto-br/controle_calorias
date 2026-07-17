@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDrizzleProfessionalRepository } from "../../repositories/professionalRepository";
 import {
   PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY,
@@ -8,6 +8,10 @@ import {
   parseLegacyProfessionalAccesses,
   parseLegacyProfessionalProfile,
 } from "./persistence";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 function legacyAccess(overrides: Record<string, unknown> = {}) {
   return {
@@ -31,16 +35,32 @@ function legacyAccess(overrides: Record<string, unknown> = {}) {
 }
 
 describe("professional legacy persistence parsing", () => {
+  it("fails closed when canonical persistence is unavailable in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const repository = createDrizzleProfessionalRepository({
+      getDb: async () => null,
+      onWarning: vi.fn(),
+    });
+
+    await expect(repository.getProfile(8040)).rejects.toThrow(
+      "persistência da Área Profissional"
+    );
+  });
+
   it("parses a valid legacy profile without exposing the raw preference", () => {
     const sourceUpdatedAt = new Date("2026-07-14T20:00:00.000Z");
-    const result = parseLegacyProfessionalProfile(8041, JSON.stringify({
-      userId: 8041,
-      displayName: "  Nutricionista Teste  ",
-      registrationNumber: " CRN 123 ",
-      active: true,
-      createdAt: 1_780_000_000_000,
-      updatedAt: 1_780_000_100_000,
-    }), sourceUpdatedAt);
+    const result = parseLegacyProfessionalProfile(
+      8041,
+      JSON.stringify({
+        userId: 8041,
+        displayName: "  Nutricionista Teste  ",
+        registrationNumber: " CRN 123 ",
+        active: true,
+        createdAt: 1_780_000_000_000,
+        updatedAt: 1_780_000_100_000,
+      }),
+      sourceUpdatedAt
+    );
 
     expect(result.issue).toBeNull();
     expect(result.value).toMatchObject({
@@ -53,7 +73,11 @@ describe("professional legacy persistence parsing", () => {
   });
 
   it("classifies invalid JSON without returning its content", () => {
-    const result = parseLegacyProfessionalProfile(8041, "{sensitive-invalid-json", new Date());
+    const result = parseLegacyProfessionalProfile(
+      8041,
+      "{sensitive-invalid-json",
+      new Date()
+    );
     expect(result).toEqual({ value: null, issue: "invalid_json" });
   });
 
@@ -64,7 +88,7 @@ describe("professional legacy persistence parsing", () => {
       JSON.stringify([
         legacyAccess(),
         legacyAccess({ id: "other-professional", professionalUserId: 9999 }),
-      ]),
+      ])
     );
     const patientResult = parseLegacyProfessionalAccesses(
       8042,
@@ -72,10 +96,12 @@ describe("professional legacy persistence parsing", () => {
       JSON.stringify([
         legacyAccess(),
         legacyAccess({ id: "other-patient", patientUserId: 9999 }),
-      ]),
+      ])
     );
 
-    expect(professionalResult.value?.map(item => item.id)).toEqual(["access-804"]);
+    expect(professionalResult.value?.map(item => item.id)).toEqual([
+      "access-804",
+    ]);
     expect(patientResult.value?.map(item => item.id)).toEqual(["access-804"]);
     expect(professionalResult.issue).toBe("invalid_shape");
     expect(patientResult.issue).toBe("invalid_shape");
@@ -84,19 +110,51 @@ describe("professional legacy persistence parsing", () => {
 
 describe("professional authorization uniqueness", () => {
   it("reserves a pair key only while authorization can grant access", () => {
-    expect(getAuthorizationActivePairKey({ professionalUserId: 8, patientUserId: 4, status: "pending" })).toBe("8:4");
-    expect(getAuthorizationActivePairKey({ professionalUserId: 8, patientUserId: 4, status: "approved" })).toBe("8:4");
-    expect(getAuthorizationActivePairKey({ professionalUserId: 8, patientUserId: 4, status: "rejected" })).toBeNull();
-    expect(getAuthorizationActivePairKey({ professionalUserId: 8, patientUserId: 4, status: "revoked" })).toBeNull();
+    expect(
+      getAuthorizationActivePairKey({
+        professionalUserId: 8,
+        patientUserId: 4,
+        status: "pending",
+      })
+    ).toBe("8:4");
+    expect(
+      getAuthorizationActivePairKey({
+        professionalUserId: 8,
+        patientUserId: 4,
+        status: "approved",
+      })
+    ).toBe("8:4");
+    expect(
+      getAuthorizationActivePairKey({
+        professionalUserId: 8,
+        patientUserId: 4,
+        status: "rejected",
+      })
+    ).toBeNull();
+    expect(
+      getAuthorizationActivePairKey({
+        professionalUserId: 8,
+        patientUserId: 4,
+        status: "revoked",
+      })
+    ).toBeNull();
   });
 });
 
 describe("professional tracking state machine", () => {
   it("accepts pause, resume and end, but never reopens an ended tracking", () => {
-    expect(() => assertProfessionalTrackingTransition("active", "paused")).not.toThrow();
-    expect(() => assertProfessionalTrackingTransition("paused", "active")).not.toThrow();
-    expect(() => assertProfessionalTrackingTransition("active", "ended")).not.toThrow();
-    expect(() => assertProfessionalTrackingTransition("ended", "active")).toThrow("Transição de acompanhamento inválida");
+    expect(() =>
+      assertProfessionalTrackingTransition("active", "paused")
+    ).not.toThrow();
+    expect(() =>
+      assertProfessionalTrackingTransition("paused", "active")
+    ).not.toThrow();
+    expect(() =>
+      assertProfessionalTrackingTransition("active", "ended")
+    ).not.toThrow();
+    expect(() =>
+      assertProfessionalTrackingTransition("ended", "active")
+    ).toThrow("Transição de acompanhamento inválida");
   });
 
   it("persists actor, reason and timestamps in the fallback contract", async () => {
@@ -188,10 +246,60 @@ describe("professional tracking state machine", () => {
       sourceUpdatedAt: revokedAt,
     });
 
-    await expect(repository.transitionTracking({
-      actorUserId: 8045,
-      authorizationId: "revoked-804",
-      nextStatus: "paused",
-    })).rejects.toThrow("A autorização de dados não está ativa.");
+    await expect(
+      repository.transitionTracking({
+        actorUserId: 8045,
+        authorizationId: "revoked-804",
+        nextStatus: "paused",
+      })
+    ).rejects.toThrow("A autorização de dados não está ativa.");
+  });
+
+  it("updates WhatsApp delivery metadata without restoring a revoked authorization", async () => {
+    const repository = createDrizzleProfessionalRepository({
+      getDb: async () => null,
+      onWarning: vi.fn(),
+    });
+    const requestedAt = new Date("2026-07-14T20:00:00.000Z");
+    await repository.upsertAuthorization({
+      id: "late-delivery-804",
+      professionalUserId: 8047,
+      patientUserId: 8048,
+      status: "pending",
+      reason: "Acompanhamento",
+      requestedAt,
+      approvedAt: null,
+      rejectedAt: null,
+      revokedAt: null,
+      respondedAt: null,
+      responseOrigin: null,
+      responseDecision: null,
+      authorizationMessageStatus: null,
+      authorizationMessageSentAt: null,
+      authorizationMessageError: null,
+      sourceUpdatedAt: requestedAt,
+    });
+
+    await repository.transitionAuthorization({
+      authorizationId: "late-delivery-804",
+      patientUserId: 8048,
+      nextStatus: "revoked",
+      responseOrigin: "web",
+      now: new Date("2026-07-14T20:01:00.000Z"),
+    });
+    const updated = await repository.updateAuthorizationMessage({
+      authorizationId: "late-delivery-804",
+      professionalUserId: 8047,
+      status: "sent",
+      sentAt: new Date("2026-07-14T20:02:00.000Z"),
+      error: null,
+      now: new Date("2026-07-14T20:02:00.000Z"),
+    });
+
+    expect(updated).toMatchObject({
+      status: "revoked",
+      authorizationMessageStatus: "sent",
+      responseDecision: "revoked",
+    });
   });
 });
