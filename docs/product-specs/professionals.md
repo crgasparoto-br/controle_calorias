@@ -56,7 +56,7 @@ Dados profissionais críticos não devem continuar apenas em memória ou em form
 - Solicitações pendentes continuam visíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação ou iniciar nova sessão.
 - Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento.
 - Perfil, solicitações, vínculos e situação do acompanhamento permanecem consistentes após restart e entre instâncias.
-- O histórico de transições de autorização e acompanhamento é lido das tabelas canônicas e permanece disponível após restart.
+- Toda transição de autorização e acompanhamento é gravada nas tabelas canônicas (`professionalPatientTrackingEvents`) com ator, data e motivo, sobrevivendo a restart; o histórico exibido ao profissional (`professionals.history`) ainda é mantido em memória por processo — ler esse histórico das tabelas canônicas é pendência de acompanhamento desta fundação.
 - Dashboard profissional respeita vínculo aprovado.
 - Comentários não expõem dados de outras pessoas acompanhadas.
 - Solicitação por e-mail ou celular encontra a pessoa correta ou retorna erro amigável.

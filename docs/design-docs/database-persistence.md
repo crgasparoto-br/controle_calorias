@@ -90,6 +90,8 @@ Durante o rollout, `server/repositories/professionalRepository.ts` mantém compa
 - rejeição e revogação liberam o par para um convite posterior, preservando o histórico anterior;
 - pausa, retomada e encerramento usam atualização otimista e evento auditável transacional.
 
+Pendência conhecida: `professionals.history` (`listProfessionalHistory`) continua servido por um array em memória por processo, não pela leitura de `professionalPatientTrackingEvents`; os eventos são gravados corretamente no canônico, mas a tela de histórico ainda não os lê de volta, então não sobrevive a restart nem é compartilhada entre instâncias.
+
 A aplicação da estrutura segue esta ordem:
 
 1. aplicar migrations com `pnpm db:push`;

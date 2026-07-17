@@ -879,15 +879,15 @@ async function getUserSummaryByContact(contact: string): Promise<UserSummary | n
 }
 
 async function getApprovedAccess(professionalUserId: number, patientUserId: number) {
-  const current = Array.from(accesses.values()).find(access =>
+  const professionalAccesses = await loadPersistedAccesses(professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY);
+  const persisted = professionalAccesses.find(access => access.patientUserId === patientUserId && access.status === "approved");
+  if (persisted) return persisted;
+
+  return Array.from(accesses.values()).find(access =>
     access.professionalUserId === professionalUserId &&
     access.patientUserId === patientUserId &&
     access.status === "approved",
   );
-  if (current) return current;
-
-  const professionalAccesses = await loadPersistedAccesses(professionalUserId, PROFESSIONAL_ACCESSES_PREFERENCE_KEY);
-  return professionalAccesses.find(access => access.patientUserId === patientUserId && access.status === "approved");
 }
 
 async function assertApprovedAccess(professionalUserId: number, patientUserId: number) {
@@ -921,7 +921,7 @@ export async function upsertProfessionalProfile(userId: number, input: Professio
 }
 
 export async function getProfessionalProfile(userId: number) {
-  return profiles.get(userId) ?? await loadPersistedProfessionalProfile(userId);
+  return await loadPersistedProfessionalProfile(userId) ?? profiles.get(userId) ?? null;
 }
 
 export async function requestPatientAccess(professionalUserId: number, input: RequestPatientAccessInput) {
@@ -1023,7 +1023,7 @@ export async function listPatientAccessRequests(patientUserId: number) {
 
 export async function approvePatientAccess(patientUserId: number, accessId: string) {
   const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
-  const access = accesses.get(accessId) ?? patientAccesses.find(item => item.id === accessId);
+  const access = patientAccesses.find(item => item.id === accessId) ?? accesses.get(accessId);
   if (!access || access.patientUserId !== patientUserId) throw new Error("Solicitação de acesso não encontrada.");
   if (access.status !== "pending") throw new Error("Apenas solicitações pendentes podem ser aprovadas.");
   const now = Date.now();
@@ -1050,7 +1050,7 @@ export async function approvePatientAccess(patientUserId: number, accessId: stri
 
 export async function revokePatientAccess(patientUserId: number, accessId: string) {
   const patientAccesses = await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY);
-  const access = accesses.get(accessId) ?? patientAccesses.find(item => item.id === accessId);
+  const access = patientAccesses.find(item => item.id === accessId) ?? accesses.get(accessId);
   if (!access || access.patientUserId !== patientUserId) throw new Error("Vínculo de acesso não encontrado.");
   const now = Date.now();
   const revoked = {
