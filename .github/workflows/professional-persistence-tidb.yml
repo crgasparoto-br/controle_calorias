@@ -40,6 +40,7 @@ jobs:
           fi
 
           cat .github/implementation-payload.part* | base64 --decode > /tmp/professional-phase.tar.gz
+          echo "746b55fba7a08a401060c23448ba6001a13e76fe9e2155ab44af8743dc1e1a33  /tmp/professional-phase.tar.gz" | sha256sum -c -
           tar -xzf /tmp/professional-phase.tar.gz
           rm -f .github/implementation-payload.part* .github/implementation-payload.ready
           rm -f .github/workflows/apply-professional-phase-payload.yml
