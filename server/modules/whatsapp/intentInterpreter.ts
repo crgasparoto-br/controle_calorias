@@ -10,6 +10,7 @@ import {
 } from "./intentSchema";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { joinUnitWords } from "./quantityUnitVocabulary";
+import { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";
 import type { WhatsappIntentOperationalTrace, WhatsappIntentValidationStatus } from "./intentAuditLog";
 import type { WhatsappIntentContext } from "./intentContext";
 import { detectWhatsappDeleteIntent, toWhatsappDeleteInterpretedIntent } from "./deleteIntent";
@@ -332,7 +333,7 @@ export function classifyWhatsappMessageDeterministically(text: string): Whatsapp
     confidence: 0.3,
     items: [],
     requiresConfirmation: true,
-    clarificationQuestion: "Não entendi com segurança. Você quer registrar alimento, corrigir uma refeição ou consultar seus registros?",
+    clarificationQuestion: WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,
     possibleIntents: ["add_foods_to_meal", "replace_food_in_meal", "delete_food_from_meal", "delete_meal", "list_meal_records"],
   };
 }

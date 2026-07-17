@@ -35,6 +35,7 @@ vi.mock("./foodAssistant", () => ({ executeWhatsAppFoodAssistantIntent: executeW
 
 const { clearWhatsappConversationContext } = await import("./conversationContext");
 const { simulateWhatsappInbound } = await import("./service");
+const { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } = await import("./replyMessages");
 
 function recentMeal() {
   return {
@@ -193,4 +194,21 @@ describe("simulateWhatsappInbound", () => {
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(processMealDraftMock).not.toHaveBeenCalled();
   });
+
+  it("entrega a mensagem canonica pelo fluxo completo de entrada do WhatsApp", async () => {
+    const result = await simulateWhatsappInbound(4299, {
+      text: "beleza",
+      messageId: "friendly-clarification-router",
+    });
+
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "router_safe_response",
+      reply: WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,
+    }));
+  });
+
 });
