@@ -37,6 +37,7 @@ const useUtilsMock = vi.fn(() => ({
     exercises: { list: { invalidate: vi.fn() } },
     water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
     whatsapp: { status: { invalidate: vi.fn() } },
+    whatsappPreferences: { annotatedImage: { invalidate: vi.fn() } },
     professionals: {
       profile: { invalidate: vi.fn() },
       myAccesses: { invalidate: vi.fn() },
@@ -105,6 +106,14 @@ vi.mock("@/lib/trpc", () => ({
         },
         complete: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+      },
+      whatsappPreferences: {
+        annotatedImage: {
+          useQuery: () => ({ data: { enabled: false }, isLoading: false, isError: false }),
+        },
+        updateAnnotatedImage: {
+          useMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
         },
       },
       mealSchedules: {
@@ -648,62 +657,363 @@ describe("nutrition pages", () => {
     expect(html).toContain("Peso atual");
   });
 
-  it("renderiza todos os exercícios do intervalo com detalhes operacionais", async () => {
-    const { RegisteredMealsPage } = await import("@/features/meals/RegisteredMealsPageContent");
-    const html = renderToString(React.createElement(RegisteredMealsPage));
+  it("renderiza todos os exm��-�G����ƭy�nput(updateMealMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...mealInput } = input;
+        return updateMeal(ctx.user.id, {
+          ...mealInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
+      }),
+    updateGroup: protectedProcedure
+      .input(updateMealGroupMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        return updateMealGroup(ctx.user.id, {
+          mealLabel: input.mealLabel,
+          meals: input.meals.map(({ dateTimeLocal, ...meal }) => ({
+            ...meal,
+            occurredAt: dateTimeLocal
+              ? toOwnerOccurredAt(dateTimeLocal, timeZone)
+              : undefined,
+          })),
+        });
+      }),
+    copy: protectedProcedure
+      .input(copyMealMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...copyInput } = input;
+        const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+        const result = await copyMeal(ctx.user.id, {
+          ...copyInput,
+          occurredAt,
+        });
+        void analyticsService.track("meal_copied", {
+          target_offset_days: daysBetweenDates(Date.now(), occurredAt),
+        });
+        void analyticsService.track("meal_created", {
+          source: "copy",
+          meal_label_category: mealLabelCategory(result.mealLabel),
+          item_count: result.items.length,
+          has_notes: Boolean(result.notes),
+          scheduled_for_future:
+            new Date(result.occurredAt).getTime() > Date.now(),
+        });
+        return result;
+      }),
+    copyGroup: protectedProcedure
+      .input(copyMealGroupMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...copyInput } = input;
+        const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+        const result = await copyMealGroup(ctx.user.id, {
+          ...copyInput,
+          occurredAt,
+        });
+        void analyticsService.track("meal_group_copied", {
+          item_count: result.items.length,
+          target_offset_days: daysBetweenDates(Date.now(), occurredAt),
+        });
+        void analyticsService.track("meal_created", {
+          source: "copy",
+          meal_label_category: mealLabelCategory(result.mealLabel),
+          item_count: result.items.length,
+          has_notes: Boolean(result.notes),
+          scheduled_for_future:
+            new Date(result.occurredAt).getTime() > Date.now(),
+        });
+        return result;
+      }),
+    favorites: protectedProcedure.query(async ({ ctx }) =>
+      listMealFavorites(ctx.user.id)
+    ),
+    saveFavorite: protectedProcedure
+      .input(saveFavoriteMealSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await saveMealFavorite(ctx.user.id, input);
+        void analyticsService.track("favorite_meal_created", {
+          item_count: result.items.length,
+        });
+        return result;
+      }),
+    saveFavoriteGroup: protectedProcedure
+      .input(saveFavoriteMealGroupSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await saveMealGroupFavorite(ctx.user.id, input);
+        void analyticsService.track("favorite_meal_created", {
+          item_count: result.items.length,
+        });
+        return result;
+      }),
+    reuseFavorite: protectedProcedure
+      .input(reuseFavoriteMealMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...favoriteInput } = input;
+        const result = await reuseMealFavorite(ctx.user.id, {
+          ...favoriteInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
+        void analyticsService.track("meal_created", {
+          source: "favorite",
+          meal_label_category: mealLabelCategory(result.mealLabel),
+          item_count: result.items.length,
+          has_notes: Boolean(result.notes),
+          scheduled_for_future:
+            new Date(result.occurredAt).getTime() > Date.now(),
+        });
+        return result;
+      }),
+    remove: protectedProcedure
+      .input(removeMealSchema)
+      .mutation(async ({ ctx, input }) =>
+        removeMeal(ctx.user.id, input.mealId)
+      ),
+    removeGroup: protectedProcedure
+      .input(removeMealGroupSchema)
+      .mutation(async ({ ctx, input }) => removeMealGroup(ctx.user.id, input)),
+    processDraft: protectedProcedure
+      .input(processMealDraftSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        return processMealDraft(ctx.user.id, input, timeZone);
+      }),
+    confirm: protectedProcedure
+      .input(confirmMealMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+          const { dateTimeLocal, ...confirmationInput } = input;
+          const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+          const result = await confirmMeal(ctx.user.id, {
+            ...confirmationInput,
+            occurredAt,
+          });
+          void analyticsService.track("meal_created", {
+            source: "ai_draft",
+            meal_label_category: mealLabelCategory(input.mealLabel),
+            item_count: input.items.length,
+            has_notes: Boolean(input.notes?.trim()),
+            scheduled_for_future: new Date(occurredAt).getTime() > Date.now(),
+          });
+          void analyticsService.track("meal_item_added", {
+            source: "ai_draft",
+            item_count: input.items.length,
+            item_type: "food",
+          });
+          return result;
+        } catch (error) {
+          if (!(error instanceof MealDraftNotFoundError)) {
+            throw error;
+          }
 
-    expect(html).toContain("Registros de exercícios");
-    expect(html).toContain("Corrida");
-    expect(html).toContain("Rodagem leve");
-    expect(html).toContain("Duração");
-    expect(html).toContain("45 min");
-  });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Rascunho não encontrado para confirmação.",
+          });
+        }
+      }),
+  }),
 
-  it("renderiza a página de relatórios como diagnóstico orientado à meta ajustada", async () => {
-    const { default: ReportsPage } = await import("./ReportsPage");
-    const html = renderToString(React.createElement(ReportsPage));
+  exercises: router({
+    list: protectedProcedure.query(async ({ ctx }) =>
+      listExercises(ctx.user.id)
+    ),
+    create: protectedProcedure
+      .input(exerciseMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...exerciseInput } = input;
+        return createExercise(ctx.user.id, {
+          ...exerciseInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
+      }),
+    update: protectedProcedure
+      .input(updateExerciseMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...exerciseInput } = input;
+        return updateExercise(ctx.user.id, {
+          ...exerciseInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
+      }),
+    remove: protectedProcedure
+      .input(removeExerciseSchema)
+      .mutation(async ({ ctx, input }) =>
+        removeExercise(ctx.user.id, input.exerciseId)
+      ),
+  }),
 
-    expect(html).toContain("Diagnóstico nutricional do período");
-    expect(html).toContain("A semana está aderente à meta ajustada");
-    expect(html).toContain("Semana de referência");
-    expect(html).toContain("Aderência ajustada");
-    expect(html).toContain("Meta ajustada total");
-    expect(html).toContain("Saldo ajustado");
-    expect(html).toContain("Resumo de aderência à meta ajustada");
-    expect(html).toContain("Consumo diário vs meta ajustada");
-    expect(html).toContain("Qualidade alimentar");
-    expect(html).toContain("Macronutrientes planejados vs realizados");
-    expect(html).toContain("Hidratação como contexto");
-    expect(html).toContain("Exercícios e meta ajustada");
-    expect(html).toContain("Peso como apoio à leitura");
-    expect(html).toContain("Detalhamento de dias e refeições");
-    expect(html).toContain("Proteínas");
-    expect(html).toContain("Carboidratos");
-    expect(html).toContain("Gorduras");
-    expect(html).toContain("Registrar refeição");
-  });
+  water: router({
+    goal: protectedProcedure.query(async ({ ctx }) =>
+      getWaterGoal(ctx.user.id)
+    ),
+    updateGoal: protectedProcedure
+      .input(waterGoalSchema)
+      .mutation(async ({ ctx, input }) => updateWaterGoal(ctx.user.id, input)),
+    list: protectedProcedure.query(async ({ ctx }) =>
+      listWaterLogs(ctx.user.id)
+    ),
+    create: protectedProcedure
+      .input(waterLogMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...waterInput } = input;
+        return createWaterLog(ctx.user.id, {
+          ...waterInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
+      }),
+    remove: protectedProcedure
+      .input(removeWaterLogSchema)
+      .mutation(async ({ ctx, input }) =>
+        removeWaterLog(ctx.user.id, input.waterLogId)
+      ),
+  }),
 
-  it("renderiza a página de canais com status do WhatsApp fixo e vínculo do contato", async () => {
-    const { default: ChannelsPage } = await import("./ChannelsPage");
-    const html = renderToString(React.createElement(ChannelsPage));
+  reports: router({
+    periodBundle: protectedProcedure
+      .input(reportsHabitAnalyticsSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getPeriodReportBundle(
+          ctx.user.id,
+          input,
+          timeZone
+        );
+        void analyticsService.track("period_report_viewed", {
+          report_type: "habit_analytics",
+          period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
+        });
+        return result;
+      }),
+    habitAnalytics: protectedProcedure
+      .input(reportsHabitAnalyticsSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getHabitAnalyticsReport(
+          ctx.user.id,
+          input,
+          timeZone
+        );
+        void analyticsService.track("period_report_viewed", {
+          report_type: "habit_analytics",
+          period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
+        });
+        return result;
+      }),
+    bundle: protectedProcedure
+      .input(reportsPeriodSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getWeeklyReportBundle(
+          ctx.user.id,
+          input?.weekOffset ?? 0,
+          timeZone
+        );
+        void analyticsService.track("weekly_report_viewed", {
+          report_type: "bundle",
+          week_offset: input?.weekOffset ?? 0,
+        });
+        return result;
+      }),
+    weekly: protectedProcedure
+      .input(reportsPeriodSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getWeeklyReport(
+          ctx.user.id,
+          input?.weekOffset ?? 0,
+          timeZone
+        );
+        void analyticsService.track("weekly_report_viewed", {
+          report_type: "summary",
+          week_offset: input?.weekOffset ?? 0,
+        });
+        return result;
+      }),
+    weeklyProgress: protectedProcedure
+      .input(reportsPeriodSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getWeeklyProgressReport(
+          ctx.user.id,
+          input?.weekOffset ?? 0,
+          timeZone
+        );
+        void analyticsService.track("weekly_report_viewed", {
+          report_type: "progress",
+          week_offset: input?.weekOffset ?? 0,
+        });
+        return result;
+      }),
+    weeklyInsights: protectedProcedure
+      .input(reportsPeriodSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getWeeklyInsightsReport(
+          ctx.user.id,
+          input?.weekOffset ?? 0,
+          timeZone
+        );
+        void analyticsService.track("weekly_report_viewed", {
+          report_type: "insights",
+          week_offset: input?.weekOffset ?? 0,
+        });
+        return result;
+      }),
+  }),
 
-    expect(html).toContain("WhatsApp Business Cloud API");
-    expect(html).toContain("Vínculo do contato");
-    expect(html).toContain("Contato vinculado");
-    expect(html).toContain("Checklist rápido");
-    expect(html).toContain("Número oficial da solução");
-    expect(html).toContain("Phone Number ID oficial");
-    expect(html).toContain("/api/whatsapp/webhook");
-  });
+  admin: router({
+    overview: adminProcedure.query(async () => getAdminOverview()),
+    whatsappTokenStatus: adminProcedure.query(async () =>
+      getWhatsappTokenStatus()
+    ),
+    updateWhatsappToken: adminProcedure
+      .input(updateWhatsappTokenSchema)
+      .mutation(async ({ ctx, input }) =>
+        updateWhatsappToken(ctx.user.id, input)
+      ),
+    runFoodImportJob: adminProcedure
+      .input(runFoodImportJobSchema)
+      .mutation(async ({ ctx, input }) => runFoodImportJob(ctx.user.id, input)),
+    curateGlobalFood: adminProcedure
+      .input(adminCatalogFoodCurationSchema)
+      .mutation(async ({ ctx, input }) => curateGlobalFood(ctx.user.id, input)),
+  }),
 
-  it("renderiza a página administrativa com o campo editável do token do WhatsApp", async () => {
-    const { default: AdminPage } = await import("./AdminPage");
-    const html = renderToString(React.createElement(AdminPage));
+  whatsapp: router({
+    status: protectedProcedure.query(async ({ ctx }) =>
+      getWhatsappStatus(ctx.user.id)
+    ),
+    upsertConnection: protectedProcedure
+      .input(whatsappConnectionSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const connection = await updateWhatsappConnection(ctx.user.id, input);
+          void sendOnboardingWelcomeWhatsapp(ctx.user.id);
+          return connection;
+        } catch (error) {
+          if (!(error instanceof OfficialWhatsappNumberError)) {
+            throw error;
+          }
 
-    expect(html).toContain("Credenciais do WhatsApp");
-    expect(html).toContain("Token de acesso do WhatsApp");
-    expect(html).toContain("Salvar token");
-    expect(html).toContain("Painel admin");
-    expect(html).toContain("EAAcmt••••1234");
-  });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Informe o telefone de origem do usuário final, não o número oficial fixo da solução.",
+          });
+        }
+      }),
+    simulateInbound: protectedProcedure
+      .input(simulateWhatsappInboundSchema)
+      .mutation(async ({ ctx, input }) =>
+        simulateWhatsappInbound(ctx.user.id, input)
+      ),
+  }),
 });

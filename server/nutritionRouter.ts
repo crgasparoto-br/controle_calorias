@@ -109,6 +109,7 @@ import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingMutationSchema } from "./modules/onboarding/schemas";
 import { sendOnboardingWelcomeWhatsapp } from "./modules/onboarding/webGreetingService";
+import { getAnnotatedImagePreference, setAnnotatedImagePreference } from "./modules/whatsapp/annotatedImagePreference";
 import {
   listMealSchedules,
   suggestMealLabelForTime,
@@ -542,6 +543,18 @@ export const nutritionRouter = router({
         void sendOnboardingWelcomeWhatsapp(ctx.user.id);
         return result;
       }),
+  }),
+
+  whatsappPreferences: router({
+    annotatedImage: protectedProcedure.query(async ({ ctx }) => {
+      const preference = await getAnnotatedImagePreference(ctx.user.id);
+      return { enabled: preference.enabled };
+    }),
+    updateAnnotatedImage: protectedProcedure
+      .input(z.object({ enabled: z.boolean() }).strict())
+      .mutation(async ({ ctx, input }) =>
+        setAnnotatedImagePreference(ctx.user.id, input.enabled)
+      ),
   }),
 
   mealSchedules: router({

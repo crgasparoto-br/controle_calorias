@@ -50,6 +50,7 @@ vi.mock("@/lib/trpc", () => ({
         dashboard: { overview: { invalidate: invalidateMock }, today: { invalidate: invalidateMock } },
         reports: { weekly: { invalidate: invalidateMock } },
         mealSchedules: { list: { invalidate: invalidateMock } },
+        whatsappPreferences: { annotatedImage: { invalidate: invalidateMock } },
       },
     }),
     auth: {
@@ -65,6 +66,10 @@ vi.mock("@/lib/trpc", () => ({
       onboarding: {
         profile: { useQuery: () => ({ data: null }) },
         complete: { useMutation: () => ({ isPending: false, mutate: mutateMock }) },
+      },
+      whatsappPreferences: {
+        annotatedImage: { useQuery: () => ({ data: { enabled: false }, isLoading: false, isError: false }) },
+        updateAnnotatedImage: { useMutation: () => ({ isPending: false, mutateAsync: mutateMock }) },
       },
       mealSchedules: {
         list: { useQuery: () => ({ data: null }) },
@@ -85,6 +90,8 @@ describe("OnboardingPage profile tab", () => {
     expect(html).toContain("Atualize seus dados, metas e acompanhamentos");
     expect(html).toContain("Identificação e base física");
     expect(html).toContain("Solicitações de acesso renderizadas na aba Perfil");
+    expect(html).toContain("Enviar imagem anotada pelo WhatsApp");
+    expect(html).toContain("Ao ativar, você receberá a foto com marcações dos alimentos identificados após a análise.");
     expect(html).toContain("data-embedded=\"true\"");
   });
 });

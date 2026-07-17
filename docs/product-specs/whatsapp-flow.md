@@ -50,6 +50,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O link de edição rápida deve usar token opaco, expirar em janela curta e não expor IDs internos de usuário ou refeição.
 - Se a geração do link de edição rápida falhar, o registro da refeição e a resposta nutricional principal devem continuar funcionando.
 - Recursos visuais auxiliares são opcionais. Falha nesse apoio não pode bloquear registro nem confirmação da refeição.
+- A imagem anotada recebida após a análise de uma foto é uma preferência individual, desabilitada por padrão e configurável somente em **Configurações > Perfil**. Ausência, valor inválido ou falha de leitura mantém o recurso desabilitado.
+- Quando a preferência estiver desabilitada, o sistema não gera, persiste nem envia a imagem anotada; a foto original, a análise nutricional, o registro e a resposta textual seguem normalmente.
 - Pedidos naturais de orientação alimentar devem responder com sugestão educativa e não devem criar refeição automaticamente.
 - Mensagens naturais de texto devem passar por uma camada de interpretação estruturada antes do fallback genérico de refeição.
 - O interpretador estruturado pode usar LLM, mas o LLM só pode retornar intenção JSON validada; a execução continua controlada pelo backend.
@@ -92,6 +94,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
 - Token inválido ou expirado deve exibir mensagem amigável na tela web de edição rápida.
 - Falha de visual auxiliar não bloqueia o fluxo conversacional principal.
+- Somente usuários que habilitaram explicitamente a preferência recebem a imagem anotada; a escolha permanece isolada por usuário e não altera o onboarding inicial.
 - Payload inválido do interpretador LLM não executa ação e cai no classificador determinístico/fallback seguro.
 - Baixa confiança ou ambiguidade gera pergunta contextual antes de alterar dados.
 - Casos reais como troca de alimento, inclusão em refeição inexistente e consulta de refeições registradas ficam cobertos por testes de regressão.
