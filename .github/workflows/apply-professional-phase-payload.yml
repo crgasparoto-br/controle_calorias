@@ -1,0 +1,33 @@
+name: Apply professional phase payload
+
+on:
+  push:
+    branches:
+      - feat/804-professional-persistence-foundation
+    paths:
+      - ".github/implementation-payload.ready"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/804-professional-persistence-foundation
+          fetch-depth: 0
+      - name: Apply validated payload
+        run: |
+          cat .github/implementation-payload.part* | base64 --decode > /tmp/professional-phase.tar.gz
+          tar -xzf /tmp/professional-phase.tar.gz
+          rm -f .github/implementation-payload.part* .github/implementation-payload.ready
+          rm -f .github/workflows/apply-professional-phase-payload.yml
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(professional): concluir persistencia das fases 804 e 805"
+          git push origin HEAD:feat/804-professional-persistence-foundation
