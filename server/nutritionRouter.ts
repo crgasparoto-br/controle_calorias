@@ -18,8 +18,16 @@ import {
   confirmFoodPhotoAnalysisSchema,
   rejectFoodPhotoAnalysisSchema,
 } from "./modules/photoAnalysis/schemas";
-import { getAdminOverview, getWhatsappTokenStatus, runFoodImportJob, updateWhatsappToken } from "./modules/admin/service";
-import { runFoodImportJobSchema, updateWhatsappTokenSchema } from "./modules/admin/schemas";
+import {
+  getAdminOverview,
+  getWhatsappTokenStatus,
+  runFoodImportJob,
+  updateWhatsappToken,
+} from "./modules/admin/service";
+import {
+  runFoodImportJobSchema,
+  updateWhatsappTokenSchema,
+} from "./modules/admin/schemas";
 import {
   createExercise,
   listExercises,
@@ -31,18 +39,32 @@ import {
   removeExerciseSchema,
   updateExerciseSchema,
 } from "./modules/exercises/schemas";
-import { getNutritionGoalForDate, UnsafeNutritionGoalError, updateNutritionGoal } from "./modules/goals/service";
-import { getEffectiveUserTimeZone, resolveEffectiveUserTimeZone } from "./modules/timeZone/service";
-import { OwnerLocalDateTimeInputError, resolveOwnerLocalDateTime } from "./modules/timeZone/civilInput";
+import {
+  getNutritionGoalForDate,
+  UnsafeNutritionGoalError,
+  updateNutritionGoal,
+} from "./modules/goals/service";
+import {
+  getEffectiveUserTimeZone,
+  resolveEffectiveUserTimeZone,
+} from "./modules/timeZone/service";
+import {
+  OwnerLocalDateTimeInputError,
+  resolveOwnerLocalDateTime,
+} from "./modules/timeZone/civilInput";
 import { ownerDateTimeLocalSchema } from "./modules/timeZone/schemas";
 import { goalSchema } from "./modules/goals/schemas";
-import { getGamification, updateGamificationSettings } from "./modules/gamification/service";
+import {
+  getGamification,
+  updateGamificationSettings,
+} from "./modules/gamification/service";
 import { gamificationSettingsSchema } from "./modules/gamification/schemas";
 import {
   createCustomFood,
   createFood,
   curateGlobalFood,
   deleteCustomFood,
+  deleteFood,
   getGlobalFoodCatalogItem,
   listGlobalRecentlyUsedFoods,
   listRecentlyUsedFoods,
@@ -61,13 +83,18 @@ import {
   catalogFoodSearchSchema,
   customFoodSchema,
   deleteCustomFoodSchema,
+  deleteFoodSchema,
   favoriteFoodSchema,
   foodFormSchema,
   foodSearchSchema,
   updateCustomFoodSchema,
   updateFoodSchema,
 } from "./modules/foods/schemas";
-import { dashboardTodaySchema, reportsHabitAnalyticsSchema, reportsPeriodSchema } from "./modules/insights/schemas";
+import {
+  dashboardTodaySchema,
+  reportsHabitAnalyticsSchema,
+  reportsPeriodSchema,
+} from "./modules/insights/schemas";
 import {
   getDashboardOverview,
   getDashboardTodayOverview,
@@ -198,7 +225,10 @@ import {
 } from "./modules/professionals/goalSuggestionApprovals";
 
 function mealLabelCategory(label: string) {
-  const normalized = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const normalized = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
   if (normalized.includes("cafe")) return "breakfast";
   if (normalized.includes("almoco")) return "lunch";
   if (normalized.includes("jantar")) return "dinner";
@@ -209,7 +239,8 @@ function mealLabelCategory(label: string) {
 function daysBetweenDates(from: string | number, to: string | number) {
   const fromDate = new Date(from);
   const toDate = new Date(to);
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 0;
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()))
+    return 0;
   return Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000);
 }
 
@@ -233,11 +264,16 @@ const reuseFavoriteMealMutationSchema = reuseFavoriteMealSchema
   .extend({ dateTimeLocal: ownerDateTimeLocalSchema });
 const updateMealGroupMutationSchema = z.object({
   mealLabel: z.string().trim().min(1).max(80),
-  meals: z.array(z.object({
-    mealId: z.number().int().positive(),
-    dateTimeLocal: ownerDateTimeLocalSchema.optional(),
-    items: z.array(mealItemSchema),
-  })).min(1).max(50),
+  meals: z
+    .array(
+      z.object({
+        mealId: z.number().int().positive(),
+        dateTimeLocal: ownerDateTimeLocalSchema.optional(),
+        items: z.array(mealItemSchema),
+      })
+    )
+    .min(1)
+    .max(50),
 });
 const exerciseMutationSchema = exerciseSchema
   .omit({ occurredAt: true })
@@ -265,34 +301,55 @@ function toOwnerOccurredAt(dateTimeLocal: string, timeZone: string) {
 
 export const nutritionRouter = router({
   privacy: router({
-    exportData: protectedProcedure.query(async ({ ctx }) => exportUserPrivacyData(ctx.user.id)),
-    requestAccountDeletion: protectedProcedure.mutation(async ({ ctx }) => requestUserAccountDeletion(ctx.user.id)),
+    exportData: protectedProcedure.query(async ({ ctx }) =>
+      exportUserPrivacyData(ctx.user.id)
+    ),
+    requestAccountDeletion: protectedProcedure.mutation(async ({ ctx }) =>
+      requestUserAccountDeletion(ctx.user.id)
+    ),
   }),
 
   assistant: router({
     suggest: protectedProcedure
       .input(assistantRequestSchema)
-      .mutation(async ({ ctx, input }) => generateFoodAssistantSuggestion(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        generateFoodAssistantSuggestion(ctx.user.id, input)
+      ),
   }),
 
   foodPhotoAnalysis: router({
-    analyze: protectedProcedure.input(analyzeFoodPhotoSchema).mutation(async ({ ctx, input }) => {
-      const analysis = await analyzeFoodPhoto(ctx.user.id, input);
-      return {
-        ...analysis,
-        editableItems: mapPhotoSuggestionsToMealItems(analysis.suggestedItems),
-      };
-    }),
-    get: protectedProcedure.input(rejectFoodPhotoAnalysisSchema).query(async ({ ctx, input }) => {
-      const analysis = await getFoodPhotoAnalysis(ctx.user.id, input.analysisId);
-      return analysis
-        ? {
-            ...analysis,
-            editableItems: mapPhotoSuggestionsToMealItems(analysis.suggestedItems),
-          }
-        : null;
-    }),
-    reject: protectedProcedure.input(rejectFoodPhotoAnalysisSchema).mutation(async ({ ctx, input }) => rejectFoodPhotoAnalysis(ctx.user.id, input.analysisId)),
+    analyze: protectedProcedure
+      .input(analyzeFoodPhotoSchema)
+      .mutation(async ({ ctx, input }) => {
+        const analysis = await analyzeFoodPhoto(ctx.user.id, input);
+        return {
+          ...analysis,
+          editableItems: mapPhotoSuggestionsToMealItems(
+            analysis.suggestedItems
+          ),
+        };
+      }),
+    get: protectedProcedure
+      .input(rejectFoodPhotoAnalysisSchema)
+      .query(async ({ ctx, input }) => {
+        const analysis = await getFoodPhotoAnalysis(
+          ctx.user.id,
+          input.analysisId
+        );
+        return analysis
+          ? {
+              ...analysis,
+              editableItems: mapPhotoSuggestionsToMealItems(
+                analysis.suggestedItems
+              ),
+            }
+          : null;
+      }),
+    reject: protectedProcedure
+      .input(rejectFoodPhotoAnalysisSchema)
+      .mutation(async ({ ctx, input }) =>
+        rejectFoodPhotoAnalysis(ctx.user.id, input.analysisId)
+      ),
     confirm: protectedProcedure
       .input(confirmFoodPhotoAnalysisMutationSchema)
       .mutation(async ({ ctx, input }) => {
@@ -315,7 +372,9 @@ export const nutritionRouter = router({
   }),
 
   healthIntegrations: router({
-    status: protectedProcedure.query(async ({ ctx }) => healthIntegrationService.getStatus(ctx.user.id)),
+    status: protectedProcedure.query(async ({ ctx }) =>
+      healthIntegrationService.getStatus(ctx.user.id)
+    ),
     syncedRecords: protectedProcedure
       .input(listSyncedHealthRecordsSchema)
       .query(async ({ ctx, input }) => {
@@ -329,11 +388,16 @@ export const nutritionRouter = router({
       }),
     connect: protectedProcedure
       .input(connectHealthIntegrationSchema)
-      .mutation(async ({ ctx, input }) => healthIntegrationService.connect(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        healthIntegrationService.connect(ctx.user.id, input)
+      ),
     disconnect: protectedProcedure
       .input(disconnectHealthIntegrationSchema)
       .mutation(async ({ ctx, input }) => {
-        const result = await healthIntegrationService.disconnect(ctx.user.id, input);
+        const result = await healthIntegrationService.disconnect(
+          ctx.user.id,
+          input
+        );
         await deleteHealthSyncedRecords(ctx.user.id, input.provider);
         return result;
       }),
@@ -341,34 +405,52 @@ export const nutritionRouter = router({
       .input(syncHealthIntegrationSchema)
       .mutation(async ({ ctx, input }) => {
         const result = await healthIntegrationService.sync(ctx.user.id, input);
-        await upsertHealthSyncedRecords(result.records.map(record => ({
-          ...record,
-          userId: ctx.user.id,
-          provider: input.provider,
-          source: input.provider,
-          createdAt: Date.now(),
-        })));
+        await upsertHealthSyncedRecords(
+          result.records.map(record => ({
+            ...record,
+            userId: ctx.user.id,
+            provider: input.provider,
+            source: input.provider,
+            createdAt: Date.now(),
+          }))
+        );
         return result;
       }),
   }),
 
   professionals: router({
-    profile: protectedProcedure.query(async ({ ctx }) => getProfessionalProfile(ctx.user.id)),
+    profile: protectedProcedure.query(async ({ ctx }) =>
+      getProfessionalProfile(ctx.user.id)
+    ),
     upsertProfile: protectedProcedure
       .input(professionalProfileSchema)
-      .mutation(async ({ ctx, input }) => upsertProfessionalProfile(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        upsertProfessionalProfile(ctx.user.id, input)
+      ),
     requestAccess: protectedProcedure
       .input(requestPatientAccessSchema)
-      .mutation(async ({ ctx, input }) => requestPatientAccess(ctx.user.id, input)),
-    myAccesses: protectedProcedure.query(async ({ ctx }) => listProfessionalAccesses(ctx.user.id)),
-    patientRequests: protectedProcedure.query(async ({ ctx }) => listPatientAccessRequests(ctx.user.id)),
-    patientGoalSuggestions: protectedProcedure.query(async ({ ctx }) => listPatientGoalSuggestions(ctx.user.id)),
+      .mutation(async ({ ctx, input }) =>
+        requestPatientAccess(ctx.user.id, input)
+      ),
+    myAccesses: protectedProcedure.query(async ({ ctx }) =>
+      listProfessionalAccesses(ctx.user.id)
+    ),
+    patientRequests: protectedProcedure.query(async ({ ctx }) =>
+      listPatientAccessRequests(ctx.user.id)
+    ),
+    patientGoalSuggestions: protectedProcedure.query(async ({ ctx }) =>
+      listPatientGoalSuggestions(ctx.user.id)
+    ),
     approveAccess: protectedProcedure
       .input(accessIdSchema)
-      .mutation(async ({ ctx, input }) => approvePatientAccess(ctx.user.id, input.accessId)),
+      .mutation(async ({ ctx, input }) =>
+        approvePatientAccess(ctx.user.id, input.accessId)
+      ),
     revokeAccess: protectedProcedure
       .input(accessIdSchema)
-      .mutation(async ({ ctx, input }) => revokePatientAccess(ctx.user.id, input.accessId)),
+      .mutation(async ({ ctx, input }) =>
+        revokePatientAccess(ctx.user.id, input.accessId)
+      ),
     respondGoalSuggestion: protectedProcedure
       .input(goalSuggestionDecisionSchema)
       .mutation(async ({ ctx, input }) => {
@@ -387,16 +469,31 @@ export const nutritionRouter = router({
       }),
     patientTimeZone: protectedProcedure
       .input(patientIdSchema)
-      .query(async ({ ctx, input }) => getProfessionalPatientTimeZone(ctx.user.id, input.patientId)),
+      .query(async ({ ctx, input }) =>
+        getProfessionalPatientTimeZone(ctx.user.id, input.patientId)
+      ),
     patientDashboard: protectedProcedure
       .input(patientIdSchema)
-      .query(async ({ ctx, input }) => getProfessionalPatientDashboard(ctx.user.id, input.patientId, input.weekOffset)),
+      .query(async ({ ctx, input }) =>
+        getProfessionalPatientDashboard(
+          ctx.user.id,
+          input.patientId,
+          input.weekOffset
+        )
+      ),
     patientPeriodBundle: protectedProcedure
       .input(patientPeriodBundleSchema)
-      .query(async ({ ctx, input }) => getProfessionalPatientPeriodBundle(ctx.user.id, input.patientId, { startDate: input.startDate, endDate: input.endDate })),
+      .query(async ({ ctx, input }) =>
+        getProfessionalPatientPeriodBundle(ctx.user.id, input.patientId, {
+          startDate: input.startDate,
+          endDate: input.endDate,
+        })
+      ),
     addComment: protectedProcedure
       .input(professionalCommentSchema)
-      .mutation(async ({ ctx, input }) => addProfessionalComment(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        addProfessionalComment(ctx.user.id, input)
+      ),
     suggestGoalAdjustment: protectedProcedure
       .input(professionalGoalSuggestionSchema)
       .mutation(async ({ ctx, input }) => {
@@ -409,42 +506,58 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) => suggestMealPlan(ctx.user.id, input)),
     askPatientQuestion: protectedProcedure
       .input(professionalPatientQuestionSchema)
-      .mutation(async ({ ctx, input }) => answerProfessionalPatientQuestion(ctx.user.id, input)),
-    history: protectedProcedure.query(async ({ ctx }) => listProfessionalHistory(ctx.user.id)),
+      .mutation(async ({ ctx, input }) =>
+        answerProfessionalPatientQuestion(ctx.user.id, input)
+      ),
+    history: protectedProcedure.query(async ({ ctx }) =>
+      listProfessionalHistory(ctx.user.id)
+    ),
   }),
 
   onboarding: router({
-    profile: protectedProcedure.query(async ({ ctx }) => getUserOnboardingProfile(ctx.user.id)),
-    timeZone: protectedProcedure.query(async ({ ctx }) => resolveEffectiveUserTimeZone(ctx.user.id)),
-    complete: protectedProcedure.input(onboardingMutationSchema).mutation(async ({ ctx, input }) => {
-      const { weightMeasuredAtLocal, ...profileInput } = input;
-      const result = await completeOnboarding(ctx.user.id, {
-        ...profileInput,
-        weightMeasuredAt: weightMeasuredAtLocal
-          ? toOwnerOccurredAt(weightMeasuredAtLocal, input.timezone)
-          : undefined,
-      });
-      void analyticsService.track("onboarding_completed", {
-        objective: input.objective,
-        activity_level: input.activityLevel,
-        has_restrictions: input.dietaryRestrictions.length > 0,
-        has_medical_condition: false,
-        has_weight_entry: true,
-      });
-      void analyticsService.track("weight_logged", { source: "onboarding" });
-      void sendOnboardingWelcomeWhatsapp(ctx.user.id);
-      return result;
-    }),
+    profile: protectedProcedure.query(async ({ ctx }) =>
+      getUserOnboardingProfile(ctx.user.id)
+    ),
+    timeZone: protectedProcedure.query(async ({ ctx }) =>
+      resolveEffectiveUserTimeZone(ctx.user.id)
+    ),
+    complete: protectedProcedure
+      .input(onboardingMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const { weightMeasuredAtLocal, ...profileInput } = input;
+        const result = await completeOnboarding(ctx.user.id, {
+          ...profileInput,
+          weightMeasuredAt: weightMeasuredAtLocal
+            ? toOwnerOccurredAt(weightMeasuredAtLocal, input.timezone)
+            : undefined,
+        });
+        void analyticsService.track("onboarding_completed", {
+          objective: input.objective,
+          activity_level: input.activityLevel,
+          has_restrictions: input.dietaryRestrictions.length > 0,
+          has_medical_condition: false,
+          has_weight_entry: true,
+        });
+        void analyticsService.track("weight_logged", { source: "onboarding" });
+        void sendOnboardingWelcomeWhatsapp(ctx.user.id);
+        return result;
+      }),
   }),
 
   mealSchedules: router({
-    list: protectedProcedure.query(async ({ ctx }) => listMealSchedules(ctx.user.id)),
+    list: protectedProcedure.query(async ({ ctx }) =>
+      listMealSchedules(ctx.user.id)
+    ),
     update: protectedProcedure
       .input(updateMealSchedulesSchema)
-      .mutation(async ({ ctx, input }) => updateMealSchedules(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        updateMealSchedules(ctx.user.id, input)
+      ),
     suggest: protectedProcedure
       .input(suggestMealScheduleSchema)
-      .query(async ({ ctx, input }) => suggestMealLabelForTime(ctx.user.id, input)),
+      .query(async ({ ctx, input }) =>
+        suggestMealLabelForTime(ctx.user.id, input)
+      ),
   }),
 
   dashboard: router({
@@ -454,39 +567,56 @@ export const nutritionRouter = router({
       void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
       return result;
     }),
-    today: protectedProcedure.input(dashboardTodaySchema).query(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const result = await getDashboardTodayOverview(ctx.user.id, { date: input?.date }, timeZone);
-      void analyticsService.track("daily_dashboard_viewed", { surface: "api" });
-      return result;
-    }),
+    today: protectedProcedure
+      .input(dashboardTodaySchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getDashboardTodayOverview(
+          ctx.user.id,
+          { date: input?.date },
+          timeZone
+        );
+        void analyticsService.track("daily_dashboard_viewed", {
+          surface: "api",
+        });
+        return result;
+      }),
   }),
 
   goals: router({
     get: protectedProcedure.query(async ({ ctx }) => {
       const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      return getNutritionGoalForDate(ctx.user.id, getDateKeyInTimeZone(new Date(), timeZone));
+      return getNutritionGoalForDate(
+        ctx.user.id,
+        getDateKeyInTimeZone(new Date(), timeZone)
+      );
     }),
-    update: protectedProcedure.input(goalSchema).mutation(async ({ ctx, input }) => {
-      try {
-        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-        const result = await updateNutritionGoal(ctx.user.id, input, timeZone);
-        void analyticsService.track("goal_updated", {
-          exception_count: input.exceptions.length,
-          has_safety_warnings: result.safetyWarnings.length > 0,
-        });
-        return result;
-      } catch (error) {
-        if (!(error instanceof UnsafeNutritionGoalError)) {
-          throw error;
-        }
+    update: protectedProcedure
+      .input(goalSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+          const result = await updateNutritionGoal(
+            ctx.user.id,
+            input,
+            timeZone
+          );
+          void analyticsService.track("goal_updated", {
+            exception_count: input.exceptions.length,
+            has_safety_warnings: result.safetyWarnings.length > 0,
+          });
+          return result;
+        } catch (error) {
+          if (!(error instanceof UnsafeNutritionGoalError)) {
+            throw error;
+          }
 
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: error.message,
-        });
-      }
-    }),
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error.message,
+          });
+        }
+      }),
   }),
 
   gamification: router({
@@ -496,103 +626,155 @@ export const nutritionRouter = router({
     }),
     updateSettings: protectedProcedure
       .input(gamificationSettingsSchema)
-      .mutation(async ({ ctx, input }) => updateGamificationSettings(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        updateGamificationSettings(ctx.user.id, input)
+      ),
   }),
 
   foods: router({
-    search: protectedProcedure.input(foodSearchSchema).query(async ({ ctx, input }) => {
-      const result = await searchFoodCatalog(ctx.user.id, input);
-      void analyticsService.track("food_searched", {
-        query_length: input.query?.trim().length ?? 0,
-        limit: input.limit ?? 20,
-      });
-      return result;
-    }),
-    catalogSearch: protectedProcedure.input(catalogFoodSearchSchema).query(async ({ ctx, input }) => {
-      const result = await searchGlobalFoodCatalog(ctx.user.id, input);
-      void analyticsService.track("food_catalog_searched", {
-        query_length: input.query.trim().length,
-        limit: input.limit,
-        include_inactive: input.includeInactive,
-      });
-      return result;
-    }),
-    catalogGet: protectedProcedure.input(catalogFoodGetSchema).query(async ({ ctx, input }) => getGlobalFoodCatalogItem(ctx.user.id, input.foodId)),
+    search: protectedProcedure
+      .input(foodSearchSchema)
+      .query(async ({ ctx, input }) => {
+        const result = await searchFoodCatalog(ctx.user.id, input);
+        void analyticsService.track("food_searched", {
+          query_length: input.query?.trim().length ?? 0,
+          limit: input.limit ?? 20,
+        });
+        return result;
+      }),
+    catalogSearch: protectedProcedure
+      .input(catalogFoodSearchSchema)
+      .query(async ({ ctx, input }) => {
+        const result = await searchGlobalFoodCatalog(ctx.user.id, input);
+        void analyticsService.track("food_catalog_searched", {
+          query_length: input.query.trim().length,
+          limit: input.limit,
+          include_inactive: input.includeInactive,
+        });
+        return result;
+      }),
+    catalogGet: protectedProcedure
+      .input(catalogFoodGetSchema)
+      .query(async ({ ctx, input }) =>
+        getGlobalFoodCatalogItem(ctx.user.id, input.foodId)
+      ),
     catalogRecent: protectedProcedure
       .input(catalogFoodRecentSchema)
-      .query(async ({ ctx, input }) => listGlobalRecentlyUsedFoods(ctx.user.id, input)),
-    catalogFavorite: protectedProcedure.input(catalogFoodFavoriteSchema).mutation(async ({ ctx, input }) => {
-      const result = await setGlobalFoodFavorite(ctx.user.id, input);
-      void analyticsService.track("food_catalog_favorite_updated", { favorite: input.favorite });
-      return result;
-    }),
-    customCreate: protectedProcedure.input(customFoodSchema).mutation(async ({ ctx, input }) => {
-      const result = await createCustomFood(ctx.user.id, input);
-      void analyticsService.track("food_custom_created", {
-        has_brand: Boolean(input.brandName),
-        alias_count: input.aliases.length,
-        portion_count: input.portions.length,
-      });
-      return result;
-    }),
-    customUpdate: protectedProcedure.input(updateCustomFoodSchema).mutation(async ({ ctx, input }) => {
-      const result = await updateCustomFood(ctx.user.id, input);
-      void analyticsService.track("food_custom_updated", {
-        alias_count: input.aliases.length,
-        portion_count: input.portions.length,
-      });
-      return result;
-    }),
-    customDelete: protectedProcedure.input(deleteCustomFoodSchema).mutation(async ({ ctx, input }) => {
-      const result = await deleteCustomFood(ctx.user.id, input.foodId);
-      void analyticsService.track("food_custom_deleted", { mode: "soft_delete" });
-      return result;
-    }),
-    recent: protectedProcedure.query(async ({ ctx }) => listRecentlyUsedFoods(ctx.user.id)),
-    favorite: protectedProcedure.input(favoriteFoodSchema).mutation(async ({ ctx, input }) => setFoodFavorite(ctx.user.id, input)),
-    create: protectedProcedure.input(foodFormSchema).mutation(async ({ ctx, input }) => {
-      const result = await createFood(ctx.user.id, input);
-      void analyticsService.track("food_created", {
-        food_type: input.foodType,
-        has_barcode: false,
-        has_brand: Boolean(input.brandName),
-      });
-      return result;
-    }),
-    update: protectedProcedure.input(updateFoodSchema).mutation(async ({ ctx, input }) => updateFood(ctx.user.id, input)),
+      .query(async ({ ctx, input }) =>
+        listGlobalRecentlyUsedFoods(ctx.user.id, input)
+      ),
+    catalogFavorite: protectedProcedure
+      .input(catalogFoodFavoriteSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await setGlobalFoodFavorite(ctx.user.id, input);
+        void analyticsService.track("food_catalog_favorite_updated", {
+          favorite: input.favorite,
+        });
+        return result;
+      }),
+    customCreate: protectedProcedure
+      .input(customFoodSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await createCustomFood(ctx.user.id, input);
+        void analyticsService.track("food_custom_created", {
+          has_brand: Boolean(input.brandName),
+          alias_count: input.aliases.length,
+          portion_count: input.portions.length,
+        });
+        return result;
+      }),
+    customUpdate: protectedProcedure
+      .input(updateCustomFoodSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await updateCustomFood(ctx.user.id, input);
+        void analyticsService.track("food_custom_updated", {
+          alias_count: input.aliases.length,
+          portion_count: input.portions.length,
+        });
+        return result;
+      }),
+    customDelete: protectedProcedure
+      .input(deleteCustomFoodSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await deleteCustomFood(ctx.user.id, input.foodId);
+        void analyticsService.track("food_custom_deleted", {
+          mode: "soft_delete",
+        });
+        return result;
+      }),
+    recent: protectedProcedure.query(async ({ ctx }) =>
+      listRecentlyUsedFoods(ctx.user.id)
+    ),
+    favorite: protectedProcedure
+      .input(favoriteFoodSchema)
+      .mutation(async ({ ctx, input }) => setFoodFavorite(ctx.user.id, input)),
+    create: protectedProcedure
+      .input(foodFormSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await createFood(ctx.user.id, input);
+        void analyticsService.track("food_created", {
+          food_type: input.foodType,
+          has_barcode: false,
+          has_brand: Boolean(input.brandName),
+        });
+        return result;
+      }),
+    update: protectedProcedure
+      .input(updateFoodSchema)
+      .mutation(async ({ ctx, input }) => updateFood(ctx.user.id, input)),
+    delete: protectedProcedure
+      .input(deleteFoodSchema)
+      .mutation(async ({ ctx, input }) => {
+        const result = await deleteFood(ctx.user.id, input.foodId);
+        void analyticsService.track("food_deleted", {
+          mode: "soft_delete",
+          catalog: "legacy",
+        });
+        return result;
+      }),
   }),
 
   meals: router({
     list: protectedProcedure.query(async ({ ctx }) => listMeals(ctx.user.id)),
-    dayTotals: protectedProcedure.input(dayTotalsSchema).query(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      return getDayTotals(ctx.user.id, input.date, timeZone);
-    }),
-    createManual: protectedProcedure.input(manualMealMutationSchema).mutation(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const { dateTimeLocal, ...mealInput } = input;
-      const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
-      const result = await createManualMeal(ctx.user.id, { ...mealInput, occurredAt });
-      void analyticsService.track("meal_created", {
-        source: "web",
-        meal_label_category: mealLabelCategory(input.mealLabel),
-        item_count: input.items.length,
-        has_notes: Boolean(input.notes?.trim()),
-        scheduled_for_future: new Date(occurredAt).getTime() > Date.now(),
-      });
-      void analyticsService.track("meal_item_added", {
-        source: "web",
-        item_count: input.items.length,
-        item_type: "food",
-      });
-      return result;
-    }),
+    dayTotals: protectedProcedure
+      .input(dayTotalsSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        return getDayTotals(ctx.user.id, input.date, timeZone);
+      }),
+    createManual: protectedProcedure
+      .input(manualMealMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...mealInput } = input;
+        const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
+        const result = await createManualMeal(ctx.user.id, {
+          ...mealInput,
+          occurredAt,
+        });
+        void analyticsService.track("meal_created", {
+          source: "web",
+          meal_label_category: mealLabelCategory(input.mealLabel),
+          item_count: input.items.length,
+          has_notes: Boolean(input.notes?.trim()),
+          scheduled_for_future: new Date(occurredAt).getTime() > Date.now(),
+        });
+        void analyticsService.track("meal_item_added", {
+          source: "web",
+          item_count: input.items.length,
+          item_type: "food",
+        });
+        return result;
+      }),
     update: protectedProcedure
       .input(updateMealMutationSchema)
       .mutation(async ({ ctx, input }) => {
         const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
         const { dateTimeLocal, ...mealInput } = input;
-        return updateMeal(ctx.user.id, { ...mealInput, occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone) });
+        return updateMeal(ctx.user.id, {
+          ...mealInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
       }),
     updateGroup: protectedProcedure
       .input(updateMealGroupMutationSchema)
@@ -602,7 +784,9 @@ export const nutritionRouter = router({
           mealLabel: input.mealLabel,
           meals: input.meals.map(({ dateTimeLocal, ...meal }) => ({
             ...meal,
-            occurredAt: dateTimeLocal ? toOwnerOccurredAt(dateTimeLocal, timeZone) : undefined,
+            occurredAt: dateTimeLocal
+              ? toOwnerOccurredAt(dateTimeLocal, timeZone)
+              : undefined,
           })),
         });
       }),
@@ -612,7 +796,10 @@ export const nutritionRouter = router({
         const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
         const { dateTimeLocal, ...copyInput } = input;
         const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
-        const result = await copyMeal(ctx.user.id, { ...copyInput, occurredAt });
+        const result = await copyMeal(ctx.user.id, {
+          ...copyInput,
+          occurredAt,
+        });
         void analyticsService.track("meal_copied", {
           target_offset_days: daysBetweenDates(Date.now(), occurredAt),
         });
@@ -621,7 +808,8 @@ export const nutritionRouter = router({
           meal_label_category: mealLabelCategory(result.mealLabel),
           item_count: result.items.length,
           has_notes: Boolean(result.notes),
-          scheduled_for_future: new Date(result.occurredAt).getTime() > Date.now(),
+          scheduled_for_future:
+            new Date(result.occurredAt).getTime() > Date.now(),
         });
         return result;
       }),
@@ -631,7 +819,10 @@ export const nutritionRouter = router({
         const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
         const { dateTimeLocal, ...copyInput } = input;
         const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
-        const result = await copyMealGroup(ctx.user.id, { ...copyInput, occurredAt });
+        const result = await copyMealGroup(ctx.user.id, {
+          ...copyInput,
+          occurredAt,
+        });
         void analyticsService.track("meal_group_copied", {
           item_count: result.items.length,
           target_offset_days: daysBetweenDates(Date.now(), occurredAt),
@@ -641,23 +832,30 @@ export const nutritionRouter = router({
           meal_label_category: mealLabelCategory(result.mealLabel),
           item_count: result.items.length,
           has_notes: Boolean(result.notes),
-          scheduled_for_future: new Date(result.occurredAt).getTime() > Date.now(),
+          scheduled_for_future:
+            new Date(result.occurredAt).getTime() > Date.now(),
         });
         return result;
       }),
-    favorites: protectedProcedure.query(async ({ ctx }) => listMealFavorites(ctx.user.id)),
+    favorites: protectedProcedure.query(async ({ ctx }) =>
+      listMealFavorites(ctx.user.id)
+    ),
     saveFavorite: protectedProcedure
       .input(saveFavoriteMealSchema)
       .mutation(async ({ ctx, input }) => {
         const result = await saveMealFavorite(ctx.user.id, input);
-        void analyticsService.track("favorite_meal_created", { item_count: result.items.length });
+        void analyticsService.track("favorite_meal_created", {
+          item_count: result.items.length,
+        });
         return result;
       }),
     saveFavoriteGroup: protectedProcedure
       .input(saveFavoriteMealGroupSchema)
       .mutation(async ({ ctx, input }) => {
         const result = await saveMealGroupFavorite(ctx.user.id, input);
-        void analyticsService.track("favorite_meal_created", { item_count: result.items.length });
+        void analyticsService.track("favorite_meal_created", {
+          item_count: result.items.length,
+        });
         return result;
       }),
     reuseFavorite: protectedProcedure
@@ -674,13 +872,16 @@ export const nutritionRouter = router({
           meal_label_category: mealLabelCategory(result.mealLabel),
           item_count: result.items.length,
           has_notes: Boolean(result.notes),
-          scheduled_for_future: new Date(result.occurredAt).getTime() > Date.now(),
+          scheduled_for_future:
+            new Date(result.occurredAt).getTime() > Date.now(),
         });
         return result;
       }),
     remove: protectedProcedure
       .input(removeMealSchema)
-      .mutation(async ({ ctx, input }) => removeMeal(ctx.user.id, input.mealId)),
+      .mutation(async ({ ctx, input }) =>
+        removeMeal(ctx.user.id, input.mealId)
+      ),
     removeGroup: protectedProcedure
       .input(removeMealGroupSchema)
       .mutation(async ({ ctx, input }) => removeMealGroup(ctx.user.id, input)),
@@ -697,7 +898,10 @@ export const nutritionRouter = router({
           const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
           const { dateTimeLocal, ...confirmationInput } = input;
           const occurredAt = toOwnerOccurredAt(dateTimeLocal, timeZone);
-          const result = await confirmMeal(ctx.user.id, { ...confirmationInput, occurredAt });
+          const result = await confirmMeal(ctx.user.id, {
+            ...confirmationInput,
+            occurredAt,
+          });
           void analyticsService.track("meal_created", {
             source: "ai_draft",
             meal_label_category: mealLabelCategory(input.mealLabel),
@@ -716,95 +920,175 @@ export const nutritionRouter = router({
             throw error;
           }
 
-          throw new TRPCError({ code: "NOT_FOUND", message: "Rascunho não encontrado para confirmação." });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Rascunho não encontrado para confirmação.",
+          });
         }
       }),
   }),
 
   exercises: router({
-    list: protectedProcedure.query(async ({ ctx }) => listExercises(ctx.user.id)),
-    create: protectedProcedure.input(exerciseMutationSchema).mutation(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const { dateTimeLocal, ...exerciseInput } = input;
-      return createExercise(ctx.user.id, { ...exerciseInput, occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone) });
-    }),
+    list: protectedProcedure.query(async ({ ctx }) =>
+      listExercises(ctx.user.id)
+    ),
+    create: protectedProcedure
+      .input(exerciseMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...exerciseInput } = input;
+        return createExercise(ctx.user.id, {
+          ...exerciseInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
+      }),
     update: protectedProcedure
       .input(updateExerciseMutationSchema)
       .mutation(async ({ ctx, input }) => {
         const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
         const { dateTimeLocal, ...exerciseInput } = input;
-        return updateExercise(ctx.user.id, { ...exerciseInput, occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone) });
+        return updateExercise(ctx.user.id, {
+          ...exerciseInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
       }),
     remove: protectedProcedure
       .input(removeExerciseSchema)
-      .mutation(async ({ ctx, input }) => removeExercise(ctx.user.id, input.exerciseId)),
+      .mutation(async ({ ctx, input }) =>
+        removeExercise(ctx.user.id, input.exerciseId)
+      ),
   }),
 
   water: router({
-    goal: protectedProcedure.query(async ({ ctx }) => getWaterGoal(ctx.user.id)),
-    updateGoal: protectedProcedure.input(waterGoalSchema).mutation(async ({ ctx, input }) => updateWaterGoal(ctx.user.id, input)),
-    list: protectedProcedure.query(async ({ ctx }) => listWaterLogs(ctx.user.id)),
-    create: protectedProcedure.input(waterLogMutationSchema).mutation(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const { dateTimeLocal, ...waterInput } = input;
-      return createWaterLog(ctx.user.id, { ...waterInput, occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone) });
-    }),
+    goal: protectedProcedure.query(async ({ ctx }) =>
+      getWaterGoal(ctx.user.id)
+    ),
+    updateGoal: protectedProcedure
+      .input(waterGoalSchema)
+      .mutation(async ({ ctx, input }) => updateWaterGoal(ctx.user.id, input)),
+    list: protectedProcedure.query(async ({ ctx }) =>
+      listWaterLogs(ctx.user.id)
+    ),
+    create: protectedProcedure
+      .input(waterLogMutationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const { dateTimeLocal, ...waterInput } = input;
+        return createWaterLog(ctx.user.id, {
+          ...waterInput,
+          occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
+        });
+      }),
     remove: protectedProcedure
       .input(removeWaterLogSchema)
-      .mutation(async ({ ctx, input }) => removeWaterLog(ctx.user.id, input.waterLogId)),
+      .mutation(async ({ ctx, input }) =>
+        removeWaterLog(ctx.user.id, input.waterLogId)
+      ),
   }),
 
   reports: router({
-    periodBundle: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const result = await getPeriodReportBundle(ctx.user.id, input, timeZone);
-      void analyticsService.track("period_report_viewed", {
-        report_type: "habit_analytics",
-        period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
-      });
-      return result;
-    }),
-    habitAnalytics: protectedProcedure.input(reportsHabitAnalyticsSchema).query(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const result = await getHabitAnalyticsReport(ctx.user.id, input, timeZone);
-      void analyticsService.track("period_report_viewed", {
-        report_type: "habit_analytics",
-        period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
-      });
-      return result;
-    }),
-    bundle: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const result = await getWeeklyReportBundle(ctx.user.id, input?.weekOffset ?? 0, timeZone);
-      void analyticsService.track("weekly_report_viewed", { report_type: "bundle", week_offset: input?.weekOffset ?? 0 });
-      return result;
-    }),
-    weekly: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const result = await getWeeklyReport(ctx.user.id, input?.weekOffset ?? 0, timeZone);
-      void analyticsService.track("weekly_report_viewed", { report_type: "summary", week_offset: input?.weekOffset ?? 0 });
-      return result;
-    }),
-    weeklyProgress: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const result = await getWeeklyProgressReport(ctx.user.id, input?.weekOffset ?? 0, timeZone);
-      void analyticsService.track("weekly_report_viewed", { report_type: "progress", week_offset: input?.weekOffset ?? 0 });
-      return result;
-    }),
-    weeklyInsights: protectedProcedure.input(reportsPeriodSchema).query(async ({ ctx, input }) => {
-      const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
-      const result = await getWeeklyInsightsReport(ctx.user.id, input?.weekOffset ?? 0, timeZone);
-      void analyticsService.track("weekly_report_viewed", { report_type: "insights", week_offset: input?.weekOffset ?? 0 });
-      return result;
-    }),
+    periodBundle: protectedProcedure
+      .input(reportsHabitAnalyticsSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getPeriodReportBundle(
+          ctx.user.id,
+          input,
+          timeZone
+        );
+        void analyticsService.track("period_report_viewed", {
+          report_type: "habit_analytics",
+          period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
+        });
+        return result;
+      }),
+    habitAnalytics: protectedProcedure
+      .input(reportsHabitAnalyticsSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getHabitAnalyticsReport(
+          ctx.user.id,
+          input,
+          timeZone
+        );
+        void analyticsService.track("period_report_viewed", {
+          report_type: "habit_analytics",
+          period_days: daysBetweenDates(input.startDate, input.endDate) + 1,
+        });
+        return result;
+      }),
+    bundle: protectedProcedure
+      .input(reportsPeriodSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getWeeklyReportBundle(
+          ctx.user.id,
+          input?.weekOffset ?? 0,
+          timeZone
+        );
+        void analyticsService.track("weekly_report_viewed", {
+          report_type: "bundle",
+          week_offset: input?.weekOffset ?? 0,
+        });
+        return result;
+      }),
+    weekly: protectedProcedure
+      .input(reportsPeriodSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getWeeklyReport(
+          ctx.user.id,
+          input?.weekOffset ?? 0,
+          timeZone
+        );
+        void analyticsService.track("weekly_report_viewed", {
+          report_type: "summary",
+          week_offset: input?.weekOffset ?? 0,
+        });
+        return result;
+      }),
+    weeklyProgress: protectedProcedure
+      .input(reportsPeriodSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getWeeklyProgressReport(
+          ctx.user.id,
+          input?.weekOffset ?? 0,
+          timeZone
+        );
+        void analyticsService.track("weekly_report_viewed", {
+          report_type: "progress",
+          week_offset: input?.weekOffset ?? 0,
+        });
+        return result;
+      }),
+    weeklyInsights: protectedProcedure
+      .input(reportsPeriodSchema)
+      .query(async ({ ctx, input }) => {
+        const timeZone = await getEffectiveUserTimeZone(ctx.user.id);
+        const result = await getWeeklyInsightsReport(
+          ctx.user.id,
+          input?.weekOffset ?? 0,
+          timeZone
+        );
+        void analyticsService.track("weekly_report_viewed", {
+          report_type: "insights",
+          week_offset: input?.weekOffset ?? 0,
+        });
+        return result;
+      }),
   }),
 
   admin: router({
     overview: adminProcedure.query(async () => getAdminOverview()),
-    whatsappTokenStatus: adminProcedure.query(async () => getWhatsappTokenStatus()),
+    whatsappTokenStatus: adminProcedure.query(async () =>
+      getWhatsappTokenStatus()
+    ),
     updateWhatsappToken: adminProcedure
       .input(updateWhatsappTokenSchema)
-      .mutation(async ({ ctx, input }) => updateWhatsappToken(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        updateWhatsappToken(ctx.user.id, input)
+      ),
     runFoodImportJob: adminProcedure
       .input(runFoodImportJobSchema)
       .mutation(async ({ ctx, input }) => runFoodImportJob(ctx.user.id, input)),
@@ -814,7 +1098,9 @@ export const nutritionRouter = router({
   }),
 
   whatsapp: router({
-    status: protectedProcedure.query(async ({ ctx }) => getWhatsappStatus(ctx.user.id)),
+    status: protectedProcedure.query(async ({ ctx }) =>
+      getWhatsappStatus(ctx.user.id)
+    ),
     upsertConnection: protectedProcedure
       .input(whatsappConnectionSchema)
       .mutation(async ({ ctx, input }) => {
@@ -829,12 +1115,15 @@ export const nutritionRouter = router({
 
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "Informe o telefone de origem do usuário final, não o número oficial fixo da solução.",
+            message:
+              "Informe o telefone de origem do usuário final, não o número oficial fixo da solução.",
           });
         }
       }),
     simulateInbound: protectedProcedure
       .input(simulateWhatsappInboundSchema)
-      .mutation(async ({ ctx, input }) => simulateWhatsappInbound(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        simulateWhatsappInbound(ctx.user.id, input)
+      ),
   }),
 });

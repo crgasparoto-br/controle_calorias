@@ -41,6 +41,21 @@ Por padrao, a busca esconde itens inativos. Consultas com `includeInactive = tru
 
 Quando um alimento personalizado e usado em uma refeicao, a PR de snapshot nutricional salva uma copia dos nutrientes no item de refeicao. Assim, edicoes futuras no alimento personalizado nao alteram refeicoes antigas ja confirmadas.
 
+## Catálogo legado usado pela IA
+
+A base legada `foodCatalog`, consumida pela busca de alimentos e pelo resolvedor de itens da IA, também usa exclusão lógica para entradas criadas pelo usuário:
+
+- `status = 'active'` participa de busca, recentes, favoritos e matching automático;
+- `status = 'deprecated'` fica disponível somente para lookup histórico autorizado por ID;
+- apenas a entrada própria do usuário autenticado pode ser depreciada;
+- a depreciação e a remoção do favorito acontecem na mesma transação;
+- uma identidade própria depreciada bloqueia fallback nominal para um alimento global equivalente, permitindo que a próxima classificação da IA crie uma nova entrada ativa;
+- uma seleção manual explícita de um alimento global ativo continua permitida;
+- após o commit da exclusão, stores e caches ativos removem o alimento e o favorito, mantendo a referência em store histórico separado e a supressão de matching;
+- em modo sem banco, a busca ativa não consulta o store histórico, mas o lookup autorizado por ID continua disponível para refeições e relatórios anteriores.
+
+Refeições antigas mantêm seus snapshots e podem consultar a entrada depreciada por ID, sem recolocá-la na base ativa.
+
 ## Validacoes pendentes
 
 Esta implementacao depende da pilha do catalogo global e deve ser validada com:

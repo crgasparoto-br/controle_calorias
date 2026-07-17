@@ -283,4 +283,59 @@ describe("insights food quality report integration", () => {
       unclassifiedCalories: 0,
     });
   });
+
+  it("mantém a classificação histórica por ID depois da depreciação", async () => {
+    dbMocks.listUserMeals.mockResolvedValue([
+      meal([
+        mealItem({
+          foodCatalogId: 801,
+          foodName: "Sleep Koala",
+          canonicalName: "Sleep Koala",
+          portionText: "1 sachê",
+          calories: 90,
+          protein: 4,
+        }),
+      ]),
+    ]);
+
+    let deprecated = false;
+    const historicalFood = () =>
+      foodSearchItem({
+        id: 801,
+        name: "Sleep Koala",
+        processingLevel: "ultra_processed",
+        isUltraProcessed: true,
+        status: deprecated ? "deprecated" : "active",
+        isUserCreated: true,
+        createdByUserId: 77,
+      } as any);
+
+    dbMocks.searchFoods.mockImplementation(async () =>
+      deprecated ? [] : [historicalFood()]
+    );
+    dbMocks.getFoodsByIds.mockImplementation(async (_userId: number, ids: number[]) =>
+      ids.includes(801) ? [historicalFood()] : []
+    );
+
+    const before = await getPeriodReportBundle(77, {
+      startDate: "2026-06-01",
+      endDate: "2026-06-01",
+    });
+
+    deprecated = true;
+
+    const after = await getPeriodReportBundle(77, {
+      startDate: "2026-06-01",
+      endDate: "2026-06-01",
+    });
+
+    expect(after.quality.foodQuality).toEqual(before.quality.foodQuality);
+    expect(after.quality.foodQuality).toMatchObject({
+      classifiedCalories: 90,
+      ultraProcessedCalories: 90,
+      unclassifiedCalories: 0,
+    });
+    expect(dbMocks.getFoodsByIds).toHaveBeenLastCalledWith(77, [801]);
+  });
+
 });
