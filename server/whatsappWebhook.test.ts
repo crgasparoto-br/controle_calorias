@@ -302,7 +302,8 @@ describe("whatsappWebhook", () => {
     expect(lastSentWhatsAppBody).toContain("Total da refeição:");
     expect(lastSentWhatsAppBody).toContain("*Meta:* 2.200 kcal");
     expect(lastSentWhatsAppBody).toContain("*Exercícios:* 0 kcal");
-    expect(lastSentWhatsAppBody).toContain("*Consumo:* 130 kcal (-2.070 kcal)");
+    expect(lastSentWhatsAppBody).toContain("*Consumo:* 130 kcal");
+    expect(lastSentWhatsAppBody).toContain("*Déficit:* 2.070 kcal (-94%)");
     expect(lastSentWhatsAppBody).not.toContain("Meta estimada");
     expect(lastSentWhatsAppBody).not.toContain("Meta ajustada");
     const lastPayload = sentWhatsAppPayloads[sentWhatsAppPayloads.length - 1];

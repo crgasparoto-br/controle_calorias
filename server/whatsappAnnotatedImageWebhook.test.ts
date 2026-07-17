@@ -341,7 +341,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(sentTextMessages[0]).toContain("🍽️ *Almoço* — 13:00");
     expect(sentTextMessages[0]).toContain("*Meta:* 2.200 kcal");
     expect(sentTextMessages[0]).toContain("*Exercícios:* 0 kcal");
-    expect(sentTextMessages[0]).toContain("*Consumo:* 1.620 kcal (-580 kcal)");
+    expect(sentTextMessages[0]).toContain("*Consumo:* 1.620 kcal");
+    expect(sentTextMessages[0]).toContain("*Déficit:* 580 kcal (-26%)");
     expect(sentTextMessages[0]).not.toContain("Meta estimada");
     expect(sentTextMessages[0]).not.toContain("Meta ajustada");
     expect(uploadedMediaRequests).toBe(0);

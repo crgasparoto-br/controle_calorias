@@ -24,6 +24,17 @@ describe("logicalReplyDelivery", () => {
     expect(reply.recordText).toBe("Refeição registrada");
   });
 
+  it("preserva o texto canônico recebido ao compor CTA e persistência", async () => {
+    const canonicalReply = "Refeição atualizada\n\n*Meta:* 2.000 kcal\n*Consumo:* 1.850 kcal\n*Déficit:* 150 kcal (-7%)";
+
+    const reply = await buildWhatsAppLogicalReplyForDelivery({ userId: 42, mealId: 10, replyText: canonicalReply });
+
+    expect(reply.messages).toEqual([
+      { type: "cta_url", bodyText: canonicalReply, buttonText: "Editar refeição", url: "https://app.test/quick-edit/token" },
+    ]);
+    expect(reply.recordText).toBe(canonicalReply);
+  });
+
   it("não substitui lista por CTA", async () => {
     const logicalReply = listReply("Escolha", "Ver opções", [{ rows: [{ id: "opaque", title: "Arroz" }] }]);
     const reply = await buildWhatsAppLogicalReplyForDelivery({ userId: 42, mealId: 10, replyText: "Escolha", logicalReply });

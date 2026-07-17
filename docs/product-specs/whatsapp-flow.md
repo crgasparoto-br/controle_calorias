@@ -7,7 +7,23 @@
 - Reentregas não repetem mutações. Se o domínio foi alterado e a entrega falhou, a resposta é reconstruída pelos vínculos persistidos.
 - Água e alimento na mesma entrada são consolidados na resposta final. Imagem anotada é mídia auxiliar e sua falha não cria outra resposta funcional.
 - Perguntas livres à IA começam com `/`; sem `/`, a mensagem segue o roteamento de registros, consultas e alterações.
-- Resumos usam somente `Meta`, consumo, diferença e macros `P`/`C`/`G`, com a meta efetiva fornecida pelo domínio.
+- Resumos usam somente `Meta`, `Exercícios`, `Consumo`, saldo calórico e macros `P`/`C`/`G`, com metas e totais fornecidos pelo domínio.
+
+### Progresso nutricional nas respostas
+
+As respostas de registro, consolidação e alteração de refeição e os resumos de período usam o mesmo contrato de progresso nutricional:
+
+- `Consumo` apresenta somente o total consumido;
+- o saldo calórico aparece em linha própria como `Superávit`, `Déficit` ou `Equilíbrio`;
+- a diferença calórica é `consumo - meta calórica efetiva`;
+- o percentual calórico é `((consumo - meta efetiva) / meta efetiva) × 100`, arredondado para número inteiro;
+- a diferença em kcal é exibida em módulo; o percentual usa sinal positivo no superávit, negativo no déficit e `0%` no equilíbrio;
+- classificação, diferença e percentual usam a mesma precisão dos números exibidos, evitando mensagens como `Superávit: 0 kcal`;
+- respostas de refeição preservam calorias inteiras no bloco de progresso; resumos podem exibir até uma casa decimal;
+- proteína, carboidratos e gorduras mostram consumo, diferença em gramas e diferença percentual sobre a meta do macro;
+- somente a meta calórica pode ser ajustada por exercícios; metas de macros vêm da versão de meta aplicada ao dia e não são ajustadas por exercício;
+- quando uma meta estiver ausente, inválida ou igual a zero, o formatter não inventa valores nem divide por zero;
+- em períodos com vários dias, metas e consumos são consolidados pelo domínio dentro do mesmo intervalo e timezone; a meta atual não é multiplicada pelo número de dias.
 
 ## Objetivo
 
@@ -84,7 +100,6 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Exclusão por alimento, como `Excluir o chocolate`, busca candidatos no contexto lógico do dia/refeição e pede confirmação quando houver ambiguidade.
 - Nome específico informado pelo usuário, como produto, marca ou tipo/qualificador, é preservado na exibição mesmo quando a referência nutricional/canônica usada internamente for genérica.
 - Marca e tipo/qualificador informados no texto influenciam o match nutricional antes do fallback para alimento genérico.
-
 
 ## Invariantes finais da epic #779
 

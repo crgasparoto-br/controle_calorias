@@ -17,9 +17,9 @@ import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValida
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
-  buildWhatsAppMealActionReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
 } from "./replyMessages";
+import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
 import { createPendingMealItemSelection } from "./mealItemSelectionCallback";
 import { formatDayMealListReply } from "./mealListIntent";
 import type { WhatsAppLogicalReply } from "./replyContract";
@@ -463,16 +463,19 @@ async function handleAddFoodsToMeal(
   }
 
   const meal = mealResult.result;
-  // Fonte de verdade da resposta (issue #783): reutiliza o mesmo bloco central de item/total do registro,
-  // mostrando a refeição completa recarregada em vez de só os itens adicionados.
   return {
     handled: true,
     action: "llm_intent_add_foods_to_meal",
-    reply: buildWhatsAppMealActionReplyMessage(meal, {
-      title: addedItems.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
-      actionLines: [
-        `Adicionado a ${meal.mealLabel} de ${formatReplyDate(new Date(meal.occurredAt), timeZone)}: ${addedItems.map(item => `${item.portionText} de ${item.foodName}`).join(", ")}.`,
-      ],
+    reply: await composeWhatsAppMealActionReply({
+      userId,
+      meal,
+      timeZone,
+      options: {
+        title: addedItems.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
+        actionLines: [
+          `Adicionado a ${meal.mealLabel} de ${formatReplyDate(new Date(meal.occurredAt), timeZone)}: ${addedItems.map(item => `${item.portionText} de ${item.foodName}`).join(", ")}.`,
+        ],
+      },
     }),
     eventType: "whatsapp.llm_intent.add_foods_to_meal",
     detail: existingMeal
@@ -489,7 +492,7 @@ async function handleAddFoodsToMeal(
   };
 }
 
-async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpretedIntent, idempotencyKey: string): Promise<WhatsappLlmIntentResult | null> {
+async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpretedIntent, idempotencyKey: string, timeZone: string): Promise<WhatsappLlmIntentResult | null> {
   if (!intent.sourceFood || !intent.targetFood) {
     return null;
   }
@@ -592,9 +595,14 @@ async function handleReplaceFoodInMeal(userId: number, intent: WhatsappInterpret
   return {
     handled: true,
     action: "llm_intent_replace_food_in_meal",
-    reply: buildWhatsAppMealActionReplyMessage(updatedMealResult.result, {
-      title: "Alimento substituído",
-      actionLines: [`Troquei ${target.item.foodName} por ${intent.targetFood} e mantive ${formatNumber(replacedItem.estimatedGrams)} g.`],
+    reply: await composeWhatsAppMealActionReply({
+      userId,
+      meal: updatedMealResult.result,
+      timeZone,
+      options: {
+        title: "Alimento substituído",
+        actionLines: [`Troquei ${target.item.foodName} por ${intent.targetFood} e mantive ${formatNumber(replacedItem.estimatedGrams)} g.`],
+      },
     }),
     eventType: "whatsapp.llm_intent.replace_food_in_meal",
     detail: "Alimento substituído por intenção estruturada validada.",
@@ -693,8 +701,6 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   const receivedAt = input.receivedAt ?? new Date();
   const timeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
   const idempotencyKey = buildIdempotencyKey(userId, text, receivedAt, input.messageId);
-  // Passa a pendência operacional ativa (se houver) para o classificador saber que uma
-  // resposta pode estar resolvendo uma seleção/confirmação/exclusão em aberto (issue #766).
   const activePendingOperation = await pendingOperationRepository.getActivePendingOperation(userId, receivedAt);
   const pendingClarification = activePendingOperation
     ? { kind: activePendingOperation.type, originalIntent: activePendingOperation.origin }
@@ -744,7 +750,7 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
       case "add_foods_to_meal":
         return finish(await handleAddFoodsToMeal(userId, intent, receivedAt, idempotencyKey, text, timeZone));
       case "replace_food_in_meal":
-        return finish(await handleReplaceFoodInMeal(userId, intent, idempotencyKey));
+        return finish(await handleReplaceFoodInMeal(userId, intent, idempotencyKey, timeZone));
       case "list_meal_records":
         return finish(await handleListMeals(userId, intent, receivedAt, timeZone, "list"));
       case "daily_summary":

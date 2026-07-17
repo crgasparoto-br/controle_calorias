@@ -2,9 +2,9 @@ import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
-  buildWhatsAppMealActionReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
 } from "../replyMessages";
+import { composeWhatsAppMealActionReply, composeWhatsAppMealActionReplies } from "../mealActionReplyComposer";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import {
@@ -108,19 +108,28 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
   });
 }
 
-function buildUpdatedMealsReply(
+async function buildUpdatedMealsReply(
+  userId: number,
   updatedMeals: MealRecord[],
   title: string,
   actionLinesByMeal: Map<number, string[]>,
   sharedActionLines: string[] = [],
+  timeZone?: string,
 ) {
-  return updatedMeals.map((meal, index) => buildWhatsAppMealActionReplyMessage(meal, {
-    title,
-    actionLines: [
-      ...(actionLinesByMeal.get(meal.id) ?? []),
-      ...(index === 0 ? sharedActionLines : []),
-    ],
-  })).join("\n\n");
+  return composeWhatsAppMealActionReplies({
+    userId,
+    timeZone,
+    entries: updatedMeals.map((meal, index) => ({
+      meal,
+      options: {
+        title,
+        actionLines: [
+          ...(actionLinesByMeal.get(meal.id) ?? []),
+          ...(index === 0 ? sharedActionLines : []),
+        ],
+      },
+    })),
+  });
 }
 
 async function ambiguousTargetReply(input: {
@@ -217,9 +226,13 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
-      title: "Quantidade corrigida",
-      actionLines: [`Atualizei ${target.item.foodName}: de ${previous} para ${next}.`],
+    reply: await composeWhatsAppMealActionReply({
+      userId,
+      meal: updatedMeal,
+      options: {
+        title: "Quantidade corrigida",
+        actionLines: [`Atualizei ${target.item.foodName}: de ${previous} para ${next}.`],
+      },
     }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `Quantidade de ${target.item.foodName} corrigida por contexto curto via WhatsApp.`,
@@ -287,9 +300,14 @@ async function updateLatestMealItemGrams(input: {
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
-      title: "Alimento ajustado",
-      actionLines: [`Ajustei ${target.item.foodName}: de ${formatNumber(previousGrams)} g para ${formatNumber(nextGrams)} g ${contextWithPreposition(target.scope)} e recalculei os macros.`],
+    reply: await composeWhatsAppMealActionReply({
+      userId: input.userId,
+      meal: updatedMeal,
+      timeZone: input.timeZone,
+      options: {
+        title: "Alimento ajustado",
+        actionLines: [`Ajustei ${target.item.foodName}: de ${formatNumber(previousGrams)} g para ${formatNumber(nextGrams)} g ${contextWithPreposition(target.scope)} e recalculei os macros.`],
+      },
     }),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: targetMatchDetail({
@@ -455,11 +473,13 @@ async function handleMultiGramsChange(input: {
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
-    reply: buildUpdatedMealsReply(
+    reply: await buildUpdatedMealsReply(
+      input.userId,
       updatedMeals,
       applied.length === 1 ? "Alimento ajustado" : "Alimentos ajustados",
       actionLinesByMeal,
       sharedActionLines,
+      input.timeZone,
     ),
     eventType: "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${applied.length} item(ns) ajustado(s) via WhatsApp sem ambiguidade pendente.`,

@@ -29,6 +29,8 @@ export type WhatsAppGoalProgressInput = {
   targetFatGrams?: number | null;
 };
 
+export type WhatsAppProgressPrecision = 0 | 1;
+
 export function formatWhatsAppNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", {
     maximumFractionDigits: Number.isInteger(value) ? 0 : 1,
@@ -110,48 +112,94 @@ export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
 
 export function buildWhatsAppMealTotalLines(totals: WhatsAppNutritionTotals) {
   return [
-    "Total da refeição:",
-    formatWhatsAppNutritionTotalsLine(totals),
+    buildWhatsAppTitle("Total da refeição:", { bold: true }),
+    buildWhatsAppTitle(formatWhatsAppNutritionTotalsLine(totals), { bold: true }),
   ];
 }
 
-function formatSignedDifference(value: number, unit: "kcal" | "g") {
-  const rounded = Math.round(value * 10) / 10;
-  const sign = rounded > 0 ? "+" : "";
-  return `${sign}${formatWhatsAppNumber(rounded)} ${unit}`;
+function roundToPrecision(value: number, precision: WhatsAppProgressPrecision) {
+  const factor = precision === 0 ? 1 : 10;
+  const rounded = Math.round(value * factor) / factor;
+  return Object.is(rounded, -0) ? 0 : rounded;
 }
 
-function buildMacroProgressLine(label: "P" | "C" | "G", consumed: number | null | undefined, target: number | null | undefined) {
-  if (typeof consumed !== "number" || typeof target !== "number") return null;
-  return `• ${label} ${formatWhatsAppNumber(consumed)} g (${formatSignedDifference(consumed - target, "g")})`;
+function normalizeProgressValue(value: number, precision: WhatsAppProgressPrecision) {
+  return roundToPrecision(Math.max(0, value), precision);
+}
+
+function formatSignedPercentage(difference: number, percentage: number) {
+  if (difference === 0) return "0%";
+  const sign = difference > 0 ? "+" : "-";
+  return `${sign}${Math.abs(percentage)}%`;
+}
+
+export function buildWhatsAppCalorieBalanceLine(input: {
+  consumedCalories?: number | null;
+  effectiveGoalCalories?: number | null;
+  precision: WhatsAppProgressPrecision;
+}) {
+  if (typeof input.consumedCalories !== "number" || !Number.isFinite(input.consumedCalories)) return null;
+  if (typeof input.effectiveGoalCalories !== "number" || !Number.isFinite(input.effectiveGoalCalories) || input.effectiveGoalCalories <= 0) return null;
+
+  const consumedCalories = normalizeProgressValue(input.consumedCalories, input.precision);
+  const effectiveGoalCalories = normalizeProgressValue(input.effectiveGoalCalories, input.precision);
+  if (effectiveGoalCalories <= 0) return null;
+
+  const difference = roundToPrecision(consumedCalories - effectiveGoalCalories, input.precision);
+  const percentage = Math.round((difference / effectiveGoalCalories) * 100);
+  const label = difference > 0 ? "Superávit" : difference < 0 ? "Déficit" : "Equilíbrio";
+
+  return `*${label}:* ${formatWhatsAppNumber(Math.abs(difference))} kcal (${formatSignedPercentage(difference, percentage)})`;
+}
+
+export function buildWhatsAppMacroProgressLine(
+  label: "P" | "C" | "G",
+  consumed: number | null | undefined,
+  target: number | null | undefined,
+) {
+  if (typeof consumed !== "number" || !Number.isFinite(consumed)) return null;
+  if (typeof target !== "number" || !Number.isFinite(target) || target <= 0) return null;
+
+  const normalizedConsumed = normalizeProgressValue(consumed, 1);
+  const normalizedTarget = normalizeProgressValue(target, 1);
+  if (normalizedTarget <= 0) return null;
+
+  const difference = roundToPrecision(normalizedConsumed - normalizedTarget, 1);
+  const percentage = Math.round((difference / normalizedTarget) * 100);
+  const signedDifference = difference > 0 ? `+${formatWhatsAppNumber(difference)}` : formatWhatsAppNumber(difference);
+
+  return `• ${label} ${formatWhatsAppNumber(normalizedConsumed)} g (${signedDifference} g/${formatSignedPercentage(difference, percentage)})`;
 }
 
 export function buildWhatsAppGoalProgressLines(progress: WhatsAppGoalProgressInput | null | undefined) {
   const effectiveGoalCalories = progress?.effectiveGoalCalories ?? progress?.goalCalories;
-  if (!progress || typeof effectiveGoalCalories !== "number" || effectiveGoalCalories <= 0) {
+  if (!progress || typeof effectiveGoalCalories !== "number" || !Number.isFinite(effectiveGoalCalories) || effectiveGoalCalories <= 0) {
     return [];
   }
 
-  const consumedCalories = typeof progress.consumedCalories === "number"
-    ? Math.max(0, Math.round(progress.consumedCalories))
+  const consumedCalories = typeof progress.consumedCalories === "number" && Number.isFinite(progress.consumedCalories)
+    ? normalizeProgressValue(progress.consumedCalories, 0)
     : null;
-  const finalGoalCalories = Math.round(effectiveGoalCalories);
-  const calorieDifference = consumedCalories === null ? null : consumedCalories - finalGoalCalories;
-  const exerciseCalories = typeof progress.exerciseCalories === "number"
-    ? Math.max(0, Math.round(progress.exerciseCalories))
+  const finalGoalCalories = normalizeProgressValue(effectiveGoalCalories, 0);
+  const exerciseCalories = typeof progress.exerciseCalories === "number" && Number.isFinite(progress.exerciseCalories)
+    ? normalizeProgressValue(progress.exerciseCalories, 0)
     : null;
+  const balanceLine = buildWhatsAppCalorieBalanceLine({
+    consumedCalories,
+    effectiveGoalCalories: finalGoalCalories,
+    precision: 0,
+  });
   const macroLines = [
-    buildMacroProgressLine("P", progress.consumedProteinGrams, progress.targetProteinGrams),
-    buildMacroProgressLine("C", progress.consumedCarbsGrams, progress.targetCarbsGrams),
-    buildMacroProgressLine("G", progress.consumedFatGrams, progress.targetFatGrams),
+    buildWhatsAppMacroProgressLine("P", progress.consumedProteinGrams, progress.targetProteinGrams),
+    buildWhatsAppMacroProgressLine("C", progress.consumedCarbsGrams, progress.targetCarbsGrams),
+    buildWhatsAppMacroProgressLine("G", progress.consumedFatGrams, progress.targetFatGrams),
   ].filter((line): line is string => Boolean(line));
 
   return [
     `*Meta:* ${formatWhatsAppNumber(finalGoalCalories)} kcal`,
     ...(exerciseCalories !== null ? [`*Exercícios:* ${formatWhatsAppNumber(exerciseCalories)} kcal`] : []),
-    ...(consumedCalories === null
-      ? []
-      : [`*Consumo:* ${formatWhatsAppNumber(consumedCalories)} kcal (${formatSignedDifference(calorieDifference!, "kcal")})`]),
+    ...(consumedCalories === null ? [] : [`*Consumo:* ${formatWhatsAppNumber(consumedCalories)} kcal`]),
+    ...(balanceLine ? [balanceLine] : []),
     ...(macroLines.length ? [buildWhatsAppSeparator(), "*Macronutrientes*", ...macroLines] : []),
   ];
 }

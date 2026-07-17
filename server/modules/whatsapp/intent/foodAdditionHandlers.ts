@@ -1,5 +1,6 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
-import { buildWhatsAppClarificationReplyMessage, buildWhatsAppMealActionReplyMessage } from "../replyMessages";
+import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
+import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
 import { listMeals, updateMeal } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { formatReplyDate, resolveRelativeOccurredAt } from "./dateTime";
@@ -41,11 +42,16 @@ export async function handleFoodAdditionIntent(userId: number, addition: FoodAdd
     return {
       handled: true,
       action: "meal_item_added",
-      reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
-        title: "Alimento adicionado",
-        actionLines: [
-          `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
-        ],
+      reply: await composeWhatsAppMealActionReply({
+        userId,
+        meal: updatedMeal,
+        timeZone,
+        options: {
+          title: "Alimento adicionado",
+          actionLines: [
+            `Adicionei ${addedItem.portionText} de ${addedItem.foodName} à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}. Estimativa ${recalculationSource}: ${formatTotalsLine(addedItem)}.`,
+          ],
+        },
       }),
       eventType: "whatsapp.intent.meal_item_added",
       detail: `Alimento ${addedItem.foodName} adicionado à refeição ${targetMeal.mealLabel} via WhatsApp com data relativa interpretada.`,
@@ -68,11 +74,16 @@ export async function handleFoodAdditionIntent(userId: number, addition: FoodAdd
   return {
     handled: true,
     action: "meal_item_added",
-    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
-      title: "Alimentos adicionados",
-      actionLines: [
-        `Adicionado à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}: ${formatAddedItemsList(addedItems)}.`,
-      ],
+    reply: await composeWhatsAppMealActionReply({
+      userId,
+      meal: updatedMeal,
+      timeZone,
+      options: {
+        title: "Alimentos adicionados",
+        actionLines: [
+          `Adicionado à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}: ${formatAddedItemsList(addedItems)}.`,
+        ],
+      },
     }),
     eventType: "whatsapp.intent.meal_item_added",
     detail: `${addedItems.length} alimentos adicionados à refeição ${targetMeal.mealLabel} via WhatsApp com data relativa interpretada.`,
@@ -131,11 +142,16 @@ export async function handleCoffeeAdditionIntent(userId: number, text: string, a
   return {
     handled: true,
     action: "meal_item_added",
-    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
-      title: "Alimento adicionado",
-      actionLines: [
-        `Adicionei ${coffeeItem.portionText} de café sem açúcar à refeição ${targetMeal.mealLabel}. Estimativa: ${formatTotalsLine(coffeeItem)}.`,
-      ],
+    reply: await composeWhatsAppMealActionReply({
+      userId,
+      meal: updatedMeal,
+      timeZone,
+      options: {
+        title: "Alimento adicionado",
+        actionLines: [
+          `Adicionei ${coffeeItem.portionText} de café sem açúcar à refeição ${targetMeal.mealLabel}. Estimativa: ${formatTotalsLine(coffeeItem)}.`,
+        ],
+      },
     }),
     eventType: "whatsapp.intent.meal_item_added",
     detail: `Café sem açúcar adicionado à refeição ${targetMeal.mealLabel} via WhatsApp.`,
@@ -192,11 +208,16 @@ export async function handleCoffeeLorCapsuleIntent(userId: number, text: string,
   return {
     handled: true,
     action: "meal_item_added",
-    reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
-      title: "Alimento adicionado",
-      actionLines: [
-        `Adicionei ${capsuleItem.portionText} de ${capsuleItem.foodName} à refeição ${targetMeal.mealLabel}. Estimativa: ${formatTotalsLine(capsuleItem)}.`,
-      ],
+    reply: await composeWhatsAppMealActionReply({
+      userId,
+      meal: updatedMeal,
+      timeZone,
+      options: {
+        title: "Alimento adicionado",
+        actionLines: [
+          `Adicionei ${capsuleItem.portionText} de ${capsuleItem.foodName} à refeição ${targetMeal.mealLabel}. Estimativa: ${formatTotalsLine(capsuleItem)}.`,
+        ],
+      },
     }),
     eventType: "whatsapp.intent.meal_item_added",
     detail: `Café em cápsula L'Or adicionado à refeição ${targetMeal.mealLabel} via WhatsApp.`,

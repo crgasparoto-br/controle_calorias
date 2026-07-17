@@ -44,7 +44,6 @@ export async function sendWhatsAppLogicalDomainReply(input: {
   return { reply, result };
 }
 
-
 /** Resposta funcional sem usuário/lifecycle, restrita a notificações e orientações sem inbound identificado. */
 export async function sendWhatsAppStandaloneLogicalReply(to: string, reply: WhatsAppLogicalReply) {
   const result = await sendWhatsAppLogicalReply(to, reply);
