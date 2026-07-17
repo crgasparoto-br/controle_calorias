@@ -162,6 +162,13 @@
       "when": 1784206800000,
       "tag": "0024_timezone_default",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1784232000000,
+      "tag": "0025_food_catalog_status",
+      "breakpoints": true
     }
   ]
 }

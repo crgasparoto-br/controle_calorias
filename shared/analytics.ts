@@ -8,6 +8,7 @@ export const ANALYTICS_EVENT_NAMES = [
   "food_custom_created",
   "food_custom_updated",
   "food_custom_deleted",
+  "food_deleted",
   "meal_created",
   "meal_item_added",
   "meal_copied",
@@ -66,6 +67,10 @@ export type AnalyticsEventMap = {
   };
   food_custom_deleted: {
     mode: "soft_delete";
+  };
+  food_deleted: {
+    mode: "soft_delete";
+    catalog: "legacy";
   };
   meal_created: {
     source: "web" | "whatsapp" | "ai_draft" | "favorite" | "copy" | "unknown";

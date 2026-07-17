@@ -30,6 +30,10 @@ Permitir que o usuário registre refeições por texto, imagem, áudio ou entrad
 - `buildFoodLookupForMeals` (`server/modules/insights/service.ts`) monta o lookup de qualidade alimentar de um período combinando duas fontes: busca por nome (limitada às primeiras `FOOD_QUALITY_LOOKUP_NAME_LIMIT` = 24 nomes distintos do período) **e** busca direta por `foodCatalogId` (`getFoodsByIds`, sem limite, já que a tabela `foodCatalog` é pequena). A busca direta por id é essencial: sem ela, itens com `foodCatalogId` já resolvido no banco apareciam como "não classificados" em relatórios de períodos com mais de 24 alimentos distintos, porque o lookup por nome truncava antes de alcançá-los.
 - Relatórios não exibem mais a lista item a item de "alimentos não classificados" (ver `docs/product-specs/goals-and-reports.md`); apenas o percentual agregado por categoria de processamento é mostrado.
 
+## Exclusão de alimento da base ativa
+
+Alimentos criados pelo próprio usuário no catálogo legado podem ser removidos da base ativa sem apagar refeições anteriores. A ação exige confirmação, retira o item de busca, recentes e favoritos, preserva lookup histórico por ID e impede que o matching nominal reutilize a identidade depreciada. Em um registro posterior pela IA, a classificação atual do item pode gerar uma nova entrada ativa. Alimentos globais e entradas de outra conta nunca podem ser excluídos por esse fluxo.
+
 ## Critérios de aceite
 
 - Texto, imagem e áudio criam rascunho consistente.
