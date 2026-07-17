@@ -60,6 +60,12 @@ Mensagens alimentares com quantidade, como `100g de arroz`, continuam autorizada
 1. logo após a guarda de idempotência, para respostas seguras imediatas;
 2. imediatamente antes de `processMealDraft`, para garantir que só mensagens alimentares elegíveis chegam ao parser nutricional.
 
+## Esclarecimento genérico canônico
+
+A mensagem genérica de baixa confiança possui uma única versão amigável, definida em `replyMessages.ts`. O roteador usa essa versão diretamente, enquanto o builder canônico normaliza variantes legadas produzidas pelo classificador determinístico ou pelo fallback da LLM antes do envio.
+
+A normalização só ocorre quando o texto representa a pergunta genérica sobre registrar, corrigir ou consultar. Perguntas específicas, como solicitação de quantidade, refeição ou item, permanecem inalteradas.
+
 ## Limites
 
 Esta entrega não implementa o fluxo completo de remoção, gráficos, resposta profissional-paciente ou validação final de persistência. Esses pontos permanecem nas subissues específicas: #399, #418, #419 e #412.
@@ -78,3 +84,5 @@ Esta entrega não implementa o fluxo completo de remoção, gráficos, resposta 
 - comando de remoção textual sem fallback alimentar.
 
 `server/modules/whatsapp/service.test.ts` cobre a integração para impedir que ajuste numérico sem contexto chegue ao processamento de refeição.
+
+`server/modules/whatsapp/genericClarificationMessage.test.ts` cobre o alinhamento entre o roteador, o classificador determinístico, o fallback da LLM e o builder canônico de respostas.
