@@ -421,6 +421,13 @@ export function createDrizzleProfessionalRepository(deps: {
       ...input,
       activePairKey: getAuthorizationActivePairKey(input),
     };
+    // `id` is deliberately excluded from the ON DUPLICATE KEY UPDATE set: a
+    // conflict can happen on the `activePairKey` unique index (a different
+    // id already owns that professional/patient pair), and updating `id`
+    // there would rename the existing row's primary key instead of
+    // reporting a real conflict — breaking convergence for concurrent
+    // requests targeting the same pair.
+    const { id: _updateId, ...updateSet } = values;
     const [currentById] = await db
       .select()
       .from(professionalPatientAuthorizations)
@@ -432,7 +439,7 @@ export function createDrizzleProfessionalRepository(deps: {
       new Date(currentById.sourceUpdatedAt).getTime() >=
         input.sourceUpdatedAt.getTime()
     ) {
-      return toCanonicalAuthorization(currentById);
+      return { authorization: toCanonicalAuthorization(currentById), wrote: false };
     }
 
     try {
@@ -444,7 +451,7 @@ export function createDrizzleProfessionalRepository(deps: {
             createdAt: currentById?.createdAt ?? input.requestedAt,
           })
           .onDuplicateKeyUpdate({
-            set: values,
+            set: updateSet,
           });
         const [saved] = await tx
           .select()
@@ -473,7 +480,7 @@ export function createDrizzleProfessionalRepository(deps: {
             )
           )
           .limit(1);
-        if (existingPair) return toCanonicalAuthorization(existingPair);
+        if (existingPair) return { authorization: toCanonicalAuthorization(existingPair), wrote: false };
       }
       throw error;
     }
@@ -485,7 +492,7 @@ export function createDrizzleProfessionalRepository(deps: {
       .limit(1);
     if (!saved)
       throw new Error("Não foi possível persistir a autorização profissional.");
-    return toCanonicalAuthorization(saved);
+    return { authorization: toCanonicalAuthorization(saved), wrote: true };
   }
 
   async function upsertLegacyProfileRow(row: any) {
@@ -574,7 +581,7 @@ export function createDrizzleProfessionalRepository(deps: {
     }
 
     try {
-      const saved = await persistAuthorizationCanonical(db, canonical, {
+      const { authorization: saved, wrote } = await persistAuthorizationCanonical(db, canonical, {
         preserveNewerSource: true,
       });
       if (saved.id !== canonical.id) {
@@ -585,9 +592,7 @@ export function createDrizzleProfessionalRepository(deps: {
         );
         return 0;
       }
-      return saved.sourceUpdatedAt.getTime() === sourceUpdatedAt.getTime()
-        ? 1
-        : 0;
+      return wrote ? 1 : 0;
     } catch {
       warning(
         deps,
@@ -867,7 +872,7 @@ export function createDrizzleProfessionalRepository(deps: {
   ) {
     const db = await deps.getDb();
     if (!db) return fallbackAuthorization(input);
-    const authorization = await persistAuthorizationCanonical(db, input, {
+    const { authorization } = await persistAuthorizationCanonical(db, input, {
       preserveNewerSource: false,
       actorUserId: input.patientUserId,
     });

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
-import { getDb } from "../server/db";
+import { getDb, shouldEnableRuntimeDatabaseSsl } from "../server/db";
 import { createDrizzleProfessionalRepository } from "../server/repositories/professionalRepository";
 
 const USER_IDS = [8061, 8062, 8063, 8064, 8065, 8066, 8067, 8071, 8072];
@@ -39,7 +39,11 @@ function legacyAccess(input: {
 }
 
 async function main() {
-  const connection = await mysql.createConnection(databaseUrl);
+  const connection = await mysql.createConnection(
+    shouldEnableRuntimeDatabaseSsl(databaseUrl)
+      ? { uri: databaseUrl, ssl: { minVersion: "TLSv1.2" } }
+      : databaseUrl
+  );
   const warnings: Array<{ scope: string; error: string }> = [];
   const repository = createDrizzleProfessionalRepository({
     getDb,
