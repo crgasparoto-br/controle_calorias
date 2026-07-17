@@ -8,20 +8,18 @@ on:
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   agent-check:
-    if: github.head_ref == 'fix/whatsapp-generic-clarification-consistency'
     name: Agent-first gate
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
-      - name: Checkout implementation branch
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: fix/whatsapp-generic-clarification-consistency
-          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -37,33 +35,81 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Update legacy assertion
-        shell: python
-        run: |
-          from pathlib import Path
-          path = Path("server/modules/whatsapp/llmIntentActions.test.ts")
-          text = path.read_text(encoding="utf-8")
-          old = '      reply: expect.stringContaining("Você quer registrar ou consultar?"),'
-          new = '      reply: expect.stringContaining(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE),'
-          if old not in text:
-              raise SystemExit("Legacy assertion not found")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+      - name: TypeScript check
+        run: pnpm check
 
-      - name: Restore official gate definition
+      - name: Tests
         run: |
-          git fetch origin develop
-          git show origin/develop:.github/workflows/agent-check.yml > .github/workflows/agent-check.yml
+          if ! pnpm test > /tmp/vitest.log 2>&1; then
+            echo "Vitest failed. Showing the final 250 log lines:"
+            tail -n 250 /tmp/vitest.log
+            exit 1
+          fi
+          tail -n 80 /tmp/vitest.log
 
-      - name: Validate focused tests
-        run: |
-          pnpm check
-          pnpm vitest run server/modules/whatsapp/genericClarificationMessage.test.ts server/modules/whatsapp/service.test.ts server/modules/whatsapp/llmIntentActions.test.ts
-          pnpm docs:check
+      - name: Upload Vitest diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-first-vitest-log
+          path: /tmp/vitest.log
+          if-no-files-found: ignore
+          retention-days: 3
 
-      - name: Commit corrected assertion
+      - name: Architecture check
+        run: pnpm architecture:check
+
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Agent check
+        run: pnpm agent:check
+
+      - name: CI gate docs check
+        run: pnpm exec tsx scripts/check-ci-gate-docs.ts
+
+      - name: Database integrity check
+        if: ${{ env.DATABASE_URL != '' }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/agent-check.yml server/modules/whatsapp/llmIntentActions.test.ts
-          git commit -m "test(whatsapp): alinhar baixa confianca com mensagem canonica"
-          git push origin HEAD:fix/whatsapp-generic-clarification-consistency
+          pnpm db:check-integrity
+          {
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo "- pnpm db:check-integrity"
+            echo ""
+            echo "Database integrity: executed with DATABASE_URL."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Database integrity check skipped
+        if: ${{ env.DATABASE_URL == '' }}
+        run: |
+          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
+          {
+            echo "## Agent-first gate"
+            echo ""
+            echo "Required status check: Agent-first gate"
+            echo ""
+            echo "Validated commands:"
+            echo "- pnpm check"
+            echo "- pnpm test"
+            echo "- pnpm architecture:check"
+            echo "- pnpm docs:check"
+            echo "- pnpm build"
+            echo "- pnpm agent:check"
+            echo ""
+            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
+            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -88,7 +88,7 @@ describe("executeWhatsappLlmIntent", () => {
 
     expect(result).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      reply: expect.stringContaining("Você quer registrar ou consultar?"),
+      reply: expect.stringContaining(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE),
     }));
     expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
