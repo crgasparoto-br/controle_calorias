@@ -100,7 +100,7 @@ describe("simulateWhatsappInbound", () => {
   it("trata correção 'não é água é pão de cenoura' como alimento corrigido antes da intenção de água", async () => {
     const result = await simulateWhatsappInbound(42, { text: "Não é água é pão de cenoura" });
     expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
-    expect(processMealDraftMock).toHaveBeenCalledWith(42, { source: "whatsapp", text: "pão de cenoura" });
+    expect(processMealDraftMock).toHaveBeenCalledWith(42, { source: "whatsapp", text: "pão de cenoura" }, "America/Sao_Paulo");
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ userId: 42, origin: "whatsapp", eventType: "whatsapp.intent.food_correction_text_detected" }));
     expect(result).toEqual(expect.objectContaining({ draftId: "draft-1" }));
   });
@@ -108,7 +108,7 @@ describe("simulateWhatsappInbound", () => {
   it("normaliza unidade digitada incorretamente antes de interpretar texto de água", async () => {
     executeWhatsappTextIntentMock.mockResolvedValueOnce({ handled: true, action: "water_logged", reply: "Registrei 300 ml de água.", eventType: "whatsapp.intent.water_logged", detail: "Registro de hidratação via WhatsApp.", data: { amountMl: 300 } });
     const result = await simulateWhatsappInbound(42, { text: "300mo água" });
-    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, { text: "300 ml água", receivedAt: expect.any(Date) });
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, { text: "300 ml água", receivedAt: expect.any(Date), userTimezone: "America/Sao_Paulo" });
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({ handled: true, action: "water_logged" }));
   });
@@ -117,8 +117,8 @@ describe("simulateWhatsappInbound", () => {
     executeWhatsappTextIntentMock.mockResolvedValue({ handled: true, action: "water_logged", reply: "Registrei 300 ml de água.", eventType: "whatsapp.intent.water_logged", detail: "Registro de hidratação via WhatsApp.", data: { amountMl: 300 } });
     const result = await simulateWhatsappInbound(42, { text: "3 bisnaguinhas panco\n300ml água\n19g de mel" });
     expect(executeWhatsappTextIntentMock).toHaveBeenCalledTimes(1);
-    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, { text: "300 ml água", receivedAt: expect.any(Date) });
-    expect(processMealDraftMock).toHaveBeenCalledWith(42, { source: "whatsapp", text: "3 bisnaguinhas panco\n19 g de mel" });
+    expect(executeWhatsappTextIntentMock).toHaveBeenCalledWith(42, { text: "300 ml água", receivedAt: expect.any(Date), userTimezone: "America/Sao_Paulo" });
+    expect(processMealDraftMock).toHaveBeenCalledWith(42, { source: "whatsapp", text: "3 bisnaguinhas panco\n19 g de mel" }, "America/Sao_Paulo");
     expect(result).toEqual(expect.objectContaining({ handled: true, action: "water_and_meal_logged", meal: expect.objectContaining({ draftId: "draft-1" }), water: [expect.objectContaining({ action: "water_logged" })] }));
   });
 
@@ -146,7 +146,7 @@ describe("simulateWhatsappInbound", () => {
 
   it("resolve data relativa usando fuso do usuario antes do fallback nutricional", async () => {
     const result = await simulateWhatsappInbound(4210, { text: "jantar de ontem: arroz e frango", receivedAt: new Date("2026-06-15T02:30:00.000Z"), userTimezone: "America/Sao_Paulo", messageId: "time-1" });
-    expect(processMealDraftMock).toHaveBeenCalledWith(4210, { source: "whatsapp", text: "jantar de ontem: arroz e frango" });
+    expect(processMealDraftMock).toHaveBeenCalledWith(4210, { source: "whatsapp", text: "jantar de ontem: arroz e frango" }, "America/Sao_Paulo");
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ userId: 4210, origin: "whatsapp", eventType: "whatsapp.time.temporal_context_resolved", detail: expect.stringContaining("2026-06-13") }));
     expect(result).toEqual(expect.objectContaining({ temporalContext: expect.objectContaining({ temporalExpression: "ontem", resolvedDate: "2026-06-13", mealSlot: "jantar", userTimezone: "America/Sao_Paulo" }) }));
   });

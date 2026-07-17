@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { zonedDateTimeLocalToIso, toDateTimeLocalValue } from "@/lib/dateTime";
+import { toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
@@ -80,7 +80,7 @@ function buildMealItemUpdatePayload(meal: StoredMeal, userTimeZone: string, item
   return {
     mealId: meal.id,
     mealLabel,
-    occurredAt: zonedDateTimeLocalToIso(toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone), userTimeZone),
+    dateTimeLocal: toDateTimeLocalValue(new Date(meal.occurredAt), userTimeZone),
     notes: meal.notes?.trim() || undefined,
     items,
   };

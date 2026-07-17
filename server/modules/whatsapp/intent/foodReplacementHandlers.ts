@@ -1,9 +1,10 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
-  buildWhatsAppMealActionReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
 } from "../replyMessages";
+import { composeWhatsAppMealActionReplies } from "../mealActionReplyComposer";
 import { listMeals } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { createPendingMealItemSelection, type MealItemSelectionCompanionAction, type MealItemPendingSelectionStep } from "../mealItemSelectionCallback";
@@ -125,7 +126,7 @@ function buildMultipleReplacementLines(applied: AppliedFoodReplacement[], notFou
   return lines;
 }
 
-export async function handleFoodReplacementIntents(userId: number, replacements: FoodReplacementIntent[]): Promise<WhatsappIntentResult> {
+export async function handleFoodReplacementIntents(userId: number, replacements: FoodReplacementIntent[], timeZone = DEFAULT_APP_TIME_ZONE): Promise<WhatsappIntentResult> {
   const meals = await listMeals(userId);
   if (!meals.length) {
     return { handled: true, action: "clarification_needed", reply: buildWhatsAppClarificationReplyMessage("Não encontrei uma refeição recente para corrigir. Me diga qual alimento devo trocar."), eventType: "whatsapp.intent.clarification_needed", detail: "Pedido de substituição sem refeição recente disponível." };
@@ -139,7 +140,7 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
   const notFound: string[] = [];
 
   for (const replacement of replacements) {
-    const target = resolveTargetMealItemInMeals(mutableMeals, replacement.fromFood);
+    const target = resolveTargetMealItemInMeals(mutableMeals, replacement.fromFood, timeZone);
     if (target.kind === "ambiguous") {
       pendingTargets.push({ targetFood: replacement.fromFood, context: contextWithPreposition(target.scope), scopeLabel: target.scopeLabel, candidates: target.candidates, toFood: replacement.toFood });
       continue;
@@ -211,7 +212,11 @@ export async function handleFoodReplacementIntents(userId: number, replacements:
       })()
     : buildMultipleReplacementLines(applied, notFound);
   const title = applied.length === 1 ? "Alimento substituído" : "Alimentos substituídos";
-  const reply = updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title, actionLines })).join("\n\n");
+  const reply = await composeWhatsAppMealActionReplies({
+    userId,
+    timeZone,
+    entries: updatedMeals.map(meal => ({ meal, options: { title, actionLines } })),
+  });
   return {
     handled: true,
     action: "meal_item_replaced",

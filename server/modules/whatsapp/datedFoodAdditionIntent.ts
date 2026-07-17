@@ -2,9 +2,8 @@ import { processMealInput, type MealDraftItem } from "../../nutritionEngine";
 import { createManualMeal, listMeals, updateMeal } from "../meals/service";
 import type { MealItemInput } from "../meals/schemas";
 import { parseMealCommandFromWhatsApp } from "./mealCommandParser";
-import { buildWhatsAppMealActionReplyMessage } from "./replyMessages";
-
-const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
+import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 
 type ExistingMeal = {
   id: number;
@@ -31,27 +30,12 @@ function normalizeIntentText(value: string) {
     .trim();
 }
 
-function startOfDay(date: Date) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: SAO_PAULO_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const [year, month, day] = formatter.format(date).split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 3, 0, 0));
-}
-
-function endOfDay(date: Date) {
-  return new Date(startOfDay(date).getTime() + 24 * 60 * 60 * 1000 - 1);
-}
-
-function formatReplyDate(date: Date) {
+function formatReplyDate(date: Date, timeZone: string) {
   return date.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: SAO_PAULO_TIME_ZONE,
+    timeZone,
   });
 }
 
@@ -66,29 +50,28 @@ function formatItemsForProcessing(items: NonNullable<ReturnType<typeof parseMeal
     .join(", ");
 }
 
-function findMealByLabel(meals: ExistingMeal[], mealLabel: string, referenceDate: Date) {
+function findMealByLabel(meals: ExistingMeal[], mealLabel: string, referenceDate: Date, timeZone: string) {
   const normalizedLabel = normalizeIntentText(mealLabel);
-  const dayStart = startOfDay(referenceDate).getTime();
-  const dayEnd = endOfDay(referenceDate).getTime();
+  const targetDateKey = getDateKeyInTimeZone(referenceDate, timeZone);
   const matches = meals.filter(meal => {
     const candidate = normalizeIntentText(meal.mealLabel);
     return candidate === normalizedLabel || candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate);
   });
 
   return matches.find(meal => {
-    const occurredAt = new Date(meal.occurredAt).getTime();
-    return occurredAt >= dayStart && occurredAt <= dayEnd;
+    return getDateKeyInTimeZone(meal.occurredAt, timeZone) === targetDateKey;
   }) ?? null;
 }
 
 export async function executeWhatsappDatedFoodAdditionIntent(
   userId: number,
-  input: { text?: string | null; receivedAt?: Date },
+  input: { text?: string | null; receivedAt?: Date; userTimezone?: string | null },
 ): Promise<DatedFoodAdditionResult | null> {
   const text = input.text?.trim();
   if (!text) return null;
 
-  const parsed = parseMealCommandFromWhatsApp(text, { referenceDate: input.receivedAt ?? new Date() });
+  const timeZone = input.userTimezone ?? DEFAULT_APP_TIME_ZONE;
+  const parsed = parseMealCommandFromWhatsApp(text, { referenceDate: input.receivedAt ?? new Date(), timeZone });
   if (parsed.intent !== "add_items_to_meal" || !parsed.mealType || !parsed.date || !parsed.items.length) {
     return null;
   }
@@ -96,10 +79,10 @@ export async function executeWhatsappDatedFoodAdditionIntent(
   const foodText = formatItemsForProcessing(parsed.items);
   if (!foodText) return null;
 
-  const processed = await processMealInput({ text: foodText });
+  const processed = await processMealInput({ text: foodText, occurredAt: parsed.date, timeZone });
   const items = processed.items as MealItemInput[];
   const meals = await listMeals(userId);
-  const targetMeal = findMealByLabel(meals, parsed.mealType, parsed.date);
+  const targetMeal = findMealByLabel(meals, parsed.mealType, parsed.date, timeZone);
 
   if (targetMeal) {
     const updatedMeal = await updateMeal(userId, {
@@ -113,9 +96,14 @@ export async function executeWhatsappDatedFoodAdditionIntent(
     return {
       handled: true,
       action: "meal_item_added",
-      reply: buildWhatsAppMealActionReplyMessage(updatedMeal, {
-        title: items.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
-        actionLines: [`Adicionei ${items.length} item(ns) à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt))}.`],
+      reply: await composeWhatsAppMealActionReply({
+        userId,
+        meal: updatedMeal,
+        timeZone,
+        options: {
+          title: items.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
+          actionLines: [`Adicionei ${items.length} item(ns) à refeição ${targetMeal.mealLabel} de ${formatReplyDate(new Date(targetMeal.occurredAt), timeZone)}.`],
+        },
       }),
       eventType: "whatsapp.intent.meal_item_added",
       detail: `${items.length} alimento(s) adicionados à refeição existente ${targetMeal.mealLabel} com data explícita pelo WhatsApp.`,
@@ -137,10 +125,15 @@ export async function executeWhatsappDatedFoodAdditionIntent(
   return {
     handled: true,
     action: "meal_item_added",
-    reply: buildWhatsAppMealActionReplyMessage(createdMeal, {
-      title: "Refeição registrada",
-      actionLines: [`Registrei ${items.length} item(ns) no ${parsed.mealType} de ${formatReplyDate(parsed.date)}.`],
-      mealResultState: "registered",
+    reply: await composeWhatsAppMealActionReply({
+      userId,
+      meal: createdMeal,
+      timeZone,
+      options: {
+        title: "Refeição registrada",
+        actionLines: [`Registrei ${items.length} item(ns) no ${parsed.mealType} de ${formatReplyDate(parsed.date, timeZone)}.`],
+        mealResultState: "registered",
+      },
     }),
     eventType: "whatsapp.intent.meal_item_added",
     detail: `${items.length} alimento(s) registrados em nova refeição ${parsed.mealType} com data explícita pelo WhatsApp.`,

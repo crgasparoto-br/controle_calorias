@@ -9,6 +9,11 @@ import {
   updateUserFood,
   upsertFavoriteFood,
 } from "../../db";
+import {
+  createLegacyFoodDeletionService,
+  LegacyFoodDeletePersistenceError,
+  LegacyFoodNotFoundError,
+} from "./legacyDeletion";
 import type {
   AdminCatalogFoodCurationInput,
   CatalogFoodFavoriteInput,
@@ -76,12 +81,12 @@ type GlobalFoodLookupRow = {
 function extractRows<T>(result: unknown): T[] {
   if (Array.isArray(result)) {
     const [rows] = result;
-    return Array.isArray(rows) ? rows as T[] : result as T[];
+    return Array.isArray(rows) ? (rows as T[]) : (result as T[]);
   }
 
   if (result && typeof result === "object" && "rows" in result) {
     const rows = (result as { rows: unknown }).rows;
-    return Array.isArray(rows) ? rows as T[] : [];
+    return Array.isArray(rows) ? (rows as T[]) : [];
   }
 
   return [];
@@ -112,7 +117,10 @@ function normalizeTimestamp(value: Date | string | null | undefined) {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-function mapCatalogFood(row: CatalogFoodRow, portions: CatalogFoodPortionRow[] = []) {
+function mapCatalogFood(
+  row: CatalogFoodRow,
+  portions: CatalogFoodPortionRow[] = []
+) {
   return {
     id: row.id,
     scope: row.isGlobal ? "global" : "user",
@@ -162,7 +170,10 @@ function mapCatalogFood(row: CatalogFoodRow, portions: CatalogFoodPortionRow[] =
 async function getCatalogDb() {
   const db = await getDb();
   if (!db) {
-    throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Banco de dados indisponível para consulta do catálogo." });
+    throw new TRPCError({
+      code: "SERVICE_UNAVAILABLE",
+      message: "Banco de dados indisponível para consulta do catálogo.",
+    });
   }
   return db as unknown as SqlExecutor;
 }
@@ -179,7 +190,10 @@ function serializeNutrients(value: Record<string, unknown> | null | undefined) {
 function uniqueNormalizedAliases(name: string, aliases: string[]) {
   const seen = new Set<string>();
   const values = [name, ...aliases]
-    .map(alias => ({ alias: alias.trim(), normalizedAlias: normalizeCatalogSearchTerm(alias) }))
+    .map(alias => ({
+      alias: alias.trim(),
+      normalizedAlias: normalizeCatalogSearchTerm(alias),
+    }))
     .filter(({ alias, normalizedAlias }) => alias && normalizedAlias);
 
   return values.filter(({ normalizedAlias }) => {
@@ -189,41 +203,71 @@ function uniqueNormalizedAliases(name: string, aliases: string[]) {
   });
 }
 
-export function calculatePortionGrams(params: { portionGrams: number; portionQuantity: number; requestedQuantity: number }) {
+export function calculatePortionGrams(params: {
+  portionGrams: number;
+  portionQuantity: number;
+  requestedQuantity: number;
+}) {
   const baseQuantity = params.portionQuantity > 0 ? params.portionQuantity : 1;
-  return Math.round((params.portionGrams * params.requestedQuantity / baseQuantity) * 100) / 100;
+  return (
+    Math.round(
+      ((params.portionGrams * params.requestedQuantity) / baseQuantity) * 100
+    ) / 100
+  );
 }
 
-async function assertOwnedCustomFood(db: SqlExecutor, userId: number, foodId: number) {
-  const rows = extractRows<CustomFoodOwnershipRow>(await db.execute(sql`
+async function assertOwnedCustomFood(
+  db: SqlExecutor,
+  userId: number,
+  foodId: number
+) {
+  const rows = extractRows<CustomFoodOwnershipRow>(
+    await db.execute(sql`
     SELECT id AS id
     FROM foods
     WHERE id = ${foodId}
       AND owner_user_id = ${userId}
     LIMIT 1
-  `));
+  `)
+  );
 
   if (!rows[0]) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Alimento personalizado não encontrado." });
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Alimento personalizado não encontrado.",
+    });
   }
 }
 
 async function assertGlobalFood(db: SqlExecutor, foodId: number) {
-  const rows = extractRows<GlobalFoodLookupRow>(await db.execute(sql`
+  const rows = extractRows<GlobalFoodLookupRow>(
+    await db.execute(sql`
     SELECT id AS id
     FROM foods
     WHERE id = ${foodId}
       AND owner_user_id IS NULL
     LIMIT 1
-  `));
+  `)
+  );
 
   if (!rows[0]) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Alimento global não encontrado." });
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Alimento global não encontrado.",
+    });
   }
 }
 
-async function insertCustomFoodAliases(db: SqlExecutor, foodId: number, name: string, aliases: string[]) {
-  for (const { alias, normalizedAlias } of uniqueNormalizedAliases(name, aliases)) {
+async function insertCustomFoodAliases(
+  db: SqlExecutor,
+  foodId: number,
+  name: string,
+  aliases: string[]
+) {
+  for (const { alias, normalizedAlias } of uniqueNormalizedAliases(
+    name,
+    aliases
+  )) {
     await db.execute(sql`
       INSERT INTO food_aliases (food_id, alias, normalized_alias, source_id)
       VALUES (${foodId}, ${alias}, ${normalizedAlias}, NULL)
@@ -231,7 +275,11 @@ async function insertCustomFoodAliases(db: SqlExecutor, foodId: number, name: st
   }
 }
 
-async function replaceCustomFoodPortions(db: SqlExecutor, foodId: number, portions: CustomFoodInput["portions"]) {
+async function replaceCustomFoodPortions(
+  db: SqlExecutor,
+  foodId: number,
+  portions: CustomFoodInput["portions"]
+) {
   await db.execute(sql`DELETE FROM food_portions WHERE food_id = ${foodId}`);
 
   for (const portion of portions) {
@@ -251,23 +299,62 @@ async function replaceCustomFoodPortions(db: SqlExecutor, foodId: number, portio
   }
 }
 
-async function replaceCustomFoodAliases(db: SqlExecutor, foodId: number, name: string, aliases: string[]) {
+async function replaceCustomFoodAliases(
+  db: SqlExecutor,
+  foodId: number,
+  name: string,
+  aliases: string[]
+) {
   await db.execute(sql`DELETE FROM food_aliases WHERE food_id = ${foodId}`);
   await insertCustomFoodAliases(db, foodId, name, aliases);
 }
 
-export function searchFoodCatalog(userId: number, input: { query?: string; limit?: number }) {
+const legacyFoodDeletionService = createLegacyFoodDeletionService({
+  getDb: () => getDb(),
+  searchFoods: (userId, query, limit) => searchFoods(userId, query, limit),
+  onWarning: (scope, error) =>
+    console.warn(
+      `[Foods] ${scope}:`,
+      error instanceof Error ? error.message : "unknown error"
+    ),
+});
+
+export function searchFoodCatalog(
+  userId: number,
+  input: { query?: string; limit?: number }
+) {
   return searchFoods(userId, input.query ?? "", input.limit ?? 20);
 }
 
-export async function searchGlobalFoodCatalog(userId: number, input: CatalogFoodSearchInput) {
+export async function deleteFood(userId: number, foodId: number) {
+  try {
+    return await legacyFoodDeletionService.deleteFood(userId, foodId);
+  } catch (error) {
+    if (error instanceof LegacyFoodNotFoundError) {
+      throw new TRPCError({ code: "NOT_FOUND", message: error.message });
+    }
+    if (error instanceof LegacyFoodDeletePersistenceError) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: error.message,
+      });
+    }
+    throw error;
+  }
+}
+
+export async function searchGlobalFoodCatalog(
+  userId: number,
+  input: CatalogFoodSearchInput
+) {
   const db = await getCatalogDb();
   const normalizedQuery = normalizeCatalogSearchTerm(input.query ?? "");
   const likeQuery = `%${normalizedQuery}%`;
   const prefixQuery = `${normalizedQuery}%`;
   const limit = input.limit ?? 20;
 
-  const rows = extractRows<CatalogFoodRow>(await db.execute(sql`
+  const rows = extractRows<CatalogFoodRow>(
+    await db.execute(sql`
     SELECT
       f.id AS id,
       f.owner_user_id AS ownerUserId,
@@ -323,14 +410,16 @@ export async function searchGlobalFoodCatalog(userId: number, input: CatalogFood
       CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END DESC,
       f.name ASC
     LIMIT ${limit}
-  `));
+  `)
+  );
 
   return rows.map(row => mapCatalogFood(row));
 }
 
 export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
   const db = await getCatalogDb();
-  const rows = extractRows<CatalogFoodRow>(await db.execute(sql`
+  const rows = extractRows<CatalogFoodRow>(
+    await db.execute(sql`
     SELECT
       f.id AS id,
       f.owner_user_id AS ownerUserId,
@@ -365,14 +454,19 @@ export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
     WHERE f.id = ${foodId}
       AND (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
     LIMIT 1
-  `));
+  `)
+  );
 
   const food = rows[0];
   if (!food) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Alimento não encontrado no catálogo." });
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Alimento não encontrado no catálogo.",
+    });
   }
 
-  const portions = extractRows<CatalogFoodPortionRow>(await db.execute(sql`
+  const portions = extractRows<CatalogFoodPortionRow>(
+    await db.execute(sql`
     SELECT
       id AS id,
       label AS label,
@@ -383,16 +477,21 @@ export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {
     FROM food_portions
     WHERE food_id = ${foodId}
     ORDER BY is_default DESC, grams ASC, label ASC
-  `));
+  `)
+  );
 
   return mapCatalogFood(food, portions);
 }
 
-export async function listGlobalRecentlyUsedFoods(userId: number, input: CatalogFoodRecentInput = { limit: 20 }) {
+export async function listGlobalRecentlyUsedFoods(
+  userId: number,
+  input: CatalogFoodRecentInput = { limit: 20 }
+) {
   const db = await getCatalogDb();
   const limit = input.limit ?? 20;
 
-  const rows = extractRows<CatalogFoodRow>(await db.execute(sql`
+  const rows = extractRows<CatalogFoodRow>(
+    await db.execute(sql`
     SELECT
       f.id AS id,
       f.owner_user_id AS ownerUserId,
@@ -429,12 +528,16 @@ export async function listGlobalRecentlyUsedFoods(userId: number, input: Catalog
       AND (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
     ORDER BY ufus.last_used_at DESC, ufus.usage_count DESC, f.name ASC
     LIMIT ${limit}
-  `));
+  `)
+  );
 
   return rows.map(row => mapCatalogFood(row));
 }
 
-export async function setGlobalFoodFavorite(userId: number, input: CatalogFoodFavoriteInput) {
+export async function setGlobalFoodFavorite(
+  userId: number,
+  input: CatalogFoodFavoriteInput
+) {
   const db = await getCatalogDb();
   await getGlobalFoodCatalogItem(userId, input.foodId);
 
@@ -469,7 +572,10 @@ export async function recordGlobalFoodUsage(userId: number, foodId: number) {
   `);
 }
 
-export async function curateGlobalFood(userId: number, input: AdminCatalogFoodCurationInput) {
+export async function curateGlobalFood(
+  userId: number,
+  input: AdminCatalogFoodCurationInput
+) {
   const db = await getCatalogDb();
   await assertGlobalFood(db, input.foodId);
 
@@ -477,7 +583,8 @@ export async function curateGlobalFood(userId: number, input: AdminCatalogFoodCu
     await assertGlobalFood(db, input.mergedIntoFoodId as number);
   }
 
-  const mergedIntoFoodId = input.status === "merged" ? input.mergedIntoFoodId : null;
+  const mergedIntoFoodId =
+    input.status === "merged" ? input.mergedIntoFoodId : null;
 
   await db.execute(sql`
     UPDATE foods
@@ -492,9 +599,13 @@ export async function curateGlobalFood(userId: number, input: AdminCatalogFoodCu
   return getGlobalFoodCatalogItem(userId, input.foodId);
 }
 
-export async function convertFoodPortionToGrams(userId: number, input: { foodId: number; portionId: number; quantity: number }) {
+export async function convertFoodPortionToGrams(
+  userId: number,
+  input: { foodId: number; portionId: number; quantity: number }
+) {
   const db = await getCatalogDb();
-  const rows = extractRows<CatalogFoodPortionConversionRow>(await db.execute(sql`
+  const rows = extractRows<CatalogFoodPortionConversionRow>(
+    await db.execute(sql`
     SELECT
       fp.id AS id,
       fp.food_id AS foodId,
@@ -509,11 +620,15 @@ export async function convertFoodPortionToGrams(userId: number, input: { foodId:
       AND fp.food_id = ${input.foodId}
       AND (f.owner_user_id IS NULL OR f.owner_user_id = ${userId})
     LIMIT 1
-  `));
+  `)
+  );
 
   const portion = rows[0];
   if (!portion) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Porção não encontrada para este alimento." });
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Porção não encontrada para este alimento.",
+    });
   }
 
   return {
@@ -579,17 +694,22 @@ export async function createCustomFood(userId: number, input: CustomFoodInput) {
     )
   `);
 
-  const createdRows = extractRows<{ id: number }>(await db.execute(sql`
+  const createdRows = extractRows<{ id: number }>(
+    await db.execute(sql`
     SELECT id AS id
     FROM foods
     WHERE owner_user_id = ${userId}
       AND source_food_code = ${sourceFoodCode}
     LIMIT 1
-  `));
+  `)
+  );
   const foodId = createdRows[0]?.id;
 
   if (!foodId) {
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar o alimento personalizado." });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Não foi possível criar o alimento personalizado.",
+    });
   }
 
   await insertCustomFoodAliases(db, foodId, input.name, input.aliases);
@@ -598,7 +718,10 @@ export async function createCustomFood(userId: number, input: CustomFoodInput) {
   return getGlobalFoodCatalogItem(userId, foodId);
 }
 
-export async function updateCustomFood(userId: number, input: UpdateCustomFoodInput) {
+export async function updateCustomFood(
+  userId: number,
+  input: UpdateCustomFoodInput
+) {
   const db = await getCatalogDb();
   await assertOwnedCustomFood(db, userId, input.foodId);
 
@@ -655,7 +778,10 @@ export function listRecentlyUsedFoods(userId: number) {
   return listRecentFoods(userId);
 }
 
-export function setFoodFavorite(userId: number, input: { foodId: number; favorite: boolean }) {
+export function setFoodFavorite(
+  userId: number,
+  input: { foodId: number; favorite: boolean }
+) {
   return upsertFavoriteFood(userId, input.foodId, input.favorite);
 }
 
@@ -663,13 +789,17 @@ export function createFood(userId: number, input: FoodFormInput) {
   return createUserFood(userId, input);
 }
 
-export async function updateFood(userId: number, input: FoodFormInput & { foodId: number }) {
+export async function updateFood(
+  userId: number,
+  input: FoodFormInput & { foodId: number }
+) {
   try {
     return await updateUserFood(userId, input);
   } catch (error) {
     throw new TRPCError({
       code: "NOT_FOUND",
-      message: error instanceof Error ? error.message : "Alimento não encontrado.",
+      message:
+        error instanceof Error ? error.message : "Alimento não encontrado.",
     });
   }
 }

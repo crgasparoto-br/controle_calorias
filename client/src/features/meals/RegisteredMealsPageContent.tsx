@@ -15,7 +15,8 @@ import {
   toMonthInputValue,
   type PeriodScope,
 } from "@/lib/dateRanges";
-import { getBrowserTimeZone, toDateInputValue, toDateTimeLocalValue, zonedDateTimeLocalToIso } from "@/lib/dateTime";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
+import { toDateInputValue, toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { CalendarPlus, ChevronDown, Droplets, Dumbbell, ListChecks, PencilLine, Plus, Save, Star, Trash2 } from "lucide-react";
@@ -209,8 +210,8 @@ function formatExerciseNotesLabel(notes?: string | null) {
   return notes?.replace(/\s*Refer[eê]ncia externa:\s*strava:\d+\./gi, "").trim() ?? "";
 }
 
-function initialSelectedDay() {
-  const fallback = toDateInputValue();
+function initialSelectedDay(timeZone: string) {
+  const fallback = toDateInputValue(new Date(), timeZone);
   if (typeof window === "undefined") return fallback;
 
   const date = new URLSearchParams(window.location.search).get("date");
@@ -483,17 +484,28 @@ function ExerciseOperationalRecord({ exercise, userTimeZone }: { exercise: Exerc
 
 export function RegisteredMealsPage() {
   const utils = trpc.useUtils();
-  const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
-  const [initialDay] = useState(initialSelectedDay);
+  const effectiveTimeZone = useEffectiveUserTimeZone();
+  const userTimeZone = effectiveTimeZone.timeZone;
+  const [initialDay] = useState(() => initialSelectedDay(userTimeZone));
   const [periodScope, setPeriodScope] = useState<PeriodScope>("day");
   const [selectedDay, setSelectedDay] = useState(initialDay);
   const [selectedMonth, setSelectedMonth] = useState(() => toMonthInputValue(new Date(), userTimeZone));
   const [rangeStart, setRangeStart] = useState(() => toDateInputValue(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), userTimeZone));
-  const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
+  const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue(new Date(), userTimeZone));
   const [copyTargetDay, setCopyTargetDay] = useState(initialDay);
   const [manualMeal, setManualMeal] = useState<ManualMealEditState>(createRegisteredEditState);
   const [areMealGroupsCollapsed, setAreMealGroupsCollapsed] = useState(false);
   const [areDayDetailsCollapsed, setAreDayDetailsCollapsed] = useState(false);
+
+  React.useEffect(() => {
+    if (!effectiveTimeZone.isReady) return;
+    const currentDay = initialSelectedDay(userTimeZone);
+    setSelectedDay(currentDay);
+    setCopyTargetDay(currentDay);
+    setSelectedMonth(toMonthInputValue(new Date(), userTimeZone));
+    setRangeStart(toDateInputValue(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), userTimeZone));
+    setRangeEnd(toDateInputValue(new Date(), userTimeZone));
+  }, [effectiveTimeZone.isReady, userTimeZone]);
 
   const mealsQuery = trpc.nutrition.meals.list.useQuery();
   const favoriteMealsQuery = trpc.nutrition.meals.favorites.useQuery();
@@ -746,7 +758,7 @@ export function RegisteredMealsPage() {
             : manualMeal.occurredAt;
           return {
             mealId,
-            occurredAt: zonedDateTimeLocalToIso(occurredAtLocal, userTimeZone),
+            dateTimeLocal: occurredAtLocal,
             items: itemsByMealId.get(mealId) ?? [],
           };
         }),
@@ -757,7 +769,7 @@ export function RegisteredMealsPage() {
     updateMeal.mutate({
       mealId: manualMeal.mealId,
       mealLabel: manualMeal.mealLabel,
-      occurredAt: zonedDateTimeLocalToIso(manualMeal.occurredAt, userTimeZone),
+      dateTimeLocal: manualMeal.occurredAt,
       notes: manualMeal.notes.trim() || undefined,
       items: normalizedItems,
     });
@@ -766,7 +778,7 @@ export function RegisteredMealsPage() {
   const handleCopyMealGroup = (group: RegisteredMealGroupViewModel) => {
     copyMealGroup.mutate({
       mealIds: groupMealIds(group),
-      occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone),
+      dateTimeLocal: `${copyTargetDay}T12:00`,
       mealLabel: group.mealLabel,
     });
   };
@@ -880,6 +892,16 @@ export function RegisteredMealsPage() {
     </Card>
   ) : null;
 
+  if (!effectiveTimeZone.isReady) {
+    return (
+      <DashboardLayout>
+        <div className="rounded-2xl border bg-background p-6 text-sm text-muted-foreground">
+          {effectiveTimeZone.isError ? "Não foi possível carregar o fuso horário do perfil." : "Carregando o fuso horário do perfil..."}
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -939,7 +961,7 @@ export function RegisteredMealsPage() {
                     type="button"
                     variant="outline"
                     className="rounded-full"
-                    onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, occurredAt: zonedDateTimeLocalToIso(`${copyTargetDay}T12:00`, userTimeZone) })}
+                    onClick={() => reuseFavoriteMeal.mutate({ favoriteMealId: favorite.id, dateTimeLocal: `${copyTargetDay}T12:00` })}
                     disabled={reuseFavoriteMeal.isPending}
                   >
                     <CalendarPlus className="mr-2 h-4 w-4" />

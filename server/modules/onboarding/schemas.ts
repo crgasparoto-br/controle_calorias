@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_APP_TIME_ZONE, normalizeUserTimeZone, USER_TIME_ZONE_OPTIONS } from "../../../shared/timeZone";
+import { ownerDateTimeLocalSchema } from "../timeZone/schemas";
 
 const userTimeZoneValues = USER_TIME_ZONE_OPTIONS.map(option => option.value) as [string, ...string[]];
 const userSexValues = ["female", "male", "non_binary", "prefer_not_to_say"] as const;
@@ -40,6 +41,26 @@ const onboardingBaseSchema = z.object({
 });
 
 export const onboardingSchema = onboardingBaseSchema
+  .superRefine((input, ctx) => {
+    const ageYears = calculateAgeYearsFromBirthDate(input.birthDate);
+    if (ageYears === null) {
+      ctx.addIssue({ code: "custom", path: ["birthDate"], message: "Informe uma data de nascimento válida." });
+      return;
+    }
+
+    if (ageYears < 13 || ageYears > 120) {
+      ctx.addIssue({ code: "custom", path: ["birthDate"], message: "A idade calculada deve estar entre 13 e 120 anos." });
+    }
+  })
+  .transform(input => ({
+    ...input,
+    timezone: normalizeUserTimeZone(input.timezone),
+    ageYears: calculateAgeYearsFromBirthDate(input.birthDate) ?? 0,
+  }));
+
+export const onboardingMutationSchema = onboardingBaseSchema
+  .omit({ weightMeasuredAt: true })
+  .extend({ weightMeasuredAtLocal: ownerDateTimeLocalSchema.optional() })
   .superRefine((input, ctx) => {
     const ageYears = calculateAgeYearsFromBirthDate(input.birthDate);
     if (ageYears === null) {

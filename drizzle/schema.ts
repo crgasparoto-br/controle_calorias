@@ -30,7 +30,7 @@ export const userProfiles = mysqlTable("userProfiles", {
   eatingRoutine: mysqlEnum("eatingRoutine", ["cozinha_em_casa", "come_fora", "delivery", "marmita", "misto"]),
   mainDifficulty: mysqlEnum("mainDifficulty", ["fome", "ansiedade", "falta_de_tempo", "beliscos", "doces", "comer_fora", "falta_de_planejamento"]),
   onboardingCompletedAt: timestamp("onboardingCompletedAt"),
-  timezone: varchar("timezone", { length: 80 }).default("UTC").notNull(),
+  timezone: varchar("timezone", { length: 80 }).default("America/Sao_Paulo").notNull(),
   locale: varchar("locale", { length: 16 }).default("pt-BR").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -183,12 +183,14 @@ export const foodCatalog = mysqlTable("foodCatalog", {
   classificationConfidence: double("classificationConfidence"),
   isUserCreated: int("isUserCreated").default(0).notNull(),
   createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
+  status: mysqlEnum("status", ["active", "deprecated"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
   brandIdIdx: index("foodCatalog_brandId_idx").on(table.brandId),
   createdByUserIdx: index("foodCatalog_createdByUserId_idx").on(table.createdByUserId),
   foodTypeIdx: index("foodCatalog_foodType_idx").on(table.foodType),
+  statusIdx: index("foodCatalog_status_idx").on(table.status),
   barcodeUnique: uniqueIndex("foodCatalog_barcode_unique").on(table.barcode),
 }));
 

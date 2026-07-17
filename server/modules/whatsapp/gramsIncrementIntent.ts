@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { handleMealItemMultiIncrement } from "./intent/gramsAdjustmentHandlers";
 
 const MEALS = ["cafe da manha", "almoco", "jantar", "lanche da tarde", "lanche", "ceia"];
@@ -37,11 +38,11 @@ function parse(text: string) {
 
 export async function executeWhatsappGramsIncrementIntent(
   userId: number,
-  input: { text?: string | null; receivedAt?: Date },
+  input: { text?: string | null; receivedAt?: Date; userTimezone?: string },
 ) {
   const parsed = input.text ? parse(input.text) : null;
   if (!parsed) return null;
-  const result = await handleMealItemMultiIncrement(userId, parsed.increments, { mealLabel: parsed.mealLabel });
+  const result = await handleMealItemMultiIncrement(userId, parsed.increments, { mealLabel: parsed.mealLabel, timeZone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE });
   if (result.action !== "meal_item_grams_adjusted") return result;
   const adjustments = Array.isArray(result.data?.adjustments) ? result.data.adjustments : [];
   return {

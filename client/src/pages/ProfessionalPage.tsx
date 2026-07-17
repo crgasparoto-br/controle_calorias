@@ -18,7 +18,8 @@ import {
   toMonthInputValue,
   type PeriodScope,
 } from "@/lib/dateRanges";
-import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
+import { formatDateTimeInTimeZone, toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr, formatGrams, formatNumberPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import {
@@ -51,6 +52,7 @@ import {
   type MacroTotals,
   type WeightTrendPoint,
 } from "@shared/reportsGoalAnalytics";
+import { getDateKeyInTimeZone } from "@shared/timeZone";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -274,10 +276,10 @@ function accessStatusLabel(status: AccessStatus) {
   return ACCESS_STATUS_LABELS[status] ?? status;
 }
 
-function accessDateLabel(access: { requestedAt: number; approvedAt: number | null; revokedAt: number | null; status: string }) {
-  if (access.status === "approved" && access.approvedAt) return `Autorizado em ${new Date(access.approvedAt).toLocaleString("pt-BR")}`;
-  if (access.status === "revoked" && access.revokedAt) return `Revogado em ${new Date(access.revokedAt).toLocaleString("pt-BR")}`;
-  return `Solicitado em ${new Date(access.requestedAt).toLocaleString("pt-BR")}`;
+function accessDateLabel(access: { requestedAt: number; approvedAt: number | null; revokedAt: number | null; status: string }, timeZone: string) {
+  if (access.status === "approved" && access.approvedAt) return `Autorizado em ${formatDateTimeInTimeZone(access.approvedAt, timeZone)}`;
+  if (access.status === "revoked" && access.revokedAt) return `Revogado em ${formatDateTimeInTimeZone(access.revokedAt, timeZone)}`;
+  return `Solicitado em ${formatDateTimeInTimeZone(access.requestedAt, timeZone)}`;
 }
 
 function personLabel(access: { patient?: { name: string | null; email: string | null } | null; patientUserId: number }) {
@@ -310,12 +312,18 @@ export default function ProfessionalPage() {
     rationale: "",
     notes: "",
   });
-  const userTimeZone = useMemo(() => getBrowserTimeZone(), []);
+  const selfTimeZone = useEffectiveUserTimeZone();
+  const patientTimeZone = trpc.nutrition.professionals.patientTimeZone.useQuery(
+    { patientId: selectedPatientId ?? 0 },
+    { enabled: hasActiveProfile && Boolean(selectedPatientId) },
+  );
+  const userTimeZone = patientTimeZone.data?.timeZone ?? selfTimeZone.timeZone;
+  const patientTimeZoneReady = Boolean(selectedPatientId) && patientTimeZone.isSuccess;
   const [periodScope, setPeriodScope] = useState<PeriodScope>("week");
-  const [selectedDay, setSelectedDay] = useState(() => toDateInputValue());
+  const [selectedDay, setSelectedDay] = useState(() => toDateInputValue(new Date(), userTimeZone));
   const [selectedMonth, setSelectedMonth] = useState(() => toMonthInputValue(new Date(), userTimeZone));
   const [rangeStart, setRangeStart] = useState(() => toDateInputValue(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000), userTimeZone));
-  const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue());
+  const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue(new Date(), userTimeZone));
   const activeRange = useMemo(() => {
     if (periodScope === "day") return { start: selectedDay, end: selectedDay };
     if (periodScope === "week") return getWeekRange(selectedDay);
@@ -325,11 +333,11 @@ export default function ProfessionalPage() {
   const weekOffset = useMemo(() => getWeekOffsetFromToday(selectedDay, userTimeZone), [selectedDay, userTimeZone]);
   const dashboard = trpc.nutrition.professionals.patientDashboard.useQuery(
     { patientId: selectedPatientId ?? 0, weekOffset },
-    { enabled: hasActiveProfile && Boolean(selectedPatientId) && periodScope === "week" },
+    { enabled: hasActiveProfile && patientTimeZoneReady && periodScope === "week" },
   );
   const periodBundle = trpc.nutrition.professionals.patientPeriodBundle.useQuery(
     { patientId: selectedPatientId ?? 0, startDate: activeRange.start, endDate: activeRange.end },
-    { enabled: hasActiveProfile && Boolean(selectedPatientId) && periodScope !== "week" },
+    { enabled: hasActiveProfile && patientTimeZoneReady && periodScope !== "week" },
   );
 
   const approvedAccesses = accesses.data?.filter(access => access.status === "approved") ?? [];
@@ -460,9 +468,15 @@ export default function ProfessionalPage() {
 
   useEffect(() => {
     setPatientAnswer(null);
-    setSelectedDay(toDateInputValue());
+    if (patientTimeZoneReady) {
+      const today = toDateInputValue(new Date(), userTimeZone);
+      setSelectedDay(today);
+      setSelectedMonth(toMonthInputValue(new Date(), userTimeZone));
+      setRangeStart(toDateInputValue(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000), userTimeZone));
+      setRangeEnd(today);
+    }
     setPeriodScope("week");
-  }, [selectedPatientId]);
+  }, [patientTimeZoneReady, selectedPatientId, userTimeZone]);
 
   useEffect(() => {
     if (!defaultNutritionGoal) {
@@ -492,7 +506,13 @@ export default function ProfessionalPage() {
       utils.nutrition.professionals.myAccesses.invalidate(),
       utils.nutrition.professionals.patientRequests.invalidate(),
     ]);
-    if (selectedPatientId) await utils.nutrition.professionals.patientDashboard.invalidate({ patientId: selectedPatientId });
+    if (selectedPatientId) {
+      await Promise.all([
+        utils.nutrition.professionals.patientTimeZone.invalidate({ patientId: selectedPatientId }),
+        utils.nutrition.professionals.patientDashboard.invalidate({ patientId: selectedPatientId }),
+        utils.nutrition.professionals.patientPeriodBundle.invalidate(),
+      ]);
+    }
   };
 
   const requestAccess = trpc.nutrition.professionals.requestAccess.useMutation({
@@ -638,6 +658,7 @@ export default function ProfessionalPage() {
                           onSelect={() => setSelectedPatientId(access.patientUserId)}
                           onRevoke={() => revokeAccess.mutate({ accessId: access.id })}
                           revoking={revokeAccess.isPending}
+                          timeZone={selfTimeZone.timeZone}
                         />
                       )) : <Empty text="Nenhuma pessoa autorizou acompanhamento até agora." />}
                     </div>
@@ -649,7 +670,7 @@ export default function ProfessionalPage() {
                             <p className="font-medium">{personLabel(access)}</p>
                             <span className="rounded-full border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">{accessStatusLabel(access.status)}</span>
                           </div>
-                          <p className="mt-2 text-xs text-muted-foreground">{accessDateLabel(access)}</p>
+                          <p className="mt-2 text-xs text-muted-foreground">{accessDateLabel(access, selfTimeZone.timeZone)}</p>
                         </div>
                       )) : <Empty text="Nenhum convite pendente ou encerrado." />}
                     </div>
@@ -685,7 +706,7 @@ export default function ProfessionalPage() {
                   <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
                     <p className="font-medium text-foreground">{personLabel(selectedAccess)}</p>
                     <p>{selectedAccess.patient?.email || `ID interno #${selectedAccess.patientUserId}`}</p>
-                    <p>{accessDateLabel(selectedAccess)}</p>
+                    <p>{accessDateLabel(selectedAccess, selfTimeZone.timeZone)}</p>
                   </div>
                 ) : null}
 
@@ -773,7 +794,7 @@ export default function ProfessionalPage() {
                                 <CardDescription>Refeições autorizadas agrupadas por dia. Abra apenas os dias que precisar investigar.</CardDescription>
                               </CardHeader>
                               <CardContent>
-                                <MealsByDateSection meals={dashboard.data.meals} />
+                                <MealsByDateSection meals={dashboard.data.meals} timeZone={userTimeZone} />
                               </CardContent>
                             </Card>
                           ) : null}
@@ -891,7 +912,7 @@ export default function ProfessionalPage() {
                       </SuggestionBox>
 
                       <ListSection title="Sugestões registradas">
-                        {goalSuggestions.length ? goalSuggestions.map(suggestion => <GoalSuggestionRow key={suggestion.id} suggestion={suggestion} />) : <Empty text="Nenhuma sugestão de meta registrada para esta pessoa." />}
+                        {goalSuggestions.length ? goalSuggestions.map(suggestion => <GoalSuggestionRow key={suggestion.id} suggestion={suggestion} timeZone={userTimeZone} />) : <Empty text="Nenhuma sugestão de meta registrada para esta pessoa." />}
                       </ListSection>
                     </TabsContent>
 
@@ -925,7 +946,7 @@ export default function ProfessionalPage() {
                       </SuggestionBox>
 
                       <ListSection title="Sugestões de refeição registradas">
-                        {mealSuggestions.length ? mealSuggestions.map(suggestion => <MealSuggestionRow key={suggestion.id} suggestion={suggestion} />) : <Empty text="Nenhuma sugestão de refeição registrada para esta pessoa." />}
+                        {mealSuggestions.length ? mealSuggestions.map(suggestion => <MealSuggestionRow key={suggestion.id} suggestion={suggestion} timeZone={userTimeZone} />) : <Empty text="Nenhuma sugestão de refeição registrada para esta pessoa." />}
                       </ListSection>
                     </TabsContent>
 
@@ -1008,12 +1029,14 @@ function AccessRow({
   onSelect,
   onRevoke,
   revoking,
+  timeZone,
 }: {
   access: { id: string; patientUserId: number; patient?: { name: string | null; email: string | null } | null; status: string; requestedAt: number; approvedAt: number | null; revokedAt: number | null };
   selected: boolean;
   onSelect: () => void;
   onRevoke: () => void;
   revoking: boolean;
+  timeZone: string;
 }) {
   return (
     <div className={`rounded-2xl border bg-background p-4 ${selected ? "ring-2 ring-primary/30" : ""}`}>
@@ -1021,7 +1044,7 @@ function AccessRow({
         <div>
           <p className="font-medium">{personLabel(access)}</p>
           <p className="text-xs text-muted-foreground">{access.patient?.email || `ID interno #${access.patientUserId}`}</p>
-          <p className="text-xs text-muted-foreground">{accessDateLabel(access)}</p>
+          <p className="text-xs text-muted-foreground">{accessDateLabel(access, timeZone)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant={selected ? "default" : "outline"} className="rounded-full" onClick={onSelect}>Analisar</Button>
@@ -1035,28 +1058,28 @@ function AccessRow({
   );
 }
 
-function MealRow({ meal }: { meal: MealSummary }) {
+function MealRow({ meal, timeZone }: { meal: MealSummary; timeZone: string }) {
   return (
     <div className="rounded-xl border bg-background p-3 text-sm">
       <div className="flex justify-between gap-3">
         <span className="font-medium">{meal.mealLabel}</span>
         <span>{formatCalories(meal.totals.calories)}</span>
       </div>
-      <p className="text-xs text-muted-foreground">{new Date(meal.occurredAt).toLocaleString("pt-BR")}</p>
+      <p className="text-xs text-muted-foreground">{formatDateTimeInTimeZone(meal.occurredAt, timeZone)}</p>
     </div>
   );
 }
 
-function MealsByDateSection({ meals }: { meals: MealSummary[] }) {
+function MealsByDateSection({ meals, timeZone }: { meals: MealSummary[]; timeZone: string }) {
   const mealsByDate = useMemo(() => {
     const groups = new Map<string, MealSummary[]>();
     for (const meal of meals) {
-      const date = new Date(meal.occurredAt).toISOString().slice(0, 10);
+      const date = getDateKeyInTimeZone(meal.occurredAt, timeZone);
       if (!groups.has(date)) groups.set(date, []);
       groups.get(date)!.push(meal);
     }
     return Array.from(groups.entries()).sort(([a], [b]) => b.localeCompare(a));
-  }, [meals]);
+  }, [meals, timeZone]);
 
   if (!mealsByDate.length) return <Empty text="Nenhum registro recente encontrado." />;
 
@@ -1064,7 +1087,8 @@ function MealsByDateSection({ meals }: { meals: MealSummary[] }) {
     <div className="space-y-3">
       {mealsByDate.map(([date, dayMeals]) => {
         const totalCalories = dayMeals.reduce((sum, m) => sum + m.totals.calories, 0);
-        const heading = new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "short" });
+        const [year, month, day] = date.split("-").map(Number);
+        const heading = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", weekday: "long", day: "2-digit", month: "short" }).format(new Date(Date.UTC(year, month - 1, day, 12)));
         return (
           <details key={date} className="group rounded-3xl border bg-muted/10 p-4">
             <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1078,7 +1102,7 @@ function MealsByDateSection({ meals }: { meals: MealSummary[] }) {
               </div>
             </summary>
             <div className="mt-4 space-y-2">
-              {dayMeals.map(meal => <MealRow key={meal.id} meal={meal} />)}
+              {dayMeals.map(meal => <MealRow key={meal.id} meal={meal} timeZone={timeZone} />)}
             </div>
           </details>
         );
@@ -1154,7 +1178,7 @@ function PatientAiAnswerCard({ answer }: { answer: PatientAiAnswer }) {
   );
 }
 
-function GoalSuggestionRow({ suggestion }: {
+function GoalSuggestionRow({ suggestion, timeZone }: {
   suggestion: {
     id: string;
     status: string;
@@ -1169,12 +1193,13 @@ function GoalSuggestionRow({ suggestion }: {
       };
     };
   };
+  timeZone: string;
 }) {
   return (
     <div className="rounded-xl border bg-muted/20 p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">{suggestionStatusLabel(suggestion.status)}</span>
-        <span className="text-xs text-muted-foreground">{new Date(suggestion.createdAt).toLocaleString("pt-BR")}</span>
+        <span className="text-xs text-muted-foreground">{formatDateTimeInTimeZone(suggestion.createdAt, timeZone)}</span>
       </div>
       <div className="mt-2 grid gap-2 text-muted-foreground md:grid-cols-4">
         <span>{formatCalories(suggestion.goal.defaultGoal.calories)}</span>
@@ -1187,7 +1212,7 @@ function GoalSuggestionRow({ suggestion }: {
   );
 }
 
-function MealSuggestionRow({ suggestion }: {
+function MealSuggestionRow({ suggestion, timeZone }: {
   suggestion: {
     id: string;
     status: string;
@@ -1198,12 +1223,13 @@ function MealSuggestionRow({ suggestion }: {
     notes?: string;
     createdAt: number;
   };
+  timeZone: string;
 }) {
   return (
     <div className="rounded-xl border bg-muted/20 p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">{suggestion.mealLabel} · {suggestion.title}</span>
-        <span className="text-xs text-muted-foreground">{suggestionStatusLabel(suggestion.status)} · {new Date(suggestion.createdAt).toLocaleString("pt-BR")}</span>
+        <span className="text-xs text-muted-foreground">{suggestionStatusLabel(suggestion.status)} · {formatDateTimeInTimeZone(suggestion.createdAt, timeZone)}</span>
       </div>
       <p className="mt-2 text-muted-foreground">{suggestion.description}</p>
       <p className="mt-2 text-muted-foreground">Justificativa: {suggestion.rationale}</p>

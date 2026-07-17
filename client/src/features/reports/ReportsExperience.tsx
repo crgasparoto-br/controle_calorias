@@ -44,7 +44,8 @@ import {
   toMonthInputValue,
   type PeriodScope,
 } from "@/lib/dateRanges";
-import { getBrowserTimeZone, toDateInputValue } from "@/lib/dateTime";
+import { useEffectiveUserTimeZone } from "@/hooks/useEffectiveUserTimeZone";
+import { toDateInputValue } from "@/lib/dateTime";
 import { formatCalories, formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import {
@@ -425,13 +426,30 @@ function DailyDetailsSections({ groups, userTimeZone }: { groups: DateGroupedReg
 
 export function ReportsExperience({ context = "self", subjectUserId }: ReportsExperienceProps) {
   const isProfessional = context === "professional";
-  const userTimeZone = React.useMemo(() => getBrowserTimeZone(), []);
+  const selfTimeZone = useEffectiveUserTimeZone();
+  const patientTimeZone = trpc.nutrition.professionals.patientTimeZone.useQuery(
+    { patientId: subjectUserId ?? 0 },
+    { enabled: isProfessional && Boolean(subjectUserId) },
+  );
+  const timeZoneReady = isProfessional ? patientTimeZone.isSuccess : selfTimeZone.isReady;
+  const userTimeZone = isProfessional
+    ? (patientTimeZone.data?.timeZone ?? selfTimeZone.timeZone)
+    : selfTimeZone.timeZone;
   const [periodScope, setPeriodScope] = React.useState<PeriodScope>("week");
-  const [selectedDay, setSelectedDay] = React.useState(() => toDateInputValue());
+  const [selectedDay, setSelectedDay] = React.useState(() => toDateInputValue(new Date(), userTimeZone));
   const [selectedMonth, setSelectedMonth] = React.useState(() => toMonthInputValue(new Date(), userTimeZone));
   const [rangeStart, setRangeStart] = React.useState(() => toDateInputValue(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000), userTimeZone));
-  const [rangeEnd, setRangeEnd] = React.useState(() => toDateInputValue());
+  const [rangeEnd, setRangeEnd] = React.useState(() => toDateInputValue(new Date(), userTimeZone));
   const [showDetails, setShowDetails] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!timeZoneReady) return;
+    const today = toDateInputValue(new Date(), userTimeZone);
+    setSelectedDay(today);
+    setSelectedMonth(toMonthInputValue(new Date(), userTimeZone));
+    setRangeStart(toDateInputValue(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000), userTimeZone));
+    setRangeEnd(today);
+  }, [subjectUserId, timeZoneReady, userTimeZone]);
 
   const activeRange = React.useMemo(() => {
     if (periodScope === "day") return { start: selectedDay, end: selectedDay };
@@ -450,21 +468,21 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
   const isWeek = periodScope === "week";
   const selfWeeklyQuery = trpc.nutrition.reports.weekly;
   const hasWeeklySummaryQuery = Boolean(selfWeeklyQuery);
-  const selfWeeklySummary = normalizeQueryResult(selfWeeklyQuery?.useQuery({ weekOffset }, { enabled: !isProfessional && isWeek && hasWeeklySummaryQuery }));
+  const selfWeeklySummary = normalizeQueryResult(selfWeeklyQuery?.useQuery({ weekOffset }, { enabled: timeZoneReady && !isProfessional && isWeek && hasWeeklySummaryQuery }));
   const weeklySummaryContract = React.useMemo(() => validateWeeklyReportData(selfWeeklySummary.data), [selfWeeklySummary.data]);
   const shouldFallbackFromWeeklySummary = isWeek && !isProfessional && hasWeeklySummaryQuery && (selfWeeklySummary.isError || (!selfWeeklySummary.isLoading && !weeklySummaryContract.renderable));
   const selfWeeklyDetails = normalizeQueryResult(trpc.nutrition.reports.bundle.useQuery(
     { weekOffset, fallback: shouldFallbackFromWeeklySummary },
-    { enabled: !isProfessional && isWeek && (!hasWeeklySummaryQuery || showDetails || shouldFallbackFromWeeklySummary) },
+    { enabled: timeZoneReady && !isProfessional && isWeek && (!hasWeeklySummaryQuery || showDetails || shouldFallbackFromWeeklySummary) },
   ));
   const selfPeriodBundle = normalizeQueryResult(trpc.nutrition.reports.periodBundle.useQuery(
     { startDate: activeRange.start, endDate: activeRange.end },
-    { enabled: !isProfessional && periodScope !== "week" && !activeRangeLimitMessage },
+    { enabled: timeZoneReady && !isProfessional && periodScope !== "week" && !activeRangeLimitMessage },
   ));
   const professionalPeriodQuery = trpc.nutrition.professionals?.patientPeriodBundle;
   const professionalBundle = normalizeQueryResult(professionalPeriodQuery?.useQuery(
     { patientId: subjectUserId ?? 0, startDate: activeRange.start, endDate: activeRange.end },
-    { enabled: isProfessional && Boolean(subjectUserId) && !activeRangeLimitMessage },
+    { enabled: timeZoneReady && isProfessional && Boolean(subjectUserId) && !activeRangeLimitMessage },
   ));
 
   const useWeeklySummaryAsPrimary = isWeek && !isProfessional && hasWeeklySummaryQuery && !selfWeeklySummary.isError && weeklySummaryContract.renderable;
@@ -531,6 +549,11 @@ export function ReportsExperience({ context = "self", subjectUserId }: ReportsEx
 
   if (isProfessional && !subjectUserId) {
     return <ReportEmptyState text="Escolha uma pessoa autorizada para revisar relatórios, metas e evolução no período selecionado." />;
+  }
+
+  if (!timeZoneReady) {
+    const failed = isProfessional ? patientTimeZone.isError : selfTimeZone.isError;
+    return <ReportEmptyState text={failed ? "Não foi possível carregar o fuso horário do dono dos dados." : "Carregando o fuso horário do dono dos dados..."} />;
   }
 
   return (

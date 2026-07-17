@@ -12,9 +12,9 @@ import {
 import { listReply, type WhatsAppLogicalReply } from "./replyContract";
 import {
   buildWhatsAppCallbackResourceNotFoundReplyMessage,
-  buildWhatsAppMealActionReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
 } from "./replyMessages";
+import { composeWhatsAppMealActionReplies } from "./mealActionReplyComposer";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 
 export const PENDING_MEAL_ITEM_SELECTION_TYPE = "meal_item_selection";
@@ -214,10 +214,17 @@ async function applySelectionPlan(userId: number, selected: MealItemSelectionCan
   }
 
   const hasReplacement = plan.some(step => step.action.kind === "replace_food");
+  const reply = await composeWhatsAppMealActionReplies({
+    userId,
+    entries: updatedMeals.map(meal => ({
+      meal,
+      options: { title: pending.resultTitle, actionLines: actionLinesByMeal.get(meal.id) ?? [] },
+    })),
+  });
   return {
     handled: true,
     action: hasReplacement ? "meal_item_replaced" : "meal_item_grams_adjusted",
-    reply: updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title: pending.resultTitle, actionLines: actionLinesByMeal.get(meal.id) ?? [] })).join("\n\n"),
+    reply,
     eventType: hasReplacement ? "whatsapp.intent.meal_item_replaced" : "whatsapp.intent.meal_item_grams_adjusted",
     detail: `${plan.length} ação(ões) aplicada(s) somente após todas as seleções, com revalidação do estado atual.`,
     data: { mealId: updatedMeals[0]?.id, affectedMealIds: updatedMeals.map(meal => meal.id), actionCount: plan.length },
@@ -253,8 +260,7 @@ export async function resolveTextMealItemSelection(userId: number, text?: string
   if (index === null) return clarificationResult(`Escolha uma das opções de 1 a ${pending.candidates.length} ou responda CANCELAR.`, "whatsapp.intent.meal_item_selection_needed", "Pendência continua ativa; nenhuma mutação foi executada.", { candidateCount: pending.candidates.length });
   const selected = pending.candidates[index];
   if (!selected) return clarificationResult(`A opção ${index + 1} não existe. Escolha um número entre 1 e ${pending.candidates.length}, ou responda CANCELAR.`, "whatsapp.intent.meal_item_selection_invalid", "Índice inexistente na seleção persistida.", { candidateCount: pending.candidates.length });
-  const claim = await pendingOperationRepository.claimPendingOperation({ id: pendingRow.id, expectedVersion: pendingRow.version });
-  if (!claim.claimed) return null;
+  await pendingOperationRepository.cancelPendingOperation(pendingRow.id);
   return continueSelectionOrApply(userId, selected, pending);
 }
 

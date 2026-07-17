@@ -154,7 +154,7 @@ describe("validateWhatsappRuntimeIntentForPersistence", () => {
     }));
   });
 
-  it("bloqueia troca de alimento sem aceite explicito", () => {
+  it("executa troca de alimento clara sem confirmacao adicional (epic #779)", () => {
     const result = validateWhatsappRuntimeIntentForPersistence({
       intent: addFoodIntent({
         intent: "replace_food_in_meal",
@@ -168,9 +168,32 @@ describe("validateWhatsappRuntimeIntentForPersistence", () => {
     });
 
     expect(result).toEqual(expect.objectContaining({
+      valid: true,
+      status: "valid",
+    }));
+    expect(result.autonomyDecision).toEqual(expect.objectContaining({
+      intent: "trocar_alimento",
+      outcome: "execute",
+    }));
+  });
+
+  it("bloqueia troca de alimento quando a interpretacao exige confirmacao", () => {
+    const result = validateWhatsappRuntimeIntentForPersistence({
+      intent: addFoodIntent({
+        intent: "replace_food_in_meal",
+        sourceFood: "arroz",
+        targetFood: "batata",
+        items: [],
+        meal: null,
+        confidence: 0.9,
+        requiresConfirmation: true,
+      }),
+      validationStatus: "valid",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
       valid: false,
       status: "blocked",
-      errorCode: "autonomy_not_executable",
     }));
     expect(result.autonomyDecision).toEqual(expect.objectContaining({
       intent: "trocar_alimento",

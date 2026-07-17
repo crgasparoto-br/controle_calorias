@@ -6,6 +6,9 @@ const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const createUserWaterLogMock = vi.fn();
 const updateUserCurrentWeightMock = vi.fn();
+const ensureWhatsAppWeightEntryMock = vi.fn();
+const getWhatsAppWeightVariationMock = vi.fn();
+const getWhatsAppUserTimeZoneMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
@@ -41,6 +44,16 @@ vi.mock("./db", () => ({
   logInferenceEvent: logInferenceEventMock,
   relabelUserMeals: vi.fn(async () => []),
   updateUserCurrentWeight: updateUserCurrentWeightMock,
+}));
+
+vi.mock("./modules/whatsapp/weightIdempotency", () => ({
+  ensureWhatsAppWeightEntry: ensureWhatsAppWeightEntryMock,
+}));
+
+vi.mock("./modules/whatsapp/userMeasurementReplyContext", () => ({
+  getWhatsAppWeightVariation: getWhatsAppWeightVariationMock,
+  getWhatsAppUserTimeZone: getWhatsAppUserTimeZoneMock,
+  getWhatsAppWaterProgress: vi.fn(async () => ({ totalMl: 250, goalMl: null, timeZone: "America/Sao_Paulo", dateKey: "2024-04-21" })),
 }));
 
 vi.mock("./nutritionEngine", () => ({
@@ -188,16 +201,6 @@ function expectMessageMarkedAsRead(messageId: string) {
   );
 }
 
-function expectProcessingAcknowledgement(contentLabel: string) {
-  expect(global.fetch).toHaveBeenCalledWith(
-    expect.stringContaining("/phone-number-test/messages"),
-    expect.objectContaining({
-      method: "POST",
-      body: expect.stringContaining(`Recebi ${contentLabel} e estou processando`),
-    }),
-  );
-}
-
 describe("whatsappWebhook smoke", () => {
   beforeEach(() => {
     __resetWhatsAppWebhookDeduplicationForTests();
@@ -213,6 +216,12 @@ describe("whatsappWebhook smoke", () => {
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     updateUserCurrentWeightMock.mockResolvedValue({ userId: 123, weightKg: 72.5 });
+    getWhatsAppWeightVariationMock.mockResolvedValue({ variationKg: null, previousWeightKg: null });
+    getWhatsAppUserTimeZoneMock.mockResolvedValue("America/Sao_Paulo");
+    ensureWhatsAppWeightEntryMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      entry: { id: 790, userId: 123, ...input },
+      created: true,
+    }));
     storagePutMock.mockReset();
     storagePutMock.mockImplementation(async (key: string) => ({ key, url: `https://storage.test/${key}` }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-smoke-text" });
@@ -272,14 +281,15 @@ describe("whatsappWebhook smoke", () => {
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(getUserIdByWhatsappPhoneMock).toHaveBeenCalledWith("5511999999999");
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expectProcessingAcknowledgement("seu texto");
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: "arroz e frango",
       transcript: undefined,
       imageUrl: undefined,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
       draftId: "draft-smoke-text",
@@ -306,7 +316,6 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expectProcessingAcknowledgement("seu texto");
     expect(createUserWaterLogMock).toHaveBeenCalledWith(123, {
       amountMl: 250,
       occurredAt: "2024-04-21T14:14:00.000Z",
@@ -317,7 +326,7 @@ describe("whatsappWebhook smoke", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({
-        body: expect.stringContaining("Registrei 250 ml de água"),
+        body: expect.stringContaining("*Quantidade:* 250 ml"),
       }),
     );
     expect(recordDomainLinkMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 }, { waterLogId: 789 });
@@ -332,8 +341,7 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expectProcessingAcknowledgement("seu texto");
-    expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(123, {
+    expect(ensureWhatsAppWeightEntryMock).toHaveBeenCalledWith(123, {
       weightKg: 72.5,
       measuredAt: new Date("2024-04-21T14:14:00.000Z"),
       notes: "Peso atualizado pelo WhatsApp.",
@@ -344,7 +352,7 @@ describe("whatsappWebhook smoke", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({
-        body: expect.stringContaining("Atualizei seu peso atual para 72.5 kg"),
+        body: expect.stringContaining("*Peso:* 72,5 kg"),
       }),
     );
   });
@@ -358,8 +366,7 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expectProcessingAcknowledgement("seu texto");
-    expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(123, {
+    expect(ensureWhatsAppWeightEntryMock).toHaveBeenCalledWith(123, {
       weightKg: 69.5,
       measuredAt: new Date("2024-04-21T14:14:00.000Z"),
       notes: "Peso atualizado pelo WhatsApp.",
@@ -370,7 +377,7 @@ describe("whatsappWebhook smoke", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({
-        body: expect.stringContaining("Atualizei seu peso atual para 69.5 kg"),
+        body: expect.stringContaining("*Peso:* 69,5 kg"),
       }),
     );
   });
@@ -387,8 +394,7 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-text-1");
-    expectProcessingAcknowledgement("seu texto");
-    expect(updateUserCurrentWeightMock).toHaveBeenCalledWith(123, {
+    expect(ensureWhatsAppWeightEntryMock).toHaveBeenCalledWith(123, {
       weightKg: expectedWeight,
       measuredAt: new Date("2024-04-21T14:14:00.000Z"),
       notes: "Peso atualizado pelo WhatsApp.",
@@ -399,7 +405,7 @@ describe("whatsappWebhook smoke", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/phone-number-test/messages"),
       expect.objectContaining({
-        body: expect.stringContaining(`Atualizei seu peso atual para ${expectedWeight} kg`),
+        body: expect.stringContaining(`*Peso:* ${String(expectedWeight).replace(".", ",")} kg`),
       }),
     );
   });
@@ -415,7 +421,6 @@ describe("whatsappWebhook smoke", () => {
 
     global.fetch = vi
       .fn()
-      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,
@@ -444,20 +449,21 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-audio-1");
-    expectProcessingAcknowledgement("seu áudio");
     expect(transcribeAudioMock).toHaveBeenCalledWith({
       audioBase64: expectedAudioBase64,
       mimeType: "audio/ogg",
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
       transcript: "arroz e feijão",
       imageUrl: undefined,
       audioUrl: expect.stringMatching(/^https:\/\/storage\.test\/whatsapp\/audio\/audio-[0-9a-f-]{36}\.ogg$/),
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     const audioUrl = processMealInputMock.mock.calls[0][0].audioUrl;
     expect(audioUrl).not.toContain("5511999999999");
     expect(audioUrl).not.toContain("audio-media-id");
@@ -482,7 +488,6 @@ describe("whatsappWebhook smoke", () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(createWhatsAppOkResponse())
-      .mockResolvedValueOnce(createWhatsAppOkResponse())
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -510,20 +515,21 @@ describe("whatsappWebhook smoke", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expectMessageMarkedAsRead("wamid.smoke-audio-1");
-    expectProcessingAcknowledgement("seu áudio");
     expect(transcribeAudioMock).toHaveBeenCalledWith({
       audioBase64: expectedAudioBase64,
       mimeType: "audio/ogg",
       language: "pt",
       prompt: "Transcreva a refeição descrita pelo usuário em português do Brasil.",
     });
-    expect(processMealInputMock).toHaveBeenCalledWith({
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
       text: undefined,
       transcript: "arroz e feijão",
       imageUrl: undefined,
       audioUrl: undefined,
       habits: [],
-    });
+      occurredAt: expect.any(Date),
+      timeZone: "America/Sao_Paulo",
+    }));
     expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
       123,
       "whatsapp",

@@ -1,4 +1,4 @@
-import { getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { canUseMemoryPersistenceFallback } from "../../repositories/memoryFallback";
 import type { WaterGoalRecord, WaterLogRecord, WaterRepository } from "../../repositories/waterRepository";
 
@@ -11,7 +11,7 @@ export function sumWater(items: WaterLogEntry[]) {
 
 export function createWaterService(deps: {
   waterRepository: WaterRepository;
-  buildOccurredAtRange: (date: string) => { startAt: Date; endAt: Date };
+  buildOccurredAtRange: (date: string, timeZone: string) => { startAt: Date; endAt: Date };
   onEvent: (entry: { userId: number; origin: "web"; status: "success"; eventType: string; detail: string }) => void;
 }) {
   const waterGoalStore = new Map<number, WaterGoalEntry>();
@@ -69,12 +69,12 @@ export function createWaterService(deps: {
     return logs.slice().sort((a, b) => b.occurredAt - a.occurredAt);
   }
 
-  async function listWaterLogsByDate(userId: number, date: string) {
-    const range = deps.buildOccurredAtRange(date);
+  async function listWaterLogsByDate(userId: number, date: string, timeZone = DEFAULT_APP_TIME_ZONE) {
+    const range = deps.buildOccurredAtRange(date, timeZone);
     const dbLogs = await deps.waterRepository.findLogsByUserIdAndRange(userId, range.startAt, range.endAt);
     const logs = dbLogs ?? (canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : []);
     return logs
-      .filter(log => getDateKeyInTimeZone(Number(log.occurredAt)) === date)
+      .filter(log => getDateKeyInTimeZone(Number(log.occurredAt), timeZone) === date)
       .slice()
       .sort((a, b) => b.occurredAt - a.occurredAt);
   }
@@ -83,7 +83,7 @@ export function createWaterService(deps: {
     const dbLogs = await deps.waterRepository.findLogsByUserIdAndRange(userId, startAt, endAt);
     const logs = dbLogs ?? (canUseMemoryPersistenceFallback() ? waterLogStore.get(userId) ?? [] : []);
     return logs
-      .filter(log => Number(log.occurredAt) >= startAt.getTime() && Number(log.occurredAt) <= endAt.getTime())
+      .filter(log => Number(log.occurredAt) >= startAt.getTime() && Number(log.occurredAt) < endAt.getTime())
       .slice()
       .sort((a, b) => b.occurredAt - a.occurredAt);
   }

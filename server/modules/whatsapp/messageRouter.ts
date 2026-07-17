@@ -24,6 +24,11 @@ import { handlePendingWhatsAppConfirmation, completeWhatsappGenericConfirmationC
 import { claimWhatsAppInteractiveCallback } from "./interactiveCallback";
 import { completeWhatsappDeleteInteractiveCallback, PENDING_DELETE_TYPE } from "./deleteIntent";
 import { completeMealItemSelectionInteractiveCallback, PENDING_MEAL_ITEM_SELECTION_TYPE } from "./mealItemSelectionCallback";
+import {
+  completeWhatsappPeriodReportCallback,
+  isExpectedWhatsappPeriodReportAction,
+  PENDING_PERIOD_REPORT_TYPE,
+} from "./periodReportClarification";
 import { buildWhatsAppCallbackUnavailableReplyMessage } from "./replyMessages";
 import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
@@ -69,25 +74,47 @@ async function resolveWhatsAppInteractiveCallback(
   userId: number,
   interactiveReplyId: string,
   receivedAt?: Date,
+  sourcePhone?: string | null,
+  userTimezone?: string | null,
 ): Promise<WhatsAppInteractiveCallbackResult> {
-  const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt);
+  const expectedTypes = [
+    PENDING_DELETE_TYPE,
+    PENDING_MEAL_ITEM_SELECTION_TYPE,
+    PENDING_CONFIRMATION_TYPE,
+    PENDING_PROFESSIONAL_ACCESS_TYPE,
+    PENDING_PERIOD_REPORT_TYPE,
+  ] as const;
+  const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt, {
+    sourcePhone,
+    expectedTypes,
+    isExpectedAction: (type, action) => {
+      if (type === PENDING_PROFESSIONAL_ACCESS_TYPE) return action === "authorize" || action === "reject";
+      if (type === PENDING_CONFIRMATION_TYPE) return action === "confirm" || action === "cancel";
+      if (type === PENDING_PERIOD_REPORT_TYPE) return isExpectedWhatsappPeriodReportAction(action);
+      if (type === PENDING_DELETE_TYPE || type === PENDING_MEAL_ITEM_SELECTION_TYPE) {
+        return action === "confirm" || action === "cancel" || /^select:\d+$/.test(action);
+      }
+      return false;
+    },
+  });
   if (claim.status !== "claimed") {
     return buildUnavailableInteractiveCallbackResult();
   }
 
   switch (claim.pendingOperation.type) {
     case PENDING_DELETE_TYPE:
-      return completeWhatsappDeleteInteractiveCallback(userId, claim.pendingOperation, claim.action);
+      return completeWhatsappDeleteInteractiveCallback(userId, claim.pendingOperation, claim.action, userTimezone ?? undefined);
     case PENDING_MEAL_ITEM_SELECTION_TYPE:
       return completeMealItemSelectionInteractiveCallback(userId, claim.pendingOperation, claim.action);
     case PENDING_CONFIRMATION_TYPE:
       return completeWhatsappGenericConfirmationCallback(userId, claim.pendingOperation, claim.action);
+    case PENDING_PERIOD_REPORT_TYPE:
+      return completeWhatsappPeriodReportCallback(userId, claim.action, receivedAt);
     case PENDING_PROFESSIONAL_ACCESS_TYPE: {
       const { completeWhatsAppProfessionalAccessCallback } = await import("../professionals/service");
       return completeWhatsAppProfessionalAccessCallback(userId, claim.pendingOperation, claim.action);
     }
     default:
-      // Tipo de pendência sem callback central migrado ainda (ex.: clarificação de período): trata como indisponível.
       return buildUnavailableInteractiveCallbackResult();
   }
 }
@@ -109,9 +136,11 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   userTimezone?: string | null;
   /** ID opaco de `button_reply`/`list_reply` (issue #782). Resolvido antes de qualquer outra precedência: um clique nunca é reinterpretado como texto livre nem cai no fallback nutricional. */
   interactiveReplyId?: string | null;
+  /** Telefone de origem validado contra a conexão ativa antes de consumir callback. */
+  sourcePhone?: string | null;
 }): Promise<WhatsAppPrecedenceGateResult> {
   if (input.interactiveReplyId) {
-    const result = await resolveWhatsAppInteractiveCallback(input.userId, input.interactiveReplyId, input.receivedAt);
+    const result = await resolveWhatsAppInteractiveCallback(input.userId, input.interactiveReplyId, input.receivedAt, input.sourcePhone, input.userTimezone);
     return { step: "interactive_callback", result };
   }
 

@@ -5,6 +5,8 @@ import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { executeWhatsappGramsAdjustmentIntent } from "./modules/whatsapp/gramsAdjustmentIntent";
+import { executeWhatsappGramsIncrementIntent } from "./modules/whatsapp/gramsIncrementIntent";
+import { parseMealCommandFromWhatsApp } from "./modules/whatsapp/mealCommandParser";
 import { resolveTextMealItemSelection } from "./modules/whatsapp/mealItemSelectionCallback";
 import { executeWhatsappMealListIntent } from "./modules/whatsapp/mealListIntent";
 import { executeWhatsappLlmIntent, type WhatsappLlmNutritionFallback } from "./modules/whatsapp/llmIntentActions";
@@ -14,11 +16,9 @@ import {
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
 import { splitWhatsAppWaterAndFoodText } from "./modules/whatsapp/waterFoodText";
-import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
-import { getDb, getUserIdByWhatsappPhone, getUserNutritionGoal, listUserExercises, logInferenceEvent, logPersistenceWarning, updateUserCurrentWeight } from "./db";
+import { getDb, getUserIdByWhatsappPhone, logInferenceEvent, logPersistenceWarning } from "./db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
 import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
-import { listMeals } from "./modules/meals/service";
 import {
   collapseWhitespace,
   extractWhatsAppWebhookMessages,
@@ -32,10 +32,19 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import type { WhatsAppLogicalReply } from "./modules/whatsapp/replyContract";
 import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
+import { setWhatsAppDeferredLogicalReply } from "./modules/whatsapp/deferredLogicalReply";
+import {
+  buildWhatsappPeriodReportClarificationListReply,
+  PENDING_PERIOD_REPORT_TYPE,
+} from "./modules/whatsapp/periodReportClarification";
+import type { DomainLinkInput } from "./repositories/whatsappConversationRepository";
 import { joinUnitWords } from "./modules/whatsapp/quantityUnitVocabulary";
+import { buildWhatsAppCanonicalWeightReply } from "./modules/whatsapp/domainReplyFormatters";
+import { ensureWhatsAppWeightEntry } from "./modules/whatsapp/weightIdempotency";
+import { getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementReplyContext";
+import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
-import { toLogicalDateInTimeZone } from "../shared/timeZone";
 import { recordConversationTurn, __resetConversationHistoryForTests } from "./modules/whatsapp/conversationHistory";
 import {
   beginInboundMessage,
@@ -51,16 +60,8 @@ type TextIntentResult =
   | Exclude<NonNullable<Awaited<ReturnType<typeof executeWhatsappLlmIntent>>>, WhatsappLlmNutritionFallback>
   | NonNullable<ReturnType<typeof executeWhatsAppFoodAssistantIntent>>;
 type TextIntentHandlingResult = boolean | { passthroughText: string; intentHint?: import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"] | null };
-type NutritionTotals = {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-};
-
 const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
-const PERIOD_REPORT_PENDING_TYPE = "period_report_clarification";
 const PERIOD_REPORT_PENDING_ORIGIN = "whatsappIntentWebhook";
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb,
@@ -112,6 +113,14 @@ function looksLikeTonicWaterFood(text: string) {
   return /\bagua\s+tonicas?\b/.test(normalized);
 }
 
+// Comandos de adição de alimento ("adicionar 100 g de feijão no almoço") compartilham
+// verbos com incrementos de gramas; eles devem seguir para o fluxo de adição em
+// executeWhatsappTextIntent em vez de serem tratados como incremento de item existente.
+function isFoodAdditionCommand(text: string, receivedAt: Date) {
+  const parsed = parseMealCommandFromWhatsApp(text, { referenceDate: receivedAt });
+  return parsed.intent === "add_items_to_meal" && Boolean(parsed.mealType) && parsed.items.length > 0;
+}
+
 function normalizeTextPreservingQuantities(value: string) {
   return stripDiacritics(value).toLowerCase();
 }
@@ -158,17 +167,6 @@ function detectWeightLogFromText(text: string) {
   }
 
   return mentionsWeightWord ? { kind: "clarification" as const } : null;
-}
-
-function buildWeightLogReply(weightKg: number, occurredAt: Date) {
-  return `Atualizei seu peso atual para ${formatNumber(weightKg)} kg em ${occurredAt.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  })}.`;
 }
 
 function hasExplicitFoodQuantity(text: string) {
@@ -246,120 +244,8 @@ function looksLikeProfessionalAccessDecision(text: string) {
   return /\b(autorizar|autorizo|autorizado|aprovar|aprovo|permitir|permito|negar|nego|recusar|recuso|nao autorizo)\b/.test(normalized);
 }
 
-function isInsidePeriod(value: number | string | Date, start: Date, end: Date) {
-  const time = new Date(value).getTime();
-  return time >= start.getTime() && time <= end.getTime();
-}
-
-function sumMealItems(items: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }>): NutritionTotals {
-  return items.reduce<NutritionTotals>(
-    (acc, item) => ({
-      calories: acc.calories + Number(item.calories || 0),
-      protein: acc.protein + Number(item.protein || 0),
-      carbs: acc.carbs + Number(item.carbs || 0),
-      fat: acc.fat + Number(item.fat || 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-}
-
-function countPeriodDays(start: Date, end: Date) {
-  const startDay = toLogicalDateInTimeZone(start);
-  const endDay = toLogicalDateInTimeZone(end);
-  return Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
-}
-
-function buildMealBreakdownLines(meals: Array<{ mealLabel?: string | null; items?: Array<{ calories?: number; protein?: number; carbs?: number; fat?: number }> }>) {
-  const groups = new Map<string, NutritionTotals>();
-  for (const meal of [...meals].reverse()) {
-    const label = meal.mealLabel?.trim() || "Refeição";
-    const itemTotals = sumMealItems(meal.items ?? []);
-    const existing = groups.get(label) ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
-    groups.set(label, {
-      calories: existing.calories + itemTotals.calories,
-      protein: existing.protein + itemTotals.protein,
-      carbs: existing.carbs + itemTotals.carbs,
-      fat: existing.fat + itemTotals.fat,
-    });
-  }
-  const lines: string[] = [];
-  for (const [label, totals] of groups) {
-    if (lines.length > 0) lines.push("");
-    lines.push(`${label}: ${formatNumber(totals.calories)} kcal`);
-    lines.push(`* Prot. ${formatNumber(totals.protein)} g | Carb. ${formatNumber(totals.carbs)} g | Gord. ${formatNumber(totals.fat)} g`);
-  }
-  return lines;
-}
-
-function buildPeriodGoalSummaryLines(input: { goalCalories: number; adjustedGoalCalories: number; exerciseCalories: number; consumedCalories: number; balanceCalories: number }) {
-  if (input.goalCalories <= 0) return [];
-
-  const balanceLabel = input.balanceCalories >= 0 ? "Déficit" : "Superávit";
-  const pct = input.adjustedGoalCalories > 0
-    ? Math.round((Math.abs(input.balanceCalories) / input.adjustedGoalCalories) * 100)
-    : 0;
-  const pctStr = input.balanceCalories >= 0 ? `(-${pct}%)` : `(+${pct}%)`;
-
-  return [
-    "*Resumo das Metas:*",
-    `* Meta estimada: ${formatNumber(input.goalCalories)} kcal`,
-    ...(input.exerciseCalories > 0 ? [`* Exercícios: ${formatNumber(input.exerciseCalories)} kcal`] : []),
-    `* Meta ajustada: ${formatNumber(input.adjustedGoalCalories)} kcal`,
-    `* Consumo: ${formatNumber(input.consumedCalories)} kcal`,
-    `* ${balanceLabel}: ${formatNumber(Math.abs(input.balanceCalories))} kcal ${pctStr}`,
-  ];
-}
-
-async function buildExerciseAwarePeriodReportReply(userId: number, result: TextIntentResult) {
-  if (result.action !== "period_report") return result.reply;
-
-  const start = typeof result.data?.start === "string" ? new Date(result.data.start) : null;
-  const end = typeof result.data?.end === "string" ? new Date(result.data.end) : null;
-  const label = typeof result.data?.periodLabel === "string" ? result.data.periodLabel : "período";
-  if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return result.reply;
-  }
-
-  const [meals, exercises, goal] = await Promise.all([
-    listMeals(userId),
-    listUserExercises(userId),
-    getUserNutritionGoal(userId),
-  ]);
-  const mealsInPeriod = meals.filter(meal => isInsidePeriod(meal.occurredAt, start, end));
-  const exercisesInPeriod = exercises.filter(exercise => isInsidePeriod(Number(exercise.occurredAt), start, end));
-  const totals = mealsInPeriod.reduce<NutritionTotals>((acc, meal) => {
-    const itemTotals = sumMealItems(meal.items ?? []);
-    acc.calories += itemTotals.calories;
-    acc.protein += itemTotals.protein;
-    acc.carbs += itemTotals.carbs;
-    acc.fat += itemTotals.fat;
-    return acc;
-  }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const consumedCalories = Math.round(totals.calories);
-  const exerciseCalories = Math.round(exercisesInPeriod.reduce((acc, exercise) => acc + Number(exercise.caloriesBurned || 0), 0));
-  const goalCalories = Math.round(Number(goal.today?.calories || 0) * countPeriodDays(start, end));
-  const adjustedGoalCalories = calculateAdjustedGoalCalories(goalCalories, exerciseCalories, goal.today?.includeExerciseCalories ?? true);
-  const balanceCalories = adjustedGoalCalories - consumedCalories;
-  const goalSummaryLines = buildPeriodGoalSummaryLines({
-    goalCalories,
-    adjustedGoalCalories,
-    exerciseCalories,
-    consumedCalories,
-    balanceCalories,
-  });
-
-  return [
-    `*Resumo de ${label}:*`,
-    "",
-    `Refeições registradas: ${mealsInPeriod.length}`,
-    "",
-    ...buildMealBreakdownLines(mealsInPeriod),
-    ...(goalSummaryLines.length ? ["", ...goalSummaryLines] : []),
-  ].join("\n");
-}
-
-async function buildMealAdditionAwareReply(userId: number, result: TextIntentResult) {
-  return buildExerciseAwarePeriodReportReply(userId, result);
+async function buildMealAdditionAwareReply(_userId: number, result: TextIntentResult) {
+  return result.reply;
 }
 
 function wasTextIntentMessageAlreadyHandled(messageId?: string) {
@@ -372,29 +258,34 @@ function markTextIntentMessageHandled(messageId?: string) {
 
 async function getPendingTextIntentContext(userId: number) {
   const pending = await pendingOperationRepository.getActivePendingOperation(userId);
-  if (!pending || pending.type !== PERIOD_REPORT_PENDING_TYPE) return null;
+  if (!pending || pending.type !== PENDING_PERIOD_REPORT_TYPE) return null;
   return { kind: "period_report" as const, id: pending.id };
 }
 
 async function clearPendingTextIntentContext(userId: number) {
   const pending = await pendingOperationRepository.getActivePendingOperation(userId);
-  if (pending && pending.type === PERIOD_REPORT_PENDING_TYPE) {
+  if (pending && pending.type === PENDING_PERIOD_REPORT_TYPE) {
     await pendingOperationRepository.cancelPendingOperation(pending.id);
   }
 }
 
 async function rememberPendingTextIntentContext(userId: number, result: TextIntentResult) {
   if (result.action === "clarification_needed" && result.detail === "Pedido de relatório sem período explícito.") {
-    await pendingOperationRepository.createPendingOperation({
+    const pending = await pendingOperationRepository.createPendingOperation({
       userId,
-      type: PERIOD_REPORT_PENDING_TYPE,
+      type: PENDING_PERIOD_REPORT_TYPE,
       origin: PERIOD_REPORT_PENDING_ORIGIN,
       ttlMs: TEXT_INTENT_CONTEXT_TTL_MS,
       target: { kind: "period_report" },
     });
-    return;
+    // Pergunta com escolhas objetivas usa lista interativa (#782); o fallback
+    // textual ("ontem", "semana"...) continua resolvendo a mesma pendência.
+    return pending?.id
+      ? buildWhatsappPeriodReportClarificationListReply(pending.id, result.reply)
+      : null;
   }
   await clearPendingTextIntentContext(userId);
+  return null;
 }
 
 export function __resetWhatsAppTextIntentContextForTests() {
@@ -456,20 +347,7 @@ function extractEditableMealId(result: unknown) {
   );
 }
 
-function buildMixedWaterReply(waterResults: TextIntentResult[]) {
-  const waterLines = waterResults
-    .map((result) => typeof result.data?.amountMl === "number" ? `* ${formatNumber(result.data?.amountMl)} ml de água` : null)
-    .filter((line): line is string => Boolean(line));
-
-  return [
-    "Hidratação registrada:",
-    ...waterLines,
-    "",
-    "Vou processar os alimentos da mesma mensagem separadamente.",
-  ].join("\n");
-}
-
-async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Promise<TextIntentHandlingResult> {
+async function tryHandleTextIntent(req: Request, message: ExtractedWhatsAppWebhookMessage): Promise<TextIntentHandlingResult> {
   const sourcePhone = message.from || "unknown";
   if (!isWhatsAppMessageForConfiguredChannel(message) || !canInterpretTextIntent(message)) return false;
   if (wasTextIntentMessageAlreadyHandled(message.id)) return true;
@@ -515,6 +393,8 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   }
 
   async function handleTextIntentAfterLifecycleBegin(userId: number): Promise<TextIntentHandlingResult> {
+  const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
+  const userTimezone = timeZoneResolution.timeZone;
   const safety = inspectWhatsAppUserContentSafety(text, "text");
   if (!safety.safe) {
     markTextIntentMessageHandled(message.id);
@@ -538,7 +418,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   // compartilhado, antes de qualquer classificação de intenção (exclusão, ajuste,
   // substituição, LLM etc).
   const interactiveReplyId = getWhatsAppInteractiveReplyId(message);
-  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, interactiveReplyId });
+  const precedenceGate = await resolveWhatsAppPrecedenceGate({ userId, text, receivedAt: occurredAt, userTimezone, interactiveReplyId, sourcePhone });
   if (precedenceGate.step !== "continue_pipeline") {
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -601,11 +481,16 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   }
 
   if (weightLog?.kind === "weight") {
-    await updateUserCurrentWeight(userId, {
+    const timeZone = userTimezone;
+    const { variationKg } = await getWhatsAppWeightVariation(userId, occurredAt, weightLog.weightKg);
+    const persistedWeight = await ensureWhatsAppWeightEntry(userId, {
       weightKg: weightLog.weightKg,
       measuredAt: occurredAt,
       notes: "Peso atualizado pelo WhatsApp.",
     });
+    if (persistedWeight.entry.id > 0) {
+      await recordDomainLink(lifecycleHandle, { weightEntryId: persistedWeight.entry.id });
+    }
 
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -613,7 +498,18 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       userId,
       sourcePhone,
       userMessage: text,
-      reply: buildWeightLogReply(weightLog.weightKg, occurredAt),
+      reply: buildWhatsAppCanonicalWeightReply({
+        weightKg: weightLog.weightKg,
+        variationKg,
+        occurredAtLabel: occurredAt.toLocaleString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone,
+        }),
+      }),
       eventType: "whatsapp.intent.weight_logged",
       detail: `Peso de ${formatNumber(weightLog.weightKg)} kg registrado pelo WhatsApp textual sem passar pelo fluxo de alimento.`,
       status: "success",
@@ -627,7 +523,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   if (mixedWaterFood) {
     const waterResults: TextIntentResult[] = [];
     for (const waterLine of mixedWaterFood.waterLines) {
-      const result = await executeWhatsappTextIntent(userId, { text: waterLine.text, receivedAt: occurredAt });
+      const result = await executeWhatsappTextIntent(userId, { text: waterLine.text, receivedAt: occurredAt, userTimezone });
       if (!result || result.action !== "water_logged") {
         await sendAndLogTextReply({
           userId,
@@ -646,16 +542,20 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
       waterResults.push(result);
     }
 
-    await sendAndLogTextReply({
+    // Água e alimento na mesma entrada formam uma única resposta funcional
+    // lógica (#785): os blocos canônicos de água entram como prefixo da
+    // resposta final do fluxo nutricional, sem outbound próprio.
+    const prefixBlocks = waterResults.map(result => result.reply);
+    const domainLinks: DomainLinkInput[] = waterResults
+      .map(result => (typeof result.data?.waterLogId === "number" ? { waterLogId: result.data.waterLogId } : null))
+      .filter((link): link is { waterLogId: number } => Boolean(link));
+    setWhatsAppDeferredLogicalReply(req, message.id, { prefixBlocks, domainLinks });
+    logInferenceEvent({
       userId,
-      sourcePhone,
-      userMessage: text,
-      reply: buildMixedWaterReply(waterResults),
-      eventType: "whatsapp.intent.water_food_multiline_split",
-      detail: "Hidratação registrada e alimentos encaminhados ao fluxo nutricional após separar mensagem multi-linha.",
+      origin: "whatsapp",
       status: "success",
-      occurredAtMs,
-      lifecycleHandle,
+      eventType: "whatsapp.intent.water_food_multiline_split",
+      detail: "Hidratação registrada e composta como prefixo da resposta nutricional da mesma mensagem.",
     });
     return { passthroughText: mixedWaterFood.foodText };
   }
@@ -683,7 +583,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     return true;
   }
 
-  const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent });
+  const deleteIntentResult = await executeWhatsappDeleteIntent(userId, { text: textForIntent, timeZone: userTimezone });
   if (deleteIntentResult) {
     markTextIntentMessageHandled(message.id);
     await clearPendingTextIntentContext(userId);
@@ -761,8 +661,29 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     return true;
   }
 
+  const gramsIncrementResult = isFoodAdditionCommand(textForIntent, occurredAt)
+    ? null
+    : await executeWhatsappGramsIncrementIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+  if (gramsIncrementResult) {
+    markTextIntentMessageHandled(message.id);
+    await clearPendingTextIntentContext(userId);
+    await sendAndLogTextReply({
+      userId,
+      sourcePhone,
+      userMessage: text,
+      reply: gramsIncrementResult.reply,
+      eventType: gramsIncrementResult.eventType,
+      detail: gramsIncrementResult.detail,
+      status: gramsIncrementResult.action === "clarification_needed" ? "warning" : "success",
+      mealId: extractMealId(gramsIncrementResult.data),
+      occurredAtMs,
+      lifecycleHandle,
+      interactiveReply: gramsIncrementResult.interactiveReply,
+    });
+    return true;
+  }
   let nutritionFallback: WhatsappLlmNutritionFallback | null = null;
-  let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: occurredAt });
+  let result: TextIntentResult | null = await executeWhatsappTextIntent(userId, { text: textForIntent, receivedAt: occurredAt, userTimezone });
   if (!result && shouldTryContextualLlmIntent(textForIntent)) {
     const llmResult = await executeWhatsappLlmIntent(userId, { text: textForIntent, receivedAt: occurredAt });
     if (llmResult && "handled" in llmResult && !llmResult.handled) {
@@ -789,7 +710,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
   }
 
   markTextIntentMessageHandled(message.id);
-  await rememberPendingTextIntentContext(userId, result);
+  const pendingInteractiveReply = await rememberPendingTextIntentContext(userId, result);
   await sendAndLogTextReply({
     userId,
     sourcePhone,
@@ -801,7 +722,7 @@ async function tryHandleTextIntent(message: ExtractedWhatsAppWebhookMessage): Pr
     mealId: extractMealId(result.data),
     occurredAtMs,
     lifecycleHandle,
-    interactiveReply: "interactiveReply" in result ? result.interactiveReply : undefined,
+    interactiveReply: pendingInteractiveReply ?? ("interactiveReply" in result ? result.interactiveReply : undefined),
   });
   return true;
   }
@@ -852,7 +773,7 @@ export async function handleWhatsAppWebhookWithTextIntent(req: Request, res: Res
   const textOverrides = new Map<string, string>();
   const intentHints = new Map<string, import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]>();
   for (const message of messages) {
-    const handled = await tryHandleTextIntent(message);
+    const handled = await tryHandleTextIntent(req, message);
     const key = getExtractedWhatsAppMessageKey(message);
     if (handled === true) {
       handledMessageKeys.add(key);

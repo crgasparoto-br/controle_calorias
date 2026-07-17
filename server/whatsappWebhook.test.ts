@@ -297,22 +297,15 @@ describe("whatsappWebhook", () => {
     const savedMeals = (await listUserMeals(1)).filter((meal) => meal.source === "whatsapp");
     expect(savedMeals.length).toBeGreaterThan(0);
     expect(lastSentWhatsAppUrl).toContain("/phone-number-test/messages");
-    expect(lastSentWhatsAppBody).toContain([
-      "*Almoço Registrado às 08:52hs.*",
-      "",
-      "Itens:",
-      "• 🍚 arroz — 100g",
-      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
-      "",
-      "Total da refeição:",
-      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
-      "",
-      "Meta de hoje:",
-      "* Meta estimada: 2.200 kcal",
-      "* Meta ajustada: 2.200 kcal",
-      "* Consumo: 130 kcal",
-      "* Déficit: 2.070 kcal",
-    ].join("\n"));
+    expect(lastSentWhatsAppBody).toContain("*Almoço Registrado às 08:52hs.*");
+    expect(lastSentWhatsAppBody).toContain("• 🍚 arroz — 100g");
+    expect(lastSentWhatsAppBody).toContain("Total da refeição:");
+    expect(lastSentWhatsAppBody).toContain("*Meta:* 2.200 kcal");
+    expect(lastSentWhatsAppBody).toContain("*Exercícios:* 0 kcal");
+    expect(lastSentWhatsAppBody).toContain("*Consumo:* 130 kcal");
+    expect(lastSentWhatsAppBody).toContain("*Déficit:* 2.070 kcal (-94%)");
+    expect(lastSentWhatsAppBody).not.toContain("Meta estimada");
+    expect(lastSentWhatsAppBody).not.toContain("Meta ajustada");
     const lastPayload = sentWhatsAppPayloads[sentWhatsAppPayloads.length - 1];
     expect(lastPayload?.interactive?.type).toBe("cta_url");
     expect(lastPayload?.interactive?.action?.parameters?.display_text).toBe("Editar refeição");
@@ -801,6 +794,8 @@ describe("whatsappWebhook", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ ok: true, processed: 1 });
     expect(processMealInputMock).not.toHaveBeenCalled();
-    expect(lastSentWhatsAppBody).toBeNull();
+    // Contrato #787: conta não identificada recebe mensagem de segurança central.
+    expect(lastSentWhatsAppBody).toContain("Conta não identificada");
+    expect(lastSentWhatsAppBody).toContain("Verifique o telefone cadastrado no sistema web");
   });
 });

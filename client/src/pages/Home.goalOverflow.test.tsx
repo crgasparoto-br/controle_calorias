@@ -23,6 +23,16 @@ vi.mock("@/lib/trpc", () => ({
       },
     }),
     nutrition: {
+      onboarding: {
+        timeZone: {
+          useQuery: () => ({
+            data: { timeZone: "America/Sao_Paulo", source: "profile", fallbackReason: null },
+            isSuccess: true,
+            isLoading: false,
+            isError: false,
+          }),
+        },
+      },
       assistant: {
         suggest: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),

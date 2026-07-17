@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_APP_TIME_ZONE } from "./timeZone";
 
 const nonEmptyText = z.string().trim().min(1);
 const optionalText = z.string().trim().min(1).optional();
@@ -12,7 +13,7 @@ export const userProfileInputSchema = z.object({
   birthDate: isoDate.optional(),
   sex: z.enum(["female", "male", "non_binary", "prefer_not_to_say"]).default("prefer_not_to_say"),
   heightCm: z.number().finite().min(80).max(260).optional(),
-  timezone: z.string().trim().min(1).max(80).default("UTC"),
+  timezone: z.string().trim().min(1).max(80).default(DEFAULT_APP_TIME_ZONE),
   locale: z.string().trim().min(2).max(16).default("pt-BR"),
 });
 

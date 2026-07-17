@@ -20,6 +20,10 @@ vi.mock("../water/service", () => ({
   createWaterLog: createWaterLogMock,
 }));
 
+vi.mock("../onboarding/profileRead", () => ({
+  getUserOnboardingProfile: vi.fn(async () => ({ timezone: "America/Sao_Paulo" })),
+}));
+
 const { executeWhatsappTextIntent } = await import("./intentActions");
 
 const riceItem = {
@@ -524,14 +528,15 @@ describe("executeWhatsappTextIntent", () => {
       reply: expect.stringContaining("Resumo de semana"),
     }));
     expect(result?.reply).toContain("Refeições registradas: 2");
-    expect(result?.reply).toContain("Jantar: 198 kcal");
-    expect(result?.reply).toContain("* Prot. 37 g | Carb. 0 g | Gord. 4 g");
-    expect(result?.reply).toContain("Almoço: 271 kcal");
-    expect(result?.reply).toContain("* Prot. 8,9 g | Carb. 55,6 g | Gord. 1 g");
+    expect(result?.reply).toContain("• *Jantar*");
+    expect(result?.reply).toContain("198 kcal | P 37 g | C 0 g | G 4 g");
+    expect(result?.reply).toContain("• *Almoço*");
+    expect(result?.reply).toContain("271 kcal | P 8,9 g | C 55,6 g | G 1 g");
     expect(result?.reply).not.toContain("Total consumido:");
-    expect(result?.reply).toContain("*Análise sobre a Meta:*");
-    expect(result?.reply).toContain("• Meta estimada: 15.400 kcal");
-    expect(result?.reply).toContain("• Déficit: 14.931 kcal (-97%) para a meta estimada do período");
+    expect(result?.reply).toContain("*Meta:* não disponível para este período");
+    expect(result?.reply).toContain("*Consumo:* 469 kcal");
+    expect(result?.reply).not.toContain("Meta estimada");
+    expect(result?.reply).not.toContain("Meta ajustada");
   });
 
   it("pede período quando o usuário solicita relatório sem período", async () => {

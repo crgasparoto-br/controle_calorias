@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildWhatsAppBlock,
+  buildWhatsAppCalorieBalanceLine,
   buildWhatsAppFoodLines,
   buildWhatsAppGoalProgressLines,
   buildWhatsAppMealTotalLines,
@@ -37,44 +38,103 @@ describe("replyTemplates", () => {
     ]);
   });
 
-  it("formata total da refeição e linha compacta de totais", () => {
-    const totals = { calories: 247.5, protein: 46.5, carbs: 0, fat: 5.4 };
+  it("marca como estimado todo item que não veio integralmente do catálogo", () => {
+    expect(buildWhatsAppFoodLines({ ...banana, source: undefined })).toEqual([
+      "• 🍌 Banana prata — 1 unidade (aprox. 80g)",
+      "72 kcal | P 0,9 g | C 18,6 g | G 0,2 g",
+      "⚠️ Valores nutricionais estimados pela IA.",
+    ]);
+    expect(buildWhatsAppFoodLines({ ...banana, source: "hybrid" })).toHaveLength(3);
+    expect(buildWhatsAppFoodLines({ ...banana, source: "heuristic" })).toHaveLength(3);
+  });
 
+  it("destaca em negrito o total da refeição e seus valores", () => {
+    const totals = { calories: 247.5, protein: 46.5, carbs: 0, fat: 5.4 };
     expect(buildWhatsAppMealTotalLines(totals)).toEqual([
-      "Total da refeição:",
-      "247,5 kcal | P 46,5 g | C 0 g | G 5,4 g",
+      "*Total da refeição:*",
+      "*247,5 kcal | P 46,5 g | C 0 g | G 5,4 g*",
     ]);
     expect(formatWhatsAppNutritionTotalsLine(totals)).toBe("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");
   });
 
-  it("formata bloco de meta diária com déficit e exercício", () => {
+  it("separa consumo e déficit usando a meta efetiva", () => {
     expect(buildWhatsAppGoalProgressLines({
-      consumedCalories: 1165,
-      goalCalories: 2000,
-      exerciseCalories: 200,
+      consumedCalories: 1850,
+      effectiveGoalCalories: 2000,
+      exerciseCalories: 350,
     })).toEqual([
-      "Meta de hoje:",
-      "* Meta estimada: 2.000 kcal",
-      "* Exercícios: 200 kcal",
-      "* Meta ajustada: 2.200 kcal",
-      "* Consumo: 1.165 kcal",
-      "* Déficit: 1.035 kcal",
+      "*Meta:* 2.000 kcal",
+      "*Exercícios:* 350 kcal",
+      "*Consumo:* 1.850 kcal",
+      "*Déficit:* 150 kcal (-7%)",
     ]);
   });
 
-  it("mostra exercícios sem somá-los à meta ajustada quando includeExerciseCalories está desativado", () => {
+  it("aceita temporariamente o alias legado contendo a meta efetiva", () => {
     expect(buildWhatsAppGoalProgressLines({
-      consumedCalories: 1165,
+      consumedCalories: 2100,
       goalCalories: 2000,
-      exerciseCalories: 200,
-      includeExerciseCalories: false,
     })).toEqual([
-      "Meta de hoje:",
-      "* Meta estimada: 2.000 kcal",
-      "* Exercícios: 200 kcal",
-      "* Meta ajustada: 2.000 kcal",
-      "* Consumo: 1.165 kcal",
-      "* Déficit: 835 kcal",
+      "*Meta:* 2.000 kcal",
+      "*Consumo:* 2.100 kcal",
+      "*Superávit:* 100 kcal (+5%)",
+    ]);
+  });
+
+  it("nunca usa o rótulo composto de saldo", () => {
+    const lines = buildWhatsAppGoalProgressLines({
+      consumedCalories: 2100,
+      effectiveGoalCalories: 2000,
+    });
+
+    expect(lines.join("\n")).not.toContain("Superávit/Déficit");
+  });
+
+  it("normaliza os valores exibidos antes de classificar equilíbrio", () => {
+    expect(buildWhatsAppCalorieBalanceLine({
+      consumedCalories: 2000.4,
+      effectiveGoalCalories: 2000.49,
+      precision: 0,
+    })).toBe("*Equilíbrio:* 0 kcal (0%)");
+  });
+
+  it("inclui consumo, diferença e percentual de macronutrientes", () => {
+    expect(buildWhatsAppGoalProgressLines({
+      consumedCalories: 1850,
+      effectiveGoalCalories: 2000,
+      consumedProteinGrams: 110,
+      targetProteinGrams: 120,
+      consumedCarbsGrams: 130,
+      targetCarbsGrams: 150,
+      consumedFatGrams: 55,
+      targetFatGrams: 50,
+    })).toEqual([
+      "*Meta:* 2.000 kcal",
+      "*Consumo:* 1.850 kcal",
+      "*Déficit:* 150 kcal (-7%)",
+      "",
+      "*Macronutrientes*",
+      "• P 110 g (-10 g/-8%)",
+      "• C 130 g (-20 g/-13%)",
+      "• G 55 g (+5 g/+10%)",
+    ]);
+  });
+
+  it("omite somente o macro cuja meta esteja ausente ou inválida", () => {
+    expect(buildWhatsAppGoalProgressLines({
+      consumedCalories: 2000,
+      effectiveGoalCalories: 2000,
+      consumedProteinGrams: 100,
+      targetProteinGrams: 0,
+      consumedCarbsGrams: 150,
+      targetCarbsGrams: 150,
+    })).toEqual([
+      "*Meta:* 2.000 kcal",
+      "*Consumo:* 2.000 kcal",
+      "*Equilíbrio:* 0 kcal (0%)",
+      "",
+      "*Macronutrientes*",
+      "• C 150 g (0 g/0%)",
     ]);
   });
 });

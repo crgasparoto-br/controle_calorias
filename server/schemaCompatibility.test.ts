@@ -4,6 +4,7 @@ type MockConnectionOptions = {
   missingTables?: string[];
   missingColumns?: string[];
   weekdayMetadata?: { isNullable: string; columnDefault: string | number | null } | null;
+  timezoneMetadata?: { isNullable: string; columnDefault: string | number | null } | null;
 };
 
 const mysqlMock = vi.hoisted(() => {
@@ -17,6 +18,7 @@ const mysqlMock = vi.hoisted(() => {
     const missingTables = new Set(options.missingTables ?? []);
     const missingColumns = new Set(options.missingColumns ?? []);
     const weekdayMetadata = options.weekdayMetadata ?? { isNullable: "NO", columnDefault: "-1" };
+    const timezoneMetadata = options.timezoneMetadata ?? { isNullable: "NO", columnDefault: "America/Sao_Paulo" };
     const statements: string[] = [];
 
     connection = {
@@ -36,7 +38,9 @@ const mysqlMock = vi.hoisted(() => {
         }
 
         if (query.includes("IS_NULLABLE AS isNullable")) {
-          return [weekdayMetadata ? [weekdayMetadata] : []];
+          const tableName = String(params?.[0]);
+          const metadata = tableName === "userProfiles" ? timezoneMetadata : weekdayMetadata;
+          return [metadata ? [metadata] : []];
         }
 
         return [[]];
@@ -105,18 +109,33 @@ describe("ensureRuntimeSchemaCompatibility", () => {
       missingTables: ["whatsapp_onboarding_leads", "quickEditTokens"],
       missingColumns: ["users.passwordHash"],
       weekdayMetadata: { isNullable: "YES", columnDefault: null },
+      timezoneMetadata: { isNullable: "NO", columnDefault: "UTC" },
     });
     const { ensureRuntimeSchemaCompatibility } = await loadSchemaCompatibility();
 
     const result = await ensureRuntimeSchemaCompatibility();
 
     expect(result.added).toEqual(["users.passwordHash", "whatsapp_onboarding_leads", "quickEditTokens"]);
-    expect(result.updated).toEqual(["nutritionGoals.weekday"]);
+    expect(result.updated).toEqual(["nutritionGoals.weekday", "userProfiles.timezone"]);
     expect(result.pending).toEqual([]);
     expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/ALTER TABLE `users` ADD COLUMN/);
     expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/CREATE TABLE `whatsapp_onboarding_leads`/);
     expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/CREATE TABLE `quickEditTokens`/);
     expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/UPDATE `nutritionGoals` SET `weekday` = -1/);
+    expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/UPDATE `userProfiles` SET `timezone` = \?/);
+    expect(mysqlMock.getConnection().statements.join("\n")).toMatch(/DEFAULT 'America\/Sao_Paulo'/);
+  });
+
+  it("fails production when the persisted timezone default is still legacy UTC", async () => {
+    process.env.NODE_ENV = "production";
+    mysqlMock.createConnectionMock({
+      timezoneMetadata: { isNullable: "NO", columnDefault: "UTC" },
+    });
+    const { RuntimeSchemaCompatibilityError, ensureRuntimeSchemaCompatibility } = await loadSchemaCompatibility();
+
+    await expect(ensureRuntimeSchemaCompatibility()).rejects.toBeInstanceOf(RuntimeSchemaCompatibilityError);
+    await expect(ensureRuntimeSchemaCompatibility()).rejects.toThrow("userProfiles.timezone");
+    expect(mysqlMock.getConnection().statements.join("\n")).not.toMatch(/ALTER TABLE|UPDATE `/);
   });
 
   it("returns an empty result when no database is configured", async () => {

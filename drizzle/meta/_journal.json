@@ -159,8 +159,22 @@
     {
       "idx": 24,
       "version": "5",
-      "when": 1784062800000,
-      "tag": "0024_professional_persistence_foundation",
+      "when": 1784206800000,
+      "tag": "0024_timezone_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1784232000000,
+      "tag": "0025_food_catalog_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1784233800000,
+      "tag": "0026_professional_persistence_foundation",
       "breakpoints": true
     }
   ]

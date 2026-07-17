@@ -6,8 +6,7 @@ const updateExerciseMock = vi.fn();
 const getUserWhatsappConnectionMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const tryCreateQuickEditLinkForExerciseMock = vi.fn();
-const sendWhatsAppInteractiveUrlButtonMessageMock = vi.fn();
-const sendWhatsAppTextMessageMock = vi.fn();
+const sendWhatsAppLogicalReplyMock = vi.fn();
 
 vi.mock("../../../db", () => ({
   getUserWhatsappConnection: getUserWhatsappConnectionMock,
@@ -24,9 +23,12 @@ vi.mock("../../quickEdit/service", () => ({
   tryCreateQuickEditLinkForExercise: tryCreateQuickEditLinkForExerciseMock,
 }));
 
-vi.mock("../../whatsapp/webhookUtils", () => ({
-  sendWhatsAppInteractiveUrlButtonMessage: sendWhatsAppInteractiveUrlButtonMessageMock,
-  sendWhatsAppTextMessage: sendWhatsAppTextMessageMock,
+vi.mock("../../timeZone/service", () => ({
+  getEffectiveUserTimeZone: vi.fn(async () => "America/Sao_Paulo"),
+}));
+
+vi.mock("../../whatsapp/replyTransport", () => ({
+  sendWhatsAppLogicalReply: sendWhatsAppLogicalReplyMock,
 }));
 
 const {
@@ -53,8 +55,7 @@ describe("upsertStravaActivitiesAsExercises WhatsApp notification idempotency", 
     getUserWhatsappConnectionMock.mockReset();
     logInferenceEventMock.mockReset();
     tryCreateQuickEditLinkForExerciseMock.mockReset();
-    sendWhatsAppInteractiveUrlButtonMessageMock.mockReset();
-    sendWhatsAppTextMessageMock.mockReset();
+    sendWhatsAppLogicalReplyMock.mockReset();
 
     listExercisesMock.mockResolvedValue([]);
     getUserWhatsappConnectionMock.mockResolvedValue({
@@ -63,8 +64,7 @@ describe("upsertStravaActivitiesAsExercises WhatsApp notification idempotency", 
       status: "active",
     });
     tryCreateQuickEditLinkForExerciseMock.mockResolvedValue({ url: "https://app.example/exercise/quick-edit" });
-    sendWhatsAppInteractiveUrlButtonMessageMock.mockResolvedValue({ ok: true, detail: "sent" });
-    sendWhatsAppTextMessageMock.mockResolvedValue({ ok: true, detail: "sent" });
+    sendWhatsAppLogicalReplyMock.mockResolvedValue({ primaryOk: true, sends: [{ ok: true, detail: "sent" }] });
     createExerciseMock.mockImplementation(async (_userId, input) => ({
       id: Number(input.externalId),
       userId: 42,
@@ -88,12 +88,10 @@ describe("upsertStravaActivitiesAsExercises WhatsApp notification idempotency", 
       notificationsSkipped: 1,
     }));
     expect(createExerciseMock).toHaveBeenCalledTimes(1);
-    expect(sendWhatsAppInteractiveUrlButtonMessageMock).toHaveBeenCalledTimes(1);
-    expect(sendWhatsAppInteractiveUrlButtonMessageMock).toHaveBeenCalledWith(
+    expect(sendWhatsAppLogicalReplyMock).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppLogicalReplyMock).toHaveBeenCalledWith(
       "5511999999999",
-      expect.stringContaining("Treino importado do Strava"),
-      "Ver exercício",
-      "https://app.example/exercise/quick-edit",
+      expect.objectContaining({ messages: expect.arrayContaining([expect.objectContaining({ type: "cta_url", buttonText: "Ver exercício" })]) }),
     );
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       eventType: "strava.import.notification_skipped_idempotent",
@@ -104,7 +102,7 @@ describe("upsertStravaActivitiesAsExercises WhatsApp notification idempotency", 
     await upsertStravaActivitiesAsExercises(42, [{ ...activity }]);
     await upsertStravaActivitiesAsExercises(42, [{ ...activity, id: 987654322, name: "Pedal" }]);
 
-    expect(sendWhatsAppInteractiveUrlButtonMessageMock).toHaveBeenCalledTimes(2);
+    expect(sendWhatsAppLogicalReplyMock).toHaveBeenCalledTimes(2);
   });
 
   it("não reenvia notificação quando a atividade já existe localmente", async () => {
@@ -133,6 +131,6 @@ describe("upsertStravaActivitiesAsExercises WhatsApp notification idempotency", 
     }));
     expect(createExerciseMock).not.toHaveBeenCalled();
     expect(updateExerciseMock).not.toHaveBeenCalled();
-    expect(sendWhatsAppInteractiveUrlButtonMessageMock).not.toHaveBeenCalled();
+    expect(sendWhatsAppLogicalReplyMock).not.toHaveBeenCalled();
   });
 });

@@ -22,6 +22,7 @@ import {
 } from "./intent/parsers";
 import { parseReportPeriod } from "./intent/dateTime";
 import type { WhatsappIntentInput, WhatsappIntentResult } from "./intent/types";
+import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
 
 export type { WhatsappIntentResult, WhatsappIntentInput } from "./intent/types";
 
@@ -47,6 +48,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   }
 
   const receivedAt = input.receivedAt ?? new Date();
+  const userTimeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
   const waterIntent = parseWaterIntent(text);
   if (waterIntent?.kind === "clarification") {
     return {
@@ -58,7 +60,7 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     };
   }
   if (waterIntent?.kind === "water") {
-    return handleWaterIntent(userId, text, receivedAt, waterIntent.amountMl);
+    return handleWaterIntent(userId, text, receivedAt, waterIntent.amountMl, userTimeZone);
   }
 
   const quantityCorrection = parseQuantityCorrectionIntent(text, receivedAt);
@@ -68,44 +70,44 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
 
   const gramsReplacement = parseMealItemGramsReplacement(text);
   if (gramsReplacement) {
-    return handleMealItemReplacement(userId, gramsReplacement);
+    return handleMealItemReplacement(userId, gramsReplacement, userTimeZone);
   }
 
   const coffeeCapsule = parseCoffeeLorCapsuleIntent(text);
   if (coffeeCapsule) {
-    return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt);
+    return handleCoffeeLorCapsuleIntent(userId, text, coffeeCapsule, receivedAt, userTimeZone);
   }
 
   const coffeeAddition = parseCoffeeAdditionIntent(text);
   if (coffeeAddition) {
-    return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt);
+    return handleCoffeeAdditionIntent(userId, text, coffeeAddition, receivedAt, userTimeZone);
   }
 
   const foodAddition = parseFoodAdditionIntent(text, receivedAt);
   if (foodAddition) {
-    return handleFoodAdditionIntent(userId, foodAddition);
+    return handleFoodAdditionIntent(userId, foodAddition, userTimeZone);
   }
 
   const gramsIncrements = parseMealItemGramsIncrementMulti(text);
   if (gramsIncrements) {
-    return withCanonicalGramsMetadata(await handleMealItemMultiIncrement(userId, gramsIncrements));
+    return withCanonicalGramsMetadata(await handleMealItemMultiIncrement(userId, gramsIncrements, { timeZone: userTimeZone }));
   }
 
   const gramsAdjustments = parseMealItemGramsAdjustmentMulti(text);
   if (gramsAdjustments) {
-    return withCanonicalGramsMetadata(await handleMealItemMultiAdjustment(userId, gramsAdjustments));
+    return withCanonicalGramsMetadata(await handleMealItemMultiAdjustment(userId, gramsAdjustments, { timeZone: userTimeZone }));
   }
 
   const foodReplacements = parseFoodReplacementIntents(text);
   if (foodReplacements) {
-    return handleFoodReplacementIntents(userId, foodReplacements);
+    return handleFoodReplacementIntents(userId, foodReplacements, userTimeZone);
   }
 
   if (parseSnackSuggestionIntent(text)) {
     return handleSnackSuggestionIntent();
   }
 
-  const reportPeriod = parseReportPeriod(text, receivedAt);
+  const reportPeriod = parseReportPeriod(text, receivedAt, userTimeZone);
   if (!reportPeriod) {
     return null;
   }
@@ -119,5 +121,5 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
     };
   }
 
-  return handlePeriodReportIntent(userId, reportPeriod);
+  return handlePeriodReportIntent(userId, reportPeriod, userTimeZone);
 }

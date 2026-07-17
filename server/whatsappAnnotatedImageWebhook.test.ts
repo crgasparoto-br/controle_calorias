@@ -336,25 +336,15 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       userId: 42,
       mealLabel: "Almoço",
     }));
-    expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
-    expect(sentTextMessages[1]).toBe([
-      "🍽️ *Almoço* — 13:00",
-      "",
-      "*Almoço Registrado às 13:00hs.*",
-      "",
-      "Itens:",
-      "• 🍚 arroz — 100g",
-      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
-      "",
-      "Total da refeição:",
-      "130 kcal | P 2,7 g | C 28 g | G 0,3 g",
-      "",
-      "Meta de hoje:",
-      "* Meta estimada: 2.200 kcal",
-      "* Meta ajustada: 2.200 kcal",
-      "* Consumo: 1.620 kcal",
-      "* Déficit: 580 kcal",
-    ].join("\n"));
+    // Fast path (#785): sem acknowledgement, apenas a resposta funcional final.
+    expect(sentTextMessages).toHaveLength(1);
+    expect(sentTextMessages[0]).toContain("🍽️ *Almoço* — 13:00");
+    expect(sentTextMessages[0]).toContain("*Meta:* 2.200 kcal");
+    expect(sentTextMessages[0]).toContain("*Exercícios:* 0 kcal");
+    expect(sentTextMessages[0]).toContain("*Consumo:* 1.620 kcal");
+    expect(sentTextMessages[0]).toContain("*Déficit:* 580 kcal (-26%)");
+    expect(sentTextMessages[0]).not.toContain("Meta estimada");
+    expect(sentTextMessages[0]).not.toContain("Meta ajustada");
     expect(uploadedMediaRequests).toBe(0);
     expect(sentImageMessages).toEqual([
       {
@@ -417,7 +407,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       items: [...existingLunch.items, ...savedImageMeal.items],
     }));
     expect(removeUserMealMock).toHaveBeenCalledWith(42, 10);
-    expect(sentTextMessages[1]).toContain("*Almoço Atualizado às 13:00hs.*");
+    expect(sentTextMessages[0]).toContain("*Almoço Atualizado às 13:00hs.*");
   });
 
   it("envia por upload a imagem editada quando ela existe só em buffer", async () => {
@@ -536,8 +526,9 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(fallbackWebhookMock).not.toHaveBeenCalled();
     expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).not.toHaveBeenCalled();
-    expect(sentTextMessages[0]).toBe("Recebi sua imagem e estou processando.");
-    expect(sentTextMessages.at(-1)).toBe("Não consegui processar essa imagem agora. Tente enviar novamente ou descreva os alimentos em texto para eu registrar.");
+    // Fast path (#785): sem acknowledgement; erro central sanitizado (#787).
+    expect(sentTextMessages).toHaveLength(1);
+    expect(sentTextMessages.at(-1)).toContain("*⚠️ Não foi possível processar a imagem*");
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
       origin: "whatsapp",
@@ -569,8 +560,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
 
     await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
 
-    expect(sentTextMessages[1]).toContain("Arroz persistido da imagem — 120g");
-    expect(sentTextMessages[1]).toContain("156 kcal | P 3,2 g | C 33,6 g | G 0,4 g");
-    expect(sentTextMessages[1]).not.toContain("• 🍚 arroz — 100g");
+    expect(sentTextMessages[0]).toContain("Arroz persistido da imagem — 120g");
+    expect(sentTextMessages[0]).toContain("156 kcal | P 3,2 g | C 33,6 g | G 0,4 g");
+    expect(sentTextMessages[0]).not.toContain("• 🍚 arroz — 100g");
   });
 });

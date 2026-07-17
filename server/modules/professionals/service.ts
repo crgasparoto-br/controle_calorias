@@ -4,11 +4,13 @@ import { userPreferences, users, whatsappConnections } from "../../../drizzle/sc
 import { invokeLLM } from "../../_core/llm";
 import { getDb, getUserWhatsappConnection, listUserMeals, logInferenceEvent, logPersistenceWarning } from "../../db";
 import { getPeriodReportBundle, getWeeklyReportBundle } from "../insights/service";
+import { getDateKeyInTimeZone } from "../../../shared/timeZone";
+import { getEffectiveUserTimeZone, resolveEffectiveUserTimeZone } from "../timeZone/service";
 import { redactSensitiveText } from "../../privacy";
-import { getNutritionGoal } from "../goals/service";
+import { getNutritionGoalForDate } from "../goals/service";
 import { buildWhatsAppCallbackId } from "../whatsapp/interactiveCallback";
 import { buttonsReply, type WhatsAppLogicalReply } from "../whatsapp/replyContract";
-import { sendWhatsAppLogicalReply } from "../whatsapp/replyTransport";
+import { sendWhatsAppStandaloneLogicalReply } from "../whatsapp/logicalReplyDelivery";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "../whatsapp/replyMessages";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
@@ -563,7 +565,7 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
         { id: buildWhatsAppCallbackId(pendingOperation.id, REJECT_ACTION), title: "Recusar" },
       ])
     : { kind: "functional", messages: [{ type: "text", body: message }] };
-  const sendResult = await sendWhatsAppLogicalReply(connection.phoneNumber, reply);
+  const { result: sendResult } = await sendWhatsAppStandaloneLogicalReply(connection.phoneNumber, reply);
   const result = { ok: sendResult.primaryOk, detail: sendResult.sends[0]?.detail ?? "Falha desconhecida ao enviar autorização pelo WhatsApp." };
   const sent: ProfessionalPatientAccess = result.ok
     ? {
@@ -1005,13 +1007,19 @@ export async function revokePatientAccess(patientUserId: number, accessId: strin
   return publicAccess(revoked);
 }
 
+export async function getProfessionalPatientTimeZone(professionalUserId: number, patientUserId: number) {
+  await assertApprovedAccess(professionalUserId, patientUserId);
+  return resolveEffectiveUserTimeZone(patientUserId);
+}
+
 export async function getProfessionalPatientDashboard(professionalUserId: number, patientUserId: number, weekOffset = 0) {
   await assertApprovedAccess(professionalUserId, patientUserId);
+  const timeZone = await getEffectiveUserTimeZone(patientUserId);
   const [bundle, recentMeals, patient, nutritionGoal] = await Promise.all([
-    getWeeklyReportBundle(patientUserId, weekOffset),
+    getWeeklyReportBundle(patientUserId, weekOffset, timeZone),
     listUserMeals(patientUserId),
     getUserSummary(patientUserId),
-    getNutritionGoal(patientUserId),
+    getNutritionGoalForDate(patientUserId, getDateKeyInTimeZone(new Date(), timeZone)),
   ]);
 
   return {
@@ -1049,7 +1057,8 @@ export async function getProfessionalPatientPeriodBundle(
   range: { startDate: string; endDate: string },
 ) {
   await assertApprovedAccess(professionalUserId, patientUserId);
-  return getPeriodReportBundle(patientUserId, range);
+  const timeZone = await getEffectiveUserTimeZone(patientUserId);
+  return getPeriodReportBundle(patientUserId, range, timeZone);
 }
 
 type ProfessionalPatientDashboard = Awaited<ReturnType<typeof getProfessionalPatientDashboard>>;

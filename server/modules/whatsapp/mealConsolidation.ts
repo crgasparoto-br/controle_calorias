@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { normalizeWhatsAppIntentText } from "./webhookUtils";
 
 export type WhatsAppMealConsolidationCandidate = {
@@ -24,20 +25,12 @@ function normalizeMealLabel(label: string) {
   return normalized;
 }
 
-export function formatWhatsAppConsolidationDateKey(date: number | string | Date) {
+export function formatWhatsAppConsolidationDateKey(
+  date: number | string | Date,
+  timeZone = DEFAULT_APP_TIME_ZONE,
+) {
   const parsed = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(parsed);
-  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
+  return Number.isNaN(parsed.getTime()) ? "" : getDateKeyInTimeZone(parsed, timeZone);
 }
 
 export function resolveWhatsAppMealConsolidationTarget(input: {
@@ -45,8 +38,10 @@ export function resolveWhatsAppMealConsolidationTarget(input: {
   mealLabel: string;
   occurredAt: number | string | Date;
   meals: WhatsAppMealConsolidationCandidate[];
+  timeZone?: string;
 }): WhatsAppMealConsolidationResolution {
-  const targetDateKey = formatWhatsAppConsolidationDateKey(input.occurredAt);
+  const timeZone = input.timeZone ?? DEFAULT_APP_TIME_ZONE;
+  const targetDateKey = formatWhatsAppConsolidationDateKey(input.occurredAt, timeZone);
   const targetMealLabel = normalizeMealLabel(input.mealLabel);
 
   if (!targetDateKey || !targetMealLabel) {
@@ -56,7 +51,7 @@ export function resolveWhatsAppMealConsolidationTarget(input: {
   const candidates = input.meals
     .filter(meal => meal.id !== input.savedMealId)
     .filter(meal => meal.source === "whatsapp")
-    .filter(meal => formatWhatsAppConsolidationDateKey(meal.occurredAt) === targetDateKey)
+    .filter(meal => formatWhatsAppConsolidationDateKey(meal.occurredAt, timeZone) === targetDateKey)
     .filter(meal => normalizeMealLabel(meal.mealLabel) === targetMealLabel)
     .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 

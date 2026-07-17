@@ -117,7 +117,7 @@ describe("executeWhatsappMealListIntent", () => {
       eventType: "whatsapp.intent.meal_foods_listed",
       data: expect.objectContaining({ mealCount: 3, itemCount: 4 }),
     });
-    expect(result?.reply).toContain("Alimentos registrados em 20/06/2026");
+    expect(result?.reply).toContain("Alimentos registrados hoje");
     expect(result?.reply).toContain("Almoço");
     for (const line of [...itemBlockLines(salada), ...itemBlockLines(arroz), ...itemBlockLines(frango)]) {
       expect(result?.reply).toContain(line);
@@ -142,7 +142,7 @@ describe("executeWhatsappMealListIntent", () => {
     });
 
     expect(result?.action).toBe("meal_foods_listed");
-    expect(result?.reply).toContain("Alimentos registrados em 20/06/2026");
+    expect(result?.reply).toContain("Alimentos registrados hoje");
     expect(result?.reply).toContain("Almoço");
     expect(result?.reply).toContain("arroz");
     expect(result?.reply).toContain("pão");
@@ -157,7 +157,7 @@ describe("executeWhatsappMealListIntent", () => {
     });
 
     expect(result?.action).toBe("meal_foods_listed");
-    expect(result?.reply).toContain("Alimentos registrados em 21/06/2026");
+    expect(result?.reply).toContain("Alimentos registrados hoje");
     expect(result?.reply).toContain("Não encontrei alimentos registrados nessa data.");
     expect(result?.data).toEqual(expect.objectContaining({ mealCount: 0, itemCount: 0 }));
   });

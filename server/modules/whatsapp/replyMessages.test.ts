@@ -16,189 +16,138 @@ const frangoItem = {
   source: "catalog" as const,
 };
 
-describe("buildWhatsAppMealReplyMessage", () => {
-  it("inclui horário no cabeçalho em negrito e alimento com ícone", () => {
-    const processed: MealProcessingResult = {
-      detectedMealLabel: "Almoço",
-      sourceText: "frango grelhado",
-      imageUrl: undefined,
-      audioUrl: undefined,
-      transcript: undefined,
-      confidence: 0.9,
-      needsConfirmation: true,
-      reasoning: "Teste de formatação.",
-      items: [frangoItem],
-      totals: {
-        calories: 247.5,
-        protein: 46.5,
-        carbs: 0,
-        fat: 5.4,
-      },
-    };
+function buildProcessedMeal(overrides: Partial<MealProcessingResult> = {}): MealProcessingResult {
+  return {
+    detectedMealLabel: "Almoço",
+    sourceText: "frango grelhado",
+    imageUrl: undefined,
+    audioUrl: undefined,
+    transcript: undefined,
+    confidence: 0.9,
+    needsConfirmation: true,
+    reasoning: "Teste de formatação.",
+    items: [frangoItem],
+    totals: {
+      calories: 247.5,
+      protein: 46.5,
+      carbs: 0,
+      fat: 5.4,
+    },
+    ...overrides,
+  };
+}
 
-    const reply = buildWhatsAppMealReplyMessage(processed, {
+describe("buildWhatsAppMealReplyMessage", () => {
+  it("inclui horário, alimento com ícone e total da refeição em negrito", () => {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedMeal(), {
       registeredAt: new Date("2026-06-04T16:00:00.000Z"),
     });
 
     expect(reply).toContain("*Almoço Registrado às 13:00hs.*");
     expect(reply).toContain("• 🍗 Frango grelhado — 150g");
-    expect(reply).toContain("247,5 kcal | P 46,5 g | C 0 g | G 5,4 g");
+    expect(reply).toContain("*Total da refeição:*");
+    expect(reply).toContain("*247,5 kcal | P 46,5 g | C 0 g | G 5,4 g*");
   });
 
   it("não mostra equivalência aproximada em gramas para porções líquidas em ml", () => {
-    const processed: MealProcessingResult = {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedMeal({
       detectedMealLabel: "Café da manhã",
-      sourceText: "whey, creatina e leite",
-      imageUrl: undefined,
-      audioUrl: undefined,
-      transcript: undefined,
-      confidence: 0.9,
-      needsConfirmation: true,
-      reasoning: "Teste de formatação.",
-      items: [
-        {
-          foodName: "Leite integral",
-          canonicalName: "Leite integral",
-          portionText: "100 ml",
-          servings: 1,
-          estimatedGrams: 100,
-          calories: 61,
-          protein: 3.2,
-          carbs: 4.7,
-          fat: 3.3,
-          confidence: 0.9,
-          source: "catalog",
-        },
-      ],
-      totals: {
+      sourceText: "leite",
+      items: [{
+        foodName: "Leite integral",
+        canonicalName: "Leite integral",
+        portionText: "100 ml",
+        servings: 1,
+        estimatedGrams: 100,
         calories: 61,
         protein: 3.2,
         carbs: 4.7,
         fat: 3.3,
-      },
-    };
-
-    const reply = buildWhatsAppMealReplyMessage(processed);
+        confidence: 0.9,
+        source: "catalog",
+      }],
+      totals: { calories: 61, protein: 3.2, carbs: 4.7, fat: 3.3 },
+    }));
 
     expect(reply).toContain("• 🥛 Leite integral — 100 ml");
     expect(reply).not.toContain("aprox. 100g");
   });
 
   it("mantém equivalência aproximada em gramas para porções unitárias", () => {
-    const processed: MealProcessingResult = {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedMeal({
       detectedMealLabel: "Lanche",
       sourceText: "1 banana",
-      imageUrl: undefined,
-      audioUrl: undefined,
-      transcript: undefined,
-      confidence: 0.9,
-      needsConfirmation: true,
-      reasoning: "Teste de formatação.",
-      items: [
-        {
-          foodName: "Banana",
-          canonicalName: "Banana",
-          portionText: "1 unidade",
-          servings: 1,
-          estimatedGrams: 80,
-          calories: 72,
-          protein: 0.9,
-          carbs: 18.6,
-          fat: 0.2,
-          confidence: 0.9,
-          source: "catalog",
-        },
-      ],
-      totals: {
+      items: [{
+        foodName: "Banana",
+        canonicalName: "Banana",
+        portionText: "1 unidade",
+        servings: 1,
+        estimatedGrams: 80,
         calories: 72,
         protein: 0.9,
         carbs: 18.6,
         fat: 0.2,
-      },
-    };
-
-    const reply = buildWhatsAppMealReplyMessage(processed);
+        confidence: 0.9,
+        source: "catalog",
+      }],
+      totals: { calories: 72, protein: 0.9, carbs: 18.6, fat: 0.2 },
+    }));
 
     expect(reply).toContain("• 🍌 Banana — 1 unidade (aprox. 80g)");
   });
 
-  it("resume meta com consumo total e bullets compatíveis com WhatsApp", () => {
-    const processed: MealProcessingResult = {
-      detectedMealLabel: "Almoço",
-      sourceText: "frango grelhado",
-      imageUrl: undefined,
-      audioUrl: undefined,
-      transcript: undefined,
-      confidence: 0.9,
-      needsConfirmation: true,
-      reasoning: "Teste de formatação.",
-      items: [frangoItem],
-      totals: {
-        calories: 247.5,
-        protein: 46.5,
-        carbs: 0,
-        fat: 5.4,
-      },
+  it("aplica saldo e percentuais de macros no texto final da refeição", () => {
+    const goalProgress = {
+      consumedCalories: 1165,
+      goalCalories: 2200,
+      exerciseCalories: 200,
+      consumedProteinGrams: 79.5,
+      targetProteinGrams: 97,
+      consumedCarbsGrams: 183.3,
+      targetCarbsGrams: 221,
+      consumedFatGrams: 61.7,
+      targetFatGrams: 31,
     };
-
-    const reply = buildWhatsAppMealReplyMessage(processed, {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedMeal(), {
       registeredAt: new Date("2026-06-04T16:00:00.000Z"),
-      goalProgress: {
-        consumedCalories: 1165,
-        goalCalories: 2000,
-        exerciseCalories: 200,
-      },
+      goalProgress,
     });
 
-    expect(reply).toContain("Meta de hoje:");
-    expect(reply).toContain("* Meta estimada: 2.000 kcal");
-    expect(reply).toContain("* Exercícios: 200 kcal");
-    expect(reply).toContain("* Meta ajustada: 2.200 kcal");
-    expect(reply).toContain("* Consumo: 1.165 kcal");
-    expect(reply).toContain("* Déficit: 1.035 kcal");
+    expect(reply).toContain("*Meta:* 2.200 kcal");
+    expect(reply).toContain("*Exercícios:* 200 kcal");
+    expect(reply).toContain("*Consumo:* 1.165 kcal");
+    expect(reply).toContain("*Déficit:* 1.035 kcal (-47%)");
+    expect(reply).toContain("• P 79,5 g (-17,5 g/-18%)");
+    expect(reply).toContain("• C 183,3 g (-37,7 g/-17%)");
+    expect(reply).toContain("• G 61,7 g (+30,7 g/+99%)");
+    expect(reply).not.toContain("Superávit/Déficit");
   });
 
-  it("não inclui link de edição no corpo do texto (link é enviado como botão separado)", () => {
-    const processed: MealProcessingResult = {
+  it("não inclui link de edição no corpo do texto", () => {
+    const reply = buildWhatsAppMealReplyMessage(buildProcessedMeal({
       detectedMealLabel: "Jantar",
       sourceText: "300g amendoim japonês",
-      imageUrl: undefined,
-      audioUrl: undefined,
-      transcript: undefined,
-      confidence: 0.9,
-      needsConfirmation: true,
-      reasoning: "Teste de edição rápida.",
-      items: [
-        {
-          foodName: "Amendoim japonês",
-          canonicalName: "Amendoim japonês",
-          portionText: "300 g",
-          servings: 1,
-          estimatedGrams: 300,
-          calories: 450,
-          protein: 15,
-          carbs: 40,
-          fat: 25,
-          confidence: 0.9,
-          source: "heuristic",
-        },
-      ],
-      totals: {
+      items: [{
+        foodName: "Amendoim japonês",
+        canonicalName: "Amendoim japonês",
+        portionText: "300 g",
+        servings: 1,
+        estimatedGrams: 300,
         calories: 450,
         protein: 15,
         carbs: 40,
         fat: 25,
-      },
-    };
+        confidence: 0.9,
+        source: "heuristic",
+      }],
+      totals: { calories: 450, protein: 15, carbs: 40, fat: 25 },
+    }));
 
-    const reply = buildWhatsAppMealReplyMessage(processed);
-
-    expect(reply).toContain("Amendoim japonês");
     expect(reply).not.toContain("Editar:");
     expect(reply).not.toContain("quick-edit");
   });
 
-  it("monta resposta consolidada com todos os alimentos da refeição atualizada", () => {
+  it("monta resposta consolidada com todos os alimentos e total destacado", () => {
     const reply = buildWhatsAppConsolidatedMealReplyMessage({
       mealLabel: "Café da manhã",
       occurredAt: new Date("2026-06-04T10:14:00.000Z"),
@@ -243,11 +192,11 @@ describe("buildWhatsAppMealReplyMessage", () => {
     expect(reply).toContain("• 🍎 Pêra William — 185g");
     expect(reply).toContain("• 🍌 Banana prata — 139g");
     expect(reply).toContain("• 🥛 Iogurte grego light Danone — 80g");
-    expect(reply).toContain("Total da refeição:");
-    expect(reply).toContain("292 kcal | P 8,2 g | C 67,3 g | G 1,6 g");
+    expect(reply).toContain("*Total da refeição:*");
+    expect(reply).toContain("*292 kcal | P 8,2 g | C 67,3 g | G 1,6 g*");
   });
 
-  it("monta resposta de ação com título, ação realizada e refeição resultante", () => {
+  it("monta resposta de ação com refeição resultante e total destacado", () => {
     const reply = buildWhatsAppMealActionReplyMessage({
       mealLabel: "Almoço",
       occurredAt: new Date("2026-06-04T15:00:00.000Z"),
@@ -271,10 +220,9 @@ describe("buildWhatsAppMealReplyMessage", () => {
     });
 
     expect(reply).toContain("*Alimento adicionado*");
-    expect(reply).toContain("Adicionei 100 g de Arroz branco à refeição Almoço.");
     expect(reply).toContain("Refeição atualizada:");
     expect(reply).toContain("• 🍗 Frango grelhado — 150g");
     expect(reply).toContain("• 🍚 Arroz branco — 100g");
-    expect(reply).toContain("377,5 kcal | P 49,2 g | C 28 g | G 5,7 g");
+    expect(reply).toContain("*377,5 kcal | P 49,2 g | C 28 g | G 5,7 g*");
   });
 });

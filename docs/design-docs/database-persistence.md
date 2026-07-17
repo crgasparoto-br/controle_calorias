@@ -42,6 +42,8 @@
 - Dados sincronizados de integrações de saúde devem ser apagados quando o usuário desconectar o provider correspondente.
 - Revogação de autorização profissional prevalece sobre a situação operacional do acompanhamento.
 - Uma autorização aprovada pode ter somente um acompanhamento canônico e cada transição deve registrar ator, data e motivo quando informado.
+- `userProfiles.timezone` usa `America/Sao_Paulo` como default persistido; `UTC` e qualquer IANA válido já salvo são preservados.
+- Decisões de data lógica devem consumir o contrato de `docs/design-docs/timezone.md`; não criar fallback local nem limites fixos em meia-noite UTC.
 
 ## Catálogo global de alimentos
 

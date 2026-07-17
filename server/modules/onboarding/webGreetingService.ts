@@ -2,7 +2,8 @@ import { sql, type SQL } from "drizzle-orm";
 import { getDb, getUserNutritionGoal, getUserWhatsappConnection, logInferenceEvent } from "../../db";
 import { userProfiles, users } from "../../../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { sendWhatsAppTextMessage } from "../whatsapp/webhookUtils";
+import { sequencedTextReply, textReply } from "../whatsapp/replyContract";
+import { sendWhatsAppLogicalReply } from "../whatsapp/replyTransport";
 
 const LEGACY_GREETING_PREFERENCE_KEY = "whatsapp_web_greeting_status";
 const WELCOME_PREFERENCE_KEY = "whatsapp_welcome_v2_status";
@@ -18,6 +19,7 @@ type WelcomeAudit = {
   sentAt?: string;
   attemptedAt: string;
   detail?: string;
+  deliveredMessageCount?: number;
 };
 
 const memoryWelcomeAudit = new Map<number, WelcomeAudit>();
@@ -122,7 +124,14 @@ export async function sendWebOnboardingWhatsappGreeting(userId: number, input: {
   }
 
   const sentAt = new Date();
-  const result = await sendWhatsAppTextMessage(connection.phoneNumber, buildGreetingMessage(input.userName ?? connection.displayName));
+  const delivery = await sendWhatsAppLogicalReply(
+    connection.phoneNumber,
+    textReply(buildGreetingMessage(input.userName ?? connection.displayName)),
+  );
+  const result = {
+    ok: delivery.primaryOk,
+    detail: delivery.sends.find(send => !send.ok)?.detail ?? "Saudação enviada.",
+  };
   const audit: GreetingAudit = result.ok
     ? {
         status: "sent",
@@ -157,64 +166,53 @@ export async function sendWebOnboardingWhatsappGreeting(userId: number, input: {
 
 // ─── Full welcome message (v2) ────────────────────────────────────────────────
 
-const OBJECTIVE_LABEL: Record<string, string> = {
-  emagrecer: "Perder peso",
-  manter_peso: "Manter o peso",
-  ganhar_massa: "Ganhar massa muscular",
-  melhorar_habitos: "Melhorar os hábitos alimentares",
-};
+export function buildWelcomeMessages(): [string, string] {
+  return [
+    [
+      "👋 *Bem-vindo ao Controle de Calorias!*",
+      "",
+      "Você pode usar o WhatsApp para:",
+      "",
+      "• Registrar refeições por texto, foto ou áudio",
+      "• Registrar água e peso",
+      "• Consultar consumo, metas e refeições",
+      "• Corrigir ou excluir registros",
+      "",
+      "*Exemplos*",
+      "• Comi arroz, feijão e frango no almoço",
+      "• Bebi 500 ml de água",
+      "• Meu peso hoje é 66,3 kg",
+      "• Mostre meu resumo de hoje",
+      "",
+      "🤖 *Perguntas para a IA*",
+      "",
+      "Para fazer perguntas à IA, coloque `/` antes da pergunta.",
+      "",
+      "Exemplos:",
+      "• /Quais alimentos têm mais proteína?",
+      "• /O que posso comer para completar minha meta de carboidratos?",
+      "• /Qual a diferença entre gordura saturada e insaturada?",
+      "",
+      "Sem a `/`, a mensagem será interpretada como uma solicitação de registro, consulta ou alteração no sistema.",
+      "",
+      "Você também pode acessar o sistema pela web para acompanhar relatórios, metas e configurações.",
+    ].join("\n"),
+    [
+      "🎯 *Sua meta nutricional*",
+      "",
+      "Sua meta foi calculada com base nos dados informados no seu perfil.",
+      "",
+      "Ela pode ou não considerar as calorias dos exercícios, conforme a configuração escolhida no sistema.",
+    ].join("\n"),
+  ];
+}
 
 export function buildWelcomeMessage(
-  name: string | null | undefined,
-  calorieGoal: number,
-  objective: string | null | undefined,
+  _name: string | null | undefined,
+  _calorieGoal: number,
+  _objective: string | null | undefined,
 ): string {
-  const displayName = firstName(name);
-  const goalLabel = Math.round(calorieGoal).toString();
-  const objectiveLabel = (objective && OBJECTIVE_LABEL[objective]) ?? "Não informado";
-
-  return [
-    `Olá, ${displayName}! 👋`,
-    "Seja bem-vindo(a) ao Controle de Calorias.",
-    "",
-    "Este número de WhatsApp será seu canal rápido para registrar alimentos, refeições, água, exercícios e ajustes do dia a dia.",
-    "",
-    "Você pode enviar mensagens simples, por exemplo:",
-    "",
-    '"Café da manhã: 1 pão francês com manteiga e café com leite"',
-    '"Almoço: arroz, feijão, frango grelhado e salada"',
-    '"Adicionar 500ml de água"',
-    '"Trocar o frango por peixe no almoço"',
-    '"Jantar de ontem: omelete com queijo"',
-    "",
-    "Sempre que possível, o sistema interpreta sua mensagem, calcula as calorias e macronutrientes e registra as informações automaticamente no seu perfil.",
-    "",
-    "Você também pode usar o sistema pela web para acompanhar tudo com mais detalhes:",
-    "",
-    "• resumo do dia;",
-    "• refeições registradas;",
-    "• metas de calorias e macronutrientes;",
-    "• relatórios de evolução;",
-    "• ajustes manuais quando alguma informação precisar ser corrigida.",
-    "",
-    "Sua meta inicial de calorias foi definida com base nas informações preenchidas no seu perfil, como peso, altura, idade, sexo, nível de atividade física e objetivo informado, como perder peso, manter o peso ou ganhar massa.",
-    "",
-    `Meta diária estimada: ${goalLabel} kcal`,
-    `Objetivo informado: ${objectiveLabel}`,
-    "",
-    "Essa meta serve como ponto de partida para acompanhar sua evolução. Com os registros feitos pelo WhatsApp e pela plataforma web, você poderá comparar o consumo diário com a meta, revisar os alimentos registrados e fazer ajustes quando necessário.",
-    "",
-    "O WhatsApp é ideal para registrar rapidamente no momento em que você come.",
-    "A plataforma web é ideal para revisar, ajustar e acompanhar sua evolução com mais clareza.",
-    "",
-    "Dica: quanto mais clara for a mensagem, melhor será o registro. Informe alimentos, quantidades, marcas quando houver e a refeição correspondente.",
-    "",
-    "Exemplo:",
-    '"Almoço: 150g de arroz, 100g de feijão, 120g de frango grelhado e salada"',
-    "",
-    "Obrigado pelo cadastro!",
-    "A partir de agora, você pode começar enviando sua primeira refeição por aqui. ✅",
-  ].join("\n");
+  return buildWelcomeMessages().join("\n\n");
 }
 
 async function getWelcomeAudit(userId: number): Promise<WelcomeAudit | null> {
@@ -305,7 +303,7 @@ export async function sendOnboardingWelcomeWhatsapp(userId: number): Promise<voi
       return;
     }
 
-    const { name, objective, calorieGoal } = await fetchUserContext(userId);
+    const { calorieGoal } = await fetchUserContext(userId);
 
     if (!calorieGoal || calorieGoal <= 0) {
       const audit: WelcomeAudit = {
@@ -327,9 +325,23 @@ export async function sendOnboardingWelcomeWhatsapp(userId: number): Promise<voi
       return;
     }
 
-    const message = buildWelcomeMessage(name, calorieGoal, objective);
+    const messages = buildWelcomeMessages();
+    const deliveredBefore = Math.min(Math.max(existing?.deliveredMessageCount ?? 0, 0), messages.length);
+    const remainingMessages = messages.slice(deliveredBefore);
+    if (!remainingMessages.length) {
+      return;
+    }
+
     const sentAt = new Date();
-    const result = await sendWhatsAppTextMessage(connection.phoneNumber, message);
+    const delivery = await sendWhatsAppLogicalReply(connection.phoneNumber, sequencedTextReply(remainingMessages));
+    const deliveredNow = delivery.sends.findIndex(send => !send.ok) === -1
+      ? delivery.sends.length
+      : delivery.sends.findIndex(send => !send.ok);
+    const deliveredMessageCount = Math.min(deliveredBefore + deliveredNow, messages.length);
+    const result = {
+      ok: deliveredMessageCount === messages.length,
+      detail: delivery.sends.find(send => !send.ok)?.detail ?? "Onboarding enviado.",
+    };
 
     const audit: WelcomeAudit = result.ok
       ? {
@@ -338,6 +350,7 @@ export async function sendOnboardingWelcomeWhatsapp(userId: number): Promise<voi
           template: WELCOME_TEMPLATE_KEY,
           attemptedAt: sentAt.toISOString(),
           sentAt: sentAt.toISOString(),
+          deliveredMessageCount,
           detail: "Mensagem de boas-vindas enviada após onboarding.",
         }
       : {
@@ -346,6 +359,7 @@ export async function sendOnboardingWelcomeWhatsapp(userId: number): Promise<voi
           channel: "whatsapp",
           template: WELCOME_TEMPLATE_KEY,
           attemptedAt: sentAt.toISOString(),
+          deliveredMessageCount,
           detail: result.detail.slice(0, 500),
         };
 

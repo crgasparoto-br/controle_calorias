@@ -114,7 +114,7 @@ describe("simulateWhatsappInbound explicit meal dates", () => {
     expect(processMealDraftMock).toHaveBeenCalledWith(42, {
       source: "whatsapp",
       text: "Adicionar 3 xícara de café sem açúcar à refeição Café da manhã de ontem",
-    });
+    }, "America/Sao_Paulo");
     expect(result).toEqual(expect.objectContaining({
       draftId: "draft-cafe-ontem",
       temporalContext: expect.objectContaining({

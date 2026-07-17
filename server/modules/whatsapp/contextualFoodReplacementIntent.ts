@@ -8,7 +8,8 @@ import {
 } from "./mealBatchMutation";
 import { resolveMealItemTarget } from "./mealItemTargetMatcher";
 import { replaceMealItemFood, toMealItemInputs } from "./intent/mealItemHelpers";
-import { buildWhatsAppMealActionReplyMessage, buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
+import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
+import { composeWhatsAppMealActionReplies } from "./mealActionReplyComposer";
 
 const RECENT_REPLACEMENT_WINDOW_MS = 30 * 60 * 1000;
 const RECENT_REPLACEMENT_MEAL_LIMIT = 5;
@@ -192,7 +193,14 @@ export async function executeWhatsappContextualFoodReplacementIntent(
   }
 
   const title = clearActions.length === 1 ? "Alimento substituído" : "Alimentos substituídos";
-  const reply = updatedMeals.map(meal => buildWhatsAppMealActionReplyMessage(meal, { title, actionLines: actionLinesByMeal.get(meal.id) ?? [] })).join("\n\n") + (notFound.length ? `\n\nNão encontrei: ${notFound.join(", ")}.` : "");
+  const canonicalReply = await composeWhatsAppMealActionReplies({
+    userId,
+    entries: updatedMeals.map(meal => ({
+      meal,
+      options: { title, actionLines: actionLinesByMeal.get(meal.id) ?? [] },
+    })),
+  });
+  const reply = canonicalReply + (notFound.length ? `\n\nNão encontrei: ${notFound.join(", ")}.` : "");
   return { action: "meal_item_replaced", reply, eventType: "whatsapp.intent.meal_item_replaced", detail: `${clearActions.length} alimento(s) substituído(s) com estado atual recarregado.`, data: { mealId: updatedMeals[0]?.id, mealIds: updatedMeals.map(meal => meal.id) } };
 }
 

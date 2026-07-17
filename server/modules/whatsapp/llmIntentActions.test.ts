@@ -6,6 +6,7 @@ const recordWhatsappIntentAuditLogMock = vi.hoisted(() => vi.fn());
 const listMealsMock = vi.hoisted(() => vi.fn());
 const createManualMealMock = vi.hoisted(() => vi.fn());
 const updateMealMock = vi.hoisted(() => vi.fn());
+const createPendingMealItemSelectionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./intentContext", () => ({
   buildWhatsappIntentContext: buildWhatsappIntentContextMock,
@@ -23,6 +24,14 @@ vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,
   createManualMeal: createManualMealMock,
   updateMeal: updateMealMock,
+}));
+
+vi.mock("./mealItemSelectionCallback", () => ({
+  createPendingMealItemSelection: createPendingMealItemSelectionMock,
+}));
+
+vi.mock("./userMeasurementReplyContext", () => ({
+  getWhatsAppUserTimeZone: vi.fn(async () => "America/Sao_Paulo"),
 }));
 
 import { executeWhatsappLlmIntent } from "./llmIntentActions";
@@ -60,6 +69,7 @@ describe("executeWhatsappLlmIntent", () => {
     listMealsMock.mockReset();
     createManualMealMock.mockReset();
     updateMealMock.mockReset();
+    createPendingMealItemSelectionMock.mockReset();
 
     buildWhatsappIntentContextMock.mockResolvedValue({ version: "whatsapp-intent-context/v1" });
     listMealsMock.mockResolvedValue([]);
@@ -77,7 +87,7 @@ describe("executeWhatsappLlmIntent", () => {
 
     expect(result).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      reply: "Você quer registrar ou consultar?",
+      reply: expect.stringContaining("Você quer registrar ou consultar?"),
     }));
     expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
@@ -188,7 +198,8 @@ describe("executeWhatsappLlmIntent", () => {
     }));
     expect(result?.reply).toContain("Alimentos registrados hoje");
     expect(result?.reply).toContain("Almoço");
-    expect(result?.reply).toContain("100 g de Arroz");
+    expect(result?.reply).toContain("100g");
+    expect(result?.reply).toContain("Arroz");
     expect(recordWhatsappIntentAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       action: "llm_intent_list_meal_records",
       replyKind: "executed",
@@ -200,6 +211,103 @@ describe("executeWhatsappLlmIntent", () => {
         decision: "allowed",
       })],
     }));
+  });
+
+
+  it("cria pendência persistente e lista interativa para substituição ambígua", async () => {
+    listMealsMock.mockResolvedValue([{
+      id: 10,
+      mealLabel: "Almoço",
+      occurredAt: "2026-06-12T15:00:00.000Z",
+      items: [
+        { foodName: "Queijo minas", canonicalName: "Queijo minas", portionText: "30 g", estimatedGrams: 30, calories: 80, protein: 6, carbs: 1, fat: 6, confidence: 0.9, source: "catalog" },
+        { foodName: "Queijo mussarela", canonicalName: "Queijo mussarela", portionText: "30 g", estimatedGrams: 30, calories: 90, protein: 7, carbs: 1, fat: 7, confidence: 0.9, source: "catalog" },
+      ],
+    }]);
+    const interactiveReply = { kind: "functional", messages: [{ type: "list", bodyText: "Escolha", buttonText: "Ver opções", sections: [] }] };
+    createPendingMealItemSelectionMock.mockResolvedValue({
+      action: "clarification_needed",
+      reply: "Escolha o queijo",
+      interactiveReply,
+      eventType: "whatsapp.intent.meal_item_selection_needed",
+      detail: "Seleção persistente criada.",
+      data: { candidateCount: 2 },
+    });
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      operationalTrace: llmTrace,
+      intent: interpretedIntent({
+        intent: "replace_food_in_meal",
+        confidence: 0.91,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        sourceFood: "queijo",
+        targetFood: "ricota",
+      }),
+    });
+
+    const result = await executeWhatsappLlmIntent(42, { text: "troque o queijo por ricota" });
+
+    expect(createPendingMealItemSelectionMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      action: { kind: "replace_food", targetFood: "ricota" },
+      candidates: expect.arrayContaining([
+        expect.objectContaining({ mealId: 10, itemIndex: 0, itemName: "Queijo minas" }),
+        expect.objectContaining({ mealId: 10, itemIndex: 1, itemName: "Queijo mussarela" }),
+      ]),
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      action: "clarification_needed",
+      interactiveReply,
+    }));
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
+  it("preserva refeição e item ao criar seleção ambígua entre refeições", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 10,
+        mealLabel: "Almoço",
+        occurredAt: "2026-06-12T15:00:00.000Z",
+        items: [{ foodName: "Queijo minas", canonicalName: "Queijo minas", portionText: "30 g", estimatedGrams: 30, calories: 80, protein: 6, carbs: 1, fat: 6, confidence: 0.9, source: "catalog" }],
+      },
+      {
+        id: 11,
+        mealLabel: "Jantar",
+        occurredAt: "2026-06-12T21:00:00.000Z",
+        items: [{ foodName: "Queijo coalho", canonicalName: "Queijo coalho", portionText: "30 g", estimatedGrams: 30, calories: 90, protein: 7, carbs: 1, fat: 7, confidence: 0.9, source: "catalog" }],
+      },
+    ]);
+    createPendingMealItemSelectionMock.mockResolvedValue({
+      action: "clarification_needed",
+      reply: "Escolha o queijo",
+      eventType: "whatsapp.intent.meal_item_selection_needed",
+      detail: "Seleção persistente criada.",
+      data: { candidateCount: 2 },
+    });
+    interpretWhatsappMessageWithDiagnosticsMock.mockResolvedValue({
+      source: "llm",
+      validationStatus: "valid",
+      operationalTrace: llmTrace,
+      intent: interpretedIntent({
+        intent: "replace_food_in_meal",
+        confidence: 0.91,
+        requiresConfirmation: false,
+        possibleIntents: [],
+        sourceFood: "queijo",
+        targetFood: "ricota",
+      }),
+    });
+
+    await executeWhatsappLlmIntent(42, { text: "troque o queijo por ricota" });
+
+    expect(createPendingMealItemSelectionMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      candidates: expect.arrayContaining([
+        expect.objectContaining({ mealId: 10, mealLabel: "Almoço", itemIndex: 0 }),
+        expect.objectContaining({ mealId: 11, mealLabel: "Jantar", itemIndex: 0 }),
+      ]),
+    }));
+    expect(updateMealMock).not.toHaveBeenCalled();
   });
 
   it("registra escrita governada com simulacao, idempotencia e ferramenta persistente", async () => {
@@ -343,7 +451,7 @@ describe("executeWhatsappLlmIntent", () => {
 
     expect(result).toEqual(expect.objectContaining({
       action: "clarification_needed",
-      reply: expect.stringContaining("Nao consegui concluir"),
+      reply: expect.stringContaining("Não consegui concluir"),
     }));
     expect(createManualMealMock).not.toHaveBeenCalled();
     expect(updateMealMock).not.toHaveBeenCalled();

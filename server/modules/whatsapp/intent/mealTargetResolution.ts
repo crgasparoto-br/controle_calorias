@@ -1,3 +1,4 @@
+import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import type { MealDraftItem } from "../../../nutritionEngine";
 import type { MealItemInput } from "../../meals/schemas";
 import { endOfZonedDay, startOfZonedDay } from "./dateTime";
@@ -40,10 +41,10 @@ export type MealItemTargetInMeal<TMeal extends MealWithItems> =
       scopeLabel: string;
     };
 
-function sameZonedDay(reference: number | string | Date, candidate: number | string | Date) {
+function sameZonedDay(reference: number | string | Date, candidate: number | string | Date, timeZone: string) {
   const referenceDate = new Date(reference);
   const candidateTime = new Date(candidate).getTime();
-  return candidateTime >= startOfZonedDay(referenceDate).getTime() && candidateTime <= endOfZonedDay(referenceDate).getTime();
+  return candidateTime >= startOfZonedDay(referenceDate, timeZone).getTime() && candidateTime <= endOfZonedDay(referenceDate, timeZone).getTime();
 }
 
 function scopeLabel(scope: MealTargetScope) {
@@ -61,6 +62,7 @@ function candidatesForMeal<TMeal extends MealWithItems>(
 export function resolveTargetMealItemInMeals<TMeal extends MealWithItems>(
   meals: TMeal[],
   targetFood: string | null,
+  timeZone = DEFAULT_APP_TIME_ZONE,
 ): MealItemTargetInMeal<TMeal> {
   const latestMeal = meals[0];
   if (!latestMeal) {
@@ -92,7 +94,7 @@ export function resolveTargetMealItemInMeals<TMeal extends MealWithItems>(
   const sameDayMatches: MealItemTargetCandidate<TMeal>[] = [];
 
   for (const [mealIndex, meal] of meals.entries()) {
-    if (mealIndex === 0 || !meal.items?.length || !sameZonedDay(latestMeal.occurredAt, meal.occurredAt)) {
+    if (mealIndex === 0 || !meal.items?.length || !sameZonedDay(latestMeal.occurredAt, meal.occurredAt, timeZone)) {
       continue;
     }
 

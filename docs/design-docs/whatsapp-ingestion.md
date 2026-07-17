@@ -32,7 +32,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Falha ao gerar link de edição rápida deve gerar aviso operacional e não deve bloquear o registro da refeição nem a resposta nutricional principal.
 - Simulações devem usar dados controlados e não depender de chamadas externas reais.
 - Mensagens suportadas de texto, imagem e áudio devem ser marcadas como lidas no WhatsApp antes do processamento pesado.
-- Mensagens suportadas de texto, imagem e áudio devem receber uma resposta inicial informando que o conteúdo foi recebido e está sendo processado, exceto quando um texto puro for interpretado como ação e receber resposta final própria antes da inferência.
+- Texto não recebe acknowledgement. Imagem e áudio recebem no máximo um acknowledgement somente quando o processamento ultrapassa o limiar configurado; o caminho rápido envia diretamente a resposta final.
 - Reentregas do mesmo `message.id` de imagem devem ser absorvidas antes do fluxo nutricional para evitar acknowledgements e refeições duplicadas enquanto a reserva de idempotência estiver ativa.
 - Apenas mensagens de texto puro, sem imagem e sem áudio, podem ser tratadas pelo interpretador de ações antes do acknowledgement e antes do fluxo nutricional.
 - Áudios sem imagem podem ser transcritos e, depois da resposta inicial de processamento, a transcrição pode ser tratada pelo mesmo interpretador de ações antes da inferência nutricional.
@@ -60,7 +60,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Pedidos de resumo, relatório ou balanço devem exigir período explícito, aceitar períodos como `hoje`, `ontem`, `semana`, `mês`, `últimos 7 dias` ou intervalo `01/06 a 03/06`, e responder com totais do período.
 - Quando um pedido de resumo vier sem período, o sistema deve manter contexto temporário para que a próxima mensagem textual curta, como `hoje`, `ontem` ou `semana`, complete o pedido em vez de cair no fluxo de registro de refeição.
 - Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a meta estimada do período quando a meta estiver disponível.
-- Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber uma notificação curta pelo WhatsApp com duração, nome do treino, calorias queimadas, data e botão `Ver resumo do dia`.
+- Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber a resposta canônica de exercício com atividade, duração, calorias, data, indicação de estimativa quando aplicável e botão `Ver exercício`.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
 - Quando o interpretador de texto tratar a mensagem ou transcrição, o webhook real deve registrar evento de inferência com `origin: "whatsapp"`, responder com a mensagem interpretada e impedir que o mesmo conteúdo crie refeição por fallback.
 - Respostas finais de refeição no WhatsApp devem usar linguagem simples, sem títulos técnicos como `Alimentos e macros`, e devem listar alimentos, porções, calorias, proteína, carboidratos e gorduras por item.
@@ -84,7 +84,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 
 ## Contrato central de resposta
 
-A epic #779 substitui, de forma incremental, o envio de payloads brutos da Cloud API dentro dos handlers por um contrato central tipado (issue #781). A migração dos domínios (refeições, resumos/água/peso/exercícios, mídia, IA, onboarding/profissionais/segurança) acontece nas subissues seguintes (#783–#788); esta issue cria apenas a infraestrutura e não altera nenhum fluxo de produção existente.
+A epic #779 centraliza os envios funcionais em um contrato tipado e em um único transporte. Refeições, resumos, água, peso, exercícios, mídia, IA, onboarding e profissionais já usam essa infraestrutura; chamadas diretas à Cloud API ficam restritas aos adaptadores de transporte e acknowledgement.
 
 ### Dois níveis
 
@@ -116,7 +116,11 @@ A epic #779 estende o contrato central para perguntas interativas com botões e 
 
 - **Reconhecimento inbound**: `server/modules/whatsapp/webhookUtils.ts` reconhece `interactive.button_reply`/`interactive.list_reply` e expõe `getWhatsAppInteractiveReplyId(message)`. Uma mensagem interativa nunca é reinterpretada como texto livre nem cai no fallback nutricional: `canInterpretTextIntent` em `whatsappIntentWebhook.ts` a admite mesmo sem `text.body`, e o gate de precedência resolve o callback antes de qualquer classificação de intenção.
 - **ID opaco assinado**: `server/modules/whatsapp/interactiveCallback.ts` gera e valida IDs de callback (`buildWhatsAppCallbackId`/`parseWhatsAppCallbackId`) assinados por HMAC (chave derivada de `JWT_SECRET`). O ID carrega apenas o ID da pendência e a ação escolhida — nunca `userId`, `mealId`, `itemId` ou qualquer dado sensível — e uma assinatura adulterada é rejeitada antes de qualquer consulta ao banco.
-- **Claim central**: `claimWhatsAppInteractiveCallback(userId, rawCallbackId)` valida dono da conversa, estado ativo e expiração da pendência (`getPendingOperationById`, novo método do repositório) e a consome por compare-and-set (`claimPendingOperation`), exatamente como a confirmação por texto. Reentrega do mesmo callback, clique duplo ou corrida entre duas requisições resultam em no máximo um consumo bem-sucedido; as demais tentativas recebem a mensagem central de indisponibilidade, sem revelar o estado exato (`⚠️ Esta solicitação não está mais disponível`).
+- **Claim central**: `claimWhatsAppInteractiveCallback` valida usuário, telefone/canal ativo, tipo da pendência, ação permitida, estado e expiração antes do compare-and-set. Reentrega, clique duplo ou corrida resultam em no máximo um consumo bem-sucedido; rejeições anteriores ao claim não consomem a pendência.
+
+### Retry após mutação
+
+O inbound só é concluído depois que uma resposta funcional primária é entregue e persistida. Se a mutação de domínio terminou mas o envio falhou, os vínculos `mealId`, `waterLogId` e `weightEntryId` permitem reconstruir a resposta a partir do estado persistido, sem repetir a mutação. A chave de idempotência da resposta outbound é derivada do inbound, garantindo no máximo uma resposta funcional armazenada por mensagem.
 - **Despacho por domínio**: `server/modules/whatsapp/messageRouter.ts` reivindica o callback uma única vez e despacha pelo `type` persistido em `whatsappPendingOperations` para o resolvedor do domínio (exclusão, confirmação genérica de reclassificação, autorização profissional), que revalida o recurso atual no banco antes de mutar e nunca consome a pendência de novo. Um recurso que não corresponde mais ao estado esperado (ex.: ação `confirm` sobre uma pendência de seleção já superada) recebe a mensagem central `⚠️ Registro não encontrado`.
 - **Fluxos obrigatórios**: exclusão exibe `Confirmar`/`Cancelar` e nunca executa antes da confirmação; uma seleção ambígua com mais de uma opção usa lista interativa (com linha `Cancelar`) e, ao ser escolhida, avança para a confirmação por botões em vez de excluir silenciosamente; autorização profissional exibe `Autorizar`/`Recusar` vinculados à mesma pendência criada ao notificar o profissional, mantendo o texto `AUTORIZAR <código>`/`NEGAR <código>` como fallback compatível — os dois caminhos resolvem a mesma decisão e a repetição não muda uma decisão já aplicada, pois o recurso (`access.status`) deixa de estar `"pending"` após a primeira aplicação.
 - **Transporte**: `server/modules/whatsapp/webhookUtils.ts` ganhou `sendWhatsAppInteractiveButtonsMessage`/`sendWhatsAppInteractiveListMessage`; o envio efetivo passa por `replyTransport.sendWhatsAppLogicalReply`, que grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica, igual aos demais fluxos migrados ao contrato central.
@@ -203,3 +207,20 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - Testar que a exclusão por botão só executa após `Confirmar`, que `Cancelar` não altera o domínio, e que uma seleção ambígua por lista avança para confirmação por botões em vez de excluir diretamente.
 - Testar que autorização/recusa profissional por botão aplica a decisão uma única vez e que repetir o clique ou o texto equivalente não muda uma decisão já consumida.
 - Testar que o webhook real reconhece `button_reply` recebido pela Cloud API e resolve a exclusão pendente sem passar pelo fallback nutricional.
+
+
+## Invariantes finais da epic #779
+
+- Toda resposta funcional passa pelo contrato lógico e pelo delivery central; acknowledgement é operacional, cancelável e nunca substitui a resposta funcional.
+- Valores de meta são calculados no domínio. Formatters não recalculam a regra da #756, não multiplicam a meta atual por dias e não transformam ausência em zero.
+- Datas e períodos usam o timezone do perfil, com `America/Sao_Paulo` somente como fallback.
+- Ambiguidades de ações estruturadas usam pendência persistente, callback opaco e revalidação do banco antes da mutação.
+- Onboarding composto retoma apenas mensagens físicas ainda não entregues após falha parcial.
+- Erros de mídia, conta não vinculada e indisponibilidade são sanitizados e não expõem provider, payload, telefone completo ou identificadores internos.
+- O gate arquitetural impede novos payloads, envios e builders paralelos fora dos módulos autorizados.
+
+## Timezone da operação
+
+A entrada canônica cria um escopo temporal request-scoped. Após identificar o usuário e confirmar que a mensagem não é uma reentrega já processada, o sistema resolve o timezone efetivo uma vez e o propaga por todo o pipeline. O timestamp recebido permanece absoluto; data lógica, rótulo de refeição, água, peso, relatórios, perguntas com `/` e agrupamentos usam o timezone resolvido.
+
+Falha técnica ao consultar o perfil interrompe a mensagem com erro recuperável e não aciona o fallback nutricional. A ordem de idempotência e os vínculos de domínio permanecem inalterados.

@@ -14,6 +14,7 @@ export type WhatsappIntentResult = {
 export type WhatsappIntentInput = {
   text?: string | null;
   receivedAt?: Date;
+  userTimezone?: string | null;
 };
 
 export type ZonedParts = {
