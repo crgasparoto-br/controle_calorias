@@ -12,21 +12,26 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { trpc } from "@/lib/trpc";
 import {
+  AlertTriangle,
   BarChart3,
   BriefcaseMedical,
   ChevronLeft,
   FileClock,
   LayoutDashboard,
   MessageSquareText,
+  RefreshCw,
   Settings,
   UsersRound,
 } from "lucide-react";
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useLocation } from "wouter";
@@ -40,6 +45,13 @@ export type ProfessionalPatientContext = {
 type ProfessionalWorkspaceContextValue = {
   selectedPatient: ProfessionalPatientContext | null;
   selectPatient: (patient: ProfessionalPatientContext | null) => void;
+  clearPatient: () => void;
+};
+
+type PatientAccess = {
+  patientUserId: number;
+  status: string;
+  patient?: { name?: string | null; email?: string | null } | null;
 };
 
 const ProfessionalWorkspaceContext =
@@ -73,35 +85,132 @@ function isActiveRoute(location: string, path: string) {
   return location === path || location.startsWith(`${path}/`);
 }
 
+function routeTitle(location: string) {
+  return (
+    professionalNavigation.find(item => isActiveRoute(location, item.path))
+      ?.label ?? "Área Profissional"
+  );
+}
+
 export default function ProfessionalLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { loading, refresh, user } = useAuth();
+  const { loading: authLoading, refresh: refreshAuth, user } = useAuth();
   const [location, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+  const mainRef = useRef<HTMLElement | null>(null);
+  const selectedPatientRef = useRef<ProfessionalPatientContext | null>(null);
   const [selectedPatient, setSelectedPatient] =
     useState<ProfessionalPatientContext | null>(null);
 
-  useEffect(() => {
-    const refreshAccess = () => {
-      void refresh();
-    };
-    const intervalId = window.setInterval(refreshAccess, 30_000);
-    window.addEventListener("focus", refreshAccess);
+  const profile = trpc.nutrition.professionals.profile.useQuery(undefined, {
+    enabled: Boolean(user),
+    retry: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
+  });
+  const hasActiveProfile = Boolean(
+    user?.professionalProfileActive && profile.data?.active
+  );
+  const accesses = trpc.nutrition.professionals.myAccesses.useQuery(undefined, {
+    enabled: hasActiveProfile,
+    retry: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
+  });
 
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshAccess);
-    };
-  }, [refresh]);
-
-  const contextValue = useMemo(
-    () => ({ selectedPatient, selectPatient: setSelectedPatient }),
-    [selectedPatient]
+  const invalidatePatientData = useCallback(
+    async (patientId: number) => {
+      await Promise.all([
+        utils.nutrition.professionals.patientTimeZone.invalidate({ patientId }),
+        utils.nutrition.professionals.patientDashboard.invalidate({ patientId }),
+        utils.nutrition.professionals.patientPeriodBundle.invalidate(),
+      ]);
+    },
+    [utils]
   );
 
-  if (loading) return <DashboardLayoutSkeleton />;
+  const clearPatient = useCallback(() => {
+    const current = selectedPatientRef.current;
+    selectedPatientRef.current = null;
+    setSelectedPatient(null);
+    if (current) void invalidatePatientData(current.patientId);
+  }, [invalidatePatientData]);
+
+  const selectPatient = useCallback(
+    (patient: ProfessionalPatientContext | null) => {
+      const previous = selectedPatientRef.current;
+      if (previous && previous.patientId !== patient?.patientId) {
+        void invalidatePatientData(previous.patientId);
+      }
+      selectedPatientRef.current = patient;
+      setSelectedPatient(patient);
+    },
+    [invalidatePatientData]
+  );
+
+  useEffect(() => {
+    const refreshAccess = () => {
+      void Promise.all([
+        refreshAuth(),
+        profile.refetch(),
+        hasActiveProfile ? accesses.refetch() : Promise.resolve(),
+      ]);
+    };
+    window.addEventListener("focus", refreshAccess);
+    return () => window.removeEventListener("focus", refreshAccess);
+  }, [accesses, hasActiveProfile, profile, refreshAuth]);
+
+  useEffect(() => {
+    if (!profile.isSuccess || !hasActiveProfile) {
+      if (selectedPatientRef.current) clearPatient();
+      return;
+    }
+    if (!accesses.isSuccess || !selectedPatient) return;
+
+    const approvedIds = new Set(
+      ((accesses.data ?? []) as PatientAccess[])
+        .filter(access => access.status === "approved")
+        .map(access => access.patientUserId)
+    );
+    if (!approvedIds.has(selectedPatient.patientId)) clearPatient();
+  }, [
+    accesses.data,
+    accesses.isSuccess,
+    clearPatient,
+    hasActiveProfile,
+    profile.isSuccess,
+    selectedPatient,
+  ]);
+
+  useEffect(() => {
+    selectedPatientRef.current = selectedPatient;
+  }, [selectedPatient]);
+
+  useEffect(() => {
+    document.title = `${routeTitle(location)} | Área Profissional`;
+    mainRef.current?.focus();
+  }, [location]);
+
+  useEffect(
+    () => () => {
+      const current = selectedPatientRef.current;
+      if (current) void invalidatePatientData(current.patientId);
+      selectedPatientRef.current = null;
+    },
+    [invalidatePatientData]
+  );
+
+  const contextValue = useMemo(
+    () => ({ selectedPatient, selectPatient, clearPatient }),
+    [clearPatient, selectPatient, selectedPatient]
+  );
+
+  if (authLoading || (user && profile.isLoading)) {
+    return <DashboardLayoutSkeleton />;
+  }
 
   if (!user) {
     return (
@@ -116,7 +225,30 @@ export default function ProfessionalLayout({
     );
   }
 
-  if (!user.professionalProfileActive) {
+  if (profile.isError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div
+          role="alert"
+          className="max-w-lg rounded-3xl border bg-card p-8 text-center shadow-sm"
+        >
+          <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
+          <h1 className="mt-4 text-xl font-semibold">
+            Não foi possível confirmar seu acesso
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Verifique sua conexão e tente novamente. Nenhum dado profissional foi exibido.
+          </p>
+          <Button className="mt-6" onClick={() => void profile.refetch()}>
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasActiveProfile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <div className="max-w-lg rounded-3xl border bg-card p-8 text-center shadow-sm">
@@ -136,6 +268,8 @@ export default function ProfessionalLayout({
     );
   }
 
+  const patientAccessUnavailable = Boolean(selectedPatient && accesses.isError);
+
   return (
     <ProfessionalWorkspaceContext.Provider value={contextValue}>
       <SidebarProvider>
@@ -154,9 +288,7 @@ export default function ProfessionalLayout({
                 <BriefcaseMedical className="h-5 w-5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="truncate text-sm font-semibold">
-                  Área Profissional
-                </p>
+                <p className="truncate text-sm font-semibold">Área Profissional</p>
                 <p className="truncate text-xs text-sidebar-foreground/70">
                   Gestão de pacientes
                 </p>
@@ -165,20 +297,26 @@ export default function ProfessionalLayout({
           </SidebarHeader>
 
           <SidebarContent className="px-2 py-4">
-            <SidebarMenu>
-              {professionalNavigation.map(item => (
-                <SidebarMenuItem key={item.path}>
-                  <SidebarMenuButton
-                    isActive={isActiveRoute(location, item.path)}
-                    tooltip={item.label}
-                    onClick={() => setLocation(item.path)}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            <nav aria-label="Navegação da Área Profissional">
+              <SidebarMenu>
+                {professionalNavigation.map(item => {
+                  const active = isActiveRoute(location, item.path);
+                  return (
+                    <SidebarMenuItem key={item.path}>
+                      <SidebarMenuButton
+                        isActive={active}
+                        tooltip={item.label}
+                        onClick={() => setLocation(item.path)}
+                        aria-current={active ? "page" : undefined}
+                      >
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </nav>
           </SidebarContent>
 
           <SidebarFooter className="border-t border-sidebar-border/70 p-3">
@@ -186,7 +324,10 @@ export default function ProfessionalLayout({
               type="button"
               variant="ghost"
               className="w-full justify-start group-data-[collapsible=icon]:justify-center"
-              onClick={() => setLocation("/today")}
+              onClick={() => {
+                clearPatient();
+                setLocation("/today");
+              }}
             >
               <ChevronLeft className="h-4 w-4" />
               <span className="group-data-[collapsible=icon]:hidden">
@@ -199,13 +340,16 @@ export default function ProfessionalLayout({
         <SidebarInset>
           <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
             <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 sm:px-6">
-              <div className="flex items-center gap-3">
-                <SidebarTrigger className="h-9 w-9 rounded-xl border bg-background shadow-sm" />
-                <div>
+              <div className="flex min-w-0 items-center gap-3">
+                <SidebarTrigger
+                  className="h-9 w-9 shrink-0 rounded-xl border bg-background shadow-sm"
+                  aria-label="Abrir ou recolher navegação profissional"
+                />
+                <div className="min-w-0" aria-live="polite">
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     Contexto profissional
                   </p>
-                  <p className="text-sm font-semibold">
+                  <p className="truncate text-sm font-semibold">
                     {selectedPatient
                       ? `Paciente: ${selectedPatient.displayName}`
                       : "Nenhum paciente selecionado"}
@@ -214,14 +358,48 @@ export default function ProfessionalLayout({
               </div>
               <Button
                 variant="outline"
-                onClick={() => setLocation("/professional/legacy")}
+                className="shrink-0"
+                onClick={() => {
+                  clearPatient();
+                  setLocation("/professional/legacy");
+                }}
               >
                 Experiência legada
               </Button>
             </div>
           </header>
-          <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background to-muted/20 p-4 sm:p-6">
-            {children}
+          <main
+            ref={mainRef}
+            tabIndex={-1}
+            aria-label={routeTitle(location)}
+            className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background to-muted/20 p-4 outline-none sm:p-6"
+          >
+            {accesses.isLoading && selectedPatient ? (
+              <div
+                role="status"
+                className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"
+              >
+                Confirmando autorização do paciente...
+              </div>
+            ) : patientAccessUnavailable ? (
+              <div role="alert" className="rounded-2xl border bg-card p-6">
+                <h1 className="font-semibold">
+                  Não foi possível confirmar a autorização do paciente
+                </h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  O contexto foi protegido. Tente novamente antes de continuar o acompanhamento.
+                </p>
+                <Button
+                  className="mt-4"
+                  variant="outline"
+                  onClick={() => void accesses.refetch()}
+                >
+                  Tentar novamente
+                </Button>
+              </div>
+            ) : (
+              children
+            )}
           </main>
         </SidebarInset>
       </SidebarProvider>
