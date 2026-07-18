@@ -196,6 +196,33 @@ describe("ProfessionalLayout", () => {
     expect(invalidateDashboard).toHaveBeenCalledWith({ patientId: 10 });
   });
 
+  it("hides the patient name when authorization cannot be revalidated", async () => {
+    const { rerender } = render(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar Ana" }));
+    expect(screen.getByText("Paciente: Ana")).toBeTruthy();
+
+    accessesState = {
+      ...accessesState,
+      isError: true,
+      isSuccess: false,
+      data: undefined,
+    };
+    rerender(
+      <ProfessionalLayout>
+        <PatientFixture />
+      </ProfessionalLayout>
+    );
+
+    await waitFor(() => expect(screen.queryByText("Paciente: Ana")).toBeNull());
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Não foi possível confirmar a autorização do paciente"
+    );
+  });
+
   it("clears patient context before returning to the personal area", async () => {
     render(
       <ProfessionalLayout>
