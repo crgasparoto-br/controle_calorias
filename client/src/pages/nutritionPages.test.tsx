@@ -615,6 +615,10 @@ describe("nutrition pages", () => {
     expect(html).toContain("Soma das metas planejadas para a semana.");
     expect(html).toContain("value=\"2.200\"");
     expect(html).toContain("15.600 kcal");
+    expect(html).toContain('data-nutrition-goal-week-preview="true"');
+    expect(html.match(/border-l-emerald-500/g) ?? []).toHaveLength(8);
+    expect(html).toContain("overflow-x-auto");
+    expect(html).toContain("xl:grid-cols-3");
   });
 
   it("renderiza as configurações com perfil, solicitações e refeições habituais", async () => {
