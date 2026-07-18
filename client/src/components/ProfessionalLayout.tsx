@@ -165,7 +165,11 @@ export default function ProfessionalLayout({
 
   useEffect(() => {
     if (!profile.isSuccess || !hasActiveProfile) {
-      if (selectedPatientRef.current) clearPatient();
+      if (selectedPatient) clearPatient();
+      return;
+    }
+    if (accesses.isError) {
+      if (selectedPatient) clearPatient();
       return;
     }
     if (!accesses.isSuccess || !selectedPatient) return;
@@ -178,6 +182,7 @@ export default function ProfessionalLayout({
     if (!approvedIds.has(selectedPatient.patientId)) clearPatient();
   }, [
     accesses.data,
+    accesses.isError,
     accesses.isSuccess,
     clearPatient,
     hasActiveProfile,
@@ -268,7 +273,7 @@ export default function ProfessionalLayout({
     );
   }
 
-  const patientAccessUnavailable = Boolean(selectedPatient && accesses.isError);
+  const patientAccessUnavailable = accesses.isError;
 
   return (
     <ProfessionalWorkspaceContext.Provider value={contextValue}>
