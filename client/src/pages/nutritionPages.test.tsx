@@ -12,7 +12,12 @@ const adminOverviewMock = vi.fn();
 const adminWhatsappTokenStatusMock = vi.fn();
 
 const mealSchedulesMock = [
-  { mealLabel: "café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
+  {
+    mealLabel: "café da manhã",
+    startTime: "05:00",
+    endTime: "10:59",
+    enabled: true,
+  },
   { mealLabel: "almoço", startTime: "11:00", endTime: "14:59", enabled: true },
   { mealLabel: "lanche", startTime: "15:00", endTime: "17:59", enabled: true },
   { mealLabel: "jantar", startTime: "18:00", endTime: "22:59", enabled: true },
@@ -29,15 +34,26 @@ const useUtilsMock = vi.fn(() => ({
   nutrition: {
     onboarding: { profile: { invalidate: vi.fn() } },
     mealSchedules: { list: { invalidate: vi.fn() } },
-    dashboard: { overview: { invalidate: vi.fn() }, today: { invalidate: vi.fn() } },
-    meals: { list: { invalidate: vi.fn() }, dayTotals: { invalidate: vi.fn() }, favorites: { invalidate: vi.fn() } },
-    reports: { weekly: { invalidate: vi.fn() }, bundle: { invalidate: vi.fn() }, periodBundle: { invalidate: vi.fn() }, habitAnalytics: { invalidate: vi.fn() } },
+    dashboard: {
+      overview: { invalidate: vi.fn() },
+      today: { invalidate: vi.fn() },
+    },
+    meals: {
+      list: { invalidate: vi.fn() },
+      dayTotals: { invalidate: vi.fn() },
+      favorites: { invalidate: vi.fn() },
+    },
+    reports: {
+      weekly: { invalidate: vi.fn() },
+      bundle: { invalidate: vi.fn() },
+      periodBundle: { invalidate: vi.fn() },
+      habitAnalytics: { invalidate: vi.fn() },
+    },
     goals: { get: { invalidate: vi.fn() } },
     gamification: { get: { invalidate: vi.fn() } },
     exercises: { list: { invalidate: vi.fn() } },
     water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
     whatsapp: { status: { invalidate: vi.fn() } },
-    whatsappPreferences: { annotatedImage: { invalidate: vi.fn() } },
     professionals: {
       profile: { invalidate: vi.fn() },
       myAccesses: { invalidate: vi.fn() },
@@ -60,7 +76,8 @@ vi.mock("@/_core/hooks/useAuth", () => ({
 }));
 
 vi.mock("@/components/DashboardLayout", () => ({
-  default: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
+  default: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children),
 }));
 
 vi.mock("sonner", () => ({
@@ -71,7 +88,8 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("wouter", () => ({
-  Link: ({ children, href }: { children: React.ReactNode; href?: string }) => React.createElement("a", { href }, children),
+  Link: ({ children, href }: { children: React.ReactNode; href?: string }) =>
+    React.createElement("a", { href }, children),
   useLocation: () => ["/onboarding", vi.fn()],
 }));
 
@@ -80,10 +98,19 @@ vi.mock("@/lib/trpc", () => ({
     useUtils: useUtilsMock,
     auth: {
       me: {
-        useQuery: () => ({ data: null, isLoading: false, error: null, refetch: vi.fn() }),
+        useQuery: () => ({
+          data: null,
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        }),
       },
       logout: {
-        useMutation: () => ({ isPending: false, error: null, mutateAsync: vi.fn() }),
+        useMutation: () => ({
+          isPending: false,
+          error: null,
+          mutateAsync: vi.fn(),
+        }),
       },
     },
     nutrition: {
@@ -95,7 +122,11 @@ vi.mock("@/lib/trpc", () => ({
       onboarding: {
         timeZone: {
           useQuery: () => ({
-            data: { timeZone: "America/Sao_Paulo", source: "profile", fallbackReason: null },
+            data: {
+              timeZone: "America/Sao_Paulo",
+              source: "profile",
+              fallbackReason: null,
+            },
             isSuccess: true,
             isLoading: false,
             isError: false,
@@ -108,23 +139,25 @@ vi.mock("@/lib/trpc", () => ({
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
       },
-      whatsappPreferences: {
-        annotatedImage: {
-          useQuery: () => ({ data: { enabled: false }, isLoading: false, isError: false }),
-        },
-        updateAnnotatedImage: {
-          useMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
-        },
-      },
       mealSchedules: {
         list: {
-          useQuery: () => ({ data: mealSchedulesMock, isLoading: false, error: null }),
+          useQuery: () => ({
+            data: mealSchedulesMock,
+            isLoading: false,
+            error: null,
+          }),
         },
         update: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
         suggest: {
-          useQuery: () => ({ data: { mealLabel: "almoço", matchedSchedule: mealSchedulesMock[1], confidence: 1 } }),
+          useQuery: () => ({
+            data: {
+              mealLabel: "almoço",
+              matchedSchedule: mealSchedulesMock[1],
+              confidence: 1,
+            },
+          }),
         },
       },
       dashboard: {
@@ -208,7 +241,12 @@ vi.mock("@/lib/trpc", () => ({
           useQuery: () => ({ data: [] }),
         },
         dayTotals: {
-          useQuery: () => ({ data: { totals: overviewData.today.consumed, meals: overviewData.meals } }),
+          useQuery: () => ({
+            data: {
+              totals: overviewData.today.consumed,
+              meals: overviewData.meals,
+            },
+          }),
         },
         list: {
           useQuery: () => ({ data: overviewData.meals }),
@@ -268,17 +306,31 @@ vi.mock("@/lib/trpc", () => ({
         },
       },
       professionals: {
-        patientTimeZone: { useQuery: () => ({ data: null, isLoading: false, isError: false }) },
+        patientTimeZone: {
+          useQuery: () => ({ data: null, isLoading: false, isError: false }),
+        },
         profile: { useQuery: () => ({ data: null }) },
-        upsertProfile: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
-        requestAccess: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        upsertProfile: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        requestAccess: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         myAccesses: { useQuery: () => ({ data: [] }) },
         patientRequests: { useQuery: () => ({ data: [] }) },
-        approveAccess: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
-        revokeAccess: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        approveAccess: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        revokeAccess: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         patientDashboard: { useQuery: () => ({ data: null }) },
-        addComment: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
-        suggestGoalAdjustment: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+        addComment: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        suggestGoalAdjustment: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         history: { useQuery: () => ({ data: [] }) },
       },
       admin: {
@@ -352,19 +404,104 @@ const overviewData = {
       },
     ],
     days: [
-      { weekday: 0, label: "Segunda-feira", shortLabel: "seg.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
-      { weekday: 1, label: "Terça-feira", shortLabel: "ter.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
-      { weekday: 2, label: "Quarta-feira", shortLabel: "qua.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
-      { weekday: 3, label: "Quinta-feira", shortLabel: "qui.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
-      { weekday: 4, label: "Sexta-feira", shortLabel: "sex.", calories: 2400, proteinGrams: 170, carbsGrams: 270, fatGrams: 74, source: "exception", exceptionId: 11 },
-      { weekday: 5, label: "Sábado", shortLabel: "sáb.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
-      { weekday: 6, label: "Domingo", shortLabel: "dom.", calories: 2200, proteinGrams: 160, carbsGrams: 240, fatGrams: 70, source: "default" },
+      {
+        weekday: 0,
+        label: "Segunda-feira",
+        shortLabel: "seg.",
+        calories: 2200,
+        proteinGrams: 160,
+        carbsGrams: 240,
+        fatGrams: 70,
+        source: "default",
+      },
+      {
+        weekday: 1,
+        label: "Terça-feira",
+        shortLabel: "ter.",
+        calories: 2200,
+        proteinGrams: 160,
+        carbsGrams: 240,
+        fatGrams: 70,
+        source: "default",
+      },
+      {
+        weekday: 2,
+        label: "Quarta-feira",
+        shortLabel: "qua.",
+        calories: 2200,
+        proteinGrams: 160,
+        carbsGrams: 240,
+        fatGrams: 70,
+        source: "default",
+      },
+      {
+        weekday: 3,
+        label: "Quinta-feira",
+        shortLabel: "qui.",
+        calories: 2200,
+        proteinGrams: 160,
+        carbsGrams: 240,
+        fatGrams: 70,
+        source: "default",
+      },
+      {
+        weekday: 4,
+        label: "Sexta-feira",
+        shortLabel: "sex.",
+        calories: 2400,
+        proteinGrams: 170,
+        carbsGrams: 270,
+        fatGrams: 74,
+        source: "exception",
+        exceptionId: 11,
+      },
+      {
+        weekday: 5,
+        label: "Sábado",
+        shortLabel: "sáb.",
+        calories: 2200,
+        proteinGrams: 160,
+        carbsGrams: 240,
+        fatGrams: 70,
+        source: "default",
+      },
+      {
+        weekday: 6,
+        label: "Domingo",
+        shortLabel: "dom.",
+        calories: 2200,
+        proteinGrams: 160,
+        carbsGrams: 240,
+        fatGrams: 70,
+        source: "default",
+      },
     ],
-    today: { weekday: 4, label: "Sexta-feira", shortLabel: "sex.", calories: 2400, proteinGrams: 170, carbsGrams: 270, fatGrams: 74, source: "exception", exceptionId: 11 },
-    weeklyTotals: { calories: 15600, proteinGrams: 1130, carbsGrams: 1710, fatGrams: 494 },
+    today: {
+      weekday: 4,
+      label: "Sexta-feira",
+      shortLabel: "sex.",
+      calories: 2400,
+      proteinGrams: 170,
+      carbsGrams: 270,
+      fatGrams: 74,
+      source: "exception",
+      exceptionId: 11,
+    },
+    weeklyTotals: {
+      calories: 15600,
+      proteinGrams: 1130,
+      carbsGrams: 1710,
+      fatGrams: 494,
+    },
   },
   today: {
-    goal: { label: "Segunda-feira", calories: 2200, protein: 160, carbs: 240, fat: 70 },
+    goal: {
+      label: "Segunda-feira",
+      calories: 2200,
+      protein: 160,
+      carbs: 240,
+      fat: 70,
+    },
     consumed: { calories: 1240, protein: 92, carbs: 134, fat: 38 },
     burned: { calories: 320 },
     water: { consumedMl: 1200, goalMl: 2500, remainingMl: 1300 },
@@ -382,8 +519,66 @@ const overviewData = {
     adherence: 25,
   },
   weekly: [
-    { date: "2026-04-14", label: "seg.", calories: 2100, protein: 150, carbs: 220, fat: 60, exerciseCalories: 300, netCalories: 1800, waterConsumedMl: 900, waterGoalMl: 2500, quality: { proteinGrams: 150, fiberGrams: 22, waterMl: 900, fruitServings: 2, vegetableServings: 2, ultraProcessedServings: 0, mealCount: 2, regularityScore: 80 }, goalCalories: 2200, adjustedGoalCalories: 2200, goalProtein: 160, goalCarbs: 240, goalFat: 70, status: "within", calorieDelta: -100, netDelta: -400 },
-    { date: "2026-04-15", label: "ter.", calories: 1900, protein: 140, carbs: 205, fat: 58, exerciseCalories: 220, netCalories: 1680, waterConsumedMl: 1300, waterGoalMl: 2500, quality: { proteinGrams: 140, fiberGrams: 18, waterMl: 1300, fruitServings: 1, vegetableServings: 2, ultraProcessedServings: 1, mealCount: 2, regularityScore: 75 }, goalCalories: 2200, adjustedGoalCalories: 2200, goalProtein: 160, goalCarbs: 240, goalFat: 70, status: "below", calorieDelta: -300, netDelta: -520 },
+    {
+      date: "2026-04-14",
+      label: "seg.",
+      calories: 2100,
+      protein: 150,
+      carbs: 220,
+      fat: 60,
+      exerciseCalories: 300,
+      netCalories: 1800,
+      waterConsumedMl: 900,
+      waterGoalMl: 2500,
+      quality: {
+        proteinGrams: 150,
+        fiberGrams: 22,
+        waterMl: 900,
+        fruitServings: 2,
+        vegetableServings: 2,
+        ultraProcessedServings: 0,
+        mealCount: 2,
+        regularityScore: 80,
+      },
+      goalCalories: 2200,
+      adjustedGoalCalories: 2200,
+      goalProtein: 160,
+      goalCarbs: 240,
+      goalFat: 70,
+      status: "within",
+      calorieDelta: -100,
+      netDelta: -400,
+    },
+    {
+      date: "2026-04-15",
+      label: "ter.",
+      calories: 1900,
+      protein: 140,
+      carbs: 205,
+      fat: 58,
+      exerciseCalories: 220,
+      netCalories: 1680,
+      waterConsumedMl: 1300,
+      waterGoalMl: 2500,
+      quality: {
+        proteinGrams: 140,
+        fiberGrams: 18,
+        waterMl: 1300,
+        fruitServings: 1,
+        vegetableServings: 2,
+        ultraProcessedServings: 1,
+        mealCount: 2,
+        regularityScore: 75,
+      },
+      goalCalories: 2200,
+      adjustedGoalCalories: 2200,
+      goalProtein: 160,
+      goalCarbs: 240,
+      goalFat: 70,
+      status: "below",
+      calorieDelta: -300,
+      netDelta: -520,
+    },
   ],
   meals: [
     {
@@ -391,15 +586,49 @@ const overviewData = {
       mealLabel: "Almoço",
       occurredAt: Date.now(),
       source: "web",
-      items: [{ foodName: "Frango grelhado", canonicalName: "Frango grelhado", portionText: "150 g", servings: 1, estimatedGrams: 150, calories: 420, protein: 38, carbs: 30, fat: 12, confidence: 1, source: "catalog" }],
+      items: [
+        {
+          foodName: "Frango grelhado",
+          canonicalName: "Frango grelhado",
+          portionText: "150 g",
+          servings: 1,
+          estimatedGrams: 150,
+          calories: 420,
+          protein: 38,
+          carbs: 30,
+          fat: 12,
+          confidence: 1,
+          source: "catalog",
+        },
+      ],
       totals: { calories: 420, protein: 38, carbs: 30, fat: 12 },
     },
   ],
-  habits: [{ foodName: "Café com leite", typicalTimeLabel: "Café da manhã", notes: "Sem açúcar", occurrenceCount: 4 }],
+  habits: [
+    {
+      foodName: "Café com leite",
+      typicalTimeLabel: "Café da manhã",
+      notes: "Sem açúcar",
+      occurrenceCount: 4,
+    },
+  ],
   water: {
-    goal: { id: 7, userId: 1, dailyTargetMl: 2500, createdAt: Date.now(), updatedAt: new Date() },
+    goal: {
+      id: 7,
+      userId: 1,
+      dailyTargetMl: 2500,
+      createdAt: Date.now(),
+      updatedAt: new Date(),
+    },
     logs: [
-      { id: 1, userId: 1, amountMl: 500, occurredAt: Date.now(), createdAt: Date.now(), updatedAt: new Date() },
+      {
+        id: 1,
+        userId: 1,
+        amountMl: 500,
+        occurredAt: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: new Date(),
+      },
     ],
   },
   exercises: [
@@ -431,8 +660,16 @@ const overviewData = {
 };
 
 beforeEach(() => {
-  dashboardOverviewMock.mockReturnValue({ data: overviewData, isLoading: false, error: null });
-  goalGetMock.mockReturnValue({ data: overviewData.goal, isLoading: false, error: null });
+  dashboardOverviewMock.mockReturnValue({
+    data: overviewData,
+    isLoading: false,
+    error: null,
+  });
+  goalGetMock.mockReturnValue({
+    data: overviewData.goal,
+    isLoading: false,
+    error: null,
+  });
   reportsBundleMock.mockReturnValue({
     data: {
       weekly: overviewData.weekly,
@@ -451,10 +688,18 @@ beforeEach(() => {
           totalExerciseCalories: 520,
           totalNetCalories: 3480,
           balanceCalories: 920,
-          message: "A semana mostra boa consistência em torno das metas planejadas.",
+          message:
+            "A semana mostra boa consistência em torno das metas planejadas.",
         },
         weight: {
-          entries: [{ id: 1, date: "2026-04-14", weightKg: 82, notes: "Peso informado no onboarding." }],
+          entries: [
+            {
+              id: 1,
+              date: "2026-04-14",
+              weightKg: 82,
+              notes: "Peso informado no onboarding.",
+            },
+          ],
           firstWeightKg: 82,
           lastWeightKg: 82,
           deltaKg: 0,
@@ -469,7 +714,8 @@ beforeEach(() => {
           {
             title: "Aderência à meta calórica semanal",
             description: "A semana ficou em 95% da meta calórica planejada.",
-            suggestion: "Mantenha registros consistentes para a média semanal continuar ajudando nas decisões.",
+            suggestion:
+              "Mantenha registros consistentes para a média semanal continuar ajudando nas decisões.",
             severity: "positive",
             data: { adherencePercent: 95 },
           },
@@ -512,7 +758,12 @@ beforeEach(() => {
         totalDurationMinutes: 90,
         activeDays: 2,
         averageCaloriesPerActiveDay: 320,
-        highestDay: { date: "2026-04-12", label: "12 de abr.", caloriesBurned: 320, durationMinutes: 45 },
+        highestDay: {
+          date: "2026-04-12",
+          label: "12 de abr.",
+          caloriesBurned: 320,
+          durationMinutes: 45,
+        },
       },
     },
     isLoading: false,
@@ -521,7 +772,13 @@ beforeEach(() => {
   reportsPeriodBundleMock.mockReturnValue({
     data: {
       range: { startDate: "2026-04-01", endDate: "2026-04-14", dayCount: 14 },
-      goal: { calories: 2200, protein: 160, carbs: 240, fat: 70, label: "Segunda-feira" },
+      goal: {
+        calories: 2200,
+        protein: 160,
+        carbs: 240,
+        fat: 70,
+        label: "Segunda-feira",
+      },
       totals: overviewData.today.consumed,
       mealsByDate: [{ date: "2026-04-14", items: overviewData.meals }],
       habitAnalytics: {
@@ -539,7 +796,12 @@ beforeEach(() => {
           totalDurationMinutes: 90,
           activeDays: 2,
           averageCaloriesPerActiveDay: 320,
-          highestDay: { date: "2026-04-12", label: "12 de abr.", caloriesBurned: 320, durationMinutes: 45 },
+          highestDay: {
+            date: "2026-04-12",
+            label: "12 de abr.",
+            caloriesBurned: 320,
+            durationMinutes: 45,
+          },
         },
       },
     },
@@ -547,10 +809,22 @@ beforeEach(() => {
     isError: false,
     error: null,
   });
-  whatsappStatusMock.mockReturnValue({ data: { configured: false, webhookPath: "/api/whatsapp/webhook", currentUserId: 1, connection: null } });
+  whatsappStatusMock.mockReturnValue({
+    data: {
+      configured: false,
+      webhookPath: "/api/whatsapp/webhook",
+      currentUserId: 1,
+      connection: null,
+    },
+  });
   adminOverviewMock.mockReturnValue({
     data: {
-      usage: { usersCount: 0, mealsCount: 0, pendingInferences: 0, logsCount: 0 },
+      usage: {
+        usersCount: 0,
+        mealsCount: 0,
+        pendingInferences: 0,
+        logsCount: 0,
+      },
       users: [],
       whatsappToken: {
         configured: true,
@@ -608,13 +882,17 @@ describe("nutrition pages", () => {
     expect(html).toContain("percentual das calorias do dia");
     expect(html).toContain("Metas muito extremas são bloqueadas");
     expect(html).toContain("Exceções por dia da semana");
-    expect((html.match(/Dia da exceção/g) ?? [])).toHaveLength(1);
+    expect(html.match(/Dia da exceção/g) ?? []).toHaveLength(1);
     expect(html).toContain("Segunda-feira");
     expect(html).toContain("Sexta-feira");
     expect(html).toContain("Soma planejada da semana");
     expect(html).toContain("Soma das metas planejadas para a semana.");
-    expect(html).toContain("value=\"2.200\"");
+    expect(html).toContain('value="2.200"');
     expect(html).toContain("15.600 kcal");
+    expect(html).toContain('data-nutrition-goal-week-preview="true"');
+    expect(html.match(/border-l-emerald-500/g) ?? []).toHaveLength(8);
+    expect(html).toContain("overflow-x-auto");
+    expect(html).toContain("xl:grid-cols-3");
   });
 
   it("renderiza as configurações com perfil, solicitações e refeições habituais", async () => {
@@ -635,7 +913,9 @@ describe("nutrition pages", () => {
     expect(html).toContain("Refeições habituais");
     expect(html).toContain("Solicitações de acesso");
     expect(html).toContain("Salvar configurações");
-    expect(html).not.toContain("Campos essenciais ficam juntos para reduzir ida e volta pela página e facilitar pequenos ajustes futuros.");
+    expect(html).not.toContain(
+      "Campos essenciais ficam juntos para reduzir ida e volta pela página e facilitar pequenos ajustes futuros."
+    );
     expect(html).not.toContain("Vínculo do WhatsApp");
     expect(html).not.toContain("Solicitações recebidas");
     expect(html).not.toContain("Tudo salvo no mesmo fluxo");
@@ -645,8 +925,12 @@ describe("nutrition pages", () => {
     const { default: LogMealPage } = await import("./LogMealPage");
     const html = renderToString(React.createElement(LogMealPage));
 
-    expect(html).not.toContain("Registre refeições, água, exercícios e peso no mesmo lugar");
-    expect(html).not.toContain("Use um único ponto para registrar o dia e revisar tudo sem trocar de tela.");
+    expect(html).not.toContain(
+      "Registre refeições, água, exercícios e peso no mesmo lugar"
+    );
+    expect(html).not.toContain(
+      "Use um único ponto para registrar o dia e revisar tudo sem trocar de tela."
+    );
     expect(html).toContain("Texto, foto e áudio no mesmo rascunho.");
     expect(html).toContain("Descrição em texto");
     expect(html).toContain("Registrar");
@@ -658,7 +942,9 @@ describe("nutrition pages", () => {
   });
 
   it("renderiza todos os exercícios do intervalo com detalhes operacionais", async () => {
-    const { RegisteredMealsPage } = await import("@/features/meals/RegisteredMealsPageContent");
+    const { RegisteredMealsPage } = await import(
+      "@/features/meals/RegisteredMealsPageContent"
+    );
     const html = renderToString(React.createElement(RegisteredMealsPage));
 
     expect(html).toContain("Registros de exercícios");
