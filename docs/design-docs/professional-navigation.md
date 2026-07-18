@@ -19,10 +19,21 @@ As rotas funcionais novas começam como pontos de extensão independentes. Cada 
 ## Autorização e isolamento
 
 - O menu da Área do Paciente só apresenta a entrada profissional quando `professionalProfileActive` está ativo.
-- O shell profissional também bloqueia o conteúdo quando não existe sessão ou quando o perfil deixa de estar ativo.
-- O perfil é revalidado a cada 30 segundos e quando a janela recupera o foco, reduzindo a permanência de dados visíveis após perda de acesso.
+- O shell consulta o perfil profissional canônico no backend antes de exibir o conteúdo e diferencia carregamento, sessão ausente, perfil inativo e falha de validação.
+- Perfil e vínculos são revalidados a cada 30 segundos e quando a janela recupera o foco.
 - APIs e operações `patient-scoped` continuam obrigadas a validar perfil, vínculo, consentimento e permissão no backend; a proteção visual não substitui autorização.
-- O paciente selecionado pertence ao contexto local do shell e é descartado ao sair da Área Profissional.
+- O paciente selecionado pertence ao contexto local do shell.
+- Na troca de paciente, saída para **Minha alimentação**, abertura da experiência legada, perda do perfil ou desmontagem do shell, o paciente anterior é removido e as consultas patient-scoped são invalidadas.
+- Quando um vínculo deixa de estar `approved`, o shell remove imediatamente o paciente do contexto visível e invalida os dados associados.
+- Se não for possível revalidar a autorização de um paciente selecionado, o conteúdo patient-scoped fica oculto até nova validação bem-sucedida.
+
+## Acessibilidade e responsividade
+
+- A navegação possui landmark e rótulo próprios.
+- A rota ativa usa `aria-current="page"`.
+- O controle da barra lateral possui nome acessível e continua disponível no comportamento responsivo do componente de sidebar.
+- Mudanças de rota atualizam o título do documento e movem o foco programaticamente para o conteúdo principal.
+- O contexto do paciente usa região viva para anunciar alterações sem depender apenas de cor ou posição visual.
 
 ## Migração e compatibilidade
 
@@ -32,9 +43,12 @@ A rota `/professional/legacy` mantém as funções existentes enquanto carteira,
 
 Os testes cobrem:
 
-- bloqueio de perfil inativo;
-- remoção do conteúdo visível após perda de acesso;
-- revalidação ao recuperar foco;
-- alternância para a Área do Paciente sem novo login;
+- bloqueio de perfil inativo e falha de validação do backend;
+- revalidação de perfil e vínculos ao recuperar foco;
+- troca entre pacientes com invalidação dos dados anteriores;
+- revogação de vínculo com a página aberta;
+- limpeza do contexto ao voltar para a experiência pessoal;
+- navegação por teclado, rota ativa e título do documento;
+- controle responsivo e landmarks acessíveis;
 - carregamento direto de rota profissional pelo roteador real;
 - preservação da rota legada.
