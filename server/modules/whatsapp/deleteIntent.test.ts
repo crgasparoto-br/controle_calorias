@@ -38,6 +38,7 @@ describe("detectWhatsappDeleteIntent", () => {
     ["Exclua o bife entrecote", "bife entrecote"],
     ["Remova a banana", "banana"],
     ["Tire o queijo Minas", "queijo minas"],
+    ["Retire o queijo", "queijo"],
   ])("detecta comando com nome provavel de alimento: %s", (text, targetFoodName) => {
     expect(detectWhatsappDeleteIntent(text)).toEqual(expect.objectContaining({
       kind: "delete_food_from_meal",
@@ -45,9 +46,28 @@ describe("detectWhatsappDeleteIntent", () => {
     }));
   });
 
+  it.each([
+    ["Não tem queijo", "queijo"],
+    ["não tinha banana", "banana"],
+    ["Não havia arroz integral", "arroz integral"],
+    ["Sem QUEIJO MINAS", "queijo minas"],
+    ["Sem feijão na refeição", "feijao"],
+  ])("interpreta ausencia explicita como pedido de exclusao: %s", (text, targetFoodName) => {
+    expect(detectWhatsappDeleteIntent(text)).toEqual(expect.objectContaining({
+      kind: "delete_food_from_meal",
+      targetFoodName,
+      eventType: "whatsapp.intent.delete_food_clarification_needed",
+    }));
+  });
+
+  it("nao converte frase ambigua em exclusao", () => {
+    expect(detectWhatsappDeleteIntent("O queijo está errado")).toBeNull();
+  });
+
   it("nao captura ajuste parcial de quantidade como exclusao", () => {
     expect(detectWhatsappDeleteIntent("tirar 30g de arroz")).toBeNull();
     expect(detectWhatsappDeleteIntent("Remova 20g do bife entrecote")).toBeNull();
+    expect(detectWhatsappDeleteIntent("Retire 15g do queijo")).toBeNull();
   });
 
   it("nao captura registro alimentar normal", () => {
@@ -67,6 +87,14 @@ describe("classifyWhatsappMessageDeterministically delete intents", () => {
 
   it("classifica comando destrutivo de alimento sem virar alimento estimado", () => {
     const intent = classifyWhatsappMessageDeterministically("remova esse alimento");
+
+    expect(intent.intent).toBe("delete_food_from_meal");
+    expect(intent.items).toEqual([]);
+    expect(intent.requiresConfirmation).toBe(true);
+  });
+
+  it("classifica negacao explicita de alimento como exclusao com confirmacao", () => {
+    const intent = classifyWhatsappMessageDeterministically("Não tem queijo");
 
     expect(intent.intent).toBe("delete_food_from_meal");
     expect(intent.items).toEqual([]);

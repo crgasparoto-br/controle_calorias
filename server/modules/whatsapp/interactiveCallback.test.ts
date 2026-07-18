@@ -22,10 +22,9 @@ async function createPending(userId: number, type = "delete") {
 }
 
 describe("interactiveCallback", () => {
-  it("gera um ID cifrado que não expõe o pendingOperationId nem a ação", () => {
+  it("gera um ID cifrado sem expor pendingOperationId ou ação nos segmentos decodificáveis", () => {
     const id = buildWhatsAppCallbackId(42, "confirm");
-    expect(id).not.toContain("42");
-    expect(id).not.toContain("confirm");
+    expect(id).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
 
     const decodedSegments = id
       .split(".")
@@ -34,6 +33,7 @@ describe("interactiveCallback", () => {
       .join(" ");
     expect(decodedSegments).not.toContain("42");
     expect(decodedSegments).not.toContain("confirm");
+    expect(parseWhatsAppCallbackId(id)).toEqual({ pendingOperationId: 42, action: "confirm" });
   });
 
   it("usa nonce aleatório para não repetir o token com o mesmo conteúdo", () => {
