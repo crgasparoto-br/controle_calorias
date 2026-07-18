@@ -22,12 +22,16 @@ async function main() {
   );
 }
 
-main().catch(error => {
-  console.error(
-    JSON.stringify({
-      event: "professional.persistence.migration.failed",
-      error: error instanceof Error ? error.name : "UnknownError",
-    })
-  );
-  process.exitCode = 1;
-});
+void main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch(error => {
+    console.error(
+      JSON.stringify({
+        event: "professional.persistence.migration.failed",
+        error: error instanceof Error ? error.name : "UnknownError",
+      })
+    );
+    process.exit(1);
+  });
