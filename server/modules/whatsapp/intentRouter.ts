@@ -1,6 +1,7 @@
 import type { CanonicalWhatsappIntentName } from "./canonicalIntentSchema";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { joinUnitWords } from "./quantityUnitVocabulary";
+import { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";
 
 export type WhatsappPendingContextKind = "selection" | "quantity" | "confirmation" | "professional_decision";
 
@@ -602,7 +603,7 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
     canonicalIntent: "mensagem_ambigua",
     confidence: 0.68,
     reason: "Mensagem sem alimento, comando ou pergunta suficientemente clara.",
-    reply: "Não entendi com segurança. Você quer registrar um alimento, corrigir uma refeição ou consultar seus registros?",
+    reply: WHATSAPP_GENERIC_CLARIFICATION_MESSAGE,
     possibleIntents: ["registrar_alimento", "corrigir_alimento", "consulta_historico"],
   });
 }

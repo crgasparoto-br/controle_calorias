@@ -106,11 +106,24 @@ function isGenericMealLabel(label: string) {
 }
 
 function hasDestructiveVerb(normalized: string) {
-  return /\b(?:excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete|deleta|tirar|tire|tira)\b/.test(normalized);
+  return /\b(?:excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete|deleta|tirar|tire|tira|retirar|retire|retira)\b/.test(normalized);
+}
+
+function hasExplicitFoodAbsenceSignal(normalized: string) {
+  return /^(?:nao\s+(?:tem|tinha|havia|existe|existia)|sem)\s+/.test(normalized);
+}
+
+function extractAbsentFoodName(normalized: string) {
+  const value = normalized
+    .replace(/^(?:nao\s+(?:tem|tinha|havia|existe|existia)|sem)\s+/, "")
+    .replace(/\b(?:na|no|nesta|neste|nessa|nesse|refeicao|foto|imagem|prato)\b.*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return value.length >= 2 ? value : null;
 }
 
 function hasQuantityAdjustmentSignal(normalized: string) {
-  return /\b(?:tirar|tire|tira|remover|remova|remove|reduzir|reduza|diminui|diminuir)\b/.test(normalized)
+  return /\b(?:tirar|tire|tira|remover|remova|remove|retirar|retire|retira|reduzir|reduza|diminui|diminuir)\b/.test(normalized)
     && /\b\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|ml|l|un|unidades?|fatias?|colheres?|porcoes?|porcao)\b/.test(normalized);
 }
 
@@ -124,7 +137,7 @@ function hasFoodTarget(normalized: string) {
 
 function extractTargetFoodName(normalized: string) {
   const value = normalized
-    .replace(/\b(?:excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete|deleta|tirar|tire|tira)\b/g, " ")
+    .replace(/\b(?:excluir|exclua|exclui|remover|remova|remove|apagar|apague|apaga|deletar|delete|deleta|tirar|tire|tira|retirar|retire|retira)\b/g, " ")
     .replace(/\b(?:o|a|os|as|um|uma|do|da|dos|das|de|no|na|nos|nas)\b/g, " ")
     .replace(/\b(?:alimento|alimentos|item|itens|comida|ingrediente)\b/g, " ")
     .replace(/\s+/g, " ")
@@ -579,6 +592,22 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
   if (!trimmed) return null;
 
   const normalizedText = normalizeDeleteIntentText(trimmed);
+  const absentFoodName = hasExplicitFoodAbsenceSignal(normalizedText)
+    ? extractAbsentFoodName(normalizedText)
+    : null;
+
+  if (absentFoodName) {
+    return {
+      kind: "delete_food_from_meal",
+      text: trimmed,
+      normalizedText,
+      targetFoodName: absentFoodName,
+      reply: DELETE_FOOD_REPLY,
+      eventType: "whatsapp.intent.delete_food_clarification_needed",
+      detail: "Negação explícita da presença de alimento interpretada como pedido de exclusão antes do fallback nutricional.",
+    };
+  }
+
   if (!hasDestructiveVerb(normalizedText)) return null;
   if (hasQuantityAdjustmentSignal(normalizedText)) return null;
 

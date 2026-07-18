@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { formatNumberPtBr, parseDecimalInputPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
 import { DEFAULT_APP_TIME_ZONE, USER_TIME_ZONE_OPTIONS } from "@shared/timeZone";
@@ -298,6 +299,8 @@ export default function OnboardingPage() {
   const [phoneCountryCode, setPhoneCountryCode] = useState(DEFAULT_PHONE_COUNTRY_OPTION);
   const [phoneNationalNumber, setPhoneNationalNumber] = useState("");
   const [sendWhatsappGreeting, setSendWhatsappGreeting] = useState(false);
+  const [sendAnnotatedImage, setSendAnnotatedImage] = useState(false);
+  const [annotatedImagePreferenceApplied, setAnnotatedImagePreferenceApplied] = useState(false);
   const [mealSchedules, setMealSchedules] = useState<MealScheduleState[]>(DEFAULT_MEAL_SCHEDULES);
   const [form, setForm] = useState<FormState>(() => ({
     ...initialForm,
@@ -308,6 +311,10 @@ export default function OnboardingPage() {
   const savedProfileQuery = trpc.nutrition.onboarding.profile.useQuery();
   const mealSchedulesQuery = trpc.nutrition.mealSchedules.list.useQuery();
   const professionalProfileQuery = trpc.nutrition.professionals.profile.useQuery(undefined, { retry: false });
+  const annotatedImagePreferenceQuery = trpc.nutrition.whatsappPreferences.annotatedImage.useQuery(undefined, {
+    enabled: isSettingsPage,
+    retry: false,
+  });
   const userName = user?.name?.trim() ?? "";
   const userEmail = user?.email?.trim() ?? "";
   const whatsappPhoneNumber = whatsappStatusQuery.data?.connection?.phoneNumber ?? "";
@@ -360,6 +367,12 @@ export default function OnboardingPage() {
       setSendWhatsappGreeting(false);
     }
   }, [whatsappPhoneNumber]);
+
+  useEffect(() => {
+    if (!isSettingsPage || annotatedImagePreferenceApplied || !annotatedImagePreferenceQuery.data) return;
+    setSendAnnotatedImage(annotatedImagePreferenceQuery.data.enabled === true);
+    setAnnotatedImagePreferenceApplied(true);
+  }, [annotatedImagePreferenceApplied, annotatedImagePreferenceQuery.data, isSettingsPage]);
 
   const calculatedAgeYears = useMemo(() => calculateAgeYears(form.birthDate), [form.birthDate]);
   const sortedMealSchedules = useMemo(
@@ -434,6 +447,7 @@ export default function OnboardingPage() {
       await utils.nutrition.whatsapp.status.invalidate();
     },
   });
+  const updateAnnotatedImagePreference = trpc.nutrition.whatsappPreferences.updateAnnotatedImage.useMutation();
 
   async function sendGreetingToast() {
     const greeting = await sendWhatsappGreetingMutation.mutateAsync({ acceptedOperationalWhatsapp: true });
@@ -465,6 +479,17 @@ export default function OnboardingPage() {
         utils.nutrition.professionals.patientPeriodBundle.invalidate(),
         ...(result.recalculatedGoals ? [utils.nutrition.goals.get.invalidate()] : []),
       ]);
+
+      if (isSettingsPage && annotatedImagePreferenceApplied) {
+        try {
+          await updateAnnotatedImagePreference.mutateAsync({ enabled: sendAnnotatedImage });
+          await utils.nutrition.whatsappPreferences.annotatedImage.invalidate();
+        } catch (error) {
+          setSendAnnotatedImage(annotatedImagePreferenceQuery.data?.enabled === true);
+          toast.error(error instanceof Error ? error.message : "Não foi possível salvar a preferência de imagem anotada.");
+          return;
+        }
+      }
 
       if (shouldAttachWhatsappPhone) {
         try {
@@ -654,6 +679,39 @@ export default function OnboardingPage() {
             </Card>
 
             <PatientAccessRequestsCard embedded />
+
+            {isSettingsPage ? (
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <MessageCircle className="h-5 w-5 text-primary" />
+                    Imagem anotada no WhatsApp
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-start justify-between gap-4 rounded-xl border bg-muted/20 p-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="send-annotated-image">Enviar imagem anotada pelo WhatsApp</Label>
+                      <p id="send-annotated-image-description" className="text-sm text-muted-foreground">
+                        Ao ativar, você receberá a foto com marcações dos alimentos identificados após a análise.
+                      </p>
+                    </div>
+                    <Switch
+                      id="send-annotated-image"
+                      aria-describedby="send-annotated-image-description"
+                      checked={sendAnnotatedImage}
+                      disabled={!annotatedImagePreferenceApplied || annotatedImagePreferenceQuery.isLoading || updateAnnotatedImagePreference.isPending}
+                      onCheckedChange={setSendAnnotatedImage}
+                    />
+                  </div>
+                  {annotatedImagePreferenceQuery.isError ? (
+                    <p role="alert" className="mt-3 text-sm text-destructive">
+                      Não foi possível carregar esta preferência. O envio permanece desabilitado até uma nova tentativa.
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
 
             {hasWhatsappConnection || shouldAttachWhatsappPhone ? (
               <Card className="border-0 shadow-sm">
