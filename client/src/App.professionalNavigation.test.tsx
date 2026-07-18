@@ -10,6 +10,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const refresh = vi.fn().mockResolvedValue(undefined);
+const refetch = vi.fn().mockResolvedValue(undefined);
+const invalidate = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({
@@ -20,6 +22,41 @@ vi.mock("@/_core/hooks/useAuth", () => ({
 }));
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/analytics", () => ({ trackEvent: vi.fn() }));
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    useUtils: () => ({
+      nutrition: {
+        professionals: {
+          patientTimeZone: { invalidate },
+          patientDashboard: { invalidate },
+          patientPeriodBundle: { invalidate },
+        },
+      },
+    }),
+    nutrition: {
+      professionals: {
+        profile: {
+          useQuery: () => ({
+            data: { active: true },
+            isLoading: false,
+            isError: false,
+            isSuccess: true,
+            refetch,
+          }),
+        },
+        myAccesses: {
+          useQuery: () => ({
+            data: [],
+            isLoading: false,
+            isError: false,
+            isSuccess: true,
+            refetch,
+          }),
+        },
+      },
+    },
+  },
+}));
 vi.mock("./components/ErrorBoundary", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -119,6 +156,8 @@ afterEach(cleanup);
 
 beforeEach(() => {
   refresh.mockClear();
+  refetch.mockClear();
+  invalidate.mockClear();
   window.history.replaceState({}, "", "/professional/reports");
 });
 
