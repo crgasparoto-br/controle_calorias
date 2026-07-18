@@ -136,6 +136,60 @@ describe("professional content persistence fallback", () => {
     ).toHaveLength(1);
   });
 
+  it("reserves a goal decision once and releases it after a failed attempt", async () => {
+    const suffix = crypto.randomUUID();
+    const repository = createRepository();
+    const suggestionId = `reservation-${suffix}`;
+    await repository.createGoalSuggestion({
+      id: suggestionId,
+      professionalUserId: 80525,
+      patientUserId: 80526,
+      rationale: "Decisão protegida.",
+      status: "sent",
+      goal: goal(1725),
+      createdAt: 6000,
+    });
+
+    const first = await repository.reserveGoalSuggestionDecision(
+      80526,
+      suggestionId,
+      7000
+    );
+    expect(first.result).toBe("reserved");
+    await expect(
+      repository.reserveGoalSuggestionDecision(80526, suggestionId, 7001)
+    ).resolves.toEqual({ result: "conflict" });
+
+    if (first.result !== "reserved") throw new Error("reservation missing");
+    await repository.releaseGoalSuggestionDecision({
+      patientUserId: 80526,
+      suggestionId,
+      lockId: first.lockId,
+    });
+    const retried = await repository.reserveGoalSuggestionDecision(
+      80526,
+      suggestionId,
+      8000
+    );
+    expect(retried.result).toBe("reserved");
+    if (retried.result !== "reserved") throw new Error("retry missing");
+
+    const completed = await repository.completeGoalSuggestionDecision({
+      patientUserId: 80526,
+      suggestionId,
+      lockId: retried.lockId,
+      nextStatus: "accepted",
+      occurredAt: 9000,
+    });
+    expect(completed.status).toBe("accepted");
+    await expect(
+      repository.reserveGoalSuggestionDecision(80526, suggestionId, 10000)
+    ).resolves.toEqual({
+      result: "already_completed",
+      suggestion: expect.objectContaining({ status: "accepted" }),
+    });
+  });
+
   it("uses stable descending ordering, explicit limits and cursors", async () => {
     const suffix = crypto.randomUUID();
     const repository = createRepository();

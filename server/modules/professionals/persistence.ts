@@ -83,6 +83,7 @@ export type LegacyProfessionalAccess = {
   authorizationMessageStatus: ProfessionalAuthorizationMessageStatus | null;
   authorizationMessageSentAt: number | null;
   authorizationMessageError: string | null;
+  sourceUpdatedAt: number | null;
 };
 
 export type LegacyParseResult<T> = {
@@ -220,6 +221,7 @@ function normalizeLegacyAccess(
       typeof candidate.authorizationMessageError === "string"
         ? candidate.authorizationMessageError.slice(0, 500)
         : null,
+    sourceUpdatedAt: optionalTimestamp(candidate.sourceUpdatedAt),
   };
 }
 
@@ -264,10 +266,26 @@ export function getAuthorizationActivePairKey(input: {
     : null;
 }
 
+export function getLegacyAuthorizationSourceUpdatedAt(
+  access: LegacyProfessionalAccess
+) {
+  const version = Math.max(
+    access.sourceUpdatedAt ?? 0,
+    access.requestedAt,
+    access.approvedAt ?? 0,
+    access.rejectedAt ?? 0,
+    access.revokedAt ?? 0,
+    access.respondedAt ?? 0,
+    access.authorizationMessageSentAt ?? 0
+  );
+  return new Date(version);
+}
+
 export function legacyAccessToCanonical(
   access: LegacyProfessionalAccess,
-  sourceUpdatedAt: Date
+  _legacyRowUpdatedAt?: Date
 ): Omit<CanonicalProfessionalAuthorization, "createdAt" | "updatedAt"> {
+  const sourceUpdatedAt = getLegacyAuthorizationSourceUpdatedAt(access);
   return {
     id: access.id,
     professionalUserId: access.professionalUserId,
@@ -309,6 +327,7 @@ export function canonicalAuthorizationToLegacy(
     | "authorizationMessageStatus"
     | "authorizationMessageSentAt"
     | "authorizationMessageError"
+    | "sourceUpdatedAt"
   >
 ): LegacyProfessionalAccess {
   return {
@@ -320,6 +339,7 @@ export function canonicalAuthorizationToLegacy(
     respondedAt: authorization.respondedAt?.getTime() ?? null,
     authorizationMessageSentAt:
       authorization.authorizationMessageSentAt?.getTime() ?? null,
+    sourceUpdatedAt: authorization.sourceUpdatedAt.getTime(),
   };
 }
 

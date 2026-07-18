@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { userPreferences } from "../../drizzle/schema";
 import {
   professionalComments,
@@ -23,6 +23,7 @@ const PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY =
   "patient_professional_goal_suggestions_v1";
 const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 200;
+const DECISION_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -144,6 +145,19 @@ export type AppendProfessionalHistoryInput = {
   occurredAt?: number;
 };
 
+export type GoalSuggestionDecisionReservation =
+  | { result: "not_found" }
+  | { result: "conflict" }
+  | {
+      result: "already_completed";
+      suggestion: ProfessionalGoalSuggestion;
+    }
+  | {
+      result: "reserved";
+      lockId: string;
+      suggestion: ProfessionalGoalSuggestion;
+    };
+
 export type ProfessionalContentRepository = {
   createComment(
     input: CreateProfessionalCommentInput
@@ -176,6 +190,23 @@ export type ProfessionalContentRepository = {
     nextStatus: "accepted" | "refused",
     occurredAt?: number
   ): Promise<ProfessionalGoalSuggestion>;
+  reserveGoalSuggestionDecision(
+    patientUserId: number,
+    suggestionId: string,
+    occurredAt?: number
+  ): Promise<GoalSuggestionDecisionReservation>;
+  completeGoalSuggestionDecision(input: {
+    patientUserId: number;
+    suggestionId: string;
+    lockId: string;
+    nextStatus: "accepted" | "refused";
+    occurredAt?: number;
+  }): Promise<ProfessionalGoalSuggestion>;
+  releaseGoalSuggestionDecision(input: {
+    patientUserId: number;
+    suggestionId: string;
+    lockId: string;
+  }): Promise<void>;
   createMealSuggestion(
     input: CreateProfessionalMealSuggestionInput
   ): Promise<ProfessionalMealSuggestion>;
@@ -200,6 +231,10 @@ const fallbackComments = new Map<string, ProfessionalComment>();
 const fallbackGoalSuggestions = new Map<string, ProfessionalGoalSuggestion>();
 const fallbackMealSuggestions = new Map<string, ProfessionalMealSuggestion>();
 const fallbackHistory = new Map<string, ProfessionalHistoryEvent>();
+const fallbackGoalDecisionLocks = new Map<
+  string,
+  { lockId: string; lockedAt: number }
+>();
 
 function clampLimit(limit?: number) {
   if (!Number.isInteger(limit)) return DEFAULT_LIST_LIMIT;
@@ -780,51 +815,115 @@ export function createDrizzleProfessionalContentRepository(deps: {
     return row ? toGoalSuggestion(row) : null;
   }
 
-  async function transitionGoalSuggestion(
+  async function reserveGoalSuggestionDecision(
     patientUserId: number,
     suggestionId: string,
-    nextStatus: "accepted" | "refused",
     occurredAt = Date.now()
-  ) {
+  ): Promise<GoalSuggestionDecisionReservation> {
     const current = await getGoalSuggestionForPatient(
       patientUserId,
       suggestionId
     );
-    if (!current) throw new Error("Sugestão de meta não encontrada.");
-    if (current.status === nextStatus) return current;
+    if (!current) return { result: "not_found" };
     if (current.status !== "sent") {
-      throw new Error("Essa sugestão já foi respondida.");
+      return { result: "already_completed", suggestion: current };
     }
+
+    const lockId = crypto.randomUUID();
     const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
-      const latest = fallbackGoalSuggestions.get(suggestionId);
+      const currentLock = fallbackGoalDecisionLocks.get(suggestionId);
       if (
-        !latest ||
-        latest.version !== current.version ||
-        latest.status !== "sent"
+        currentLock &&
+        currentLock.lockedAt >= occurredAt - DECISION_LOCK_TIMEOUT_MS
       ) {
-        if (latest?.status === nextStatus) return latest;
-        throw new Error("Essa sugestão já foi respondida.");
+        return { result: "conflict" };
+      }
+      fallbackGoalDecisionLocks.set(suggestionId, {
+        lockId,
+        lockedAt: occurredAt,
+      });
+      return { result: "reserved", lockId, suggestion: current };
+    }
+
+    const staleBefore = new Date(occurredAt - DECISION_LOCK_TIMEOUT_MS);
+    const result = await db
+      .update(professionalGoalSuggestions)
+      .set({
+        decisionLockId: lockId,
+        decisionLockedAt: new Date(occurredAt),
+        version: sql`${professionalGoalSuggestions.version} + 1`,
+        updatedAt: new Date(occurredAt),
+      })
+      .where(
+        and(
+          eq(professionalGoalSuggestions.id, suggestionId),
+          eq(professionalGoalSuggestions.patientUserId, patientUserId),
+          eq(professionalGoalSuggestions.status, "sent"),
+          or(
+            isNull(professionalGoalSuggestions.decisionLockId),
+            isNull(professionalGoalSuggestions.decisionLockedAt),
+            lt(professionalGoalSuggestions.decisionLockedAt, staleBefore)
+          )
+        )
+      );
+    if (getMysqlAffectedRows(result) > 0) {
+      return { result: "reserved", lockId, suggestion: current };
+    }
+
+    const latest = await getGoalSuggestionForPatient(
+      patientUserId,
+      suggestionId
+    );
+    if (!latest) return { result: "not_found" };
+    if (latest.status !== "sent") {
+      return { result: "already_completed", suggestion: latest };
+    }
+    return { result: "conflict" };
+  }
+
+  async function completeGoalSuggestionDecision(input: {
+    patientUserId: number;
+    suggestionId: string;
+    lockId: string;
+    nextStatus: "accepted" | "refused";
+    occurredAt?: number;
+  }) {
+    const occurredAt = input.occurredAt ?? Date.now();
+    const db = await getProfessionalPersistenceDb(deps.getDb);
+    if (!db) {
+      const current = fallbackGoalSuggestions.get(input.suggestionId);
+      const lock = fallbackGoalDecisionLocks.get(input.suggestionId);
+      if (!current || current.patientUserId !== input.patientUserId) {
+        throw new Error("Sugestão de meta não encontrada.");
+      }
+      if (current.status === input.nextStatus) return current;
+      if (current.status !== "sent" || lock?.lockId !== input.lockId) {
+        throw new Error("Essa sugestão foi alterada por outra operação.");
       }
       const updated: ProfessionalGoalSuggestion = {
-        ...latest,
-        status: nextStatus,
-        version: latest.version + 1,
+        ...current,
+        status: input.nextStatus,
+        version: current.version + 1,
         respondedAt: occurredAt,
         updatedAt: occurredAt,
       };
-      fallbackGoalSuggestions.set(suggestionId, updated);
+      fallbackGoalSuggestions.set(input.suggestionId, updated);
+      fallbackGoalDecisionLocks.delete(input.suggestionId);
       fallbackAppendHistory({
-        id: deterministicEventId(`goal_suggestion_${nextStatus}`, suggestionId),
-        actorUserId: patientUserId,
+        id: deterministicEventId(
+          `goal_suggestion_${input.nextStatus}`,
+          input.suggestionId
+        ),
+        actorUserId: input.patientUserId,
         professionalUserId: updated.professionalUserId,
-        patientUserId,
+        patientUserId: input.patientUserId,
         eventType:
-          nextStatus === "accepted"
+          input.nextStatus === "accepted"
             ? "goal_suggestion_accepted"
             : "goal_suggestion_refused",
         entityType: "goal_suggestion",
-        entityId: suggestionId,
+        entityId: input.suggestionId,
         occurredAt,
       });
       return updated;
@@ -834,17 +933,19 @@ export function createDrizzleProfessionalContentRepository(deps: {
       const result = await tx
         .update(professionalGoalSuggestions)
         .set({
-          status: nextStatus,
+          status: input.nextStatus,
+          decisionLockId: null,
+          decisionLockedAt: null,
           version: sql`${professionalGoalSuggestions.version} + 1`,
           respondedAt: new Date(occurredAt),
           updatedAt: new Date(occurredAt),
         })
         .where(
           and(
-            eq(professionalGoalSuggestions.id, suggestionId),
-            eq(professionalGoalSuggestions.patientUserId, patientUserId),
+            eq(professionalGoalSuggestions.id, input.suggestionId),
+            eq(professionalGoalSuggestions.patientUserId, input.patientUserId),
             eq(professionalGoalSuggestions.status, "sent"),
-            eq(professionalGoalSuggestions.version, current.version)
+            eq(professionalGoalSuggestions.decisionLockId, input.lockId)
           )
         );
       if (getMysqlAffectedRows(result) === 0) {
@@ -853,36 +954,118 @@ export function createDrizzleProfessionalContentRepository(deps: {
           .from(professionalGoalSuggestions)
           .where(
             and(
-              eq(professionalGoalSuggestions.id, suggestionId),
-              eq(professionalGoalSuggestions.patientUserId, patientUserId)
+              eq(professionalGoalSuggestions.id, input.suggestionId),
+              eq(professionalGoalSuggestions.patientUserId, input.patientUserId)
             )
           )
           .limit(1);
-        if (latest?.status === nextStatus) return;
-        throw new Error("Essa sugestão já foi respondida.");
+        if (latest?.status === input.nextStatus) return;
+        throw new Error("Essa sugestão foi alterada por outra operação.");
       }
+      const [updated] = await tx
+        .select()
+        .from(professionalGoalSuggestions)
+        .where(eq(professionalGoalSuggestions.id, input.suggestionId))
+        .limit(1);
+      if (!updated) throw new Error("Sugestão de meta não encontrada.");
       await insertHistory(tx, {
-        id: deterministicEventId(`goal_suggestion_${nextStatus}`, suggestionId),
-        actorUserId: patientUserId,
-        professionalUserId: current.professionalUserId,
-        patientUserId,
+        id: deterministicEventId(
+          `goal_suggestion_${input.nextStatus}`,
+          input.suggestionId
+        ),
+        actorUserId: input.patientUserId,
+        professionalUserId: updated.professionalUserId,
+        patientUserId: input.patientUserId,
         eventType:
-          nextStatus === "accepted"
+          input.nextStatus === "accepted"
             ? "goal_suggestion_accepted"
             : "goal_suggestion_refused",
         entityType: "goal_suggestion",
-        entityId: suggestionId,
+        entityId: input.suggestionId,
         occurredAt,
       });
     });
+
     const updated = await getGoalSuggestionForPatient(
-      patientUserId,
-      suggestionId
+      input.patientUserId,
+      input.suggestionId
     );
-    if (!updated)
-      throw new Error("Não foi possível carregar a sugestão atualizada.");
-    await syncLegacyGoalSuggestions(db, patientUserId);
+    if (!updated) throw new Error("Sugestão de meta não encontrada.");
+    await syncLegacyGoalSuggestions(db, input.patientUserId);
     return updated;
+  }
+
+  async function releaseGoalSuggestionDecision(input: {
+    patientUserId: number;
+    suggestionId: string;
+    lockId: string;
+  }) {
+    const db = await getProfessionalPersistenceDb(deps.getDb);
+    if (!db) {
+      if (
+        fallbackGoalDecisionLocks.get(input.suggestionId)?.lockId ===
+        input.lockId
+      ) {
+        fallbackGoalDecisionLocks.delete(input.suggestionId);
+      }
+      return;
+    }
+    await db
+      .update(professionalGoalSuggestions)
+      .set({ decisionLockId: null, decisionLockedAt: null })
+      .where(
+        and(
+          eq(professionalGoalSuggestions.id, input.suggestionId),
+          eq(professionalGoalSuggestions.patientUserId, input.patientUserId),
+          eq(professionalGoalSuggestions.decisionLockId, input.lockId)
+        )
+      );
+  }
+
+  async function transitionGoalSuggestion(
+    patientUserId: number,
+    suggestionId: string,
+    nextStatus: "accepted" | "refused",
+    occurredAt = Date.now()
+  ) {
+    const reservation = await reserveGoalSuggestionDecision(
+      patientUserId,
+      suggestionId,
+      occurredAt
+    );
+    if (reservation.result === "not_found") {
+      throw new Error("Sugestão de meta não encontrada.");
+    }
+    if (reservation.result === "already_completed") {
+      if (reservation.suggestion.status === nextStatus) {
+        return reservation.suggestion;
+      }
+      throw new Error("Essa sugestão já foi respondida.");
+    }
+    if (reservation.result === "conflict") {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 25));
+        const latest = await getGoalSuggestionForPatient(
+          patientUserId,
+          suggestionId
+        );
+        if (!latest) throw new Error("Sugestão de meta não encontrada.");
+        if (latest.status === nextStatus) return latest;
+        if (latest.status !== "sent") {
+          throw new Error("Essa sugestão já foi respondida.");
+        }
+      }
+      throw new Error(
+        "Essa sugestão está sendo processada por outra operação. Tente novamente."
+      );
+    }
+    return completeGoalSuggestionDecision({
+      patientUserId,
+      suggestionId,
+      lockId: reservation.lockId,
+      nextStatus,
+      occurredAt,
+    });
   }
 
   async function createMealSuggestion(
@@ -1044,6 +1227,9 @@ export function createDrizzleProfessionalContentRepository(deps: {
     listGoalSuggestions,
     listGoalSuggestionsByPatient,
     getGoalSuggestionForPatient,
+    reserveGoalSuggestionDecision,
+    completeGoalSuggestionDecision,
+    releaseGoalSuggestionDecision,
     transitionGoalSuggestion,
     createMealSuggestion,
     listMealSuggestions,

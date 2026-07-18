@@ -51,7 +51,7 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalPatientTrackings` | `professionalPatientTrackings` | 13 | Requer atenção |
 | `professionalPatientTrackingEvents` | `professionalPatientTrackingEvents` | 9 | Requer atenção |
 | `professionalComments` | `professionalComments` | 5 | Requer atenção |
-| `professionalGoalSuggestions` | `professionalGoalSuggestions` | 11 | Requer atenção |
+| `professionalGoalSuggestions` | `professionalGoalSuggestions` | 13 | Requer atenção |
 | `professionalMealSuggestions` | `professionalMealSuggestions` | 14 | Requer atenção |
 | `professionalHistoryEvents` | `professionalHistoryEvents` | 9 | Requer atenção |
 

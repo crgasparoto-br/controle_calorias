@@ -85,7 +85,8 @@ Durante o rollout, `server/repositories/professionalRepository.ts` mantém compa
 - a leitura de vínculos usa o repository canônico; preferências legadas são apenas origem de migração e espelho temporário de compatibilidade;
 - pausar, retomar e encerrar o acompanhamento (`professionals.transitionTracking`) é exposto somente pelo repository canônico, sem espelho em preferência JSON;
 - a leitura canônica importa preferências mais recentes de forma idempotente;
-- o `updatedAt` da preferência funciona como versão da origem para impedir que uma cópia antiga sobrescreva uma versão canônica mais nova;
+- cada vínculo legado usa sua própria versão (`sourceUpdatedAt` quando disponível ou o maior timestamp do próprio vínculo); o `updatedAt` global da preferência não participa da precedência, evitando que uma alteração alheia ressuscite autorização antiga;
+- estados terminais canônicos, especialmente `revoked`, prevalecem sobre cópias legadas divergentes e não podem regredir durante reconciliação;
 - escritas canônicas fazem dual-write temporário no JSON para consumidores ainda não migrados;
 - vínculos assimétricos são reconciliados nos dois sentidos: cópia exclusiva do profissional ou cópia exclusiva do paciente;
 - JSON inválido é ignorado com evento sanitizado, sem registrar o conteúdo bruto;
@@ -97,11 +98,11 @@ Durante o rollout, `server/repositories/professionalRepository.ts` mantém compa
 
 A migration `0028_professional_actor_deletion_safety.sql` altera as referências de ator das transições para `ON DELETE SET NULL`: a autoria é preservada enquanto a conta existir, e a exclusão do titular não fica bloqueada por eventos históricos.
 
-A migration `0027_professional_content_persistence.sql` elimina a dependência de arrays locais para comentários, sugestões de meta/refeição e histórico profissional:
+As migrations `0027_professional_content_persistence.sql` e `0029_professional_goal_decision_lock.sql` eliminam a dependência de arrays locais para comentários, sugestões de meta/refeição e histórico profissional:
 
 - `server/repositories/professionalContentRepository.ts` é a fonte canônica para criação, leitura e transição desses registros;
 - comentário ou sugestão e seu evento de criação são gravados na mesma transação;
-- decisões de sugestão usam `version` e comparação otimista, são idempotentes quando repetidas com o mesmo resultado e não permitem regressão para outro estado final;
+- decisões de sugestão usam reserva persistente temporária (`decisionLockId`/`decisionLockedAt`) e comparação otimista; somente a operação reservada aplica a meta, falhas liberam a reserva e retries com o mesmo resultado permanecem idempotentes sem regressão para outro estado final;
 - listagens usam ordem estável por `createdAt` e `id`, limite padrão de 100 e máximo de 200, com cursor interno para paginação;
 - o histórico guarda somente ator, profissional, paciente, tipo, entidade e data, sem copiar comentário, justificativa, meta ou conteúdo de refeição;
 - a preferência `patient_professional_goal_suggestions_v1` é importada de forma idempotente e recebe dual-write temporário durante a janela de rollout;

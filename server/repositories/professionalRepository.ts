@@ -434,6 +434,34 @@ export function createDrizzleProfessionalRepository(deps: {
     });
   }
 
+  function authorizationStatusPriority(
+    status: ProfessionalAuthorizationStatus
+  ) {
+    if (status === "revoked") return 4;
+    if (status === "rejected") return 3;
+    if (status === "approved") return 2;
+    return 1;
+  }
+
+  function shouldPreserveCanonicalAuthorization(
+    current: CanonicalProfessionalAuthorization,
+    incoming: UpsertCanonicalProfessionalAuthorizationInput
+  ) {
+    const currentIsTerminal =
+      current.status === "revoked" || current.status === "rejected";
+    if (currentIsTerminal && incoming.status !== current.status) return true;
+
+    const currentVersion = current.sourceUpdatedAt.getTime();
+    const incomingVersion = incoming.sourceUpdatedAt.getTime();
+    if (currentVersion > incomingVersion) return true;
+    if (currentVersion < incomingVersion) return false;
+
+    return (
+      authorizationStatusPriority(current.status) >=
+      authorizationStatusPriority(incoming.status)
+    );
+  }
+
   async function persistAuthorizationCanonical(
     db: any,
     input: UpsertCanonicalProfessionalAuthorizationInput,
@@ -458,8 +486,10 @@ export function createDrizzleProfessionalRepository(deps: {
     if (
       options.preserveNewerSource &&
       currentById &&
-      new Date(currentById.sourceUpdatedAt).getTime() >=
-        input.sourceUpdatedAt.getTime()
+      shouldPreserveCanonicalAuthorization(
+        toCanonicalAuthorization(currentById),
+        input
+      )
     ) {
       return {
         authorization: toCanonicalAuthorization(currentById),
@@ -591,22 +621,16 @@ export function createDrizzleProfessionalRepository(deps: {
     return { migrated: 1, invalid: parsed.issue ? 1 : 0 };
   }
 
-  async function upsertLegacyAuthorization(
-    access: LegacyProfessionalAccess,
-    sourceUpdatedAt: Date
-  ) {
-    const canonical = legacyAccessToCanonical(access, sourceUpdatedAt);
+  async function upsertLegacyAuthorization(access: LegacyProfessionalAccess) {
+    const canonical = legacyAccessToCanonical(access);
     const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
       const current = fallbackAuthorizations.get(access.id);
-      if (
-        !current ||
-        current.sourceUpdatedAt.getTime() < sourceUpdatedAt.getTime()
-      ) {
-        fallbackAuthorization(canonical);
-        return 1;
+      if (current && shouldPreserveCanonicalAuthorization(current, canonical)) {
+        return 0;
       }
-      return 0;
+      fallbackAuthorization(canonical);
+      return 1;
     }
 
     try {
@@ -656,12 +680,9 @@ export function createDrizzleProfessionalRepository(deps: {
       );
       return { profiles: 0, authorizations: 0, invalid: 1 };
     }
-    const sourceUpdatedAt = new Date(
-      row.updatedAt ?? row.createdAt ?? Date.now()
-    );
     let migrated = 0;
     for (const access of parsed.value)
-      migrated += await upsertLegacyAuthorization(access, sourceUpdatedAt);
+      migrated += await upsertLegacyAuthorization(access);
     if (parsed.issue) {
       warning(
         deps,
@@ -741,16 +762,12 @@ export function createDrizzleProfessionalRepository(deps: {
         row.preferenceValue
       );
       if (!parsed.value) continue;
-      const sourceUpdatedAt = new Date(
-        row.updatedAt ?? row.createdAt ?? Date.now()
-      );
       const related = parsed.value.filter(access =>
         role === "professional"
           ? access.professionalUserId === userId
           : access.patientUserId === userId
       );
-      for (const access of related)
-        await upsertLegacyAuthorization(access, sourceUpdatedAt);
+      for (const access of related) await upsertLegacyAuthorization(access);
     }
   }
 

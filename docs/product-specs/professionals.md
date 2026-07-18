@@ -54,7 +54,7 @@ Dados profissionais críticos não devem continuar apenas em memória ou em form
 - O estado de modo profissional ativo permanece consistente após recarregar a aplicação e iniciar uma nova sessão.
 - Solicitação, aprovação e revogação passam por procedimentos protegidos.
 - Solicitações pendentes continuam visíveis para o profissional e para a pessoa acompanhada após recarregar a aplicação ou iniciar nova sessão.
-- Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento.
+- Aprovação e revogação atualizam o status do vínculo nos dois lados do acompanhamento; a reconciliação legada usa a versão do próprio vínculo e nunca permite que uma cópia antiga reative uma autorização revogada.
 - Perfil, solicitações, vínculos e situação do acompanhamento permanecem consistentes após restart e entre instâncias.
 - Transições de acompanhamento são gravadas em `professionalPatientTrackingEvents`; a linha do tempo exibida pela Área Profissional é lida de `professionalHistoryEvents`. Ambas preservam ator e data e sobrevivem a restart e múltiplas instâncias.
 - Dashboard profissional respeita vínculo aprovado.
@@ -63,7 +63,7 @@ Dados profissionais críticos não devem continuar apenas em memória ou em form
 - Aprovações e revogações recebidas pela pessoa acompanhada ficam acessíveis em Configurações.
 - Dados autorizados incluem visão equivalente a Hoje e Relatórios, além das metas nutricionais atuais.
 - O profissional consegue registrar uma sugestão de ajuste de meta para pessoa autorizada.
-- Sugestões de meta são persistidas, registram status e versão, permanecem disponíveis após restart e usam decisão final idempotente.
+- Sugestões de meta são persistidas, registram status e versão, permanecem disponíveis após restart e usam reserva persistente da decisão para impedir efeitos duplicados entre instâncias; retry do mesmo resultado é idempotente e estados finais não regridem.
 - A meta ativa da pessoa acompanhada não é alterada pela criação de uma sugestão profissional.
 - O profissional consegue registrar uma sugestão de refeição ou plano alimentar para pessoa autorizada.
 - Sugestões de refeição são persistidas, registram status e versão e permanecem disponíveis após restart e entre instâncias.

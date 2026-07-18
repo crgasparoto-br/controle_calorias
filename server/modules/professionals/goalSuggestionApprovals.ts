@@ -67,36 +67,47 @@ export async function respondPatientGoalSuggestion(
   patientUserId: number,
   input: GoalSuggestionDecisionInput
 ) {
-  const suggestion =
-    await professionalContentRepository.getGoalSuggestionForPatient(
+  const status: "accepted" | "refused" =
+    input.decision === "accepted" ? "accepted" : "refused";
+  const reservation =
+    await professionalContentRepository.reserveGoalSuggestionDecision(
       patientUserId,
       input.suggestionId
     );
-  if (!suggestion) {
+
+  if (reservation.result === "not_found") {
     throw new Error("Sugestão de meta não encontrada.");
   }
-
-  const status: "accepted" | "refused" =
-    input.decision === "accepted" ? "accepted" : "refused";
-  if (suggestion.status === status) {
-    return (await withProfessionalProfiles([suggestion]))[0];
+  if (reservation.result === "already_completed") {
+    if (reservation.suggestion.status !== status) {
+      throw new Error("Essa sugestão já foi respondida.");
+    }
+    return (await withProfessionalProfiles([reservation.suggestion]))[0];
   }
-  if (suggestion.status !== "sent") {
-    throw new Error("Essa sugestão já foi respondida.");
-  }
-
-  // A validação de segurança e a persistência da meta permanecem no serviço
-  // canônico de metas. Repetições concorrentes aplicam o mesmo conteúdo e a
-  // transição abaixo usa CAS para garantir um único estado final auditável.
-  if (status === "accepted") {
-    await updateNutritionGoal(patientUserId, suggestion.goal);
+  if (reservation.result === "conflict") {
+    throw new Error(
+      "Essa sugestão está sendo processada por outra operação. Tente novamente."
+    );
   }
 
-  const updated = await professionalContentRepository.transitionGoalSuggestion(
-    patientUserId,
-    input.suggestionId,
-    status
-  );
-
-  return (await withProfessionalProfiles([updated]))[0];
+  try {
+    if (status === "accepted") {
+      await updateNutritionGoal(patientUserId, reservation.suggestion.goal);
+    }
+    const updated =
+      await professionalContentRepository.completeGoalSuggestionDecision({
+        patientUserId,
+        suggestionId: input.suggestionId,
+        lockId: reservation.lockId,
+        nextStatus: status,
+      });
+    return (await withProfessionalProfiles([updated]))[0];
+  } catch (error) {
+    await professionalContentRepository.releaseGoalSuggestionDecision({
+      patientUserId,
+      suggestionId: input.suggestionId,
+      lockId: reservation.lockId,
+    });
+    throw error;
+  }
 }

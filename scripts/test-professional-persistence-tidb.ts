@@ -415,6 +415,39 @@ async function main() {
       /A autorização de dados não está ativa/
     );
 
+    const staleApprovedCopy = legacyAccess({
+      id: approved.id,
+      professionalUserId: 8071,
+      patientUserId: 8072,
+      status: "approved",
+    });
+    const unrelatedAccess = legacyAccess({
+      id: "unrelated-row-update-805",
+      professionalUserId: 8071,
+      patientUserId: 8062,
+    });
+    unrelatedAccess.requestedAt = Date.parse("2026-07-14T23:00:00.000Z");
+    await connection.query(
+      "INSERT INTO `userPreferences` (`userId`, `preferenceKey`, `preferenceValue`, `updatedAt`) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE `preferenceValue` = VALUES(`preferenceValue`), `updatedAt` = VALUES(`updatedAt`)",
+      [
+        8071,
+        "professional_accesses_v1",
+        JSON.stringify([staleApprovedCopy, unrelatedAccess]),
+        new Date("2026-07-14T23:00:00.000Z"),
+      ]
+    );
+    await repository.migrateLegacyUser(8071);
+    assert.equal(
+      (await repository.getAuthorizationById(approved.id))?.status,
+      "revoked",
+      "a stale link must not be resurrected by an unrelated preference row update"
+    );
+    assert.equal(
+      await repository.getApprovedAuthorization(8071, 8072),
+      null,
+      "canonical security checks must remain revoked after legacy reconciliation"
+    );
+
     console.log(
       JSON.stringify({
         event: "professional.persistence.integration.passed",

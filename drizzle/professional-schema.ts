@@ -221,6 +221,8 @@ export const professionalGoalSuggestions = mysqlTable(
     ]).notNull(),
     goal: json("goal").notNull(),
     version: int("version").default(1).notNull(),
+    decisionLockId: varchar("decisionLockId", { length: 64 }),
+    decisionLockedAt: timestamp("decisionLockedAt"),
     createdAt: timestamp("createdAt").notNull(),
     sentAt: timestamp("sentAt"),
     respondedAt: timestamp("respondedAt"),

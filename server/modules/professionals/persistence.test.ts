@@ -5,6 +5,7 @@ import {
   PROFESSIONAL_ACCESSES_PREFERENCE_KEY,
   assertProfessionalTrackingTransition,
   getAuthorizationActivePairKey,
+  getLegacyAuthorizationSourceUpdatedAt,
   parseLegacyProfessionalAccesses,
   parseLegacyProfessionalProfile,
 } from "./persistence";
@@ -70,6 +71,25 @@ describe("professional legacy persistence parsing", () => {
       active: true,
       sourceUpdatedAt,
     });
+  });
+
+  it("derives each legacy authorization version from its own timestamps", () => {
+    const access = legacyAccess({
+      requestedAt: 1_780_000_000_000,
+      approvedAt: 1_780_000_100_000,
+      respondedAt: 1_780_000_100_000,
+      authorizationMessageSentAt: 1_780_000_050_000,
+    });
+
+    expect(getLegacyAuthorizationSourceUpdatedAt(access).getTime()).toBe(
+      1_780_000_100_000
+    );
+    expect(
+      getLegacyAuthorizationSourceUpdatedAt({
+        ...access,
+        sourceUpdatedAt: 1_780_000_200_000,
+      }).getTime()
+    ).toBe(1_780_000_200_000);
   });
 
   it("classifies invalid JSON without returning its content", () => {

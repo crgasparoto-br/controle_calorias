@@ -190,6 +190,13 @@
       "when": 1784305741362,
       "tag": "0028_professional_actor_deletion_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1784345376929,
+      "tag": "0029_professional_goal_decision_lock",
+      "breakpoints": true
     }
   ]
 }
