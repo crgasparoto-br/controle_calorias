@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarRange } from "lucide-react";
 import { useLocation } from "wouter";
@@ -105,13 +105,17 @@ function addDaysToDateKey(dateKey: string, days: number) {
 function buildWeekDates(startDate: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return [];
   const previewStart = startOfPreviewWeekDateKey(startDate);
-  return Array.from({ length: 7 }, (_, index) => addDaysToDateKey(previewStart, index));
+  return Array.from({ length: 7 }, (_, index) =>
+    addDaysToDateKey(previewStart, index)
+  );
 }
 
 function dateKeyFromDateLike(value: Date | string | number | null | undefined) {
   if (!value) return null;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : parsed.toISOString().slice(0, 10);
 }
 
 function previewMessageFromDatedGoal(goal: DatedGoal) {
@@ -122,8 +126,18 @@ function previewMessageFromDatedGoal(goal: DatedGoal) {
 }
 
 function findPreviewCard() {
-  const title = Array.from(document.querySelectorAll("[data-slot='card-title'],h1,h2,h3,p,span"))
-    .filter(element => !element.closest("[data-nutrition-goal-preview-replacement='true']"))
+  const identifiedCard = document.querySelector<HTMLElement>(
+    "[data-nutrition-goal-week-preview='true']"
+  );
+  if (identifiedCard) return identifiedCard;
+
+  const title = Array.from(
+    document.querySelectorAll("[data-slot='card-title'],h1,h2,h3,p,span")
+  )
+    .filter(
+      element =>
+        !element.closest("[data-nutrition-goal-preview-replacement='true']")
+    )
     .find(element => element.textContent?.trim() === "Prévia da semana");
   let current = title?.parentElement ?? null;
   while (current && !current.textContent?.includes("Total da Semana")) {
@@ -132,9 +146,33 @@ function findPreviewCard() {
   return current as HTMLElement | null;
 }
 
+function previewDaysAreEqual(current: PreviewDay[], next: PreviewDay[]) {
+  return (
+    current.length === next.length &&
+    current.every((day, index) => {
+      const candidate = next[index];
+      return (
+        candidate &&
+        day.date === candidate.date &&
+        day.label === candidate.label &&
+        day.message === candidate.message &&
+        day.calories === candidate.calories &&
+        day.proteinGrams === candidate.proteinGrams &&
+        day.carbsGrams === candidate.carbsGrams &&
+        day.fatGrams === candidate.fatGrams
+      );
+    })
+  );
+}
+
 function findDayCards(previewCard: HTMLElement) {
-  return Array.from(previewCard.querySelectorAll<HTMLElement>("div.rounded-2xl"))
-    .filter(card => card.textContent?.includes("proteína") && !card.textContent?.includes("Total da Semana"));
+  return Array.from(
+    previewCard.querySelectorAll<HTMLElement>("div.rounded-2xl")
+  ).filter(
+    card =>
+      card.textContent?.includes("proteína") &&
+      !card.textContent?.includes("Total da Semana")
+  );
 }
 
 function readCardGoal(card: HTMLElement): GoalTarget | null {
@@ -142,7 +180,9 @@ function readCardGoal(card: HTMLElement): GoalTarget | null {
     .map(item => item.textContent?.trim() ?? "")
     .filter(Boolean);
   const calories = valueLines.find(line => line.toLowerCase().includes("kcal"));
-  const protein = valueLines.find(line => line.toLowerCase().includes("proteína"));
+  const protein = valueLines.find(line =>
+    line.toLowerCase().includes("proteína")
+  );
   const carbs = valueLines.find(line => line.toLowerCase().includes("carbo"));
   const fat = valueLines.find(line => line.toLowerCase().includes("gordura"));
   if (!calories || !protein || !carbs || !fat) return null;
@@ -156,17 +196,20 @@ function readCardGoal(card: HTMLElement): GoalTarget | null {
 }
 
 function readOriginalPreviewDays(previewCard: HTMLElement): PreviewDay[] {
-  return findDayCards(previewCard).map(card => {
-    const date = parsePtBrDateKey(card.querySelector("span")?.textContent);
-    const goal = readCardGoal(card);
-    const label = card.querySelector("p")?.textContent?.trim() ?? "Dia";
-    const message = Array.from(card.querySelectorAll("p"))
-      .find(line => line.className.includes("min-h-10"))
-      ?.textContent?.trim() ?? "Usa a meta padrão.";
+  return findDayCards(previewCard)
+    .map(card => {
+      const date = parsePtBrDateKey(card.querySelector("span")?.textContent);
+      const goal = readCardGoal(card);
+      const label = card.querySelector("p")?.textContent?.trim() ?? "Dia";
+      const message =
+        Array.from(card.querySelectorAll("p"))
+          .find(line => line.className.includes("min-h-10"))
+          ?.textContent?.trim() ?? "Usa a meta padrão.";
 
-    if (!date || !goal) return null;
-    return { date, label, message, ...goal };
-  }).filter((day): day is PreviewDay => Boolean(day));
+      if (!date || !goal) return null;
+      return { date, label, message, ...goal };
+    })
+    .filter((day): day is PreviewDay => Boolean(day));
 }
 
 function buildDatedGoal(date: string | undefined, data: any): DatedGoal | null {
@@ -179,7 +222,9 @@ function buildDatedGoal(date: string | undefined, data: any): DatedGoal | null {
   return {
     date,
     source: goalDay?.source === "exception" ? "exception" : "default",
-    startDate: goalDay?.effectiveFrom ? new Date(goalDay.effectiveFrom).toISOString().slice(0, 10) : null,
+    startDate: goalDay?.effectiveFrom
+      ? new Date(goalDay.effectiveFrom).toISOString().slice(0, 10)
+      : null,
     calories: Number(sourceGoal.calories ?? 0),
     proteinGrams: Number(sourceGoal.proteinGrams ?? sourceGoal.protein ?? 0),
     carbsGrams: Number(sourceGoal.carbsGrams ?? sourceGoal.carbs ?? 0),
@@ -187,7 +232,10 @@ function buildDatedGoal(date: string | undefined, data: any): DatedGoal | null {
   };
 }
 
-function buildPeriodGoal(date: string, day: PeriodGoalDay | undefined): DatedGoal | null {
+function buildPeriodGoal(
+  date: string,
+  day: PeriodGoalDay | undefined
+): DatedGoal | null {
   if (!day) return null;
   return {
     date,
@@ -200,7 +248,10 @@ function buildPeriodGoal(date: string, day: PeriodGoalDay | undefined): DatedGoa
   };
 }
 
-function buildSummaryGoal(date: string, day: GoalDaySnapshot | undefined): DatedGoal | null {
+function buildSummaryGoal(
+  date: string,
+  day: GoalDaySnapshot | undefined
+): DatedGoal | null {
   if (!day) return null;
   return {
     date,
@@ -221,32 +272,8 @@ function totalGoals(days: PreviewDay[]) {
       carbsGrams: acc.carbsGrams + day.carbsGrams,
       fatGrams: acc.fatGrams + day.fatGrams,
     }),
-    { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 },
+    { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 }
   );
-}
-
-function applyPreviewDaysToCard(previewCard: HTMLElement | null, days: PreviewDay[]) {
-  if (!previewCard || !days.length) return;
-  const cards = findDayCards(previewCard);
-  cards.forEach((card, index) => {
-    const day = days[index];
-    if (!day) return;
-    const label = card.querySelector("p");
-    const dateBadge = card.querySelector("span");
-    const message = Array.from(card.querySelectorAll("p")).find(line => line.className.includes("min-h-10"));
-    const valueLines = Array.from(card.querySelectorAll("p")).filter(line => {
-      const text = line.textContent?.toLowerCase() ?? "";
-      return text.includes("kcal") || text.includes("proteína") || text.includes("carbo") || text.includes("gordura");
-    });
-
-    if (label) label.textContent = day.label;
-    if (dateBadge) dateBadge.textContent = formatDateKey(day.date);
-    if (message) message.textContent = day.message;
-    if (valueLines[0]) valueLines[0].textContent = formatCalories(day.calories);
-    if (valueLines[1]) valueLines[1].textContent = `${formatGrams(day.proteinGrams)} proteína`;
-    if (valueLines[2]) valueLines[2].textContent = `${formatGrams(day.carbsGrams)} carbo`;
-    if (valueLines[3]) valueLines[3].textContent = `${formatGrams(day.fatGrams)} gordura`;
-  });
 }
 
 function DayPreviewCard({ day }: { day: PreviewDay }) {
@@ -255,9 +282,13 @@ function DayPreviewCard({ day }: { day: PreviewDay }) {
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate font-medium tracking-tight">{day.label}</p>
-          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{formatDateKey(day.date)}</span>
+          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+            {formatDateKey(day.date)}
+          </span>
         </div>
-        <p className="min-h-10 text-sm leading-5 text-foreground">{day.message}</p>
+        <p className="min-h-10 text-sm leading-5 text-foreground">
+          {day.message}
+        </p>
       </div>
       <div className="mt-3 space-y-1 text-sm text-foreground">
         <p>{formatCalories(day.calories)}</p>
@@ -275,9 +306,13 @@ function TotalPreviewCard({ goal }: { goal: GoalTarget }) {
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate font-medium tracking-tight">Total da Semana</p>
-          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">sem.</span>
+          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+            sem.
+          </span>
         </div>
-        <p className="min-h-10 text-sm leading-5 text-foreground">Soma das metas simuladas para a semana de referência.</p>
+        <p className="min-h-10 text-sm leading-5 text-foreground">
+          Soma das metas simuladas para a semana de referência.
+        </p>
       </div>
       <div className="mt-3 space-y-1 text-sm text-foreground">
         <p>{formatCalories(goal.calories)}</p>
@@ -289,7 +324,15 @@ function TotalPreviewCard({ goal }: { goal: GoalTarget }) {
   );
 }
 
-function ReplacementPreview({ days, startDate, endDate }: { days: PreviewDay[]; startDate: string; endDate: string }) {
+function ReplacementPreview({
+  days,
+  startDate,
+  endDate,
+}: {
+  days: PreviewDay[];
+  startDate: string;
+  endDate: string;
+}) {
   const totals = totalGoals(days);
 
   return (
@@ -301,12 +344,15 @@ function ReplacementPreview({ days, startDate, endDate }: { days: PreviewDay[]; 
             Prévia da semana
           </h3>
           <p className="text-sm text-muted-foreground">
-            Simulação de {formatDateKey(startDate)} a {formatDateKey(endDate)}. Cada dia respeita a meta vigente pela data de validade.
+            Simulação de {formatDateKey(startDate)} a {formatDateKey(endDate)}.
+            Cada dia respeita a meta vigente pela data de validade.
           </p>
         </div>
         <div className="space-y-4 p-6 pt-0">
           <div className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-3 xl:overflow-visible xl:pb-0">
-            {days.map(day => <DayPreviewCard key={day.date} day={day} />)}
+            {days.map(day => (
+              <DayPreviewCard key={day.date} day={day} />
+            ))}
             <TotalPreviewCard goal={totals} />
           </div>
         </div>
@@ -322,25 +368,46 @@ export default function NutritionGoalPreviewValidityBridge() {
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const [originalDays, setOriginalDays] = useState<PreviewDay[]>([]);
   const hiddenCardRef = useRef<HTMLElement | null>(null);
-  const previewDates = useMemo(() => buildWeekDates(startDateInput), [startDateInput]);
+  const previewDates = useMemo(
+    () => buildWeekDates(startDateInput),
+    [startDateInput]
+  );
   const periodStartDate = previewDates[0] ?? "1970-01-01";
   const periodEndDate = previewDates[6] ?? "1970-01-01";
-  const goalSummary = trpc.nutrition.goals.get.useQuery(undefined, { enabled: isGoalsPage });
+  const goalSummary = trpc.nutrition.goals.get.useQuery(undefined, {
+    enabled: isGoalsPage,
+  });
   const periodBundle = trpc.nutrition.reports.periodBundle.useQuery(
     { startDate: periodStartDate, endDate: periodEndDate },
-    { enabled: isGoalsPage && Boolean(previewDates[0] && previewDates[6]) },
+    { enabled: isGoalsPage && Boolean(previewDates[0] && previewDates[6]) }
   );
 
   useEffect(() => {
     if (!isGoalsPage) return;
 
+    let startDateElement: HTMLInputElement | null = null;
+
     const syncPreviewShell = () => {
       const originalCard = findPreviewCard();
-      const nextStartDate = (document.querySelector<HTMLInputElement>("#goal-start-date")?.value || "").trim();
-      setStartDateInput(current => current === nextStartDate ? current : nextStartDate);
+      const nextStartDateElement =
+        document.querySelector<HTMLInputElement>("#goal-start-date");
+      if (startDateElement !== nextStartDateElement) {
+        startDateElement?.removeEventListener("input", syncPreviewShell);
+        startDateElement = nextStartDateElement;
+        startDateElement?.addEventListener("input", syncPreviewShell);
+      }
+      const nextStartDate = (nextStartDateElement?.value || "").trim();
+      setStartDateInput(current =>
+        current === nextStartDate ? current : nextStartDate
+      );
 
       if (!originalCard) return;
-      setOriginalDays(readOriginalPreviewDays(originalCard));
+      const nextOriginalDays = readOriginalPreviewDays(originalCard);
+      setOriginalDays(current =>
+        previewDaysAreEqual(current, nextOriginalDays)
+          ? current
+          : nextOriginalDays
+      );
 
       if (hiddenCardRef.current !== originalCard) {
         if (hiddenCardRef.current) hiddenCardRef.current.style.display = "";
@@ -354,38 +421,85 @@ export default function NutritionGoalPreviewValidityBridge() {
         host.dataset.nutritionGoalPreviewValidityBridge = "true";
         originalCard.insertAdjacentElement("afterend", host);
       }
-      setPortalHost(current => current === host ? current : host);
+      setPortalHost(current => (current === host ? current : host));
     };
 
-    const observer = new MutationObserver(syncPreviewShell);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const observer = new MutationObserver(mutations => {
+      const hasExternalMutation = mutations.some(mutation => {
+        const target =
+          mutation.target instanceof Element
+            ? mutation.target
+            : mutation.target.parentElement;
+        return !target?.closest(
+          "[data-nutrition-goal-preview-validity-bridge='true'], [data-nutrition-goal-preview-replacement='true']"
+        );
+      });
+      if (hasExternalMutation) syncPreviewShell();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
     syncPreviewShell();
-
-    document.querySelector("#goal-start-date")?.addEventListener("input", syncPreviewShell);
 
     return () => {
       observer.disconnect();
-      document.querySelector("#goal-start-date")?.removeEventListener("input", syncPreviewShell);
+      startDateElement?.removeEventListener("input", syncPreviewShell);
       if (hiddenCardRef.current) hiddenCardRef.current.style.display = "";
       hiddenCardRef.current = null;
+      document
+        .querySelector("[data-nutrition-goal-preview-validity-bridge='true']")
+        ?.remove();
       setPortalHost(null);
     };
   }, [isGoalsPage]);
 
-  const day1 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[0] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[0]) });
-  const day2 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[1] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[1]) });
-  const day3 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[2] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[2]) });
-  const day4 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[3] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[3]) });
-  const day5 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[4] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[4]) });
-  const day6 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[5] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[5]) });
-  const day7 = trpc.nutrition.dashboard.today.useQuery({ date: previewDates[6] ?? "1970-01-01" }, { enabled: isGoalsPage && Boolean(previewDates[6]) });
+  const day1 = trpc.nutrition.dashboard.today.useQuery(
+    { date: previewDates[0] ?? "1970-01-01" },
+    { enabled: isGoalsPage && Boolean(previewDates[0]) }
+  );
+  const day2 = trpc.nutrition.dashboard.today.useQuery(
+    { date: previewDates[1] ?? "1970-01-01" },
+    { enabled: isGoalsPage && Boolean(previewDates[1]) }
+  );
+  const day3 = trpc.nutrition.dashboard.today.useQuery(
+    { date: previewDates[2] ?? "1970-01-01" },
+    { enabled: isGoalsPage && Boolean(previewDates[2]) }
+  );
+  const day4 = trpc.nutrition.dashboard.today.useQuery(
+    { date: previewDates[3] ?? "1970-01-01" },
+    { enabled: isGoalsPage && Boolean(previewDates[3]) }
+  );
+  const day5 = trpc.nutrition.dashboard.today.useQuery(
+    { date: previewDates[4] ?? "1970-01-01" },
+    { enabled: isGoalsPage && Boolean(previewDates[4]) }
+  );
+  const day6 = trpc.nutrition.dashboard.today.useQuery(
+    { date: previewDates[5] ?? "1970-01-01" },
+    { enabled: isGoalsPage && Boolean(previewDates[5]) }
+  );
+  const day7 = trpc.nutrition.dashboard.today.useQuery(
+    { date: previewDates[6] ?? "1970-01-01" },
+    { enabled: isGoalsPage && Boolean(previewDates[6]) }
+  );
 
-  const datedGoals = useMemo(() => [day1, day2, day3, day4, day5, day6, day7]
-    .map((query, index) => buildDatedGoal(previewDates[index], query.data))
-    .filter((goal): goal is DatedGoal => Boolean(goal)), [day1.data, day2.data, day3.data, day4.data, day5.data, day6.data, day7.data, previewDates]);
+  const datedGoals = useMemo(
+    () =>
+      [day1, day2, day3, day4, day5, day6, day7]
+        .map((query, index) => buildDatedGoal(previewDates[index], query.data))
+        .filter((goal): goal is DatedGoal => Boolean(goal)),
+    [
+      day1.data,
+      day2.data,
+      day3.data,
+      day4.data,
+      day5.data,
+      day6.data,
+      day7.data,
+      previewDates,
+    ]
+  );
 
   const periodGoals = useMemo(() => {
-    const daily = (periodBundle.data as PeriodBundleSnapshot | undefined)?.daily ?? [];
+    const daily =
+      (periodBundle.data as PeriodBundleSnapshot | undefined)?.daily ?? [];
     const dailyByDate = new Map(daily.map(day => [day.date, day]));
     return previewDates
       .map(date => buildPeriodGoal(date, dailyByDate.get(date)))
@@ -396,7 +510,12 @@ export default function NutritionGoalPreviewValidityBridge() {
     const days = (goalSummary.data as GoalSnapshot | undefined)?.days ?? [];
     const daysByWeekday = new Map(days.map(day => [day.weekday, day]));
     return previewDates
-      .map(date => buildSummaryGoal(date, daysByWeekday.get(getUtcWeekdayIndex(dateKeyToLogicalUtcDate(date)))))
+      .map(date =>
+        buildSummaryGoal(
+          date,
+          daysByWeekday.get(getUtcWeekdayIndex(dateKeyToLogicalUtcDate(date)))
+        )
+      )
       .filter((goal): goal is DatedGoal => Boolean(goal));
   }, [goalSummary.data, previewDates]);
 
@@ -406,37 +525,46 @@ export default function NutritionGoalPreviewValidityBridge() {
     const periodByDate = new Map(periodGoals.map(goal => [goal.date, goal]));
     const summaryByDate = new Map(summaryGoals.map(goal => [goal.date, goal]));
 
-    return previewDates.map((date, index) => {
-      const originalDay = originalByDate.get(date);
-      const datedGoal = datedByDate.get(date);
-      const periodGoal = periodByDate.get(date);
-      const summaryGoal = summaryByDate.get(date);
-      const validityGoal = summaryGoal ?? periodGoal ?? datedGoal;
+    return previewDates
+      .map((date, index) => {
+        const originalDay = originalByDate.get(date);
+        const datedGoal = datedByDate.get(date);
+        const periodGoal = periodByDate.get(date);
+        const summaryGoal = summaryByDate.get(date);
+        const validityGoal = summaryGoal ?? periodGoal ?? datedGoal;
 
-      if (validityGoal) {
-        return {
-          date,
-          label: originalDay?.label ?? WEEKDAY_LABELS[index] ?? "Dia",
-          message: previewMessageFromDatedGoal(validityGoal),
-          calories: validityGoal.calories,
-          proteinGrams: validityGoal.proteinGrams,
-          carbsGrams: validityGoal.carbsGrams,
-          fatGrams: validityGoal.fatGrams,
-        };
-      }
+        if (validityGoal) {
+          return {
+            date,
+            label: originalDay?.label ?? WEEKDAY_LABELS[index] ?? "Dia",
+            message: previewMessageFromDatedGoal(validityGoal),
+            calories: validityGoal.calories,
+            proteinGrams: validityGoal.proteinGrams,
+            carbsGrams: validityGoal.carbsGrams,
+            fatGrams: validityGoal.fatGrams,
+          };
+        }
 
-      return originalDay ?? null;
-    }).filter((day): day is PreviewDay => Boolean(day));
+        return originalDay ?? null;
+      })
+      .filter((day): day is PreviewDay => Boolean(day));
   }, [datedGoals, originalDays, periodGoals, previewDates, summaryGoals]);
 
-  useEffect(() => {
-    applyPreviewDaysToCard(hiddenCardRef.current, previewDays);
-  }, [previewDays]);
-
-  if (!isGoalsPage || !portalHost || !previewDays.length || !previewDates[0] || !previewDates[6]) return null;
+  if (
+    !isGoalsPage ||
+    !portalHost ||
+    !previewDays.length ||
+    !previewDates[0] ||
+    !previewDates[6]
+  )
+    return null;
 
   return createPortal(
-    <ReplacementPreview days={previewDays} startDate={previewDates[0]} endDate={previewDates[6]} />,
-    portalHost,
+    <ReplacementPreview
+      days={previewDays}
+      startDate={previewDates[0]}
+      endDate={previewDates[6]}
+    />,
+    portalHost
   );
 }

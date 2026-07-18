@@ -79,6 +79,7 @@ pnpm db:check-integrity
 - Validar saída de IA com Zod antes de retornar ou persistir.
 - Recalcular totais nutricionais no backend a partir dos itens validados.
 - Falha de visual auxiliar deve degradar para ausência de imagem, nunca para falha de refeição.
+- Falha de leitura da preferência de imagem anotada deve degradar para o estado desabilitado, com diagnóstico sanitizado e sem impedir análise, persistência da foto original, registro ou resposta textual.
 - Rodar smoke test web e WhatsApp antes de ativar em produção.
 
 ## Mutações multirrefeição pelo WhatsApp

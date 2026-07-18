@@ -14,6 +14,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `healthIntegrations` | 5 | 2 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
 | `professionals` | 17 | 8 | 9 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 3 | 2 | 1 | protected | Conclusão de onboarding nutricional |
+| `whatsappPreferences` | 2 | 1 | 1 | protected | Grupo de procedures tRPC |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
 | `dashboard` | 2 | 2 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
@@ -89,6 +90,13 @@ Fonte: `server/nutritionRouter.ts`.
 | `profile` | query | protected |
 | `timeZone` | query | protected |
 | `complete` | mutation | protected |
+
+### whatsappPreferences
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `annotatedImage` | query | protected |
+| `updateAnnotatedImage` | mutation | protected |
 
 ### mealSchedules
 

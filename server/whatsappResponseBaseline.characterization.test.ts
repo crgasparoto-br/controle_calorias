@@ -59,6 +59,10 @@ vi.mock("./modules/whatsapp/annotatedImage", () => ({
   })),
 }));
 
+vi.mock("./modules/whatsapp/annotatedImagePreference", () => ({
+  getAnnotatedImagePreference: vi.fn(async () => ({ enabled: true, readFailed: false })),
+}));
+
 vi.mock("./modules/quickEdit/service", () => ({
   tryCreateQuickEditLinkForMeal: vi.fn(async () => null),
 }));

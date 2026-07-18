@@ -37,6 +37,7 @@ const useUtilsMock = vi.fn(() => ({
     exercises: { list: { invalidate: vi.fn() } },
     water: { list: { invalidate: vi.fn() }, goal: { invalidate: vi.fn() } },
     whatsapp: { status: { invalidate: vi.fn() } },
+    whatsappPreferences: { annotatedImage: { invalidate: vi.fn() } },
     professionals: {
       profile: { invalidate: vi.fn() },
       myAccesses: { invalidate: vi.fn() },
@@ -105,6 +106,14 @@ vi.mock("@/lib/trpc", () => ({
         },
         complete: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+      },
+      whatsappPreferences: {
+        annotatedImage: {
+          useQuery: () => ({ data: { enabled: false }, isLoading: false, isError: false }),
+        },
+        updateAnnotatedImage: {
+          useMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
         },
       },
       mealSchedules: {
@@ -606,6 +615,10 @@ describe("nutrition pages", () => {
     expect(html).toContain("Soma das metas planejadas para a semana.");
     expect(html).toContain("value=\"2.200\"");
     expect(html).toContain("15.600 kcal");
+    expect(html).toContain('data-nutrition-goal-week-preview="true"');
+    expect(html.match(/border-l-emerald-500/g) ?? []).toHaveLength(8);
+    expect(html).toContain("overflow-x-auto");
+    expect(html).toContain("xl:grid-cols-3");
   });
 
   it("renderiza as configurações com perfil, solicitações e refeições habituais", async () => {
