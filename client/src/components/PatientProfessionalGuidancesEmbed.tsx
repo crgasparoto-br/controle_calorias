@@ -5,6 +5,16 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 
+type Guidance = {
+  id: string;
+  version: number;
+  title: string;
+  content: string;
+  deliveryStatus: string;
+  professionalName: string;
+  createdAt: number | null;
+};
+
 export default function PatientProfessionalGuidancesEmbed() {
   const [location] = useLocation();
   const shouldRender = location === "/" || location === "/today";
@@ -22,10 +32,24 @@ export default function PatientProfessionalGuidancesEmbed() {
     return () => observer.disconnect();
   }, [shouldRender]);
 
-  const query = trpc.professionalRecord.patientGuidances.useQuery(undefined, {
+  const procedure = (trpc as typeof trpc & {
+    professionalRecord?: {
+      patientGuidances?: {
+        useQuery?: (
+          input: undefined,
+          options: { enabled: boolean; retry: boolean }
+        ) => {
+          data?: Guidance[];
+          isLoading: boolean;
+          isError: boolean;
+        };
+      };
+    };
+  }).professionalRecord?.patientGuidances;
+  const query = procedure?.useQuery?.(undefined, {
     enabled: shouldRender && Boolean(slot),
     retry: false,
-  });
+  }) ?? { data: [] as Guidance[], isLoading: false, isError: false };
 
   if (!shouldRender || !slot) return null;
   const guidances = query.data ?? [];
@@ -40,7 +64,7 @@ export default function PatientProfessionalGuidancesEmbed() {
           {query.isLoading && <p role="status" className="text-sm text-muted-foreground">Carregando orientações...</p>}
           {query.isError && <p role="alert" className="text-sm text-destructive">Não foi possível carregar as orientações.</p>}
           {!query.isLoading && !query.isError && guidances.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma orientação disponível.</p>}
-          {guidances.map(item => <article key={item.id} className="rounded-xl border bg-muted/10 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{item.title}</h3><span className="text-xs text-muted-foreground">{new Date(item.createdAt ?? 0).toLocaleString("pt-BR")}</span></div><p className="mt-1 text-xs text-muted-foreground">{item.professionalName} · versão {item.version} · entrega {item.deliveryStatus}</p><p className="mt-3 whitespace-pre-wrap text-sm leading-6">{item.content}</p></article>)}
+          {guidances.map(item => <article key={item.id} className="rounded-xl border bg-muted/10 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{item.title}</h3><span className="text-xs text-muted-foreground">{item.createdAt ? new Date(item.createdAt).toLocaleString("pt-BR") : "Sem data"}</span></div><p className="mt-1 text-xs text-muted-foreground">{item.professionalName} · versão {item.version} · entrega {item.deliveryStatus}</p><p className="mt-3 whitespace-pre-wrap text-sm leading-6">{item.content}</p></article>)}
         </CardContent>
       </Card>
     </section>,
