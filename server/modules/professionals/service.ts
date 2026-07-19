@@ -37,6 +37,7 @@ import {
 } from "../../repositories/whatsappPendingOperationRepository";
 import { professionalRepository } from "./persistenceService";
 import { professionalContentRepository } from "./contentPersistenceService";
+import { professionalPortfolioRepository } from "../../repositories/professionalPortfolioRepository";
 import type { CanonicalProfessionalAuthorization } from "./persistence";
 import type {
   AppendProfessionalHistoryInput,
@@ -63,6 +64,7 @@ import {
   type ProfessionalPatientQuestionInput,
   type ProfessionalProfileInput,
   type ProfessionalTrackingTransitionInput,
+  type ProfessionalPortfolioInput,
   type RequestPatientAccessInput,
 } from "./schemas";
 
@@ -1084,6 +1086,14 @@ export async function listProfessionalAccesses(professionalUserId: number) {
     ...publicAccess(access),
     patient: patientMap.get(access.patientUserId) ?? null,
   }));
+}
+
+export async function listProfessionalPortfolio(
+  professionalUserId: number,
+  input: ProfessionalPortfolioInput
+) {
+  await assertActiveProfessionalProfile(professionalUserId);
+  return professionalPortfolioRepository.list(professionalUserId, input);
 }
 
 export async function listPatientAccessRequests(patientUserId: number) {
