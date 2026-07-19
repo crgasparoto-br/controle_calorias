@@ -12,7 +12,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `assistant` | 1 | 0 | 1 | protected | Sugestões alimentares assistidas |
 | `foodPhotoAnalysis` | 4 | 1 | 3 | protected | Análise, consulta, rejeição e confirmação de fotos |
 | `healthIntegrations` | 5 | 2 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
-| `professionals` | 17 | 8 | 9 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
+| `professionals` | 18 | 8 | 10 | protected | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 3 | 2 | 1 | protected | Conclusão de onboarding nutricional |
 | `whatsappPreferences` | 2 | 1 | 1 | protected | Grupo de procedures tRPC |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
@@ -73,6 +73,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `patientGoalSuggestions` | query | protected |
 | `approveAccess` | mutation | protected |
 | `revokeAccess` | mutation | protected |
+| `transitionTracking` | mutation | protected |
 | `respondGoalSuggestion` | mutation | protected |
 | `patientTimeZone` | query | protected |
 | `patientDashboard` | query | protected |

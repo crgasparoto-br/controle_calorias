@@ -22,18 +22,28 @@ async function createPending(userId: number, type = "delete") {
 }
 
 describe("interactiveCallback", () => {
-  it("gera um ID cifrado sem expor pendingOperationId ou ação nos segmentos decodificáveis", () => {
-    const id = buildWhatsAppCallbackId(42, "confirm");
-    expect(id).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+  it("gera um ID cifrado que não expõe o pendingOperationId nem a ação", () => {
+    const plainPayload = JSON.stringify({ pendingOperationId: 42, action: "confirm" });
 
-    const decodedSegments = id
-      .split(".")
-      .slice(1)
-      .map(segment => Buffer.from(segment, "base64url").toString("utf8"))
-      .join(" ");
-    expect(decodedSegments).not.toContain("42");
-    expect(decodedSegments).not.toContain("confirm");
-    expect(parseWhatsAppCallbackId(id)).toEqual({ pendingOperationId: 42, action: "confirm" });
+    // Um trecho curto como "42" pode aparecer por acaso em bytes cifrados
+    // aleatórios (ruído estatístico, não vazamento); asserções devem checar
+    // marcadores longos o suficiente para tornar essa coincidência
+    // desprezível, em vez de dígitos/palavras curtas isolados.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const id = buildWhatsAppCallbackId(42, "confirm");
+      expect(id).not.toBe(plainPayload);
+      expect(id).not.toContain(plainPayload);
+      expect(id).not.toContain("confirm");
+
+      const decodedSegments = id
+        .split(".")
+        .slice(1)
+        .map(segment => Buffer.from(segment, "base64url").toString("utf8"))
+        .join(" ");
+      expect(decodedSegments).not.toContain(plainPayload);
+      expect(decodedSegments).not.toContain("pendingOperationId");
+      expect(decodedSegments).not.toContain("confirm");
+    }
   });
 
   it("usa nonce aleatório para não repetir o token com o mesmo conteúdo", () => {

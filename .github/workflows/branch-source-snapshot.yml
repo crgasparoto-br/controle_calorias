@@ -1,0 +1,35 @@
+name: Branch source snapshot
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/branch-source-snapshot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Drizzle metadata
+        run: pnpm exec drizzle-kit generate --name professional_snapshot_diagnostic
+      - name: Pack source and generated metadata
+        run: tar --exclude=.git -czf /tmp/controle-calorias-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: branch-source-snapshot
+          path: /tmp/controle-calorias-source.tar.gz
+          retention-days: 1

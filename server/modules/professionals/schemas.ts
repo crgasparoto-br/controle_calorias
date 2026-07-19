@@ -2,8 +2,18 @@ import { z } from "zod";
 import { goalSchema } from "../goals/schemas";
 import { boundedReportDateRangeSchema } from "../insights/schemas";
 
-const patientContactSchema = z.string().trim().min(3, "Informe o e-mail ou celular do paciente.").max(320);
-const professionalSuggestionStatusSchema = z.enum(["draft", "sent", "accepted", "refused", "cancelled"]);
+const patientContactSchema = z
+  .string()
+  .trim()
+  .min(3, "Informe o e-mail ou celular do paciente.")
+  .max(320);
+const professionalSuggestionStatusSchema = z.enum([
+  "draft",
+  "sent",
+  "accepted",
+  "refused",
+  "cancelled",
+]);
 
 export const professionalProfileSchema = z.object({
   displayName: z.string().trim().min(2).max(120),
@@ -11,17 +21,28 @@ export const professionalProfileSchema = z.object({
   active: z.boolean().default(true),
 });
 
-export const requestPatientAccessSchema = z.object({
-  patientContact: patientContactSchema.optional(),
-  patientEmail: z.string().trim().email("Informe um e-mail válido do paciente.").optional(),
-  reason: z.string().trim().min(3).max(500),
-}).refine(input => Boolean(input.patientContact || input.patientEmail), {
-  message: "Informe o e-mail ou celular do paciente.",
-  path: ["patientContact"],
-});
+export const requestPatientAccessSchema = z
+  .object({
+    patientContact: patientContactSchema.optional(),
+    patientEmail: z
+      .string()
+      .trim()
+      .email("Informe um e-mail válido do paciente.")
+      .optional(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .refine(input => Boolean(input.patientContact || input.patientEmail), {
+    message: "Informe o e-mail ou celular do paciente.",
+    path: ["patientContact"],
+  });
 
 export const accessIdSchema = z.object({
   accessId: z.string().min(1),
+});
+
+export const professionalTrackingTransitionSchema = accessIdSchema.extend({
+  status: z.enum(["active", "paused", "ended"]),
+  reason: z.string().trim().max(1000).optional(),
 });
 
 export const patientIdSchema = z.object({
@@ -29,16 +50,18 @@ export const patientIdSchema = z.object({
   weekOffset: z.number().int().optional().default(0),
 });
 
-export const patientPeriodBundleSchema = boundedReportDateRangeSchema.safeExtend({
-  patientId: z.number().int().positive(),
-});
+export const patientPeriodBundleSchema =
+  boundedReportDateRangeSchema.safeExtend({
+    patientId: z.number().int().positive(),
+  });
 
 export const professionalCommentSchema = z.object({
   patientId: z.number().int().positive(),
   comment: z.string().trim().min(1).max(1000),
 });
 
-export const professionalGoalSuggestionStatusSchema = professionalSuggestionStatusSchema;
+export const professionalGoalSuggestionStatusSchema =
+  professionalSuggestionStatusSchema;
 
 export const professionalGoalSuggestionSchema = z.object({
   patientId: z.number().int().positive(),
@@ -52,7 +75,8 @@ export const goalSuggestionDecisionSchema = z.object({
   decision: z.enum(["accepted", "refused"]),
 });
 
-export const professionalMealSuggestionStatusSchema = professionalSuggestionStatusSchema;
+export const professionalMealSuggestionStatusSchema =
+  professionalSuggestionStatusSchema;
 
 export const professionalMealSuggestionSchema = z.object({
   patientId: z.number().int().positive(),
@@ -76,16 +100,41 @@ export const professionalPatientAnswerSchema = z.object({
   educationalNotice: z.string().trim().min(1).max(500),
 });
 
-export type ProfessionalProfileInput = z.infer<typeof professionalProfileSchema>;
-export type RequestPatientAccessInput = z.infer<typeof requestPatientAccessSchema>;
+export type ProfessionalProfileInput = z.infer<
+  typeof professionalProfileSchema
+>;
+export type RequestPatientAccessInput = z.infer<
+  typeof requestPatientAccessSchema
+>;
 export type AccessIdInput = z.infer<typeof accessIdSchema>;
+export type ProfessionalTrackingTransitionInput = z.infer<
+  typeof professionalTrackingTransitionSchema
+>;
 export type PatientIdInput = z.infer<typeof patientIdSchema>;
-export type PatientPeriodBundleInput = z.infer<typeof patientPeriodBundleSchema>;
-export type ProfessionalCommentInput = z.infer<typeof professionalCommentSchema>;
-export type ProfessionalGoalSuggestionInput = z.infer<typeof professionalGoalSuggestionSchema>;
-export type ProfessionalGoalSuggestionStatus = z.infer<typeof professionalGoalSuggestionStatusSchema>;
-export type GoalSuggestionDecisionInput = z.infer<typeof goalSuggestionDecisionSchema>;
-export type ProfessionalMealSuggestionInput = z.infer<typeof professionalMealSuggestionSchema>;
-export type ProfessionalMealSuggestionStatus = z.infer<typeof professionalMealSuggestionStatusSchema>;
-export type ProfessionalPatientQuestionInput = z.infer<typeof professionalPatientQuestionSchema>;
-export type ProfessionalPatientAnswer = z.infer<typeof professionalPatientAnswerSchema>;
+export type PatientPeriodBundleInput = z.infer<
+  typeof patientPeriodBundleSchema
+>;
+export type ProfessionalCommentInput = z.infer<
+  typeof professionalCommentSchema
+>;
+export type ProfessionalGoalSuggestionInput = z.infer<
+  typeof professionalGoalSuggestionSchema
+>;
+export type ProfessionalGoalSuggestionStatus = z.infer<
+  typeof professionalGoalSuggestionStatusSchema
+>;
+export type GoalSuggestionDecisionInput = z.infer<
+  typeof goalSuggestionDecisionSchema
+>;
+export type ProfessionalMealSuggestionInput = z.infer<
+  typeof professionalMealSuggestionSchema
+>;
+export type ProfessionalMealSuggestionStatus = z.infer<
+  typeof professionalMealSuggestionStatusSchema
+>;
+export type ProfessionalPatientQuestionInput = z.infer<
+  typeof professionalPatientQuestionSchema
+>;
+export type ProfessionalPatientAnswer = z.infer<
+  typeof professionalPatientAnswerSchema
+>;

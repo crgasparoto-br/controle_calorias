@@ -200,6 +200,7 @@ import {
   professionalMealSuggestionSchema,
   professionalPatientQuestionSchema,
   professionalProfileSchema,
+  professionalTrackingTransitionSchema,
   requestPatientAccessSchema,
 } from "./modules/professionals/schemas";
 import {
@@ -217,11 +218,11 @@ import {
   revokePatientAccess,
   suggestGoalAdjustment,
   suggestMealPlan,
+  transitionPatientTracking,
   upsertProfessionalProfile,
 } from "./modules/professionals/service";
 import {
   listPatientGoalSuggestions,
-  recordProfessionalGoalSuggestion,
   respondPatientGoalSuggestion,
 } from "./modules/professionals/goalSuggestionApprovals";
 
@@ -452,6 +453,11 @@ export const nutritionRouter = router({
       .mutation(async ({ ctx, input }) =>
         revokePatientAccess(ctx.user.id, input.accessId)
       ),
+    transitionTracking: protectedProcedure
+      .input(professionalTrackingTransitionSchema)
+      .mutation(async ({ ctx, input }) =>
+        transitionPatientTracking(ctx.user.id, input)
+      ),
     respondGoalSuggestion: protectedProcedure
       .input(goalSuggestionDecisionSchema)
       .mutation(async ({ ctx, input }) => {
@@ -497,11 +503,9 @@ export const nutritionRouter = router({
       ),
     suggestGoalAdjustment: protectedProcedure
       .input(professionalGoalSuggestionSchema)
-      .mutation(async ({ ctx, input }) => {
-        const suggestion = await suggestGoalAdjustment(ctx.user.id, input);
-        await recordProfessionalGoalSuggestion(suggestion);
-        return suggestion;
-      }),
+      .mutation(async ({ ctx, input }) =>
+        suggestGoalAdjustment(ctx.user.id, input)
+      ),
     suggestMealPlan: protectedProcedure
       .input(professionalMealSuggestionSchema)
       .mutation(async ({ ctx, input }) => suggestMealPlan(ctx.user.id, input)),

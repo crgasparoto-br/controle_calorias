@@ -24,7 +24,12 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
-const ProfessionalPage = lazy(() => import("@/pages/ProfessionalReportsPage"));
+const ProfessionalLegacyPage = lazy(
+  () => import("@/pages/ProfessionalReportsPage")
+);
+const ProfessionalWorkspacePage = lazy(
+  () => import("@/pages/ProfessionalWorkspacePage")
+);
 const QuickEditExercisePage = lazy(
   () => import("@/pages/QuickEditExercisePage")
 );
@@ -92,7 +97,28 @@ function Router() {
         <Route path="/channels" component={ChannelsPage} />
         <Route path="/health-integrations" component={HealthIntegrationsPage} />
         <Route path="/synced-health-data" component={SyncedHealthDataPage} />
-        <Route path="/professional" component={ProfessionalPage} />
+        <Route path="/professional/legacy" component={ProfessionalLegacyPage} />
+        <Route
+          path="/professional/patients"
+          component={ProfessionalWorkspacePage}
+        />
+        <Route
+          path="/professional/follow-up"
+          component={ProfessionalWorkspacePage}
+        />
+        <Route
+          path="/professional/messages"
+          component={ProfessionalWorkspacePage}
+        />
+        <Route
+          path="/professional/reports"
+          component={ProfessionalWorkspacePage}
+        />
+        <Route
+          path="/professional/settings"
+          component={ProfessionalWorkspacePage}
+        />
+        <Route path="/professional" component={ProfessionalWorkspacePage} />
         <Route path="/admin" component={AdminPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

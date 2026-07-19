@@ -196,7 +196,7 @@ function envFlagDisabled(value: string | undefined) {
   return ["0", "false", "no", "off"].includes(value?.toLowerCase() ?? "");
 }
 
-function shouldEnableRuntimeDatabaseSsl(connectionString: string) {
+export function shouldEnableRuntimeDatabaseSsl(connectionString: string) {
   const explicitValue = process.env.TIDB_ENABLE_SSL;
   if (envFlagEnabled(explicitValue)) return true;
   if (envFlagDisabled(explicitValue)) return false;
