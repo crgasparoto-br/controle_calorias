@@ -50,6 +50,28 @@ export const patientIdSchema = z.object({
   weekOffset: z.number().int().optional().default(0),
 });
 
+export const professionalPortfolioSchema = z.object({
+  search: z.string().trim().max(160).optional().default(""),
+  authorizationStatus: z
+    .enum(["all", "pending", "approved", "rejected", "revoked"])
+    .optional()
+    .default("all"),
+  trackingStatus: z
+    .enum(["all", "not_started", "active", "paused", "ended"])
+    .optional()
+    .default("all"),
+  activity: z
+    .enum(["all", "recent", "inactive", "unavailable"])
+    .optional()
+    .default("all"),
+  nextReview: z
+    .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
+    .optional()
+    .default("all"),
+  page: z.number().int().min(1).optional().default(1),
+  pageSize: z.number().int().min(10).max(50).optional().default(20),
+});
+
 export const patientPeriodBundleSchema =
   boundedReportDateRangeSchema.safeExtend({
     patientId: z.number().int().positive(),
@@ -111,6 +133,9 @@ export type ProfessionalTrackingTransitionInput = z.infer<
   typeof professionalTrackingTransitionSchema
 >;
 export type PatientIdInput = z.infer<typeof patientIdSchema>;
+export type ProfessionalPortfolioInput = z.infer<
+  typeof professionalPortfolioSchema
+>;
 export type PatientPeriodBundleInput = z.infer<
   typeof patientPeriodBundleSchema
 >;

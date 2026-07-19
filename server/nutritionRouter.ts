@@ -109,7 +109,10 @@ import { getUserOnboardingProfile } from "./modules/onboarding/profileRead";
 import { completeOnboarding } from "./modules/onboarding/service";
 import { onboardingMutationSchema } from "./modules/onboarding/schemas";
 import { sendOnboardingWelcomeWhatsapp } from "./modules/onboarding/webGreetingService";
-import { getAnnotatedImagePreference, setAnnotatedImagePreference } from "./modules/whatsapp/annotatedImagePreference";
+import {
+  getAnnotatedImagePreference,
+  setAnnotatedImagePreference,
+} from "./modules/whatsapp/annotatedImagePreference";
 import {
   listMealSchedules,
   suggestMealLabelForTime,
@@ -199,6 +202,7 @@ import {
   professionalGoalSuggestionSchema,
   professionalMealSuggestionSchema,
   professionalPatientQuestionSchema,
+  professionalPortfolioSchema,
   professionalProfileSchema,
   professionalTrackingTransitionSchema,
   requestPatientAccessSchema,
@@ -213,6 +217,7 @@ import {
   getProfessionalProfile,
   listPatientAccessRequests,
   listProfessionalAccesses,
+  listProfessionalPortfolio,
   listProfessionalHistory,
   requestPatientAccess,
   revokePatientAccess,
@@ -437,6 +442,11 @@ export const nutritionRouter = router({
     myAccesses: protectedProcedure.query(async ({ ctx }) =>
       listProfessionalAccesses(ctx.user.id)
     ),
+    portfolio: protectedProcedure
+      .input(professionalPortfolioSchema)
+      .query(async ({ ctx, input }) =>
+        listProfessionalPortfolio(ctx.user.id, input)
+      ),
     patientRequests: protectedProcedure.query(async ({ ctx }) =>
       listPatientAccessRequests(ctx.user.id)
     ),
