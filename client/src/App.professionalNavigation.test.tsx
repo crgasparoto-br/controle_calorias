@@ -53,6 +53,26 @@ vi.mock("@/lib/trpc", () => ({
             refetch,
           }),
         },
+        portfolio: {
+          useQuery: () => ({
+            data: {
+              items: [],
+              pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+              summary: {
+                active: 0,
+                paused: 0,
+                ended: 0,
+                notStarted: 0,
+                pendingRequests: 0,
+                withoutRecentActivity: 0,
+              },
+              generatedAt: Date.now(),
+            },
+            isLoading: false,
+            isError: false,
+            refetch: vi.fn(),
+          }),
+        },
       },
     },
   },
@@ -61,7 +81,9 @@ vi.mock("./components/ErrorBoundary", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock("./contexts/ThemeContext", () => ({
-  ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 vi.mock("@/components/ui/tooltip", async importOriginal => {
   const actual =
@@ -190,9 +212,7 @@ describe("App professional navigation", () => {
     window.history.pushState({}, "", "/professional");
     window.dispatchEvent(new PopStateEvent("popstate"));
     await screen.findByRole("heading", { name: "Início profissional" });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Minha alimentação" })
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Minha alimentação" }));
 
     await waitFor(() => expect(window.location.pathname).toBe("/today"));
     expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
