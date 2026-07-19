@@ -103,6 +103,22 @@ Gestão da carteira com:
 - próxima revisão;
 - indicadores resumidos de adesão.
 
+A carteira inicial consulta vínculos de forma paginada, com ordenação estável
+por nome, e-mail ou identificador do paciente, seguida pela data da solicitação
+e pelo identificador do vínculo. Busca, autorização, situação do acompanhamento
+e atividade alimentar podem ser combinadas sem carregar relatórios completos.
+Autorização e acompanhamento são sempre apresentados separadamente.
+
+Na primeira versão, “sem atividade recente” significa ausência de refeição
+confirmada nos três dias anteriores. Ausência de dado é apresentada como
+“não informado”, nunca como zero. Próxima revisão e pesagem só passam a compor
+a carteira quando suas entidades canônicas forem entregues pelas fases de
+prontuário e pendências.
+
+Solicitações pendentes permanecem visíveis, mas não permitem abrir dados do
+paciente. Autorizações recusadas ou revogadas podem ser localizadas para fins
+operacionais, sem conceder acesso ao contexto ou a dados pessoais adicionais.
+
 ### Prontuário de acompanhamento
 
 Ao selecionar um paciente, o profissional entra em contexto dedicado e claramente identificado, contendo progressivamente:
