@@ -63,6 +63,11 @@ function formatDate(value: number | null) {
   return value ? dateFormatter.format(new Date(value)) : "Não informado";
 }
 
+function isProfessionalPermissionError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("Ative seu perfil profissional");
+}
+
 function PortfolioState({
   filters,
   setFilters,
@@ -74,6 +79,9 @@ function PortfolioState({
 }) {
   const [, setLocation] = useLocation();
   const { selectPatient } = useProfessionalWorkspace();
+  const utils = trpc.useUtils();
+  const [openingPatientId, setOpeningPatientId] = useState<number | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
   const query = trpc.nutrition.professionals.portfolio.useQuery(filters, {
     retry: false,
     refetchOnWindowFocus: true,
@@ -89,26 +97,34 @@ function PortfolioState({
         Carregando carteira profissional...
       </div>
     );
-  if (query.isError)
+  if (query.isError) {
+    const permissionDenied = isProfessionalPermissionError(query.error);
     return (
       <div role="alert" className="rounded-2xl border bg-card p-8">
         <AlertCircle className="h-8 w-8 text-destructive" />
         <h2 className="mt-3 font-semibold">
-          Não foi possível carregar a carteira
+          {permissionDenied
+            ? "Perfil profissional inativo"
+            : "Não foi possível carregar a carteira"}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Tente novamente. Nenhum dado anterior será reutilizado.
+          {permissionDenied
+            ? "Ative seu perfil em Configurações profissionais para acessar a carteira."
+            : "Tente novamente. Nenhum dado anterior será reutilizado."}
         </p>
-        <Button
-          className="mt-4"
-          variant="outline"
-          onClick={() => void query.refetch()}
-        >
-          <RefreshCw className="h-4 w-4" />
-          Tentar novamente
-        </Button>
+        {!permissionDenied && (
+          <Button
+            className="mt-4"
+            variant="outline"
+            onClick={() => void query.refetch()}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
+        )}
       </div>
     );
+  }
 
   const data = query.data;
   if (!data) return null;
@@ -189,6 +205,12 @@ function PortfolioState({
         </div>
       )}
 
+      {openError && (
+        <div role="alert" className="rounded-md border border-destructive/40 p-3 text-sm">
+          {openError}
+        </div>
+      )}
+
       {data.items.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center py-12 text-center">
@@ -242,21 +264,42 @@ function PortfolioState({
                       {formatDate(item.lastFoodActivityAt)}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Interação:{" "}
-                      {formatDate(item.lastProfessionalInteractionAt)}
+                      Interação: {formatDate(item.lastProfessionalInteractionAt)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Próxima revisão: {formatDate(item.nextReviewAt)}
                     </p>
                   </div>
                   <Button
-                    disabled={!accessible}
-                    onClick={() => {
-                      selectPatient({
-                        patientId: item.patientUserId,
-                        displayName,
-                      });
-                      setLocation("/professional/follow-up");
+                    disabled={!accessible || openingPatientId !== null}
+                    onClick={async () => {
+                      setOpenError(null);
+                      setOpeningPatientId(item.patientUserId);
+                      try {
+                        await utils.nutrition.professionals.patientTimeZone.fetch({
+                          patientId: item.patientUserId,
+                          weekOffset: 0,
+                        });
+                        selectPatient({
+                          patientId: item.patientUserId,
+                          displayName,
+                        });
+                        setLocation("/professional/follow-up");
+                      } catch {
+                        setOpenError(
+                          "O acesso a este paciente não está mais disponível. A carteira foi atualizada."
+                        );
+                        await query.refetch();
+                      } finally {
+                        setOpeningPatientId(null);
+                      }
                     }}
                   >
-                    {accessible ? "Abrir paciente" : "Aguardando acesso"}
+                    {openingPatientId === item.patientUserId
+                      ? "Validando acesso..."
+                      : accessible
+                        ? "Abrir paciente"
+                        : "Aguardando acesso"}
                   </Button>
                 </CardContent>
               </Card>
@@ -323,7 +366,7 @@ function ProfessionalHome() {
     <div className="mx-auto max-w-6xl space-y-6">
       <PageIntro
         title="Início profissional"
-        description="Acompanhe a situação da carteira e abra rapidamente o contexto de cada paciente."
+        description="Acompanhe a situação da carteira e abra rapidamente o contexto de cada paciente. Revisões e pesagens aparecerão quando houver fonte canônica configurada."
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map(([label, value]) => (
