@@ -4,6 +4,7 @@ import {
   professionalGuidanceSchema,
   professionalNoteSchema,
   professionalRecordSchema,
+  professionalTrackingTransitionSchema,
 } from "./schemas";
 import {
   createProfessionalGuidance,
@@ -12,6 +13,7 @@ import {
   listPatientProfessionalGuidances,
   saveProfessionalAssessment,
 } from "./recordService";
+import { transitionPatientTracking } from "./service";
 
 export const professionalRecordRouter = router({
   get: protectedProcedure
@@ -26,6 +28,9 @@ export const professionalRecordRouter = router({
   createGuidance: protectedProcedure
     .input(professionalGuidanceSchema)
     .mutation(({ ctx, input }) => createProfessionalGuidance(ctx.user.id, input)),
+  transitionTracking: protectedProcedure
+    .input(professionalTrackingTransitionSchema)
+    .mutation(({ ctx, input }) => transitionPatientTracking(ctx.user.id, input)),
   patientGuidances: protectedProcedure.query(({ ctx }) =>
     listPatientProfessionalGuidances(ctx.user.id)
   ),
