@@ -16,6 +16,19 @@ A Área Profissional possui um shell próprio, separado da Área do Paciente, se
 
 As rotas funcionais novas começam como pontos de extensão independentes. Cada capacidade será incorporada pelas subissues da épica #803 sem importar páginas pessoais para simular acesso ao paciente.
 
+## Carteira e painel inicial
+
+`nutrition.professionals.portfolio` recebe busca, filtros e paginação e deriva
+sempre o `professionalUserId` da sessão autenticada. A consulta retorna somente
+identificação mínima, autorização, situação do acompanhamento, última refeição
+confirmada e última interação profissional. O painel consome os agregados da
+mesma procedure; ele não executa um relatório por paciente.
+
+A ordenação é estável por identificação exibível, solicitação decrescente e ID
+do vínculo. A paginação inicial usa página e limite entre 10 e 50 registros.
+Todas as consultas SQL, inclusive totais, incluem o profissional autenticado.
+O vínculo pendente, rejeitado ou revogado nunca habilita “Abrir paciente”.
+
 ## Autorização e isolamento
 
 - O menu da Área do Paciente só apresenta a entrada profissional quando `professionalProfileActive` está ativo.
