@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getDb = vi.fn();
-const logPersistenceWarning = vi.fn();
+const { getDb, logPersistenceWarning } = vi.hoisted(() => ({
+  getDb: vi.fn(),
+  logPersistenceWarning: vi.fn(),
+}));
 vi.mock("../../db", () => ({ getDb, logPersistenceWarning }));
 
 import {
