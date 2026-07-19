@@ -18,6 +18,7 @@ import {
   whatsappOnboardingTokenSchema,
 } from "./modules/onboarding/whatsappLeadSchemas";
 import { getCanonicalProfessionalProfile } from "./modules/professionals/persistenceService";
+import { professionalRecordRouter } from "./modules/professionals/recordRouter";
 import { quickEditRouter } from "./modules/quickEdit/router";
 import { nutritionRouter } from "./nutritionRouter";
 
@@ -66,7 +67,6 @@ async function setSessionCookie(
 }
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(async opts => opts.ctx.user ? sessionUser(opts.ctx.user) : null),
@@ -91,16 +91,13 @@ export const appRouter = router({
         if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
         }
-
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível iniciar a sessão." });
       }
     }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
     sendWhatsappGreeting: protectedProcedure.input(webWhatsappGreetingSchema).mutation(async ({ input, ctx }) => {
       try {
@@ -112,7 +109,6 @@ export const appRouter = router({
         if (error instanceof Error && error.message === "WHATSAPP_GREETING_CONSENT_REQUIRED") {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Autorize o contato operacional pelo WhatsApp para receber a saudação." });
         }
-
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível enviar a saudação pelo WhatsApp." });
       }
     }),
@@ -145,6 +141,7 @@ export const appRouter = router({
     }),
   }),
   nutrition: nutritionRouter,
+  professionalRecord: professionalRecordRouter,
   quickEdit: quickEditRouter,
 });
 
