@@ -7,9 +7,26 @@ const input = {
   authorizationStatus: "approved" as const,
   trackingStatus: "active" as const,
   activity: "recent" as const,
+  nextReview: "scheduled" as const,
   page: 2,
   pageSize: 10,
 };
+
+function rowFor(professionalUserId: number) {
+  return {
+    authorizationId: `access-${professionalUserId}`,
+    patientUserId: professionalUserId === 101 ? 41 : 42,
+    patientName: professionalUserId === 101 ? "Ana" : "Beatriz",
+    patientEmail: professionalUserId === 101 ? "ana@example.com" : "bia@example.com",
+    authorizationStatus: "approved",
+    trackingStatus: "active",
+    requestedAt: new Date("2026-07-01T12:00:00Z"),
+    lastFoodActivityAt: new Date("2026-07-18T12:00:00Z"),
+    lastProfessionalInteractionAt: null,
+    nextReviewAt: new Date("2026-07-25T12:00:00Z"),
+    nextWeighingAt: null,
+  };
+}
 
 describe("professionalPortfolioRepository", () => {
   it("keeps every query scoped to the authenticated professional and maps stable pagination", async () => {
@@ -21,36 +38,18 @@ describe("professionalPortfolioRepository", () => {
         const compiled = dialect.sqlToQuery(query);
         queries.push(compiled);
         call += 1;
-        if (call === 1) {
-          return [
-            [
-              {
-                authorizationId: "access-1",
-                patientUserId: 41,
-                patientName: "Ana",
-                patientEmail: "ana@example.com",
-                authorizationStatus: "approved",
-                trackingStatus: "active",
-                requestedAt: new Date("2026-07-01T12:00:00Z"),
-                lastFoodActivityAt: new Date("2026-07-18T12:00:00Z"),
-                lastProfessionalInteractionAt: null,
-              },
-            ],
-          ];
-        }
+        if (call === 1) return [[rowFor(101)]];
         if (call === 2) return [[{ total: 21 }]];
-        return [
-          [
-            {
-              active: 4,
-              paused: 2,
-              ended: 1,
-              notStarted: 3,
-              pendingRequests: 5,
-              withoutRecentActivity: 6,
-            },
-          ],
-        ];
+        return [[{
+          active: 4,
+          paused: 2,
+          ended: 1,
+          notStarted: 3,
+          pendingRequests: 5,
+          withoutRecentActivity: 6,
+          pendingReviews: 2,
+          pendingWeighings: 1,
+        }]];
       }),
     };
     const repository = createProfessionalPortfolioRepository({
@@ -65,17 +64,13 @@ describe("professionalPortfolioRepository", () => {
     expect(queries.some(query => query.params.includes(202))).toBe(false);
     expect(queries[0].sql).toContain("ORDER BY COALESCE(u.name");
     expect(queries[0].sql).toContain("LIMIT ? OFFSET ?");
-    expect(result.pagination).toEqual({
-      page: 2,
-      pageSize: 10,
-      total: 21,
-      totalPages: 3,
-    });
+    expect(queries[0].sql).toContain("nextReviewAt");
+    expect(result.pagination).toEqual({ page: 2, pageSize: 10, total: 21, totalPages: 3 });
     expect(result.items[0]).toMatchObject({
       patientUserId: 41,
       patientName: "Ana",
       trackingStatus: "active",
-      nextReviewAt: null,
+      nextReviewAt: new Date("2026-07-25T12:00:00Z").getTime(),
     });
     expect(result.summary).toEqual({
       active: 4,
@@ -84,7 +79,35 @@ describe("professionalPortfolioRepository", () => {
       notStarted: 3,
       pendingRequests: 5,
       withoutRecentActivity: 6,
+      pendingReviews: 2,
+      pendingWeighings: 1,
     });
+  });
+
+  it("isolates two professionals and never returns the other professional patient", async () => {
+    const dialect = new MySqlDialect();
+    const execute = vi.fn(async query => {
+      const compiled = dialect.sqlToQuery(query);
+      const professionalUserId = compiled.params.find(value => value === 101 || value === 202) as number;
+      const callIndex = execute.mock.calls.length % 3;
+      if (callIndex === 1) return [[rowFor(professionalUserId)]];
+      if (callIndex === 2) return [[{ total: 1 }]];
+      return [[{}]];
+    });
+    const repository = createProfessionalPortfolioRepository({
+      getDb: async () => ({ execute }),
+      onWarning: vi.fn(),
+    });
+
+    const [first, second] = await Promise.all([
+      repository.list(101, { ...input, page: 1 }),
+      repository.list(202, { ...input, page: 1 }),
+    ]);
+
+    expect(first.items.map(item => item.patientUserId)).toEqual([41]);
+    expect(second.items.map(item => item.patientUserId)).toEqual([42]);
+    expect(first.items.some(item => item.patientUserId === 42)).toBe(false);
+    expect(second.items.some(item => item.patientUserId === 41)).toBe(false);
   });
 
   it("does not invent portfolio data when persistence is unavailable outside production", async () => {
@@ -95,7 +118,7 @@ describe("professionalPortfolioRepository", () => {
     await expect(repository.list(101, input)).resolves.toMatchObject({
       items: [],
       pagination: { total: 0, totalPages: 0 },
-      summary: { active: 0, pendingRequests: 0 },
+      summary: { active: 0, pendingRequests: 0, pendingReviews: 0, pendingWeighings: 0 },
     });
   });
 });
