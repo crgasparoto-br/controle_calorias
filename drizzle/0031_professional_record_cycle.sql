@@ -14,32 +14,30 @@ CREATE TABLE `professionalAssessments` (
   `reportedDifficulties` text,
   `relevantHabits` text,
   `professionalObservations` text,
-  `assessedAt` datetime NOT NULL,
-  `nextReviewAt` datetime,
-  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `professionalAssessments_authorization_version_uq` (`authorizationId`,`version`),
-  KEY `professionalAssessments_scope_idx` (`professionalUserId`,`patientUserId`,`assessedAt`),
-  CONSTRAINT `professionalAssessments_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `professionalAssessments_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `professionalAssessments_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-);
-
+  `assessedAt` timestamp NOT NULL,
+  `nextReviewAt` timestamp,
+  `createdAt` timestamp NOT NULL DEFAULT (now()),
+  CONSTRAINT `professionalAssessments_id` PRIMARY KEY (`id`),
+  CONSTRAINT `professionalAssessments_authorization_version_uq` UNIQUE (`authorizationId`,`version`)
+);--> statement-breakpoint
+ALTER TABLE `professionalAssessments` ADD CONSTRAINT `professionalAssessments_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `professionalAssessments` ADD CONSTRAINT `professionalAssessments_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `professionalAssessments` ADD CONSTRAINT `professionalAssessments_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX `professionalAssessments_scope_idx` ON `professionalAssessments` (`professionalUserId`,`patientUserId`,`assessedAt`,`id`);--> statement-breakpoint
 CREATE TABLE `professionalNotes` (
   `id` varchar(64) NOT NULL,
   `authorizationId` varchar(64) NOT NULL,
   `professionalUserId` int NOT NULL,
   `patientUserId` int NOT NULL,
   `content` text NOT NULL,
-  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updatedAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `professionalNotes_scope_idx` (`professionalUserId`,`patientUserId`,`createdAt`),
-  CONSTRAINT `professionalNotes_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `professionalNotes_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `professionalNotes_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-);
-
+  `createdAt` timestamp NOT NULL DEFAULT (now()),
+  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `professionalNotes_id` PRIMARY KEY (`id`)
+);--> statement-breakpoint
+ALTER TABLE `professionalNotes` ADD CONSTRAINT `professionalNotes_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `professionalNotes` ADD CONSTRAINT `professionalNotes_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `professionalNotes` ADD CONSTRAINT `professionalNotes_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX `professionalNotes_scope_idx` ON `professionalNotes` (`professionalUserId`,`patientUserId`,`createdAt`,`id`);--> statement-breakpoint
 CREATE TABLE `professionalGuidances` (
   `id` varchar(64) NOT NULL,
   `authorizationId` varchar(64) NOT NULL,
@@ -51,13 +49,13 @@ CREATE TABLE `professionalGuidances` (
   `visibility` enum('patient') NOT NULL DEFAULT 'patient',
   `deliveryStatus` enum('draft','pending','sent','failed') NOT NULL DEFAULT 'draft',
   `supersedesGuidanceId` varchar(64),
-  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `professionalGuidances_authorization_version_uq` (`authorizationId`,`version`),
-  KEY `professionalGuidances_professional_scope_idx` (`professionalUserId`,`patientUserId`,`createdAt`),
-  KEY `professionalGuidances_patient_visibility_idx` (`patientUserId`,`visibility`,`createdAt`),
-  CONSTRAINT `professionalGuidances_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `professionalGuidances_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `professionalGuidances_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `professionalGuidances_supersedes_fk` FOREIGN KEY (`supersedesGuidanceId`) REFERENCES `professionalGuidances` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-);
+  `createdAt` timestamp NOT NULL DEFAULT (now()),
+  CONSTRAINT `professionalGuidances_id` PRIMARY KEY (`id`),
+  CONSTRAINT `professionalGuidances_authorization_version_uq` UNIQUE (`authorizationId`,`version`)
+);--> statement-breakpoint
+ALTER TABLE `professionalGuidances` ADD CONSTRAINT `professionalGuidances_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `professionalGuidances` ADD CONSTRAINT `professionalGuidances_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `professionalGuidances` ADD CONSTRAINT `professionalGuidances_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `professionalGuidances` ADD CONSTRAINT `professionalGuidances_supersedes_fk` FOREIGN KEY (`supersedesGuidanceId`) REFERENCES `professionalGuidances` (`id`) ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX `professionalGuidances_professional_scope_idx` ON `professionalGuidances` (`professionalUserId`,`patientUserId`,`createdAt`,`id`);--> statement-breakpoint
+CREATE INDEX `professionalGuidances_patient_visibility_idx` ON `professionalGuidances` (`patientUserId`,`visibility`,`createdAt`,`id`);
