@@ -64,6 +64,10 @@ export const professionalPortfolioSchema = z.object({
     .enum(["all", "recent", "inactive", "unavailable"])
     .optional()
     .default("all"),
+  nextReview: z
+    .enum(["all", "scheduled", "due_soon", "overdue", "unavailable"])
+    .optional()
+    .default("all"),
   page: z.number().int().min(1).optional().default(1),
   pageSize: z.number().int().min(10).max(50).optional().default(20),
 });
