@@ -117,8 +117,6 @@ export const professionalPatientTrackings = mysqlTable(
       { onDelete: "set null" }
     ),
     lastTransitionReason: text("lastTransitionReason"),
-    nextReviewAt: timestamp("nextReviewAt"),
-    nextWeighingAt: timestamp("nextWeighingAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -132,14 +130,6 @@ export const professionalPatientTrackings = mysqlTable(
     patientStatusIdx: index("professionalTrackings_patient_status_idx").on(
       table.patientUserId,
       table.status
-    ),
-    reviewIdx: index("professionalTrackings_review_idx").on(
-      table.professionalUserId,
-      table.nextReviewAt
-    ),
-    weighingIdx: index("professionalTrackings_weighing_idx").on(
-      table.professionalUserId,
-      table.nextWeighingAt
     ),
   })
 );
