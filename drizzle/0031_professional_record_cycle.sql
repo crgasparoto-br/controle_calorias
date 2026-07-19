@@ -1,0 +1,63 @@
+CREATE TABLE `professionalAssessments` (
+  `id` varchar(64) NOT NULL,
+  `authorizationId` varchar(64) NOT NULL,
+  `professionalUserId` int NOT NULL,
+  `patientUserId` int NOT NULL,
+  `version` int NOT NULL,
+  `objective` text NOT NULL,
+  `weightKg` decimal(7,2),
+  `heightCm` decimal(7,2),
+  `routineAndSchedule` text,
+  `physicalActivity` text,
+  `foodPreferences` text,
+  `restrictionsAndAllergies` text,
+  `reportedDifficulties` text,
+  `relevantHabits` text,
+  `professionalObservations` text,
+  `assessedAt` datetime NOT NULL,
+  `nextReviewAt` datetime,
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `professionalAssessments_authorization_version_uq` (`authorizationId`,`version`),
+  KEY `professionalAssessments_scope_idx` (`professionalUserId`,`patientUserId`,`assessedAt`),
+  CONSTRAINT `professionalAssessments_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professionalAssessments_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professionalAssessments_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE TABLE `professionalNotes` (
+  `id` varchar(64) NOT NULL,
+  `authorizationId` varchar(64) NOT NULL,
+  `professionalUserId` int NOT NULL,
+  `patientUserId` int NOT NULL,
+  `content` text NOT NULL,
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `professionalNotes_scope_idx` (`professionalUserId`,`patientUserId`,`createdAt`),
+  CONSTRAINT `professionalNotes_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professionalNotes_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professionalNotes_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE TABLE `professionalGuidances` (
+  `id` varchar(64) NOT NULL,
+  `authorizationId` varchar(64) NOT NULL,
+  `professionalUserId` int NOT NULL,
+  `patientUserId` int NOT NULL,
+  `version` int NOT NULL,
+  `title` varchar(160) NOT NULL,
+  `content` text NOT NULL,
+  `visibility` enum('patient') NOT NULL DEFAULT 'patient',
+  `deliveryStatus` enum('draft','pending','sent','failed') NOT NULL DEFAULT 'draft',
+  `supersedesGuidanceId` varchar(64),
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `professionalGuidances_authorization_version_uq` (`authorizationId`,`version`),
+  KEY `professionalGuidances_professional_scope_idx` (`professionalUserId`,`patientUserId`,`createdAt`),
+  KEY `professionalGuidances_patient_visibility_idx` (`patientUserId`,`visibility`,`createdAt`),
+  CONSTRAINT `professionalGuidances_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professionalGuidances_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professionalGuidances_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professionalGuidances_supersedes_fk` FOREIGN KEY (`supersedesGuidanceId`) REFERENCES `professionalGuidances` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+);
