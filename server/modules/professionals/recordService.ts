@@ -9,24 +9,24 @@ import type {
 } from "./schemas";
 
 export type ProfessionalRecordState = "not_started" | "active" | "paused" | "ended";
-
 type Row = Record<string, unknown>;
 
 function rows(result: unknown): Row[] {
   if (!Array.isArray(result)) return [];
   return (Array.isArray(result[0]) ? result[0] : result) as Row[];
 }
-
 function timestamp(value: unknown) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(date.getTime()) ? null : date.getTime();
 }
-
 function numberOrNull(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+function count(result: unknown) {
+  return Number(rows(result)[0]?.total ?? 0);
 }
 
 async function requireProfessionalScope(
@@ -68,37 +68,58 @@ export async function getProfessionalRecord(
 ) {
   const scope = await requireProfessionalScope(professionalUserId, input.patientId);
   const offset = (input.page - 1) * input.pageSize;
-  const [assessmentResult, assessmentHistoryResult, notesResult, guidancesResult, timelineResult] =
-    await Promise.all([
-      scope.db.execute(sql`
-        SELECT * FROM professionalAssessments
-        WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}
-        ORDER BY version DESC LIMIT 1`),
-      scope.db.execute(sql`
-        SELECT id, version, objective, assessedAt, nextReviewAt, createdAt
-        FROM professionalAssessments
-        WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}
-        ORDER BY version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
-      scope.db.execute(sql`
-        SELECT id, content, createdAt, updatedAt FROM professionalNotes
-        WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}
-        ORDER BY createdAt DESC, id DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
-      scope.db.execute(sql`
-        SELECT id, version, title, content, visibility, deliveryStatus,
-          supersedesGuidanceId, createdAt
-        FROM professionalGuidances
-        WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}
-        ORDER BY version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
-      scope.db.execute(sql`
-        SELECT id, eventType, entityType, entityId, occurredAt
-        FROM professionalHistoryEvents
-        WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}
-        ORDER BY occurredAt DESC, id DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
-    ]);
+  const [
+    assessmentResult,
+    assessmentHistoryResult,
+    notesResult,
+    guidancesResult,
+    timelineResult,
+    assessmentCountResult,
+    notesCountResult,
+    guidancesCountResult,
+    timelineCountResult,
+  ] = await Promise.all([
+    scope.db.execute(sql`
+      SELECT * FROM professionalAssessments
+      WHERE authorizationId = ${scope.authorizationId}
+      ORDER BY version DESC LIMIT 1`),
+    scope.db.execute(sql`
+      SELECT id, version, objective, assessedAt, nextReviewAt, createdAt
+      FROM professionalAssessments
+      WHERE authorizationId = ${scope.authorizationId}
+      ORDER BY version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
+    scope.db.execute(sql`
+      SELECT id, content, createdAt, updatedAt FROM professionalNotes
+      WHERE authorizationId = ${scope.authorizationId}
+      ORDER BY createdAt DESC, id DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
+    scope.db.execute(sql`
+      SELECT g.id, g.version, g.title, g.content, g.visibility, g.deliveryStatus,
+        g.supersedesGuidanceId, g.createdAt, p.displayName AS authorName
+      FROM professionalGuidances g
+      LEFT JOIN professionalProfiles p ON p.userId = g.professionalUserId
+      WHERE g.authorizationId = ${scope.authorizationId}
+      ORDER BY g.version DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
+    scope.db.execute(sql`
+      SELECT id, eventType, entityType, entityId, occurredAt
+      FROM professionalHistoryEvents
+      WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}
+      ORDER BY occurredAt DESC, id DESC LIMIT ${input.pageSize} OFFSET ${offset}`),
+    scope.db.execute(sql`SELECT COUNT(*) AS total FROM professionalAssessments WHERE authorizationId = ${scope.authorizationId}`),
+    scope.db.execute(sql`SELECT COUNT(*) AS total FROM professionalNotes WHERE authorizationId = ${scope.authorizationId}`),
+    scope.db.execute(sql`SELECT COUNT(*) AS total FROM professionalGuidances WHERE authorizationId = ${scope.authorizationId}`),
+    scope.db.execute(sql`SELECT COUNT(*) AS total FROM professionalHistoryEvents WHERE professionalUserId = ${professionalUserId} AND patientUserId = ${input.patientId}`),
+  ]);
   const latest = rows(assessmentResult)[0];
+  const totals = {
+    assessments: count(assessmentCountResult),
+    notes: count(notesCountResult),
+    guidances: count(guidancesCountResult),
+    timeline: count(timelineCountResult),
+  };
   return {
     patient: {
       id: input.patientId,
+      authorizationId: scope.authorizationId,
       name: scope.patientName,
       email: scope.patientEmail,
       authorizationStatus: "approved" as const,
@@ -132,7 +153,7 @@ export async function getProfessionalRecord(
     })),
     guidances: rows(guidancesResult).map(row => ({
       id: String(row.id), version: Number(row.version), title: String(row.title ?? ""), content: String(row.content ?? ""),
-      visibility: String(row.visibility), deliveryStatus: String(row.deliveryStatus),
+      visibility: String(row.visibility), deliveryStatus: String(row.deliveryStatus), authorName: String(row.authorName ?? "Profissional"),
       supersedesGuidanceId: row.supersedesGuidanceId ? String(row.supersedesGuidanceId) : null,
       createdAt: timestamp(row.createdAt),
     })),
@@ -140,7 +161,12 @@ export async function getProfessionalRecord(
       id: String(row.id), eventType: String(row.eventType), entityType: row.entityType ? String(row.entityType) : null,
       entityId: row.entityId ? String(row.entityId) : null, occurredAt: timestamp(row.occurredAt),
     })),
-    pagination: { page: input.page, pageSize: input.pageSize },
+    pagination: {
+      page: input.page,
+      pageSize: input.pageSize,
+      totals,
+      hasMore: Object.values(totals).some(total => total > input.page * input.pageSize),
+    },
   };
 }
 
