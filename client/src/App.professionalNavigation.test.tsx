@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const refresh = vi.fn().mockResolvedValue(undefined);
 const refetch = vi.fn().mockResolvedValue(undefined);
 const invalidate = vi.fn().mockResolvedValue(undefined);
+const fetchPatientTimeZone = vi.fn().mockResolvedValue({ timeZone: "America/Sao_Paulo" });
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({
@@ -27,7 +28,7 @@ vi.mock("@/lib/trpc", () => ({
     useUtils: () => ({
       nutrition: {
         professionals: {
-          patientTimeZone: { invalidate },
+          patientTimeZone: { invalidate, fetch: fetchPatientTimeZone },
           patientDashboard: { invalidate },
           patientPeriodBundle: { invalidate },
         },
@@ -56,21 +57,35 @@ vi.mock("@/lib/trpc", () => ({
         portfolio: {
           useQuery: () => ({
             data: {
-              items: [],
-              pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+              items: [
+                {
+                  authorizationId: "access-1",
+                  patientUserId: 41,
+                  patientName: "Ana",
+                  patientEmail: "ana@example.com",
+                  authorizationStatus: "approved",
+                  trackingStatus: "active",
+                  requestedAt: Date.now(),
+                  lastFoodActivityAt: null,
+                  lastProfessionalInteractionAt: null,
+                  nextReviewAt: null,
+                  pendingItems: 0,
+                },
+              ],
+              pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
               summary: {
-                active: 0,
+                active: 1,
                 paused: 0,
                 ended: 0,
                 notStarted: 0,
                 pendingRequests: 0,
-                withoutRecentActivity: 0,
+                withoutRecentActivity: 1,
               },
               generatedAt: Date.now(),
             },
             isLoading: false,
             isError: false,
-            refetch: vi.fn(),
+            refetch,
           }),
         },
       },
@@ -180,6 +195,8 @@ beforeEach(() => {
   refresh.mockClear();
   refetch.mockClear();
   invalidate.mockClear();
+  fetchPatientTimeZone.mockClear();
+  fetchPatientTimeZone.mockResolvedValue({ timeZone: "America/Sao_Paulo" });
   window.history.replaceState({}, "", "/professional/reports");
 });
 
@@ -216,5 +233,40 @@ describe("App professional navigation", () => {
 
     await waitFor(() => expect(window.location.pathname).toBe("/today"));
     expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy();
+  });
+
+  it("revalidates backend authorization before opening a patient context", async () => {
+    window.history.replaceState({}, "", "/professional/patients");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" }));
+
+    await waitFor(() =>
+      expect(fetchPatientTimeZone).toHaveBeenCalledWith({
+        patientId: 41,
+        weekOffset: 0,
+      })
+    );
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/professional/follow-up")
+    );
+  });
+
+  it("does not open stale cached access when backend revalidation fails", async () => {
+    fetchPatientTimeZone.mockRejectedValueOnce(new Error("revoked"));
+    window.history.replaceState({}, "", "/professional/patients");
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" }));
+
+    expect(
+      await screen.findByText(
+        "O acesso a este paciente não está mais disponível. A carteira foi atualizada."
+      )
+    ).toBeTruthy();
+    expect(window.location.pathname).toBe("/professional/patients");
+    expect(refetch).toHaveBeenCalled();
   });
 });
