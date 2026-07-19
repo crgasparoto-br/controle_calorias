@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const refresh = vi.fn().mockResolvedValue(undefined);
 const refetch = vi.fn().mockResolvedValue(undefined);
 const invalidate = vi.fn().mockResolvedValue(undefined);
+const cancel = vi.fn().mockResolvedValue(undefined);
+const setData = vi.fn();
 const fetchPatientTimeZone = vi.fn().mockResolvedValue({ timeZone: "America/Sao_Paulo" });
 const mutate = vi.fn();
 
@@ -16,7 +18,7 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
       nutrition: { professionals: { patientTimeZone: { invalidate, fetch: fetchPatientTimeZone }, patientDashboard: { invalidate }, patientPeriodBundle: { invalidate }, portfolio: { invalidate } } },
-      professionalRecord: { get: { invalidate } },
+      professionalRecord: { get: { invalidate, cancel, setData } },
     }),
     nutrition: { professionals: {
       profile: { useQuery: () => ({ data: { active: true }, isLoading: false, isError: false, isSuccess: true, refetch }) },
@@ -24,10 +26,11 @@ vi.mock("@/lib/trpc", () => ({
       portfolio: { useQuery: () => ({ data: { items: [{ authorizationId: "access-1", patientUserId: 41, patientName: "Ana", patientEmail: "ana@example.com", authorizationStatus: "approved", trackingStatus: "active", requestedAt: Date.now(), lastFoodActivityAt: null, lastProfessionalInteractionAt: null, nextReviewAt: null, nextWeighingAt: null, pendingItems: 0 }], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 }, summary: { active: 1, paused: 0, ended: 0, notStarted: 0, pendingRequests: 0, withoutRecentActivity: 1, pendingReviews: 0, pendingWeighings: 0 }, generatedAt: Date.now() }, isLoading: false, isError: false, refetch }) },
     } },
     professionalRecord: {
-      get: { useQuery: () => ({ data: { patient: { id: 41, authorizationStatus: "approved", trackingStatus: "active" }, latestAssessment: null, assessmentHistory: [], notes: [], guidances: [], timeline: [], pagination: { page: 1, pageSize: 20 } }, isLoading: false, isError: false }) },
+      get: { useQuery: () => ({ data: { patient: { id: 41, authorizationId: "access-1", authorizationStatus: "approved", trackingStatus: "active" }, latestAssessment: null, assessmentHistory: [], notes: [], guidances: [], timeline: [], pagination: { page: 1, pageSize: 20, totals: { assessments: 0, notes: 0, guidances: 0, timeline: 0 }, hasMore: false } }, isLoading: false, isError: false }) },
       saveAssessment: { useMutation: () => ({ mutate, isPending: false, isError: false }) },
       createNote: { useMutation: () => ({ mutate, isPending: false }) },
       createGuidance: { useMutation: () => ({ mutate, isPending: false }) },
+      transitionTracking: { useMutation: () => ({ mutate, isPending: false, isError: false }) },
       patientGuidances: { useQuery: () => ({ data: [], isLoading: false, isError: false }) },
     },
   },
@@ -65,7 +68,7 @@ vi.mock("@/pages/SyncedHealthDataPage", () => ({ default: () => <Fixture name="S
 vi.mock("@/pages/WhatsappOnboardingPage", () => ({ default: () => <Fixture name="WhatsappOnboardingPage" /> }));
 
 afterEach(cleanup);
-beforeEach(() => { refresh.mockClear(); refetch.mockClear(); invalidate.mockClear(); fetchPatientTimeZone.mockClear(); fetchPatientTimeZone.mockResolvedValue({ timeZone: "America/Sao_Paulo" }); window.history.replaceState({}, "", "/professional/reports"); });
+beforeEach(() => { refresh.mockClear(); refetch.mockClear(); invalidate.mockClear(); cancel.mockClear(); setData.mockClear(); fetchPatientTimeZone.mockClear(); fetchPatientTimeZone.mockResolvedValue({ timeZone: "America/Sao_Paulo" }); window.history.replaceState({}, "", "/professional/reports"); });
 
 describe("App professional navigation", () => {
   it("loads a professional deep link through the real router", async () => { const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); expect(screen.getByText("Contexto profissional")).toBeTruthy(); });
