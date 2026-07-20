@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { sql } from "drizzle-orm";
+import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { getDb, logPersistenceWarning } from "../../db";
 import { buildOperationalAlertDedupeKey, getDateKeyInZone, getNoFoodRecordsWindow } from "./operationalAlertRules";
 
@@ -17,7 +18,7 @@ async function upsertAlert(db:any,input:AlertInput){await db.execute(sql`INSERT 
 export async function evaluateProfessionalOperationalAlerts(professionalUserId:number,now=new Date()){
  const db=await getDb(); if(!db) throw new Error("A central de pendências está temporariamente indisponível.");
  const [scopeResult,mealResult,requestResult,signalResult]=await Promise.all([
-  db.execute(sql`SELECT a.id authorizationId,a.patientUserId,COALESCE(p.timezone,'America/Sao_Paulo') timezone,t.nextReviewAt FROM professionalPatientAuthorizations a INNER JOIN professionalPatientTrackings t ON t.authorizationId=a.id LEFT JOIN userProfiles p ON p.userId=a.patientUserId WHERE a.professionalUserId=${professionalUserId} AND a.status='approved' AND t.status='active'`),
+  db.execute(sql`SELECT a.id authorizationId,a.patientUserId,COALESCE(p.timezone,${DEFAULT_APP_TIME_ZONE}) timezone,t.nextReviewAt FROM professionalPatientAuthorizations a INNER JOIN professionalPatientTrackings t ON t.authorizationId=a.id LEFT JOIN userProfiles p ON p.userId=a.patientUserId WHERE a.professionalUserId=${professionalUserId} AND a.status='approved' AND t.status='active'`),
   db.execute(sql`SELECT a.id authorizationId,MAX(m.occurredAt) lastMealAt FROM professionalPatientAuthorizations a INNER JOIN professionalPatientTrackings t ON t.authorizationId=a.id LEFT JOIN meals m ON m.userId=a.patientUserId AND m.status='confirmed' WHERE a.professionalUserId=${professionalUserId} AND a.status='approved' AND t.status='active' GROUP BY a.id`),
   db.execute(sql`SELECT r.id,r.authorizationId,r.type,r.title,r.dueAt FROM professionalOperationalRequests r INNER JOIN professionalPatientAuthorizations a ON a.id=r.authorizationId INNER JOIN professionalPatientTrackings t ON t.authorizationId=a.id WHERE a.professionalUserId=${professionalUserId} AND a.status='approved' AND t.status='active' AND r.state='open' AND r.dueAt<=${now}`),
   db.execute(sql`SELECT s.id,s.authorizationId,s.originType,s.originId,s.reason,s.createdAt FROM professionalReviewSignals s INNER JOIN professionalPatientAuthorizations a ON a.id=s.authorizationId INNER JOIN professionalPatientTrackings t ON t.authorizationId=a.id WHERE a.professionalUserId=${professionalUserId} AND a.status='approved' AND t.status='active' AND s.state='open'`)
@@ -25,7 +26,7 @@ export async function evaluateProfessionalOperationalAlerts(professionalUserId:n
  const scopes=rows(scopeResult);
  const lastMealByAuthorization=new Map<string,Date|null>(rows(mealResult).map(row=>[String(row.authorizationId),row.lastMealAt?new Date(String(row.lastMealAt)):null] as [string,Date|null]));
  const requests=groupBy(rows(requestResult),"authorizationId"),signals=groupBy(rows(signalResult),"authorizationId"),activeKeys=new Set<string>();
- for(const scope of scopes){const authorizationId=String(scope.authorizationId),patientUserId=Number(scope.patientUserId),timeZone=String(scope.timezone||"America/Sao_Paulo");try{
+ for(const scope of scopes){const authorizationId=String(scope.authorizationId),patientUserId=Number(scope.patientUserId),timeZone=String(scope.timezone||DEFAULT_APP_TIME_ZONE);try{
   const period=getNoFoodRecordsWindow(now,timeZone),lastMeal=lastMealByAuthorization.get(authorizationId),noFoodKey=buildOperationalAlertDedupeKey(authorizationId,"no_food_records",`${getDateKeyInZone(period.start,timeZone)}:${getDateKeyInZone(period.end,timeZone)}`);
   if(!lastMeal||lastMeal<period.start||lastMeal>period.end){activeKeys.add(noFoodKey);await upsertAlert(db,{dedupeKey:noFoodKey,type:"no_food_records",professionalUserId,patientUserId,authorizationId,originType:"meals",periodStart:period.start,periodEnd:period.end,reason:`Nenhum registro alimentar confirmado nos últimos 3 dias corridos (${timeZone}).`,suggestedAction:"Revisar o acompanhamento e, se necessário, entrar em contato com o paciente."});}
   if(scope.nextReviewAt&&new Date(String(scope.nextReviewAt))<=now){const originId=new Date(String(scope.nextReviewAt)).toISOString(),key=buildOperationalAlertDedupeKey(authorizationId,"goal_review_due",originId);activeKeys.add(key);await upsertAlert(db,{dedupeKey:key,type:"goal_review_due",professionalUserId,patientUserId,authorizationId,originType:"tracking_next_review",originId,periodEnd:new Date(String(scope.nextReviewAt)),reason:"A data de revisão definida para o acompanhamento foi alcançada.",suggestedAction:"Registrar a revisão ou reagendar a próxima data."});}
