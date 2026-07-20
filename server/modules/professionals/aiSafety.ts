@@ -127,7 +127,7 @@ function normalize(value: string) {
 
 function containsUnsafeClinicalIntent(value: string, patterns: RegExp[]) {
   return normalize(value)
-    .split(/[.!?;\n]+/)
+    .split(/(?:[!?;\n]+|\.(?!\d))/)
     .map(clause => clause.trim())
     .filter(Boolean)
     .some(clause => {
