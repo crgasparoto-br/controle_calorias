@@ -151,6 +151,13 @@ describe("classifyWhatsappMessageDeterministically", () => {
     expect(intent.requiresConfirmation).toBe(true);
     expect(intent.clarificationQuestion).toContain("quantidade");
   });
+
+  it("nao trata comando isolado 'registrar' como nome de alimento (issue #855)", () => {
+    const intent = classifyWhatsappMessageDeterministically("registrar");
+
+    expect(intent.intent).toBe("unknown");
+    expect(intent.items).toEqual([]);
+  });
 });
 
 describe("interpretWhatsappMessageWithDiagnostics", () => {

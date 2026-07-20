@@ -62,6 +62,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a meta estimada do período quando a meta estiver disponível.
 - Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber a resposta canônica de exercício com atividade, duração, calorias, data, indicação de estimativa quando aplicável e botão `Ver exercício`.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
+- Uma mensagem contendo apenas uma palavra de continuidade/comando (`registrar`, `confirmar`, `cancelar`, `editar`, `consultar`, `sim`, `não`, `ok`, um número isolado) nunca pode ser tratada como nome de alimento nem alcançar `processMealDraft`/`processMealInput`. Sem pendência compatível, o sistema responde que não há operação pendente e pede a mensagem completa. Frases completas com a mesma palavra, como `registrar 100 g de arroz`, continuam funcionando normalmente (issue #855).
 - Quando o interpretador de texto tratar a mensagem ou transcrição, o webhook real deve registrar evento de inferência com `origin: "whatsapp"`, responder com a mensagem interpretada e impedir que o mesmo conteúdo crie refeição por fallback.
 - Respostas finais de refeição no WhatsApp devem usar linguagem simples, sem títulos técnicos como `Alimentos e macros`, e devem listar alimentos, porções, calorias, proteína, carboidratos e gorduras por item.
 - Respostas finais de refeição devem mostrar o total da refeição e, quando houver meta disponível, um resumo curto de meta diária com calorias consumidas, meta e quanto falta ou excedeu.
@@ -144,6 +145,20 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - **Exclusão de refeição**: a confirmação final continua textual, já que não existe registro remanescente para renderizar nos blocos centrais.
 - **Alimento estimado pela IA**: `buildWhatsAppFoodLines` inclui `WHATSAPP_ESTIMATED_NUTRITION_WARNING` (`⚠️ Valores nutricionais estimados pela IA.`) abaixo dos itens `heuristic` e `hybrid`; itens `catalog` não recebem o aviso, e os totais incluem os itens estimados.
 - **Fora de escopo**: seleção temporal, consolidação, catálogo, cálculo nutricional, schema de persistência e a regra de meta ajustada da #756 não foram alterados; o link de edição rápida (já integrado ao contrato central desde #781) foi apenas preservado.
+
+### Bloqueio de comandos isolados sem pendência (issue #855)
+
+Evidência do bug: `1 iogurte natual desnatado` caía em clarificação genérica de intenção (o erro ortográfico "natual" e a ausência de unidade explícita faziam duas heurísticas não sincronizadas — `FOOD_REGISTRATION_WORDS`/`FOOD_OR_MEAL_WORDS` em `intentRouter.ts` e `hasLikelyMealRegistrationSignal` em `llmIntentActions.ts` — discordarem sobre se a mensagem era alimentar). Como essa clarificação não persistia nenhuma pendência (nem em `whatsappPendingOperations`, nem em `conversationContext.ts`), a resposta seguinte do usuário, `registrar`, era tratada como mensagem nova e independente. `registrar` batia no regex genérico de "provável nome de alimento sem quantidade" em `intentInterpreter.ts` (`classifyWhatsappMessageDeterministically`) e, dependendo da classificação do LLM para essa palavra isolada, podia alcançar `processMealDraft`/`processMealInput` cru, criando o item fantasma "Registrar — 1 porção (aprox. 100 g)" via o fallback genérico de 100 g (`GENERIC_ESTIMATED_FOOD_REFERENCE`).
+
+Correção aplicada (escopo desta issue, não o contrato completo de pendência persistente do item 2/3 da especificação original, que fica para trabalho futuro):
+
+- `server/modules/whatsapp/standaloneCommandWords.ts` centraliza a lista de palavras que só fazem sentido como resposta a uma pendência (`registrar`, `confirmar`, `cancelar`, `editar`, `consultar`, `sim`, `não`, `ok`, número isolado) e expõe `isStandaloneWhatsappCommandWord`, que só reconhece a mensagem inteira — frases completas como `registrar 100 g de arroz` não são afetadas.
+- `server/modules/whatsapp/llmIntentActions.ts` (`executeWhatsappLlmIntent`) bloqueia essas palavras **antes de qualquer chamada ao LLM**, sempre que não há pendência ativa em `whatsappPendingOperations` — essa é a rede de segurança determinística compartilhada pelo webhook real (`whatsappIntentWebhook.ts`) e pelo simulador (`service.ts`), já que os dois consomem a mesma função.
+- `server/modules/whatsapp/intentInterpreter.ts` (`classifyWhatsappMessageDeterministically`) exclui essas palavras do regex genérico que as tratava como possível nome de alimento sem quantidade.
+- `server/modules/whatsapp/intentRouter.ts` (usado só pelo simulador) bloqueia essas palavras antes de `isLikelyFoodMessage`, com mensagem específica; `registrar`/`confirmar` continuam resolvendo uma pendência `confirmation` explícita (`registrar` confirma; não resolve pendência `quantity`/`selection`).
+- `server/modules/whatsapp/service.ts` (`simulateWhatsappInbound`) tem uma rede de segurança final equivalente, imediatamente antes do fallback `processMealDraft`.
+
+Fora do escopo desta correção pontual (permanece como lacuna documentada, não resolvida): pendência persistente para a clarificação genérica ambígua (contrato completo dos itens 2/3 da issue #855, consumível pela #858), porção canônica vs. fallback de 100 g para contagens (`1 iogurte`), e correção ortográfica leve (`natual` → `natural`).
 
 ### Gate destrutivo antes do fallback nutricional (issue #856)
 

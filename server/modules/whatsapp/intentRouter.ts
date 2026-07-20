@@ -2,6 +2,7 @@ import type { CanonicalWhatsappIntentName } from "./canonicalIntentSchema";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { joinUnitWords } from "./quantityUnitVocabulary";
 import { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";
+import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 
 export type WhatsappPendingContextKind = "selection" | "quantity" | "confirmation" | "professional_decision";
 
@@ -50,6 +51,7 @@ const QUANTITY_WITH_UNIT = new RegExp(
   `\\b\\d+(?:[,.]\\d+)?\\s*(?:${joinUnitWords(["gramas", "quilosOnly", "miligramas", "mililitrosOnly", "litros", "unidades", "fatias", "xicarasPlain", "copos", "colheresGeneric", "porcoesPlain"])})\\b`,
 );
 const SHORT_CONFIRMATION = /^(?:s|sim|nao|não|ok|certo|confirmo|cancelar|cancela)$/i;
+const CONFIRMATION_ONLY_WORDS = /^(?:registrar|registre|registra|confirmar|confirme|confirma)$/i;
 const ISOLATED_NUMBER = /^\d+(?:[,.]\d+)?$/;
 const OPTION_SELECTION = /^(?:opcao\s*)?\d+$/;
 const MATH_WITH_UNIT = new RegExp(
@@ -493,7 +495,12 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
     });
   }
 
-  if (input.pendingContextKind && (SHORT_CONFIRMATION.test(text) || OPTION_SELECTION.test(text))) {
+  if (
+    input.pendingContextKind &&
+    (SHORT_CONFIRMATION.test(text) ||
+      OPTION_SELECTION.test(text) ||
+      (input.pendingContextKind === "confirmation" && CONFIRMATION_ONLY_WORDS.test(text)))
+  ) {
     return routePendingContext({
       pendingContextKind: input.pendingContextKind,
       canonicalIntent: input.pendingContextKind === "selection"
@@ -587,6 +594,16 @@ export function evaluateWhatsappIntentRoute(input: EvaluateWhatsappIntentRouteIn
       shouldAllowNutritionFallback: false,
       reason: "Comando de ajuste/correção deve passar por ações próprias antes do fallback alimentar.",
       possibleIntents: ["corrigir_alimento", "trocar_alimento", "somar_quantidade"],
+    });
+  }
+
+  if (isStandaloneWhatsappCommandWord(text)) {
+    return safeClarification({
+      canonicalIntent: "mensagem_ambigua",
+      confidence: 0.85,
+      reason: "Comando isolado sem pendência ativa não deve virar alimento (issue #855).",
+      reply: "Não encontrei uma operação pendente para continuar. Envie a mensagem completa, por exemplo: registrar 100 g de arroz.",
+      possibleIntents: ["mensagem_ambigua", "adicionar_alimento"],
     });
   }
 

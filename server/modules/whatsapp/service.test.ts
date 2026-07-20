@@ -283,6 +283,26 @@ describe("simulateWhatsappInbound", () => {
     }));
   });
 
+  it("bloqueia comando isolado 'registrar' sem pendência ativa em vez de criar alimento (issue #855)", async () => {
+    const result = await simulateWhatsappInbound(44, { text: "registrar" });
+
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "router_safe_response",
+      reply: expect.stringContaining("Não encontrei uma operação pendente"),
+    }));
+  });
+
+  it("não bloqueia frase completa 'registrar 100 g de arroz' (issue #855)", async () => {
+    executeWhatsappTextIntentMock.mockResolvedValueOnce({ handled: true, action: "meal_item_added", reply: "Adicionei 100 g de arroz.", eventType: "whatsapp.intent.meal_item_added", detail: "ok" });
+
+    const result = await simulateWhatsappInbound(44, { text: "registrar 100 g de arroz" });
+
+    expect(result).toEqual(expect.objectContaining({ handled: true, action: "meal_item_added" }));
+  });
+
   it("não bloqueia o fallback nutricional quando não há intenção destrutiva", async () => {
     executeWhatsappTextIntentMock.mockResolvedValueOnce({ handled: true, action: "water_logged", reply: "Registrei 300 ml de água.", eventType: "whatsapp.intent.water_logged", detail: "Registro de hidratação via WhatsApp.", data: { amountMl: 300 } });
 

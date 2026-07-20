@@ -12,6 +12,7 @@ import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
 import { interpretWhatsappMessageWithDiagnostics, type WhatsappMessageInterpretation } from "./intentInterpreter";
+import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 import { WHATSAPP_INTENT_CONFIDENCE, type WhatsappIntentFoodItem, type WhatsappIntentName, type WhatsappInterpretedIntent } from "./intentSchema";
 import { validateWhatsappRuntimeIntentForPersistence, type WhatsappBackendValidationResult } from "./intentValidation";
 import {
@@ -706,6 +707,22 @@ export async function executeWhatsappLlmIntent(userId: number, input: WhatsappLl
   const timeZone = input.userTimezone ?? await getWhatsAppUserTimeZone(userId);
   const idempotencyKey = buildIdempotencyKey(userId, text, receivedAt, input.messageId);
   const activePendingOperation = await pendingOperationRepository.getActivePendingOperation(userId, receivedAt);
+
+  if (!activePendingOperation && isStandaloneWhatsappCommandWord(text)) {
+    // Rede de segurança determinística (issue #855): um comando isolado sem
+    // pendência não pode ser interpretado pelo LLM como nome de alimento —
+    // decisão tomada antes de qualquer chamada de IA, para não depender do
+    // que o modelo classificar para uma palavra solta.
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply: buildWhatsAppClarificationReplyMessage(WHATSAPP_GENERIC_CLARIFICATION_MESSAGE),
+      eventType: "whatsapp.llm_intent.standalone_command_without_pending",
+      detail: "Comando isolado sem pendência ativa bloqueado antes da classificação por IA.",
+      data: { intent: "unknown", intentConfidence: 1, possibleIntents: [] },
+    };
+  }
+
   const pendingClarification = activePendingOperation
     ? { kind: activePendingOperation.type, originalIntent: activePendingOperation.origin }
     : null;

@@ -21,6 +21,7 @@ import {
 import { executeWhatsappAiQuestionIntent } from "./aiQuestionAssistant";
 import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
+import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import {
   buildWhatsappDuplicateInboundResult,
@@ -462,6 +463,23 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
 
   if (!route.shouldAllowNutritionFallback) {
     return logAndReturnRouterResult(userId, route);
+  }
+
+  if (isStandaloneWhatsappCommandWord(text)) {
+    // Rede de segurança final (issue #855): nenhum comando isolado deve
+    // alcançar processMealDraft, mesmo que uma heurística anterior tenha
+    // deixado passar.
+    return logAndReturnRouterResult(userId, {
+      action: "safe_clarification",
+      canonicalIntent: "mensagem_ambigua",
+      confidence: 0.85,
+      shouldAllowNutritionFallback: false,
+      reason: "Comando isolado sem pendência ativa bloqueado antes da persistência nutricional.",
+      reply: "Não encontrei uma operação pendente para continuar. Envie a mensagem completa, por exemplo: registrar 100 g de arroz.",
+      eventType: "whatsapp.router.mensagem_ambigua",
+      detail: "Comando isolado sem pendência ativa bloqueado antes da persistência nutricional.",
+      data: { pendingContextKind: null, calculation: null, possibleIntents: ["mensagem_ambigua", "adicionar_alimento"] },
+    });
   }
 
   const meal = await processMealDraft(userId, { source: "whatsapp", text }, userTimezone);
