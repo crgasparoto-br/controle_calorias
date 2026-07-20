@@ -25,7 +25,6 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
-const ProfessionalLegacyPage = lazy(() => import("@/pages/ProfessionalReportsPage"));
 const ProfessionalWorkspacePage = lazy(() => import("@/pages/ProfessionalWorkspacePage"));
 const QuickEditExercisePage = lazy(() => import("@/pages/QuickEditExercisePage"));
 const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
@@ -37,6 +36,12 @@ const WhatsappOnboardingPage = lazy(() => import("@/pages/WhatsappOnboardingPage
 
 function PageLoadingFallback() {
   return <div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted-foreground" role="status" aria-live="polite">Carregando tela...</div>;
+}
+
+function LegacyProfessionalRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => setLocation("/professional/reports"), [setLocation]);
+  return <PageLoadingFallback />;
 }
 
 function Router() {
@@ -65,7 +70,7 @@ function Router() {
     <Route path="/channels" component={ChannelsPage} />
     <Route path="/health-integrations" component={HealthIntegrationsPage} />
     <Route path="/synced-health-data" component={SyncedHealthDataPage} />
-    <Route path="/professional/legacy" component={ProfessionalLegacyPage} />
+    <Route path="/professional/legacy" component={LegacyProfessionalRedirect} />
     <Route path="/professional/patients" component={ProfessionalWorkspacePage} />
     <Route path="/professional/follow-up" component={ProfessionalWorkspacePage} />
     <Route path="/professional/messages" component={ProfessionalWorkspacePage} />
