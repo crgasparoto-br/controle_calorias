@@ -144,7 +144,8 @@ function removeMealContextFromTarget(value: string) {
 function extractAbsentFoodName(normalized: string) {
   const value = removeMealContextFromTarget(normalized
     .replace(/^(?:nao\s+(?:tem|tinha|havia|existe|existia)|sem)\s+/, "")
-    .replace(/\b(?:nesta|neste|nessa|nesse|refeicao|foto|imagem|prato)\b.*$/g, " "));
+    .replace(/\b(?:na|no|nesta|neste|nessa|nesse)\s+(?:refeicao|foto|imagem|prato)\b.*$/g, " ")
+    .replace(/\b(?:refeicao|foto|imagem|prato)\b.*$/g, " "));
   return value.length >= 2 ? value : null;
 }
 
@@ -181,7 +182,7 @@ function extractTargetFoodName(normalized: string) {
 
 function isMealOnlyTarget(value: string | null) {
   if (!value) return false;
-  return /^(?:(?:essa|esse|esta|este|aquela|aquele|ultima|ultimo)\s+)?(?:refeicao|refeicoes|prato|registro|registros|foto|fotografada|fotografado|almoco|jantar|janta|lanche|ceia|cafe(?:\s+da\s+manha)?)$/.test(value);
+  return /^(?:(?:essa|esse|esta|este|aquela|aquele|ultima|ultimo)\s+)?(?:refeicao|refeicoes|refeicao\s+fotografada|prato|registro|registros|foto|fotografada|fotografado|almoco|jantar|janta|lanche|ceia|cafe(?:\s+da\s+manha)?)$/.test(value);
 }
 
 function isConfirmationText(normalized: string) {
@@ -807,21 +808,7 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
   }
 
   const targetFoodName = extractTargetFoodName(normalizedText);
-  if (targetFoodName && !isMealOnlyTarget(targetFoodName)) {
-    return {
-      kind: "delete_food_from_meal",
-      text: trimmed,
-      normalizedText,
-      targetFoodName,
-      targetMealLabel,
-      contextReference: targetMealLabel ? "named_meal" : "recent",
-      reply: DELETE_FOOD_REPLY,
-      eventType: "whatsapp.intent.delete_food_clarification_needed",
-      detail: "Comando destrutivo com nome provável de alimento bloqueado antes do fallback nutricional.",
-    };
-  }
-
-  if (hasMealTarget(normalizedText)) {
+  if (hasMealTarget(normalizedText) && isMealOnlyTarget(targetFoodName)) {
     return {
       kind: "delete_meal",
       text: trimmed,
@@ -837,6 +824,20 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
       reply: DELETE_MEAL_REPLY,
       eventType: "whatsapp.intent.delete_meal_clarification_needed",
       detail: "Comando destrutivo de refeição bloqueado antes do fallback nutricional.",
+    };
+  }
+
+  if (targetFoodName) {
+    return {
+      kind: "delete_food_from_meal",
+      text: trimmed,
+      normalizedText,
+      targetFoodName,
+      targetMealLabel,
+      contextReference: targetMealLabel ? "named_meal" : "recent",
+      reply: DELETE_FOOD_REPLY,
+      eventType: "whatsapp.intent.delete_food_clarification_needed",
+      detail: "Comando destrutivo com nome provável de alimento bloqueado antes do fallback nutricional.",
     };
   }
 
