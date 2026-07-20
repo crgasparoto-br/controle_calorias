@@ -23,11 +23,14 @@ function parts(date: Date, timeZone: string) {
       .filter(part => part.type !== "literal")
       .map(part => [part.type, Number(part.value)])
   );
-  return values as Record<"year" | "month" | "day" | "hour" | "minute" | "second", number>;
+  return values as Record<
+    "year" | "month" | "day" | "hour" | "minute" | "second",
+    number
+  >;
 }
 
-export function startOfCalendarDayInZone(date: Date, timeZone: string) {
-  const [year, month, day] = getDateKeyInZone(date, timeZone).split("-").map(Number);
+function startOfDateKeyInZone(dateKey: string, timeZone: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
   const utcGuess = Date.UTC(year, month - 1, day);
   const represented = parts(new Date(utcGuess), timeZone);
   const representedAsUtc = Date.UTC(
@@ -41,10 +44,23 @@ export function startOfCalendarDayInZone(date: Date, timeZone: string) {
   return new Date(utcGuess - (representedAsUtc - utcGuess));
 }
 
+export function startOfCalendarDayInZone(date: Date, timeZone: string) {
+  return startOfDateKeyInZone(getDateKeyInZone(date, timeZone), timeZone);
+}
+
+function subtractCalendarDays(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day - days));
+  return date.toISOString().slice(0, 10);
+}
+
 export function getNoFoodRecordsWindow(now: Date, timeZone: string) {
-  const currentDayStart = startOfCalendarDayInZone(now, timeZone);
+  const currentDateKey = getDateKeyInZone(now, timeZone);
   return {
-    start: new Date(currentDayStart.getTime() - 3 * 24 * 60 * 60 * 1000),
+    start: startOfDateKeyInZone(
+      subtractCalendarDays(currentDateKey, 3),
+      timeZone
+    ),
     end: now,
   };
 }
