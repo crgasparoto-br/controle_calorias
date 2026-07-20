@@ -94,6 +94,7 @@ export const professionalAiAssistantOutputSchema = z
   .object({
     title: z.string().trim().min(1).max(160),
     summary: z.string().trim().min(1).max(2_000),
+    summarySourceKeys: sourceReferenceListSchema,
     facts: z.array(z.string().trim().min(1).max(500)).max(12),
     factSourceKeys: z.array(sourceReferenceListSchema).max(12),
     interpretations: z.array(z.string().trim().min(1).max(500)).max(8),
