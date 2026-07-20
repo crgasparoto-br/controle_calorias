@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 import ProfessionalOperationalAlertsPanel from "./ProfessionalOperationalAlertsPanel";
 
 const supportedRoutes = new Set([
@@ -30,9 +31,20 @@ export default function ProfessionalOperationalAlertsBridge() {
     return () => observer.disconnect();
   }, [location]);
 
-  if (!target) return null;
+  const endpointAvailable = Boolean(
+    (trpc as unknown as {
+      professionalRecord?: {
+        operationalAlerts?: { list?: { useQuery?: unknown } };
+      };
+    }).professionalRecord?.operationalAlerts?.list?.useQuery
+  );
+
+  if (!target || !endpointAvailable) return null;
   return createPortal(
-    <section className="mx-auto mb-6 max-w-6xl" aria-label="Central de pendências operacionais">
+    <section
+      className="mx-auto mb-6 max-w-6xl"
+      aria-label="Central de pendências operacionais"
+    >
       <ProfessionalOperationalAlertsPanel />
     </section>,
     target
