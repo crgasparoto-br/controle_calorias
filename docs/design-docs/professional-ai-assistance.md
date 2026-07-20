@@ -16,6 +16,10 @@ A assistência individual usa somente:
 
 Refeições, comentários, mensagens, nomes de alimentos, observações clínicas e outros textos crus não são enviados ao provedor de IA. O contexto é reduzido a agregados numéricos, tipos padronizados de alerta e limites do período.
 
+Antes da chamada ao provedor, todos os campos do contexto são convertidos em um catálogo de fontes com chaves estáveis. O catálogo inclui período, frequência, aderência, calorias, macros realizados e planejados, dias úteis, finais de semana, água, exercícios, peso, qualidade alimentar e alertas. Em comparações, o mesmo conjunto é produzido para o período anterior.
+
+Cada fato e interpretação devolvido pelo provedor deve indicar as chaves exatas das fontes que o sustentam. Referências inexistentes invalidam a resposta e acionam o fallback determinístico.
+
 ## Modos assistidos
 
 - **Resumo:** descreve fatos calculados do período e separa interpretações assistidas.
@@ -29,7 +33,7 @@ O período máximo é de 90 dias.
 
 A autorização profissional é validada antes de consultar os contratos canônicos e novamente depois da geração. Se o vínculo for revogado, o perfil profissional for inativado ou o acesso deixar de existir durante a chamada, o resultado é descartado e não é registrado como geração concluída.
 
-No frontend, a resposta é vinculada à combinação de paciente, período, modo e pergunta. Mudança de qualquer um desses itens invalida a resposta pendente e impede que um resultado atrasado apareça no contexto errado.
+No frontend, a resposta é vinculada à combinação de paciente, período, modo, tipo de rascunho e pergunta. Mudança de qualquer um desses itens invalida a resposta pendente e impede que um resultado atrasado apareça no contexto errado.
 
 ## Priorização
 
@@ -50,19 +54,25 @@ Um rascunho permanece apenas na tela até o nutricionista escolher **Salvar em M
 
 O envio pela web ou WhatsApp continua exigindo uma segunda ação explícita na página de Mensagens.
 
-## Saída estruturada e fallback
+## Saída estruturada, segurança e fallback
 
 O provedor deve responder em schema estrito com:
 
 - título e resumo;
-- fatos;
-- interpretações;
+- fatos e respectivas chaves de fonte;
+- interpretações e respectivas chaves de fonte;
 - dados ausentes;
 - cautelas;
 - rascunho opcional;
 - aviso educacional obrigatório.
 
-Timeout, indisponibilidade, resposta inválida ou falha de parsing ativam um fallback determinístico calculado sobre os mesmos agregados. O fallback nunca depende de texto gerado anteriormente e não envia conteúdo automaticamente.
+A validação ocorre em três camadas:
+
+1. JSON válido e compatível com o schema estrito;
+2. referências limitadas às chaves presentes no catálogo enviado ao provedor;
+3. verificação semântica pós-modelo que rejeita diagnóstico, prescrição, medicamento, dosagem, tratamento médico ou instrução clínica autônoma em qualquer texto exibível.
+
+Se qualquer camada falhar, a resposta do provedor é descartada integralmente. Timeout, indisponibilidade, resposta inválida, referência desconhecida ou conteúdo clínico proibido ativam um fallback determinístico calculado sobre os mesmos agregados. O fallback nunca depende de texto gerado anteriormente e não envia conteúdo automaticamente.
 
 ## Privacidade, segurança e auditoria
 
@@ -71,25 +81,35 @@ Timeout, indisponibilidade, resposta inválida ou falha de parsing ativam um fal
 - O provedor não recebe identificadores de usuário, nome do paciente ou textos crus do acompanhamento.
 - Conteúdo de contexto é tratado como dado não confiável, nunca como instrução.
 - O aviso educacional informa que a saída não substitui diagnóstico, prescrição ou decisão clínica.
+- O catálogo exibido na interface corresponde a todos os sinais enviados ao provedor, permitindo conferência do período atual e do anterior.
 
 Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/RELIABILITY.md` sem alterar seus contratos de retenção, segredo ou observabilidade.
 
 ## Falhas e comportamento degradado
 
 - Falha da IA: retorna fallback determinístico.
+- Timeout do provedor: retorna fallback determinístico.
+- JSON ou schema inválido: descarta a saída e retorna fallback determinístico.
+- Conteúdo clínico proibido na saída: descarta a saída e retorna fallback determinístico.
+- Referência de fonte inexistente: descarta a saída e retorna fallback determinístico.
 - Falha do relatório canônico: nenhuma geração é produzida.
 - Revogação durante a geração: resposta descartada.
 - Ausência de dados: aparece explicitamente em `missingData`; zero não é apresentado como observação clínica.
-- Mudança de paciente ou período: resultado anterior é removido.
+- Mudança de paciente, período, modo, tipo de rascunho ou pergunta: resultado anterior é removido e resposta atrasada é ignorada.
 - Falha ao salvar rascunho: o texto permanece editável na tela e não aparece como enviado.
 
 ## Testes obrigatórios
 
 - minimização do contexto e ausência de textos crus no payload;
+- catálogo completo para período atual e anterior;
+- referência exata das fontes por fato e interpretação;
 - resistência a instruções inseridas em conteúdo do paciente;
-- fallback para erro, timeout e schema inválido;
+- fallback para erro, timeout, JSON inválido e schema inválido;
+- rejeição de conteúdo clínico indevido retornado pelo provedor;
+- rejeição de referência de fonte desconhecida;
 - revogação entre a consulta e o retorno do provedor;
 - bloqueio de diagnóstico e prescrição sem chamar o provedor;
+- declaração explícita de dados ausentes;
 - priorização derivada somente de alertas canônicos;
 - confirmação explícita antes de persistir um rascunho;
 - descarte de resposta atrasada após troca de paciente, período ou modo.
