@@ -6,15 +6,29 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV, validateRuntimeEnv } from "./env";
-import { PAYLOAD_LIMITS, RATE_LIMITS, createExpressRateLimit } from "./rateLimit";
+import {
+  PAYLOAD_LIMITS,
+  RATE_LIMITS,
+  createExpressRateLimit,
+} from "./rateLimit";
 import { serveStatic, setupVite } from "./vite";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
-import { handleStravaWebhookVerification, handleStravaWebhookEvent } from "../modules/healthIntegrations/stravaWebhookHandler";
+import {
+  handleStravaWebhookVerification,
+  handleStravaWebhookEvent,
+} from "../modules/healthIntegrations/stravaWebhookHandler";
 import { handleWhatsAppPersistentContextWebhook } from "../whatsappPersistentContextWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
-import { RuntimeSchemaCompatibilityError, ensureRuntimeSchemaCompatibility } from "../schemaCompatibility";
+import {
+  RuntimeSchemaCompatibilityError,
+  ensureRuntimeSchemaCompatibility,
+} from "../schemaCompatibility";
+import {
+  ProfessionalRuntimeSchemaCompatibilityError,
+  ensureProfessionalRuntimeSchemaCompatibility,
+} from "../modules/professionals/runtimeSchemaCompatibility";
 import { startConversationRetentionScheduler } from "../modules/whatsapp/conversationRetentionScheduler";
 
 const MEDIA_TRPC_PATHS = [
@@ -24,7 +38,9 @@ const MEDIA_TRPC_PATHS = [
 
 function isMediaTrpcRequest(originalUrl: string) {
   const pathname = originalUrl.split("?")[0] ?? "";
-  return MEDIA_TRPC_PATHS.some(path => pathname === path || pathname.startsWith(`${path}/`));
+  return MEDIA_TRPC_PATHS.some(
+    path => pathname === path || pathname.startsWith(`${path}/`)
+  );
 }
 
 function skipForMediaTrpcRequests(parser: RequestHandler): RequestHandler {
@@ -64,12 +80,33 @@ async function startServer() {
   const server = createServer(app);
   try {
     const schemaCompatibility = await ensureRuntimeSchemaCompatibility();
-    if (schemaCompatibility.added.length || schemaCompatibility.updated.length) {
-      console.log("[Database] Runtime schema compatibility applied:", schemaCompatibility);
+    if (
+      schemaCompatibility.added.length ||
+      schemaCompatibility.updated.length
+    ) {
+      console.log(
+        "[Database] Runtime schema compatibility applied:",
+        schemaCompatibility
+      );
+    }
+
+    const professionalSchemaCompatibility =
+      await ensureProfessionalRuntimeSchemaCompatibility();
+    if (professionalSchemaCompatibility.added.length) {
+      console.log(
+        "[Database] Professional runtime schema compatibility applied:",
+        professionalSchemaCompatibility
+      );
     }
   } catch (error) {
-    if (error instanceof RuntimeSchemaCompatibilityError) {
-      console.error("[Database] Runtime schema compatibility failed:", error.message);
+    if (
+      error instanceof RuntimeSchemaCompatibilityError ||
+      error instanceof ProfessionalRuntimeSchemaCompatibilityError
+    ) {
+      console.error(
+        "[Database] Runtime schema compatibility failed:",
+        error.message
+      );
       throw error;
     }
 
@@ -89,7 +126,10 @@ async function startServer() {
   }
 
   const defaultJsonParser = express.json({ limit: PAYLOAD_LIMITS.defaultJson });
-  const defaultUrlencodedParser = express.urlencoded({ limit: PAYLOAD_LIMITS.defaultJson, extended: true });
+  const defaultUrlencodedParser = express.urlencoded({
+    limit: PAYLOAD_LIMITS.defaultJson,
+    extended: true,
+  });
   const mediaJsonParser = express.json({ limit: PAYLOAD_LIMITS.mediaJson });
   const webhookRateLimit = createExpressRateLimit(RATE_LIMITS.whatsappWebhook);
 
@@ -106,25 +146,36 @@ async function startServer() {
   app.get("/api/health-integrations/strava/webhook", (req, res) => {
     handleStravaWebhookVerification(req, res);
   });
-  app.post("/api/health-integrations/strava/webhook", express.json({ limit: "4kb" }), (req, res) => {
-    handleStravaWebhookEvent(req, res);
-  });
-  app.get("/api/whatsapp/webhook", webhookRateLimit, verifyWhatsAppWebhook);
+  app.post(
+    "/api/health-integrations/strava/webhook",
+    express.json({ limit: "4kb" }),
+    (req, res) => {
+      handleStravaWebhookEvent(req, res);
+    }
+  );
+  app.get(
+    "/api/whatsapp/webhook",
+    webhookRateLimit,
+    verifyWhatsAppWebhook
+  );
   app.post(
     "/api/whatsapp/webhook",
     webhookRateLimit,
     express.json({ limit: PAYLOAD_LIMITS.webhookJson }),
-    express.urlencoded({ limit: PAYLOAD_LIMITS.webhookJson, extended: true }),
+    express.urlencoded({
+      limit: PAYLOAD_LIMITS.webhookJson,
+      extended: true,
+    }),
     (req, res) => {
       void handleWhatsAppPersistentContextWebhook(req, res);
-    },
+    }
   );
   app.use(
     "/api/trpc",
     createExpressMiddleware({
       router: appRouter,
       createContext,
-    }),
+    })
   );
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

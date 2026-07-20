@@ -55,11 +55,11 @@ vi.mock("./components/NutritionGoalReportInvalidator", () => ({ default: () => n
 vi.mock("./components/PatientGoalSuggestionsEmbed", () => ({ default: () => null }));
 vi.mock("./components/PatientProfessionalGuidancesEmbed", () => ({ default: () => null }));
 vi.mock("./components/ProfessionalAnalyzeTabBridge", () => ({ default: () => null }));
+vi.mock("@/components/ProfessionalAiWorkspace", () => ({ default: () => <div>Assistência profissional por IA</div> }));
 vi.mock("./components/ProfessionalGoalExceptionSuggestionsEmbed", () => ({ default: () => null }));
 vi.mock("./components/ProfileWhatsappGreetingVisibility", () => ({ default: () => null }));
 
 function Fixture({ name }: { name: string }) { return <h1>{name}</h1>; }
-vi.mock("@/pages/ProfessionalReportsPage", () => ({ default: () => <Fixture name="Experiência profissional legada" /> }));
 vi.mock("@/pages/AdminPage", () => ({ default: () => <Fixture name="AdminPage" /> }));
 vi.mock("@/pages/ChannelsPage", () => ({ default: () => <Fixture name="ChannelsPage" /> }));
 vi.mock("@/pages/FoodsPage", () => ({ default: () => <Fixture name="FoodsPage" /> }));
@@ -83,7 +83,7 @@ beforeEach(() => { refresh.mockClear(); refetch.mockClear(); invalidate.mockClea
 
 describe("App professional navigation", () => {
   it("loads a professional deep link through the real router", async () => { const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); expect(screen.getAllByText("Contexto profissional").length).toBeGreaterThan(0); });
-  it("keeps the legacy route reachable and returns to the personal context", async () => { const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Experiência legada" })); expect(await screen.findByRole("heading", { name: "Experiência profissional legada" })).toBeTruthy(); window.history.pushState({}, "", "/professional"); window.dispatchEvent(new PopStateEvent("popstate")); await screen.findByRole("heading", { name: "Início profissional" }); fireEvent.click(screen.getByRole("button", { name: "Minha alimentação" })); await waitFor(() => expect(window.location.pathname).toBe("/today")); expect(await screen.findByRole("heading", { name: "Home" })).toBeTruthy(); });
+  it("redirects the retired legacy entry to the current professional reports", async () => { const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Experiência legada" })); await waitFor(() => expect(window.location.pathname).toBe("/professional/reports")); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); });
   it("revalidates backend authorization before opening a patient context", async () => { window.history.replaceState({}, "", "/professional/patients"); const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" })); await waitFor(() => expect(fetchPatientTimeZone).toHaveBeenCalledWith({ patientId: 41, weekOffset: 0 })); await waitFor(() => expect(window.location.pathname).toBe("/professional/follow-up")); });
   it("does not open stale cached access when backend revalidation fails", async () => { fetchPatientTimeZone.mockRejectedValueOnce(new Error("revoked")); window.history.replaceState({}, "", "/professional/patients"); const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" })); expect(await screen.findByText("O acesso a este paciente não está mais disponível. A carteira foi atualizada.")).toBeTruthy(); expect(window.location.pathname).toBe("/professional/patients"); expect(refetch).toHaveBeenCalled(); });
 });

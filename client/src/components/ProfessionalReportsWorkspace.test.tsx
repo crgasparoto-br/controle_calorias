@@ -12,6 +12,7 @@ const fetchPatientTimeZone = vi.fn().mockResolvedValue({ timeZone: "America/Sao_
 vi.mock("@/components/ProfessionalLayout", () => ({
   useProfessionalWorkspace: () => ({ selectedPatient: null, selectPatient, clearPatient }),
 }));
+vi.mock("@/components/ProfessionalAiWorkspace", () => ({ default: () => <div>Assistência profissional por IA</div> }));
 vi.mock("@/components/ProfessionalOperationalAlertsPanel", () => ({ default: () => <div>Pendências objetivas</div> }));
 vi.mock("@/features/reports/ReportsExperience", () => ({ default: reportsExperience }));
 vi.mock("@/lib/trpc", () => ({ trpc: { useUtils: () => ({ nutrition: { professionals: { patientTimeZone: { fetch: fetchPatientTimeZone } } } }), nutrition: { professionals: { portfolio: { useQuery: (input: unknown) => { portfolioInput(input); return ({

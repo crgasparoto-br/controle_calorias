@@ -32,9 +32,11 @@ import { updateNutritionGoal } from "../goals/service";
 import { getEffectiveUserTimeZone } from "../timeZone/service";
 import { professionalOperationalAlertsRouter } from "./operationalAlertsRouter";
 import { professionalMessageRouter } from "./messageRouter";
+import { professionalAiRouter } from "./aiRouter";
 
 export const professionalRecordRouter = router({
   messages: professionalMessageRouter,
+  ai: professionalAiRouter,
   get: protectedProcedure
     .input(professionalRecordSchema)
     .query(({ ctx, input }) => getProfessionalRecord(ctx.user.id, input)),

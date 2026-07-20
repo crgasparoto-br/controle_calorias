@@ -78,16 +78,16 @@ describe("professional schemas", () => {
     expect(result.status).toBe("sent");
   });
 
-  it("accepts professional AI questions for authorized patient context", () => {
-    const result = professionalPatientQuestionSchema.parse({
+  it("blocks the deprecated professional AI question contract", () => {
+    const result = professionalPatientQuestionSchema.safeParse({
       patientId: 2,
       question: "O que merece atenção nos registros da semana?",
     });
 
-    expect(result).toEqual({
-      patientId: 2,
-      question: "O que merece atenção nos registros da semana?",
-    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain("endpoint legado foi desativado");
+    }
   });
 
   it("limits the configurable portfolio report period to 90 inclusive days", () => {

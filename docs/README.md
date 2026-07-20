@@ -50,6 +50,7 @@ Exemplos principais:
 - `design-docs/custom-foods.md`
 - `design-docs/whatsapp-conversation-context.md`
 - `design-docs/whatsapp-ingestion.md`
+- `design-docs/professional-ai-assistance.md`
 
 ## Testes e regressão
 
