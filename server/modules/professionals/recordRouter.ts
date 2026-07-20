@@ -30,6 +30,7 @@ import {
 } from "./officialGoalsService";
 import { updateNutritionGoal } from "../goals/service";
 import { getEffectiveUserTimeZone } from "../timeZone/service";
+import { professionalOperationalAlertsRouter } from "./operationalAlertsRouter";
 
 export const professionalRecordRouter = router({
   get: protectedProcedure
@@ -56,6 +57,7 @@ export const professionalRecordRouter = router({
   patientGuidances: protectedProcedure.query(({ ctx }) =>
     listPatientProfessionalGuidances(ctx.user.id)
   ),
+  operationalAlerts: professionalOperationalAlertsRouter,
   officialGoal: router({
     professionalState: protectedProcedure
       .input(professionalRecordSchema.pick({ patientId: true }))
