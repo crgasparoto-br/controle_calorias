@@ -26,7 +26,7 @@ Os fatos calculados e a lista de dados ausentes são produzidos exclusivamente p
 
 - **Resumo:** descreve fatos calculados do período e separa interpretações assistidas.
 - **Comparação:** compara o período atual com uma janela anterior de mesma duração.
-- **Pergunta:** responde somente quando os dados autorizados sustentam a resposta. Consultas objetivas com termos nutricionais, médicos, de peso ou exercício são respondidas pelo fallback canônico sem enviar a pergunta ao provedor. Solicitações prescritivas ou clínicas recebem um limite explícito.
+- **Pergunta:** aceita qualquer texto, mas somente perguntas analíticas reconhecidas podem usar o provedor. Consultas objetivas com termos nutricionais, médicos, de peso ou exercício são respondidas pelo fallback canônico sem enviar a pergunta ao provedor. Perguntas livres não reconhecidas também usam o fallback determinístico. Comandos, diagnósticos, prescrições ou frases não interrogativas ambíguas recebem um limite explícito.
 - **Rascunho:** prepara texto revisável para orientação, lembrete, pedido de pesagem, pedido de registro, mensagem administrativa ou resumo de acompanhamento.
 
 O período máximo é de 90 dias inclusivos. Datas inexistentes no calendário, intervalos invertidos e períodos maiores que o limite são rejeitados antes da execução.
@@ -78,19 +78,21 @@ A validação ocorre em quatro camadas:
 1. JSON válido e compatível com o schema estrito;
 2. referências limitadas às chaves presentes no catálogo enviado ao provedor;
 3. rejeição de referências a sinais marcados como indisponíveis;
-4. verificação semântica pós-modelo que rejeita diagnóstico, prescrição, medicamento, dosagem, tratamento médico ou instrução clínica autônoma em qualquer texto exibível.
+4. validação semântica por negação segura, aplicada antes da chamada e depois da resposta.
 
-Perguntas livres são classificadas antes da chamada em três grupos:
+Perguntas livres são classificadas em três grupos:
 
-- `provider_allowed`: perguntas sem domínio clínico ou nutricional sensível podem usar o provedor;
-- `deterministic_only`: consultas objetivas sobre metas, calorias, macros, água, peso ou exercícios usam somente o backend canônico e não enviam a pergunta ao provedor;
-- `clinical_boundary`: comandos, recomendações, diagnósticos e frases ambíguas recebem o limite clínico sem chamar o provedor.
+- `provider_allowed`: somente perguntas analíticas reconhecidas, iniciadas por formas como `compare`, `mostre`, `liste`, `resuma`, `explique`, `quanto`, `qual foi`, `como está` ou `o que mudou`, e compostas exclusivamente pelo vocabulário objetivo autorizado;
+- `deterministic_only`: consultas objetivas sensíveis ou perguntas interrogativas não reconhecidas usam somente o backend canônico e não enviam a pergunta ao provedor;
+- `clinical_boundary`: comandos, recomendações, diagnósticos, prescrições e frases não interrogativas fora da forma analítica autorizada recebem o limite clínico sem chamada ao provedor.
 
-Uma consulta sensível só é reconhecida como objetiva quando começa com uma forma permitida, como `compare`, `quantos`, `qual foi` ou `como está`, e usa exclusivamente o vocabulário de dados autorizado. Palavras adicionais não reconhecidas fazem a solicitação cair no limite seguro. Pontos e vírgulas entre dígitos são preservados para que valores como `1.800` e `93,3` não sejam divididos em cláusulas falsas.
+A classificação não depende apenas de listas de alimentos ou verbos conhecidos. Toda pergunta fora da gramática analítica controlada é bloqueada ou degradada de forma determinística. Assim, comandos com termos não previstos, como montar cardápio, distribuir frutas, apostar em saladas ou organizar a rotina, não alcançam o provedor.
 
-No conteúdo livre devolvido pelo provedor, frases com termos nutricionais, médicos, de peso ou exercício só são aceitas quando a cláusula inteira usa vocabulário factual controlado e contém evidência de registro, cálculo, realização, planejamento ou variação. Qualquer verbo desconhecido, marcador prescritivo ou palavra fora desse vocabulário invalida toda a resposta e aciona o fallback. Fatos canônicos e dados ausentes não dependem dessa redação e são sempre substituídos pelo backend.
+Todo texto controlado pelo provedor — título, resumo, interpretações, cautelas e rascunho — precisa usar exclusivamente um vocabulário factual autorizado. Essa regra vale para cláusulas sensíveis e não sensíveis. Palavras desconhecidas, linguagem persuasiva, comandos, qualificadores clínicos ou termos fora da lista segura invalidam a resposta inteira e acionam o fallback. Quando a frase contém metas, calorias, macros, água, peso ou exercícios, também precisa apresentar evidência explícita de registro, cálculo, realização, planejamento ou variação.
 
-Se qualquer camada falhar, a resposta do provedor é descartada integralmente. Timeout, indisponibilidade, resposta inválida, referência desconhecida ou indisponível e conteúdo clínico proibido ativam um fallback determinístico calculado sobre os mesmos agregados. O fallback nunca depende de texto gerado anteriormente e não envia conteúdo automaticamente.
+Os campos `facts`, `factSourceKeys` e `missingData` não dependem do texto do provedor: são sempre substituídos pelos valores canônicos do backend. Pontos e vírgulas entre dígitos são preservados para que valores como `1.800`, `2.000` e `93,3` não sejam divididos em cláusulas falsas.
+
+Se qualquer camada falhar, a resposta do provedor é descartada integralmente. Timeout, indisponibilidade, resposta inválida, referência desconhecida ou indisponível, vocabulário não permitido e conteúdo clínico proibido ativam um fallback determinístico calculado sobre os mesmos agregados. O fallback nunca depende de texto gerado anteriormente e não envia conteúdo automaticamente.
 
 ## Privacidade, segurança e auditoria
 
@@ -109,8 +111,10 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - Falha da IA: retorna fallback determinístico.
 - Timeout do provedor: retorna fallback determinístico.
 - JSON ou schema inválido: descarta a saída e retorna fallback determinístico.
-- Conteúdo clínico proibido na saída: descarta a saída e retorna fallback determinístico.
+- Vocabulário ou conteúdo clínico proibido na saída: descarta a saída e retorna fallback determinístico.
 - Referência de fonte inexistente ou indisponível: descarta a saída e retorna fallback determinístico.
+- Pergunta livre não reconhecida: retorna resposta determinística sem chamada ao provedor.
+- Comando ou solicitação prescritiva: retorna limite clínico sem chamada ao provedor.
 - Falha do relatório canônico: nenhuma geração é produzida.
 - Revogação durante a geração: resposta descartada e telemetria registra apenas `authorization_invalidated`.
 - Ausência de dados: aparece explicitamente em `missingData`; zero não é apresentado como aderência, média ou observação clínica.
@@ -128,12 +132,13 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - rejeição de referência a sinal inexistente ou indisponível;
 - resistência a instruções inseridas em conteúdo do paciente;
 - fallback para erro, timeout, JSON inválido e schema inválido;
-- rejeição de conteúdo clínico indevido retornado pelo provedor;
-- classificação distinta de consulta objetiva sensível, solicitação clínica e pergunta permitida ao provedor;
-- consultas objetivas sensíveis sem chamada ao provedor;
+- classificação distinta de pergunta analítica permitida, consulta determinística e limite clínico;
+- perguntas sensíveis e perguntas livres desconhecidas sem chamada ao provedor;
 - comandos diretos, formas impessoais, construções nominais, avaliações prescritivas e verbos desconhecidos;
+- comandos com vegetais, cardápio, frutas, saladas e linguagem fora do domínio inicialmente enumerado;
 - frases que misturam palavras objetivas com comandos não reconhecidos;
-- vocabulário factual controlado para frases sensíveis do provedor;
+- vocabulário factual controlado para todo texto livre do provedor;
+- rejeição de qualquer palavra desconhecida no título, resumo, interpretação, cautela ou rascunho;
 - preservação de separadores numéricos em `1.800`, `2.000` e `93,3`;
 - revogação entre a consulta e o retorno do provedor;
 - declaração explícita de dados ausentes no período atual e anterior;
