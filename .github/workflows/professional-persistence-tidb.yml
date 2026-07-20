@@ -57,6 +57,15 @@ jobs:
           pnpm exec drizzle-kit generate
           git diff --exit-code -- drizzle
 
+      - name: Preserve Drizzle drift diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drizzle-drift-${{ github.sha }}
+          path: drizzle/
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Validate professional migration and repository
         run: pnpm db:test:professionals
 
