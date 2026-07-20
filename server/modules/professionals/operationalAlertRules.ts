@@ -1,77 +1,23 @@
-function dateParts(date: Date, timeZone: string) {
-  const values = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    })
-      .formatToParts(date)
-      .filter(part => part.type !== "literal")
-      .map(part => [part.type, part.value])
-  );
-  return values as Record<"year" | "month" | "day", string>;
-}
+import {
+  addCalendarDays,
+  getDateKeyInTimeZone,
+  getUtcRangeForLocalDate,
+} from "../../../shared/timeZone";
 
 export function getDateKeyInZone(date: Date, timeZone: string) {
-  const values = dateParts(date, timeZone);
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function parts(date: Date, timeZone: string) {
-  const values = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(date)
-      .filter(part => part.type !== "literal")
-      .map(part => [part.type, Number(part.value)])
-  );
-  return values as Record<
-    "year" | "month" | "day" | "hour" | "minute" | "second",
-    number
-  >;
-}
-
-function startOfDateKeyInZone(dateKey: string, timeZone: string) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const utcGuess = Date.UTC(year, month - 1, day);
-  const represented = parts(new Date(utcGuess), timeZone);
-  const representedAsUtc = Date.UTC(
-    represented.year,
-    represented.month - 1,
-    represented.day,
-    represented.hour,
-    represented.minute,
-    represented.second
-  );
-  return new Date(utcGuess - (representedAsUtc - utcGuess));
+  return getDateKeyInTimeZone(date, timeZone);
 }
 
 export function startOfCalendarDayInZone(date: Date, timeZone: string) {
-  return startOfDateKeyInZone(getDateKeyInZone(date, timeZone), timeZone);
-}
-
-function subtractCalendarDays(dateKey: string, days: number) {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day - days));
-  return date.toISOString().slice(0, 10);
+  const dateKey = getDateKeyInTimeZone(date, timeZone);
+  return getUtcRangeForLocalDate(dateKey, timeZone).startAt;
 }
 
 export function getNoFoodRecordsWindow(now: Date, timeZone: string) {
-  const currentDateKey = getDateKeyInZone(now, timeZone);
+  const currentDateKey = getDateKeyInTimeZone(now, timeZone);
+  const startDateKey = addCalendarDays(currentDateKey, -3);
   return {
-    start: startOfDateKeyInZone(
-      subtractCalendarDays(currentDateKey, 3),
-      timeZone
-    ),
+    start: getUtcRangeForLocalDate(startDateKey, timeZone).startAt,
     end: now,
   };
 }
