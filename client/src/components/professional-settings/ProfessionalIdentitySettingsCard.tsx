@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Save } from "lucide-react";
+import React from "react";
 
 type Props = {
   displayName: string;
