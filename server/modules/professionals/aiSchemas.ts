@@ -21,9 +21,10 @@ const MAX_PERIOD_DAYS = 90;
 
 function dateDayNumber(value: string) {
   const date = new Date(`${value}T12:00:00.000Z`);
-  return Number.isNaN(date.getTime())
-    ? Number.NaN
-    : Math.floor(date.getTime() / 86_400_000);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    return Number.NaN;
+  }
+  return Math.floor(date.getTime() / 86_400_000);
 }
 
 export const professionalAiGenerateSchema = z
