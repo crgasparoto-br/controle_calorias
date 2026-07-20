@@ -205,6 +205,7 @@ const prescriptiveTexts = [
   "Distribua frutas ao longo do dia.",
   "Aposte em saladas no jantar.",
   "Organize a rotina do paciente.",
+  "Seria interessante uma dieta cetogênica?",
 ];
 
 const objectiveSensitiveQuestions = [
@@ -278,6 +279,16 @@ describe("professional AI adversarial regressions", () => {
       assertProfessionalAiOutputIsSafe(
         assistantOutput("Uma análise surpreendente merece atenção especial.")
       )
+    ).toThrow("professional_ai_prohibited_clinical_output");
+  });
+
+  it.each([
+    "服用药物",
+    "Принимайте лекарство",
+    "Resumo objetivo 服用药物",
+  ])("rejects non-authorized Unicode provider content: %s", text => {
+    expect(() =>
+      assertProfessionalAiOutputIsSafe(assistantOutput(text))
     ).toThrow("professional_ai_prohibited_clinical_output");
   });
 
