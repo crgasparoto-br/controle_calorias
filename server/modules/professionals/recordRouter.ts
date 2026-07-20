@@ -33,10 +33,12 @@ import { getEffectiveUserTimeZone } from "../timeZone/service";
 import { professionalOperationalAlertsRouter } from "./operationalAlertsRouter";
 import { professionalMessageRouter } from "./messageRouter";
 import { professionalAiRouter } from "./aiRouter";
+import { professionalSettingsRouter } from "./settingsRouter";
 
 export const professionalRecordRouter = router({
   messages: professionalMessageRouter,
   ai: professionalAiRouter,
+  settings: professionalSettingsRouter,
   get: protectedProcedure
     .input(professionalRecordSchema)
     .query(({ ctx, input }) => getProfessionalRecord(ctx.user.id, input)),
