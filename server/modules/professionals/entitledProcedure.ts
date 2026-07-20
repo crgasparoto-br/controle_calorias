@@ -4,12 +4,19 @@ import {
   assertProfessionalEntitlement,
   type ProfessionalEntitlementResource,
 } from "./entitlementService";
+import { getProfessionalProfile } from "./service";
 
 export function professionalEntitledProcedure(
   resource: ProfessionalEntitlementResource
 ) {
   return protectedProcedure.use(async ({ ctx, next }) => {
     try {
+      const profile = await getProfessionalProfile(ctx.user.id);
+      if (!profile?.active) {
+        throw new Error(
+          "A Área Profissional está inativa. Reative o perfil para continuar."
+        );
+      }
       await assertProfessionalEntitlement(ctx.user.id, resource);
     } catch (error) {
       throw new TRPCError({
