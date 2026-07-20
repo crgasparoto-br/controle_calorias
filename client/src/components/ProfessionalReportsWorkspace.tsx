@@ -1,4 +1,5 @@
 import PageIntro from "@/components/PageIntro";
+import ProfessionalAiWorkspace from "@/components/ProfessionalAiWorkspace";
 import ProfessionalOperationalAlertsPanel from "@/components/ProfessionalOperationalAlertsPanel";
 import { useProfessionalWorkspace } from "@/components/ProfessionalLayout";
 import { Button } from "@/components/ui/button";
@@ -114,6 +115,12 @@ export default function ProfessionalReportsWorkspace() {
         </Card>
         {selectedPatient ? <><ReportsExperience context="professional" subjectUserId={selectedPatient.patientId} onRangeChange={setIndividualRange} /><ProfessionalOperationalAlertsPanel patientId={selectedPatient.patientId} periodRange={individualRange ?? undefined} /></> : <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Selecione uma pessoa autorizada para carregar o relatório individual.</CardContent></Card>}
       </section>
+
+      <ProfessionalAiWorkspace
+        selectedPatient={selectedPatient}
+        periodRange={individualRange ?? { start: reportStartDate, end: reportEndDate }}
+        onOpenPatient={patient => void openPatient(patient)}
+      />
     </div>
   );
 }
