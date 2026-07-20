@@ -20,13 +20,13 @@ Antes da chamada ao provedor, todos os campos autorizados são convertidos em um
 
 Cada sinal informa também se está disponível. Sinais ausentes continuam visíveis no catálogo para conferência, mas não podem ser citados pelo resumo ou pelas interpretações. Uma referência inexistente ou indisponível invalida a resposta e aciona o fallback determinístico.
 
-Os fatos calculados e a lista de dados ausentes são produzidos exclusivamente pelo backend canônico. Mesmo que o provedor devolva valores nesses campos, eles são substituídos antes da resposta chegar à interface. O provedor participa somente da redação do resumo, das interpretações e do rascunho revisável, sempre com referências verificáveis.
+Os fatos calculados e a lista de dados ausentes são produzidos exclusivamente pelo backend canônico. Mesmo que o provedor devolva valores nesses campos, eles são substituídos antes da resposta chegar à interface.
 
 ## Modos assistidos
 
 - **Resumo:** descreve fatos calculados do período e separa interpretações assistidas.
 - **Comparação:** compara o período atual com uma janela anterior de mesma duração.
-- **Pergunta:** aceita qualquer texto, mas somente perguntas analíticas reconhecidas podem usar o provedor. Consultas objetivas com termos nutricionais, médicos, de peso ou exercício são respondidas pelo fallback canônico sem enviar a pergunta ao provedor. Perguntas livres não sensíveis e não reconhecidas também usam o fallback determinístico. Qualquer frase sensível fora da gramática analítica, mesmo terminada com interrogação, recebe o limite clínico explícito.
+- **Pergunta:** aceita texto livre, preservando a capacidade de analisar perguntas não previstas. Perguntas analíticas reconhecidas podem usar o provedor completo; consultas objetivas sensíveis usam somente o backend; perguntas livres seguras usam o provedor apenas como classificador de foco estruturado e recebem resposta canônica citada; solicitações clínicas recebem limite explícito.
 - **Rascunho:** prepara texto revisável para orientação, lembrete, pedido de pesagem, pedido de registro, mensagem administrativa ou resumo de acompanhamento.
 
 O período máximo é de 90 dias inclusivos. Datas inexistentes no calendário, intervalos invertidos e períodos maiores que o limite são rejeitados antes da execução.
@@ -60,9 +60,22 @@ Um rascunho permanece apenas na tela até o nutricionista escolher **Salvar em M
 
 O envio pela web ou WhatsApp continua exigindo uma segunda ação explícita na página de Mensagens.
 
+## Perguntas livres com foco estruturado
+
+Perguntas são classificadas antes da geração:
+
+- `provider_allowed`: perguntas analíticas reconhecidas e compostas pelo vocabulário objetivo autorizado podem usar a saída estruturada completa;
+- `deterministic_only`: consultas objetivas sensíveis, como água, peso, macros ou exercícios, são respondidas diretamente pelo backend canônico sem enviar a pergunta ao provedor;
+- `focus_classifier`: perguntas livres seguras não previstas usam uma chamada separada cujo schema aceita somente um foco conhecido (`overview`, `records`, `adherence`, `macros`, `water`, `exercise`, `weight`, `food_quality` ou `alerts`) ou `clinical_boundary`;
+- `clinical_boundary`: comandos, diagnósticos, prescrições, decisões autônomas e perguntas sensíveis não analíticas recebem limite clínico sem geração livre.
+
+O classificador de foco não recebe o catálogo do paciente e não pode devolver texto, explicação, valores ou fontes. Ele recebe apenas a pergunta com redação sensível removida e retorna um enum estrito. O backend associa esse foco ao sinal canônico correspondente, monta o título, resumo, fatos e interpretação e indica as chaves de fonte. Se o foco estiver indisponível, a resposta declara insuficiência e usa somente fontes disponíveis.
+
+Se o classificador devolver `clinical_boundary`, a resposta apresenta o limite clínico. JSON inválido, timeout ou foco fora do enum acionam o fallback determinístico geral. Dessa forma, perguntas livres continuam assistidas por IA sem permitir que o modelo redija uma resposta clínica livre.
+
 ## Saída estruturada, segurança e fallback
 
-O provedor deve responder em schema estrito com:
+A saída completa do provedor deve seguir schema estrito com:
 
 - título e resumo;
 - resumo e respectivas chaves de fonte;
@@ -80,43 +93,37 @@ A validação ocorre em quatro camadas:
 3. rejeição de referências a sinais marcados como indisponíveis;
 4. validação semântica por negação segura, aplicada antes da chamada e depois da resposta.
 
-Perguntas livres são classificadas em três grupos:
+A classificação não depende apenas de listas de alimentos ou verbos conhecidos. Comandos com termos não previstos, como montar cardápio, distribuir frutas, apostar em saladas ou organizar a rotina, não alcançam a geração livre. Perguntas como `Seria interessante uma dieta cetogênica?` recebem limite clínico.
 
-- `provider_allowed`: somente perguntas analíticas reconhecidas, iniciadas por formas como `compare`, `mostre`, `liste`, `resuma`, `explique`, `quanto`, `qual foi`, `como está` ou `o que mudou`, e compostas exclusivamente pelo vocabulário objetivo autorizado;
-- `deterministic_only`: consultas objetivas sensíveis ou perguntas interrogativas não sensíveis e não reconhecidas usam somente o backend canônico e não enviam a pergunta ao provedor;
-- `clinical_boundary`: comandos, recomendações, diagnósticos, prescrições, frases não interrogativas fora da forma analítica e qualquer pergunta sensível não analítica recebem o limite clínico sem chamada ao provedor.
-
-A classificação não depende apenas de listas de alimentos ou verbos conhecidos. Toda pergunta fora da gramática analítica controlada é bloqueada ou degradada de forma determinística. Assim, comandos com termos não previstos, como montar cardápio, distribuir frutas, apostar em saladas ou organizar a rotina, não alcançam o provedor. Perguntas como `Seria interessante uma dieta cetogênica?` recebem limite clínico, e não uma resposta determinística comum.
-
-Todo texto controlado pelo provedor — título, resumo, interpretações, cautelas e rascunho — precisa usar exclusivamente um vocabulário factual autorizado. Essa regra vale para cláusulas sensíveis e não sensíveis. Palavras desconhecidas, linguagem persuasiva, comandos, qualificadores clínicos ou termos fora da lista segura invalidam a resposta inteira e acionam o fallback. Quando a frase contém metas, calorias, macros, água, peso ou exercícios, também precisa apresentar evidência explícita de registro, cálculo, realização, planejamento ou variação.
+Todo texto controlado pelo provedor completo — título, resumo, interpretações, cautelas e rascunho — precisa usar exclusivamente um vocabulário factual autorizado. Palavras desconhecidas, linguagem persuasiva, comandos, qualificadores clínicos ou termos fora da lista segura invalidam a resposta inteira e acionam o fallback. Quando a frase contém metas, calorias, macros, água, peso ou exercícios, também precisa apresentar evidência explícita de registro, cálculo, realização, planejamento ou variação.
 
 A tokenização usa propriedades Unicode para reconhecer letras e números de qualquer alfabeto. Uma cláusula sem palavras reconhecíveis ou contendo palavras em escrita não autorizada é rejeitada; portanto, texto em outro alfabeto não consegue contornar o vocabulário seguro por produzir uma lista vazia de tokens.
 
 Os campos `facts`, `factSourceKeys` e `missingData` não dependem do texto do provedor: são sempre substituídos pelos valores canônicos do backend. Pontos e vírgulas entre dígitos são preservados para que valores como `1.800`, `2.000` e `93,3` não sejam divididos em cláusulas falsas.
 
-Se qualquer camada falhar, a resposta do provedor é descartada integralmente. Timeout, indisponibilidade, resposta inválida, referência desconhecida ou indisponível, vocabulário não permitido e conteúdo clínico proibido ativam um fallback determinístico calculado sobre os mesmos agregados. O fallback nunca depende de texto gerado anteriormente e não envia conteúdo automaticamente.
+Se qualquer camada falhar, a resposta do provedor é descartada integralmente. Timeout, indisponibilidade, resposta inválida, referência desconhecida ou indisponível, vocabulário não permitido e conteúdo clínico proibido ativam fallback determinístico calculado sobre os mesmos agregados.
 
 ## Privacidade, segurança e auditoria
 
 - Prompts e respostas não são persistidos em histórico, logs ou analytics.
 - O evento auditável registra somente ator, paciente autorizado, modo, data e identificador opaco da geração.
-- O provedor não recebe identificadores de usuário, nome do paciente ou textos crus do acompanhamento.
+- O provedor completo não recebe identificadores de usuário, nome do paciente ou textos crus do acompanhamento.
+- O classificador de foco recebe somente a pergunta redigida, sem catálogo ou dados do paciente.
 - Conteúdo de contexto é tratado como dado não confiável, nunca como instrução.
 - O aviso educacional informa que a saída não substitui diagnóstico, prescrição ou decisão clínica.
-- O catálogo exibido na interface corresponde a todos os sinais enviados ao provedor, permitindo conferência do período atual e do anterior.
-- A telemetria operacional sanitizada registra somente status, duração, modelo, contagem de fontes, uso numérico de tokens e motivo categorizado de fallback. Pergunta, prompt, resposta, valores clínicos, modo, identificador da geração e conteúdo do paciente não são registrados nas métricas.
+- O catálogo exibido na interface corresponde aos sinais enviados ao provedor completo, permitindo conferência do período atual e do anterior.
+- A telemetria registra somente status, duração, modelo, contagem de fontes, uso numérico de tokens e motivo categorizado de fallback. Pergunta, prompt, resposta, valores clínicos, modo, identificador da geração e conteúdo do paciente não são registrados nas métricas.
 
 Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/RELIABILITY.md` sem alterar seus contratos de retenção, segredo ou observabilidade.
 
 ## Falhas e comportamento degradado
 
-- Falha da IA: retorna fallback determinístico.
-- Timeout do provedor: retorna fallback determinístico.
-- JSON ou schema inválido: descarta a saída e retorna fallback determinístico.
-- Vocabulário ou conteúdo clínico proibido na saída: descarta a saída e retorna fallback determinístico.
+- Falha ou timeout da IA: retorna fallback determinístico.
+- JSON, schema ou foco inválido: descarta a saída e retorna fallback determinístico.
+- Vocabulário ou conteúdo clínico proibido: descarta a saída e retorna fallback determinístico.
 - Referência de fonte inexistente ou indisponível: descarta a saída e retorna fallback determinístico.
-- Pergunta livre não sensível e não reconhecida: retorna resposta determinística sem chamada ao provedor.
-- Pergunta sensível não analítica, comando ou solicitação prescritiva: retorna limite clínico sem chamada ao provedor.
+- Pergunta livre classificada com foco válido: retorna resposta canônica específica e citada.
+- Pergunta sensível não analítica, comando ou solicitação prescritiva: retorna limite clínico.
 - Falha do relatório canônico: nenhuma geração é produzida.
 - Revogação durante a geração: resposta descartada e telemetria registra apenas `authorization_invalidated`.
 - Ausência de dados: aparece explicitamente em `missingData`; zero não é apresentado como aderência, média ou observação clínica.
@@ -134,14 +141,14 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - rejeição de referência a sinal inexistente ou indisponível;
 - resistência a instruções inseridas em conteúdo do paciente;
 - fallback para erro, timeout, JSON inválido e schema inválido;
-- classificação distinta de pergunta analítica permitida, consulta determinística e limite clínico;
-- perguntas objetivas sensíveis e perguntas livres desconhecidas sem chamada ao provedor;
-- perguntas sensíveis não analíticas com limite clínico claro;
+- classificação distinta entre geração completa, consulta determinística, classificador de foco e limite clínico;
+- pergunta livre não prevista classificada por enum estrito e respondida com fonte canônica específica;
+- foco clínico devolvido pelo classificador convertido em limite explícito;
+- falha do classificador convertida em fallback determinístico;
+- perguntas objetivas sensíveis sem chamada ao provedor;
 - comandos diretos, formas impessoais, construções nominais, avaliações prescritivas e verbos desconhecidos;
 - comandos com vegetais, cardápio, frutas, saladas e linguagem fora do domínio inicialmente enumerado;
-- frases que misturam palavras objetivas com comandos não reconhecidos;
-- vocabulário factual controlado para todo texto livre do provedor;
-- rejeição de qualquer palavra desconhecida no título, resumo, interpretação, cautela ou rascunho;
+- vocabulário factual controlado para todo texto livre do provedor completo;
 - rejeição de conteúdo em alfabetos ou escritas não autorizadas;
 - preservação de separadores numéricos em `1.800`, `2.000` e `93,3`;
 - revogação entre a consulta e o retorno do provedor;
