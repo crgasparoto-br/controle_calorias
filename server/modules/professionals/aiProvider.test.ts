@@ -14,12 +14,14 @@ const sourceSignals = [
     label: "Período atual · Intervalo",
     value: "2026-07-01 a 2026-07-07",
     period: "current" as const,
+    available: true,
   },
   {
     key: "current_record_frequency",
     label: "Período atual · Frequência de registros",
     value: "7 com registros | 0 sem registros | 7 dias no total",
     period: "current" as const,
+    available: true,
   },
 ];
 
@@ -58,5 +60,33 @@ describe("normalizeProfessionalAiProviderOutput", () => {
     expect(result.facts.join(" ")).not.toContain("99 kg");
     expect(result.missingData).toEqual([]);
     expect(result.educationalNotice).toContain("Não representa diagnóstico");
+  });
+
+  it("rejects an interpretation based on an unavailable signal", () => {
+    const unavailableWater = {
+      key: "current_water",
+      label: "Período atual · Água",
+      value: "Sem registros de água no período",
+      period: "current" as const,
+      available: false,
+    };
+    const output = {
+      ...providerOutput(),
+      interpretations: ["O consumo de água foi baixo."],
+      interpretationSourceKeys: [["current_water"]],
+    };
+
+    expect(() =>
+      normalizeProfessionalAiProviderOutput(
+        input,
+        output,
+        [...sourceSignals, unavailableWater],
+        {
+          facts: ["7 de 7 dias possuem registros alimentares."],
+          factSourceKeys: [["current_record_frequency"]],
+        },
+        ["Não há registros de água no período selecionado."]
+      )
+    ).toThrow("professional_ai_unavailable_source_reference");
   });
 });
