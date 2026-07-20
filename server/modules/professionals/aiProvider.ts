@@ -1,8 +1,10 @@
 import type { InvokeResult } from "../../_core/llm";
 import {
   professionalAiAssistantOutputSchema,
+  professionalAiQuestionFocusOutputSchema,
   type ProfessionalAiAssistantOutput,
   type ProfessionalAiGenerateInput,
+  type ProfessionalAiQuestionFocus,
 } from "./aiSchemas";
 import { assertProfessionalAiOutputIsSafe } from "./aiSafety";
 import {
@@ -11,7 +13,7 @@ import {
 } from "./aiTraceability";
 import { PROFESSIONAL_AI_NOTICE } from "./aiContext";
 
-export function parseProfessionalAiAssistantContent(
+function parseJsonContent(
   content: InvokeResult["choices"][number]["message"]["content"]
 ) {
   const text = Array.isArray(content)
@@ -25,6 +27,47 @@ export function parseProfessionalAiAssistantContent(
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
   return JSON.parse(normalized);
+}
+
+export function parseProfessionalAiAssistantContent(
+  content: InvokeResult["choices"][number]["message"]["content"]
+) {
+  return parseJsonContent(content);
+}
+
+export function parseProfessionalAiQuestionFocusContent(
+  content: InvokeResult["choices"][number]["message"]["content"]
+): ProfessionalAiQuestionFocus {
+  return professionalAiQuestionFocusOutputSchema.parse(parseJsonContent(content)).focus;
+}
+
+export function professionalAiQuestionFocusProviderSchema() {
+  return {
+    name: "professional_ai_question_focus",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        focus: {
+          type: "string",
+          enum: [
+            "overview",
+            "records",
+            "adherence",
+            "macros",
+            "water",
+            "exercise",
+            "weight",
+            "food_quality",
+            "alerts",
+            "clinical_boundary",
+          ],
+        },
+      },
+      required: ["focus"],
+    },
+  } as const;
 }
 
 export function professionalAiProviderOutputSchema() {
