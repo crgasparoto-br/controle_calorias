@@ -1,3 +1,4 @@
+import type { ProfessionalAiContext } from "./aiContext";
 import type { ProfessionalAiAssistantOutput } from "./aiSchemas";
 
 export type ProfessionalAiSourceSignal = {
@@ -6,75 +7,6 @@ export type ProfessionalAiSourceSignal = {
   value: string;
   period: "current" | "previous";
   available: boolean;
-};
-
-type ProfessionalAiContext = {
-  period: { startDate: string; endDate: string; dayCount?: number };
-  totals: {
-    calories: number;
-    proteinGrams: number;
-    carbsGrams: number;
-    fatGrams: number;
-  };
-  plannedMacros: {
-    proteinGrams: number;
-    carbsGrams: number;
-    fatGrams: number;
-  };
-  adherence: {
-    percent: number;
-    daysWithinRange: number;
-    daysAboveRange: number;
-    daysBelowRange: number;
-    daysWithoutRecords: number;
-  };
-  recordFrequency: {
-    daysWithRecords: number;
-    daysWithoutRecords: number;
-    totalDays: number;
-  };
-  weekdays: {
-    totalDays: number;
-    daysWithRecords: number;
-    averageCalories: number;
-    averageGoalCalories: number;
-  };
-  weekends: {
-    totalDays: number;
-    daysWithRecords: number;
-    averageCalories: number;
-    averageGoalCalories: number;
-  };
-  weight: {
-    hasData: boolean;
-    firstWeightKg: number | null;
-    lastWeightKg: number | null;
-    deltaKg: number | null;
-  };
-  water: {
-    totalConsumedMl: number;
-    totalGoalMl: number;
-    goalHitDays: number;
-    averageDailyMl: number;
-  };
-  exercise: {
-    totalCalories: number;
-    totalDurationMinutes: number;
-    activeDays: number;
-  };
-  foodQuality: {
-    hasData: boolean;
-    daysWithRecords: number;
-    qualityIndex: number | null;
-    ultraProcessedCaloriesPercent: number;
-    naturalOrMinimallyProcessedCaloriesPercent: number;
-  };
-  alerts: Array<{
-    label: string;
-    severity: string;
-    periodStart: number | null;
-    periodEnd: number | null;
-  }>;
 };
 
 function round(value: number) {
