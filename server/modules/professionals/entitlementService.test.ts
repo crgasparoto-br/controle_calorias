@@ -80,4 +80,24 @@ describe("professional entitlement service", () => {
 
     expect(snapshot.enabledResources).toEqual(["professional_settings"]);
   });
+
+  it("denies an otherwise allowed entitlement after expiration", async () => {
+    process.env.BILLING_ACCESS_MODE = "enforced";
+    _forTestOnly_setProfessionalEntitlementProvider(async () => ({
+      allowed: true,
+      reason: "active_subscription",
+      validUntil: new Date(Date.now() - 1_000),
+      planName: "Profissional expirado",
+      entitlements: [...PROFESSIONAL_ENTITLEMENT_RESOURCES],
+      capacity: { limit: 10, used: 3 },
+    }));
+
+    const snapshot = await getProfessionalEntitlements(106);
+
+    expect(snapshot.allowed).toBe(false);
+    expect(snapshot.reason).toBe("no_access");
+    expect(snapshot.commercialState).toBe("no_access");
+    expect(snapshot.enabledResources).toEqual([]);
+    expect(snapshot.planName).toBe("Profissional expirado");
+  });
 });
