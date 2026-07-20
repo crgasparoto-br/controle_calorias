@@ -90,7 +90,7 @@ Se qualquer camada falhar, a resposta do provedor é descartada integralmente. T
 - Conteúdo de contexto é tratado como dado não confiável, nunca como instrução.
 - O aviso educacional informa que a saída não substitui diagnóstico, prescrição ou decisão clínica.
 - O catálogo exibido na interface corresponde a todos os sinais enviados ao provedor, permitindo conferência do período atual e do anterior.
-- A telemetria operacional sanitizada registra somente status, duração, modo, identificador opaco, modelo, contagem de fontes, uso numérico de tokens e motivo categorizado de fallback. Pergunta, prompt, resposta, valores clínicos e conteúdo do paciente não são registrados.
+- A telemetria operacional sanitizada registra somente status, duração, modelo, contagem de fontes, uso numérico de tokens e motivo categorizado de fallback. Pergunta, prompt, resposta, valores clínicos, modo, identificador da geração e conteúdo do paciente não são registrados nas métricas.
 
 Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/RELIABILITY.md` sem alterar seus contratos de retenção, segredo ou observabilidade.
 
