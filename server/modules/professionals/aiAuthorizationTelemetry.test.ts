@@ -129,13 +129,14 @@ describe("professional AI authorization and telemetry", () => {
       now,
       invoke: vi.fn().mockResolvedValue(providerResponse()),
     });
+    const question = "O que mudou na frequência de registros neste período?";
 
     await service.generate(1, {
       patientId: 41,
       startDate: "2026-07-01",
       endDate: "2026-07-07",
       mode: "question",
-      question: "Compare os registros, segredo-do-paciente",
+      question,
     });
 
     expect(logEvent).toHaveBeenCalledTimes(1);
@@ -158,7 +159,7 @@ describe("professional AI authorization and telemetry", () => {
       },
       sourceCount: 12,
     });
-    expect(event.detail).not.toContain("segredo-do-paciente");
+    expect(event.detail).not.toContain(question);
     expect(event.detail).not.toContain("Resumo objetivo");
   });
 });
