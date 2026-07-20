@@ -51,6 +51,20 @@ vi.mock("@/lib/trpc", () => {
         reports: { periodBundle: query("reports.periodBundle") },
         dashboard: { today: query("dashboard.today") },
       },
+      professionalRecord: {
+        messages: {
+          patientList: {
+            useInfiniteQuery: () => ({
+              data: { pages: [{ items: [], nextCursor: null }] },
+              isLoading: false,
+              isError: false,
+              hasNextPage: false,
+              isFetchingNextPage: false,
+              fetchNextPage: vi.fn(),
+            }),
+          },
+        },
+      },
     },
   };
 });
