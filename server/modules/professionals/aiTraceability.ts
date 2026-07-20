@@ -200,6 +200,7 @@ export function validateProfessionalAiSourceReferences(
 ) {
   const availableKeys = new Set(sourceSignals.map(source => source.key));
   const referencedKeys = [
+    ...output.summarySourceKeys,
     ...output.factSourceKeys.flat(),
     ...output.interpretationSourceKeys.flat(),
   ];
