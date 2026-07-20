@@ -90,14 +90,15 @@ jobs:
             exit 1
           fi
 
-          cp "$generated_snapshot" drizzle/meta/0032_snapshot.json
-          git checkout -- drizzle/meta/_journal.json
-          rm -f "$generated_migration" "$generated_snapshot"
+          cp "$generated_snapshot" /tmp/0032_snapshot.json
+          git fetch origin "$GITHUB_HEAD_REF"
+          git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
+          cp /tmp/0032_snapshot.json drizzle/meta/0032_snapshot.json
           git add drizzle/meta/0032_snapshot.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore(db): registrar snapshot da migration 0032"
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
+          git push origin "$GITHUB_HEAD_REF"
 
       - name: Restore repository migrations after drift inspection
         if: always()
