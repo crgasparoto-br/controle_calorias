@@ -209,15 +209,14 @@ const objectiveSensitiveQuestions = [
   "Qual foi o peso no período atual?",
 ];
 
-const sensitiveProviderTexts = [
+const strictObjectiveProviderTexts = [
   "A aderência calórica foi de 93,3% no período.",
-  "Foram registrados 120 g de proteína no período selecionado.",
+  "Foram registrados 120 g de proteína no período.",
   "O catálogo informa 1.800 kcal registradas no dia.",
   "A meta registrada foi de 1.800 kcal.",
-  "Uma dieta de 1.800 kcal foi registrada no período.",
   "O consumo de água registrado foi de 2.000 ml.",
   "O peso variou 0,5 kg.",
-  ...prescriptiveTexts,
+  "A água permaneceu estável.",
 ];
 
 describe("professional AI adversarial regressions", () => {
@@ -245,8 +244,8 @@ describe("professional AI adversarial regressions", () => {
     ).toBe("provider_allowed");
   });
 
-  it.each(sensitiveProviderTexts)(
-    "rejects sensitive or prescriptive provider-controlled output: %s",
+  it.each(prescriptiveTexts)(
+    "rejects prescriptive provider-controlled output: %s",
     text => {
       expect(() =>
         assertProfessionalAiOutputIsSafe(assistantOutput(text))
@@ -254,12 +253,21 @@ describe("professional AI adversarial regressions", () => {
     }
   );
 
-  it("keeps neutral source-grounded provider text valid", () => {
+  it.each(strictObjectiveProviderTexts)(
+    "keeps strictly objective provider-controlled output valid: %s",
+    text => {
+      expect(() => assertProfessionalAiOutputIsSafe(assistantOutput(text))).not.toThrow();
+    }
+  );
+
+  it("rejects an unknown directive even when objective words are present", () => {
     expect(() =>
       assertProfessionalAiOutputIsSafe(
-        assistantOutput("A frequência permaneceu consistente no período.")
+        assistantOutput(
+          "Com base nos dados registrados, favoreça proteína nas refeições."
+        )
       )
-    ).not.toThrow();
+    ).toThrow("professional_ai_prohibited_clinical_output");
   });
 
   it.each(objectiveSensitiveQuestions)(
@@ -305,8 +313,8 @@ describe("professional AI adversarial regressions", () => {
     }
   );
 
-  it.each(sensitiveProviderTexts)(
-    "discards sensitive provider output and uses canonical fallback: %s",
+  it.each(prescriptiveTexts)(
+    "discards prescriptive provider output and uses canonical fallback: %s",
     async summary => {
       const invoke = vi.fn().mockResolvedValue(providerSummaryResponse(summary));
       const service = createProfessionalAiService(dependencies(invoke));
