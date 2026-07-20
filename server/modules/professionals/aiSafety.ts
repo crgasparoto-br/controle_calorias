@@ -1,17 +1,16 @@
 import type { ProfessionalAiAssistantOutput } from "./aiSchemas";
 
 const CLINICAL_REQUEST_PATTERN =
-  /\b(diagnost|prescrev|prescricao|receit|dosagem|medicamento|remedio|doenca|transtorno|tratamento medico)\w*/;
+  /\b(diagnost|prescrev|prescricao|receit|dose|dosagem|medicamento|remedio|doenca|transtorno|tratamento medico|diabet|anorex|bulim|insulin|antidepress|antibiot|comprimid|suplement)\w*/;
 
 const PROHIBITED_OUTPUT_PATTERNS = [
-  /\bdiagn[oó]stic(?:o|a|ar|ado|ada|ou|amos|aram)\b/i,
-  /\bprescrev\w*\b/i,
-  /\bprescri[cç][aã]o\b/i,
-  /\breceit(?:a|ar|ado|ada|e)\w*\b/i,
-  /\bdosagem\b/i,
-  /\b(?:medicamento|rem[eé]dio|tratamento m[eé]dico)\b/i,
-  /\b(?:o paciente|a paciente|voc[eê]|ele|ela)\b.{0,50}\b(?:tem|possui|apresenta|est[aá] com)\b.{0,50}\b(?:doen[cç]a|transtorno|diabetes|anorexia|bulimia)\b/i,
-  /\b(?:tome|use|inicie|suspenda|aumente|reduza)\b.{0,80}\b(?:mg|ml|comprimido|medicamento|rem[eé]dio|suplemento|tratamento)\b/i,
+  /\bdiagnost\w*\b/,
+  /\bprescrev\w*\b/,
+  /\bprescricao\b/,
+  /\breceit\w*\b/,
+  /\b(?:dose|dosagem|medicamento|remedio|tratamento medico)\b/,
+  /\b(?:o paciente|a paciente|voce|ele|ela)\b.{0,70}\b(?:tem|possui|apresenta|esta com|esta sofrendo|tem sinais de|quadro compativel com)\b.{0,70}\b(?:doenca|transtorno|diabet\w*|anorex\w*|bulim\w*)\b/,
+  /\b(?:deve|precisa|recomendo|orientado a)?\s*(?:tomar|tome|usar|use|iniciar|inicie|suspender|suspenda|administrar|administre|aplicar|aplique|aumentar|aumente|reduzir|reduza)\b.{0,100}\b(?:mg|ml|comprimid\w*|medicamento|remedio|insulin\w*|antidepress\w*|antibiot\w*|suplement\w*|tratamento)\b/,
 ];
 
 function normalize(value: string) {
@@ -28,15 +27,17 @@ export function isClinicalRequest(question: string | undefined) {
 export function assertProfessionalAiOutputIsSafe(
   output: ProfessionalAiAssistantOutput
 ) {
-  const content = [
-    output.title,
-    output.summary,
-    ...output.facts,
-    ...output.interpretations,
-    ...output.missingData,
-    ...output.cautions,
-    output.draft?.content ?? "",
-  ].join("\n");
+  const content = normalize(
+    [
+      output.title,
+      output.summary,
+      ...output.facts,
+      ...output.interpretations,
+      ...output.missingData,
+      ...output.cautions,
+      output.draft?.content ?? "",
+    ].join("\n")
+  );
 
   if (PROHIBITED_OUTPUT_PATTERNS.some(pattern => pattern.test(content))) {
     throw new Error("professional_ai_prohibited_clinical_output");
