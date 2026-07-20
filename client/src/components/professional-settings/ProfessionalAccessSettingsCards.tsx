@@ -7,6 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { AlertTriangle, BadgeCheck, ShieldCheck } from "lucide-react";
+import React from "react";
 
 type OperationalCriterion = {
   key: string;
