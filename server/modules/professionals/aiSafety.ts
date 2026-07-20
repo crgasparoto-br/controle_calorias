@@ -61,24 +61,40 @@ const EXPLICIT_CLINICAL_PATTERNS = [
 const OBJECTIVE_QUESTION_START_PATTERN =
   /^(?:compare|comparar|mostre|mostrar|liste|listar|resuma|resumir|quanto|quanta|quantos|quantas|qual foi|quais foram|como foi|como esta|como evoluiu|o que mudou|o que chama atencao|ha diferenca|existe diferenca)\b/;
 
-const OBJECTIVE_QUESTION_ALLOWED_WORDS = new Set([
+const COMMON_OBJECTIVE_WORDS = [
   "a", "ao", "aos", "as", "agua", "aderencia", "alimentar", "alimentares",
   "anterior", "anteriores", "atencao", "atividade", "atividades", "atual",
-  "atuais", "caloria", "calorias", "calorica", "caloricas", "calculada",
-  "calculadas", "calculado", "calculados", "carboidrato", "carboidratos", "com",
-  "como", "compare", "comparar", "consumo", "da", "das", "dados", "de",
-  "diferenca", "do", "dos", "e", "esta", "efetiva", "efetivas", "entre",
-  "evolucao", "evoluiu", "exercicio", "exercicios", "fisica", "foi", "foram",
-  "frequencia", "g", "gordura", "gorduras", "grama", "gramas", "ha", "ingestao",
-  "kg", "kcal", "liste", "listar", "macro", "macros", "macronutriente",
-  "macronutrientes", "media", "medias", "meta", "metas", "ml", "mostre",
-  "mostrar", "mudou", "na", "nas", "no", "nos", "o", "os", "para", "peso",
-  "periodo", "periodos", "planejada", "planejadas", "planejado", "planejados",
-  "por", "proteina", "proteinas", "qual", "quais", "quanta", "quantas", "quanto",
-  "quantos", "que", "realizada", "realizadas", "realizado", "realizados", "registro",
-  "registrada", "registradas", "registrado", "registrados", "registros", "resuma",
-  "resumir", "semana", "semanas", "total", "totais", "variacao", " versus ",
+  "atuais", "baixa", "baixo", "caloria", "calorias", "calorica", "caloricas",
+  "calculada", "calculadas", "calculado", "calculados", "carboidrato",
+  "carboidratos", "com", "como", "consumo", "da", "das", "dados", "de",
+  "diferenca", "dia", "dias", "do", "dos", "e", "esta", "estavel", "efetiva",
+  "efetivas", "entre", "evolucao", "evoluiu", "exercicio", "exercicios", "final",
+  "finais", "fisica", "foi", "foram", "frequencia", "g", "gordura", "gorduras",
+  "grama", "gramas", "ha", "ingestao", "kg", "kcal", "macro", "macros",
+  "macronutriente", "macronutrientes", "media", "medias", "medio", "medios",
+  "meta", "metas", "ml", "mudou", "na", "nas", "no", "nos", "o", "os",
+  "para", "peso", "periodo", "periodos", "planejada", "planejadas", "planejado",
+  "planejados", "por", "proteina", "proteinas", "qual", "quais", "quanta",
+  "quantas", "quanto", "quantos", "que", "realizada", "realizadas", "realizado",
+  "realizados", "registro", "registrada", "registradas", "registrado", "registrados",
+  "registros", "semana", "semanas", "total", "totais", "util", "uteis",
+  "variacao", "versus",
+];
+
+const OBJECTIVE_QUESTION_ALLOWED_WORDS = new Set([
+  ...COMMON_OBJECTIVE_WORDS,
+  "compare", "comparar", "liste", "listar", "mostre", "mostrar", "resuma", "resumir",
 ]);
+
+const OBJECTIVE_PROVIDER_ALLOWED_WORDS = new Set([
+  ...COMMON_OBJECTIVE_WORDS,
+  "acima", "abaixo", "atingiu", "aumentou", "catalogo", "consistente", "diminuiu",
+  "disponivel", "dentro", "ficaram", "ficou", "fora", "informa", "indice", "mostra",
+  "mostram", "permaneceu", "reduziu", "relatorio", "somou", "totalizou", "variou",
+]);
+
+const OBJECTIVE_PROVIDER_EVIDENCE_PATTERN =
+  /\b(?:registrad\w*|calculad\w*|realizad\w*|planejad\w*|foi|foram|ficou|ficaram|totalizou|somou|atingiu|variou|aumentou|diminuiu|reduziu|permaneceu|informa|mostra|mostram)\b/;
 
 export type ProfessionalAiQuestionSafety =
   | "provider_allowed"
@@ -103,11 +119,22 @@ function hasExplicitClinicalIntent(clause: string) {
   return EXPLICIT_CLINICAL_PATTERNS.some(pattern => pattern.test(clause));
 }
 
-function isStrictObjectiveQuestion(clause: string) {
-  if (!OBJECTIVE_QUESTION_START_PATTERN.test(clause)) return false;
+function usesOnlyAllowedWords(clause: string, allowedWords: Set<string>) {
   const words = clause.match(/[a-z0-9]+/g) ?? [];
-  return words.every(
-    word => /^\d+$/.test(word) || OBJECTIVE_QUESTION_ALLOWED_WORDS.has(word)
+  return words.every(word => /^\d+$/.test(word) || allowedWords.has(word));
+}
+
+function isStrictObjectiveQuestion(clause: string) {
+  return (
+    OBJECTIVE_QUESTION_START_PATTERN.test(clause) &&
+    usesOnlyAllowedWords(clause, OBJECTIVE_QUESTION_ALLOWED_WORDS)
+  );
+}
+
+function isStrictObjectiveProviderClause(clause: string) {
+  return (
+    OBJECTIVE_PROVIDER_EVIDENCE_PATTERN.test(clause) &&
+    usesOnlyAllowedWords(clause, OBJECTIVE_PROVIDER_ALLOWED_WORDS)
   );
 }
 
@@ -142,9 +169,11 @@ export function assertProfessionalAiOutputIsSafe(
     output.draft?.content ?? "",
   ].join("\n");
 
-  const unsafe = splitClauses(providerControlledContent).some(
-    clause => hasExplicitClinicalIntent(clause) || SENSITIVE_DOMAIN_PATTERN.test(clause)
-  );
+  const unsafe = splitClauses(providerControlledContent).some(clause => {
+    if (hasExplicitClinicalIntent(clause)) return true;
+    if (!SENSITIVE_DOMAIN_PATTERN.test(clause)) return false;
+    return !isStrictObjectiveProviderClause(clause);
+  });
   if (unsafe) {
     throw new Error("professional_ai_prohibited_clinical_output");
   }
