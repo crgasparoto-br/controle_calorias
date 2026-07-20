@@ -111,7 +111,7 @@ describe("professional AI authorization and telemetry", () => {
     expect(listAlerts).not.toHaveBeenCalled();
   });
 
-  it("records only sanitized operational metadata for a successful generation", async () => {
+  it("records only status, latency, model and safe counts", async () => {
     const logEvent = vi.fn();
     const now = vi
       .fn()
@@ -146,9 +146,18 @@ describe("professional AI authorization and telemetry", () => {
       status: "success",
       eventType: "professional.ai.generation",
     });
-    expect(event.detail).toContain('"durationMs":250');
-    expect(event.detail).toContain('"providerModel":"test-model"');
-    expect(event.detail).toContain('"totalTokens":160');
+    expect(JSON.parse(event.detail)).toEqual({
+      durationMs: 250,
+      outcome: "provider_success",
+      fallbackCause: null,
+      providerModel: "test-model",
+      providerUsage: {
+        promptTokens: 120,
+        completionTokens: 40,
+        totalTokens: 160,
+      },
+      sourceCount: 12,
+    });
     expect(event.detail).not.toContain("segredo-do-paciente");
     expect(event.detail).not.toContain("Resumo objetivo");
   });
