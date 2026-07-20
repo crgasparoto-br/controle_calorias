@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
 import { invokeLLM } from "../../_core/llm";
+import { logInferenceEvent } from "../../db";
 import { redactSensitiveText } from "../../privacy";
 import { professionalContentRepository } from "./contentPersistenceService";
 import { listProfessionalOperationalAlerts } from "./operationalAlertsService";
 import {
   getProfessionalPatientPeriodBundle,
   getProfessionalPatientTimeZone,
+  getProfessionalStatus,
 } from "./service";
 import type {
   ProfessionalAiAssistantOutput,
@@ -39,23 +41,37 @@ const SEVERITY_WEIGHT: Record<string, number> = {
 
 type ProfessionalAiDependencies = {
   invoke: typeof invokeLLM;
+  getStatus: typeof getProfessionalStatus;
   getTimeZone: typeof getProfessionalPatientTimeZone;
   getPeriodBundle: typeof getProfessionalPatientPeriodBundle;
   listAlerts: typeof listProfessionalOperationalAlerts;
   appendHistory: typeof professionalContentRepository.appendHistory;
+  logEvent: typeof logInferenceEvent;
   now: () => Date;
   providerTimeoutMs: number;
 };
 
 const defaultDependencies: ProfessionalAiDependencies = {
   invoke: invokeLLM,
+  getStatus: getProfessionalStatus,
   getTimeZone: getProfessionalPatientTimeZone,
   getPeriodBundle: getProfessionalPatientPeriodBundle,
   listAlerts: listProfessionalOperationalAlerts,
   appendHistory: input => professionalContentRepository.appendHistory(input),
+  logEvent: logInferenceEvent,
   now: () => new Date(),
   providerTimeoutMs: PROVIDER_TIMEOUT_MS,
 };
+
+function fallbackReason(error: unknown) {
+  if (error instanceof SyntaxError) return "invalid_json";
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("provider_timeout")) return "timeout";
+  if (message.includes("prohibited_clinical_output")) return "prohibited_output";
+  if (message.includes("source_reference")) return "invalid_source_reference";
+  if (message.includes("Zod") || message.includes("validation")) return "invalid_schema";
+  return "provider_failure";
+}
 
 export function createProfessionalAiService(
   overrides: Partial<ProfessionalAiDependencies> = {}
@@ -63,6 +79,10 @@ export function createProfessionalAiService(
   const dependencies = { ...defaultDependencies, ...overrides };
 
   async function priorities(professionalUserId: number, limit: number) {
+    const status = await dependencies.getStatus(professionalUserId);
+    if (!status.hasActiveProfile) {
+      throw new Error("A Área Profissional está indisponível para este perfil.");
+    }
     const alerts = await dependencies.listAlerts(professionalUserId);
     const grouped = new Map<
       number,
@@ -123,6 +143,7 @@ export function createProfessionalAiService(
     professionalUserId: number,
     input: ProfessionalAiGenerateInput
   ) {
+    const startedAt = dependencies.now().getTime();
     const generationId = crypto.randomUUID();
     const timeZoneState = await dependencies.getTimeZone(
       professionalUserId,
@@ -163,7 +184,13 @@ export function createProfessionalAiService(
 
     let output: ProfessionalAiAssistantOutput;
     let fallbackUsed = false;
+    let fallbackCause: string | null = null;
     let providerModel: string | null = null;
+    let providerUsage: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    } | null = null;
 
     if (clinicalBoundary) {
       output = buildProfessionalAiFallbackOutput(
@@ -173,6 +200,7 @@ export function createProfessionalAiService(
         true
       );
       fallbackUsed = true;
+      fallbackCause = "clinical_boundary";
     } else {
       try {
         const result = await withProfessionalAiTimeout(
@@ -212,6 +240,13 @@ export function createProfessionalAiService(
           dependencies.providerTimeoutMs
         );
         providerModel = result.model || null;
+        providerUsage = result.usage
+          ? {
+              promptTokens: result.usage.prompt_tokens,
+              completionTokens: result.usage.completion_tokens,
+              totalTokens: result.usage.total_tokens,
+            }
+          : null;
         output = normalizeProfessionalAiProviderOutput(
           input,
           parseProfessionalAiAssistantContent(
@@ -221,17 +256,40 @@ export function createProfessionalAiService(
           canonicalFacts,
           canonicalMissingData
         );
-      } catch {
+      } catch (error) {
         output = buildProfessionalAiFallbackOutput(
           input,
           context,
           previousContext
         );
         fallbackUsed = true;
+        fallbackCause = fallbackReason(error);
       }
     }
 
-    await dependencies.getTimeZone(professionalUserId, input.patientId);
+    try {
+      await dependencies.getTimeZone(professionalUserId, input.patientId);
+    } catch (error) {
+      const failedAt = dependencies.now().getTime();
+      try {
+        dependencies.logEvent({
+          userId: professionalUserId,
+          origin: "web",
+          status: "error",
+          eventType: "professional.ai.generation",
+          detail: JSON.stringify({
+            mode: input.mode,
+            durationMs: Math.max(0, failedAt - startedAt),
+            outcome: "authorization_invalidated",
+            sourceCount: sourceSignals.length,
+          }),
+        });
+      } catch {
+        // Observability failures must not replace the authorization failure.
+      }
+      throw error;
+    }
+
     const generatedAt = dependencies.now().getTime();
     await dependencies.appendHistory({
       actorUserId: professionalUserId,
@@ -242,6 +300,27 @@ export function createProfessionalAiService(
       entityId: generationId,
       occurredAt: generatedAt,
     });
+
+    try {
+      dependencies.logEvent({
+        userId: professionalUserId,
+        origin: "web",
+        status: fallbackUsed ? "warning" : "success",
+        eventType: "professional.ai.generation",
+        detail: JSON.stringify({
+          mode: input.mode,
+          durationMs: Math.max(0, generatedAt - startedAt),
+          outcome: fallbackUsed ? "fallback" : "provider_success",
+          fallbackCause,
+          providerModel,
+          providerUsage,
+          sourceCount: sourceSignals.length,
+          generationId,
+        }),
+      });
+    } catch {
+      // A falha da telemetria sanitizada não deve impedir a resposta segura.
+    }
 
     return {
       ...output,
