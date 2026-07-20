@@ -11,9 +11,13 @@ import {
 import type {
   ProfessionalAiAssistantOutput,
   ProfessionalAiGenerateInput,
+  ProfessionalAiQuestionFocus,
 } from "./aiSchemas";
 import { classifyProfessionalAiQuestion } from "./aiSafety";
-import { buildProfessionalAiSourceSignals } from "./aiTraceability";
+import {
+  buildProfessionalAiSourceSignals,
+  type ProfessionalAiSourceSignal,
+} from "./aiTraceability";
 import {
   PROFESSIONAL_AI_NOTICE,
   buildCanonicalFacts,
@@ -23,11 +27,14 @@ import {
   previousProfessionalAiRange,
   professionalAlertLabel,
   type OperationalAlert,
+  type ProfessionalAiContext,
 } from "./aiContext";
 import {
   normalizeProfessionalAiProviderOutput,
   parseProfessionalAiAssistantContent,
+  parseProfessionalAiQuestionFocusContent,
   professionalAiProviderOutputSchema,
+  professionalAiQuestionFocusProviderSchema,
   withProfessionalAiTimeout,
 } from "./aiProvider";
 
@@ -36,6 +43,35 @@ const SEVERITY_WEIGHT: Record<string, number> = {
   urgent: 300,
   attention: 200,
   info: 100,
+};
+
+const QUESTION_FOCUS_CONFIG: Record<
+  Exclude<ProfessionalAiQuestionFocus, "clinical_boundary" | "overview">,
+  { title: string; sourceKey: string }
+> = {
+  records: {
+    title: "Frequência de registros",
+    sourceKey: "current_record_frequency",
+  },
+  adherence: {
+    title: "Aderência do período",
+    sourceKey: "current_adherence",
+  },
+  macros: {
+    title: "Macronutrientes do período",
+    sourceKey: "current_macros",
+  },
+  water: { title: "Registros de água", sourceKey: "current_water" },
+  exercise: {
+    title: "Registros de exercícios",
+    sourceKey: "current_exercise",
+  },
+  weight: { title: "Evolução de peso", sourceKey: "current_weight" },
+  food_quality: {
+    title: "Indicadores de qualidade alimentar",
+    sourceKey: "current_food_quality",
+  },
+  alerts: { title: "Alertas objetivos", sourceKey: "current_alerts" },
 };
 
 type ProfessionalAiDependencies = {
@@ -68,6 +104,76 @@ function fallbackReason(error: unknown) {
   if (message.includes("source_reference")) return "invalid_source_reference";
   if (message.includes("Zod") || message.includes("validation")) return "invalid_schema";
   return "provider_failure";
+}
+
+function inferDeterministicQuestionFocus(
+  question: string | undefined
+): Exclude<ProfessionalAiQuestionFocus, "clinical_boundary"> {
+  const normalized = String(question ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (/\b(?:agua|liquido|ml)\b/.test(normalized)) return "water";
+  if (/\b(?:peso|kg|quilo|emagrec|engord)\w*\b/.test(normalized)) return "weight";
+  if (/\b(?:exercicio|atividade fisica|treino|corrida|caminhada|musculacao)\w*\b/.test(normalized)) {
+    return "exercise";
+  }
+  if (/\b(?:proteina|carboidrato|gordura|macro|macronutriente)\w*\b/.test(normalized)) {
+    return "macros";
+  }
+  if (/\b(?:qualidade|ultraprocessado|natural|minimamente processado)\w*\b/.test(normalized)) {
+    return "food_quality";
+  }
+  if (/\b(?:alerta|pendencia|revisao)\w*\b/.test(normalized)) return "alerts";
+  if (/\b(?:aderencia|caloria|kcal|meta)\w*\b/.test(normalized)) return "adherence";
+  if (/\b(?:registro|frequencia|dia sem)\w*\b/.test(normalized)) return "records";
+  return "overview";
+}
+
+function buildFocusedQuestionOutput(
+  input: ProfessionalAiGenerateInput,
+  context: ProfessionalAiContext,
+  sourceSignals: ProfessionalAiSourceSignal[],
+  canonicalFacts: { facts: string[]; factSourceKeys: string[][] },
+  canonicalMissingData: string[],
+  focus: Exclude<ProfessionalAiQuestionFocus, "clinical_boundary">
+): ProfessionalAiAssistantOutput {
+  if (focus === "overview") {
+    return buildProfessionalAiFallbackOutput(input, context);
+  }
+
+  const config = QUESTION_FOCUS_CONFIG[focus];
+  const source = sourceSignals.find(signal => signal.key === config.sourceKey);
+  const sourceKey = source?.available ? source.key : "current_period";
+  const interpretation = source?.available
+    ? source.value
+    : "Os dados disponíveis são insuficientes para responder esse foco sem fazer suposições.";
+
+  return {
+    title: config.title,
+    summary: source?.available
+      ? `Leitura objetiva do sinal solicitado no período autorizado: ${source.label}.`
+      : "Não há dados suficientes para responder o foco solicitado no período autorizado.",
+    summarySourceKeys: [sourceKey],
+    facts: canonicalFacts.facts,
+    factSourceKeys: canonicalFacts.factSourceKeys,
+    interpretations: [interpretation],
+    interpretationSourceKeys: [[sourceKey]],
+    missingData: canonicalMissingData,
+    cautions: [],
+    draft: null,
+    educationalNotice: PROFESSIONAL_AI_NOTICE,
+  };
+}
+
+function providerUsage(result: Awaited<ReturnType<typeof invokeLLM>>) {
+  return result.usage
+    ? {
+        promptTokens: result.usage.prompt_tokens,
+        completionTokens: result.usage.completion_tokens,
+        totalTokens: result.usage.total_tokens,
+      }
+    : null;
 }
 
 export function createProfessionalAiService(
@@ -189,21 +295,91 @@ export function createProfessionalAiService(
     let fallbackUsed = false;
     let fallbackCause: string | null = null;
     let providerModel: string | null = null;
-    let providerUsage: {
+    let providerUsageValue: {
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
     } | null = null;
 
-    if (questionSafety !== "provider_allowed") {
+    if (questionSafety === "clinical_boundary") {
       output = buildProfessionalAiFallbackOutput(
         input,
         context,
         previousContext,
-        questionSafety === "clinical_boundary"
+        true
       );
       fallbackUsed = true;
-      fallbackCause = questionSafety;
+      fallbackCause = "clinical_boundary";
+    } else if (questionSafety === "deterministic_only") {
+      output = buildFocusedQuestionOutput(
+        input,
+        context,
+        sourceSignals,
+        canonicalFacts,
+        canonicalMissingData,
+        inferDeterministicQuestionFocus(input.question)
+      );
+      fallbackUsed = true;
+      fallbackCause = "deterministic_only";
+    } else if (questionSafety === "focus_classifier") {
+      try {
+        const result = await withProfessionalAiTimeout(
+          dependencies.invoke({
+            messages: [
+              {
+                role: "system",
+                content: [
+                  "Classifique somente o foco de uma pergunta livre sobre dados de acompanhamento nutricional.",
+                  "Não responda à pergunta e não produza texto livre.",
+                  "Use clinical_boundary quando a solicitação pedir diagnóstico, prescrição, tratamento, mudança de dieta, meta, alimento, exercício ou decisão clínica.",
+                  "Caso contrário, escolha o foco objetivo mais próximo; use overview quando nenhum foco específico for seguro.",
+                  "Retorne apenas JSON válido no schema solicitado.",
+                ].join(" "),
+              },
+              {
+                role: "user",
+                content: JSON.stringify({
+                  question: redactSensitiveText(input.question ?? ""),
+                }),
+              },
+            ],
+            outputSchema: professionalAiQuestionFocusProviderSchema(),
+          }),
+          dependencies.providerTimeoutMs
+        );
+        providerModel = result.model || null;
+        providerUsageValue = providerUsage(result);
+        const focus = parseProfessionalAiQuestionFocusContent(
+          result.choices[0]?.message.content ?? ""
+        );
+        if (focus === "clinical_boundary") {
+          output = buildProfessionalAiFallbackOutput(
+            input,
+            context,
+            previousContext,
+            true
+          );
+          fallbackUsed = true;
+          fallbackCause = "clinical_boundary";
+        } else {
+          output = buildFocusedQuestionOutput(
+            input,
+            context,
+            sourceSignals,
+            canonicalFacts,
+            canonicalMissingData,
+            focus
+          );
+        }
+      } catch (error) {
+        output = buildProfessionalAiFallbackOutput(
+          input,
+          context,
+          previousContext
+        );
+        fallbackUsed = true;
+        fallbackCause = fallbackReason(error);
+      }
     } else {
       try {
         const result = await withProfessionalAiTimeout(
@@ -244,13 +420,7 @@ export function createProfessionalAiService(
           dependencies.providerTimeoutMs
         );
         providerModel = result.model || null;
-        providerUsage = result.usage
-          ? {
-              promptTokens: result.usage.prompt_tokens,
-              completionTokens: result.usage.completion_tokens,
-              totalTokens: result.usage.total_tokens,
-            }
-          : null;
+        providerUsageValue = providerUsage(result);
         output = normalizeProfessionalAiProviderOutput(
           input,
           parseProfessionalAiAssistantContent(
@@ -315,7 +485,7 @@ export function createProfessionalAiService(
           outcome: fallbackUsed ? "fallback" : "provider_success",
           fallbackCause,
           providerModel,
-          providerUsage,
+          providerUsage: providerUsageValue,
           sourceCount: sourceSignals.length,
         }),
       });
