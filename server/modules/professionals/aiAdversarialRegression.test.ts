@@ -118,18 +118,24 @@ describe("professional AI adversarial regressions", () => {
     "Elimine carboidratos por duas semanas.",
     "Inicie jejum prolongado diariamente.",
     "Ajuste a medicação anti-hipertensiva.",
+    "Faça uma dieta de 800 kcal.",
+    "Consuma 120 g de proteína por dia.",
+    "Siga jejum de 18 horas.",
+    "Adote um plano alimentar sem glúten.",
+    "Mantenha a ingestão em 900 kcal.",
+    "Trata-se de um quadro renal.",
   ])("rejects unsupported clinical or autonomous output: %s", text => {
     expect(() => assertProfessionalAiOutputIsSafe(assistantOutput(text))).toThrow(
       "professional_ai_prohibited_clinical_output"
     );
   });
 
-  it("keeps objective, non-prescriptive summaries valid", () => {
-    expect(() =>
-      assertProfessionalAiOutputIsSafe(
-        assistantOutput("A aderência calórica foi de 93,3% no período.")
-      )
-    ).not.toThrow();
+  it.each([
+    "A aderência calórica foi de 93,3% no período.",
+    "Foram registrados 120 g de proteína no período selecionado.",
+    "O catálogo informa 1.800 kcal registradas no dia.",
+  ])("keeps objective, non-prescriptive summaries valid: %s", text => {
+    expect(() => assertProfessionalAiOutputIsSafe(assistantOutput(text))).not.toThrow();
   });
 
   it.each([
@@ -137,6 +143,11 @@ describe("professional AI adversarial regressions", () => {
     "Reduza a meta para 800 kcal.",
     "Elimine carboidratos por duas semanas.",
     "Inicie jejum prolongado diariamente.",
+    "Faça uma dieta de 800 kcal.",
+    "Consuma 120 g de proteína por dia.",
+    "Siga jejum de 18 horas.",
+    "Adote um plano alimentar sem glúten.",
+    "Trata-se de um quadro renal.",
   ])("blocks clinical or autonomous requests before the provider: %s", question => {
     expect(isClinicalRequest(question)).toBe(true);
   });
