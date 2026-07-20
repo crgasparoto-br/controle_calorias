@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Save, Trash2 } from "lucide-react";
+import React from "react";
 
 export type SummaryFrequency =
   | "disabled"
