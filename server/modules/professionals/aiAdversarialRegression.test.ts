@@ -110,6 +110,49 @@ function providerResponse() {
   };
 }
 
+function providerSummaryResponse(summary: string) {
+  return {
+    id: "response-summary",
+    created: Date.now(),
+    model: "test-model",
+    choices: [
+      {
+        index: 0,
+        finish_reason: "stop",
+        message: {
+          role: "assistant" as const,
+          content: JSON.stringify({
+            title: "Resumo do período",
+            summary,
+            summarySourceKeys: ["current_period"],
+            facts: [],
+            factSourceKeys: [],
+            interpretations: ["A frequência foi consistente."],
+            interpretationSourceKeys: [["current_record_frequency"]],
+            missingData: [],
+            cautions: [],
+            draft: null,
+            educationalNotice: "Aviso educativo.",
+          }),
+        },
+      },
+    ],
+  };
+}
+
+const newlyCaughtPrescriptiveTexts = [
+  "Recomenda-se uma dieta de 800 kcal.",
+  "Uma dieta de 800 kcal é adequada.",
+  "Sugestão: dieta de 800 kcal por duas semanas.",
+  "Estabeleça a meta em 800 kcal.",
+  "Fixe a meta em 800 kcal.",
+  "Deixe a meta em 800 kcal.",
+  "Proponha uma dieta sem lactose.",
+  "Jejum de 18 horas seria adequado.",
+  "É indicado jejum de 18 horas.",
+  "Conduta: limitar carboidratos por duas semanas.",
+];
+
 const unsafeClinicalTexts = [
   "O paciente apresenta hipertensão.",
   "O quadro é compatível com doença renal.",
@@ -127,6 +170,17 @@ const unsafeClinicalTexts = [
   "Sugira uma dieta sem lactose.",
   "Oriente consumo de 120 g de proteína.",
   "A meta calórica deve ser 800 kcal.",
+  ...newlyCaughtPrescriptiveTexts,
+];
+
+const safeObjectiveTexts = [
+  "A aderência calórica foi de 93,3% no período.",
+  "Foram registrados 120 g de proteína no período selecionado.",
+  "O catálogo informa 1.800 kcal registradas no dia.",
+  "A meta registrada foi de 1.800 kcal.",
+  "Uma dieta de 1.800 kcal foi registrada no período.",
+  "O consumo de água registrado foi de 2.000 ml.",
+  "Jejum foi mencionado pelo paciente, sem recomendação profissional.",
 ];
 
 describe("professional AI adversarial regressions", () => {
@@ -139,18 +193,51 @@ describe("professional AI adversarial regressions", () => {
     }
   );
 
-  it.each([
-    "A aderência calórica foi de 93,3% no período.",
-    "Foram registrados 120 g de proteína no período selecionado.",
-    "O catálogo informa 1.800 kcal registradas no dia.",
-  ])("keeps objective, non-prescriptive summaries valid: %s", text => {
-    expect(() => assertProfessionalAiOutputIsSafe(assistantOutput(text))).not.toThrow();
-  });
+  it.each(safeObjectiveTexts)(
+    "keeps objective, non-prescriptive content valid: %s",
+    text => {
+      expect(() => assertProfessionalAiOutputIsSafe(assistantOutput(text))).not.toThrow();
+      expect(isClinicalRequest(text)).toBe(false);
+    }
+  );
 
   it.each(unsafeClinicalTexts)(
     "blocks clinical or autonomous requests before the provider: %s",
     question => {
       expect(isClinicalRequest(question)).toBe(true);
+    }
+  );
+
+  it.each(newlyCaughtPrescriptiveTexts)(
+    "discards prescriptive provider output and uses fallback: %s",
+    async summary => {
+      const invoke = vi.fn().mockResolvedValue(providerSummaryResponse(summary));
+      const service = createProfessionalAiService({
+        getTimeZone: vi.fn().mockResolvedValue({
+          timeZone: "America/Sao_Paulo",
+          source: "profile",
+        }),
+        getPeriodBundle: vi.fn(async (_professionalId, _patientId, range) =>
+          periodBundle(range)
+        ) as any,
+        listAlerts: vi.fn().mockResolvedValue([]),
+        appendHistory: vi.fn().mockResolvedValue({}),
+        logEvent: vi.fn(),
+        now: () => new Date("2026-07-20T12:00:00.000Z"),
+        providerTimeoutMs: 100,
+        invoke,
+      });
+
+      const result = await service.generate(1, {
+        patientId: 41,
+        startDate: "2026-07-08",
+        endDate: "2026-07-14",
+        mode: "summary",
+      });
+
+      expect(invoke).toHaveBeenCalledTimes(1);
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.summary).not.toContain(summary);
     }
   );
 
