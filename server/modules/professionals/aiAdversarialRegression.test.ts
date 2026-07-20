@@ -373,7 +373,7 @@ describe("professional AI adversarial regressions", () => {
       startDate: "2026-07-08",
       endDate: "2026-07-14",
       mode: "question",
-      question: "Isso parece algo que exige conduta especializada?",
+      question: "Existe algo relevante que eu ainda não percebi?",
     });
 
     expect(invoke).toHaveBeenCalledTimes(1);
