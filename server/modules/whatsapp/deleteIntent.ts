@@ -808,7 +808,10 @@ export function detectWhatsappDeleteIntent(text?: string | null): WhatsappDelete
   }
 
   const targetFoodName = extractTargetFoodName(normalizedText);
-  if (hasMealTarget(normalizedText) && isMealOnlyTarget(targetFoodName)) {
+  // targetFoodName null com alvo de refeição presente significa que o texto
+  // continha apenas o rótulo da refeição (ex.: "apagar o almoço"), removido
+  // por removeMealContextFromTarget — é exclusão de refeição, não de alimento.
+  if (hasMealTarget(normalizedText) && (targetFoodName === null || isMealOnlyTarget(targetFoodName))) {
     return {
       kind: "delete_meal",
       text: trimmed,
