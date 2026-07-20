@@ -1,10 +1,21 @@
+function dateParts(date: Date, timeZone: string) {
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(date)
+      .filter(part => part.type !== "literal")
+      .map(part => [part.type, part.value])
+  );
+  return values as Record<"year" | "month" | "day", string>;
+}
+
 export function getDateKeyInZone(date: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+  const values = dateParts(date, timeZone);
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function parts(date: Date, timeZone: string) {
