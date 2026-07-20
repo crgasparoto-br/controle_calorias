@@ -347,9 +347,15 @@ export default function ProfessionalAiWorkspace({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <p className="whitespace-pre-wrap text-sm leading-6">
-              {result.summary}
-            </p>
+            <div>
+              <p className="whitespace-pre-wrap text-sm leading-6">
+                {result.summary}
+              </p>
+              <SourceReferences
+                keys={result.summarySourceKeys}
+                sourceSignals={result.sourceSignals}
+              />
+            </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <h3 className="font-semibold">Fatos calculados</h3>
@@ -394,7 +400,7 @@ export default function ProfessionalAiWorkspace({
               <h3 className="font-semibold">Fontes conferíveis</h3>
               <p className="mt-1 text-xs text-muted-foreground">
                 O catálogo abaixo contém todos os sinais enviados ao provedor.
-                Cada fato e interpretação identifica as fontes correspondentes.
+                Cada resumo, fato e interpretação identifica as fontes correspondentes.
               </p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {result.sourceSignals.map((signal: SourceSignal) => (
