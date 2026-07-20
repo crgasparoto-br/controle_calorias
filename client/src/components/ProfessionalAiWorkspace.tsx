@@ -87,7 +87,10 @@ export default function ProfessionalAiWorkspace({
   const [draftType, setDraftType] = useState<DraftType>(
     "follow_up_summary"
   );
-  const [result, setResult] = useState<any>(null);
+  const [resultState, setResultState] = useState<{
+    signature: string;
+    data: any;
+  } | null>(null);
   const [draftContent, setDraftContent] = useState("");
   const activeSignatureRef = useRef("");
 
@@ -116,16 +119,19 @@ export default function ProfessionalAiWorkspace({
     [draftType, mode, periodRange.end, periodRange.start, question, selectedPatient]
   );
 
+  const result =
+    resultState?.signature === signature ? resultState.data : null;
+
   useEffect(() => {
     activeSignatureRef.current = signature;
-    setResult(null);
+    setResultState(null);
     setDraftContent("");
   }, [signature]);
 
   const requestAssistance = () => {
     if (!selectedPatient) return;
     const requestSignature = signature;
-    setResult(null);
+    setResultState(null);
     generate.mutate(
       {
         patientId: selectedPatient.patientId,
@@ -138,7 +144,7 @@ export default function ProfessionalAiWorkspace({
       {
         onSuccess: data => {
           if (activeSignatureRef.current !== requestSignature) return;
-          setResult(data);
+          setResultState({ signature: requestSignature, data });
           setDraftContent(data.draft?.content ?? "");
         },
       }
