@@ -85,16 +85,40 @@ const professionalAiDraftSchema = z.object({
   content: z.string().trim().min(1).max(4_000),
 });
 
-export const professionalAiAssistantOutputSchema = z.object({
-  title: z.string().trim().min(1).max(160),
-  summary: z.string().trim().min(1).max(2_000),
-  facts: z.array(z.string().trim().min(1).max(500)).max(12),
-  interpretations: z.array(z.string().trim().min(1).max(500)).max(8),
-  missingData: z.array(z.string().trim().min(1).max(300)).max(8),
-  cautions: z.array(z.string().trim().min(1).max(500)).max(8),
-  draft: professionalAiDraftSchema.nullable(),
-  educationalNotice: z.string().trim().min(1).max(800),
-});
+const sourceReferenceListSchema = z
+  .array(z.string().trim().min(1).max(100))
+  .min(1)
+  .max(12);
+
+export const professionalAiAssistantOutputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160),
+    summary: z.string().trim().min(1).max(2_000),
+    facts: z.array(z.string().trim().min(1).max(500)).max(12),
+    factSourceKeys: z.array(sourceReferenceListSchema).max(12),
+    interpretations: z.array(z.string().trim().min(1).max(500)).max(8),
+    interpretationSourceKeys: z.array(sourceReferenceListSchema).max(8),
+    missingData: z.array(z.string().trim().min(1).max(300)).max(8),
+    cautions: z.array(z.string().trim().min(1).max(500)).max(8),
+    draft: professionalAiDraftSchema.nullable(),
+    educationalNotice: z.string().trim().min(1).max(800),
+  })
+  .superRefine((output, context) => {
+    if (output.factSourceKeys.length !== output.facts.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["factSourceKeys"],
+        message: "Cada fato precisa indicar suas fontes.",
+      });
+    }
+    if (output.interpretationSourceKeys.length !== output.interpretations.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interpretationSourceKeys"],
+        message: "Cada interpretação precisa indicar suas fontes.",
+      });
+    }
+  });
 
 export type ProfessionalAiGenerateInput = z.infer<
   typeof professionalAiGenerateSchema
