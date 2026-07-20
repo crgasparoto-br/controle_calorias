@@ -152,16 +152,24 @@ export function createProfessionalAiService(
       dependencies.listAlerts(professionalUserId, input.patientId, range),
     ]);
     const context = buildProfessionalAiContext(bundle, alerts);
-    const previousBundle =
-      input.mode === "comparison"
-        ? await dependencies.getPeriodBundle(
+    const previousRange =
+      input.mode === "comparison" ? previousProfessionalAiRange(range) : null;
+    const previousState = previousRange
+      ? await Promise.all([
+          dependencies.getPeriodBundle(
             professionalUserId,
             input.patientId,
-            previousProfessionalAiRange(range)
-          )
-        : null;
-    const previousContext = previousBundle
-      ? buildProfessionalAiContext(previousBundle, [])
+            previousRange
+          ),
+          dependencies.listAlerts(
+            professionalUserId,
+            input.patientId,
+            previousRange
+          ),
+        ])
+      : null;
+    const previousContext = previousState
+      ? buildProfessionalAiContext(previousState[0], previousState[1])
       : undefined;
     const sourceSignals = buildProfessionalAiSourceSignals(
       context,
