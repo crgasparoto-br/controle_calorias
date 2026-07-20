@@ -3,11 +3,10 @@ import { invokeLLM } from "../../_core/llm";
 import { logInferenceEvent } from "../../db";
 import { redactSensitiveText } from "../../privacy";
 import { professionalContentRepository } from "./contentPersistenceService";
-import { listProfessionalOperationalAlerts } from "./operationalAlertsService";
+import { listProfessionalAiPriorityAlerts } from "./aiPrioritiesAccess";
 import {
   getProfessionalPatientPeriodBundle,
   getProfessionalPatientTimeZone,
-  getProfessionalStatus,
 } from "./service";
 import type {
   ProfessionalAiAssistantOutput,
@@ -41,10 +40,9 @@ const SEVERITY_WEIGHT: Record<string, number> = {
 
 type ProfessionalAiDependencies = {
   invoke: typeof invokeLLM;
-  getStatus: typeof getProfessionalStatus;
   getTimeZone: typeof getProfessionalPatientTimeZone;
   getPeriodBundle: typeof getProfessionalPatientPeriodBundle;
-  listAlerts: typeof listProfessionalOperationalAlerts;
+  listAlerts: typeof listProfessionalAiPriorityAlerts;
   appendHistory: typeof professionalContentRepository.appendHistory;
   logEvent: typeof logInferenceEvent;
   now: () => Date;
@@ -53,10 +51,9 @@ type ProfessionalAiDependencies = {
 
 const defaultDependencies: ProfessionalAiDependencies = {
   invoke: invokeLLM,
-  getStatus: getProfessionalStatus,
   getTimeZone: getProfessionalPatientTimeZone,
   getPeriodBundle: getProfessionalPatientPeriodBundle,
-  listAlerts: listProfessionalOperationalAlerts,
+  listAlerts: listProfessionalAiPriorityAlerts,
   appendHistory: input => professionalContentRepository.appendHistory(input),
   logEvent: logInferenceEvent,
   now: () => new Date(),
@@ -79,10 +76,6 @@ export function createProfessionalAiService(
   const dependencies = { ...defaultDependencies, ...overrides };
 
   async function priorities(professionalUserId: number, limit: number) {
-    const status = await dependencies.getStatus(professionalUserId);
-    if (!status.hasActiveProfile) {
-      throw new Error("A Área Profissional está indisponível para este perfil.");
-    }
     const alerts = await dependencies.listAlerts(professionalUserId);
     const grouped = new Map<
       number,
