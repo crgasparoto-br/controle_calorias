@@ -11,6 +11,8 @@ export type ReportDay = ReportTotals & {
   waterGoalMl: number;
   exerciseCalories: number;
   quality?: unknown;
+  calorieDelta?: number;
+  adherencePercent?: number;
 };
 
 export type WeeklyReportValidation =
@@ -98,6 +100,8 @@ export function normalizeReportDay(day: unknown, fallbackGoal?: Record<string, u
     waterGoalMl: numberValue(source.waterGoalMl),
     exerciseCalories: numberValue(source.exerciseCalories),
     quality: source.quality,
+    calorieDelta: numberValue(source.calorieDelta),
+    adherencePercent: numberValue(source.adherencePercent),
   };
 }
 

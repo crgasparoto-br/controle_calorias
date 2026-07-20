@@ -12,6 +12,10 @@ import {
 
 const patientSchema = z.object({
   patientId: z.number().int().positive().optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+}).refine(input => Boolean(input.startDate) === Boolean(input.endDate), {
+  message: "Informe o início e o fim do período.",
 });
 
 const closeSchema = z.object({
@@ -47,7 +51,7 @@ export const professionalOperationalAlertsRouter = router({
   list: protectedProcedure
     .input(patientSchema.optional())
     .query(({ ctx, input }) =>
-      listProfessionalOperationalAlerts(ctx.user.id, input?.patientId)
+      listProfessionalOperationalAlerts(ctx.user.id, input?.patientId, input?.startDate && input?.endDate ? { startDate: input.startDate, endDate: input.endDate } : undefined)
     ),
   evaluate: protectedProcedure.mutation(({ ctx }) =>
     evaluateProfessionalOperationalAlerts(ctx.user.id)

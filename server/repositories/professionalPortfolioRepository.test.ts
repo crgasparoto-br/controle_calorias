@@ -10,6 +10,9 @@ const input = {
   nextReview: "scheduled" as const,
   page: 2,
   pageSize: 10,
+  reportStartDate: "2026-07-14",
+  reportEndDate: "2026-07-20",
+  includeHistoricalActivity: true,
 };
 
 function rowFor(professionalUserId: number) {
@@ -66,6 +69,10 @@ describe("professionalPortfolioRepository", () => {
     expect(queries[0].sql).toContain("ORDER BY COALESCE(u.name");
     expect(queries[0].sql).toContain("LIMIT ? OFFSET ?");
     expect(queries[0].sql).toContain("nextReviewAt");
+    expect(queries[0].sql).toContain("periodMeals.occurredAt >=");
+    expect(queries[0].sql).toContain("CONVERT_TZ(periodMeals.occurredAt");
+    expect(queries[0].sql).toContain("periodAccess.professionalUserId");
+    expect(queries[2].sql).toContain("COALESCE(pm.periodRecordCount, 0)");
     expect(result.pagination).toEqual({ page: 2, pageSize: 10, total: 21, totalPages: 3 });
     expect(result.items[0]).toMatchObject({
       patientUserId: 41,
@@ -84,6 +91,31 @@ describe("professionalPortfolioRepository", () => {
       pendingReviews: 2,
       pendingWeighings: 1,
     });
+  });
+
+  it("does not scan historical meals when the report view only needs the selected period", async () => {
+    const dialect = new MySqlDialect();
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const db = {
+      execute: vi.fn(async query => {
+        queries.push(dialect.sqlToQuery(query));
+        return [[]];
+      }),
+    };
+    const repository = createProfessionalPortfolioRepository({
+      getDb: async () => db,
+      onWarning: vi.fn(),
+    });
+
+    await repository.list(101, {
+      ...input,
+      activity: "all",
+      includeHistoricalActivity: false,
+    });
+
+    expect(queries[0].sql).not.toContain("MAX(scopedMeals.occurredAt)");
+    expect(queries[0].sql).toContain("periodMeals.occurredAt >=");
+    expect(queries[2].sql).not.toContain("MAX(scopedMeals.occurredAt)");
   });
 
   it("isolates two professionals and never returns the other professional patient", async () => {

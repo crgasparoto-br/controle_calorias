@@ -5,6 +5,7 @@ import {
   professionalPatientQuestionSchema,
   professionalProfileSchema,
   requestPatientAccessSchema,
+  professionalPortfolioSchema,
 } from "./schemas";
 
 describe("professional schemas", () => {
@@ -87,5 +88,11 @@ describe("professional schemas", () => {
       patientId: 2,
       question: "O que merece atenção nos registros da semana?",
     });
+  });
+
+  it("limits the configurable portfolio report period to 90 inclusive days", () => {
+    expect(professionalPortfolioSchema.parse({ reportStartDate: "2026-07-01", reportEndDate: "2026-07-20" })).toMatchObject({ reportStartDate: "2026-07-01", reportEndDate: "2026-07-20" });
+    expect(() => professionalPortfolioSchema.parse({ reportStartDate: "2026-01-01", reportEndDate: "2026-07-20" })).toThrow("Escolha um período de até 90 dias");
+    expect(() => professionalPortfolioSchema.parse({ reportStartDate: "2026-07-20" })).toThrow("Informe o início e o fim");
   });
 });

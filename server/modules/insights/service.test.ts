@@ -192,6 +192,11 @@ describe("insights food quality report integration", () => {
       ultraProcessedCalories: 120,
       unclassifiedCalories: 100,
     });
+    expect(report.analytics).toMatchObject({
+      adherence: { daysWithoutRecords: 1 },
+      plannedMacros: { protein: 300, carbs: 440, fat: 130 },
+      recordFrequency: { daysWithRecords: 1, daysWithoutRecords: 1, totalDays: 2 },
+    });
     expect(report.quality.foodQuality.unclassifiedItems).toEqual([
       expect.objectContaining({
         key: "preparacao xpto isolada",

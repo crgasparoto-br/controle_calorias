@@ -161,11 +161,15 @@ Comunicação individual por web e WhatsApp, com origem explícita:
 A primeira versão da página de Relatórios separa a visão agregada da carteira
 do relatório individual. A visão agregada reutiliza a consulta paginada da
 carteira e as pendências operacionais, sem carregar bundles nutricionais para
-cada paciente. O relatório individual exige seleção explícita de uma pessoa
+cada paciente. O período agregado é configurável em até 90 dias; refeições são
+limitadas por uma janela UTC indexável e classificadas no calendário local do
+timezone efetivo de cada paciente. O relatório individual exige seleção explícita de uma pessoa
 com autorização vigente e usa `patientPeriodBundle`, o timezone efetivo do
 paciente e os mesmos componentes e contratos canônicos de Relatórios da Área
 do Paciente. Mudanças de pessoa ou período usam chaves de consulta distintas;
-revogação remove o contexto profissional e impede novas leituras.
+revogação remove o contexto profissional e impede novas leituras. Aderência,
+metas planejadas e frequência de registros são produzidas no bundle canônico
+do backend; o frontend profissional apenas adapta esses contratos para exibição.
 
 ### Configurações profissionais
 

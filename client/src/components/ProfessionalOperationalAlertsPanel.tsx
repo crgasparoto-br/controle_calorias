@@ -49,11 +49,15 @@ function formatPeriod(period: { start: number | null; end: number | null }) {
 
 export default function ProfessionalOperationalAlertsPanel({
   patientId,
+  onOpenPatient,
+  periodRange,
 }: {
   patientId?: number;
+  onOpenPatient?: (patient: { patientId: number; displayName: string }) => void;
+  periodRange?: { start: string; end: string };
 }) {
   const query = trpc.professionalRecord.operationalAlerts.list.useQuery(
-    patientId ? { patientId } : {},
+    patientId ? { patientId, startDate: periodRange?.start, endDate: periodRange?.end } : {},
     {
       retry: false,
       refetchInterval: 30_000,
@@ -182,6 +186,11 @@ export default function ProfessionalOperationalAlertsPanel({
                 </span>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
+                {!patientId && onOpenPatient ? (
+                  <Button size="sm" variant="outline" onClick={() => onOpenPatient({ patientId: alert.patientUserId, displayName: alert.patientName })}>
+                    Abrir paciente
+                  </Button>
+                ) : null}
                 <Button
                   size="sm"
                   disabled={isUpdating}
