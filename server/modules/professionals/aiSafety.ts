@@ -6,18 +6,31 @@ const CLINICAL_TOPIC_PATTERN =
 const AUTONOMOUS_ACTION_VERBS =
   "tomar|tome|usar|use|iniciar|inicie|suspender|suspenda|interromper|interrompa|administrar|administre|aplicar|aplique|aumentar|aumente|reduzir|reduza|ajustar|ajuste|definir|defina|limitar|limite|eliminar|elimine|cortar|corte|retirar|retire|evitar|evite|fazer|faca|seguir|siga|adotar|adote|manter|mantenha|consumir|consuma|ingerir|ingira|trocar|troque|substituir|substitua|praticar|pratique";
 
+const DIRECTIVE_CUES =
+  "deve|precisa|recomendo|recomende|recomendar|oriento|oriente|orientar|sugiro|sugira|sugerir|indico|indique|indicar|e necessario|o ideal e|convem";
+
 const MEDICAL_TARGETS =
   "mg|g|ml|comprimid\\w*|medicamento|medicacao|remedio|insulin\\w*|antidepress\\w*|antibiot\\w*|suplement\\w*|tratamento";
 
 const NUTRITION_TARGETS =
   "meta(?: calorica)?|caloria\\w*|kcal|proteina\\w*|carboidrato\\w*|gordura\\w*|macronutriente\\w*|macro\\w*|refeicao|refeicoes|alimento\\w*|dieta\\w*|jejum|plano alimentar|consumo|ingestao|acucar|sal|sodio|gluten|lactose|fibra\\w*|agua|liquido\\w*";
 
+const ALL_CLINICAL_TARGETS = `${MEDICAL_TARGETS}|${NUTRITION_TARGETS}`;
+
 const AUTONOMOUS_MEDICAL_ACTION_PATTERN = new RegExp(
-  `\\b(?:deve|precisa|recomendo|orientado a|e necessario|o ideal e)?\\s*(?:${AUTONOMOUS_ACTION_VERBS})\\b.{0,120}\\b(?:${MEDICAL_TARGETS})\\b`
+  `\\b(?:${DIRECTIVE_CUES})?\\s*(?:${AUTONOMOUS_ACTION_VERBS})\\b.{0,120}\\b(?:${MEDICAL_TARGETS})\\b`
 );
 
 const AUTONOMOUS_NUTRITION_ACTION_PATTERN = new RegExp(
-  `\\b(?:deve|precisa|recomendo|orientado a|e necessario|o ideal e)?\\s*(?:${AUTONOMOUS_ACTION_VERBS})\\b.{0,120}\\b(?:${NUTRITION_TARGETS})\\b`
+  `\\b(?:${DIRECTIVE_CUES})?\\s*(?:${AUTONOMOUS_ACTION_VERBS})\\b.{0,120}\\b(?:${NUTRITION_TARGETS})\\b`
+);
+
+const DIRECTIVE_TARGET_PATTERN = new RegExp(
+  `\\b(?:${DIRECTIVE_CUES})\\b.{0,120}\\b(?:${ALL_CLINICAL_TARGETS})\\b`
+);
+
+const TARGET_FIRST_DIRECTIVE_PATTERN = new RegExp(
+  `\\b(?:${ALL_CLINICAL_TARGETS})\\b.{0,80}\\b(?:deve|precisa|recomendad\\w*|indicad\\w*|orientad\\w*|ideal)\\b`
 );
 
 const CLINICAL_ASSERTION_PATTERN =
@@ -30,6 +43,8 @@ const CLINICAL_REQUEST_PATTERNS = [
   CLINICAL_TOPIC_PATTERN,
   AUTONOMOUS_MEDICAL_ACTION_PATTERN,
   AUTONOMOUS_NUTRITION_ACTION_PATTERN,
+  DIRECTIVE_TARGET_PATTERN,
+  TARGET_FIRST_DIRECTIVE_PATTERN,
   UNSUPPORTED_CLINICAL_CONCLUSION_PATTERN,
 ];
 
@@ -39,6 +54,8 @@ const PROHIBITED_OUTPUT_PATTERNS = [
   UNSUPPORTED_CLINICAL_CONCLUSION_PATTERN,
   AUTONOMOUS_MEDICAL_ACTION_PATTERN,
   AUTONOMOUS_NUTRITION_ACTION_PATTERN,
+  DIRECTIVE_TARGET_PATTERN,
+  TARGET_FIRST_DIRECTIVE_PATTERN,
 ];
 
 function normalize(value: string) {
