@@ -212,7 +212,6 @@ function generateMarkdown(groups: GroupInfo[]) {
   lines.push(
     "- Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde."
   );
-  lines.push("");
 
   return `${lines.join("\n")}\n`;
 }
