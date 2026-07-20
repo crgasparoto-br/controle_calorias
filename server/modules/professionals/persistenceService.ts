@@ -6,11 +6,27 @@ import {
   type UpsertCanonicalProfessionalAuthorizationInput,
   type UpsertCanonicalProfessionalProfileInput,
 } from "../../repositories/professionalRepository";
+import { assertProfessionalCapacityAvailable } from "./entitlementService";
 
-export const professionalRepository = createDrizzleProfessionalRepository({
+const baseProfessionalRepository = createDrizzleProfessionalRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+
+export const professionalRepository: typeof baseProfessionalRepository = {
+  ...baseProfessionalRepository,
+  async transitionAuthorization(input) {
+    if (input.nextStatus === "approved") {
+      const current = await baseProfessionalRepository.getAuthorizationById(
+        input.authorizationId
+      );
+      if (current && current.status !== "approved") {
+        await assertProfessionalCapacityAvailable(current.professionalUserId);
+      }
+    }
+    return baseProfessionalRepository.transitionAuthorization(input);
+  },
+};
 
 export function getCanonicalProfessionalProfile(userId: number) {
   return professionalRepository.getProfile(userId);
