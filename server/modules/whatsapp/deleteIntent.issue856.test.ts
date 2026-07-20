@@ -87,7 +87,7 @@ vi.mock("../../db", () => ({
 }));
 
 const { executeWhatsappDeleteIntent } = await import("./deleteIntent");
-const { clearConversationHistory, recordConversationTurn } = await import("./conversationHistory");
+const { __resetConversationHistoryForTests, recordConversationTurn } = await import("./conversationHistory");
 
 const lunch = {
   id: 10,
@@ -113,7 +113,7 @@ const dinner = {
 describe("deleteIntent issue #856", () => {
   beforeEach(() => {
     fakePendingOperationDb.reset();
-    clearConversationHistory();
+    __resetConversationHistoryForTests();
     listMealsMock.mockReset();
     removeMealMock.mockReset();
     updateMealMock.mockReset();
