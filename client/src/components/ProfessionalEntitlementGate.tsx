@@ -42,7 +42,11 @@ export default function ProfessionalEntitlementGate({
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle
+              role="heading"
+              aria-level={1}
+              className="flex items-center gap-2"
+            >
               <AlertTriangle className="h-5 w-5 text-destructive" />
               Não foi possível verificar o acesso
             </CardTitle>
@@ -67,7 +71,9 @@ export default function ProfessionalEntitlementGate({
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader>
-            <CardTitle>Acesso profissional indisponível</CardTitle>
+            <CardTitle role="heading" aria-level={1}>
+              Acesso profissional indisponível
+            </CardTitle>
             <CardDescription>
               O contrato central de acesso não liberou os recursos
               profissionais. Seus pacientes, prontuários e histórico foram
