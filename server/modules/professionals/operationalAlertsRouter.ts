@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../../_core/trpc";
+import { router } from "../../_core/trpc";
+import { professionalAlertsProcedure } from "./entitledProcedure";
 import {
   cancelProfessionalOperationalRequest,
   closeProfessionalOperationalAlert,
@@ -48,15 +49,15 @@ const reviewSignalSchema = z.object({
 });
 
 export const professionalOperationalAlertsRouter = router({
-  list: protectedProcedure
+  list: professionalAlertsProcedure
     .input(patientSchema.optional())
     .query(({ ctx, input }) =>
       listProfessionalOperationalAlerts(ctx.user.id, input?.patientId, input?.startDate && input?.endDate ? { startDate: input.startDate, endDate: input.endDate } : undefined)
     ),
-  evaluate: protectedProcedure.mutation(({ ctx }) =>
+  evaluate: professionalAlertsProcedure.mutation(({ ctx }) =>
     evaluateProfessionalOperationalAlerts(ctx.user.id)
   ),
-  close: protectedProcedure.input(closeSchema).mutation(({ ctx, input }) =>
+  close: professionalAlertsProcedure.input(closeSchema).mutation(({ ctx, input }) =>
     closeProfessionalOperationalAlert(
       ctx.user.id,
       ctx.user.id,
@@ -65,12 +66,12 @@ export const professionalOperationalAlertsRouter = router({
       input.note
     )
   ),
-  createRequest: protectedProcedure
+  createRequest: professionalAlertsProcedure
     .input(requestSchema)
     .mutation(({ ctx, input }) =>
       createProfessionalOperationalRequest(ctx.user.id, input)
     ),
-  respondRequest: protectedProcedure
+  respondRequest: professionalAlertsProcedure
     .input(requestResponseSchema)
     .mutation(({ ctx, input }) =>
       respondToProfessionalOperationalRequest(
@@ -79,7 +80,7 @@ export const professionalOperationalAlertsRouter = router({
         input.responseReference
       )
     ),
-  cancelRequest: protectedProcedure
+  cancelRequest: professionalAlertsProcedure
     .input(requestCancellationSchema)
     .mutation(({ ctx, input }) =>
       cancelProfessionalOperationalRequest(
@@ -88,7 +89,7 @@ export const professionalOperationalAlertsRouter = router({
         input.requestId
       )
     ),
-  registerReviewSignal: protectedProcedure
+  registerReviewSignal: professionalAlertsProcedure
     .input(reviewSignalSchema)
     .mutation(({ ctx, input }) =>
       registerProfessionalReviewSignal(ctx.user.id, input)
