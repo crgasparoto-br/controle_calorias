@@ -100,7 +100,7 @@ export const professionalAiAssistantOutputSchema = z
     factSourceKeys: z.array(sourceReferenceListSchema).max(12),
     interpretations: z.array(z.string().trim().min(1).max(500)).max(8),
     interpretationSourceKeys: z.array(sourceReferenceListSchema).max(8),
-    missingData: z.array(z.string().trim().min(1).max(300)).max(8),
+    missingData: z.array(z.string().trim().min(1).max(300)).max(12),
     cautions: z.array(z.string().trim().min(1).max(500)).max(8),
     draft: professionalAiDraftSchema.nullable(),
     educationalNotice: z.string().trim().min(1).max(800),
