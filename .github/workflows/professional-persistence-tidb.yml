@@ -74,22 +74,46 @@ jobs:
 
       - name: Validate professional migration and repository
         run: |
-          set +e
-          timeout --signal=TERM --kill-after=10s 5m pnpm db:test:professionals 2>&1 | tee /tmp/professional-persistence.log
-          test_status=${PIPESTATUS[0]}
-          set -e
+          log_file=/tmp/professional-persistence.log
+          setsid pnpm db:test:professionals >"$log_file" 2>&1 &
+          test_pid=$!
+          success_marker='"event":"professional.persistence.integration.passed"'
 
-          if ! grep -q '"event":"professional.persistence.integration.passed"' /tmp/professional-persistence.log; then
-            echo "Professional persistence integration did not reach its success marker."
-            exit "${test_status:-1}"
-          fi
+          for attempt in $(seq 1 150); do
+            if grep -q "$success_marker" "$log_file"; then
+              cat "$log_file"
+              kill -TERM -- "-$test_pid" 2>/dev/null || true
+              sleep 2
+              kill -KILL -- "-$test_pid" 2>/dev/null || true
+              wait "$test_pid" 2>/dev/null || true
+              echo "Professional persistence integration completed successfully."
+              exit 0
+            fi
 
-          if [ "$test_status" -ne 0 ] && [ "$test_status" -ne 124 ] && [ "$test_status" -ne 143 ]; then
-            echo "Professional persistence integration failed with status $test_status."
-            exit "$test_status"
-          fi
+            if ! kill -0 "$test_pid" 2>/dev/null; then
+              set +e
+              wait "$test_pid"
+              test_status=$?
+              set -e
+              cat "$log_file"
+              if [ "$test_status" -eq 0 ] && grep -q "$success_marker" "$log_file"; then
+                echo "Professional persistence integration completed successfully."
+                exit 0
+              fi
+              echo "Professional persistence integration exited before its success marker."
+              exit "${test_status:-1}"
+            fi
 
-          echo "Professional persistence integration completed successfully."
+            sleep 2
+          done
+
+          cat "$log_file"
+          kill -TERM -- "-$test_pid" 2>/dev/null || true
+          sleep 2
+          kill -KILL -- "-$test_pid" 2>/dev/null || true
+          wait "$test_pid" 2>/dev/null || true
+          echo "Professional persistence integration timed out before its success marker."
+          exit 1
 
       - name: Validate backfill command idempotency
         run: |
