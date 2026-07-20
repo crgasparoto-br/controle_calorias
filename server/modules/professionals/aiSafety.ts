@@ -104,6 +104,7 @@ const OBJECTIVE_PROVIDER_EVIDENCE_PATTERN =
 export type ProfessionalAiQuestionSafety =
   | "provider_allowed"
   | "deterministic_only"
+  | "focus_classifier"
   | "clinical_boundary";
 
 function normalize(value: string) {
@@ -161,7 +162,7 @@ export function classifyProfessionalAiQuestion(
     if (!isStrictObjectiveQuestion(clause)) {
       if (sensitiveClause) return "clinical_boundary";
       return question.trim().endsWith("?")
-        ? "deterministic_only"
+        ? "focus_classifier"
         : "clinical_boundary";
     }
     if (sensitiveClause) hasSensitiveClause = true;
