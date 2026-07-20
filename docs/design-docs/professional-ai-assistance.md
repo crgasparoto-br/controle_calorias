@@ -26,7 +26,7 @@ Os fatos calculados e a lista de dados ausentes são produzidos exclusivamente p
 
 - **Resumo:** descreve fatos calculados do período e separa interpretações assistidas.
 - **Comparação:** compara o período atual com uma janela anterior de mesma duração.
-- **Pergunta:** aceita qualquer texto, mas somente perguntas analíticas reconhecidas podem usar o provedor. Consultas objetivas com termos nutricionais, médicos, de peso ou exercício são respondidas pelo fallback canônico sem enviar a pergunta ao provedor. Perguntas livres não reconhecidas também usam o fallback determinístico. Comandos, diagnósticos, prescrições ou frases não interrogativas ambíguas recebem um limite explícito.
+- **Pergunta:** aceita qualquer texto, mas somente perguntas analíticas reconhecidas podem usar o provedor. Consultas objetivas com termos nutricionais, médicos, de peso ou exercício são respondidas pelo fallback canônico sem enviar a pergunta ao provedor. Perguntas livres não sensíveis e não reconhecidas também usam o fallback determinístico. Qualquer frase sensível fora da gramática analítica, mesmo terminada com interrogação, recebe o limite clínico explícito.
 - **Rascunho:** prepara texto revisável para orientação, lembrete, pedido de pesagem, pedido de registro, mensagem administrativa ou resumo de acompanhamento.
 
 O período máximo é de 90 dias inclusivos. Datas inexistentes no calendário, intervalos invertidos e períodos maiores que o limite são rejeitados antes da execução.
@@ -83,12 +83,14 @@ A validação ocorre em quatro camadas:
 Perguntas livres são classificadas em três grupos:
 
 - `provider_allowed`: somente perguntas analíticas reconhecidas, iniciadas por formas como `compare`, `mostre`, `liste`, `resuma`, `explique`, `quanto`, `qual foi`, `como está` ou `o que mudou`, e compostas exclusivamente pelo vocabulário objetivo autorizado;
-- `deterministic_only`: consultas objetivas sensíveis ou perguntas interrogativas não reconhecidas usam somente o backend canônico e não enviam a pergunta ao provedor;
-- `clinical_boundary`: comandos, recomendações, diagnósticos, prescrições e frases não interrogativas fora da forma analítica autorizada recebem o limite clínico sem chamada ao provedor.
+- `deterministic_only`: consultas objetivas sensíveis ou perguntas interrogativas não sensíveis e não reconhecidas usam somente o backend canônico e não enviam a pergunta ao provedor;
+- `clinical_boundary`: comandos, recomendações, diagnósticos, prescrições, frases não interrogativas fora da forma analítica e qualquer pergunta sensível não analítica recebem o limite clínico sem chamada ao provedor.
 
-A classificação não depende apenas de listas de alimentos ou verbos conhecidos. Toda pergunta fora da gramática analítica controlada é bloqueada ou degradada de forma determinística. Assim, comandos com termos não previstos, como montar cardápio, distribuir frutas, apostar em saladas ou organizar a rotina, não alcançam o provedor.
+A classificação não depende apenas de listas de alimentos ou verbos conhecidos. Toda pergunta fora da gramática analítica controlada é bloqueada ou degradada de forma determinística. Assim, comandos com termos não previstos, como montar cardápio, distribuir frutas, apostar em saladas ou organizar a rotina, não alcançam o provedor. Perguntas como `Seria interessante uma dieta cetogênica?` recebem limite clínico, e não uma resposta determinística comum.
 
 Todo texto controlado pelo provedor — título, resumo, interpretações, cautelas e rascunho — precisa usar exclusivamente um vocabulário factual autorizado. Essa regra vale para cláusulas sensíveis e não sensíveis. Palavras desconhecidas, linguagem persuasiva, comandos, qualificadores clínicos ou termos fora da lista segura invalidam a resposta inteira e acionam o fallback. Quando a frase contém metas, calorias, macros, água, peso ou exercícios, também precisa apresentar evidência explícita de registro, cálculo, realização, planejamento ou variação.
+
+A tokenização usa propriedades Unicode para reconhecer letras e números de qualquer alfabeto. Uma cláusula sem palavras reconhecíveis ou contendo palavras em escrita não autorizada é rejeitada; portanto, texto em outro alfabeto não consegue contornar o vocabulário seguro por produzir uma lista vazia de tokens.
 
 Os campos `facts`, `factSourceKeys` e `missingData` não dependem do texto do provedor: são sempre substituídos pelos valores canônicos do backend. Pontos e vírgulas entre dígitos são preservados para que valores como `1.800`, `2.000` e `93,3` não sejam divididos em cláusulas falsas.
 
@@ -113,8 +115,8 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - JSON ou schema inválido: descarta a saída e retorna fallback determinístico.
 - Vocabulário ou conteúdo clínico proibido na saída: descarta a saída e retorna fallback determinístico.
 - Referência de fonte inexistente ou indisponível: descarta a saída e retorna fallback determinístico.
-- Pergunta livre não reconhecida: retorna resposta determinística sem chamada ao provedor.
-- Comando ou solicitação prescritiva: retorna limite clínico sem chamada ao provedor.
+- Pergunta livre não sensível e não reconhecida: retorna resposta determinística sem chamada ao provedor.
+- Pergunta sensível não analítica, comando ou solicitação prescritiva: retorna limite clínico sem chamada ao provedor.
 - Falha do relatório canônico: nenhuma geração é produzida.
 - Revogação durante a geração: resposta descartada e telemetria registra apenas `authorization_invalidated`.
 - Ausência de dados: aparece explicitamente em `missingData`; zero não é apresentado como aderência, média ou observação clínica.
@@ -133,12 +135,14 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - resistência a instruções inseridas em conteúdo do paciente;
 - fallback para erro, timeout, JSON inválido e schema inválido;
 - classificação distinta de pergunta analítica permitida, consulta determinística e limite clínico;
-- perguntas sensíveis e perguntas livres desconhecidas sem chamada ao provedor;
+- perguntas objetivas sensíveis e perguntas livres desconhecidas sem chamada ao provedor;
+- perguntas sensíveis não analíticas com limite clínico claro;
 - comandos diretos, formas impessoais, construções nominais, avaliações prescritivas e verbos desconhecidos;
 - comandos com vegetais, cardápio, frutas, saladas e linguagem fora do domínio inicialmente enumerado;
 - frases que misturam palavras objetivas com comandos não reconhecidos;
 - vocabulário factual controlado para todo texto livre do provedor;
 - rejeição de qualquer palavra desconhecida no título, resumo, interpretação, cautela ou rascunho;
+- rejeição de conteúdo em alfabetos ou escritas não autorizadas;
 - preservação de separadores numéricos em `1.800`, `2.000` e `93,3`;
 - revogação entre a consulta e o retorno do provedor;
 - declaração explícita de dados ausentes no período atual e anterior;
