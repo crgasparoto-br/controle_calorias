@@ -16,6 +16,23 @@ export const professionalAiDraftTypeSchema = z.enum([
   "follow_up_summary",
 ]);
 
+export const professionalAiQuestionFocusSchema = z.enum([
+  "overview",
+  "records",
+  "adherence",
+  "macros",
+  "water",
+  "exercise",
+  "weight",
+  "food_quality",
+  "alerts",
+  "clinical_boundary",
+]);
+
+export const professionalAiQuestionFocusOutputSchema = z
+  .object({ focus: professionalAiQuestionFocusSchema })
+  .strict();
+
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PERIOD_DAYS = 90;
 
@@ -127,6 +144,9 @@ export type ProfessionalAiGenerateInput = z.infer<
 >;
 export type ProfessionalAiDraftType = z.infer<
   typeof professionalAiDraftTypeSchema
+>;
+export type ProfessionalAiQuestionFocus = z.infer<
+  typeof professionalAiQuestionFocusSchema
 >;
 export type ProfessionalAiAssistantOutput = z.infer<
   typeof professionalAiAssistantOutputSchema
