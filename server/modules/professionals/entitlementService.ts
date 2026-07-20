@@ -62,11 +62,17 @@ export type ProfessionalEntitlementSnapshot = {
   evaluatedAt: number;
 };
 
-type EntitlementProvider = (
+export type ProfessionalEntitlementProvider = (
   professionalUserId: number
 ) => Promise<ProfessionalEntitlementProviderResult>;
 
-let entitlementProvider: EntitlementProvider | null = null;
+let entitlementProvider: ProfessionalEntitlementProvider | null = null;
+
+export function configureProfessionalEntitlementProvider(
+  provider: ProfessionalEntitlementProvider | null
+) {
+  entitlementProvider = provider;
+}
 
 function accessMode(): "open_access" | "enforced" {
   return process.env.BILLING_ACCESS_MODE?.trim().toLowerCase() === "enforced"
@@ -282,7 +288,7 @@ export async function assertProfessionalCapacityAvailable(
 }
 
 export function _forTestOnly_setProfessionalEntitlementProvider(
-  provider: EntitlementProvider | null
+  provider: ProfessionalEntitlementProvider | null
 ) {
-  entitlementProvider = provider;
+  configureProfessionalEntitlementProvider(provider);
 }
