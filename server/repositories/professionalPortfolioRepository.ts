@@ -31,6 +31,7 @@ export type ProfessionalPortfolioResult = {
     ended: number;
     notStarted: number;
     pendingRequests: number;
+    activeWithRecentRecords: number;
     withoutRecentActivity: number;
     pendingReviews: number;
     pendingWeighings: number;
@@ -163,6 +164,7 @@ export function createProfessionalPortfolioRepository(
             SUM(CASE WHEN t.status = 'ended' AND a.status = 'approved' THEN 1 ELSE 0 END) AS ended,
             SUM(CASE WHEN t.id IS NULL AND a.status = 'approved' THEN 1 ELSE 0 END) AS notStarted,
             SUM(CASE WHEN a.status = 'pending' THEN 1 ELSE 0 END) AS pendingRequests,
+            SUM(CASE WHEN a.status = 'approved' AND t.status = 'active' AND m.lastFoodActivityAt >= ${inactiveBefore} THEN 1 ELSE 0 END) AS activeWithRecentRecords,
             SUM(CASE WHEN a.status = 'approved' AND (m.lastFoodActivityAt < ${inactiveBefore} OR m.lastFoodActivityAt IS NULL) THEN 1 ELSE 0 END) AS withoutRecentActivity,
             SUM(CASE WHEN a.status = 'approved' AND t.nextReviewAt IS NOT NULL AND t.nextReviewAt <= ${now} THEN 1 ELSE 0 END) AS pendingReviews,
             SUM(CASE WHEN a.status = 'approved' AND t.nextWeighingAt IS NOT NULL AND t.nextWeighingAt <= ${now} THEN 1 ELSE 0 END) AS pendingWeighings
@@ -191,6 +193,7 @@ export function createProfessionalPortfolioRepository(
           ended: asNumber(summary.ended),
           notStarted: asNumber(summary.notStarted),
           pendingRequests: asNumber(summary.pendingRequests),
+          activeWithRecentRecords: asNumber(summary.activeWithRecentRecords),
           withoutRecentActivity: asNumber(summary.withoutRecentActivity),
           pendingReviews: asNumber(summary.pendingReviews),
           pendingWeighings: asNumber(summary.pendingWeighings),
@@ -223,6 +226,7 @@ function emptyResult(
       ended: 0,
       notStarted: 0,
       pendingRequests: 0,
+      activeWithRecentRecords: 0,
       withoutRecentActivity: 0,
       pendingReviews: 0,
       pendingWeighings: 0,
