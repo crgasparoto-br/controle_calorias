@@ -199,18 +199,39 @@ export function buildProfessionalAiContext(
   };
 }
 
-function missingData(context: ReturnType<typeof buildProfessionalAiContext>) {
+function missingData(
+  context: ReturnType<typeof buildProfessionalAiContext>,
+  periodLabel: "período selecionado" | "período anterior"
+) {
   const missing: string[] = [];
   if (!context.recordFrequency.daysWithRecords) {
-    missing.push("Não há registros alimentares no período selecionado.");
+    missing.push(`Não há registros alimentares no ${periodLabel}.`);
   }
-  if (!context.weight.hasData) missing.push("Não há peso disponível para o período.");
-  if (!context.water.totalConsumedMl) missing.push("Não há registros de água no período.");
-  if (!context.exercise.activeDays) missing.push("Não há exercícios registrados no período.");
+  if (!context.weight.hasData) {
+    missing.push(`Não há peso disponível para o ${periodLabel}.`);
+  }
+  if (!context.water.totalConsumedMl) {
+    missing.push(`Não há registros de água no ${periodLabel}.`);
+  }
+  if (!context.exercise.activeDays) {
+    missing.push(`Não há exercícios registrados no ${periodLabel}.`);
+  }
   if (!context.foodQuality.hasData) {
-    missing.push("Não há dados suficientes para indicadores de qualidade alimentar.");
+    missing.push(
+      `Não há dados suficientes para indicadores de qualidade alimentar no ${periodLabel}.`
+    );
   }
   return missing;
+}
+
+function requiredMissingData(
+  context: ReturnType<typeof buildProfessionalAiContext>,
+  previous?: ReturnType<typeof buildProfessionalAiContext>
+) {
+  return [
+    ...missingData(context, "período selecionado"),
+    ...(previous ? missingData(previous, "período anterior") : []),
+  ];
 }
 
 function deterministicDraft(
@@ -260,7 +281,12 @@ function fallbackOutput(
   }
   const interpretations: string[] = [];
   const interpretationSourceKeys: string[][] = [];
-  if (previous) {
+  if (
+    input.mode === "comparison" &&
+    previous &&
+    context.recordFrequency.daysWithRecords > 0 &&
+    previous.recordFrequency.daysWithRecords > 0
+  ) {
     const difference = round(
       context.adherence.percent - previous.adherence.percent
     );
@@ -271,7 +297,11 @@ function fallbackOutput(
       "current_adherence",
       "previous_adherence",
     ]);
-  } else if (context.weekends.totalDays && context.weekdays.totalDays) {
+  } else if (
+    input.mode !== "comparison" &&
+    context.weekends.totalDays &&
+    context.weekdays.totalDays
+  ) {
     interpretations.push(
       `A média registrada foi de ${context.weekdays.averageCalories} kcal nos dias úteis e ${context.weekends.averageCalories} kcal nos finais de semana.`
     );
@@ -290,7 +320,11 @@ function fallbackOutput(
     interpretations.push(
       "Os dados disponíveis são insuficientes para uma comparação adicional sem fazer suposições."
     );
-    interpretationSourceKeys.push(["current_record_frequency"]);
+    interpretationSourceKeys.push(
+      input.mode === "comparison" && previous
+        ? ["current_record_frequency", "previous_record_frequency"]
+        : ["current_record_frequency"]
+    );
   }
   const draftType = input.draftType ?? "follow_up_summary";
   return {
@@ -311,7 +345,7 @@ function fallbackOutput(
     factSourceKeys,
     interpretations,
     interpretationSourceKeys,
-    missingData: missingData(context),
+    missingData: requiredMissingData(context, previous),
     cautions: clinicalBoundary
       ? ["A decisão clínica deve ser realizada e revisada pelo profissional responsável."]
       : [],
@@ -432,7 +466,8 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
 function normalizeProviderOutput(
   input: ProfessionalAiGenerateInput,
   output: ProfessionalAiAssistantOutput,
-  sourceSignals: ProfessionalAiSourceSignal[]
+  sourceSignals: ProfessionalAiSourceSignal[],
+  canonicalMissingData: string[]
 ) {
   assertProfessionalAiOutputIsSafe(output);
   validateProfessionalAiSourceReferences(output, sourceSignals);
@@ -442,6 +477,7 @@ function normalizeProviderOutput(
       : null;
   return {
     ...output,
+    missingData: canonicalMissingData,
     draft,
     educationalNotice: PROFESSIONAL_AI_NOTICE,
   };
@@ -541,6 +577,7 @@ export function createProfessionalAiService(
       context,
       previousContext
     );
+    const canonicalMissingData = requiredMissingData(context, previousContext);
     const clinicalBoundary =
       input.mode === "question" && isClinicalRequest(input.question);
     let output: ProfessionalAiAssistantOutput;
@@ -593,7 +630,8 @@ export function createProfessionalAiService(
           professionalAiAssistantOutputSchema.parse(
             parseAssistantContent(result.choices[0]?.message.content ?? "")
           ),
-          sourceSignals
+          sourceSignals,
+          canonicalMissingData
         );
       } catch {
         output = fallbackOutput(input, context, previousContext);
