@@ -271,7 +271,6 @@ export function createProfessionalAiService(
           status: "error",
           eventType: "professional.ai.generation",
           detail: JSON.stringify({
-            mode: input.mode,
             durationMs: Math.max(0, failedAt - startedAt),
             outcome: "authorization_invalidated",
             sourceCount: sourceSignals.length,
@@ -301,14 +300,12 @@ export function createProfessionalAiService(
         status: fallbackUsed ? "warning" : "success",
         eventType: "professional.ai.generation",
         detail: JSON.stringify({
-          mode: input.mode,
           durationMs: Math.max(0, generatedAt - startedAt),
           outcome: fallbackUsed ? "fallback" : "provider_success",
           fallbackCause,
           providerModel,
           providerUsage,
           sourceCount: sourceSignals.length,
-          generationId,
         }),
       });
     } catch {
