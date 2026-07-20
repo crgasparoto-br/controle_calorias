@@ -52,19 +52,25 @@ jobs:
       - name: Apply current repository schema
         run: pnpm exec drizzle-kit push --force
 
-      - name: Ensure Drizzle metadata is stable
+      - name: Inspect Drizzle metadata drift
+        id: drizzle-drift
+        continue-on-error: true
         run: |
           pnpm exec drizzle-kit generate
           git diff --exit-code -- drizzle
 
       - name: Preserve Drizzle drift diagnostics
-        if: failure()
+        if: steps.drizzle-drift.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: drizzle-drift-${{ github.sha }}
           path: drizzle/
           if-no-files-found: error
           retention-days: 3
+
+      - name: Restore repository migrations after drift inspection
+        if: always()
+        run: git checkout -- drizzle
 
       - name: Validate professional migration and repository
         run: pnpm db:test:professionals
