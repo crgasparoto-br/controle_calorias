@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { invokeLLM, type InvokeResult } from "../../_core/llm";
 import { redactSensitiveText } from "../../privacy";
-import { professionalContentRepository } from "../../repositories/professionalContentRepository";
+import { professionalContentRepository } from "./contentPersistenceService";
 import { listProfessionalOperationalAlerts } from "./operationalAlertsService";
 import {
   getProfessionalPatientPeriodBundle,
@@ -423,7 +423,7 @@ function providerOutputSchema() {
         "educationalNotice",
       ],
     },
-  };
+  } as const;
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
