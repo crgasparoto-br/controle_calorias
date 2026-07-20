@@ -141,6 +141,29 @@ function providerSummaryResponse(summary: string) {
   };
 }
 
+function focusProviderResponse(focus: string, contentOverride?: string) {
+  return {
+    id: "response-focus",
+    created: Date.now(),
+    model: "focus-model",
+    choices: [
+      {
+        index: 0,
+        finish_reason: "stop",
+        message: {
+          role: "assistant" as const,
+          content: contentOverride ?? JSON.stringify({ focus }),
+        },
+      },
+    ],
+    usage: {
+      prompt_tokens: 20,
+      completion_tokens: 4,
+      total_tokens: 24,
+    },
+  };
+}
+
 function dependencies(invoke = vi.fn().mockResolvedValue(providerResponse())) {
   return {
     getTimeZone: vi.fn().mockResolvedValue({
@@ -250,12 +273,12 @@ describe("professional AI adversarial regressions", () => {
     ).toBe("provider_allowed");
   });
 
-  it("routes an unrecognized free question to deterministic processing", () => {
+  it("routes an unrecognized free question to the structured focus classifier", () => {
     expect(
       classifyProfessionalAiQuestion(
         "Você percebeu alguma mudança recente?"
       )
-    ).toBe("deterministic_only");
+    ).toBe("focus_classifier");
   });
 
   it.each(prescriptiveTexts)(
@@ -308,15 +331,15 @@ describe("professional AI adversarial regressions", () => {
 
       expect(invoke).not.toHaveBeenCalled();
       expect(result.fallbackUsed).toBe(true);
-      expect(result.title).toBe("Resposta assistida");
       expect(result.facts).toEqual(expect.arrayContaining([
         "7 de 7 dias possuem registros alimentares.",
       ]));
+      expect(result.summarySourceKeys).toHaveLength(1);
     }
   );
 
-  it("answers an unrecognized free question without calling the provider", async () => {
-    const invoke = vi.fn();
+  it("uses a structured focus to answer an unrecognized free question", async () => {
+    const invoke = vi.fn().mockResolvedValue(focusProviderResponse("weight"));
     const service = createProfessionalAiService(dependencies(invoke));
 
     const result = await service.generate(1, {
@@ -327,9 +350,56 @@ describe("professional AI adversarial regressions", () => {
       question: "Você percebeu alguma mudança recente?",
     });
 
-    expect(invoke).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke.mock.calls[0][0].outputSchema.name).toBe(
+      "professional_ai_question_focus"
+    );
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.providerModel).toBe("focus-model");
+    expect(result.title).toBe("Evolução de peso");
+    expect(result.summarySourceKeys).toEqual(["current_weight"]);
+    expect(result.interpretationSourceKeys).toEqual([["current_weight"]]);
+    expect(result.interpretations[0]).toContain("69.5 kg");
+  });
+
+  it("turns a clinical focus classification into a clear boundary", async () => {
+    const invoke = vi
+      .fn()
+      .mockResolvedValue(focusProviderResponse("clinical_boundary"));
+    const service = createProfessionalAiService(dependencies(invoke));
+
+    const result = await service.generate(1, {
+      patientId: 41,
+      startDate: "2026-07-08",
+      endDate: "2026-07-14",
+      mode: "question",
+      question: "Isso parece algo que exige conduta especializada?",
+    });
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.title).toBe("Limite da assistência");
+  });
+
+  it("uses deterministic fallback when the focus classifier is invalid", async () => {
+    const invoke = vi
+      .fn()
+      .mockResolvedValue(focusProviderResponse("weight", "{invalid-json"));
+    const service = createProfessionalAiService(dependencies(invoke));
+
+    const result = await service.generate(1, {
+      patientId: 41,
+      startDate: "2026-07-08",
+      endDate: "2026-07-14",
+      mode: "question",
+      question: "Você percebeu alguma mudança recente?",
+    });
+
     expect(result.fallbackUsed).toBe(true);
     expect(result.title).toBe("Resposta assistida");
+    expect(result.facts).toEqual(expect.arrayContaining([
+      "7 de 7 dias possuem registros alimentares.",
+    ]));
   });
 
   it.each(prescriptiveTexts)(
