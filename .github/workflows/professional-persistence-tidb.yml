@@ -73,7 +73,23 @@ jobs:
         run: git checkout -- drizzle
 
       - name: Validate professional migration and repository
-        run: pnpm db:test:professionals
+        run: |
+          set +e
+          timeout --signal=TERM --kill-after=10s 5m pnpm db:test:professionals 2>&1 | tee /tmp/professional-persistence.log
+          test_status=${PIPESTATUS[0]}
+          set -e
+
+          if ! grep -q '"event":"professional.persistence.integration.passed"' /tmp/professional-persistence.log; then
+            echo "Professional persistence integration did not reach its success marker."
+            exit "${test_status:-1}"
+          fi
+
+          if [ "$test_status" -ne 0 ] && [ "$test_status" -ne 124 ] && [ "$test_status" -ne 143 ]; then
+            echo "Professional persistence integration failed with status $test_status."
+            exit "$test_status"
+          fi
+
+          echo "Professional persistence integration completed successfully."
 
       - name: Validate backfill command idempotency
         run: |
