@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.
 
-Fonte: `server/nutritionRouter.ts`.
+Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter.ts`.
 
 ## Grupos
 
@@ -26,6 +26,7 @@ Fonte: `server/nutritionRouter.ts`.
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
+| `professionalRecord` | 12 | 4 | 8 | protected | Prontuário, ciclo e metas profissionais oficiais |
 
 ## Procedures por grupo
 
@@ -214,6 +215,23 @@ Fonte: `server/nutritionRouter.ts`.
 | `status` | query | protected |
 | `upsertConnection` | mutation | protected |
 | `simulateInbound` | mutation | protected |
+
+### professionalRecord
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `get` | query | protected |
+| `saveAssessment` | mutation | protected |
+| `createNote` | mutation | protected |
+| `createGuidance` | mutation | protected |
+| `transitionTracking` | mutation | protected |
+| `patientGuidances` | query | protected |
+| `professionalState` | query | protected |
+| `activate` | mutation | protected |
+| `retryNotification` | mutation | protected |
+| `patientState` | query | protected |
+| `requestReview` | mutation | protected |
+| `adoptAsPersonal` | mutation | protected |
 
 ## Regras para novas procedures
 

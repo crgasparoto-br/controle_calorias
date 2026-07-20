@@ -17,7 +17,7 @@ vi.mock("@/lib/analytics", () => ({ trackEvent: vi.fn() }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({
-      nutrition: { professionals: { patientTimeZone: { invalidate, fetch: fetchPatientTimeZone }, patientDashboard: { invalidate }, patientPeriodBundle: { invalidate }, portfolio: { invalidate } } },
+      nutrition: { goals: { get: { invalidate } }, reports: { invalidate }, professionals: { patientTimeZone: { invalidate, fetch: fetchPatientTimeZone }, patientDashboard: { invalidate }, patientPeriodBundle: { invalidate }, portfolio: { invalidate } } },
       professionalRecord: { get: { invalidate, cancel, setData } },
     }),
     nutrition: { professionals: {
@@ -32,6 +32,11 @@ vi.mock("@/lib/trpc", () => ({
       createGuidance: { useMutation: () => ({ mutate, isPending: false }) },
       transitionTracking: { useMutation: () => ({ mutate, isPending: false, isError: false }) },
       patientGuidances: { useQuery: () => ({ data: [], isLoading: false, isError: false }) },
+      officialGoal: {
+        professionalState: { useQuery: () => ({ data: { current: null, history: [], reviewRequests: [], notifications: [] }, isLoading: false, isError: false, refetch }) },
+        activate: { useMutation: () => ({ mutate, isPending: false }) },
+        retryNotification: { useMutation: () => ({ mutate, isPending: false }) },
+      },
     },
   },
 }));

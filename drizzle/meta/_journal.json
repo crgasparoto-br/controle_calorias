@@ -31,6 +31,7 @@
     {"idx":28,"version":"5","when":1784305741362,"tag":"0028_professional_actor_deletion_safety","breakpoints":true},
     {"idx":29,"version":"5","when":1784345376929,"tag":"0029_professional_goal_decision_lock","breakpoints":true},
     {"idx":30,"version":"5","when":1784485800000,"tag":"0030_professional_operational_schedule","breakpoints":true},
-    {"idx":31,"version":"5","when":1784495400000,"tag":"0031_professional_record_cycle","breakpoints":true}
+    {"idx":31,"version":"5","when":1784495400000,"tag":"0031_professional_record_cycle","breakpoints":true},
+    {"idx":32,"version":"5","when":1784502000000,"tag":"0032_professional_official_goals","breakpoints":true}
   ]
 }

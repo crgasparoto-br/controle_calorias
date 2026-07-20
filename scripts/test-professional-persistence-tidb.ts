@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { shouldEnableRuntimeDatabaseSsl } from "../server/db";
 import { createDrizzleProfessionalRepository } from "../server/repositories/professionalRepository";
 import { createDrizzleProfessionalContentRepository } from "../server/repositories/professionalContentRepository";
+import { getNutritionGoalForDate } from "../server/modules/goals/service";
 
 const USER_IDS = [8061, 8062, 8063, 8064, 8065, 8066, 8067, 8071, 8072];
 const databaseUrl = process.env.DATABASE_URL;
@@ -64,6 +65,9 @@ async function main() {
   });
 
   try {
+    await connection.query("DELETE FROM `professionalGoalNotifications`");
+    await connection.query("DELETE FROM `professionalGoalReviewRequests`");
+    await connection.query("DELETE FROM `professionalOfficialGoals`");
     await connection.query("DELETE FROM `professionalHistoryEvents`");
     await connection.query("DELETE FROM `professionalComments`");
     await connection.query("DELETE FROM `professionalGoalSuggestions`");
@@ -398,6 +402,82 @@ async function main() {
       legacyGoal.id
     );
 
+    const approvedTracking = await repository.getTrackingByAuthorization(approved.id);
+    assert.ok(approvedTracking, "approved authorization must have a tracking for official goals");
+    await connection.beginTransaction();
+    try {
+      await connection.query(
+        `INSERT INTO professionalOfficialGoals (
+          id, authorizationId, trackingId, professionalUserId, patientUserId, activePatientKey,
+          version, status, calories, proteinGrams, carbsGrams, fatGrams, exceptionsJson,
+          includeExerciseCalories, effectiveFrom, justification
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, 'active', 1900, 130, 200, 60, ?, true, ?, ?)`,
+        ["official-goal-v1-809", approved.id, approvedTracking.id, 8071, 8072, "8072", JSON.stringify([]), new Date("2026-07-20T00:00:00.000Z"), "Primeira versão oficial"]
+      );
+      await connection.query(
+        "INSERT INTO professionalGoalReviewRequests (id, goalId, professionalUserId, patientUserId, openRequestKey, reason) VALUES (?, ?, ?, ?, ?, ?)",
+        ["official-review-809", "official-goal-v1-809", 8071, 8072, "8072:official-goal-v1-809", "Revisar distribuição"]
+      );
+      await connection.query(
+        "INSERT INTO professionalGoalNotifications (id, goalId, patientUserId, idempotencyKey, status) VALUES (?, ?, ?, ?, 'failed')",
+        ["official-notification-809", "official-goal-v1-809", 8072, "professional-goal:official-goal-v1-809:activated"]
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+    await assert.rejects(
+      () => connection.query(
+        `INSERT INTO professionalOfficialGoals (
+          id, authorizationId, trackingId, professionalUserId, patientUserId, activePatientKey,
+          version, status, calories, proteinGrams, carbsGrams, fatGrams, exceptionsJson,
+          includeExerciseCalories, effectiveFrom, justification
+        ) VALUES (?, ?, ?, ?, ?, ?, 2, 'active', 2000, 140, 210, 65, ?, true, ?, ?)`,
+        ["official-goal-conflict-809", approved.id, approvedTracking.id, 8071, 8072, "8072", JSON.stringify([]), new Date("2026-07-27T00:00:00.000Z"), "Conflito"]
+      ),
+      /Duplicate entry/
+    );
+    await connection.beginTransaction();
+    try {
+      await connection.query(
+        "UPDATE professionalOfficialGoals SET activePatientKey = NULL, status = 'superseded', effectiveUntil = ? WHERE id = ? AND version = 1",
+        [new Date("2026-07-27T00:00:00.000Z"), "official-goal-v1-809"]
+      );
+      await connection.query(
+        `INSERT INTO professionalOfficialGoals (
+          id, authorizationId, trackingId, professionalUserId, patientUserId, activePatientKey,
+          version, status, calories, proteinGrams, carbsGrams, fatGrams, exceptionsJson,
+          includeExerciseCalories, effectiveFrom, justification, supersedesGoalId
+        ) VALUES (?, ?, ?, ?, ?, ?, 2, 'active', 2000, 140, 210, 65, ?, false, ?, ?, ?)`,
+        ["official-goal-v2-809", approved.id, approvedTracking.id, 8071, 8072, "8072", JSON.stringify([{ weekday: 5, durationType: "always", calories: 2200, proteinGrams: 145, carbsGrams: 240, fatGrams: 70 }]), new Date("2026-07-27T00:00:00.000Z"), "Revisão oficial", "official-goal-v1-809"]
+      );
+      await connection.query(
+        "UPDATE professionalGoalReviewRequests SET status = 'resolved', openRequestKey = NULL, resolvedByUserId = ?, resolvedAt = NOW() WHERE id = ?",
+        [8071, "official-review-809"]
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+    const [officialGoalRows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT id, version, status, activePatientKey, effectiveFrom, effectiveUntil FROM professionalOfficialGoals WHERE patientUserId = ? ORDER BY version",
+      [8072]
+    );
+    assert.equal(officialGoalRows.length, 2);
+    assert.equal(officialGoalRows.filter(row => row.activePatientKey !== null).length, 1);
+    assert.equal(new Date(officialGoalRows[0].effectiveUntil).toISOString().slice(0, 10), "2026-07-27");
+    const [resolvedReviewRows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT status, openRequestKey FROM professionalGoalReviewRequests WHERE id = ?",
+      ["official-review-809"]
+    );
+    assert.deepEqual({ status: resolvedReviewRows[0].status, openRequestKey: resolvedReviewRows[0].openRequestKey }, { status: "resolved", openRequestKey: null });
+    const canonicalGoal = await getNutritionGoalForDate(8072, "2026-07-20");
+    assert.equal(canonicalGoal.today.goalOrigin, "professional");
+    assert.equal(canonicalGoal.today.professionalGoalVersion, 1);
+    assert.equal(canonicalGoal.today.calories, 1900);
+
     await repository.transitionAuthorization({
       authorizationId: approved.id,
       patientUserId: 8072,
@@ -405,6 +485,15 @@ async function main() {
       responseOrigin: "web",
       now: new Date("2026-07-14T21:20:00.000Z"),
     });
+    const [endedOfficialGoalRows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT status, activePatientKey, effectiveUntil, endReason FROM professionalOfficialGoals WHERE patientUserId = ? ORDER BY version",
+      [8072]
+    );
+    assert.equal(endedOfficialGoalRows.length, 2);
+    assert.ok(endedOfficialGoalRows.every(row => row.status === "ended"));
+    assert.ok(endedOfficialGoalRows.every(row => row.activePatientKey === null));
+    assert.ok(endedOfficialGoalRows.every(row => row.endReason === "authorization_revoked"));
+    assert.ok(endedOfficialGoalRows.every(row => new Date(row.effectiveUntil).toISOString() === "2026-07-14T21:20:00.000Z"));
     await assert.rejects(
       () =>
         secondInstance.transitionTracking({

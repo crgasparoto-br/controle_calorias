@@ -18,6 +18,7 @@ import { createDrizzleLogsRepository } from "./repositories/logsRepository";
 import { createDrizzleMealsRepository } from "./repositories/mealsRepository";
 import { canUseMemoryPersistenceFallback } from "./repositories/memoryFallback";
 import { createDrizzleNutritionGoalsRepository } from "./repositories/nutritionGoalsRepository";
+import { createProfessionalGoalPrivacyRepository } from "./repositories/professionalGoalPrivacyRepository";
 import { createDrizzleUserProfileRepository } from "./repositories/userProfileRepository";
 import { createDrizzleUsersRepository } from "./repositories/usersRepository";
 import { createDrizzleWaterRepository } from "./repositories/waterRepository";
@@ -538,6 +539,7 @@ const nutritionGoalsRepository = createDrizzleNutritionGoalsRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+const professionalGoalPrivacyRepository = createProfessionalGoalPrivacyRepository({ getDb });
 const goalsService = createGoalsService({
   nutritionGoalsRepository,
   onEvent: logInferenceEvent,
@@ -1765,6 +1767,7 @@ const privacyService = createPrivacyService({
   findPreferencesByUserId: userId => userProfileRepository.findPreferencesByUserId(userId),
   findRestrictionsByUserId: userId => userProfileRepository.findRestrictionsByUserId(userId),
   getStoredNutritionGoals,
+  listProfessionalGoalData: userId => professionalGoalPrivacyRepository.listExportData(userId),
   listUserMeals,
   listFavoriteMeals: userId => favoriteMealStore.get(userId) ?? [],
   listUserExercises,

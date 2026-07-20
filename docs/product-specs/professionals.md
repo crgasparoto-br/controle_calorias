@@ -272,7 +272,17 @@ Ao encerrar ou revogar:
 - o paciente pode adotá-la como meta pessoal ou definir outra;
 - não existe controle permanente do profissional após o vínculo.
 
-A subissue de metas deve decidir explicitamente o comportamento operacional da meta durante pausa e impedir duas metas profissionais ativas concorrentes.
+### Comportamento implementado para metas oficiais
+
+- A meta profissional oficial é persistida em versões imutáveis quanto à autoria e ao início de vigência; uma revisão encerra a janela anterior e cria uma nova versão ligada por `supersedesGoalId`.
+- A chave única `activePatientKey` impede mais de um controle profissional oficial por paciente, inclusive entre profissionais e instâncias concorrentes. Um conflito exige recarregar ou encerrar explicitamente o controle anterior.
+- Somente perfil profissional ativo, autorização aprovada e acompanhamento `active` permitem ativar ou revisar. Em `paused`, a última versão continua operacional, mas novas versões ficam bloqueadas.
+- Encerramento do acompanhamento e revogação da autorização encerram a vigência e removem o controle na mesma transação da transição; o histórico não é promovido nem apagado.
+- Depois do encerramento ou revogação, o paciente pode copiar explicitamente uma versão histórica para a meta pessoal. Não há conversão automática.
+- Solicitações de revisão do paciente são persistentes e idempotentes por meta, não alteram valores e são resolvidas quando o profissional ativa nova versão.
+- A ativação cria uma entrega WhatsApp persistente com chave idempotente. Falha ou ausência de canal não reverte a meta; status, tentativas e erro sanitizado permanecem disponíveis para retry profissional.
+- A notificação contém autor, versão, valores e vigência, mas nunca a justificativa profissional privada.
+- Sugestões legadas continuam separadas e nenhuma delas é promovida automaticamente a meta oficial.
 
 ## Alertas iniciais
 

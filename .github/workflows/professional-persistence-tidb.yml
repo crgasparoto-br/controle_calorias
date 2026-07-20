@@ -7,6 +7,8 @@ on:
       - "server/modules/professionals/**"
       - "server/repositories/professionalRepository.ts"
       - "server/repositories/professionalContentRepository.ts"
+      - "server/repositories/professionalGoalPrivacyRepository.ts"
+      - "server/modules/goals/**"
       - "server/nutritionRouter.ts"
       - "scripts/migrate-professional-persistence.ts"
       - "scripts/test-professional-persistence-tidb.ts"

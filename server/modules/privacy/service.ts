@@ -6,6 +6,7 @@ export type PrivacyExportDeps = {
   findPreferencesByUserId: (userId: number) => Promise<unknown[]>;
   findRestrictionsByUserId: (userId: number) => Promise<unknown[]>;
   getStoredNutritionGoals: (userId: number) => Promise<unknown>;
+  listProfessionalGoalData?: (userId: number) => Promise<unknown>;
   listUserMeals: (userId: number) => Promise<unknown[]>;
   listFavoriteMeals: (userId: number) => unknown[];
   listUserExercises: (userId: number) => Promise<unknown[]>;
@@ -36,10 +37,11 @@ export type PrivacyAccountDeletionDeps = {
 export function createPrivacyService(deps: PrivacyExportDeps & PrivacyAccountDeletionDeps) {
   async function exportUserPrivacyData(userId: number) {
     const db = await deps.getDb();
-    const [profile, goals, mealsForUser, exercisesForUser, waterGoal, waterLogsForUser, weeklyProgress, whatsappConnection] =
+    const [profile, goals, professionalGoals, mealsForUser, exercisesForUser, waterGoal, waterLogsForUser, weeklyProgress, whatsappConnection] =
       await Promise.all([
         db ? deps.findProfileByUserId(userId) : Promise.resolve(undefined),
         deps.getStoredNutritionGoals(userId),
+        deps.listProfessionalGoalData?.(userId) ?? Promise.resolve(null),
         deps.listUserMeals(userId),
         deps.listUserExercises(userId),
         deps.getUserWaterGoal(userId),
@@ -86,6 +88,7 @@ export function createPrivacyService(deps: PrivacyExportDeps & PrivacyAccountDel
         : { id: userId },
       profile: profile ?? deps.getOnboardingProfileMemory(userId) ?? null,
       nutritionGoals: goals,
+      professionalGoals,
       meals: mealsForUser,
       favoriteMeals: deps.listFavoriteMeals(userId),
       exercises: exercisesForUser,

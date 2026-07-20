@@ -13,7 +13,7 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 | Integrações externas | Tokens OAuth, identificadores externos, atividades importadas do Strava, distância, duração, elevação, frequência cardíaca, cadência e potência | `appSecrets`, módulos de integrações de saúde |
 | IA | Prompt, contexto nutricional, reasoning, confidence, inferências e logs | `server/_core`, `server/modules/assistant`, `server/modules/meals` |
 | Operação | Tokens, IDs de canal, URLs de mídia, detalhes técnicos e logs de erro | `appSecrets`, logs operacionais e analytics |
-| Compartilhamento profissional | Solicitações, consentimento aprovado/revogado, comentários e sugestões | módulo `professionals` |
+| Compartilhamento profissional | Solicitações, consentimento aprovado/revogado, comentários, sugestões, metas oficiais, justificativas e pedidos de revisão | módulo `professionals` |
 
 ## Princípios
 
@@ -40,6 +40,8 @@ Este projeto processa dados de saúde e hábitos alimentares. Trate toda mudanç
 - Se um bucket tiver domínio público de leitura, trate a posse do caminho do objeto como acesso potencial à mídia. Não registre caminhos completos em logs desnecessários e configure lifecycle policy para limitar retenção.
 - A exclusão de conta remove os vínculos e linhas principais do produto. Objetos externos exigem rotina operacional ou lifecycle policy até existir deleção automatizada por chave.
 - Ao adicionar tabela/campo sensível, atualizar `docs/generated/db-schema.md`.
+- Justificativas de metas profissionais e motivos de revisão são dados nutricionais sensíveis: permanecem no banco e nas telas autorizadas, não entram em logs, analytics nem na notificação ao paciente quando a justificativa for privada.
+- Notificações de meta guardam somente estado operacional, tentativas e erro sanitizado; o conteúdo enviado é reconstruído a partir da versão canônica e não é duplicado na tabela de entrega.
 
 ## Contexto persistente do WhatsApp
 
