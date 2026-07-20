@@ -80,7 +80,9 @@ A validação ocorre em quatro camadas:
 3. rejeição de referências a sinais marcados como indisponíveis;
 4. verificação semântica pós-modelo que rejeita diagnóstico, prescrição, medicamento, dosagem, tratamento médico ou instrução clínica autônoma em qualquer texto exibível. A validação determinística também bloqueia afirmações clínicas não sustentadas e decisões sobre meta, calorias, macronutrientes, dieta, jejum, alimentos ou medicação expressas como comando direto, forma impessoal (`recomenda-se`, `é indicado`), construção nominal (`sugestão:`, `conduta:`) ou avaliação prescritiva (`seria adequado`, `melhor opção`).
 
-As mesmas famílias linguísticas são verificadas antes da chamada ao provedor em perguntas livres e depois da resposta em resumo, interpretação, cautela e rascunho. Descrições retrospectivas e quantitativas, como valores registrados no período, continuam permitidas quando não expressam recomendação ou decisão autônoma.
+Além dos marcadores explícitos, a segurança opera em negação por padrão para frases que contenham alvos nutricionais ou médicos. Essas frases só são aceitas quando apresentam evidência linguística objetiva de registro, cálculo, medição, comparação, tendência ou consulta sobre dados. Marcadores prescritivos prevalecem sobre essa evidência, impedindo que uma recomendação seja disfarçada com números ou verbos retrospectivos.
+
+As mesmas regras são verificadas antes da chamada ao provedor em perguntas livres e depois da resposta em resumo, interpretação, cautela e rascunho. Descrições retrospectivas e quantitativas, como valores registrados no período, continuam permitidas quando não expressam recomendação ou decisão autônoma.
 
 Se qualquer camada falhar, a resposta do provedor é descartada integralmente. Timeout, indisponibilidade, resposta inválida, referência desconhecida ou indisponível e conteúdo clínico proibido ativam um fallback determinístico calculado sobre os mesmos agregados. O fallback nunca depende de texto gerado anteriormente e não envia conteúdo automaticamente.
 
@@ -122,8 +124,9 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - fallback para erro, timeout, JSON inválido e schema inválido;
 - rejeição de conteúdo clínico indevido retornado pelo provedor;
 - bloqueio de afirmações clínicas e prescrições nutricionais autônomas não sustentadas;
-- cobertura discriminante de comandos diretos, formas impessoais, construções nominais, avaliações prescritivas e descrições objetivas permitidas;
+- cobertura discriminante de comandos diretos, formas impessoais, construções nominais, avaliações prescritivas, verbos não enumerados e descrições objetivas permitidas;
 - validação do mesmo conteúdo prescritivo antes do provedor e na resposta completa do provedor;
+- negação por padrão de frases ambíguas com alvos nutricionais ou médicos;
 - revogação entre a consulta e o retorno do provedor;
 - bloqueio de diagnóstico e prescrição sem chamar o provedor;
 - declaração explícita de dados ausentes no período atual e anterior;
