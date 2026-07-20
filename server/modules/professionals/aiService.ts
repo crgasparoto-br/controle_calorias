@@ -13,6 +13,15 @@ import {
   type ProfessionalAiDraftType,
   type ProfessionalAiGenerateInput,
 } from "./aiSchemas";
+import {
+  assertProfessionalAiOutputIsSafe,
+  isClinicalRequest,
+} from "./aiSafety";
+import {
+  buildProfessionalAiSourceSignals,
+  validateProfessionalAiSourceReferences,
+  type ProfessionalAiSourceSignal,
+} from "./aiTraceability";
 
 const PROFESSIONAL_AI_NOTICE =
   "Conteúdo assistido para apoiar a revisão do nutricionista. Não representa diagnóstico, prescrição ou decisão clínica autônoma.";
@@ -190,61 +199,6 @@ export function buildProfessionalAiContext(
   };
 }
 
-function buildSourceSignals(
-  context: ReturnType<typeof buildProfessionalAiContext>,
-  previous?: ReturnType<typeof buildProfessionalAiContext>
-) {
-  const signals = [
-    {
-      key: "record_frequency",
-      label: "Frequência de registros",
-      value: `${context.recordFrequency.daysWithRecords} de ${context.recordFrequency.totalDays} dias`,
-    },
-    {
-      key: "calorie_adherence",
-      label: "Aderência calórica",
-      value: `${round(context.adherence.percent)}%`,
-    },
-    {
-      key: "macros",
-      label: "Macronutrientes realizados",
-      value: `P ${round(context.totals.proteinGrams)} g | C ${round(context.totals.carbsGrams)} g | G ${round(context.totals.fatGrams)} g`,
-    },
-    {
-      key: "water",
-      label: "Água registrada",
-      value: `${round(context.water.totalConsumedMl)} ml`,
-    },
-    {
-      key: "exercise",
-      label: "Exercícios registrados",
-      value: `${context.exercise.activeDays} dias | ${round(context.exercise.totalCalories)} kcal`,
-    },
-  ];
-  if (context.weight.hasData) {
-    signals.push({
-      key: "weight",
-      label: "Evolução de peso",
-      value: `${context.weight.firstWeightKg ?? "-"} kg → ${context.weight.lastWeightKg ?? "-"} kg`,
-    });
-  }
-  if (context.alerts.length) {
-    signals.push({
-      key: "alerts",
-      label: "Alertas objetivos abertos",
-      value: context.alerts.map(alert => alert.label).join(", "),
-    });
-  }
-  if (previous) {
-    signals.push({
-      key: "previous_period",
-      label: "Período anterior",
-      value: `${previous.recordFrequency.daysWithRecords} dias com registros | ${round(previous.adherence.percent)}% de aderência`,
-    });
-  }
-  return signals;
-}
-
 function missingData(context: ReturnType<typeof buildProfessionalAiContext>) {
   const missing: string[] = [];
   if (!context.recordFrequency.daysWithRecords) {
@@ -293,7 +247,13 @@ function fallbackOutput(
     `A aderência calórica calculada pelo relatório canônico foi de ${round(context.adherence.percent)}%.`,
     `Foram registrados ${round(context.water.totalConsumedMl)} ml de água e ${context.exercise.activeDays} dia(s) com exercício.`,
   ];
+  const factSourceKeys = [
+    ["current_record_frequency"],
+    ["current_adherence"],
+    ["current_water", "current_exercise"],
+  ];
   const interpretations: string[] = [];
+  const interpretationSourceKeys: string[][] = [];
   if (previous) {
     const difference = round(
       context.adherence.percent - previous.adherence.percent
@@ -301,20 +261,30 @@ function fallbackOutput(
     interpretations.push(
       `A aderência variou ${difference >= 0 ? "+" : ""}${difference} ponto(s) percentual(is) em relação ao período anterior.`
     );
+    interpretationSourceKeys.push([
+      "current_adherence",
+      "previous_adherence",
+    ]);
   } else if (context.weekends.totalDays && context.weekdays.totalDays) {
     interpretations.push(
       `A média registrada foi de ${context.weekdays.averageCalories} kcal nos dias úteis e ${context.weekends.averageCalories} kcal nos finais de semana.`
     );
+    interpretationSourceKeys.push([
+      "current_weekdays",
+      "current_weekends",
+    ]);
   }
   if (context.alerts.length) {
     interpretations.push(
       `Existem ${context.alerts.length} alerta(s) objetivo(s) para revisão humana.`
     );
+    interpretationSourceKeys.push(["current_alerts"]);
   }
   if (!interpretations.length) {
     interpretations.push(
       "Os dados disponíveis são insuficientes para uma comparação adicional sem fazer suposições."
     );
+    interpretationSourceKeys.push(["current_record_frequency"]);
   }
   const draftType = input.draftType ?? "follow_up_summary";
   return {
@@ -331,7 +301,9 @@ function fallbackOutput(
       ? "A solicitação exige diagnóstico, prescrição ou decisão clínica. A IA não pode realizar essa ação; use os dados objetivos abaixo como apoio para sua avaliação profissional."
       : `Leitura objetiva dos dados autorizados entre ${period}.`,
     facts,
+    factSourceKeys,
     interpretations,
+    interpretationSourceKeys,
     missingData: missingData(context),
     cautions: clinicalBoundary
       ? ["A decisão clínica deve ser realizada e revisada pelo profissional responsável."]
@@ -345,17 +317,6 @@ function fallbackOutput(
         : null,
     educationalNotice: PROFESSIONAL_AI_NOTICE,
   };
-}
-
-function isClinicalRequest(question: string | undefined) {
-  if (!question) return false;
-  const normalized = question
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-  return /\b(diagnost|prescrev|prescricao|receit|dosagem|medicamento|remedio|doenca|transtorno|tratamento medico)\w*/.test(
-    normalized
-  );
 }
 
 function parseAssistantContent(content: InvokeResult["choices"][number]["message"]["content"]) {
@@ -373,6 +334,12 @@ function parseAssistantContent(content: InvokeResult["choices"][number]["message
 }
 
 function providerOutputSchema() {
+  const sourceReferenceList = {
+    type: "array",
+    minItems: 1,
+    maxItems: 12,
+    items: { type: "string" },
+  } as const;
   return {
     name: "professional_ai_assistance",
     strict: true,
@@ -383,7 +350,15 @@ function providerOutputSchema() {
         title: { type: "string" },
         summary: { type: "string" },
         facts: { type: "array", items: { type: "string" } },
+        factSourceKeys: {
+          type: "array",
+          items: sourceReferenceList,
+        },
         interpretations: { type: "array", items: { type: "string" } },
+        interpretationSourceKeys: {
+          type: "array",
+          items: sourceReferenceList,
+        },
         missingData: { type: "array", items: { type: "string" } },
         cautions: { type: "array", items: { type: "string" } },
         draft: {
@@ -416,7 +391,9 @@ function providerOutputSchema() {
         "title",
         "summary",
         "facts",
+        "factSourceKeys",
         "interpretations",
+        "interpretationSourceKeys",
         "missingData",
         "cautions",
         "draft",
@@ -445,8 +422,11 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
 
 function normalizeProviderOutput(
   input: ProfessionalAiGenerateInput,
-  output: ProfessionalAiAssistantOutput
+  output: ProfessionalAiAssistantOutput,
+  sourceSignals: ProfessionalAiSourceSignal[]
 ) {
+  assertProfessionalAiOutputIsSafe(output);
+  validateProfessionalAiSourceReferences(output, sourceSignals);
   const draft =
     input.mode === "draft" && input.draftType && output.draft
       ? { ...output.draft, messageType: input.draftType }
@@ -548,6 +528,10 @@ export function createProfessionalAiService(
     const previousContext = previousBundle
       ? buildProfessionalAiContext(previousBundle, [])
       : undefined;
+    const sourceSignals = buildProfessionalAiSourceSignals(
+      context,
+      previousContext
+    );
     const clinicalBoundary =
       input.mode === "question" && isClinicalRequest(input.question);
     let output: ProfessionalAiAssistantOutput;
@@ -570,6 +554,7 @@ export function createProfessionalAiService(
                   "Diferencie fatos calculados, interpretações assistidas e dados ausentes.",
                   "Não diagnostique, prescreva, defina tratamento, invente riscos ou recomende alteração automática de meta ou refeição.",
                   "A priorização é determinada por alertas canônicos; não crie novos sinais clínicos.",
+                  "Cada fato e interpretação deve citar somente chaves existentes em sourceCatalog, na mesma posição das listas factSourceKeys e interpretationSourceKeys.",
                   "Rascunhos são apenas texto revisável e nunca representam envio.",
                   "Responda apenas JSON válido no schema solicitado.",
                 ].join(" "),
@@ -585,6 +570,7 @@ export function createProfessionalAiService(
                   requestedDraftType: input.draftType,
                   currentPeriod: context,
                   previousPeriod: previousContext,
+                  sourceCatalog: sourceSignals,
                   mandatoryNotice: PROFESSIONAL_AI_NOTICE,
                 }),
               },
@@ -598,7 +584,8 @@ export function createProfessionalAiService(
           input,
           professionalAiAssistantOutputSchema.parse(
             parseAssistantContent(result.choices[0]?.message.content ?? "")
-          )
+          ),
+          sourceSignals
         );
       } catch {
         output = fallbackOutput(input, context, previousContext);
@@ -626,7 +613,7 @@ export function createProfessionalAiService(
       timeZone: timeZoneState.timeZone,
       fallbackUsed,
       providerModel,
-      sourceSignals: buildSourceSignals(context, previousContext),
+      sourceSignals,
     };
   }
 
