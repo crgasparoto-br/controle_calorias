@@ -200,6 +200,11 @@ const prescriptiveTexts = [
   "Compare o consumo de água com a meta calculada e favoreça proteína.",
   "Perca 5 kg neste mês.",
   "Corra 10 km por dia.",
+  "Coma mais vegetais.",
+  "Monte um cardápio semanal.",
+  "Distribua frutas ao longo do dia.",
+  "Aposte em saladas no jantar.",
+  "Organize a rotina do paciente.",
 ];
 
 const objectiveSensitiveQuestions = [
@@ -236,12 +241,20 @@ describe("professional AI adversarial regressions", () => {
     }
   );
 
-  it("allows a non-sensitive objective question to use the provider", () => {
+  it("allows a recognized non-sensitive objective question to use the provider", () => {
     expect(
       classifyProfessionalAiQuestion(
         "O que mudou na frequência de registros neste período?"
       )
     ).toBe("provider_allowed");
+  });
+
+  it("routes an unrecognized free question to deterministic processing", () => {
+    expect(
+      classifyProfessionalAiQuestion(
+        "Você percebeu alguma mudança recente?"
+      )
+    ).toBe("deterministic_only");
   });
 
   it.each(prescriptiveTexts)(
@@ -260,12 +273,10 @@ describe("professional AI adversarial regressions", () => {
     }
   );
 
-  it("rejects an unknown directive even when objective words are present", () => {
+  it("rejects any provider vocabulary outside the safe allowlist", () => {
     expect(() =>
       assertProfessionalAiOutputIsSafe(
-        assistantOutput(
-          "Com base nos dados registrados, favoreça proteína nas refeições."
-        )
+        assistantOutput("Uma análise surpreendente merece atenção especial.")
       )
     ).toThrow("professional_ai_prohibited_clinical_output");
   });
@@ -292,6 +303,23 @@ describe("professional AI adversarial regressions", () => {
       ]));
     }
   );
+
+  it("answers an unrecognized free question without calling the provider", async () => {
+    const invoke = vi.fn();
+    const service = createProfessionalAiService(dependencies(invoke));
+
+    const result = await service.generate(1, {
+      patientId: 41,
+      startDate: "2026-07-08",
+      endDate: "2026-07-14",
+      mode: "question",
+      question: "Você percebeu alguma mudança recente?",
+    });
+
+    expect(invoke).not.toHaveBeenCalled();
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.title).toBe("Resposta assistida");
+  });
 
   it.each(prescriptiveTexts)(
     "blocks prescriptive questions before the provider: %s",
