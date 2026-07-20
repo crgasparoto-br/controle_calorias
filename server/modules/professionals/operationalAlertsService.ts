@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import { sql } from "drizzle-orm";
-import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import {
+  DEFAULT_APP_TIME_ZONE,
+  getUtcRangeForInclusiveLocalDateRange,
+} from "../../../shared/timeZone";
+import { getEffectiveUserTimeZone } from "../timeZone/service";
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   buildOperationalAlertDedupeKey,
@@ -407,7 +411,8 @@ export async function evaluateProfessionalOperationalAlerts(
 
 export async function listProfessionalOperationalAlerts(
   professionalUserId: number,
-  patientUserId?: number
+  patientUserId?: number,
+  range?: { startDate: string; endDate: string }
 ) {
   await evaluateProfessionalOperationalAlerts(professionalUserId);
   const db = await getDb();
@@ -425,8 +430,16 @@ export async function listProfessionalOperationalAlerts(
       AND alerts.state = 'open'
   `;
 
-  const result = patientUserId
-    ? await db.execute(sql`${baseQuery} AND alerts.patientUserId = ${patientUserId} ORDER BY alerts.updatedAt DESC`)
+  const utcRange = patientUserId && range
+    ? getUtcRangeForInclusiveLocalDateRange(range.startDate, range.endDate, await getEffectiveUserTimeZone(patientUserId))
+    : null;
+  const result = patientUserId && utcRange
+    ? await db.execute(sql`${baseQuery} AND alerts.patientUserId = ${patientUserId}
+        AND (alerts.periodEnd IS NULL OR alerts.periodEnd >= ${utcRange.startAt})
+        AND (alerts.periodStart IS NULL OR alerts.periodStart < ${utcRange.endAt})
+        ORDER BY alerts.updatedAt DESC`)
+    : patientUserId
+      ? await db.execute(sql`${baseQuery} AND alerts.patientUserId = ${patientUserId} ORDER BY alerts.updatedAt DESC`)
     : await db.execute(sql`${baseQuery} ORDER BY alerts.severity DESC, alerts.updatedAt DESC LIMIT 500`);
 
   return rows(result).map(mapAlert);

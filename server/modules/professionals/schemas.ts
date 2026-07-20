@@ -182,7 +182,19 @@ export const professionalPortfolioSchema = z.object({
     .default("all"),
   page: z.number().int().min(1).optional().default(1),
   pageSize: z.number().int().min(10).max(50).optional().default(20),
-});
+  reportStartDate: dateKeySchema.optional(),
+  reportEndDate: dateKeySchema.optional(),
+  includeHistoricalActivity: z.boolean().optional().default(true),
+}).refine(input => Boolean(input.reportStartDate) === Boolean(input.reportEndDate), {
+  message: "Informe o início e o fim do período da carteira.",
+}).refine(input => !input.reportStartDate || !input.reportEndDate || input.reportStartDate <= input.reportEndDate, {
+  message: "O fim do período deve ser igual ou posterior ao início.",
+}).refine(input => {
+  if (!input.reportStartDate || !input.reportEndDate) return true;
+  const start = new Date(`${input.reportStartDate}T12:00:00Z`);
+  const end = new Date(`${input.reportEndDate}T12:00:00Z`);
+  return (end.getTime() - start.getTime()) / 86_400_000 + 1 <= 90;
+}, { message: "Escolha um período de até 90 dias." });
 
 export const patientPeriodBundleSchema =
   boundedReportDateRangeSchema.safeExtend({

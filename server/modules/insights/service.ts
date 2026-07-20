@@ -13,7 +13,7 @@ import {
 import { calculateDayTotals, roundNutritionValue } from "../../../shared/mealTotals";
 import { buildWeeklyNutritionStatus } from "../../../shared/safeMessages";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone, getWeekDateKeys, listCalendarDateKeys } from "../../../shared/timeZone";
-import { calculateAdjustedGoalCalories, calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
+import { calculateAdjustedGoalCalories, calculateCalorieAdherence, calculateFoodQualitySummary, type FoodQualityDay } from "../../../shared/reportsGoalAnalytics";
 import { getNutritionGoalForDate } from "../goals/service";
 import { calculateQualityIndicators, createFoodLookup } from "./foodQuality";
 import {
@@ -854,6 +854,15 @@ export async function getPeriodReportBundle(
   });
   const periodGoal = goalsByDate[goalsByDate.length - 1]?.today ?? goalsByDate[0].today;
   const weightTrend = buildWeightTrendForDates(progress.weight.entries, dates);
+  const adherence = calculateCalorieAdherence(daily.map(day => ({
+    calories: day.calories,
+    goalCalories: day.adjustedGoalCalories,
+  })), dates.length);
+  const plannedMacros = daily.reduce((total, day) => ({
+    protein: total.protein + day.goalProtein,
+    carbs: total.carbs + day.goalCarbs,
+    fat: total.fat + day.goalFat,
+  }), { protein: 0, carbs: 0, fat: 0 });
 
   return {
     range: {
@@ -879,6 +888,15 @@ export async function getPeriodReportBundle(
     habitAnalytics,
     quality: buildAggregateQuality(daily),
     weightTrend,
+    analytics: {
+      adherence,
+      plannedMacros,
+      recordFrequency: {
+        daysWithRecords: dates.length - adherence.daysWithoutRecords,
+        daysWithoutRecords: adherence.daysWithoutRecords,
+        totalDays: dates.length,
+      },
+    },
   };
 }
 
