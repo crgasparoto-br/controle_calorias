@@ -8,6 +8,7 @@ import {
   createProfessionalOperationalRequest,
   evaluateProfessionalOperationalAlerts,
   listProfessionalOperationalAlerts,
+  registerProfessionalReviewSignal,
   respondToProfessionalOperationalRequest,
 } from "../server/modules/professionals/operationalAlertsService";
 
@@ -124,9 +125,9 @@ async function seed(connection: mysql.Connection) {
   await connection.query(
     `INSERT INTO professionalPatientTrackings
       (id, authorizationId, professionalUserId, patientUserId, status,
-       startedAt, lastTransitionAt, lastTransitionByUserId)
-     VALUES (?, ?, ?, ?, 'active', ?, ?, ?),
-            (?, ?, ?, ?, 'active', ?, ?, ?)`,
+       startedAt, lastTransitionAt, lastTransitionByUserId, nextReviewAt)
+     VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?),
+            (?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
     [
       TRACKING_A,
       AUTH_A,
@@ -135,6 +136,7 @@ async function seed(connection: mysql.Connection) {
       now,
       now,
       PROFESSIONAL_A,
+      new Date("2026-07-19T10:00:00.000Z"),
       TRACKING_B,
       AUTH_B,
       PROFESSIONAL_B,
@@ -142,7 +144,14 @@ async function seed(connection: mysql.Connection) {
       now,
       now,
       PROFESSIONAL_B,
+      new Date("2026-07-25T10:00:00.000Z"),
     ]
+  );
+
+  await connection.query(
+    `INSERT INTO meals (userId, source, status, mealLabel, confidence, occurredAt)
+     VALUES (?, 'web', 'confirmed', 'Almoço recente', 1, ?)`,
+    [PATIENT_B, new Date("2026-07-20T11:00:00.000Z")]
   );
 }
 
@@ -172,18 +181,93 @@ async function main() {
     await seed(connection);
 
     const dueAt = Date.parse("2026-07-19T10:00:00.000Z");
+    const futureDueAt = Date.parse("2026-07-25T10:00:00.000Z");
     const now = new Date("2026-07-20T12:00:00.000Z");
+
     const requestA = await createProfessionalOperationalRequest(PROFESSIONAL_A, {
       patientId: PATIENT_A,
       type: "professional_request",
       title: "Responder atualização semanal",
       dueAt,
     });
+    const weighInRequest = await createProfessionalOperationalRequest(
+      PROFESSIONAL_A,
+      {
+        patientId: PATIENT_A,
+        type: "weigh_in",
+        title: "Registrar pesagem semanal",
+        dueAt,
+      }
+    );
+    const futureRequest = await createProfessionalOperationalRequest(
+      PROFESSIONAL_A,
+      {
+        patientId: PATIENT_A,
+        type: "professional_request",
+        title: "Solicitação ainda no prazo",
+        dueAt: futureDueAt,
+      }
+    );
+    const reviewSignal = await registerProfessionalReviewSignal(PROFESSIONAL_A, {
+      patientId: PATIENT_A,
+      originType: "meal_inference",
+      originId: "reviewable-record-a",
+      reason: "Registro explicitamente marcado para revisão pelo pipeline.",
+    });
 
     await Promise.all([
       evaluateProfessionalOperationalAlerts(PROFESSIONAL_A, now),
       evaluateProfessionalOperationalAlerts(PROFESSIONAL_A, now),
     ]);
+
+    const allTypes = new Set(
+      (await listProfessionalOperationalAlerts(PROFESSIONAL_A)).map(
+        alert => alert.type
+      )
+    );
+    assert.deepEqual(
+      [...allTypes].sort(),
+      [
+        "goal_review_due",
+        "no_food_records",
+        "professional_request_overdue",
+        "record_requires_review",
+        "weigh_in_overdue",
+      ],
+      "the five approved operational alert types must be generated from explicit sources"
+    );
+
+    const alertsAfterRuleEvaluation =
+      await listProfessionalOperationalAlerts(PROFESSIONAL_A);
+    assert.equal(
+      alertsAfterRuleEvaluation.some(
+        alert => alert.origin.id === futureRequest.id
+      ),
+      false,
+      "a professional request that is still within its deadline must not create an alert"
+    );
+    assert.equal(
+      (await listProfessionalOperationalAlerts(PROFESSIONAL_B)).some(
+        alert => alert.type === "no_food_records"
+      ),
+      false,
+      "a recent confirmed meal must suppress the no-food-records alert"
+    );
+    assert.ok(
+      alertsAfterRuleEvaluation.some(
+        alert =>
+          alert.type === "weigh_in_overdue" &&
+          alert.origin.id === weighInRequest.id
+      )
+    );
+    assert.ok(
+      alertsAfterRuleEvaluation.some(
+        alert =>
+          alert.type === "record_requires_review" &&
+          alert.origin.id === "reviewable-record-a"
+      )
+    );
+    assert.ok(reviewSignal.id);
 
     const [concurrentRows] = await connection.query<mysql.RowDataPacket[]>(
       `SELECT id, state, COUNT(*) OVER () AS total
@@ -193,7 +277,11 @@ async function main() {
          AND originId = ?`,
       [PROFESSIONAL_A, requestA.id]
     );
-    assert.equal(concurrentRows.length, 1, "concurrent evaluation must persist one equivalent alert");
+    assert.equal(
+      concurrentRows.length,
+      1,
+      "concurrent evaluation must persist one equivalent alert"
+    );
     assert.equal(Number(concurrentRows[0]?.total), 1);
 
     const alertA = await findRequestAlert(PROFESSIONAL_A, requestA.id);
@@ -215,7 +303,10 @@ async function main() {
     );
     assert.equal(resolvedRows[0]?.state, "resolved");
     assert.equal(Number(resolvedRows[0]?.resolvedByUserId), PROFESSIONAL_A);
-    assert.ok(resolvedRows[0]?.resolvedAt, "resolution timestamp must remain persisted");
+    assert.ok(
+      resolvedRows[0]?.resolvedAt,
+      "resolution timestamp must remain persisted"
+    );
 
     const dismissedRequest = await createProfessionalOperationalRequest(
       PROFESSIONAL_A,
@@ -339,6 +430,7 @@ async function main() {
     console.log(
       JSON.stringify({
         event: "professional.operational-alerts.integration.passed",
+        coveredTypes: [...allTypes].sort(),
         concurrentAlertId: alertA.id,
         isolatedRequestId: requestB.id,
       })
