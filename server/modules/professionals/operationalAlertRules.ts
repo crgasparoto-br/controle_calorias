@@ -4,6 +4,17 @@ import {
   getUtcRangeForLocalDate,
 } from "../../../shared/timeZone";
 
+export const PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA = [
+  {
+    key: "noFoodRecordsDays",
+    label: "Dias corridos sem registros alimentares",
+    description:
+      "A central abre um alerta após três dias civis sem registros confirmados no timezone do paciente.",
+    value: 3,
+    configurable: false,
+  },
+] as const;
+
 export function getDateKeyInZone(date: Date, timeZone: string) {
   return getDateKeyInTimeZone(date, timeZone);
 }
