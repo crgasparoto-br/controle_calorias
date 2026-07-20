@@ -79,9 +79,18 @@ function parseOperation(source: string) {
   return "unknown";
 }
 
+function normalizeProcedureScope(procedureName: string) {
+  if (procedureName === "protectedProcedure") return "protected";
+  if (procedureName === "adminProcedure") return "admin";
+  if (/^professional\w+Procedure$/.test(procedureName)) {
+    return "professional-entitled";
+  }
+  return "unknown";
+}
+
 function parseProcedures(groupSource: string): ProcedureInfo[] {
   const procedureRegex =
-    /^\s{2,6}(\w+):\s*(protectedProcedure|adminProcedure)/gm;
+    /^\s{2,6}(\w+):\s*(protectedProcedure|adminProcedure|professional\w+Procedure)/gm;
   const matches = Array.from(groupSource.matchAll(procedureRegex));
 
   return matches.map((match, index) => {
@@ -93,7 +102,7 @@ function parseProcedures(groupSource: string): ProcedureInfo[] {
     const procedureSource = groupSource.slice(start, end);
     return {
       name: match[1],
-      scope: match[2].replace("Procedure", ""),
+      scope: normalizeProcedureScope(match[2]),
       operation: parseOperation(procedureSource),
     };
   });
@@ -188,6 +197,9 @@ function generateMarkdown(groups: GroupInfo[]) {
 
   lines.push("## Regras para novas procedures", "");
   lines.push("- Use `protectedProcedure` por padrão.");
+  lines.push(
+    "- Use uma `professional*Procedure` quando a operação exigir perfil profissional ativo e entitlement válido."
+  );
   lines.push(
     "- Use `adminProcedure` apenas para operação administrativa real."
   );
