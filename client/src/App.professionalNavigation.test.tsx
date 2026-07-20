@@ -55,6 +55,7 @@ vi.mock("./components/NutritionGoalReportInvalidator", () => ({ default: () => n
 vi.mock("./components/PatientGoalSuggestionsEmbed", () => ({ default: () => null }));
 vi.mock("./components/PatientProfessionalGuidancesEmbed", () => ({ default: () => null }));
 vi.mock("./components/ProfessionalAnalyzeTabBridge", () => ({ default: () => null }));
+vi.mock("@/components/ProfessionalAiWorkspace", () => ({ default: () => <div>Assistência profissional por IA</div> }));
 vi.mock("./components/ProfessionalGoalExceptionSuggestionsEmbed", () => ({ default: () => null }));
 vi.mock("./components/ProfileWhatsappGreetingVisibility", () => ({ default: () => null }));
 
