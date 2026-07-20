@@ -185,15 +185,24 @@ export async function getProfessionalEntitlements(
     const limit = result.capacity?.limit ?? null;
     const available =
       limit !== null && used !== null ? Math.max(0, limit - used) : null;
+    const validUntil = result.validUntil?.getTime() ?? null;
+    const expired = validUntil !== null && validUntil <= Date.now();
+    const effectiveAllowed = result.allowed && !expired;
+    const effectiveReason: ProfessionalEntitlementReason = effectiveAllowed
+      ? result.reason
+      : "no_access";
+
     return {
-      allowed: result.allowed,
-      reason: result.reason,
+      allowed: effectiveAllowed,
+      reason: effectiveReason,
       mode,
-      commercialState: stateForReason(result.reason),
+      commercialState: stateForReason(effectiveReason),
       planCode: result.planCode?.trim() || null,
       planName: result.planName?.trim() || "Plano profissional",
-      validUntil: result.validUntil?.getTime() ?? null,
-      enabledResources: normalizeResources(result.entitlements),
+      validUntil,
+      enabledResources: effectiveAllowed
+        ? normalizeResources(result.entitlements)
+        : [],
       capacity: {
         limit,
         used,
