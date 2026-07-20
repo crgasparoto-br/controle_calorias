@@ -83,6 +83,12 @@ jobs:
       - name: Validate referential integrity
         run: pnpm db:check-integrity
 
+      - name: Fail on Drizzle metadata drift
+        if: steps.drizzle-drift.outcome == 'failure'
+        run: |
+          echo "Drizzle metadata drift detected. Inspect the uploaded artifact before merging."
+          exit 1
+
       - name: Show TiDB logs on failure
         if: failure()
         run: docker logs --tail 100 professional-persistence-tidb
