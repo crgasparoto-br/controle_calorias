@@ -9,6 +9,7 @@ import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbe
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
 import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
+import ProfessionalEntitlementGate from "./components/ProfessionalEntitlementGate";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
 import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
@@ -45,6 +46,14 @@ function LegacyProfessionalRedirect() {
   return <PageLoadingFallback />;
 }
 
+function ProfessionalWorkspaceRoute() {
+  return (
+    <ProfessionalEntitlementGate>
+      <ProfessionalWorkspacePage />
+    </ProfessionalEntitlementGate>
+  );
+}
+
 function Router() {
   const [location] = useLocation();
   useEffect(() => {
@@ -72,12 +81,12 @@ function Router() {
     <Route path="/health-integrations" component={HealthIntegrationsPage} />
     <Route path="/synced-health-data" component={SyncedHealthDataPage} />
     <Route path="/professional/legacy" component={LegacyProfessionalRedirect} />
-    <Route path="/professional/patients" component={ProfessionalWorkspacePage} />
-    <Route path="/professional/follow-up" component={ProfessionalWorkspacePage} />
-    <Route path="/professional/messages" component={ProfessionalWorkspacePage} />
-    <Route path="/professional/reports" component={ProfessionalWorkspacePage} />
+    <Route path="/professional/patients" component={ProfessionalWorkspaceRoute} />
+    <Route path="/professional/follow-up" component={ProfessionalWorkspaceRoute} />
+    <Route path="/professional/messages" component={ProfessionalWorkspaceRoute} />
+    <Route path="/professional/reports" component={ProfessionalWorkspaceRoute} />
     <Route path="/professional/settings" component={ProfessionalSettingsPage} />
-    <Route path="/professional" component={ProfessionalWorkspacePage} />
+    <Route path="/professional" component={ProfessionalWorkspaceRoute} />
     <Route path="/admin" component={AdminPage} />
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />
