@@ -25,6 +25,7 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
+const ProfessionalSettingsPage = lazy(() => import("@/pages/ProfessionalSettingsPage"));
 const ProfessionalWorkspacePage = lazy(() => import("@/pages/ProfessionalWorkspacePage"));
 const QuickEditExercisePage = lazy(() => import("@/pages/QuickEditExercisePage"));
 const QuickEditMealPage = lazy(() => import("@/pages/QuickEditMealPage"));
@@ -75,7 +76,7 @@ function Router() {
     <Route path="/professional/follow-up" component={ProfessionalWorkspacePage} />
     <Route path="/professional/messages" component={ProfessionalWorkspacePage} />
     <Route path="/professional/reports" component={ProfessionalWorkspacePage} />
-    <Route path="/professional/settings" component={ProfessionalWorkspacePage} />
+    <Route path="/professional/settings" component={ProfessionalSettingsPage} />
     <Route path="/professional" component={ProfessionalWorkspacePage} />
     <Route path="/admin" component={AdminPage} />
     <Route path="/404" component={NotFound} />
