@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feat/813-professional-ai-assistance
+  pull_request:
+    branches:
+      - feat/812-professional-reports
 
 permissions:
   contents: read
