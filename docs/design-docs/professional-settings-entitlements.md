@@ -28,6 +28,8 @@ Alterações geram eventos auditáveis em `professionalHistoryEvents`. Modelos a
 
 A desativação mantém todos os dados persistidos, remove a disponibilidade da navegação profissional pelo gate já existente e bloqueia operações profissionais que exigem perfil ativo. A reativação continua disponível no fluxo de perfil pessoal existente.
 
+As APIs de prontuário, metas oficiais, alertas, mensagens e assistência por IA passam pelo mesmo middleware, que exige perfil ativo e entitlement válido antes de executar a operação. Rotas do paciente continuam independentes da situação comercial do profissional.
+
 ## Critérios operacionais
 
 A tela consome `PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA`, exportado pelo mesmo módulo de regras usado pela central de alertas. Somente critérios realmente suportados são apresentados. O critério atual de ausência de registros alimentares permanece fixo em três dias civis no timezone do paciente e, por isso, é exibido como não configurável em vez de criar uma configuração sem efeito.
@@ -44,7 +46,11 @@ A tela consome `PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA`, exportado pelo mesmo m
 - capacidade, uso e disponibilidade;
 - disponibilidade do provider e uso de fallback.
 
-Enquanto o provider comercial não está implementado, `BILLING_ACCESS_MODE` usa `open_access` por padrão e preserva todos os recursos atuais. Falha do provider não bloqueia o profissional nesse modo. Em `enforced`, ausência ou falha do provider resulta em negação segura. O serviço não mantém cache de autorização e oferece gates para recurso e capacidade, garantindo que uma operação possa validar o limite antes de iniciar qualquer gravação.
+O billing registra sua implementação por `configureProfessionalEntitlementProvider`. Recursos desconhecidos são descartados, validade expirada revoga o acesso e nenhuma decisão comercial é calculada no frontend.
+
+Enquanto o provider comercial não está implementado, `BILLING_ACCESS_MODE` usa `open_access` por padrão e preserva todos os recursos atuais. Falha do provider não bloqueia o profissional nesse modo. Em `enforced`, ausência ou falha do provider resulta em negação segura. O serviço não mantém cache de autorização.
+
+A capacidade é revalidada antes da transição de uma autorização para `approved`. Quando o limite foi atingido, a transição não começa, o vínculo não cria cobertura ativa parcial e os dados já existentes permanecem intactos.
 
 ## Segurança e privacidade
 
@@ -53,6 +59,7 @@ Enquanto o provider comercial não está implementado, `BILLING_ACCESS_MODE` usa
 - Recursos desconhecidos retornados por um provider são descartados.
 - Configuração inválida não é aplicada silenciosamente.
 - Falha de leitura em produção não substitui preferências por uma gravação automática de defaults.
+- Alterações comerciais não apagam pacientes, prontuários, mensagens ou histórico.
 
 ## Evolução com a issue #145
 
