@@ -70,6 +70,7 @@ vi.mock("@/pages/LogMealPage", () => ({ default: () => <Fixture name="LogMealPag
 vi.mock("@/pages/LoginPage", () => ({ default: () => <Fixture name="LoginPage" /> }));
 vi.mock("@/pages/NotFound", () => ({ default: () => <Fixture name="NotFound" /> }));
 vi.mock("@/pages/OnboardingPage", () => ({ default: () => <Fixture name="OnboardingPage" /> }));
+vi.mock("@/pages/ProfessionalSettingsPage", () => ({ default: () => <Fixture name="Configurações profissionais" /> }));
 vi.mock("@/pages/QuickEditExercisePage", () => ({ default: () => <Fixture name="QuickEditExercisePage" /> }));
 vi.mock("@/pages/QuickEditMealPage", () => ({ default: () => <Fixture name="QuickEditMealPage" /> }));
 vi.mock("@/pages/RegisterPage", () => ({ default: () => <Fixture name="RegisterPage" /> }));
@@ -83,6 +84,7 @@ beforeEach(() => { refresh.mockClear(); refetch.mockClear(); invalidate.mockClea
 
 describe("App professional navigation", () => {
   it("loads a professional deep link through the real router", async () => { const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); expect(screen.getAllByText("Contexto profissional").length).toBeGreaterThan(0); });
+  it("routes professional settings to the dedicated screen", async () => { window.history.replaceState({}, "", "/professional/settings"); const { default: App } = await import("./App"); render(<App />); expect(await screen.findByRole("heading", { name: "Configurações profissionais" })).toBeTruthy(); });
   it("redirects the retired legacy entry to the current professional reports", async () => { const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Experiência legada" })); await waitFor(() => expect(window.location.pathname).toBe("/professional/reports")); expect(await screen.findByRole("heading", { name: "Relatórios profissionais" })).toBeTruthy(); });
   it("revalidates backend authorization before opening a patient context", async () => { window.history.replaceState({}, "", "/professional/patients"); const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" })); await waitFor(() => expect(fetchPatientTimeZone).toHaveBeenCalledWith({ patientId: 41, weekOffset: 0 })); await waitFor(() => expect(window.location.pathname).toBe("/professional/follow-up")); });
   it("does not open stale cached access when backend revalidation fails", async () => { fetchPatientTimeZone.mockRejectedValueOnce(new Error("revoked")); window.history.replaceState({}, "", "/professional/patients"); const { default: App } = await import("./App"); render(<App />); fireEvent.click(await screen.findByRole("button", { name: "Abrir paciente" })); expect(await screen.findByText("O acesso a este paciente não está mais disponível. A carteira foi atualizada.")).toBeTruthy(); expect(window.location.pathname).toBe("/professional/patients"); expect(refetch).toHaveBeenCalled(); });
