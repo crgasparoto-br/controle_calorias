@@ -9,6 +9,7 @@ import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbe
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
+import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { trackEvent } from "./lib/analytics";
@@ -84,6 +85,7 @@ function App() {
     <NutritionGoalReportInvalidator />
     <ProfessionalAnalyzeTabBridge />
     <ProfessionalGoalExceptionSuggestionsEmbed />
+    <ProfessionalOperationalAlertsBridge />
     <PatientGoalSuggestionsEmbed />
     <PatientProfessionalGuidancesEmbed />
     <Router />
