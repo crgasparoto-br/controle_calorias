@@ -229,10 +229,18 @@ export const professionalMealSuggestionSchema = z.object({
   notes: z.string().trim().max(1000).optional(),
   status: professionalMealSuggestionStatusSchema.default("sent"),
 });
-export const professionalPatientQuestionSchema = z.object({
-  patientId: z.number().int().positive(),
-  question: z.string().trim().min(3).max(800),
-});
+export const professionalPatientQuestionSchema = z
+  .object({
+    patientId: z.number().int().positive(),
+    question: z.string().trim().min(3).max(800),
+  })
+  .superRefine((_input, context) => {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Este endpoint legado foi desativado. Use professionalRecord.ai.generate com paciente e período explícitos.",
+    });
+  });
 export const professionalPatientAnswerSchema = z.object({
   answer: z.string().trim().min(1).max(3000),
   citedContext: z.array(z.string().trim().min(1).max(200)).max(8).default([]),
