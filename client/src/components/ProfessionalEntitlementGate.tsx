@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, RefreshCw, Settings } from "lucide-react";
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { useLocation } from "wouter";
 
 export default function ProfessionalEntitlementGate({
