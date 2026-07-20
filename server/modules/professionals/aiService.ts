@@ -245,13 +245,19 @@ function fallbackOutput(
   const facts = [
     `${context.recordFrequency.daysWithRecords} de ${context.recordFrequency.totalDays} dias possuem registros alimentares.`,
     `A aderência calórica calculada pelo relatório canônico foi de ${round(context.adherence.percent)}%.`,
-    `Foram registrados ${round(context.water.totalConsumedMl)} ml de água e ${context.exercise.activeDays} dia(s) com exercício.`,
   ];
   const factSourceKeys = [
     ["current_record_frequency"],
     ["current_adherence"],
-    ["current_water", "current_exercise"],
   ];
+  if (context.water.totalConsumedMl > 0) {
+    facts.push(`Foram registrados ${round(context.water.totalConsumedMl)} ml de água.`);
+    factSourceKeys.push(["current_water"]);
+  }
+  if (context.exercise.activeDays > 0) {
+    facts.push(`Foram registrados exercícios em ${context.exercise.activeDays} dia(s).`);
+    factSourceKeys.push(["current_exercise"]);
+  }
   const interpretations: string[] = [];
   const interpretationSourceKeys: string[][] = [];
   if (previous) {
@@ -300,6 +306,7 @@ function fallbackOutput(
     summary: clinicalBoundary
       ? "A solicitação exige diagnóstico, prescrição ou decisão clínica. A IA não pode realizar essa ação; use os dados objetivos abaixo como apoio para sua avaliação profissional."
       : `Leitura objetiva dos dados autorizados entre ${period}.`,
+    summarySourceKeys: ["current_period"],
     facts,
     factSourceKeys,
     interpretations,
@@ -349,6 +356,7 @@ function providerOutputSchema() {
       properties: {
         title: { type: "string" },
         summary: { type: "string" },
+        summarySourceKeys: sourceReferenceList,
         facts: { type: "array", items: { type: "string" } },
         factSourceKeys: {
           type: "array",
@@ -390,6 +398,7 @@ function providerOutputSchema() {
       required: [
         "title",
         "summary",
+        "summarySourceKeys",
         "facts",
         "factSourceKeys",
         "interpretations",
@@ -554,7 +563,8 @@ export function createProfessionalAiService(
                   "Diferencie fatos calculados, interpretações assistidas e dados ausentes.",
                   "Não diagnostique, prescreva, defina tratamento, invente riscos ou recomende alteração automática de meta ou refeição.",
                   "A priorização é determinada por alertas canônicos; não crie novos sinais clínicos.",
-                  "Cada fato e interpretação deve citar somente chaves existentes em sourceCatalog, na mesma posição das listas factSourceKeys e interpretationSourceKeys.",
+                  "O sourceCatalog é a única representação dos dados do acompanhamento disponível para a resposta.",
+                  "O resumo, cada fato e cada interpretação devem citar somente chaves existentes em sourceCatalog.",
                   "Rascunhos são apenas texto revisável e nunca representam envio.",
                   "Responda apenas JSON válido no schema solicitado.",
                 ].join(" "),
@@ -568,8 +578,6 @@ export function createProfessionalAiService(
                       ? redactSensitiveText(input.question ?? "")
                       : undefined,
                   requestedDraftType: input.draftType,
-                  currentPeriod: context,
-                  previousPeriod: previousContext,
                   sourceCatalog: sourceSignals,
                   mandatoryNotice: PROFESSIONAL_AI_NOTICE,
                 }),
