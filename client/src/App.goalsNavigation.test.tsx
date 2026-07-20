@@ -54,6 +54,11 @@ vi.mock("@/lib/trpc", () => {
       professionalRecord: {
         messages: {
           patientList: {
+            useQuery: () => ({
+              data: { items: [], nextCursor: null },
+              isLoading: false,
+              isError: false,
+            }),
             useInfiniteQuery: () => ({
               data: { pages: [{ items: [], nextCursor: null }] },
               isLoading: false,
