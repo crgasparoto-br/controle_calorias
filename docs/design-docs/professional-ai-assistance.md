@@ -16,9 +16,9 @@ A assistência individual usa somente:
 
 Refeições, comentários, mensagens, nomes de alimentos, observações clínicas e outros textos crus não são enviados ao provedor de IA. O contexto é reduzido a agregados numéricos, tipos padronizados de alerta e limites do período.
 
-Antes da chamada ao provedor, todos os campos do contexto são convertidos em um catálogo de fontes com chaves estáveis. O catálogo inclui período, frequência, aderência, calorias, macros realizados e planejados, dias úteis, finais de semana, água, exercícios, peso, qualidade alimentar e alertas. Em comparações, o mesmo conjunto é produzido para o período anterior.
+Antes da chamada ao provedor, todos os campos autorizados são convertidos em um catálogo de fontes com chaves estáveis. Esse catálogo é a única representação dos dados do acompanhamento enviada ao provedor. O catálogo inclui período, frequência, aderência, calorias, macros realizados e planejados, dias úteis, finais de semana, água, exercícios, peso, qualidade alimentar e alertas. Em comparações, o mesmo conjunto é produzido para o período anterior.
 
-Cada fato e interpretação devolvido pelo provedor deve indicar as chaves exatas das fontes que o sustentam. Referências inexistentes invalidam a resposta e acionam o fallback determinístico.
+O resumo, cada fato e cada interpretação devolvidos pelo provedor devem indicar as chaves exatas das fontes que os sustentam. Referências inexistentes invalidam a resposta e acionam o fallback determinístico.
 
 ## Modos assistidos
 
@@ -59,6 +59,7 @@ O envio pela web ou WhatsApp continua exigindo uma segunda ação explícita na 
 O provedor deve responder em schema estrito com:
 
 - título e resumo;
+- resumo e respectivas chaves de fonte;
 - fatos e respectivas chaves de fonte;
 - interpretações e respectivas chaves de fonte;
 - dados ausentes;
@@ -102,7 +103,7 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 
 - minimização do contexto e ausência de textos crus no payload;
 - catálogo completo para período atual e anterior;
-- referência exata das fontes por fato e interpretação;
+- referência exata das fontes por resumo, fato e interpretação;
 - resistência a instruções inseridas em conteúdo do paciente;
 - fallback para erro, timeout, JSON inválido e schema inválido;
 - rejeição de conteúdo clínico indevido retornado pelo provedor;
