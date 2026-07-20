@@ -43,12 +43,37 @@ const severityLabels: Record<string, string> = {
 type AiMode = keyof typeof modeLabels;
 type DraftType = keyof typeof draftLabels;
 type Patient = { patientId: number; displayName: string };
+type SourceSignal = {
+  key: string;
+  label: string;
+  value: string;
+  period?: "current" | "previous";
+};
 
 type Props = {
   selectedPatient: Patient | null;
   periodRange: { start: string; end: string };
   onOpenPatient: (patient: Patient) => void;
 };
+
+function SourceReferences({
+  keys,
+  sourceSignals,
+}: {
+  keys: string[] | undefined;
+  sourceSignals: SourceSignal[];
+}) {
+  if (!keys?.length) return null;
+  const labels = keys
+    .map(key => sourceSignals.find(signal => signal.key === key)?.label)
+    .filter((label): label is string => Boolean(label));
+  if (!labels.length) return null;
+  return (
+    <p className="mt-1 text-xs text-muted-foreground">
+      Fontes: {labels.join("; ")}
+    </p>
+  );
+}
 
 export default function ProfessionalAiWorkspace({
   selectedPatient,
@@ -328,17 +353,29 @@ export default function ProfessionalAiWorkspace({
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <h3 className="font-semibold">Fatos calculados</h3>
-                <ul className="list-disc space-y-1 pl-5 text-sm">
-                  {result.facts.map((fact: string) => (
-                    <li key={fact}>{fact}</li>
+                <ul className="list-disc space-y-2 pl-5 text-sm">
+                  {result.facts.map((fact: string, index: number) => (
+                    <li key={`${fact}-${index}`}>
+                      {fact}
+                      <SourceReferences
+                        keys={result.factSourceKeys?.[index]}
+                        sourceSignals={result.sourceSignals}
+                      />
+                    </li>
                   ))}
                 </ul>
               </div>
               <div className="space-y-2">
                 <h3 className="font-semibold">Interpretações assistidas</h3>
-                <ul className="list-disc space-y-1 pl-5 text-sm">
-                  {result.interpretations.map((item: string) => (
-                    <li key={item}>{item}</li>
+                <ul className="list-disc space-y-2 pl-5 text-sm">
+                  {result.interpretations.map((item: string, index: number) => (
+                    <li key={`${item}-${index}`}>
+                      {item}
+                      <SourceReferences
+                        keys={result.interpretationSourceKeys?.[index]}
+                        sourceSignals={result.sourceSignals}
+                      />
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -355,17 +392,19 @@ export default function ProfessionalAiWorkspace({
             ) : null}
             <div className="rounded-xl border bg-muted/30 p-4">
               <h3 className="font-semibold">Fontes conferíveis</h3>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {result.sourceSignals.map(
-                  (signal: { key: string; label: string; value: string }) => (
-                    <div key={signal.key} className="rounded-lg bg-background p-3">
-                      <p className="text-xs text-muted-foreground">
-                        {signal.label}
-                      </p>
-                      <p className="text-sm font-medium">{signal.value}</p>
-                    </div>
-                  )
-                )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                O catálogo abaixo contém todos os sinais enviados ao provedor.
+                Cada fato e interpretação identifica as fontes correspondentes.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {result.sourceSignals.map((signal: SourceSignal) => (
+                  <div key={signal.key} className="rounded-lg bg-background p-3">
+                    <p className="text-xs text-muted-foreground">
+                      {signal.label}
+                    </p>
+                    <p className="text-sm font-medium">{signal.value}</p>
+                  </div>
+                ))}
               </div>
             </div>
             {result.cautions.length ? (
