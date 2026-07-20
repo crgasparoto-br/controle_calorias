@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createProfessionalAiPriorityAlertSource } from "./aiPrioritiesAccess";
 import { createProfessionalAiService } from "./aiService";
 
 function periodBundle() {
@@ -96,7 +97,7 @@ function providerResponse() {
 describe("professional AI authorization and telemetry", () => {
   it("does not expose priorities when the professional profile is inactive", async () => {
     const listAlerts = vi.fn();
-    const service = createProfessionalAiService({
+    const source = createProfessionalAiPriorityAlertSource({
       getStatus: vi.fn().mockResolvedValue({
         hasActiveProfile: false,
         profile: { active: false },
@@ -104,7 +105,7 @@ describe("professional AI authorization and telemetry", () => {
       listAlerts,
     });
 
-    await expect(service.priorities(1, 20)).rejects.toThrow(
+    await expect(source(1)).rejects.toThrow(
       "Área Profissional está indisponível"
     );
     expect(listAlerts).not.toHaveBeenCalled();
