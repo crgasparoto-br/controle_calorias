@@ -78,7 +78,8 @@ const COMMON_OBJECTIVE_WORDS = [
   "proteinas", "qual", "quais", "quanta", "quantas", "quanto", "quantos", "que",
   "realizada", "realizadas", "realizado", "realizados", "registro", "registrada",
   "registradas", "registrado", "registrados", "registros", "semana", "semanas",
-  "sinal", "sinais", "total", "totais", "util", "uteis", "variacao", "versus",
+  "sinal", "sinais", "total", "totais", "um", "uma", "util", "uteis", "variacao",
+  "versus",
 ];
 
 const OBJECTIVE_QUESTION_ALLOWED_WORDS = new Set([
