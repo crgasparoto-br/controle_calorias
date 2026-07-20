@@ -16,7 +16,7 @@ A assistência individual usa somente:
 
 Refeições, comentários, mensagens, nomes de alimentos, observações clínicas e outros textos crus não são enviados ao provedor de IA. O contexto é reduzido a agregados numéricos, tipos padronizados de alerta e limites do período.
 
-Antes da chamada ao provedor, todos os campos autorizados são convertidos em um catálogo de fontes com chaves estáveis. Esse catálogo é a única representação dos dados do acompanhamento enviada ao provedor. O catálogo inclui período, frequência, aderência, calorias, macros realizados e planejados, dias úteis, finais de semana, água, exercícios, peso, qualidade alimentar e alertas. Em comparações, o mesmo conjunto é produzido para o período anterior.
+Antes da chamada ao provedor, todos os campos autorizados são convertidos em um catálogo de fontes com chaves estáveis. Esse catálogo é a única representação dos dados do acompanhamento enviada ao provedor. O catálogo inclui período, frequência, aderência, calorias, macros realizados e planejados, dias úteis, finais de semana, água, exercícios, peso, qualidade alimentar e alertas. Em comparações, o mesmo conjunto é produzido para o período anterior. Os alertas do período anterior são consultados com o próprio intervalo e timezone; ausência de alerta só é declarada depois dessa consulta, nunca inferida por uma lista vazia artificial.
 
 Cada sinal informa também se está disponível. Sinais ausentes continuam visíveis no catálogo para conferência, mas não podem ser citados pelo resumo ou pelas interpretações. Uma referência inexistente ou indisponível invalida a resposta e aciona o fallback determinístico.
 
@@ -78,7 +78,7 @@ A validação ocorre em quatro camadas:
 1. JSON válido e compatível com o schema estrito;
 2. referências limitadas às chaves presentes no catálogo enviado ao provedor;
 3. rejeição de referências a sinais marcados como indisponíveis;
-4. verificação semântica pós-modelo que rejeita diagnóstico, prescrição, medicamento, dosagem, tratamento médico ou instrução clínica autônoma em qualquer texto exibível.
+4. verificação semântica pós-modelo que rejeita diagnóstico, prescrição, medicamento, dosagem, tratamento médico ou instrução clínica autônoma em qualquer texto exibível. A validação determinística também bloqueia afirmações clínicas não sustentadas e comandos autônomos de mudança de meta, calorias, macronutrientes, dieta, jejum, alimentos ou medicação.
 
 Se qualquer camada falhar, a resposta do provedor é descartada integralmente. Timeout, indisponibilidade, resposta inválida, referência desconhecida ou indisponível e conteúdo clínico proibido ativam um fallback determinístico calculado sobre os mesmos agregados. O fallback nunca depende de texto gerado anteriormente e não envia conteúdo automaticamente.
 
@@ -112,12 +112,14 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 
 - minimização do contexto e ausência de textos crus no payload;
 - catálogo completo para período atual e anterior;
+- alertas atuais e anteriores consultados com intervalos diferentes e refletidos separadamente nas fontes;
 - referência exata das fontes por resumo e interpretação;
 - fatos e dados ausentes substituídos por valores canônicos do backend;
 - rejeição de referência a sinal inexistente ou indisponível;
 - resistência a instruções inseridas em conteúdo do paciente;
 - fallback para erro, timeout, JSON inválido e schema inválido;
 - rejeição de conteúdo clínico indevido retornado pelo provedor;
+- bloqueio de afirmações clínicas e prescrições nutricionais autônomas não sustentadas;
 - revogação entre a consulta e o retorno do provedor;
 - bloqueio de diagnóstico e prescrição sem chamar o provedor;
 - declaração explícita de dados ausentes no período atual e anterior;
