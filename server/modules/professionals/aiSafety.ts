@@ -4,10 +4,20 @@ const CLINICAL_TOPIC_PATTERN =
   /\b(?:diagnost\w*|prescrev\w*|prescricao|receit\w*|dose|dosagem|medicamento|medicacao|remedio|doenca|transtorno|sindrome|tratamento(?: medico)?|diabet\w*|hipertens\w*|pressao alta|anorex\w*|bulim\w*|anemi\w*|infecc\w*|cancer|neoplas\w*|insuficiencia renal|doenca renal|hipotireoid\w*|hipertireoid\w*|insulin\w*|antidepress\w*|antibiot\w*|comprimid\w*|suplement\w*)\b/;
 
 const AUTONOMOUS_ACTION_VERBS =
-  "tomar|tome|usar|use|iniciar|inicie|suspender|suspenda|interromper|interrompa|administrar|administre|aplicar|aplique|aumentar|aumente|reduzir|reduza|ajustar|ajuste|definir|defina|limitar|limite|eliminar|elimine|cortar|corte|retirar|retire|evitar|evite|fazer|faca|seguir|siga|adotar|adote|manter|mantenha|consumir|consuma|ingerir|ingira|trocar|troque|substituir|substitua|praticar|pratique";
+  "tomar|tome|usar|use|iniciar|inicie|suspender|suspenda|interromper|interrompa|administrar|administre|aplicar|aplique|aumentar|aumente|reduzir|reduza|ajustar|ajuste|definir|defina|limitar|limite|eliminar|elimine|cortar|corte|retirar|retire|evitar|evite|fazer|faca|seguir|siga|adotar|adote|manter|mantenha|consumir|consuma|ingerir|ingira|trocar|troque|substituir|substitua|praticar|pratique|estabelecer|estabeleca|fixar|fixe|deixar|deixe|propor|proponha|aconselhar|aconselhe";
 
 const DIRECTIVE_CUES =
-  "deve|precisa|recomendo|recomende|recomendar|oriento|oriente|orientar|sugiro|sugira|sugerir|indico|indique|indicar|e necessario|o ideal e|convem";
+  "deve|precisa|recomendo|recomende|recomendar|oriento|oriente|orientar|sugiro|sugira|sugerir|indico|indique|indicar|aconselho|aconselhe|aconselhar|e necessario|o ideal e|convem";
+
+const IMPERSONAL_DIRECTIVE_CUES =
+  "recomenda-se|sugere-se|indica-se|orienta-se|aconselha-se|prescreve-se|deve-se|e recomendado|seria recomendado|e indicado|seria indicado|e aconselhado|seria aconselhado|e ideal|seria ideal";
+
+const NOMINAL_DIRECTIVE_CUES =
+  "recomendacao|sugestao|indicacao|orientacao|conduta|prescricao";
+
+const EVALUATIVE_COPULAS = "e|seria|parece|pode ser|deveria ser";
+const EVALUATIVE_QUALIFIERS =
+  "adequad\\w*|recomendad\\w*|indicad\\w*|aconselhad\\w*|apropriad\\w*|preferivel|ideal|a melhor opcao|melhor opcao";
 
 const MEDICAL_TARGETS =
   "mg|g|ml|comprimid\\w*|medicamento|medicacao|remedio|insulin\\w*|antidepress\\w*|antibiot\\w*|suplement\\w*|tratamento";
@@ -29,8 +39,24 @@ const DIRECTIVE_TARGET_PATTERN = new RegExp(
   `\\b(?:${DIRECTIVE_CUES})\\b.{0,120}\\b(?:${ALL_CLINICAL_TARGETS})\\b`
 );
 
+const IMPERSONAL_DIRECTIVE_PATTERN = new RegExp(
+  `\\b(?:${IMPERSONAL_DIRECTIVE_CUES})\\b.{0,120}\\b(?:${ALL_CLINICAL_TARGETS})\\b`
+);
+
+const NOMINAL_DIRECTIVE_PATTERN = new RegExp(
+  `\\b(?:${NOMINAL_DIRECTIVE_CUES})\\b\\s*(?::|-|de|para)\\s*.{0,120}\\b(?:${ALL_CLINICAL_TARGETS})\\b`
+);
+
 const TARGET_FIRST_DIRECTIVE_PATTERN = new RegExp(
-  `\\b(?:${ALL_CLINICAL_TARGETS})\\b.{0,80}\\b(?:deve|precisa|recomendad\\w*|indicad\\w*|orientad\\w*|ideal)\\b`
+  `\\b(?:${ALL_CLINICAL_TARGETS})\\b.{0,80}\\b(?:deve|precisa|recomendad\\w*|indicad\\w*|orientad\\w*|aconselhad\\w*|ideal)\\b`
+);
+
+const TARGET_EVALUATION_PATTERN = new RegExp(
+  `\\b(?:${ALL_CLINICAL_TARGETS})\\b.{0,80}\\b(?:${EVALUATIVE_COPULAS})\\s+(?:${EVALUATIVE_QUALIFIERS})\\b`
+);
+
+const EVALUATION_TARGET_PATTERN = new RegExp(
+  `\\b(?:${EVALUATIVE_COPULAS})\\s+(?:${EVALUATIVE_QUALIFIERS})\\b.{0,80}\\b(?:${ALL_CLINICAL_TARGETS})\\b`
 );
 
 const CLINICAL_ASSERTION_PATTERN =
@@ -44,7 +70,11 @@ const CLINICAL_REQUEST_PATTERNS = [
   AUTONOMOUS_MEDICAL_ACTION_PATTERN,
   AUTONOMOUS_NUTRITION_ACTION_PATTERN,
   DIRECTIVE_TARGET_PATTERN,
+  IMPERSONAL_DIRECTIVE_PATTERN,
+  NOMINAL_DIRECTIVE_PATTERN,
   TARGET_FIRST_DIRECTIVE_PATTERN,
+  TARGET_EVALUATION_PATTERN,
+  EVALUATION_TARGET_PATTERN,
   UNSUPPORTED_CLINICAL_CONCLUSION_PATTERN,
 ];
 
@@ -55,7 +85,11 @@ const PROHIBITED_OUTPUT_PATTERNS = [
   AUTONOMOUS_MEDICAL_ACTION_PATTERN,
   AUTONOMOUS_NUTRITION_ACTION_PATTERN,
   DIRECTIVE_TARGET_PATTERN,
+  IMPERSONAL_DIRECTIVE_PATTERN,
+  NOMINAL_DIRECTIVE_PATTERN,
   TARGET_FIRST_DIRECTIVE_PATTERN,
+  TARGET_EVALUATION_PATTERN,
+  EVALUATION_TARGET_PATTERN,
 ];
 
 function normalize(value: string) {
