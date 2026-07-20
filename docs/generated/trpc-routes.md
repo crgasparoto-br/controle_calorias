@@ -26,7 +26,7 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
 | `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
-| `professionalRecord` | 12 | 4 | 8 | protected | Prontuário, ciclo e metas profissionais oficiais |
+| `professionalRecord` | 12 | 4 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
 
 ## Procedures por grupo
 
@@ -220,15 +220,15 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 
 | Procedure | Operação | Escopo |
 |---|---|---|
-| `get` | query | protected |
-| `saveAssessment` | mutation | protected |
-| `createNote` | mutation | protected |
-| `createGuidance` | mutation | protected |
-| `transitionTracking` | mutation | protected |
+| `get` | query | professional-entitled |
+| `saveAssessment` | mutation | professional-entitled |
+| `createNote` | mutation | professional-entitled |
+| `createGuidance` | mutation | professional-entitled |
+| `transitionTracking` | mutation | professional-entitled |
 | `patientGuidances` | query | protected |
-| `professionalState` | query | protected |
-| `activate` | mutation | protected |
-| `retryNotification` | mutation | protected |
+| `professionalState` | query | professional-entitled |
+| `activate` | mutation | professional-entitled |
+| `retryNotification` | mutation | professional-entitled |
 | `patientState` | query | protected |
 | `requestReview` | mutation | protected |
 | `adoptAsPersonal` | mutation | protected |
@@ -236,8 +236,8 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 ## Regras para novas procedures
 
 - Use `protectedProcedure` por padrão.
+- Use uma `professional*Procedure` quando a operação exigir perfil profissional ativo e entitlement válido.
 - Use `adminProcedure` apenas para operação administrativa real.
 - Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.
 - Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.
 - Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde.
-
