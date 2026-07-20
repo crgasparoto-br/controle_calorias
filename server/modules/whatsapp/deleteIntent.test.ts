@@ -46,16 +46,42 @@ describe("detectWhatsappDeleteIntent", () => {
     }));
   });
 
+  it("separa alimento do contexto de refeicao", () => {
+    expect(detectWhatsappDeleteIntent("Remover o arroz do almoço")).toEqual(expect.objectContaining({
+      kind: "delete_food_from_meal",
+      targetFoodName: "arroz",
+      targetMealLabel: "almoco",
+      contextReference: "named_meal",
+    }));
+  });
+
+  it("mantem refeicao nomeada como exclusao da refeicao inteira", () => {
+    expect(detectWhatsappDeleteIntent("Apagar o almoço")).toEqual(expect.objectContaining({
+      kind: "delete_meal",
+      targetMealLabel: "almoco",
+      contextReference: "named_meal",
+    }));
+  });
+
+  it("marca pronome demonstrativo como referencia conversacional", () => {
+    expect(detectWhatsappDeleteIntent("Apagar essa refeição")).toEqual(expect.objectContaining({
+      kind: "delete_meal",
+      contextReference: "conversation",
+    }));
+  });
+
   it.each([
-    ["Não tem queijo", "queijo"],
-    ["não tinha banana", "banana"],
-    ["Não havia arroz integral", "arroz integral"],
-    ["Sem QUEIJO MINAS", "queijo minas"],
-    ["Sem feijão na refeição", "feijao"],
-  ])("interpreta ausencia explicita como pedido de exclusao: %s", (text, targetFoodName) => {
+    ["Não tem queijo", "queijo", undefined],
+    ["não tinha banana", "banana", undefined],
+    ["Não havia arroz integral", "arroz integral", undefined],
+    ["Sem QUEIJO MINAS", "queijo minas", undefined],
+    ["Sem feijão na refeição", "feijao", undefined],
+    ["Não tem queijo no jantar", "queijo", "jantar"],
+  ])("interpreta ausencia explicita como pedido de exclusao: %s", (text, targetFoodName, targetMealLabel) => {
     expect(detectWhatsappDeleteIntent(text)).toEqual(expect.objectContaining({
       kind: "delete_food_from_meal",
       targetFoodName,
+      targetMealLabel,
       eventType: "whatsapp.intent.delete_food_clarification_needed",
     }));
   });
@@ -95,6 +121,14 @@ describe("classifyWhatsappMessageDeterministically delete intents", () => {
 
   it("classifica negacao explicita de alimento como exclusao com confirmacao", () => {
     const intent = classifyWhatsappMessageDeterministically("Não tem queijo");
+
+    expect(intent.intent).toBe("delete_food_from_meal");
+    expect(intent.items).toEqual([]);
+    expect(intent.requiresConfirmation).toBe(true);
+  });
+
+  it("classifica alimento com refeicao como exclusao do item, nao da refeicao", () => {
+    const intent = classifyWhatsappMessageDeterministically("Remover o arroz do almoço");
 
     expect(intent.intent).toBe("delete_food_from_meal");
     expect(intent.items).toEqual([]);
