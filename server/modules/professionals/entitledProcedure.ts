@@ -1,0 +1,50 @@
+import { TRPCError } from "@trpc/server";
+import { protectedProcedure } from "../../_core/trpc";
+import {
+  assertProfessionalEntitlement,
+  type ProfessionalEntitlementResource,
+} from "./entitlementService";
+
+export function professionalEntitledProcedure(
+  resource: ProfessionalEntitlementResource
+) {
+  return protectedProcedure.use(async ({ ctx, next }) => {
+    try {
+      await assertProfessionalEntitlement(ctx.user.id, resource);
+    } catch (error) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Este recurso profissional não está disponível.",
+      });
+    }
+    return next({ ctx });
+  });
+}
+
+export const professionalDashboardProcedure = professionalEntitledProcedure(
+  "professional_dashboard"
+);
+export const professionalPortfolioProcedure = professionalEntitledProcedure(
+  "professional_portfolio"
+);
+export const professionalRecordProcedure = professionalEntitledProcedure(
+  "professional_record"
+);
+export const professionalGoalsProcedure = professionalEntitledProcedure(
+  "professional_goals"
+);
+export const professionalAlertsProcedure = professionalEntitledProcedure(
+  "professional_operational_alerts"
+);
+export const professionalMessagesProcedure = professionalEntitledProcedure(
+  "professional_messages"
+);
+export const professionalReportsProcedure = professionalEntitledProcedure(
+  "professional_reports"
+);
+export const professionalAiProcedure = professionalEntitledProcedure(
+  "professional_ai_assistance"
+);
