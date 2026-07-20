@@ -31,9 +31,13 @@ Os fatos calculados e a lista de dados ausentes são produzidos exclusivamente p
 
 O período máximo é de 90 dias inclusivos. Datas inexistentes no calendário, intervalos invertidos e períodos maiores que o limite são rejeitados antes da execução.
 
+A experiência antiga `/professional/legacy` não executa mais o componente ou o fluxo de IA anterior; ela redireciona para os relatórios profissionais atuais. O contrato `nutrition.professionals.askPatientQuestion` foi desativado no schema para impedir chamadas diretas que não informem período e não passem pelas garantias de `professionalRecord.ai.generate`.
+
 ## Autorização e revogação
 
 A autorização profissional é validada antes de consultar os contratos canônicos e novamente depois da geração. Se o vínculo for revogado, o perfil profissional for inativado ou o acesso deixar de existir durante a chamada, o resultado é descartado e não é registrado como geração concluída.
+
+A priorização também exige perfil profissional ativo antes de consultar alertas. Um perfil inativado não recebe nomes, severidades ou pendências dos pacientes, mesmo que ainda exista autorização aprovada no banco.
 
 No frontend, a resposta é vinculada à combinação de paciente, período, modo, tipo de rascunho e pergunta. Mudança de qualquer um desses itens invalida a resposta pendente de forma síncrona e impede que um resultado antigo ou atrasado apareça no contexto errado.
 
@@ -86,6 +90,7 @@ Se qualquer camada falhar, a resposta do provedor é descartada integralmente. T
 - Conteúdo de contexto é tratado como dado não confiável, nunca como instrução.
 - O aviso educacional informa que a saída não substitui diagnóstico, prescrição ou decisão clínica.
 - O catálogo exibido na interface corresponde a todos os sinais enviados ao provedor, permitindo conferência do período atual e do anterior.
+- A telemetria operacional sanitizada registra somente status, duração, modo, identificador opaco, modelo, contagem de fontes, uso numérico de tokens e motivo categorizado de fallback. Pergunta, prompt, resposta, valores clínicos e conteúdo do paciente não são registrados.
 
 Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/RELIABILITY.md` sem alterar seus contratos de retenção, segredo ou observabilidade.
 
@@ -97,10 +102,11 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - Conteúdo clínico proibido na saída: descarta a saída e retorna fallback determinístico.
 - Referência de fonte inexistente ou indisponível: descarta a saída e retorna fallback determinístico.
 - Falha do relatório canônico: nenhuma geração é produzida.
-- Revogação durante a geração: resposta descartada.
+- Revogação durante a geração: resposta descartada e telemetria registra apenas `authorization_invalidated`.
 - Ausência de dados: aparece explicitamente em `missingData`; zero não é apresentado como aderência, média ou observação clínica.
 - Mudança de paciente, período, modo, tipo de rascunho ou pergunta: resultado anterior é ocultado imediatamente e resposta atrasada é ignorada.
 - Falha ao salvar rascunho: o texto permanece editável na tela e não aparece como enviado.
+- Falha da telemetria: não impede a resposta segura nem substitui um erro de autorização.
 
 ## Testes obrigatórios
 
@@ -117,5 +123,9 @@ Essas regras complementam `docs/PRIVACY_LGPD.md`, `docs/SECURITY.md` e `docs/REL
 - declaração explícita de dados ausentes no período atual e anterior;
 - rejeição de datas impossíveis e períodos acima de 90 dias;
 - priorização derivada somente de alertas canônicos;
+- bloqueio da priorização para perfil profissional inativo;
+- desativação do endpoint legado de perguntas;
+- redirecionamento da rota legada para a experiência atual;
+- telemetria sem pergunta, prompt, resposta ou conteúdo do paciente;
 - confirmação explícita antes de persistir um rascunho;
 - descarte de resposta atrasada após troca de paciente, período ou modo.
