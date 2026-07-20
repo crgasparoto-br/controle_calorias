@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   assertProfessionalAiOutputIsSafe,
+  classifyProfessionalAiQuestion,
   isClinicalRequest,
 } from "./aiSafety";
 import { createProfessionalAiService } from "./aiService";
@@ -140,7 +141,41 @@ function providerSummaryResponse(summary: string) {
   };
 }
 
-const newlyCaughtPrescriptiveTexts = [
+function dependencies(invoke = vi.fn().mockResolvedValue(providerResponse())) {
+  return {
+    getTimeZone: vi.fn().mockResolvedValue({
+      timeZone: "America/Sao_Paulo",
+      source: "profile",
+    }),
+    getPeriodBundle: vi.fn(async (_professionalId, _patientId, range) =>
+      periodBundle(range)
+    ) as any,
+    listAlerts: vi.fn().mockResolvedValue([]),
+    appendHistory: vi.fn().mockResolvedValue({}),
+    logEvent: vi.fn(),
+    now: () => new Date("2026-07-20T12:00:00.000Z"),
+    providerTimeoutMs: 100,
+    invoke,
+  };
+}
+
+const prescriptiveTexts = [
+  "O paciente apresenta hipertensão.",
+  "O quadro é compatível com doença renal.",
+  "Reduza a meta para 800 kcal.",
+  "Elimine carboidratos por duas semanas.",
+  "Inicie jejum prolongado diariamente.",
+  "Ajuste a medicação anti-hipertensiva.",
+  "Faça uma dieta de 800 kcal.",
+  "Consuma 120 g de proteína por dia.",
+  "Siga jejum de 18 horas.",
+  "Adote um plano alimentar sem glúten.",
+  "Mantenha a ingestão em 900 kcal.",
+  "Trata-se de um quadro renal.",
+  "Recomende uma meta de 900 kcal.",
+  "Sugira uma dieta sem lactose.",
+  "Oriente consumo de 120 g de proteína.",
+  "A meta calórica deve ser 800 kcal.",
   "Recomenda-se uma dieta de 800 kcal.",
   "Uma dieta de 800 kcal é adequada.",
   "Sugestão: dieta de 800 kcal por duas semanas.",
@@ -159,44 +194,59 @@ const newlyCaughtPrescriptiveTexts = [
   "Opte por uma dieta sem lactose.",
   "Priorize proteína em todas as refeições.",
   "Zere os carboidratos durante a semana.",
+  "Com base nos dados registrados, favoreça proteína nas refeições.",
+  "Após analisar o consumo calculado, privilegie uma dieta de 800 kcal.",
+  "Os dados registrados sustentam concentrar carboidratos no almoço.",
+  "Compare o consumo de água com a meta calculada e favoreça proteína.",
+  "Perca 5 kg neste mês.",
+  "Corra 10 km por dia.",
 ];
 
-const unsafeClinicalTexts = [
-  "O paciente apresenta hipertensão.",
-  "O quadro é compatível com doença renal.",
-  "Reduza a meta para 800 kcal.",
-  "Elimine carboidratos por duas semanas.",
-  "Inicie jejum prolongado diariamente.",
-  "Ajuste a medicação anti-hipertensiva.",
-  "Faça uma dieta de 800 kcal.",
-  "Consuma 120 g de proteína por dia.",
-  "Siga jejum de 18 horas.",
-  "Adote um plano alimentar sem glúten.",
-  "Mantenha a ingestão em 900 kcal.",
-  "Trata-se de um quadro renal.",
-  "Recomende uma meta de 900 kcal.",
-  "Sugira uma dieta sem lactose.",
-  "Oriente consumo de 120 g de proteína.",
-  "A meta calórica deve ser 800 kcal.",
-  ...newlyCaughtPrescriptiveTexts,
+const objectiveSensitiveQuestions = [
+  "Compare o consumo de água com a meta calculada.",
+  "Quantos gramas de proteína foram registrados?",
+  "Como está a ingestão registrada no período?",
+  "Qual foi o peso no período atual?",
 ];
 
-const safeObjectiveTexts = [
+const sensitiveProviderTexts = [
   "A aderência calórica foi de 93,3% no período.",
   "Foram registrados 120 g de proteína no período selecionado.",
   "O catálogo informa 1.800 kcal registradas no dia.",
   "A meta registrada foi de 1.800 kcal.",
   "Uma dieta de 1.800 kcal foi registrada no período.",
   "O consumo de água registrado foi de 2.000 ml.",
-  "Jejum foi mencionado pelo paciente no histórico.",
-  "Compare o consumo de água com a meta calculada.",
-  "Quantos gramas de proteína foram registrados?",
-  "Como está a ingestão registrada no período?",
+  "O peso variou 0,5 kg.",
+  ...prescriptiveTexts,
 ];
 
 describe("professional AI adversarial regressions", () => {
-  it.each(unsafeClinicalTexts)(
-    "rejects unsupported clinical or autonomous output: %s",
+  it.each(prescriptiveTexts)(
+    "classifies clinical or autonomous requests as a clinical boundary: %s",
+    question => {
+      expect(classifyProfessionalAiQuestion(question)).toBe("clinical_boundary");
+      expect(isClinicalRequest(question)).toBe(true);
+    }
+  );
+
+  it.each(objectiveSensitiveQuestions)(
+    "routes objective sensitive questions to deterministic processing: %s",
+    question => {
+      expect(classifyProfessionalAiQuestion(question)).toBe("deterministic_only");
+      expect(isClinicalRequest(question)).toBe(false);
+    }
+  );
+
+  it("allows a non-sensitive objective question to use the provider", () => {
+    expect(
+      classifyProfessionalAiQuestion(
+        "O que mudou na frequência de registros neste período?"
+      )
+    ).toBe("provider_allowed");
+  });
+
+  it.each(sensitiveProviderTexts)(
+    "rejects sensitive or prescriptive provider-controlled output: %s",
     text => {
       expect(() =>
         assertProfessionalAiOutputIsSafe(assistantOutput(text))
@@ -204,40 +254,62 @@ describe("professional AI adversarial regressions", () => {
     }
   );
 
-  it.each(safeObjectiveTexts)(
-    "keeps objective, non-prescriptive content valid: %s",
-    text => {
-      expect(() => assertProfessionalAiOutputIsSafe(assistantOutput(text))).not.toThrow();
-      expect(isClinicalRequest(text)).toBe(false);
+  it("keeps neutral source-grounded provider text valid", () => {
+    expect(() =>
+      assertProfessionalAiOutputIsSafe(
+        assistantOutput("A frequência permaneceu consistente no período.")
+      )
+    ).not.toThrow();
+  });
+
+  it.each(objectiveSensitiveQuestions)(
+    "answers objective sensitive questions without calling the provider: %s",
+    async question => {
+      const invoke = vi.fn();
+      const service = createProfessionalAiService(dependencies(invoke));
+
+      const result = await service.generate(1, {
+        patientId: 41,
+        startDate: "2026-07-08",
+        endDate: "2026-07-14",
+        mode: "question",
+        question,
+      });
+
+      expect(invoke).not.toHaveBeenCalled();
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.title).toBe("Resposta assistida");
+      expect(result.facts).toEqual(expect.arrayContaining([
+        "7 de 7 dias possuem registros alimentares.",
+      ]));
     }
   );
 
-  it.each(unsafeClinicalTexts)(
-    "blocks clinical or autonomous requests before the provider: %s",
-    question => {
-      expect(isClinicalRequest(question)).toBe(true);
+  it.each(prescriptiveTexts)(
+    "blocks prescriptive questions before the provider: %s",
+    async question => {
+      const invoke = vi.fn();
+      const service = createProfessionalAiService(dependencies(invoke));
+
+      const result = await service.generate(1, {
+        patientId: 41,
+        startDate: "2026-07-08",
+        endDate: "2026-07-14",
+        mode: "question",
+        question,
+      });
+
+      expect(invoke).not.toHaveBeenCalled();
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.title).toBe("Limite da assistência");
     }
   );
 
-  it.each(newlyCaughtPrescriptiveTexts)(
-    "discards prescriptive provider output and uses fallback: %s",
+  it.each(sensitiveProviderTexts)(
+    "discards sensitive provider output and uses canonical fallback: %s",
     async summary => {
       const invoke = vi.fn().mockResolvedValue(providerSummaryResponse(summary));
-      const service = createProfessionalAiService({
-        getTimeZone: vi.fn().mockResolvedValue({
-          timeZone: "America/Sao_Paulo",
-          source: "profile",
-        }),
-        getPeriodBundle: vi.fn(async (_professionalId, _patientId, range) =>
-          periodBundle(range)
-        ) as any,
-        listAlerts: vi.fn().mockResolvedValue([]),
-        appendHistory: vi.fn().mockResolvedValue({}),
-        logEvent: vi.fn(),
-        now: () => new Date("2026-07-20T12:00:00.000Z"),
-        providerTimeoutMs: 100,
-        invoke,
-      });
+      const service = createProfessionalAiService(dependencies(invoke));
 
       const result = await service.generate(1, {
         patientId: 41,
@@ -249,6 +321,9 @@ describe("professional AI adversarial regressions", () => {
       expect(invoke).toHaveBeenCalledTimes(1);
       expect(result.fallbackUsed).toBe(true);
       expect(result.summary).not.toContain(summary);
+      expect(result.facts).toEqual(expect.arrayContaining([
+        "7 de 7 dias possuem registros alimentares.",
+      ]));
     }
   );
 
@@ -289,17 +364,9 @@ describe("professional AI adversarial regressions", () => {
           : []
     );
     const service = createProfessionalAiService({
-      getTimeZone: vi.fn().mockResolvedValue({
-        timeZone: "America/Sao_Paulo",
-        source: "profile",
-      }),
+      ...dependencies(vi.fn().mockResolvedValue(providerResponse())),
       getPeriodBundle: getPeriodBundle as any,
       listAlerts: listAlerts as any,
-      appendHistory: vi.fn().mockResolvedValue({}),
-      logEvent: vi.fn(),
-      now: () => new Date("2026-07-20T12:00:00.000Z"),
-      providerTimeoutMs: 100,
-      invoke: vi.fn().mockResolvedValue(providerResponse()),
     });
 
     const result = await service.generate(1, {
