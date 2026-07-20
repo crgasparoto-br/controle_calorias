@@ -125,8 +125,11 @@ function hasExplicitClinicalIntent(clause: string) {
 }
 
 function usesOnlyAllowedWords(clause: string, allowedWords: Set<string>) {
-  const words = clause.match(/[a-z0-9]+/g) ?? [];
-  return words.every(word => /^\d+$/.test(word) || allowedWords.has(word));
+  const words = clause.match(/[\p{L}\p{N}]+/gu) ?? [];
+  return (
+    words.length > 0 &&
+    words.every(word => /^\p{N}+$/u.test(word) || allowedWords.has(word))
+  );
 }
 
 function isStrictObjectiveQuestion(clause: string) {
@@ -154,12 +157,14 @@ export function classifyProfessionalAiQuestion(
 
   for (const clause of splitClauses(question)) {
     if (hasExplicitClinicalIntent(clause)) return "clinical_boundary";
+    const sensitiveClause = SENSITIVE_DOMAIN_PATTERN.test(clause);
     if (!isStrictObjectiveQuestion(clause)) {
+      if (sensitiveClause) return "clinical_boundary";
       return question.trim().endsWith("?")
         ? "deterministic_only"
         : "clinical_boundary";
     }
-    if (SENSITIVE_DOMAIN_PATTERN.test(clause)) hasSensitiveClause = true;
+    if (sensitiveClause) hasSensitiveClause = true;
   }
 
   return hasSensitiveClause ? "deterministic_only" : "provider_allowed";
