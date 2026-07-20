@@ -1,5 +1,6 @@
 import {
   boolean,
+  foreignKey,
   index,
   int,
   json,
@@ -321,6 +322,169 @@ export const professionalHistoryEvents = mysqlTable(
   })
 );
 
+export const professionalOfficialGoals = mysqlTable(
+  "professionalOfficialGoals",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    authorizationId: varchar("authorizationId", { length: 64 }).notNull(),
+    trackingId: varchar("trackingId", { length: 64 }).notNull(),
+    professionalUserId: int("professionalUserId").notNull(),
+    patientUserId: int("patientUserId").notNull(),
+    activePatientKey: varchar("activePatientKey", { length: 64 }),
+    version: int("version").notNull(),
+    status: mysqlEnum("status", ["active", "superseded", "ended"])
+      .default("active")
+      .notNull(),
+    calories: int("calories").notNull(),
+    proteinGrams: int("proteinGrams").notNull(),
+    carbsGrams: int("carbsGrams").notNull(),
+    fatGrams: int("fatGrams").notNull(),
+    exceptionsJson: json("exceptionsJson").notNull(),
+    includeExerciseCalories: boolean("includeExerciseCalories")
+      .default(true)
+      .notNull(),
+    effectiveFrom: timestamp("effectiveFrom").notNull(),
+    effectiveUntil: timestamp("effectiveUntil"),
+    justification: text("justification").notNull(),
+    supersedesGoalId: varchar("supersedesGoalId", { length: 64 }),
+    endedAt: timestamp("endedAt"),
+    endReason: varchar("endReason", { length: 160 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    authorizationFk: foreignKey({
+      columns: [table.authorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "professionalOfficialGoals_authorization_fk",
+    }).onDelete("cascade"),
+    trackingFk: foreignKey({
+      columns: [table.trackingId],
+      foreignColumns: [professionalPatientTrackings.id],
+      name: "professionalOfficialGoals_tracking_fk",
+    }).onDelete("cascade"),
+    professionalFk: foreignKey({
+      columns: [table.professionalUserId],
+      foreignColumns: [users.id],
+      name: "professionalOfficialGoals_professional_fk",
+    }).onDelete("cascade"),
+    patientFk: foreignKey({
+      columns: [table.patientUserId],
+      foreignColumns: [users.id],
+      name: "professionalOfficialGoals_patient_fk",
+    }).onDelete("cascade"),
+    supersedesFk: foreignKey({
+      columns: [table.supersedesGoalId],
+      foreignColumns: [table.id],
+      name: "professionalOfficialGoals_supersedes_fk",
+    }).onDelete("set null"),
+    activePatientUniqueIdx: uniqueIndex(
+      "professionalOfficialGoals_active_patient_uq"
+    ).on(table.activePatientKey),
+    patientEffectiveIdx: index(
+      "professionalOfficialGoals_patient_effective_idx"
+    ).on(table.patientUserId, table.effectiveFrom, table.effectiveUntil),
+    authorizationVersionUniqueIdx: uniqueIndex(
+      "professionalOfficialGoals_authorization_version_uq"
+    ).on(table.authorizationId, table.version),
+  })
+);
+
+export const professionalGoalReviewRequests = mysqlTable(
+  "professionalGoalReviewRequests",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    goalId: varchar("goalId", { length: 64 }).notNull(),
+    professionalUserId: int("professionalUserId").notNull(),
+    patientUserId: int("patientUserId").notNull(),
+    openRequestKey: varchar("openRequestKey", { length: 128 }),
+    reason: text("reason"),
+    status: mysqlEnum("status", ["open", "resolved", "cancelled"])
+      .default("open")
+      .notNull(),
+    resolvedByUserId: int("resolvedByUserId"),
+    resolvedAt: timestamp("resolvedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    goalFk: foreignKey({
+      columns: [table.goalId],
+      foreignColumns: [professionalOfficialGoals.id],
+      name: "professionalGoalReviewRequests_goal_fk",
+    }).onDelete("cascade"),
+    professionalFk: foreignKey({
+      columns: [table.professionalUserId],
+      foreignColumns: [users.id],
+      name: "professionalGoalReviewRequests_professional_fk",
+    }).onDelete("cascade"),
+    patientFk: foreignKey({
+      columns: [table.patientUserId],
+      foreignColumns: [users.id],
+      name: "professionalGoalReviewRequests_patient_fk",
+    }).onDelete("cascade"),
+    resolverFk: foreignKey({
+      columns: [table.resolvedByUserId],
+      foreignColumns: [users.id],
+      name: "professionalGoalReviewRequests_resolver_fk",
+    }).onDelete("set null"),
+    openRequestUniqueIdx: uniqueIndex(
+      "professionalGoalReviewRequests_open_uq"
+    ).on(table.openRequestKey),
+    professionalStatusIdx: index(
+      "professionalGoalReviewRequests_professional_status_idx"
+    ).on(table.professionalUserId, table.status, table.createdAt),
+    patientStatusIdx: index(
+      "professionalGoalReviewRequests_patient_status_idx"
+    ).on(table.patientUserId, table.status, table.createdAt),
+  })
+);
+
+export const professionalGoalNotifications = mysqlTable(
+  "professionalGoalNotifications",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    goalId: varchar("goalId", { length: 64 }).notNull(),
+    patientUserId: int("patientUserId").notNull(),
+    idempotencyKey: varchar("idempotencyKey", { length: 128 }).notNull(),
+    channel: mysqlEnum("channel", ["whatsapp"]).default("whatsapp").notNull(),
+    status: mysqlEnum("status", [
+      "pending",
+      "sending",
+      "sent",
+      "failed",
+      "skipped",
+    ])
+      .default("pending")
+      .notNull(),
+    attempts: int("attempts").default(0).notNull(),
+    claimToken: varchar("claimToken", { length: 64 }),
+    claimedAt: timestamp("claimedAt"),
+    sentAt: timestamp("sentAt"),
+    lastError: varchar("lastError", { length: 500 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    goalFk: foreignKey({
+      columns: [table.goalId],
+      foreignColumns: [professionalOfficialGoals.id],
+      name: "professionalGoalNotifications_goal_fk",
+    }).onDelete("cascade"),
+    patientFk: foreignKey({
+      columns: [table.patientUserId],
+      foreignColumns: [users.id],
+      name: "professionalGoalNotifications_patient_fk",
+    }).onDelete("cascade"),
+    idempotencyUniqueIdx: uniqueIndex(
+      "professionalGoalNotifications_idempotency_uq"
+    ).on(table.idempotencyKey),
+    statusCreatedIdx: index(
+      "professionalGoalNotifications_status_created_idx"
+    ).on(table.status, table.createdAt),
+  })
+);
+
 export type ProfessionalProfileRecord =
   typeof professionalProfiles.$inferSelect;
 export type InsertProfessionalProfileRecord =
@@ -354,3 +518,9 @@ export type ProfessionalHistoryEventRecord =
   typeof professionalHistoryEvents.$inferSelect;
 export type InsertProfessionalHistoryEventRecord =
   typeof professionalHistoryEvents.$inferInsert;
+export type ProfessionalOfficialGoalRecord =
+  typeof professionalOfficialGoals.$inferSelect;
+export type ProfessionalGoalReviewRequestRecord =
+  typeof professionalGoalReviewRequests.$inferSelect;
+export type ProfessionalGoalNotificationRecord =
+  typeof professionalGoalNotifications.$inferSelect;

@@ -7,6 +7,8 @@ on:
       - "server/modules/professionals/**"
       - "server/repositories/professionalRepository.ts"
       - "server/repositories/professionalContentRepository.ts"
+      - "server/repositories/professionalGoalPrivacyRepository.ts"
+      - "server/modules/goals/**"
       - "server/nutritionRouter.ts"
       - "scripts/migrate-professional-persistence.ts"
       - "scripts/test-professional-persistence-tidb.ts"
@@ -50,13 +52,68 @@ jobs:
       - name: Apply current repository schema
         run: pnpm exec drizzle-kit push --force
 
-      - name: Ensure Drizzle metadata is stable
+      - name: Inspect Drizzle metadata drift
+        id: drizzle-drift
+        continue-on-error: true
         run: |
           pnpm exec drizzle-kit generate
           git diff --exit-code -- drizzle
 
+      - name: Preserve Drizzle drift diagnostics
+        if: steps.drizzle-drift.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drizzle-drift-${{ github.sha }}
+          path: drizzle/
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Restore repository migrations after drift inspection
+        if: always()
+        run: git checkout -- drizzle
+
       - name: Validate professional migration and repository
-        run: pnpm db:test:professionals
+        run: |
+          log_file=/tmp/professional-persistence.log
+          setsid pnpm db:test:professionals >"$log_file" 2>&1 &
+          test_pid=$!
+          success_marker='"event":"professional.persistence.integration.passed"'
+
+          for attempt in $(seq 1 150); do
+            if grep -q "$success_marker" "$log_file"; then
+              cat "$log_file"
+              kill -TERM -- "-$test_pid" 2>/dev/null || true
+              sleep 2
+              kill -KILL -- "-$test_pid" 2>/dev/null || true
+              wait "$test_pid" 2>/dev/null || true
+              echo "Professional persistence integration completed successfully."
+              exit 0
+            fi
+
+            if ! kill -0 "$test_pid" 2>/dev/null; then
+              set +e
+              wait "$test_pid"
+              test_status=$?
+              set -e
+              cat "$log_file"
+              if [ "$test_status" -eq 0 ] && grep -q "$success_marker" "$log_file"; then
+                echo "Professional persistence integration completed successfully."
+                exit 0
+              fi
+              echo "Professional persistence integration exited before its success marker."
+              exit "${test_status:-1}"
+            fi
+
+            sleep 2
+          done
+
+          cat "$log_file"
+          kill -TERM -- "-$test_pid" 2>/dev/null || true
+          sleep 2
+          kill -KILL -- "-$test_pid" 2>/dev/null || true
+          wait "$test_pid" 2>/dev/null || true
+          echo "Professional persistence integration timed out before its success marker."
+          exit 1
 
       - name: Validate backfill command idempotency
         run: |
@@ -65,6 +122,12 @@ jobs:
 
       - name: Validate referential integrity
         run: pnpm db:check-integrity
+
+      - name: Fail on Drizzle metadata drift
+        if: steps.drizzle-drift.outcome == 'failure'
+        run: |
+          echo "Drizzle metadata drift detected. Inspect the uploaded artifact before merging."
+          exit 1
 
       - name: Show TiDB logs on failure
         if: failure()

@@ -7,6 +7,11 @@ import { GoalInput } from "./schemas";
 import { calculateAdjustedGoalCalories } from "../../../shared/reportsGoalAnalytics";
 import { sumExercises } from "../exercises/store";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
+import {
+  getProfessionalGoalWeek,
+  hasProfessionalGoalControl,
+  ProfessionalGoalControlError,
+} from "../professionals/officialGoalsService";
 
 type GoalValidationIssue = NutritionGoalSafetyIssue | {
   code: "conflicting_goal_version" | "conflicting_goal_exception_version";
@@ -433,7 +438,7 @@ async function listGoalContext(userId: number) {
   return request;
 }
 
-export async function getNutritionGoal(userId: number) {
+async function getPersonalNutritionGoal(userId: number) {
   const [goal, context] = await Promise.all([
     getUserNutritionGoal(userId),
     listGoalContext(userId),
@@ -443,12 +448,46 @@ export async function getNutritionGoal(userId: number) {
     exceptions: goal.exceptions,
   });
 
-  return {
+  const personal = {
     ...goal,
     startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
     versions: context.versions,
     exceptionVersions: context.exceptionVersions,
     safetyWarnings: assessment.warnings,
+    goalOrigin: context.rows?.length ? "personal" as const : "system_estimate" as const,
+    professionalControlActive: false,
+  };
+  return personal;
+}
+
+export async function getNutritionGoal(userId: number) {
+  const [personal, professionalControlActive] = await Promise.all([
+    getPersonalNutritionGoal(userId),
+    hasProfessionalGoalControl(userId),
+  ]);
+  personal.professionalControlActive = professionalControlActive;
+  const professional = await getProfessionalGoalWeek(userId, todayDateKey());
+  return professional ? mergeProfessionalGoalWeek(personal, professional) : personal;
+}
+
+function mergeProfessionalGoalWeek<TPersonal extends {
+  today: unknown;
+  goalOrigin: "personal" | "system_estimate";
+  days: Array<{ weekday: number; calories: number; proteinGrams: number; carbsGrams: number; fatGrams: number }>;
+}>(personal: TPersonal, professional: NonNullable<Awaited<ReturnType<typeof getProfessionalGoalWeek>>>) {
+  const professionalByWeekday = new Map(professional.days.map(day => [day.weekday, day]));
+  const days = personal.days.map(day => professionalByWeekday.get(day.weekday) ?? { ...day, goalOrigin: personal.goalOrigin });
+  return {
+    ...personal,
+    ...professional,
+    days,
+    today: professional.today ?? personal.today,
+    weeklyTotals: days.reduce((total, day) => ({
+      calories: total.calories + day.calories,
+      proteinGrams: total.proteinGrams + day.proteinGrams,
+      carbsGrams: total.carbsGrams + day.carbsGrams,
+      fatGrams: total.fatGrams + day.fatGrams,
+    }), { calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0 }),
   };
 }
 
@@ -456,19 +495,27 @@ export async function getNutritionGoalForDate(userId: number, date: string) {
   const context = await listGoalContext(userId);
   const { rows } = context;
   if (!rows?.length) {
-    const goal = await getNutritionGoal(userId);
+    const goal = await getPersonalNutritionGoal(userId);
     const weekday = getUtcWeekdayIndex(logicalUtcDate(date));
     const today = goal.days.find(day => day.weekday === weekday) ?? goal.today;
 
-    return {
+    const personal = {
       ...goal,
       today,
+      goalOrigin: "system_estimate" as const,
+      professionalControlActive: false,
     };
+    const professional = await getProfessionalGoalWeek(userId, date);
+    if (!professional) personal.professionalControlActive = await hasProfessionalGoalControl(userId);
+    return professional ? mergeProfessionalGoalWeek(personal, professional) : personal;
   }
 
   const goal = buildGoalSummaryForReferenceDate(rows, userId, logicalUtcDate(date));
   if (!goal) {
-    return getNutritionGoal(userId);
+    const personal = await getPersonalNutritionGoal(userId);
+    const professional = await getProfessionalGoalWeek(userId, date);
+    if (!professional) personal.professionalControlActive = await hasProfessionalGoalControl(userId);
+    return professional ? mergeProfessionalGoalWeek(personal, professional) : personal;
   }
 
   const assessment = assessNutritionGoalInput({
@@ -476,16 +523,24 @@ export async function getNutritionGoalForDate(userId: number, date: string) {
     exceptions: goal.exceptions,
   });
 
-  return {
+  const personal = {
     ...goal,
     startDate: dateKeyFromDate(goal.defaultGoal.effectiveFrom),
     versions: context.versions,
     exceptionVersions: context.exceptionVersions,
     safetyWarnings: assessment.warnings,
+    goalOrigin: "personal" as const,
+    professionalControlActive: false,
   };
+  const professional = await getProfessionalGoalWeek(userId, date);
+  if (!professional) personal.professionalControlActive = await hasProfessionalGoalControl(userId);
+  return professional ? mergeProfessionalGoalWeek(personal, professional) : personal;
 }
 
 export async function updateNutritionGoal(userId: number, input: GoalInput, timeZone = DEFAULT_APP_TIME_ZONE) {
+  if (await hasProfessionalGoalControl(userId)) {
+    throw new ProfessionalGoalControlError("Sua meta oficial está sob acompanhamento profissional. Você pode solicitar uma revisão sem alterar o plano vigente.");
+  }
   const assessment = assessNutritionGoalInput(input);
   if (assessment.blockers.length) {
     throw new UnsafeNutritionGoalError(assessment.blockers);
@@ -539,17 +594,7 @@ export async function updateNutritionGoal(userId: number, input: GoalInput, time
 
 
 async function resolveAppliedGoalForDate(userId: number, dateKey: string) {
-  try {
-    return (await getNutritionGoalForDate(userId, dateKey)).today;
-  } catch {
-    // Fallback canônico já usado quando não há histórico de vigência: a meta
-    // atual do usuário. Sem meta atual válida, não há meta efetiva a exibir.
-    const goal = await getUserNutritionGoal(userId);
-    if (typeof goal?.today?.calories !== "number") {
-      throw new Error("Meta nutricional atual indisponível para resolver a meta efetiva.");
-    }
-    return goal.today;
-  }
+  return (await getNutritionGoalForDate(userId, dateKey)).today;
 }
 
 async function listExercisesForGoalDate(userId: number, dateKey: string, timeZone: string) {

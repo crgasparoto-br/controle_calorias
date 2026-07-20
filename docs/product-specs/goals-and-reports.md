@@ -7,6 +7,9 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 ## Regras de produto
 
 - Metas devem aceitar regra padrão e exceções por janela de tempo.
+- A resolução diária usa uma única precedência: meta profissional oficial aplicável, meta pessoal aplicável e, por último, estimativa do sistema. O retorno explicita `goalOrigin` como `professional`, `personal` ou `system_estimate`.
+- Durante acompanhamento profissional ativo ou pausado com controle oficial, a meta pessoal permanece no histórico, mas não pode substituir o plano profissional. O paciente solicita revisão sem mutação automática.
+- Pausa mantém a última meta profissional operacional. Encerramento ou revogação encerram sua vigência para novas datas e permitem adoção explícita como meta pessoal.
 - A meta geral deve iniciar a configuração de macronutrientes em percentual, exibindo a soma dos percentuais e os gramas derivados a partir da meta calórica informada.
 - Valores potencialmente inseguros devem gerar aviso ou bloqueio antes da persistência.
 - Relatórios semanais usam semana iniciando na segunda-feira.
@@ -32,6 +35,7 @@ Ajudar o usuário a acompanhar consumo nutricional, progresso semanal e aderênc
 - A leitura principal de relatórios deve comparar consumido vs meta ajustada, macros planejados vs realizados, peso, qualidade alimentar, água e exercícios.
 - A organização visual de Relatórios deve começar por um resumo do período com cards de decisão antes dos blocos analíticos detalhados.
 - Meta efetiva de calorias é a meta base do dia somada às calorias de exercícios registrados no mesmo dia somente quando a configuração do usuário habilita essa compensação. O WhatsApp exibe apenas `Meta`, recebida do domínio, sem recalcular ou distinguir “estimada/ajustada”.
+- Hoje, Metas, Relatórios, WhatsApp e contexto profissional consomem `getNutritionGoalForDate`/`getEffectiveNutritionGoalForDate`; nenhum consumidor possui cálculo paralelo de precedência profissional.
 - A distribuição percentual de macronutrientes deve ser calculada por calorias: proteína e carboidrato usam 4 kcal/g, gordura usa 9 kcal/g.
 - A qualidade alimentar em Relatórios deve ser agregada por período e não deve listar alimentos individualmente.
 - Alimentos sem classificação disponível devem entrar como `não classificados` para não inflar artificialmente percentuais de ultraprocessados ou in natura/minimamente processados.
@@ -72,6 +76,8 @@ Quando não houver meta de macronutrientes configurada, a seção de macros deve
 ## Critérios de aceite
 
 - Alteração de meta atualiza dashboard e relatórios.
+- Meta profissional exibe ao paciente origem, autor, versão e vigência; uma solicitação de revisão não altera os valores.
+- Relatórios históricos resolvem a versão profissional ou pessoal válida para cada dia, inclusive quando uma revisão ocorre no meio da semana.
 - Relatório semanal não inclui rascunhos não confirmados.
 - Eventos analíticos não contêm dados sensíveis de saúde ou refeição crua.
 - Hoje deixa claro qual dia está ativo e permite voltar para hoje.

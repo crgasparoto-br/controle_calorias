@@ -2,7 +2,10 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const sourcePath = path.join(root, "server/nutritionRouter.ts");
+const sourcePaths = [
+  path.join(root, "server/nutritionRouter.ts"),
+  path.join(root, "server/modules/professionals/recordRouter.ts"),
+];
 const outputPath = path.join(root, "docs/generated/trpc-routes.md");
 const checkOnly = process.argv.includes("--check");
 
@@ -21,8 +24,10 @@ const groupDescriptions: Record<string, string> = {
   privacy: "Exportação de dados e solicitação de exclusão",
   assistant: "Sugestões alimentares assistidas",
   foodPhotoAnalysis: "Análise, consulta, rejeição e confirmação de fotos",
-  healthIntegrations: "Conexão, desconexão e sincronização de integrações de saúde",
-  professionals: "Perfil profissional, acessos, pacientes, comentários e sugestões",
+  healthIntegrations:
+    "Conexão, desconexão e sincronização de integrações de saúde",
+  professionals:
+    "Perfil profissional, acessos, pacientes, comentários e sugestões",
   onboarding: "Conclusão de onboarding nutricional",
   dashboard: "Visão consolidada diária",
   goals: "Leitura e atualização de metas",
@@ -34,10 +39,12 @@ const groupDescriptions: Record<string, string> = {
   reports: "Relatórios semanais e insights",
   admin: "Visão operacional administrativa",
   whatsapp: "Status, vínculo e simulação inbound",
+  professionalRecord: "Prontuário, ciclo e metas profissionais oficiais",
 };
 
 function readRequiredFile(filePath: string) {
-  if (!existsSync(filePath)) throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
+  if (!existsSync(filePath))
+    throw new Error(`Arquivo não encontrado: ${path.relative(root, filePath)}`);
   return readFileSync(filePath, "utf8");
 }
 
@@ -73,12 +80,16 @@ function parseOperation(source: string) {
 }
 
 function parseProcedures(groupSource: string): ProcedureInfo[] {
-  const procedureRegex = /^\s{4}(\w+):\s*(protectedProcedure|adminProcedure)/gm;
+  const procedureRegex =
+    /^\s{2,6}(\w+):\s*(protectedProcedure|adminProcedure)/gm;
   const matches = Array.from(groupSource.matchAll(procedureRegex));
 
   return matches.map((match, index) => {
     const start = match.index ?? 0;
-    const end = index + 1 < matches.length ? matches[index + 1].index ?? groupSource.length : groupSource.length;
+    const end =
+      index + 1 < matches.length
+        ? (matches[index + 1].index ?? groupSource.length)
+        : groupSource.length;
     const procedureSource = groupSource.slice(start, end);
     return {
       name: match[1],
@@ -103,17 +114,38 @@ function parseGroups(source: string): GroupInfo[] {
   return groups;
 }
 
+function parseTopLevelRouter(
+  source: string,
+  exportName: string,
+  groupName: string
+): GroupInfo {
+  const marker = `export const ${exportName} = router({`;
+  const start = source.indexOf(marker);
+  if (start < 0) throw new Error(`Router ${exportName} não encontrado.`);
+  const braceStart = source.indexOf("{", start);
+  const braceEnd = findMatchingBrace(source, braceStart);
+  return {
+    name: groupName,
+    procedures: parseProcedures(source.slice(braceStart + 1, braceEnd)),
+  };
+}
+
 function dominantScope(group: GroupInfo) {
   const counts = new Map<string, number>();
   for (const procedure of group.procedures) {
     counts.set(procedure.scope, (counts.get(procedure.scope) ?? 0) + 1);
   }
 
-  return Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
+  return (
+    Array.from(counts.entries()).sort(
+      (left, right) => right[1] - left[1]
+    )[0]?.[0] ?? "unknown"
+  );
 }
 
 function countByOperation(group: GroupInfo, operation: string) {
-  return group.procedures.filter(procedure => procedure.operation === operation).length;
+  return group.procedures.filter(procedure => procedure.operation === operation)
+    .length;
 }
 
 function descriptionFor(group: GroupInfo) {
@@ -126,7 +158,7 @@ function generateMarkdown(groups: GroupInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.",
     "",
-    "Fonte: `server/nutritionRouter.ts`.",
+    "Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter.ts`.",
     "",
     "## Grupos",
     "",
@@ -135,7 +167,9 @@ function generateMarkdown(groups: GroupInfo[]) {
   ];
 
   for (const group of groups) {
-    lines.push(`| \`${group.name}\` | ${group.procedures.length} | ${countByOperation(group, "query")} | ${countByOperation(group, "mutation")} | ${dominantScope(group)} | ${descriptionFor(group)} |`);
+    lines.push(
+      `| \`${group.name}\` | ${group.procedures.length} | ${countByOperation(group, "query")} | ${countByOperation(group, "mutation")} | ${dominantScope(group)} | ${descriptionFor(group)} |`
+    );
   }
 
   lines.push("", "## Procedures por grupo", "");
@@ -145,28 +179,49 @@ function generateMarkdown(groups: GroupInfo[]) {
     lines.push("| Procedure | Operação | Escopo |");
     lines.push("|---|---|---|");
     for (const procedure of group.procedures) {
-      lines.push(`| \`${procedure.name}\` | ${procedure.operation} | ${procedure.scope} |`);
+      lines.push(
+        `| \`${procedure.name}\` | ${procedure.operation} | ${procedure.scope} |`
+      );
     }
     lines.push("");
   }
 
   lines.push("## Regras para novas procedures", "");
   lines.push("- Use `protectedProcedure` por padrão.");
-  lines.push("- Use `adminProcedure` apenas para operação administrativa real.");
-  lines.push("- Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.");
-  lines.push("- Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.");
-  lines.push("- Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde.");
+  lines.push(
+    "- Use `adminProcedure` apenas para operação administrativa real."
+  );
+  lines.push(
+    "- Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`."
+  );
+  lines.push(
+    "- Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura."
+  );
+  lines.push(
+    "- Eventos de analytics devem conter categorias e contadores, nunca dados crus de saúde."
+  );
   lines.push("");
 
   return `${lines.join("\n")}\n`;
 }
 
-const generated = generateMarkdown(parseGroups(readRequiredFile(sourcePath)));
+const nutritionSource = readRequiredFile(sourcePaths[0]);
+const professionalRecordSource = readRequiredFile(sourcePaths[1]);
+const generated = generateMarkdown([
+  ...parseGroups(nutritionSource),
+  parseTopLevelRouter(
+    professionalRecordSource,
+    "professionalRecordRouter",
+    "professionalRecord"
+  ),
+]);
 
 if (checkOnly) {
   const current = readRequiredFile(outputPath);
   if (current !== generated) {
-    console.error("docs/generated/trpc-routes.md está desatualizado. Rode `pnpm docs:generate:trpc` e commit as mudanças.");
+    console.error(
+      "docs/generated/trpc-routes.md está desatualizado. Rode `pnpm docs:generate:trpc` e commit as mudanças."
+    );
     process.exit(1);
   }
   console.log("docs/generated/trpc-routes.md está atualizado.");

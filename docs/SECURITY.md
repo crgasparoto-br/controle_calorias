@@ -16,6 +16,8 @@
 - Webhooks devem validar token e tratar payload inválido com segurança.
 - Rotas administrativas devem usar `adminProcedure`.
 - Logs devem ser úteis para operação, mas sanitizados para dados sensíveis.
+- Ativação/revisão de meta profissional valida no backend perfil ativo, autorização aprovada, acompanhamento ativo, ator e paciente. A chave única por paciente protege também contra corrida entre profissionais.
+- Retry de notificação de meta só pode ser executado pelo profissional autor e nunca retorna ou registra a justificativa privada.
 
 ## Checklist para mudanças
 

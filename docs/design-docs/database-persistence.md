@@ -29,6 +29,9 @@
 | `professionalGoalSuggestions`       | Sugestões de meta com estado, versão e conteúdo nutricional                |
 | `professionalMealSuggestions`       | Sugestões de refeição/plano com estado e versão                            |
 | `professionalHistoryEvents`         | Linha do tempo profissional sem payload clínico bruto                      |
+| `professionalOfficialGoals`         | Versões oficiais com autoria, vigência, exceções e controle único          |
+| `professionalGoalReviewRequests`    | Solicitações idempotentes de revisão feitas pelo paciente                  |
+| `professionalGoalNotifications`     | Estado e tentativas de notificação da ativação pelo WhatsApp               |
 | `whatsappConnections`               | Vínculo telefone do usuário ↔ usuário interno                             |
 | `inferenceLogs`                     | Logs seguros de inferência                                                 |
 | `appSecrets`                        | Segredos operacionais criptografados                                       |
@@ -116,6 +119,19 @@ A aplicação da estrutura segue esta ordem:
 3. repetir o comando para comprovar idempotência antes do rollout;
 4. manter a importação lazy e o dual-write somente para compatibilidade externa durante a janela de migração;
 5. remover o dual-write depois de confirmar que não existem consumidores externos das preferências JSON.
+
+## Metas profissionais oficiais
+
+A migration `0032_professional_official_goals.sql` cria o modelo versionado da issue #809:
+
+- `professionalOfficialGoals` referencia autorização e acompanhamento, guarda alvo nutricional, exceções, regra de exercício, vigência, justificativa, versão anterior e motivo de encerramento;
+- `professionalOfficialGoals_active_patient_uq` usa uma chave anulável por paciente para impedir dois controles profissionais oficiais simultâneos sem limitar o histórico;
+- a consulta `professionalOfficialGoals_patient_effective_idx` resolve a versão aplicável por paciente e data sem varrer metas de outros usuários;
+- revisão encerra a janela anterior, cria a próxima versão, resolve solicitações abertas, grava histórico e enfileira notificação dentro de uma transação;
+- `professionalGoalReviewRequests_open_uq` torna o pedido aberto idempotente por paciente e versão da meta;
+- `professionalGoalNotifications_idempotency_uq`, `status`, `claimToken` e `claimedAt` coordenam retry entre instâncias. Falha externa nunca desfaz a meta já persistida;
+- pausa não altera a janela da meta. Encerramento e revogação limpam a chave ativa e encerram a vigência na mesma transação da mudança de acompanhamento/autorização;
+- sugestões existentes em `professionalGoalSuggestions` continuam independentes e não alimentam esse modelo por migration ou backfill.
 
 ## Validação
 

@@ -54,6 +54,9 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalGoalSuggestions` | `professionalGoalSuggestions` | 13 | Requer atenção |
 | `professionalMealSuggestions` | `professionalMealSuggestions` | 14 | Requer atenção |
 | `professionalHistoryEvents` | `professionalHistoryEvents` | 9 | Requer atenção |
+| `professionalOfficialGoals` | `professionalOfficialGoals` | 22 | Requer atenção |
+| `professionalGoalReviewRequests` | `professionalGoalReviewRequests` | 11 | Requer atenção |
+| `professionalGoalNotifications` | `professionalGoalNotifications` | 13 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
@@ -93,6 +96,9 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 - `professionalGoalSuggestions` via export `professionalGoalSuggestions`.
 - `professionalMealSuggestions` via export `professionalMealSuggestions`.
 - `professionalHistoryEvents` via export `professionalHistoryEvents`.
+- `professionalOfficialGoals` via export `professionalOfficialGoals`.
+- `professionalGoalReviewRequests` via export `professionalGoalReviewRequests`.
+- `professionalGoalNotifications` via export `professionalGoalNotifications`.
 
 ## Campos sensíveis conhecidos
 
@@ -135,6 +141,9 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalGoalSuggestions` | `professionalUserId`, `patientUserId` |
 | `professionalMealSuggestions` | `professionalUserId`, `patientUserId`, `mealLabel`, `notes` |
 | `professionalHistoryEvents` | `actorUserId`, `professionalUserId`, `patientUserId`, `occurredAt` |
+| `professionalOfficialGoals` | `authorizationId`, `professionalUserId`, `patientUserId`, `activePatientKey`, `exceptionsJson`, `endReason` |
+| `professionalGoalReviewRequests` | `professionalUserId`, `patientUserId`, `reason` |
+| `professionalGoalNotifications` | `patientUserId` |
 
 ## Relações críticas
 

@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, or } from "drizzle-orm";
 import {
   professionalPatientAuthorizations,
   professionalPatientTrackingEvents,
   professionalPatientTrackings,
   professionalProfiles,
+  professionalOfficialGoals,
   type ProfessionalPatientAuthorizationRecord,
   type ProfessionalPatientTrackingRecord,
   type ProfessionalProfileRecord,
@@ -990,6 +991,27 @@ export function createDrizzleProfessionalRepository(deps: {
         },
         input.patientUserId
       );
+      if (input.nextStatus === "revoked") {
+        await tx
+          .update(professionalOfficialGoals)
+          .set({
+            activePatientKey: null,
+            status: "ended",
+            effectiveUntil: now,
+            endedAt: now,
+            endReason: "authorization_revoked",
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(professionalOfficialGoals.authorizationId, current.id),
+              or(
+                isNull(professionalOfficialGoals.effectiveUntil),
+                gt(professionalOfficialGoals.effectiveUntil, now)
+              )
+            )
+          );
+      }
     });
 
     const [updated] = await db
@@ -1172,6 +1194,27 @@ export function createDrizzleProfessionalRepository(deps: {
         reason,
         occurredAt: now,
       });
+      if (input.nextStatus === "ended") {
+        await tx
+          .update(professionalOfficialGoals)
+          .set({
+            activePatientKey: null,
+            status: "ended",
+            effectiveUntil: now,
+            endedAt: now,
+            endReason: "tracking_ended",
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(professionalOfficialGoals.trackingId, current.id),
+              or(
+                isNull(professionalOfficialGoals.effectiveUntil),
+                gt(professionalOfficialGoals.effectiveUntil, now)
+              )
+            )
+          );
+      }
     });
 
     const [updated] = await db
