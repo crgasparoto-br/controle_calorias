@@ -485,6 +485,175 @@ export const professionalGoalNotifications = mysqlTable(
   })
 );
 
+export const professionalConversations = mysqlTable(
+  "professionalConversations",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    authorizationId: varchar("authorizationId", { length: 64 }).notNull(),
+    professionalUserId: int("professionalUserId").notNull(),
+    patientUserId: int("patientUserId").notNull(),
+    lastMessageAt: timestamp("lastMessageAt").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    authorizationFk: foreignKey({
+      columns: [table.authorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "professionalConversations_authorization_fk",
+    }).onDelete("restrict"),
+    professionalFk: foreignKey({
+      columns: [table.professionalUserId],
+      foreignColumns: [users.id],
+      name: "professionalConversations_professional_fk",
+    }).onDelete("restrict"),
+    patientFk: foreignKey({
+      columns: [table.patientUserId],
+      foreignColumns: [users.id],
+      name: "professionalConversations_patient_fk",
+    }).onDelete("restrict"),
+    authorizationUniqueIdx: uniqueIndex(
+      "professionalConversations_authorization_uq"
+    ).on(table.authorizationId),
+    professionalUpdatedIdx: index(
+      "professionalConversations_professional_updated_idx"
+    ).on(table.professionalUserId, table.lastMessageAt),
+    patientUpdatedIdx: index(
+      "professionalConversations_patient_updated_idx"
+    ).on(table.patientUserId, table.lastMessageAt),
+  })
+);
+
+export const professionalMessages = mysqlTable(
+  "professionalMessages",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    conversationId: varchar("conversationId", { length: 64 }).notNull(),
+    authorizationId: varchar("authorizationId", { length: 64 }).notNull(),
+    professionalUserId: int("professionalUserId").notNull(),
+    patientUserId: int("patientUserId").notNull(),
+    authorUserId: int("authorUserId"),
+    direction: mysqlEnum("direction", [
+      "professional_to_patient",
+      "patient_to_professional",
+    ]).notNull(),
+    origin: mysqlEnum("origin", [
+      "automatic",
+      "ai_suggested",
+      "professional",
+      "patient",
+    ]).notNull(),
+    messageType: mysqlEnum("messageType", [
+      "guidance",
+      "reminder",
+      "weigh_in_request",
+      "record_request",
+      "administrative",
+      "follow_up_summary",
+      "response",
+    ]).notNull(),
+    content: text("content").notNull(),
+    state: mysqlEnum("state", [
+      "draft",
+      "pending",
+      "sent",
+      "failed",
+      "received",
+    ]).notNull(),
+    idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+    responseCode: varchar("responseCode", { length: 32 }),
+    inReplyToMessageId: varchar("inReplyToMessageId", { length: 64 }),
+    relatedGuidanceId: varchar("relatedGuidanceId", { length: 64 }),
+    supersedesMessageId: varchar("supersedesMessageId", { length: 64 }),
+    providerMessageId: varchar("providerMessageId", { length: 191 }),
+    deliveryClaimToken: varchar("deliveryClaimToken", { length: 64 }),
+    deliveryClaimedAt: timestamp("deliveryClaimedAt"),
+    lastError: varchar("lastError", { length: 500 }),
+    sentAt: timestamp("sentAt"),
+    receivedAt: timestamp("receivedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    conversationFk: foreignKey({
+      columns: [table.conversationId],
+      foreignColumns: [professionalConversations.id],
+      name: "professionalMessages_conversation_fk",
+    }).onDelete("restrict"),
+    authorizationFk: foreignKey({
+      columns: [table.authorizationId],
+      foreignColumns: [professionalPatientAuthorizations.id],
+      name: "professionalMessages_authorization_fk",
+    }).onDelete("restrict"),
+    authorFk: foreignKey({
+      columns: [table.authorUserId],
+      foreignColumns: [users.id],
+      name: "professionalMessages_author_fk",
+    }).onDelete("set null"),
+    replyFk: foreignKey({
+      columns: [table.inReplyToMessageId],
+      foreignColumns: [table.id],
+      name: "professionalMessages_reply_fk",
+    }).onDelete("set null"),
+    supersedesFk: foreignKey({
+      columns: [table.supersedesMessageId],
+      foreignColumns: [table.id],
+      name: "professionalMessages_supersedes_fk",
+    }).onDelete("set null"),
+    idempotencyUniqueIdx: uniqueIndex("professionalMessages_idempotency_uq").on(
+      table.idempotencyKey
+    ),
+    responseCodeUniqueIdx: uniqueIndex(
+      "professionalMessages_response_code_uq"
+    ).on(table.responseCode),
+    conversationCreatedIdx: index(
+      "professionalMessages_conversation_created_idx"
+    ).on(table.conversationId, table.createdAt, table.id),
+    patientStateIdx: index("professionalMessages_patient_state_idx").on(
+      table.patientUserId,
+      table.state,
+      table.createdAt
+    ),
+  })
+);
+
+export const professionalMessageDeliveryAttempts = mysqlTable(
+  "professionalMessageDeliveryAttempts",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    messageId: varchar("messageId", { length: 64 }).notNull(),
+    channel: mysqlEnum("channel", ["web", "whatsapp"]).notNull(),
+    attemptNumber: int("attemptNumber").notNull(),
+    state: mysqlEnum("state", [
+      "pending",
+      "sending",
+      "sent",
+      "failed",
+      "skipped",
+    ]).notNull(),
+    claimToken: varchar("claimToken", { length: 64 }),
+    claimedAt: timestamp("claimedAt"),
+    providerMessageId: varchar("providerMessageId", { length: 191 }),
+    errorCode: varchar("errorCode", { length: 80 }),
+    errorDetail: varchar("errorDetail", { length: 500 }),
+    attemptedAt: timestamp("attemptedAt").defaultNow().notNull(),
+    completedAt: timestamp("completedAt"),
+  },
+  table => ({
+    messageFk: foreignKey({
+      columns: [table.messageId],
+      foreignColumns: [professionalMessages.id],
+      name: "professionalMessageAttempts_message_fk",
+    }).onDelete("cascade"),
+    messageAttemptUniqueIdx: uniqueIndex(
+      "professionalMessageAttempts_message_attempt_uq"
+    ).on(table.messageId, table.attemptNumber),
+    stateAttemptedIdx: index(
+      "professionalMessageAttempts_state_attempted_idx"
+    ).on(table.state, table.attemptedAt),
+  })
+);
+
 export type ProfessionalProfileRecord =
   typeof professionalProfiles.$inferSelect;
 export type InsertProfessionalProfileRecord =
@@ -524,3 +693,9 @@ export type ProfessionalGoalReviewRequestRecord =
   typeof professionalGoalReviewRequests.$inferSelect;
 export type ProfessionalGoalNotificationRecord =
   typeof professionalGoalNotifications.$inferSelect;
+export type ProfessionalConversationRecord =
+  typeof professionalConversations.$inferSelect;
+export type ProfessionalMessageRecord =
+  typeof professionalMessages.$inferSelect;
+export type ProfessionalMessageDeliveryAttemptRecord =
+  typeof professionalMessageDeliveryAttempts.$inferSelect;

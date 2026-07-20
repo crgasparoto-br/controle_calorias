@@ -7,6 +7,7 @@ import NutritionGoalPreviewValidityBridge from "./components/NutritionGoalPrevie
 import NutritionGoalReportInvalidator from "./components/NutritionGoalReportInvalidator";
 import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbed";
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
+import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
 import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
@@ -88,6 +89,7 @@ function App() {
     <ProfessionalOperationalAlertsBridge />
     <PatientGoalSuggestionsEmbed />
     <PatientProfessionalGuidancesEmbed />
+    <PatientProfessionalMessagesEmbed />
     <Router />
   </TooltipProvider></ThemeProvider></ErrorBoundary>;
 }
