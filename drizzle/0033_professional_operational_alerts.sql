@@ -9,14 +9,19 @@ CREATE TABLE `professionalOperationalRequests` (
   `state` enum('open','answered','cancelled','dismissed') NOT NULL DEFAULT 'open',
   `answeredAt` timestamp,
   `closedAt` timestamp,
+  `closedByUserId` int,
+  `closureReason` enum('response','weight_recorded','cancelled','dismissed','manual_resolution'),
+  `responseReference` varchar(191),
   `createdAt` timestamp NOT NULL DEFAULT (now()),
   `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `professionalOperationalRequests_id` PRIMARY KEY (`id`),
   CONSTRAINT `professionalOperationalRequests_authorization_fk` FOREIGN KEY (`authorizationId`) REFERENCES `professionalPatientAuthorizations` (`id`) ON DELETE restrict ON UPDATE no action,
   CONSTRAINT `professionalOperationalRequests_professional_fk` FOREIGN KEY (`professionalUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action,
-  CONSTRAINT `professionalOperationalRequests_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action
+  CONSTRAINT `professionalOperationalRequests_patient_fk` FOREIGN KEY (`patientUserId`) REFERENCES `users` (`id`) ON DELETE restrict ON UPDATE no action,
+  CONSTRAINT `professionalOperationalRequests_closed_by_fk` FOREIGN KEY (`closedByUserId`) REFERENCES `users` (`id`) ON DELETE set null ON UPDATE no action
 );--> statement-breakpoint
 CREATE INDEX `professionalOperationalRequests_scope_idx` ON `professionalOperationalRequests` (`professionalUserId`,`patientUserId`,`state`,`dueAt`);--> statement-breakpoint
+CREATE INDEX `professionalOperationalRequests_patient_open_idx` ON `professionalOperationalRequests` (`patientUserId`,`state`,`createdAt`);--> statement-breakpoint
 CREATE TABLE `professionalReviewSignals` (
   `id` varchar(64) NOT NULL,
   `authorizationId` varchar(64) NOT NULL,
