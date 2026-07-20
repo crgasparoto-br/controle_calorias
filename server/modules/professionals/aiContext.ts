@@ -210,12 +210,15 @@ export function buildCanonicalMissingData(
 export function buildCanonicalFacts(context: ProfessionalAiContext) {
   const facts = [
     `${context.recordFrequency.daysWithRecords} de ${context.recordFrequency.totalDays} dias possuem registros alimentares.`,
-    `A aderência calórica calculada pelo relatório canônico foi de ${round(context.adherence.percent)}%.`,
   ];
-  const factSourceKeys = [
-    ["current_record_frequency"],
-    ["current_adherence"],
-  ];
+  const factSourceKeys: string[][] = [["current_record_frequency"]];
+
+  if (context.recordFrequency.daysWithRecords > 0) {
+    facts.push(
+      `A aderência calórica calculada pelo relatório canônico foi de ${round(context.adherence.percent)}%.`
+    );
+    factSourceKeys.push(["current_adherence"]);
+  }
   if (context.water.totalConsumedMl > 0) {
     facts.push(
       `Foram registrados ${round(context.water.totalConsumedMl)} ml de água.`
@@ -253,7 +256,9 @@ function deterministicDraft(
     case "administrative":
       return "Olá! Esta é uma mensagem administrativa sobre seu acompanhamento. Quando puder, confirme o recebimento para alinharmos o próximo passo.";
     case "follow_up_summary":
-      return `Resumo para revisão: período de ${period}, ${frequency}, aderência calórica de ${round(context.adherence.percent)}% e ${context.alerts.length} alerta(s) objetivo(s) aberto(s). Revisar os dados com o paciente antes de qualquer orientação.`;
+      return context.recordFrequency.daysWithRecords > 0
+        ? `Resumo para revisão: período de ${period}, ${frequency}, aderência calórica de ${round(context.adherence.percent)}% e ${context.alerts.length} alerta(s) objetivo(s) aberto(s). Revisar os dados com o paciente antes de qualquer orientação.`
+        : `Resumo para revisão: período de ${period}, sem registros alimentares e com ${context.alerts.length} alerta(s) objetivo(s) aberto(s). Não inferir aderência sem dados; revisar com o paciente antes de qualquer orientação.`;
     case "guidance":
       return `Olá! Revisei seus registros de ${period}. Temos ${frequency}. Gostaria de conversar sobre como foi sua rotina nesse período antes de definirmos juntos os próximos ajustes.`;
   }
@@ -288,8 +293,8 @@ export function buildProfessionalAiFallbackOutput(
     ]);
   } else if (
     input.mode !== "comparison" &&
-    context.weekends.totalDays &&
-    context.weekdays.totalDays
+    context.weekdays.daysWithRecords > 0 &&
+    context.weekends.daysWithRecords > 0
   ) {
     interpretations.push(
       `A média registrada foi de ${context.weekdays.averageCalories} kcal nos dias úteis e ${context.weekends.averageCalories} kcal nos finais de semana.`
