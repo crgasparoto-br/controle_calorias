@@ -13,6 +13,7 @@ const executeWhatsappRecordAdjustmentIntentMock = vi.fn();
 const executeWhatsappGramsAdjustmentIntentMock = vi.fn();
 const executeWhatsappGramsIncrementIntentMock = vi.fn();
 const executeWhatsAppFoodAssistantIntentMock = vi.fn();
+const executeWhatsappDeleteIntentMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getAdminWhatsAppTokenStatus: getAdminWhatsAppTokenStatusMock,
@@ -61,6 +62,10 @@ vi.mock("./foodAssistant", () => ({
   executeWhatsAppFoodAssistantIntent: executeWhatsAppFoodAssistantIntentMock,
 }));
 
+vi.mock("./deleteIntent", () => ({
+  executeWhatsappDeleteIntent: executeWhatsappDeleteIntentMock,
+}));
+
 const { clearWhatsappConversationContext } = await import("./conversationContext");
 const { simulateWhatsappInbound } = await import("./service");
 
@@ -80,7 +85,9 @@ describe("simulateWhatsappInbound explicit meal dates", () => {
     executeWhatsappGramsAdjustmentIntentMock.mockReset();
     executeWhatsappGramsIncrementIntentMock.mockReset();
     executeWhatsAppFoodAssistantIntentMock.mockReset();
+    executeWhatsappDeleteIntentMock.mockReset();
 
+    executeWhatsappDeleteIntentMock.mockResolvedValue(null);
     executeWhatsappDatedFoodAdditionIntentMock.mockResolvedValue(null);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     executeWhatsappTextIntentMock.mockResolvedValue({

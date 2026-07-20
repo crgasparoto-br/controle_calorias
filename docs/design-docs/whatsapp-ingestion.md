@@ -145,7 +145,15 @@ A epic #779 unifica todos os pontos que registram, atualizam, consultam ou exclu
 - **Alimento estimado pela IA**: `buildWhatsAppFoodLines` inclui `WHATSAPP_ESTIMATED_NUTRITION_WARNING` (`⚠️ Valores nutricionais estimados pela IA.`) abaixo dos itens `heuristic` e `hybrid`; itens `catalog` não recebem o aviso, e os totais incluem os itens estimados.
 - **Fora de escopo**: seleção temporal, consolidação, catálogo, cálculo nutricional, schema de persistência e a regra de meta ajustada da #756 não foram alterados; o link de edição rápida (já integrado ao contrato central desde #781) foi apenas preservado.
 
-## Validação recomendada
+### Gate destrutivo antes do fallback nutricional (issue #856)
+
+O webhook real (`server/whatsappIntentWebhook.ts`) já chamava `executeWhatsappDeleteIntent` antes do parser nutricional e do LLM. O simulador tRPC (`nutrition.whatsapp.simulateInbound` → `simulateWhatsappInbound` em `server/modules/whatsapp/service.ts`) não compartilhava essa precedência: alcançava `deleteIntent.ts` apenas de forma indireta e tardia, através de um parser simplificado próprio em `recordAdjustmentIntent.ts`, depois de `executeWhatsappDatedFoodAdditionIntent`, `executeWhatsappGramsAdjustmentIntent` e `executeWhatsappGramsIncrementIntent`. Um comando destrutivo cujo alvo textual coincidisse com um nome reconhecido por esses parsers anteriores (ex.: exclusão de um item legado chamado `Registrar`) podia ser desviado para clarificação nutricional em vez do executor canônico de exclusão.
+
+`simulateWhatsappInbound` agora chama `executeWhatsappDeleteIntent` diretamente logo após a decisão de acesso profissional e antes de qualquer parser de registro/ajuste alimentar, replicando a ordem do webhook real. `deleteIntent.ts` continua a única implementação de detecção/execução destrutiva (`detectWhatsappDeleteIntent`/`executeWhatsappDeleteIntent`); nenhum parser novo foi criado.
+
+**Diagnóstico confirmado**: `detectWhatsappDeleteIntent` reconhece corretamente `Excluir o Registrar` isoladamente (verbo destrutivo + alvo `registrar`); o problema nunca foi de regex. A divergência era estrutural entre os dois pipelines descritos acima. Não há acesso, nesta correção, a logs do ambiente de produção para confirmar qual commit está de fato implantado; a comparação disponível localmente é entre `main` (branch de deploy, `e38cee7` no momento desta análise) e `develop`, que já contém revisões substanciais de `deleteIntent.ts`, `service.ts` e `server/whatsappIntentWebhook.ts` ainda não promovidas a `main`. Como `simulateWhatsappInbound` é exposto apenas via `nutrition.whatsapp.simulateInbound` (tRPC, sem endpoint HTTP próprio para reentrega/wrapper de produção), a divergência de pipeline descrita aqui afeta o simulador e qualquer consumidor que o reutilize para reprocessar texto já transcrito de áudio — não existe um caminho de áudio separado dentro do simulador; a transcrição chega como texto comum e passa pelo mesmo `simulateWhatsappInbound` corrigido.
+
+
 
 - Testar texto, imagem e áudio mockados.
 - Testar que texto, imagem e áudio inbound são marcados como lidos e recebem resposta inicial de processamento quando seguem para o fluxo nutricional normal.

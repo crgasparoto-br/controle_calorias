@@ -20,6 +20,7 @@ import {
 } from "./conversationContext";
 import { executeWhatsappAiQuestionIntent } from "./aiQuestionAssistant";
 import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
+import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
 import {
   buildWhatsappDuplicateInboundResult,
@@ -291,6 +292,16 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   const professionalAccessResponse = await handleProfessionalAccessDecision(userId, text);
   if (professionalAccessResponse) {
     return professionalAccessResponse;
+  }
+
+  const deleteIntentResult = await logAndReturnInterpretedIntent(userId, await executeWhatsappDeleteIntent(userId, {
+    text,
+    timeZone: userTimezone,
+  }), { text, receivedAt });
+  if (deleteIntentResult) {
+    return temporalResolution.context
+      ? { ...deleteIntentResult, data: { ...deleteIntentResult.data, temporalContext: temporalResolution.context } }
+      : deleteIntentResult;
   }
 
   const route = evaluateWhatsappIntentRoute({

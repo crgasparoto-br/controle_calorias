@@ -211,4 +211,84 @@ describe("simulateWhatsappInbound", () => {
     }));
   });
 
+  it("localiza e propõe exclusão do item legado 'Registrar' sem pedir quantidade (issue #856)", async () => {
+    listMealsMock.mockResolvedValue([{
+      id: 30,
+      mealLabel: "Almoço",
+      occurredAt: "2026-06-14T14:00:00.000Z",
+      notes: null,
+      items: [{
+        foodName: "Registrar",
+        canonicalName: "Registrar",
+        portionText: "1 unidade",
+        servings: 1,
+        estimatedGrams: 0,
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        confidence: 0.1,
+        source: "legacy",
+      }],
+    }]);
+
+    const result = await simulateWhatsappInbound(42, { text: "Excluir o Registrar", receivedAt: new Date("2026-06-14T15:00:00.000Z") });
+
+    expect(executeWhatsappDatedFoodAdditionIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "clarification_needed",
+      eventType: expect.stringMatching(/^whatsapp\.intent\.delete_food/),
+    }));
+    expect((result as { reply: string }).reply).not.toContain("preciso da quantidade");
+  });
+
+  it("comando destrutivo explícito não é capturado por pendência de quantidade incompatível (issue #856)", async () => {
+    listMealsMock.mockResolvedValue([{
+      id: 31,
+      mealLabel: "Almoço",
+      occurredAt: "2026-06-14T14:00:00.000Z",
+      notes: null,
+      items: [{
+        foodName: "Registrar",
+        canonicalName: "Registrar",
+        portionText: "1 unidade",
+        servings: 1,
+        estimatedGrams: 0,
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        confidence: 0.1,
+        source: "legacy",
+      }],
+    }]);
+
+    const result = await simulateWhatsappInbound(43, {
+      text: "Excluir o Registrar",
+      receivedAt: new Date("2026-06-14T15:00:00.000Z"),
+      pendingContextKind: "quantity",
+    });
+
+    expect(executeWhatsappDatedFoodAdditionIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
+    expect(processMealDraftMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "clarification_needed",
+      eventType: expect.stringMatching(/^whatsapp\.intent\.delete_food/),
+    }));
+  });
+
+  it("não bloqueia o fallback nutricional quando não há intenção destrutiva", async () => {
+    executeWhatsappTextIntentMock.mockResolvedValueOnce({ handled: true, action: "water_logged", reply: "Registrei 300 ml de água.", eventType: "whatsapp.intent.water_logged", detail: "Registro de hidratação via WhatsApp.", data: { amountMl: 300 } });
+
+    const result = await simulateWhatsappInbound(42, { text: "300 ml de água" });
+
+    expect(result).toEqual(expect.objectContaining({ handled: true, action: "water_logged" }));
+  });
+
 });

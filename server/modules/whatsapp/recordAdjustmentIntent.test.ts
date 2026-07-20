@@ -3,13 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listMealsMock = vi.hoisted(() => vi.fn());
 const handleQuantityCorrectionIntentMock = vi.hoisted(() => vi.fn());
 const handleFoodReplacementIntentsMock = vi.hoisted(() => vi.fn());
-const executeWhatsappDeleteIntentMock = vi.hoisted(() => vi.fn());
 const createPendingMealItemSelectionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../meals/service", () => ({ listMeals: listMealsMock }));
 vi.mock("./intent/gramsAdjustmentHandlers", () => ({ handleQuantityCorrectionIntent: handleQuantityCorrectionIntentMock }));
 vi.mock("./intent/foodReplacementHandlers", () => ({ handleFoodReplacementIntents: handleFoodReplacementIntentsMock }));
-vi.mock("./deleteIntent", () => ({ executeWhatsappDeleteIntent: executeWhatsappDeleteIntentMock }));
 vi.mock("./mealItemSelectionCallback", () => ({ createPendingMealItemSelection: createPendingMealItemSelectionMock }));
 
 import { contextUsage, executeWhatsappRecordAdjustmentIntent } from "./recordAdjustmentIntent";
@@ -39,7 +37,6 @@ describe("executeWhatsappRecordAdjustmentIntent", () => {
     vi.clearAllMocks();
     handleQuantityCorrectionIntentMock.mockResolvedValue({ handled: true, action: "meal_item_grams_adjusted", reply: "refeição completa", eventType: "whatsapp.intent.meal_item_grams_adjusted", detail: "ok" });
     handleFoodReplacementIntentsMock.mockResolvedValue({ handled: true, action: "meal_item_replaced", reply: "refeição completa", eventType: "whatsapp.intent.meal_item_replaced", detail: "ok" });
-    executeWhatsappDeleteIntentMock.mockResolvedValue({ handled: true, action: "clarification_needed", reply: "Confirmar ou Cancelar", eventType: "whatsapp.intent.delete_confirmation_needed", detail: "ok", data: {}, interactiveReply: { kind: "functional" } });
     createPendingMealItemSelectionMock.mockResolvedValue({ handled: true, action: "clarification_needed", reply: "selecione", eventType: "whatsapp.intent.meal_item_selection_requested", detail: "ok", data: {}, interactiveReply: { kind: "functional" } });
   });
 
@@ -81,12 +78,9 @@ describe("executeWhatsappRecordAdjustmentIntent", () => {
     expect(result?.interactiveReply).toBeDefined();
   });
 
-  it("delega exclusão ao fluxo com confirmação interativa", async () => {
+  it("não detecta comandos destrutivos (interceptados antes pelo gate canônico de deleteIntent.ts, issue #856)", async () => {
     const result = await executeWhatsappRecordAdjustmentIntent(42, { text: "remove frango" });
-
-    expect(executeWhatsappDeleteIntentMock).toHaveBeenCalledWith(42, { text: "remove frango" });
-    expect(result?.reply).toContain("Confirmar");
-    expect(result?.interactiveReply).toBeDefined();
+    expect(result).toBeNull();
   });
 
   it("declara corretamente uso de janela recente e pendência", () => {
