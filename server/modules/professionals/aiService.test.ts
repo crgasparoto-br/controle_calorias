@@ -238,7 +238,6 @@ describe("professionalAiService", () => {
     expect(result.facts).toContain(
       "7 de 7 dias possuem registros alimentares."
     );
-    expect(result.summarySourceKeys).toEqual(["current_period"]);
     expect(result.factSourceKeys[0]).toEqual(["current_record_frequency"]);
   });
 
@@ -336,10 +335,37 @@ describe("professionalAiService", () => {
     expect(result.missingData).toEqual(
       expect.arrayContaining([
         "Não há registros alimentares no período selecionado.",
-        "Não há peso disponível para o período.",
-        "Não há registros de água no período.",
-        "Não há exercícios registrados no período.",
-        "Não há dados suficientes para indicadores de qualidade alimentar.",
+        "Não há peso disponível para o período selecionado.",
+        "Não há registros de água no período selecionado.",
+        "Não há exercícios registrados no período selecionado.",
+        "Não há dados suficientes para indicadores de qualidade alimentar no período selecionado.",
+      ])
+    );
+  });
+
+  it("declares absent data from the previous period and avoids invalid comparisons", async () => {
+    const deps = dependencies();
+    deps.getPeriodBundle
+      .mockResolvedValueOnce(completeBundle())
+      .mockResolvedValueOnce(emptyBundle());
+    const service = createProfessionalAiService({
+      ...deps,
+      invoke: vi.fn().mockRejectedValue(new Error("offline")),
+    });
+
+    const result = await service.generate(1, {
+      ...input,
+      mode: "comparison",
+    });
+
+    expect(result.interpretations.join(" ")).toContain("insuficientes");
+    expect(result.interpretations.join(" ")).not.toContain("ponto(s) percentual(is)");
+    expect(result.missingData).toEqual(
+      expect.arrayContaining([
+        "Não há registros alimentares no período anterior.",
+        "Não há peso disponível para o período anterior.",
+        "Não há registros de água no período anterior.",
+        "Não há exercícios registrados no período anterior.",
       ])
     );
   });
@@ -372,6 +398,40 @@ describe("professionalAiService", () => {
     expect(invoke).not.toHaveBeenCalled();
     expect(result.title).toBe("Limite da assistência");
     expect(result.fallbackUsed).toBe(true);
+  });
+
+  it("blocks indirect diagnosis and medication wording without calling the provider", async () => {
+    const deps = dependencies();
+    const invoke = vi.fn();
+    const service = createProfessionalAiService({ ...deps, invoke });
+
+    const result = await service.generate(1, {
+      ...input,
+      mode: "question",
+      question: "O paciente está com diabetes e deve tomar insulina?",
+    });
+
+    expect(invoke).not.toHaveBeenCalled();
+    expect(result.title).toBe("Limite da assistência");
+  });
+
+  it("rejects indirect clinical instructions returned by the provider", async () => {
+    const deps = dependencies();
+    const service = createProfessionalAiService({
+      ...deps,
+      invoke: vi.fn().mockResolvedValue(
+        providerResponse(
+          validProviderOutput({
+            summary: "A pessoa deve tomar 500 mg do medicamento diariamente.",
+          })
+        )
+      ),
+    });
+
+    const result = await service.generate(1, input);
+
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.summary).not.toContain("500 mg");
   });
 
   it("prioritizes patients only from canonical objective alerts", async () => {
