@@ -1,5 +1,13 @@
 # Confiabilidade
 
+## Mensagens profissionais
+
+- Persistir a mensagem lógica antes da entrega.
+- Claims e números de tentativa vivem no banco para suportar múltiplas instâncias.
+- Retry manual reutiliza o mesmo identificador lógico e cria apenas nova tentativa física.
+- Falha de canal mantém o conteúdo disponível na web com estado `failed` e detalhe sanitizado.
+- Respostas repetidas usam o identificador externo do inbound como chave idempotente.
+
 ## Objetivo
 
 Garantir que os fluxos críticos possam ser validados por humanos e agentes antes de deploy ou merge.

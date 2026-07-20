@@ -6,35 +6,38 @@
 
 ## Tabelas críticas
 
-| Tabela                              | Papel                                                                      |
-| ----------------------------------- | -------------------------------------------------------------------------- |
-| `users`                             | Identidade interna e papel                                                 |
-| `userProfiles`                      | Perfil nutricional e onboarding                                            |
-| `nutritionGoals`                    | Metas e exceções                                                           |
-| `food_sources`                      | Fontes nutricionais, versão e código de origem do catálogo global          |
-| `foods`                             | Catálogo alimentar global e alimentos personalizados por usuário           |
-| `food_aliases`                      | Nomes alternativos normalizados para busca no catálogo                     |
-| `food_portions`                     | Porções e medidas caseiras por alimento do catálogo                        |
-| `meals`                             | Cabeçalho da refeição                                                      |
-| `mealItems`                         | Itens nutricionais por refeição, incluindo snapshot nutricional histórico  |
-| `mealMedia`                         | Referências de mídia                                                       |
-| `mealInferences`                    | Rascunhos e inferências de IA                                              |
-| `habitMemories`                     | Memória de hábitos alimentares                                             |
-| `healthSyncedRecords`               | Histórico persistido de dados importados de integrações de saúde           |
-| `professionalProfiles`              | Perfil profissional adicional à conta pessoal                              |
-| `professionalPatientAuthorizations` | Consentimento e revogação do acesso profissional aos dados do paciente     |
-| `professionalPatientTrackings`      | Situação operacional do acompanhamento, separada da autorização            |
-| `professionalPatientTrackingEvents` | Histórico auditável das transições do acompanhamento                       |
-| `professionalComments`              | Comentários internos do profissional, isolados por profissional e paciente |
-| `professionalGoalSuggestions`       | Sugestões de meta com estado, versão e conteúdo nutricional                |
-| `professionalMealSuggestions`       | Sugestões de refeição/plano com estado e versão                            |
-| `professionalHistoryEvents`         | Linha do tempo profissional sem payload clínico bruto                      |
-| `professionalOfficialGoals`         | Versões oficiais com autoria, vigência, exceções e controle único          |
-| `professionalGoalReviewRequests`    | Solicitações idempotentes de revisão feitas pelo paciente                  |
-| `professionalGoalNotifications`     | Estado e tentativas de notificação da ativação pelo WhatsApp               |
-| `whatsappConnections`               | Vínculo telefone do usuário ↔ usuário interno                             |
-| `inferenceLogs`                     | Logs seguros de inferência                                                 |
-| `appSecrets`                        | Segredos operacionais criptografados                                       |
+| Tabela                                | Papel                                                                      |
+| ------------------------------------- | -------------------------------------------------------------------------- |
+| `users`                               | Identidade interna e papel                                                 |
+| `userProfiles`                        | Perfil nutricional e onboarding                                            |
+| `nutritionGoals`                      | Metas e exceções                                                           |
+| `food_sources`                        | Fontes nutricionais, versão e código de origem do catálogo global          |
+| `foods`                               | Catálogo alimentar global e alimentos personalizados por usuário           |
+| `food_aliases`                        | Nomes alternativos normalizados para busca no catálogo                     |
+| `food_portions`                       | Porções e medidas caseiras por alimento do catálogo                        |
+| `meals`                               | Cabeçalho da refeição                                                      |
+| `mealItems`                           | Itens nutricionais por refeição, incluindo snapshot nutricional histórico  |
+| `mealMedia`                           | Referências de mídia                                                       |
+| `mealInferences`                      | Rascunhos e inferências de IA                                              |
+| `habitMemories`                       | Memória de hábitos alimentares                                             |
+| `healthSyncedRecords`                 | Histórico persistido de dados importados de integrações de saúde           |
+| `professionalProfiles`                | Perfil profissional adicional à conta pessoal                              |
+| `professionalPatientAuthorizations`   | Consentimento e revogação do acesso profissional aos dados do paciente     |
+| `professionalPatientTrackings`        | Situação operacional do acompanhamento, separada da autorização            |
+| `professionalPatientTrackingEvents`   | Histórico auditável das transições do acompanhamento                       |
+| `professionalComments`                | Comentários internos do profissional, isolados por profissional e paciente |
+| `professionalGoalSuggestions`         | Sugestões de meta com estado, versão e conteúdo nutricional                |
+| `professionalMealSuggestions`         | Sugestões de refeição/plano com estado e versão                            |
+| `professionalHistoryEvents`           | Linha do tempo profissional sem payload clínico bruto                      |
+| `professionalOfficialGoals`           | Versões oficiais com autoria, vigência, exceções e controle único          |
+| `professionalGoalReviewRequests`      | Solicitações idempotentes de revisão feitas pelo paciente                  |
+| `professionalGoalNotifications`       | Estado e tentativas de notificação da ativação pelo WhatsApp               |
+| `whatsappConnections`                 | Vínculo telefone do usuário ↔ usuário interno                             |
+| `inferenceLogs`                       | Logs seguros de inferência                                                 |
+| `appSecrets`                          | Segredos operacionais criptografados                                       |
+| `professionalConversations`           | Conversa canônica por autorização profissional                             |
+| `professionalMessages`                | Mensagens lógicas, autoria, origem, resposta e estado                      |
+| `professionalMessageDeliveryAttempts` | Tentativas físicas e claims idempotentes de entrega                        |
 
 ## Regras
 
@@ -51,6 +54,7 @@
 - Uma autorização aprovada pode ter somente um acompanhamento canônico e cada transição deve registrar ator, data e motivo quando informado.
 - `userProfiles.timezone` usa `America/Sao_Paulo` como default persistido; `UTC` e qualquer IANA válido já salvo são preservados.
 - Decisões de data lógica devem consumir o contrato de `docs/design-docs/timezone.md`; não criar fallback local nem limites fixos em meia-noite UTC.
+- Mensagens profissionais não reutilizam payload bruto do WhatsApp. Cada retry acrescenta uma tentativa sanitizada sem duplicar a mensagem lógica.
 
 ## Catálogo global de alimentos
 

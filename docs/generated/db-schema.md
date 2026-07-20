@@ -57,6 +57,9 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalOfficialGoals` | `professionalOfficialGoals` | 22 | Requer atenção |
 | `professionalGoalReviewRequests` | `professionalGoalReviewRequests` | 11 | Requer atenção |
 | `professionalGoalNotifications` | `professionalGoalNotifications` | 13 | Requer atenção |
+| `professionalConversations` | `professionalConversations` | 7 | Requer atenção |
+| `professionalMessages` | `professionalMessages` | 24 | Requer atenção |
+| `professionalMessageDeliveryAttempts` | `professionalMessageDeliveryAttempts` | 12 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
@@ -99,6 +102,9 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 - `professionalOfficialGoals` via export `professionalOfficialGoals`.
 - `professionalGoalReviewRequests` via export `professionalGoalReviewRequests`.
 - `professionalGoalNotifications` via export `professionalGoalNotifications`.
+- `professionalConversations` via export `professionalConversations`.
+- `professionalMessages` via export `professionalMessages`.
+- `professionalMessageDeliveryAttempts` via export `professionalMessageDeliveryAttempts`.
 
 ## Campos sensíveis conhecidos
 
@@ -144,6 +150,9 @@ Fontes: `drizzle/schema.ts` e `drizzle/professional-schema.ts`.
 | `professionalOfficialGoals` | `authorizationId`, `professionalUserId`, `patientUserId`, `activePatientKey`, `exceptionsJson`, `endReason` |
 | `professionalGoalReviewRequests` | `professionalUserId`, `patientUserId`, `reason` |
 | `professionalGoalNotifications` | `patientUserId` |
+| `professionalConversations` | `authorizationId`, `professionalUserId`, `patientUserId`, `lastMessageAt` |
+| `professionalMessages` | `authorizationId`, `professionalUserId`, `patientUserId`, `messageType`, `inReplyToMessageId`, `supersedesMessageId`, `providerMessageId` |
+| `professionalMessageDeliveryAttempts` | `messageId`, `providerMessageId`, `errorDetail` |
 
 ## Relações críticas
 

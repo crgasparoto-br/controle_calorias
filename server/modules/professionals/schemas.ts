@@ -96,6 +96,52 @@ export const professionalGuidanceSchema = z.object({
   supersedesGuidanceId: z.string().min(1).optional(),
 });
 
+export const professionalMessageTypeSchema = z.enum([
+  "guidance",
+  "reminder",
+  "weigh_in_request",
+  "record_request",
+  "administrative",
+  "follow_up_summary",
+]);
+export const professionalMessageOriginSchema = z.enum([
+  "automatic",
+  "ai_suggested",
+  "professional",
+]);
+export const professionalMessageListSchema = z.object({
+  patientId: z.number().int().positive().optional(),
+  cursor: z
+    .object({ createdAt: z.number().int().positive(), id: z.string().uuid() })
+    .optional(),
+  pageSize: z.number().int().min(10).max(50).optional().default(20),
+});
+export const professionalMessageCreateSchema = z.object({
+  patientId: z.number().int().positive(),
+  content: z
+    .string()
+    .trim()
+    .min(1, "Escreva a mensagem antes de salvar.")
+    .max(8000),
+  messageType: professionalMessageTypeSchema,
+  origin: professionalMessageOriginSchema.default("professional"),
+  action: z
+    .enum(["save_draft", "send_web", "send_whatsapp"])
+    .default("save_draft"),
+  idempotencyKey: z.string().trim().min(8).max(191),
+  relatedGuidanceId: z.string().uuid().optional(),
+  supersedesMessageId: z.string().uuid().optional(),
+});
+export const professionalMessageRetrySchema = z.object({
+  messageId: z.string().uuid(),
+});
+export const patientProfessionalMessageListSchema = z.object({
+  cursor: z
+    .object({ createdAt: z.number().int().positive(), id: z.string().uuid() })
+    .optional(),
+  pageSize: z.number().int().min(10).max(50).optional().default(20),
+});
+
 export const professionalOfficialGoalSchema = z.object({
   patientId: z.number().int().positive(),
   expectedVersion: z.number().int().positive().optional(),
@@ -200,6 +246,18 @@ export type ProfessionalAssessmentInput = z.infer<
 export type ProfessionalNoteInput = z.infer<typeof professionalNoteSchema>;
 export type ProfessionalGuidanceInput = z.infer<
   typeof professionalGuidanceSchema
+>;
+export type ProfessionalMessageListInput = z.infer<
+  typeof professionalMessageListSchema
+>;
+export type ProfessionalMessageCreateInput = z.infer<
+  typeof professionalMessageCreateSchema
+>;
+export type ProfessionalMessageRetryInput = z.infer<
+  typeof professionalMessageRetrySchema
+>;
+export type PatientProfessionalMessageListInput = z.infer<
+  typeof patientProfessionalMessageListSchema
 >;
 export type ProfessionalOfficialGoalInput = z.infer<
   typeof professionalOfficialGoalSchema
