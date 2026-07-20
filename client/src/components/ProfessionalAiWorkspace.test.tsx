@@ -23,6 +23,7 @@ function result(overrides: Record<string, unknown> = {}) {
   return {
     title: "Resumo do período",
     summary: "Resumo objetivo.",
+    summarySourceKeys: ["current_record_frequency"],
     facts: ["7 de 7 dias com registros."],
     factSourceKeys: [["current_record_frequency"]],
     interpretations: ["Frequência consistente."],
@@ -141,7 +142,7 @@ describe("ProfessionalAiWorkspace", () => {
     expect(setLocation).toHaveBeenCalledWith("/professional/messages");
   });
 
-  it("shows the exact source used by each fact and interpretation", () => {
+  it("shows the exact source used by each summary, fact and interpretation", () => {
     render(
       <ProfessionalAiWorkspace
         selectedPatient={{ patientId: 41, displayName: "Ana" }}
@@ -155,7 +156,7 @@ describe("ProfessionalAiWorkspace", () => {
 
     expect(
       screen.getAllByText(/Fontes: Período atual · Frequência de registros/)
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(
       screen.getByText(/O catálogo abaixo contém todos os sinais enviados/)
     ).toBeTruthy();
