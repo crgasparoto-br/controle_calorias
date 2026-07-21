@@ -5,6 +5,7 @@ const root = process.cwd();
 const sourcePaths = [
   path.join(root, "server/nutritionRouter.ts"),
   path.join(root, "server/modules/professionals/recordRouter.ts"),
+  path.join(root, "server/modules/professionals/legacyEntitlementPolicy.ts"),
 ];
 const outputPath = path.join(root, "docs/generated/trpc-routes.md");
 const checkOnly = process.argv.includes("--check");
@@ -42,20 +43,7 @@ const groupDescriptions: Record<string, string> = {
   professionalRecord: "Prontuário, ciclo e metas profissionais oficiais",
 };
 
-const legacyProfessionalEntitledProcedures = new Set([
-  "requestAccess",
-  "myAccesses",
-  "portfolio",
-  "transitionTracking",
-  "patientTimeZone",
-  "patientDashboard",
-  "patientPeriodBundle",
-  "addComment",
-  "suggestGoalAdjustment",
-  "suggestMealPlan",
-  "askPatientQuestion",
-  "history",
-]);
+let legacyProfessionalEntitledProcedures = new Set<string>();
 
 function readRequiredFile(filePath: string) {
   if (!existsSync(filePath))
@@ -86,6 +74,23 @@ function findMatchingBrace(source: string, start: number) {
   }
 
   throw new Error(`Bloco sem fechamento em ${start}.`);
+}
+
+function parseLegacyProfessionalEntitledProcedures(source: string) {
+  const marker = "const LEGACY_PROFESSIONAL_RESOURCES";
+  const start = source.indexOf(marker);
+  if (start < 0) {
+    throw new Error("Mapa LEGACY_PROFESSIONAL_RESOURCES não encontrado.");
+  }
+  const braceStart = source.indexOf("{", start);
+  const braceEnd = findMatchingBrace(source, braceStart);
+  const mappingSource = source.slice(braceStart + 1, braceEnd);
+  return new Set(
+    Array.from(
+      mappingSource.matchAll(/"nutrition\.professionals\.(\w+)"\s*:/g),
+      match => match[1]
+    )
+  );
 }
 
 function parseOperation(source: string) {
@@ -198,7 +203,7 @@ function generateMarkdown(groups: GroupInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.",
     "",
-    "Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter.ts`.",
+    "Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.",
     "",
     "## Grupos",
     "",
@@ -232,7 +237,7 @@ function generateMarkdown(groups: GroupInfo[]) {
     "- Use uma `professional*Procedure` quando a operação exigir perfil profissional ativo e entitlement válido."
   );
   lines.push(
-    "- Procedures profissionais legadas em `nutrition.professionals` devem constar na política central e no conjunto `legacyProfessionalEntitledProcedures` deste gerador."
+    "- Procedures profissionais legadas em `nutrition.professionals` devem constar no mapa central `LEGACY_PROFESSIONAL_RESOURCES`; o gerador lê esse mapa diretamente."
   );
   lines.push(
     "- Use `adminProcedure` apenas para operação administrativa real."
@@ -252,6 +257,9 @@ function generateMarkdown(groups: GroupInfo[]) {
 
 const nutritionSource = readRequiredFile(sourcePaths[0]);
 const professionalRecordSource = readRequiredFile(sourcePaths[1]);
+const legacyEntitlementPolicySource = readRequiredFile(sourcePaths[2]);
+legacyProfessionalEntitledProcedures =
+  parseLegacyProfessionalEntitledProcedures(legacyEntitlementPolicySource);
 const generated = generateMarkdown([
   ...parseGroups(nutritionSource),
   parseTopLevelRouter(
