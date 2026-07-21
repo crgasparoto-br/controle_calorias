@@ -97,7 +97,6 @@ jobs:
               'signature helpers',
               re.S,
           )
-
           text = sub_once(
               text,
               r'(?P<indent>\s*)if \(!previous \|\| previousVersion < normalizedVersion\) \{\s*expectedGoalSuggestions\.set\(normalized\.id, normalized\);\s*\}',
@@ -114,7 +113,6 @@ jobs:
               ''').strip(), m.group('indent')),
               'goal conflict',
           )
-
           text = sub_once(
               text,
               r'(?P<indent>\s*)if \(\s*!previous \|\|\s*legacyAccessToCanonical\(previous\)\.sourceUpdatedAt\.getTime\(\) <\s*legacyAccessToCanonical\(access\)\.sourceUpdatedAt\.getTime\(\)\s*\) \{\s*expectedAuthorizations\.set\(access\.id, access\);\s*\}',
@@ -211,14 +209,33 @@ jobs:
           )
           test_path.write_text(test)
           PY
-      - name: Remove temporary workflow
-        run: rm -f .github/workflows/issue-815-equal-version-conflict-fix.yml
-      - name: Format and validate
+      - name: Format changed files
+        run: pnpm exec prettier --write scripts/retire-professional-legacy-preferences.ts scripts/test-professional-persistence-tidb.ts
+      - name: Validate implementation
         run: |
-          pnpm exec prettier --write scripts/retire-professional-legacy-preferences.ts scripts/test-professional-persistence-tidb.ts
-          git diff --check
-          pnpm agent:check
-          pnpm build
+          {
+            git diff --check
+            pnpm agent:check
+            pnpm build
+          } > /tmp/issue-815-equal-version-validation.log 2>&1 || {
+            cat /tmp/issue-815-equal-version-validation.log
+            exit 1
+          }
+      - name: Persist validation diagnostics
+        if: failure()
+        run: |
+          if [ -f /tmp/issue-815-equal-version-validation.log ]; then
+            cp /tmp/issue-815-equal-version-validation.log scripts/issue-815-equal-version-validation-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add scripts/issue-815-equal-version-validation-error.txt
+            git commit -m "chore: registrar falha de conflito legado #815"
+            git push origin HEAD:cleanup/815-retire-professional-legacy
+          fi
+      - name: Remove temporary automation and diagnostics
+        run: |
+          rm -f .github/workflows/issue-815-equal-version-conflict-fix.yml
+          rm -f scripts/issue-815-equal-version-validation-error.txt
       - name: Commit validated correction
         run: |
           git config user.name "github-actions[bot]"
