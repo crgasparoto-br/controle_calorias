@@ -41,68 +41,60 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply retirement transform
-        id: transform
+      - name: Apply and validate retirement
+        id: pipeline
         continue-on-error: true
         run: |
-          rm -f .github/issue-815-transform.log
+          rm -f .github/issue-815-pipeline.log
           set -o pipefail
           (
             set -e
             node scripts/issue-815-bootstrap-fix.mjs
             node scripts/issue-815-transform.mjs
             node scripts/issue-815-fixup.mjs
-          ) 2>&1 | tee .github/issue-815-transform.log
+            pnpm exec prettier --write \
+              client/src/App.tsx \
+              client/src/App.professionalNavigation.test.tsx \
+              client/src/components/ProfessionalLayout.tsx \
+              server/repositories/professionalRepository.ts \
+              server/modules/professionals/service.ts \
+              server/modules/professionals/service.test.ts \
+              server/modules/professionals/schemas.ts \
+              server/modules/professionals/legacyRetirement.test.ts \
+              server/nutritionRouter.ts \
+              scripts/retire-professional-legacy-preferences.ts \
+              package.json \
+              ARCHITECTURE.md \
+              docs/README.md \
+              docs/product-specs/professionals.md \
+              docs/design-docs/database-persistence.md \
+              docs/runbooks/professional-legacy-retirement.md
+            pnpm docs:generate:trpc
+            pnpm check
+            pnpm test
+            pnpm architecture:check
+            pnpm docs:check
+            pnpm build
+          ) 2>&1 | tee .github/issue-815-pipeline.log
 
-      - name: Publish transform diagnostics
-        if: steps.transform.outcome == 'failure'
+      - name: Publish pipeline diagnostics
+        if: steps.pipeline.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           {
-            echo "### Diagnóstico automático da transformação da issue #815"
+            echo "### Diagnóstico automático do pipeline da issue #815"
             echo
             echo '```text'
-            tail -n 120 .github/issue-815-transform.log
+            tail -n 240 .github/issue-815-pipeline.log
             echo '```'
-          } > /tmp/issue-815-transform-comment.md
-          gh pr comment 864 --body-file /tmp/issue-815-transform-comment.md
+          } > /tmp/issue-815-pipeline-comment.md
+          gh pr comment 864 --body-file /tmp/issue-815-pipeline-comment.md
           exit 1
-
-      - name: Format changed sources
-        run: |
-          pnpm exec prettier --write \
-            client/src/App.tsx \
-            client/src/App.professionalNavigation.test.tsx \
-            client/src/components/ProfessionalLayout.tsx \
-            server/repositories/professionalRepository.ts \
-            server/modules/professionals/service.ts \
-            server/modules/professionals/service.test.ts \
-            server/modules/professionals/schemas.ts \
-            server/modules/professionals/legacyRetirement.test.ts \
-            server/nutritionRouter.ts \
-            scripts/retire-professional-legacy-preferences.ts \
-            package.json \
-            ARCHITECTURE.md \
-            docs/README.md \
-            docs/product-specs/professionals.md \
-            docs/design-docs/database-persistence.md \
-            docs/runbooks/professional-legacy-retirement.md
-
-      - name: Refresh generated route documentation
-        run: pnpm docs:generate:trpc
-
-      - name: Validate implementation
-        run: |
-          pnpm check
-          pnpm test
-          pnpm architecture:check
-          pnpm docs:check
-          pnpm build
 
       - name: Remove one-shot automation
         run: |
-          rm -f .github/issue-815-transform.log
+          rm -f .github/issue-815-pipeline.log
           rm scripts/issue-815-bootstrap-fix.mjs
           rm scripts/issue-815-transform.mjs
           rm scripts/issue-815-fixup.mjs
