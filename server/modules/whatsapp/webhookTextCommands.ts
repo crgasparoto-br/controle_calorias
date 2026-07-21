@@ -1,7 +1,7 @@
 import { getDb, listUserMeals, logPersistenceWarning, relabelUserMeals } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository, type WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
-import { buildWhatsAppCallbackId, claimWhatsAppTextPendingOperation } from "./interactiveCallback";
-import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
+import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
+import type { WhatsAppLogicalReply } from "./replyContract";
 import { buildWhatsappClosedDecisionReply } from "./interactionInventory";
 import { formatWhatsAppReplyTime } from "./replyFormatting";
 import {
@@ -336,10 +336,14 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
     reply,
     ...(created
       ? {
-          interactiveReply: buttonsReply(reply, [
-            { id: buildWhatsAppCallbackId(created.id, CONFIRM_ACTION), title: "Confirmar" },
-            { id: buildWhatsAppCallbackId(created.id, CANCEL_ACTION), title: "Cancelar" },
-          ]),
+          interactiveReply: buildWhatsappClosedDecisionReply({
+            bodyText: reply,
+            pendingOperationId: created.id,
+            actions: [
+              { action: CONFIRM_ACTION, label: "Confirmar" },
+              { action: CANCEL_ACTION, label: "Cancelar" },
+            ],
+          }),
         }
       : {}),
     eventType: "whatsapp.action_confirmation_requested",

@@ -25,10 +25,8 @@ import {
 import { redactSensitiveText } from "../../privacy";
 import { getNutritionGoalForDate } from "../goals/service";
 import { buildWhatsAppCallbackId } from "../whatsapp/interactiveCallback";
-import {
-  buttonsReply,
-  type WhatsAppLogicalReply,
-} from "../whatsapp/replyContract";
+import { buildWhatsappClosedDecisionReply } from "../whatsapp/interactionInventory";
+import type { WhatsAppLogicalReply } from "../whatsapp/replyContract";
 import { sendWhatsAppStandaloneLogicalReply } from "../whatsapp/logicalReplyDelivery";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "../whatsapp/replyMessages";
 import {
@@ -258,6 +256,42 @@ export function buildProfessionalAccessAuthorizationMessage(input: {
     "",
     "Ao autorizar, você permite que o profissional veja seus dados de acompanhamento. Você pode revogar esse vínculo depois pela plataforma.",
   ].join("\n");
+}
+
+/**
+ * Reconstrói a mesma mensagem de autorização (mesmos botões, mesma pendência)
+ * a partir do estado atual do banco — a pendência persiste só `{ accessId }`,
+ * então a reapresentação recarrega o domínio em vez de confiar em texto
+ * armazenado (issue #858: estratégia `domain_reload` do inventário).
+ * Retorna `null` quando a solicitação não está mais pendente para o usuário.
+ */
+export async function rebuildWhatsappProfessionalAccessAuthorizationReply(
+  patientUserId: number,
+  pendingOperationId: number,
+  accessId: string,
+): Promise<WhatsAppLogicalReply | null> {
+  const pendingAccesses = (
+    await loadPersistedAccesses(patientUserId, PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY)
+  ).filter(access => access.status === "pending");
+  const access = pendingAccesses.find(candidate => candidate.id === accessId && candidate.patientUserId === patientUserId);
+  if (!access) return null;
+
+  const professionalProfile = await getProfessionalProfile(access.professionalUserId);
+  if (!professionalProfile) return null;
+
+  const message = buildProfessionalAccessAuthorizationMessage({
+    professionalDisplayName: professionalProfile.displayName,
+    reason: access.reason,
+    accessId: access.id,
+  });
+  return buildWhatsappClosedDecisionReply({
+    bodyText: message,
+    pendingOperationId,
+    actions: [
+      { action: AUTHORIZE_ACTION, label: "Autorizar" },
+      { action: REJECT_ACTION, label: "Recusar" },
+    ],
+  });
 }
 
 function normalizeDecisionText(value: string) {
@@ -582,16 +616,14 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
       target: { accessId: access.id },
     });
   const reply: WhatsAppLogicalReply = pendingOperation
-    ? buttonsReply(message, [
-        {
-          id: buildWhatsAppCallbackId(pendingOperation.id, AUTHORIZE_ACTION),
-          title: "Autorizar",
-        },
-        {
-          id: buildWhatsAppCallbackId(pendingOperation.id, REJECT_ACTION),
-          title: "Recusar",
-        },
-      ])
+    ? buildWhatsappClosedDecisionReply({
+        bodyText: message,
+        pendingOperationId: pendingOperation.id,
+        actions: [
+          { action: AUTHORIZE_ACTION, label: "Autorizar" },
+          { action: REJECT_ACTION, label: "Recusar" },
+        ],
+      })
     : { kind: "functional", messages: [{ type: "text", body: message }] };
   const { result: sendResult } = await sendWhatsAppStandaloneLogicalReply(
     connection.phoneNumber,

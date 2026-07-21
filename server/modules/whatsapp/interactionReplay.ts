@@ -29,6 +29,15 @@ import {
   type PendingIntentClarification,
 } from "./intentClarificationInteraction";
 import { PENDING_MEAL_ITEM_SELECTION_TYPE } from "./mealItemSelectionCallback";
+
+/**
+ * Tipo espelhado de `PENDING_PROFESSIONAL_ACCESS_TYPE` (definido em
+ * `professionals/service.ts` e `messageRouter.ts`) para evitar import estático
+ * de `professionals/service.ts` aqui — esse módulo importa deste (via
+ * `interactiveCallback`/`replyContract`), então um import estático criaria
+ * ciclo. A reconstrução em si usa `import()` dinâmico (issue #858).
+ */
+const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
 import {
   buildWhatsappPeriodReportClarificationListReply,
   PENDING_PERIOD_REPORT_TYPE,
@@ -126,6 +135,14 @@ export function classifyWhatsappPendingTextResponse(
       if (isStandaloneWhatsappCommandWord(normalized)) return "invalid_response";
       return "unrelated";
     }
+    case PENDING_PROFESSIONAL_ACCESS_TYPE: {
+      // Resolução textual própria (AUTORIZAR/NEGAR + código) é tratada pelo
+      // fluxo de mensagens de texto dos profissionais, fora do gate central;
+      // aqui só classificamos o caso de palavra de comando isolada incompatível,
+      // para reapresentar em vez de deixar alcançar o pipeline nutricional.
+      if (isStandaloneWhatsappCommandWord(normalized)) return "invalid_response";
+      return "unrelated";
+    }
     default:
       return "unrelated";
   }
@@ -154,11 +171,15 @@ function buildMealItemSelectionReplayBody(target: { targetFood?: string | null; 
  * Reconstrói a mesma interação (mesmas ações semânticas, mesma ordem, mesmos
  * rótulos) a partir do target persistido, com callbacks válidos apontando para
  * a MESMA pendência. Retorna `null` para tipos sem reconstrução por target.
+ *
+ * Assíncrona porque `professional_access` usa a estratégia `domain_reload`
+ * (issue #858): a pendência só guarda `{ accessId }`, então a reapresentação
+ * recarrega o estado atual da solicitação em vez de confiar em texto salvo.
  */
-export function rebuildWhatsappPendingInteractionReply(
-  pending: Pick<WhatsAppPendingOperationRecord, "id" | "type" | "target">,
+export async function rebuildWhatsappPendingInteractionReply(
+  pending: Pick<WhatsAppPendingOperationRecord, "id" | "type" | "target" | "userId">,
   options?: { timeZone?: string | null },
-): WhatsappPendingInteractionReplay | null {
+): Promise<WhatsappPendingInteractionReplay | null> {
   const timeZone = options?.timeZone ?? DEFAULT_APP_TIME_ZONE;
 
   switch (pending.type) {
@@ -241,6 +262,22 @@ export function rebuildWhatsappPendingInteractionReply(
         ...(target?.originalText ? [`Sua mensagem original ("${target.originalText}") continua guardada.`] : []),
       ].join("\n\n");
       return { reply, interactiveReply: buildWhatsappIntentClarificationReply(pending.id, reply) };
+    }
+    case PENDING_PROFESSIONAL_ACCESS_TYPE: {
+      const target = pending.target as { accessId?: string };
+      if (typeof target?.accessId !== "string") return null;
+      // Import dinâmico (issue #858): `professionals/service.ts` importa deste
+      // módulo (via `interactiveCallback`/`replyContract`), então um import
+      // estático aqui criaria ciclo — mesmo padrão já usado em `messageRouter.ts`.
+      const { rebuildWhatsappProfessionalAccessAuthorizationReply } = await import("../professionals/service");
+      const interactiveReply = await rebuildWhatsappProfessionalAccessAuthorizationReply(
+        pending.userId,
+        pending.id,
+        target.accessId,
+      );
+      if (!interactiveReply) return null;
+      const primaryText = interactiveReply.messages[0]?.type === "buttons" ? interactiveReply.messages[0].bodyText : "";
+      return { reply: primaryText, interactiveReply };
     }
     default:
       return null;

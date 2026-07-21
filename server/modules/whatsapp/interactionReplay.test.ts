@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
-import {
+import { describe, expect, it, vi } from "vitest";
+
+const rebuildWhatsappProfessionalAccessAuthorizationReplyMock = vi.fn();
+vi.mock("../professionals/service", () => ({
+  rebuildWhatsappProfessionalAccessAuthorizationReply: rebuildWhatsappProfessionalAccessAuthorizationReplyMock,
+}));
+
+const {
   classifyWhatsappPendingTextResponse,
   rebuildWhatsappPendingInteractionReply,
-} from "./interactionReplay";
+} = await import("./interactionReplay");
 
 const deleteConfirmation = {
   id: 1,
@@ -79,22 +85,30 @@ describe("classificação de resposta textual frente à pendência (issue #858)"
     expect(classifyWhatsappPendingTextResponse(pending, "comi pão")).toBe("unrelated");
   });
 
-  it("tipo desconhecido nunca dispara reapresentação", () => {
-    expect(classifyWhatsappPendingTextResponse({ id: 9, type: "professional_access", target: {} }, "registrar")).toBe("unrelated");
+  it("tipo verdadeiramente desconhecido nunca dispara reapresentação", () => {
+    expect(classifyWhatsappPendingTextResponse({ id: 9, type: "some_future_type", target: {} }, "registrar")).toBe("unrelated");
+  });
+
+  it("palavra de comando isolada durante autorização profissional é resposta inválida (não alcança o pipeline nutricional)", () => {
+    expect(classifyWhatsappPendingTextResponse({ id: 9, type: "professional_access", target: { accessId: "acc-1" } }, "registrar")).toBe("invalid_response");
+  });
+
+  it("texto de decisão profissional (AUTORIZAR/NEGAR) não é classificado aqui: segue para a resolução própria do módulo profissional", () => {
+    expect(classifyWhatsappPendingTextResponse({ id: 9, type: "professional_access", target: { accessId: "acc-1" } }, "AUTORIZAR ABC123")).toBe("unrelated");
   });
 });
 
 describe("reconstrução da interação a partir da pendência persistida", () => {
-  it("confirmação de exclusão reapresenta os mesmos botões Confirmar/Cancelar", () => {
-    const replay = rebuildWhatsappPendingInteractionReply(deleteConfirmation);
+  it("confirmação de exclusão reapresenta os mesmos botões Confirmar/Cancelar", async () => {
+    const replay = await rebuildWhatsappPendingInteractionReply(deleteConfirmation);
     expect(replay).not.toBeNull();
     const message = replay!.interactiveReply!.messages[0] as { type: string; buttons: Array<{ title: string }> };
     expect(message.type).toBe("buttons");
     expect(message.buttons.map(button => button.title)).toEqual(["Confirmar", "Cancelar"]);
   });
 
-  it("seleção de exclusão com dois candidatos reapresenta três botões (2 + Cancelar)", () => {
-    const replay = rebuildWhatsappPendingInteractionReply(deleteSelection);
+  it("seleção de exclusão com dois candidatos reapresenta três botões (2 + Cancelar)", async () => {
+    const replay = await rebuildWhatsappPendingInteractionReply(deleteSelection);
     const message = replay!.interactiveReply!.messages[0] as { type: string; buttons: Array<{ title: string }> };
     expect(message.type).toBe("buttons");
     expect(message.buttons).toHaveLength(3);
@@ -103,16 +117,16 @@ describe("reconstrução da interação a partir da pendência persistida", () =
     expect(replay!.reply).toContain("CANCELAR");
   });
 
-  it("decisão de escopo reapresenta os três botões na mesma ordem", () => {
-    const replay = rebuildWhatsappPendingInteractionReply(scopeConfirmation);
+  it("decisão de escopo reapresenta os três botões na mesma ordem", async () => {
+    const replay = await rebuildWhatsappPendingInteractionReply(scopeConfirmation);
     const message = replay!.interactiveReply!.messages[0] as { type: string; buttons: Array<{ title: string }> };
     expect(message.type).toBe("buttons");
     expect(message.buttons.map(button => button.title)).toEqual(["Só compatíveis", "Todos recentes", "Cancelar"]);
     expect(replay!.reply).toContain("Lanche → Jantar");
   });
 
-  it("clarificação genérica reapresenta a lista com as quatro ações e preserva a mensagem original", () => {
-    const replay = rebuildWhatsappPendingInteractionReply(intentClarification);
+  it("clarificação genérica reapresenta a lista com as quatro ações e preserva a mensagem original", async () => {
+    const replay = await rebuildWhatsappPendingInteractionReply(intentClarification);
     const message = replay!.interactiveReply!.messages[0] as { type: string; sections: Array<{ rows: Array<{ title: string }> }> };
     expect(message.type).toBe("list");
     const titles = message.sections.flatMap(section => section.rows.map(row => row.title));
@@ -120,15 +134,41 @@ describe("reconstrução da interação a partir da pendência persistida", () =
     expect(replay!.reply).toContain("registrar");
   });
 
-  it("período reapresenta a lista com os quatro períodos e Cancelar", () => {
-    const replay = rebuildWhatsappPendingInteractionReply({ id: 9, type: "period_report_clarification", target: { kind: "period_report" } });
+  it("período reapresenta a lista com os quatro períodos e Cancelar", async () => {
+    const replay = await rebuildWhatsappPendingInteractionReply({ id: 9, type: "period_report_clarification", target: { kind: "period_report" } });
     const message = replay!.interactiveReply!.messages[0] as { type: string; sections: Array<{ rows: Array<{ title: string }> }> };
     expect(message.type).toBe("list");
     const titles = message.sections.flatMap(section => section.rows.map(row => row.title));
     expect(titles).toEqual(["Hoje", "Ontem", "Esta semana", "Este mês", "Cancelar"]);
   });
 
-  it("tipo sem reconstrução por target retorna null", () => {
-    expect(rebuildWhatsappPendingInteractionReply({ id: 9, type: "professional_access", target: { accessId: 1 } })).toBeNull();
+  it("autorização profissional sem accessId válido no target retorna null sem recarregar o domínio", async () => {
+    expect(await rebuildWhatsappPendingInteractionReply({ id: 9, userId: 1, type: "professional_access", target: { accessId: 1 } })).toBeNull();
+  });
+
+  it("tipo verdadeiramente desconhecido retorna null", async () => {
+    expect(await rebuildWhatsappPendingInteractionReply({ id: 9, userId: 1, type: "unknown_type", target: {} })).toBeNull();
+  });
+
+  it("autorização profissional recarrega o domínio e reapresenta os mesmos botões (issue #858, achado da auditoria)", async () => {
+    rebuildWhatsappProfessionalAccessAuthorizationReplyMock.mockResolvedValueOnce({
+      kind: "functional",
+      messages: [{ type: "buttons", bodyText: "Dra. Ana solicitou autorização...", buttons: [
+        { id: "cb-authorize", title: "Autorizar" },
+        { id: "cb-reject", title: "Recusar" },
+      ] }],
+    });
+
+    const replay = await rebuildWhatsappPendingInteractionReply({ id: 9, userId: 1, type: "professional_access", target: { accessId: "acc-1" } });
+
+    expect(rebuildWhatsappProfessionalAccessAuthorizationReplyMock).toHaveBeenCalledWith(1, 9, "acc-1");
+    expect(replay?.interactiveReply?.messages[0]).toMatchObject({ type: "buttons" });
+    expect(replay?.reply).toContain("Dra. Ana");
+  });
+
+  it("autorização profissional sem solicitação pendente correspondente retorna null (não reapresenta às cegas)", async () => {
+    rebuildWhatsappProfessionalAccessAuthorizationReplyMock.mockResolvedValueOnce(null);
+    const replay = await rebuildWhatsappPendingInteractionReply({ id: 9, userId: 1, type: "professional_access", target: { accessId: "acc-1" } });
+    expect(replay).toBeNull();
   });
 });

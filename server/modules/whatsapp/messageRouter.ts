@@ -221,7 +221,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   if (pending && (WHATSAPP_REGISTERED_PENDING_TYPES as readonly string[]).includes(pending.type)) {
     const classification = classifyWhatsappPendingTextResponse(pending, input.text);
     if (classification === "invalid_response") {
-      const replay = rebuildWhatsappPendingInteractionReply(pending, { timeZone: input.userTimezone });
+      const replay = await rebuildWhatsappPendingInteractionReply(pending, { timeZone: input.userTimezone });
       if (replay) {
         return {
           step: "pending_reprompt",
