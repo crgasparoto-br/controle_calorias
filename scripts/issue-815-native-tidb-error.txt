@@ -1,0 +1,9 @@
+
+> controle_calorias@1.0.0 db:test:professionals /home/runner/work/controle_calorias/controle_calorias
+> tsx scripts/test-professional-persistence-tidb.ts && tsx scripts/test-professional-operational-alerts-tidb.ts
+
+{"event":"professional.persistence.legacy_retirement.failed","error":"Existem preferências profissionais legadas inválidas; nenhuma migração ou exclusão foi executada."}
+{"event":"professional.persistence.legacy_retirement.failed","error":"A cobertura canônica está incompleta: perfis=0, autorizações=1, sugestões=1."}
+{"event":"professional.persistence.legacy_retirement.failed","error":"A cobertura canônica está incompleta: perfis=0, autorizações=0, sugestões=1."}
+{"event":"professional.persistence.integration.failed","error":"Command failed: pnpm exec tsx scripts/retire-professional-legacy-preferences.ts\n{\"event\":\"professional.persistence.legacy_retirement.failed\",\"error\":\"A cobertura canônica está incompleta: perfis=0, autorizações=0, sugestões=1.\"}\n"}
+ ELIFECYCLE  Command failed with exit code 1.
