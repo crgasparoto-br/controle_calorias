@@ -6,35 +6,57 @@ import {
   type UpsertCanonicalProfessionalAuthorizationInput,
   type UpsertCanonicalProfessionalProfileInput,
 } from "../../repositories/professionalRepository";
-import { withProfessionalCapacityReservation } from "./entitlementService";
+import {
+  releaseProfessionalCapacityReservation,
+  withProfessionalCapacityReservation,
+} from "./entitlementService";
 
 const baseProfessionalRepository = createDrizzleProfessionalRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
 
+function capacityCoverageKey(authorizationId: string) {
+  return `professional-authorization:${authorizationId}`;
+}
+
 export const professionalRepository: typeof baseProfessionalRepository = {
   ...baseProfessionalRepository,
   async transitionAuthorization(input) {
-    if (input.nextStatus !== "approved") {
-      return baseProfessionalRepository.transitionAuthorization(input);
-    }
-
     const current = await baseProfessionalRepository.getAuthorizationById(
       input.authorizationId
     );
-    if (!current || current.status === "approved") {
-      return baseProfessionalRepository.transitionAuthorization(input);
+
+    if (input.nextStatus === "approved") {
+      if (!current || current.status === "approved") {
+        return baseProfessionalRepository.transitionAuthorization(input);
+      }
+
+      return withProfessionalCapacityReservation(
+        {
+          professionalUserId: current.professionalUserId,
+          patientUserId: current.patientUserId,
+          coverageKey: capacityCoverageKey(current.id),
+        },
+        () => baseProfessionalRepository.transitionAuthorization(input)
+      );
     }
 
-    return withProfessionalCapacityReservation(
-      {
+    const transitioned =
+      await baseProfessionalRepository.transitionAuthorization(input);
+
+    if (input.nextStatus === "revoked" && current) {
+      // A revogação pertence ao paciente e nunca pode ser bloqueada por uma
+      // indisponibilidade comercial. A liberação é idempotente pela coverageKey
+      // e pode ser repetida com segurança pelo provider central.
+      await releaseProfessionalCapacityReservation({
         professionalUserId: current.professionalUserId,
         patientUserId: current.patientUserId,
-        coverageKey: `professional-authorization:${current.id}`,
-      },
-      () => baseProfessionalRepository.transitionAuthorization(input)
-    );
+        coverageKey: capacityCoverageKey(current.id),
+      });
+    }
+
+    return transitioned;
   },
 };
 
