@@ -39,7 +39,21 @@ jobs:
         run: |
           base64 -d scripts/issue-815-final-fix.mjs.gz.b64 | gzip -d > /tmp/issue-815-final-fix.mjs
           node --check /tmp/issue-815-final-fix.mjs
-          node /tmp/issue-815-final-fix.mjs
+          node /tmp/issue-815-final-fix.mjs > /tmp/issue-815-final-fix.log 2>&1 || {
+            cat /tmp/issue-815-final-fix.log
+            exit 1
+          }
+      - name: Persist transformation diagnostics
+        if: failure()
+        run: |
+          if [ -f /tmp/issue-815-final-fix.log ]; then
+            cp /tmp/issue-815-final-fix.log scripts/issue-815-final-fix-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add scripts/issue-815-final-fix-error.txt
+            git commit -m "chore: registrar diagnóstico da correção #815"
+            git push origin HEAD:cleanup/815-retire-professional-legacy
+          fi
       - name: Format changed sources
         run: |
           pnpm exec prettier --write \
