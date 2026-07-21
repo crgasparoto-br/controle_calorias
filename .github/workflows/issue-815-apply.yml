@@ -49,6 +49,7 @@ jobs:
           set -o pipefail
           (
             set -e
+            node scripts/issue-815-bootstrap-fix.mjs
             node scripts/issue-815-transform.mjs
             node scripts/issue-815-fixup.mjs
           ) 2>&1 | tee .github/issue-815-transform.log
@@ -102,6 +103,7 @@ jobs:
       - name: Remove one-shot automation
         run: |
           rm -f .github/issue-815-transform.log
+          rm scripts/issue-815-bootstrap-fix.mjs
           rm scripts/issue-815-transform.mjs
           rm scripts/issue-815-fixup.mjs
           rm .github/workflows/issue-815-apply.yml
