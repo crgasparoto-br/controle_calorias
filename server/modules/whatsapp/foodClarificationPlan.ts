@@ -33,5 +33,9 @@ export function planFoodClarification(
   if (request.normalizationChanged && candidates.length > 1) {
     return { kind: "selection", candidates };
   }
-  return { kind: "quantity", candidates };
+
+  // Um único candidato sem porção segura não substitui o alimento preservado.
+  // O catálogo continua sendo evidência de ambiguidade apenas quando existem
+  // opções para o usuário escolher explicitamente.
+  return { kind: "quantity", candidates: [] };
 }
