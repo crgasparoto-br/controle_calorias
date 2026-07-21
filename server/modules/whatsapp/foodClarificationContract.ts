@@ -88,6 +88,7 @@ const COMPLETE_COMMAND_SIGNAL = /\b(?:registrar|registre|registra|adicionar|adic
 const COUNTABLE_SERVING = /\b(?:unidade|unid|und|fatia|pedaco|x[ií]cara|copo|colher|dose|scoop|lata|garrafa|long\s*neck|por[cç][aã]o)\b/i;
 const EXPLICIT_MASS_OR_VOLUME = /^(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i;
 const QUANTITY_ONLY_REPLY = /^\s*\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)\s*$/i;
+const COMPLETE_EXPLICIT_FOOD = /^\s*\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)\s+(?:de\s+)?[\p{L}][\p{L}\p{N}\s'’-]*$/iu;
 
 function normalizeCandidate(value: string) {
   return cleanFoodName(value)
@@ -299,7 +300,7 @@ export function buildFoodClarificationRegistrationText(
   candidate: FoodClarificationCandidate,
   explicitQuantity?: { quantity: number; unit: string },
 ) {
-  if (explicitQuantity) return `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${target.normalizedCandidate}`;
+  if (explicitQuantity) return `${explicitQuantity.quantity} ${explicitQuantity.unit} de ${candidate.name}`;
   if (COUNTABLE_SERVING.test(candidate.servingLabel)) {
     return `${target.count} ${inferCountUnit(candidate)} de ${candidate.name}`;
   }
@@ -308,7 +309,7 @@ export function buildFoodClarificationRegistrationText(
 }
 
 export function parseFoodClarificationQuantityReply(text?: string | null) {
-  const raw = text?.trim() ?? "";
+  const raw = normalizeStandaloneWhatsappCommand(text);
   if (!QUANTITY_ONLY_REPLY.test(raw)) return null;
   const quantities = extractExplicitQuantities(raw);
   return quantities.length === 1
@@ -325,12 +326,12 @@ export function parseFoodClarificationSelectionReply(text?: string | null, candi
 
 export function isCompleteWhatsappCommand(text?: string | null) {
   const raw = text?.trim() ?? "";
-  return Boolean(
-    raw
-      && !isStandaloneWhatsappCommandWord(raw)
-      && COMPLETE_COMMAND_SIGNAL.test(raw)
-      && raw.split(/\s+/).length >= 2,
-  );
+  if (!raw || isStandaloneWhatsappCommandWord(raw)) return false;
+  const normalized = normalizeStandaloneWhatsappCommand(raw);
+  const explicitFood = COMPLETE_EXPLICIT_FOOD.test(normalized);
+  const countedFood = parseCountedFoodRequest(raw) !== null;
+  const operationalCommand = COMPLETE_COMMAND_SIGNAL.test(normalized) && normalized.split(/\s+/).length >= 2;
+  return explicitFood || countedFood || operationalCommand;
 }
 
 export function isExpectedWhatsappFoodClarificationAction(target: PendingFoodClarificationTarget, action: string) {
