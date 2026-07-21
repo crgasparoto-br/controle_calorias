@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
-import * as messageLifecycle from "./messageLifecycle";
+import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import { handleCoffeeAdditionIntent, handleCoffeeLorCapsuleIntent, handleFoodAdditionIntent } from "./intent/foodAdditionHandlers";
 import { handleFoodReplacementIntents } from "./intent/foodReplacementHandlers";
 import {
@@ -45,18 +45,13 @@ function withCanonicalGramsMetadata(result: WhatsappIntentResult): WhatsappInten
   };
 }
 
-function getLifecycleInboundMessageId() {
-  return (messageLifecycle as { getCurrentInboundExternalMessageId?: () => string | null })
-    .getCurrentInboundExternalMessageId?.() ?? null;
-}
-
 function resolveInboundCorrelationId(
   userId: number,
   text: string,
   receivedAt: Date,
   messageId?: string | null,
 ) {
-  const externalMessageId = messageId?.trim() || getLifecycleInboundMessageId()?.trim();
+  const externalMessageId = messageId?.trim() || getCurrentWhatsappInboundExternalMessageId()?.trim();
   if (externalMessageId) return externalMessageId;
   const digest = createHash("sha256")
     .update(`${userId}|${receivedAt.toISOString()}|${text}`)
