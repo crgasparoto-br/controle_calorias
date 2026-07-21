@@ -1,4 +1,5 @@
 import { getWhatsAppChannelConfig, requireWhatsAppMediaConfig, requireWhatsAppSendConfig } from "../../whatsappConfig";
+import { buildWhatsAppOutboundFallbackText } from "./replyContract";
 
 export type WhatsAppWebhookMessage = {
   id?: string;
@@ -335,8 +336,13 @@ export function buildMediaDataUrl(buffer: Buffer, mimeType: string) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
+/**
+ * Deriva o texto do fallback do CTA reutilizando o mesmo builder central do
+ * transporte (issue #859), para que o CTA siga a política única de fallback
+ * também aplicada a `buttons`/`list` — nenhuma versão paralela de texto.
+ */
 function buildInteractiveUrlFallbackText(bodyText: string, buttonDisplayText: string, buttonUrl: string) {
-  return [bodyText, "", `${buttonDisplayText}: ${buttonUrl}`].join("\n");
+  return buildWhatsAppOutboundFallbackText({ type: "cta_url", bodyText, buttonText: buttonDisplayText, url: buttonUrl })!;
 }
 
 async function sendWhatsAppTextMessageWithConfig(config: { accessToken: string; phoneNumberId: string }, to: string, body: string) {
