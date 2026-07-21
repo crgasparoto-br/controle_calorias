@@ -76,7 +76,11 @@ describe("executeWhatsappTextIntent issue #855", () => {
       entrypoint: "audio_transcription",
     });
 
-    expect(deleteIntentMock).toHaveBeenCalledBefore(foodClarificationMock);
+    expect(deleteIntentMock).toHaveBeenCalledOnce();
+    expect(foodClarificationMock).toHaveBeenCalledOnce();
+    expect(deleteIntentMock.mock.invocationCallOrder[0]).toBeLessThan(
+      foodClarificationMock.mock.invocationCallOrder[0],
+    );
     expect(foodClarificationMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
       text: "1 iogurte natual desnatado",
