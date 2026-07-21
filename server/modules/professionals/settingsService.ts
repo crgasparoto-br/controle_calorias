@@ -292,12 +292,7 @@ export async function updateProfessionalIdentitySettings(
         );
       } else if (updatedProfile) {
         compensations.push(
-          persistProfessionalProfile({
-            userId: professionalUserId,
-            displayName: updatedProfile.displayName,
-            registrationNumber: updatedProfile.registrationNumber,
-            active: false,
-          })
+          professionalRepository.deleteProfile(professionalUserId)
         );
       }
       await runSettingsCompensations(
