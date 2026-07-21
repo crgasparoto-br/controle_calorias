@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router } from "../../_core/trpc";
+import { protectedProcedure, router } from "../../_core/trpc";
 import { professionalAlertsProcedure } from "./entitledProcedure";
 import {
   cancelProfessionalOperationalRequest,
@@ -71,7 +71,7 @@ export const professionalOperationalAlertsRouter = router({
     .mutation(({ ctx, input }) =>
       createProfessionalOperationalRequest(ctx.user.id, input)
     ),
-  respondRequest: professionalAlertsProcedure
+  respondRequest: protectedProcedure
     .input(requestResponseSchema)
     .mutation(({ ctx, input }) =>
       respondToProfessionalOperationalRequest(
