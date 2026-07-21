@@ -31,10 +31,16 @@ const STANDALONE_COMMAND_WORDS = new Set([
 const ISOLATED_INDEX_OR_NUMBER = /^(?:opcao\s*)?\d+(?:[,.]\d+)?$/;
 const ISOLATED_QUANTITY = /^\d+(?:[,.]\d+)?\s*(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?|unidades?|fatias?|xicaras?|copos?|colheres?|porcoes?)$/;
 
+function stripBoundaryPunctuation(value: string) {
+  return value
+    .replace(/^[^\p{L}\p{N}]+/gu, "")
+    .replace(/[^\p{L}\p{N}]+$/gu, "");
+}
+
 export function normalizeStandaloneWhatsappCommand(text?: string | null) {
-  return text
-    ? collapseWhitespace(stripDiacritics(text.trim().toLowerCase()))
-    : "";
+  if (!text) return "";
+  const normalized = collapseWhitespace(stripDiacritics(text.trim().toLowerCase()));
+  return collapseWhitespace(stripBoundaryPunctuation(normalized));
 }
 
 export function isStandaloneWhatsappCommandWord(text?: string | null): boolean {
