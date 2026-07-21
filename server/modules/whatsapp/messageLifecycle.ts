@@ -56,6 +56,7 @@ type MessageLifecycleScope = {
   externalMessageIdByMessageId: Map<number, string>;
   claimedExternalMessageIds: Set<string>;
   pendingProcessedMessages: Map<number, PendingProcessedMessage>;
+  currentExternalMessageId: string | null;
 };
 
 export function createMessageLifecycleService(input: {
@@ -180,6 +181,7 @@ function createScope(service: MessageLifecycleService, current?: MessageLifecycl
     externalMessageIdByMessageId: current?.externalMessageIdByMessageId ?? new Map<number, string>(),
     claimedExternalMessageIds: current?.claimedExternalMessageIds ?? new Set<string>(),
     pendingProcessedMessages: current?.pendingProcessedMessages ?? new Map<number, PendingProcessedMessage>(),
+    currentExternalMessageId: current?.currentExternalMessageId ?? null,
   };
 }
 
@@ -220,10 +222,17 @@ export async function runWithMessageLifecycleRequestScope<T>(operation: () => Pr
 
 export async function beginInboundMessage(input: BeginInboundMessageInput): Promise<MessageLifecycleHandle> {
   const handle = await getActiveService().beginInboundMessage(input);
+  const scope = lifecycleScope.getStore();
   if (handle && input.externalMessageId) {
-    lifecycleScope.getStore()?.externalMessageIdByMessageId.set(handle.messageId, input.externalMessageId);
+    scope?.externalMessageIdByMessageId.set(handle.messageId, input.externalMessageId);
+    if (scope) scope.currentExternalMessageId = input.externalMessageId;
   }
   return handle;
+}
+
+/** Identificador externo da mensagem inbound atualmente roteada no mesmo request. */
+export function getCurrentInboundExternalMessageId() {
+  return lifecycleScope.getStore()?.currentExternalMessageId ?? null;
 }
 
 export async function claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
