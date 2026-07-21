@@ -705,8 +705,11 @@ async function main() {
     assert.equal(firstLegacyContent.migrated, 1);
     assert.equal(secondLegacyContent.migrated, 0);
     assert.equal(
-      (await contentSecondInstance.listGoalSuggestionsByPatient(8062))[0]?.id,
-      legacyGoal.id
+      (await contentSecondInstance.listGoalSuggestionsByPatient(8062)).some(
+        item => item.id === legacyGoal.id
+      ),
+      true,
+      "explicit legacy backfill must preserve the migrated goal regardless of canonical result ordering"
     );
 
     const approvedTracking = await repository.getTrackingByAuthorization(
