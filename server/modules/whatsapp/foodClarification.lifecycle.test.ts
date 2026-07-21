@@ -133,7 +133,7 @@ describe("foodClarification lifecycle", () => {
     expect(await repository.getActivePendingOperation(1, new Date(start.getTime() + 1000))).toBeNull();
   });
 
-  it("não resolve pendência expirada nem cria alimento parcial", async () => {
+  it("bloqueia quantidade solta após expiração sem criar alimento parcial", async () => {
     const { service, processFood, createMeal } = createLifecycleHarness();
     const start = new Date("2026-07-21T15:00:00.000Z");
     await service.handle({ userId: 1, text: "1 iogurte natural desnatado", receivedAt: start, userTimezone: "America/Sao_Paulo" });
@@ -145,12 +145,12 @@ describe("foodClarification lifecycle", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(afterExpiry).toBeNull();
+    expect(afterExpiry?.action).toBe("food_clarification_standalone_command_blocked");
     expect(processFood).not.toHaveBeenCalled();
     expect(createMeal).not.toHaveBeenCalled();
   });
 
-  it("confirmação repetida não duplica registro depois do claim", async () => {
+  it("resposta repetida não duplica registro depois do claim", async () => {
     const { service, processFood, createMeal } = createLifecycleHarness();
     const start = new Date("2026-07-21T15:00:00.000Z");
     await service.handle({ userId: 1, text: "1 iogurte natual desnatado", receivedAt: start, userTimezone: "America/Sao_Paulo" });
@@ -163,7 +163,7 @@ describe("foodClarification lifecycle", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
-    expect(repeated).toBeNull();
+    expect(repeated?.action).toBe("food_clarification_standalone_command_blocked");
     expect(processFood).toHaveBeenCalledTimes(1);
     expect(createMeal).toHaveBeenCalledTimes(1);
   });
@@ -179,7 +179,7 @@ describe("foodClarification lifecycle", () => {
 
     expect(result?.action).toBe("food_clarification_completed");
     expect(processFood).toHaveBeenCalledWith(expect.objectContaining({
-      text: expect.stringMatching(/^2\s+unidade(?:s)?\s+de\s+kit kat$/i),
+      text: expect.stringMatching(/^2\s+unidade(?:s)?\s+de\s+Kit Kat/i),
     }));
     expect(createMeal).toHaveBeenCalledTimes(1);
   });
