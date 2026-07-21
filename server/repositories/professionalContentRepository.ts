@@ -544,13 +544,14 @@ export function createDrizzleProfessionalContentRepository(deps: {
       (["accepted", "refused", "cancelled"].includes(input.status)
         ? createdAt
         : null);
+    const updatedAt = Math.max(createdAt, sentAt ?? 0, respondedAt ?? 0);
     const suggestion: ProfessionalGoalSuggestion = {
       ...input,
       version: 1,
       createdAt,
       sentAt,
       respondedAt,
-      updatedAt: createdAt,
+      updatedAt,
     };
     const db = await getProfessionalPersistenceDb(deps.getDb);
     if (!db) {
@@ -586,7 +587,7 @@ export function createDrizzleProfessionalContentRepository(deps: {
           createdAt: new Date(createdAt),
           sentAt: sentAt ? new Date(sentAt) : null,
           respondedAt: respondedAt ? new Date(respondedAt) : null,
-          updatedAt: new Date(createdAt),
+          updatedAt: new Date(updatedAt),
         })
         .onDuplicateKeyUpdate({ set: { id: input.id } });
       if (options.recordHistory !== false) {

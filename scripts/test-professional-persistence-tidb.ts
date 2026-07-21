@@ -233,12 +233,17 @@ async function main() {
     const firstGoalSuggestionBackfill =
       await contentRepository.migrateAllLegacyGoalSuggestions();
     assert.equal(firstGoalSuggestionBackfill.migrated, 1);
-    assert.equal(
-      (await contentRepository.listGoalSuggestionsByPatient(8062)).some(
-        item => item.id === retirementLegacyGoal.id
-      ),
-      true,
+    const migratedRetirementGoal = (
+      await contentRepository.listGoalSuggestionsByPatient(8062)
+    ).find(item => item.id === retirementLegacyGoal.id);
+    assert.ok(
+      migratedRetirementGoal,
       "explicit backfill must migrate legacy goal suggestions"
+    );
+    assert.equal(
+      migratedRetirementGoal.updatedAt,
+      retirementLegacyGoal.sentAt,
+      "legacy backfill must preserve the latest lifecycle timestamp as its canonical version"
     );
     const secondGoalSuggestionBackfill =
       await contentRepository.migrateAllLegacyGoalSuggestions();
