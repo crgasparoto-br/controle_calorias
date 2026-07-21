@@ -16,16 +16,18 @@ A Área Profissional possui uma tela própria para identificação pública, pre
 
 A API `professionalRecord.settings` oferece operações independentes para reduzir risco de estado parcial:
 
-- `get`: perfil, identificação pública, preferências, critérios suportados e entitlements;
+- `get`: perfil, identificação pública, preferências suportadas, critérios centrais e entitlements;
 - `updateIdentity`: identificação profissional e dados públicos opcionais;
-- `updatePreferences`: revisão padrão, lembretes, frequência de resumo e modelos;
+- `updatePreferences`: intervalo padrão de revisão e modelos de mensagem;
 - `setActive`: ativa ou desativa a Área Profissional sem remover histórico;
 - `entitlements`: reavalia o snapshot comercial sem cache indefinido;
 - `patientVisible`: retorna somente dados públicos de profissionais ativos com autorização aprovada.
 
-Alterações são serializadas por profissional. Se a gravação do evento de auditoria falhar, a alteração afetada é compensada antes de o erro retornar. Os eventos não registram conteúdo de modelos ou outros dados sensíveis.
+Alterações são serializadas por profissional. Se a gravação do evento de auditoria falhar, a alteração afetada é compensada antes de o erro retornar. Falha da própria compensação é registrada e retorna um erro explícito de consistência; ela não é ignorada. Eventos de configuração usam identificador próprio e não registram conteúdo de modelos ou outros dados sensíveis.
 
 O intervalo padrão de revisão é aplicado quando uma nova avaliação não informa explicitamente a próxima revisão. Modelos podem preencher o tipo e o conteúdo do rascunho na tela de mensagens, mas salvar ou enviar continua dependendo de ação explícita do profissional.
+
+Lembretes continuam sendo criados no contexto de cada paciente pela central de acompanhamento. Frequência de resumo automático não é exposta como configuração enquanto não existir um consumidor operacional. O backend rejeita valores de automação diferentes dos estados neutros para impedir configuração persistida sem efeito observável.
 
 ## Estado ativo e proteção por recurso
 
@@ -51,13 +53,15 @@ A tela consome `PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA`, exportado pelo mesmo m
 - capacidade, uso e disponibilidade fornecidos pelo provider;
 - disponibilidade do provider e uso de fallback.
 
-O billing registra sua implementação por `configureProfessionalEntitlementProvider`. Recursos desconhecidos são descartados, validade expirada revoga o acesso e nenhuma decisão comercial é calculada no frontend.
+O billing registra sua implementação por `configureProfessionalEntitlementProvider`. Recursos desconhecidos são descartados, validade expirada revoga o acesso em modo obrigatório e nenhuma decisão comercial é calculada no frontend.
 
-Enquanto o provider comercial não está implementado, `BILLING_ACCESS_MODE` usa `open_access` por padrão e preserva todos os recursos atuais. Falha do provider não bloqueia o profissional nesse modo. Em `enforced`, ausência ou falha do provider resulta em negação segura. O serviço não mantém cache de autorização.
+`BILLING_ACCESS_MODE=open_access` é uma política de rollout, não apenas um fallback de indisponibilidade. Enquanto estiver ativo, todos os recursos profissionais permanecem liberados mesmo que o provider esteja disponível e responda que não há assinatura. Dados comerciais retornados ainda podem ser exibidos, mas não bloqueiam operações nem capacidade. Em `enforced`, ausência, falha, expiração ou negação do provider resultam em bloqueio seguro. O serviço não mantém cache de autorização.
 
-Quando o provider retorna capacidade finita, a aprovação exige `reserveCapacity`, com chave idempotente baseada na autorização. A reserva deve ser atômica no domínio central. Se o limite tiver sido atingido, somente uma aprovação concorrente pode ocupar a última vaga. Se a transição clínica falhar depois da reserva, `releaseCapacity` é chamado para compensação. Um provider que informe limite sem oferecer reserva atômica não pode aprovar nova cobertura.
+Quando o provider retorna capacidade finita em modo obrigatório, a aprovação exige `reserveCapacity`, com chave idempotente baseada na autorização. A reserva deve ser atômica no domínio central. Se o limite tiver sido atingido, somente uma aprovação concorrente pode ocupar a última vaga. Se a transição clínica falhar depois da reserva, `releaseCapacity` é chamado para compensação.
 
-Redução de plano abaixo da carteira atual não remove pacientes nem histórico; apenas novas aprovações ficam sujeitas ao resultado central de capacidade.
+Depois de uma aprovação concluída, a revogação do vínculo solicita ao provider a liberação pela mesma `coverageKey`. Essa liberação deve ser idempotente e pode ser repetida pelo domínio central. Indisponibilidade comercial não impede o paciente de revogar; a falha é registrada para recuperação segura pelo provider. Um provider que informe limite sem oferecer reserva atômica não pode aprovar nova cobertura.
+
+Redução de plano abaixo da carteira atual não remove pacientes nem histórico; apenas novas aprovações ficam sujeitas ao resultado central de capacidade quando o modo obrigatório estiver ativo.
 
 ## Segurança e privacidade
 
@@ -71,4 +75,4 @@ Redução de plano abaixo da carteira atual não remove pacientes nem histórico
 
 ## Evolução com a issue #145
 
-A implementação comercial deve registrar um provider no contrato central e manter a mesma forma normalizada. O provider será responsável pela persistência auditável da capacidade, definição comercial de paciente ativo, idempotência da reserva e liberação de vagas. Checkout, cobrança, webhooks, preços e limites concretos permanecem fora da issue #814.
+A implementação comercial deve registrar um provider no contrato central e manter a mesma forma normalizada. O provider será responsável pela persistência auditável da capacidade, definição comercial de paciente ativo, idempotência da reserva, correlação pela `coverageKey`, retry e liberação de vagas. Checkout, cobrança, webhooks, preços e limites concretos permanecem fora da issue #814.
