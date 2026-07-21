@@ -57,9 +57,9 @@ O billing registra sua implementação por `configureProfessionalEntitlementProv
 
 `BILLING_ACCESS_MODE=open_access` é uma política de rollout, não apenas um fallback de indisponibilidade. Enquanto estiver ativo, todos os recursos profissionais permanecem liberados mesmo que o provider esteja disponível e responda que não há assinatura. Dados comerciais retornados ainda podem ser exibidos, mas não bloqueiam operações nem capacidade. Em `enforced`, ausência, falha, expiração ou negação do provider resultam em bloqueio seguro. O serviço não mantém cache de autorização.
 
-Quando o provider retorna capacidade finita em modo obrigatório, a aprovação exige `reserveCapacity`, com chave idempotente baseada na autorização. A reserva deve ser atômica no domínio central. Se o limite tiver sido atingido, somente uma aprovação concorrente pode ocupar a última vaga. Se a transição clínica falhar depois da reserva, `releaseCapacity` é chamado para compensação.
+Quando o provider retorna capacidade finita em modo obrigatório, a aprovação exige `reserveCapacity` e `releaseCapacity`. A reserva deve ser atômica, e a liberação deve ser idempotente pela mesma `coverageKey`, ambas no domínio central. Um contrato que permita reservar sem liberar é rejeitado antes da transição clínica. Se o limite tiver sido atingido, somente uma aprovação concorrente pode ocupar a última vaga. Se a transição clínica falhar depois da reserva, `releaseCapacity` é chamado para compensação.
 
-Depois de uma aprovação concluída, a revogação do vínculo solicita ao provider a liberação pela mesma `coverageKey`. Essa liberação deve ser idempotente e pode ser repetida pelo domínio central. Indisponibilidade comercial não impede o paciente de revogar; a falha é registrada para recuperação segura pelo provider. Um provider que informe limite sem oferecer reserva atômica não pode aprovar nova cobertura.
+Depois de uma aprovação concluída, a revogação do vínculo solicita ao provider a liberação pela mesma `coverageKey`. Indisponibilidade comercial não impede o paciente de revogar; a falha é registrada para recuperação segura pelo provider.
 
 Redução de plano abaixo da carteira atual não remove pacientes nem histórico; apenas novas aprovações ficam sujeitas ao resultado central de capacidade quando o modo obrigatório estiver ativo.
 
