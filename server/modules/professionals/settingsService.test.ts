@@ -39,6 +39,7 @@ vi.mock("./operationalAlertRules", () => ({
 
 import {
   _forTestOnly_clearProfessionalSettings,
+  _forTestOnly_hasProfessionalSettings,
   getProfessionalSettingsSnapshot,
   listPatientVisibleProfessionalProfiles,
   ProfessionalSettingsConsistencyError,
@@ -157,7 +158,7 @@ describe("professional settings service", () => {
     });
   });
 
-  it("removes a newly created profile when completion auditing fails", async () => {
+  it("removes a newly created profile and preference when completion auditing fails", async () => {
     mocks.getProfessionalProfile.mockResolvedValue(null);
     mocks.upsertProfile.mockResolvedValue(canonicalProfile(true));
     mocks.appendHistory
@@ -177,6 +178,7 @@ describe("professional settings service", () => {
     expect(mocks.upsertProfile).toHaveBeenCalledTimes(1);
     expect(mocks.deleteProfile).toHaveBeenCalledTimes(1);
     expect(mocks.deleteProfile).toHaveBeenCalledWith(10);
+    expect(_forTestOnly_hasProfessionalSettings(10)).toBe(false);
 
     const snapshot = await getProfessionalSettingsSnapshot(10);
     expect(snapshot.profile).toBeNull();
