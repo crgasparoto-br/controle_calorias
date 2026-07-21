@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.
 
-Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter.ts`.
+Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.
 
 ## Grupos
 
@@ -237,7 +237,7 @@ Fontes: `server/nutritionRouter.ts` e `server/modules/professionals/recordRouter
 
 - Use `protectedProcedure` por padrão.
 - Use uma `professional*Procedure` quando a operação exigir perfil profissional ativo e entitlement válido.
-- Procedures profissionais legadas em `nutrition.professionals` devem constar na política central e no conjunto `legacyProfessionalEntitledProcedures` deste gerador.
+- Procedures profissionais legadas em `nutrition.professionals` devem constar no mapa central `LEGACY_PROFESSIONAL_RESOURCES`; o gerador lê esse mapa diretamente.
 - Use `adminProcedure` apenas para operação administrativa real.
 - Toda input deve ter schema Zod em `server/modules/<dominio>/schemas.ts`.
 - Erros conhecidos devem ser traduzidos para `TRPCError` com mensagem segura.
