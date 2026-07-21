@@ -1,4 +1,4 @@
-name: Issue 815 semantic goal comparison correction
+name: Issue 815 final audit corrections
 
 on:
   pull_request:
@@ -32,7 +32,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Compare goal JSON semantically
+      - name: Apply audit corrections
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -40,7 +40,7 @@ jobs:
           import textwrap
 
           retirement_path = Path('scripts/retire-professional-legacy-preferences.ts')
-          text = retirement_path.read_text()
+          retirement = retirement_path.read_text()
           pattern = re.compile(
               r'function sameGoal\(left: unknown, right: unknown\) \{\n'
               r'\s*return JSON\.stringify\(left\) === JSON\.stringify\(right\);\n'
@@ -63,38 +63,35 @@ jobs:
             return JSON.stringify(stableJson(left)) === JSON.stringify(stableJson(right));
           }
           ''').strip()
-          text, count = pattern.subn(replacement, text, count=1)
+          retirement, count = pattern.subn(replacement, retirement, count=1)
           if count != 1:
               raise SystemExit(f'sameGoal structural match count={count}')
-          text, count = re.subn(
+          retirement, count = re.subn(
               r'(?m)^(\s*)goal: suggestion\.goal,$',
               r'\1goal: stableJson(suggestion.goal),',
-              text,
+              retirement,
               count=1,
           )
           if count != 1:
               raise SystemExit(f'goal signature structural match count={count}')
-          retirement_path.write_text(text)
+          retirement_path.write_text(retirement)
 
-          test_path = Path('scripts/test-professional-persistence-tidb.ts')
-          test = test_path.read_text()
-          needle = '"UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",'
-          sql_position = test.find(needle)
-          if sql_position < 0:
-              raise SystemExit('semantic order SQL marker not found')
-          await_position = test.rfind('    await connection.query(', 0, sql_position)
-          if await_position < 0:
-              raise SystemExit('semantic order await marker not found')
-          block = textwrap.indent(textwrap.dedent('''
+          tidb_test_path = Path('scripts/test-professional-persistence-tidb.ts')
+          tidb_test = tidb_test_path.read_text()
+          needle = '    await connection.query(\n      "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",'
+          insertion_position = tidb_test.find(needle)
+          if insertion_position < 0:
+              raise SystemExit('semantic order insertion marker not found')
+          semantic_block = textwrap.indent(textwrap.dedent('''
           const sameVersionGoalEquivalent = {
             ...retirementLegacyGoal,
             goal: {
               exceptions: [],
               defaultGoal: {
-                fatGrams: 54,
-                carbsGrams: 180,
-                proteinGrams: 115,
-                calories: 1750,
+                fatGrams: 58,
+                carbsGrams: 195,
+                proteinGrams: 125,
+                calories: 1850,
               },
             },
           };
@@ -122,7 +119,74 @@ jobs:
           );
 
           ''').strip() + '\n', '    ')
-          test_path.write_text(test[:await_position] + block + test[await_position:])
+          tidb_test_path.write_text(
+              tidb_test[:insertion_position] + semantic_block + tidb_test[insertion_position:]
+          )
+
+          architecture_test_path = Path('server/modules/professionals/legacyRetirement.test.ts')
+          architecture_test = architecture_test_path.read_text()
+          architecture_test = architecture_test.replace(
+              '    expect(migration).toContain("patient_professional_goal_suggestions_v1");',
+              textwrap.dedent('''
+                  expect(migration).toContain("PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY");
+                  expect(migration).toMatch(
+                    /const legacyKeys = \\[[\\s\\S]*PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY/
+                  );
+              ''').rstrip(),
+          )
+          architecture_test = architecture_test.replace(
+              '    expect(inventory).toContain("Área do Paciente");',
+              '    expect(inventory).toContain("Paciente — Hoje");',
+          )
+          architecture_test = architecture_test.replace(
+              '    expect(inventory).toContain("Área Profissional");',
+              '    expect(inventory).toContain("Profissional — autorização");',
+          )
+          architecture_test_path.write_text(architecture_test)
+
+          nutrition_test_path = Path('client/src/pages/nutritionPages.test.tsx')
+          nutrition_test = nutrition_test_path.read_text()
+          nutrition_test = nutrition_test.replace(
+              'import React from "react";\nimport { renderToString } from "react-dom/server";',
+              'import { PassThrough } from "node:stream";\nimport React from "react";\nimport { renderToPipeableStream, renderToString } from "react-dom/server";',
+          )
+          helper_anchor = 'const adminWhatsappTokenStatusMock = vi.fn();\n'
+          helper = textwrap.dedent('''
+
+          async function renderSuspenseToString(element: React.ReactElement) {
+            return new Promise<string>((resolve, reject) => {
+              const destination = new PassThrough();
+              let html = "";
+              destination.setEncoding("utf8");
+              destination.on("data", chunk => {
+                html += chunk;
+              });
+              destination.on("end", () => resolve(html));
+              destination.on("error", reject);
+
+              const { pipe } = renderToPipeableStream(element, {
+                onAllReady() {
+                  pipe(destination);
+                },
+                onShellError(error) {
+                  reject(error);
+                },
+                onError(error) {
+                  reject(error);
+                },
+              });
+            });
+          }
+          ''')
+          if helper_anchor not in nutrition_test:
+              raise SystemExit('nutrition helper anchor not found')
+          nutrition_test = nutrition_test.replace(helper_anchor, helper_anchor + helper, 1)
+          target = '    const html = renderToString(React.createElement(RegisteredMealsPage));\n\n    expect(html).toContain("Almoço");'
+          replacement_target = '    const html = await renderSuspenseToString(\n      React.createElement(RegisteredMealsPage)\n    );\n\n    expect(html).toContain("Almoço");'
+          if target not in nutrition_test:
+              raise SystemExit('registered meals render anchor not found')
+          nutrition_test = nutrition_test.replace(target, replacement_target, 1)
+          nutrition_test_path.write_text(nutrition_test)
           PY
       - name: Remove temporary diagnostics
         run: |
@@ -131,29 +195,17 @@ jobs:
           rm -f scripts/issue-815-semantic-goal-gate-error.txt
       - name: Format and run repository gates
         run: |
-          {
-            pnpm exec prettier --write scripts/retire-professional-legacy-preferences.ts scripts/test-professional-persistence-tidb.ts
-            git diff --check
-            pnpm agent:check
-            pnpm build
-          } > /tmp/issue-815-semantic-goal-gate.log 2>&1 || {
-            cat /tmp/issue-815-semantic-goal-gate.log
-            exit 1
-          }
-      - name: Persist repository gate diagnostic
-        if: failure()
-        run: |
-          if [ -f /tmp/issue-815-semantic-goal-gate.log ]; then
-            cp /tmp/issue-815-semantic-goal-gate.log scripts/issue-815-semantic-goal-gate-error.txt
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add scripts/issue-815-semantic-goal-gate-error.txt
-            git commit -m "chore: registrar falha da comparação semântica #815"
-            git push origin HEAD:cleanup/815-retire-professional-legacy
-          fi
+          pnpm exec prettier --write \
+            scripts/retire-professional-legacy-preferences.ts \
+            scripts/test-professional-persistence-tidb.ts \
+            server/modules/professionals/legacyRetirement.test.ts \
+            client/src/pages/nutritionPages.test.tsx
+          git diff --check
+          pnpm agent:check
+          pnpm build
       - name: Start TiDB
         run: |
-          docker run -d --name issue-815-semantic-goal-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          docker run -d --name issue-815-final-tidb -p 4000:4000 pingcap/tidb:v8.5.1
           for attempt in $(seq 1 90); do
             if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
               exit 0
@@ -170,10 +222,10 @@ jobs:
           pnpm db:migrate:professionals
           pnpm db:migrate:professionals
           pnpm db:check-integrity
-      - name: Commit validated correction
+      - name: Commit validated corrections
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "fix(professional): comparar metas legadas semanticamente (#815)"
+          git commit -m "fix(professional): concluir correções da auditoria #815"
           git push origin HEAD:cleanup/815-retire-professional-legacy
