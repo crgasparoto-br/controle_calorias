@@ -36,41 +36,44 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           retirement_path = Path('scripts/retire-professional-legacy-preferences.ts')
           text = retirement_path.read_text()
-          old = '''  const migration = await migrateAllLegacyProfessionalData();
-            const goalSuggestionMigration =
-              await migrateAllLegacyProfessionalGoalSuggestions();
-            const rows = await db
-              .select()
-              .from(userPreferences)
-              .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
-            const verification = await verifyCanonicalCoverage(db, rows);
-          '''
-          new = '''  const rowsBeforeMigration = await db
-              .select()
-              .from(userPreferences)
-              .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
-            const preflight = await verifyCanonicalCoverage(db, rowsBeforeMigration);
-            if (preflight.invalidPreferences > 0) {
-              throw new Error(
-                "Existem preferências profissionais legadas inválidas; nenhuma migração ou exclusão foi executada."
-              );
-            }
+          pattern = re.compile(
+              r'''  const migration = await migrateAllLegacyProfessionalData\(\);\n'''
+              r'''  const goalSuggestionMigration =\n'''
+              r'''    await migrateAllLegacyProfessionalGoalSuggestions\(\);\n'''
+              r'''  const rows = await db\n'''
+              r'''    \.select\(\)\n'''
+              r'''    \.from\(userPreferences\)\n'''
+              r'''    \.where\(inArray\(userPreferences\.preferenceKey, \[\.\.\.legacyKeys\]\)\);\n'''
+              r'''  const verification = await verifyCanonicalCoverage\(db, rows\);\n'''
+          )
+          replacement = '''  const rowsBeforeMigration = await db
+            .select()
+            .from(userPreferences)
+            .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
+          const preflight = await verifyCanonicalCoverage(db, rowsBeforeMigration);
+          if (preflight.invalidPreferences > 0) {
+            throw new Error(
+              "Existem preferências profissionais legadas inválidas; nenhuma migração ou exclusão foi executada."
+            );
+          }
 
-            const migration = await migrateAllLegacyProfessionalData();
-            const goalSuggestionMigration =
-              await migrateAllLegacyProfessionalGoalSuggestions();
-            const rows = await db
-              .select()
-              .from(userPreferences)
-              .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
-            const verification = await verifyCanonicalCoverage(db, rows);
+          const migration = await migrateAllLegacyProfessionalData();
+          const goalSuggestionMigration =
+            await migrateAllLegacyProfessionalGoalSuggestions();
+          const rows = await db
+            .select()
+            .from(userPreferences)
+            .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
+          const verification = await verifyCanonicalCoverage(db, rows);
           '''
-          if old not in text:
-              raise SystemExit('retirement main anchor not found')
-          retirement_path.write_text(text.replace(old, new, 1))
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'retirement main structural match count={count}')
+          retirement_path.write_text(text)
 
           test_path = Path('scripts/test-professional-persistence-tidb.ts')
           test = test_path.read_text()
