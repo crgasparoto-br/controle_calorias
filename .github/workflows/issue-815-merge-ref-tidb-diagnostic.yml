@@ -36,15 +36,18 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           import textwrap
 
           retirement_path = Path('scripts/retire-professional-legacy-preferences.ts')
           text = retirement_path.read_text()
-          old = '''function sameGoal(left: unknown, right: unknown) {
-            return JSON.stringify(left) === JSON.stringify(right);
-          }
-          '''
-          new = '''function stableJson(value: unknown): unknown {
+          pattern = re.compile(
+              r'function sameGoal\(left: unknown, right: unknown\) \{\n'
+              r'\s*return JSON\.stringify\(left\) === JSON\.stringify\(right\);\n'
+              r'\}'
+          )
+          replacement = textwrap.dedent('''
+          function stableJson(value: unknown): unknown {
             if (Array.isArray(value)) return value.map(stableJson);
             if (value && typeof value === "object") {
               return Object.fromEntries(
@@ -59,25 +62,24 @@ jobs:
           function sameGoal(left: unknown, right: unknown) {
             return JSON.stringify(stableJson(left)) === JSON.stringify(stableJson(right));
           }
-          '''
-          if old not in text:
-              raise SystemExit('sameGoal anchor not found')
-          text = text.replace(old, new, 1)
-          if '      goal: suggestion.goal,' not in text:
-              raise SystemExit('goal signature anchor not found')
-          text = text.replace(
-              '      goal: suggestion.goal,',
-              '      goal: stableJson(suggestion.goal),',
-              1,
+          ''').strip()
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'sameGoal structural match count={count}')
+          text, count = re.subn(
+              r'(?m)^(\s*)goal: suggestion\.goal,$',
+              r'\1goal: stableJson(suggestion.goal),',
+              text,
+              count=1,
           )
+          if count != 1:
+              raise SystemExit(f'goal signature structural match count={count}')
           retirement_path.write_text(text)
 
           test_path = Path('scripts/test-professional-persistence-tidb.ts')
           test = test_path.read_text()
-          marker = textwrap.dedent('''
-          await connection.query(
-            "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",
-          ''').strip()
+          marker = '''    await connection.query(
+              "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",'''
           position = test.find(marker)
           if position < 0:
               raise SystemExit('semantic order test insertion marker not found')
