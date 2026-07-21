@@ -34,11 +34,11 @@ describe("planFoodClarification", () => {
     });
   });
 
-  it("pede quantidade quando não há porção segura nem ambiguidade de candidato", () => {
+  it("pede quantidade sem substituir o alimento por candidato único sem porção segura", () => {
     const candidates = [candidate("Iogurte natural desnatado")];
     expect(planFoodClarification(request, candidates)).toEqual({
       kind: "quantity",
-      candidates,
+      candidates: [],
     });
   });
 
