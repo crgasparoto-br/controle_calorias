@@ -22,6 +22,15 @@ export const PROFESSIONAL_SETTINGS_PREFERENCE_KEY =
 const memorySettings = new Map<number, StoredProfessionalSettings>();
 const settingsMutationQueues = new Map<number, Promise<unknown>>();
 
+export class ProfessionalSettingsConsistencyError extends Error {
+  constructor() {
+    super(
+      "Não foi possível confirmar a consistência da alteração profissional. Recarregue a página antes de tentar novamente."
+    );
+    this.name = "ProfessionalSettingsConsistencyError";
+  }
+}
+
 function defaultSettings(): StoredProfessionalSettings {
   return {
     version: 1,
@@ -113,11 +122,26 @@ async function writeStoredSettings(
   return parsed;
 }
 
+function settingsAuditEventId(
+  professionalUserId: number,
+  eventType: string,
+  mutationId: string
+) {
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${professionalUserId}:${eventType}:${mutationId}`)
+    .digest("hex")
+    .slice(0, 48);
+  return `settings-${digest}`;
+}
+
 async function appendSettingsHistory(
   professionalUserId: number,
-  eventType: string
+  eventType: string,
+  mutationId: string
 ) {
   await professionalContentRepository.appendHistory({
+    id: settingsAuditEventId(professionalUserId, eventType, mutationId),
     actorUserId: professionalUserId,
     professionalUserId,
     patientUserId: null,
@@ -127,12 +151,31 @@ async function appendSettingsHistory(
   });
 }
 
+async function runSettingsCompensations(
+  scope: string,
+  compensations: Promise<unknown>[]
+) {
+  const results = await Promise.allSettled(compensations);
+  const failures = results.filter(
+    (result): result is PromiseRejectedResult => result.status === "rejected"
+  );
+  if (failures.length === 0) return;
+
+  logPersistenceWarning(
+    scope,
+    new Error(
+      `Falharam ${failures.length} de ${compensations.length} compensações de configurações profissionais.`
+    )
+  );
+  throw new ProfessionalSettingsConsistencyError();
+}
+
 function serializeSettingsMutation<T>(
   professionalUserId: number,
   operation: () => Promise<T>
 ) {
-  const previous = settingsMutationQueues.get(professionalUserId) ??
-    Promise.resolve();
+  const previous =
+    settingsMutationQueues.get(professionalUserId) ?? Promise.resolve();
   const current = previous.catch(() => undefined).then(operation);
   settingsMutationQueues.set(professionalUserId, current);
   return current.finally(() => {
@@ -168,9 +211,6 @@ export async function getProfessionalOperationalDefaults(
   const settings = await readStoredSettings(professionalUserId);
   return {
     defaultReviewIntervalDays: settings.defaultReviewIntervalDays,
-    remindersEnabled: settings.remindersEnabled,
-    defaultReminderLeadDays: settings.defaultReminderLeadDays,
-    summaryFrequency: settings.summaryFrequency,
   };
 }
 
@@ -192,9 +232,6 @@ export async function getProfessionalSettingsSnapshot(
     },
     preferences: {
       defaultReviewIntervalDays: settings.defaultReviewIntervalDays,
-      remindersEnabled: settings.remindersEnabled,
-      defaultReminderLeadDays: settings.defaultReminderLeadDays,
-      summaryFrequency: settings.summaryFrequency,
       messageTemplates: settings.messageTemplates,
     },
     operationalAlertCriteria: PROFESSIONAL_OPERATIONAL_ALERT_CRITERIA,
@@ -209,12 +246,14 @@ export async function updateProfessionalIdentitySettings(
 ) {
   const input = professionalIdentitySettingsSchema.parse(rawInput);
   return serializeSettingsMutation(professionalUserId, async () => {
+    const mutationId = crypto.randomUUID();
     const [currentProfile, currentSettings] = await Promise.all([
       getProfessionalProfile(professionalUserId),
       readStoredSettings(professionalUserId),
     ]);
-    let updatedProfile: Awaited<ReturnType<typeof persistProfessionalProfile>> | null =
-      null;
+    let updatedProfile: Awaited<
+      ReturnType<typeof persistProfessionalProfile>
+    > | null = null;
 
     try {
       updatedProfile = await persistProfessionalProfile({
@@ -232,7 +271,8 @@ export async function updateProfessionalIdentitySettings(
       });
       await appendSettingsHistory(
         professionalUserId,
-        "settings_identity_updated"
+        "settings_identity_updated",
+        mutationId
       );
       return { profile: updatedProfile, settings };
     } catch (error) {
@@ -258,7 +298,10 @@ export async function updateProfessionalIdentitySettings(
           })
         );
       }
-      await Promise.allSettled(compensations);
+      await runSettingsCompensations(
+        "professional_settings_identity_compensation",
+        compensations
+      );
       throw error;
     }
   });
@@ -270,13 +313,14 @@ export async function updateProfessionalPreferencesSettings(
 ) {
   const input = professionalPreferencesSettingsSchema.parse(rawInput);
   return serializeSettingsMutation(professionalUserId, async () => {
+    const mutationId = crypto.randomUUID();
     const current = await readStoredSettings(professionalUserId);
     const next = storedProfessionalSettingsSchema.parse({
       ...current,
       defaultReviewIntervalDays: input.defaultReviewIntervalDays,
-      remindersEnabled: input.remindersEnabled,
-      defaultReminderLeadDays: input.defaultReminderLeadDays,
-      summaryFrequency: input.summaryFrequency,
+      remindersEnabled: true,
+      defaultReminderLeadDays: 1,
+      summaryFrequency: "disabled",
       messageTemplates: input.messageTemplates.map(template => ({
         ...template,
         id: template.id ?? crypto.randomUUID(),
@@ -288,11 +332,15 @@ export async function updateProfessionalPreferencesSettings(
     try {
       await appendSettingsHistory(
         professionalUserId,
-        "settings_preferences_updated"
+        "settings_preferences_updated",
+        mutationId
       );
       return next;
     } catch (error) {
-      await writeStoredSettings(professionalUserId, current);
+      await runSettingsCompensations(
+        "professional_settings_preferences_compensation",
+        [writeStoredSettings(professionalUserId, current)]
+      );
       throw error;
     }
   });
@@ -303,6 +351,7 @@ export async function setProfessionalProfileActive(
   active: boolean
 ) {
   return serializeSettingsMutation(professionalUserId, async () => {
+    const mutationId = crypto.randomUUID();
     const profile = await getProfessionalProfile(professionalUserId);
     if (!profile) {
       throw new Error(
@@ -319,16 +368,22 @@ export async function setProfessionalProfileActive(
     try {
       await appendSettingsHistory(
         professionalUserId,
-        active ? "settings_profile_activated" : "settings_profile_deactivated"
+        active ? "settings_profile_activated" : "settings_profile_deactivated",
+        mutationId
       );
       return updated;
     } catch (error) {
-      await persistProfessionalProfile({
-        userId: professionalUserId,
-        displayName: profile.displayName,
-        registrationNumber: profile.registrationNumber,
-        active: profile.active,
-      });
+      await runSettingsCompensations(
+        "professional_settings_profile_compensation",
+        [
+          persistProfessionalProfile({
+            userId: professionalUserId,
+            displayName: profile.displayName,
+            registrationNumber: profile.registrationNumber,
+            active: profile.active,
+          }),
+        ]
+      );
       throw error;
     }
   });
@@ -337,9 +392,8 @@ export async function setProfessionalProfileActive(
 export async function listPatientVisibleProfessionalProfiles(
   patientUserId: number
 ) {
-  const authorizations = await professionalRepository.listAuthorizationsByPatient(
-    patientUserId
-  );
+  const authorizations =
+    await professionalRepository.listAuthorizationsByPatient(patientUserId);
   const approved = authorizations.filter(item => item.status === "approved");
   const uniqueProfessionalIds = Array.from(
     new Set(approved.map(item => item.professionalUserId))
