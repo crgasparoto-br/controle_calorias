@@ -46,6 +46,8 @@ Manter a evidência versionada do gate final da issue #815. Este documento relac
 | WhatsApp — vínculo                                           | botão autoriza/recusa uma vez e não reativa estado consumido                   | `messageRouter.interactiveCallback.test.ts`    |
 | Migração parcial                                             | runtime não lê JSON; backfill explícito torna dados visíveis                   | `test-professional-persistence-tidb.ts`        |
 | Migração incompatível                                        | canônico mais novo, porém incompleto, bloqueia `--apply` e preserva JSON       | `test-professional-persistence-tidb.ts`        |
+| Metas JSON semanticamente equivalentes                       | ordem diferente das propriedades não cria conflito; valores divergentes bloqueiam | `test-professional-persistence-tidb.ts`     |
+| Ordenação de resultados canônicos                            | a validação localiza a sugestão migrada por identidade, sem depender da posição na lista | `test-professional-persistence-tidb.ts` |
 | Idempotência                                                 | backfills repetidos não duplicam nem reescrevem estado atual                   | workflow Professional persistence TiDB         |
 | Rollout                                                      | limpeza ocorre somente após deploy canônico saudável                           | runbook de aposentadoria                       |
 | Rollback                                                     | tabelas canônicas e backup são preservados; não há restauração parcial de JSON | runbook de aposentadoria                       |
