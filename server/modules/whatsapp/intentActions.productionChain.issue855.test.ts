@@ -124,6 +124,7 @@ vi.mock("./userMeasurementReplyContext", () => ({
 
 const { executeWhatsappTextIntent } = await import("./intentActions");
 const { resolvePendingWhatsappFoodClarification } = await import("./foodClarificationGate");
+const { beginInboundMessage, withMessageLifecycleService } = await import("./messageLifecycle");
 
 function processedFood(text: string) {
   return {
@@ -152,6 +153,18 @@ function processedFood(text: string) {
   };
 }
 
+function createLifecycleService() {
+  return {
+    beginInboundMessage: vi.fn(async () => ({ conversationId: 1, messageId: 10, wasNewInsert: true })),
+    claimMessageForProcessing: vi.fn(async () => true),
+    wasMessageAlreadyProcessed: vi.fn(async () => false),
+    recordOutboundReply: vi.fn(async () => undefined),
+    recordDomainLink: vi.fn(async () => undefined),
+    markMessageProcessed: vi.fn(async () => undefined),
+    enrichInboundMessage: vi.fn(async () => true),
+  } as any;
+}
+
 describe("issue #855 production text chain", () => {
   beforeEach(() => {
     state.reset();
@@ -165,14 +178,24 @@ describe("issue #855 production text chain", () => {
     });
   });
 
-  it("usa o executor textual real para áudio transcrito e resolve pelo gate persistente", async () => {
+  it("usa o executor textual real para áudio transcrito e herda o ID externo do lifecycle", async () => {
     const start = new Date("2026-07-21T20:00:00.000Z");
-    const requested = await executeWhatsappTextIntent(42, {
-      text: "1 iogurte natual desnatado",
-      receivedAt: start,
-      userTimezone: "America/Sao_Paulo",
-      messageId: "wamid.audio.855",
-      entrypoint: "audio_transcription",
+    const requested = await withMessageLifecycleService(createLifecycleService(), async () => {
+      await beginInboundMessage({
+        userId: 42,
+        whatsappConnectionId: null,
+        phoneNumber: "5515999999999",
+        externalMessageId: "wamid.audio.855",
+        contentType: "audio",
+        transcript: "1 iogurte natual desnatado",
+        occurredAt: start,
+      });
+      return executeWhatsappTextIntent(42, {
+        text: "1 iogurte natual desnatado",
+        receivedAt: start,
+        userTimezone: "America/Sao_Paulo",
+        entrypoint: "audio_transcription",
+      });
     });
     expect(requested).toEqual(expect.objectContaining({
       action: "food_clarification_requested",
