@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: issue-815-retirement
@@ -46,19 +47,25 @@ jobs:
         run: |
           rm -f .github/issue-815-transform.log
           set -o pipefail
-          {
+          (
+            set -e
             node scripts/issue-815-transform.mjs
             node scripts/issue-815-fixup.mjs
-          } 2>&1 | tee .github/issue-815-transform.log
+          ) 2>&1 | tee .github/issue-815-transform.log
 
       - name: Publish transform diagnostics
         if: steps.transform.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/issue-815-transform.log
-          git commit -m "chore: capture issue 815 transform failure"
-          git push origin HEAD:cleanup/815-retire-professional-legacy
+          {
+            echo "### Diagnóstico automático da transformação da issue #815"
+            echo
+            echo '```text'
+            tail -n 120 .github/issue-815-transform.log
+            echo '```'
+          } > /tmp/issue-815-transform-comment.md
+          gh pr comment 864 --body-file /tmp/issue-815-transform-comment.md
           exit 1
 
       - name: Format changed sources
