@@ -5,13 +5,18 @@ import {
   PENDING_FOOD_CLARIFICATION_TYPE,
   type WhatsappFoodClarificationResult,
 } from "./foodClarification";
-import { getCurrentInboundExternalMessageId } from "./messageLifecycle";
+import * as messageLifecycle from "./messageLifecycle";
 import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
   getDb,
   onWarning: logPersistenceWarning,
 });
+
+function getLifecycleInboundMessageId() {
+  return (messageLifecycle as { getCurrentInboundExternalMessageId?: () => string | null })
+    .getCurrentInboundExternalMessageId?.() ?? null;
+}
 
 /**
  * Gate antecipado usado antes do contexto conversacional e dos demais intents.
@@ -29,7 +34,7 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   const active = await pendingOperationRepository.getActivePendingOperation(input.userId, input.receivedAt);
   const correlatedInput = {
     ...input,
-    messageId: input.messageId?.trim() || getCurrentInboundExternalMessageId(),
+    messageId: input.messageId?.trim() || getLifecycleInboundMessageId(),
   };
 
   if (active?.type === PENDING_FOOD_CLARIFICATION_TYPE) {
