@@ -180,9 +180,6 @@ function SettingsContent() {
             defaultReviewIntervalDays: defaultReviewIntervalDays
               ? Number(defaultReviewIntervalDays)
               : null,
-            remindersEnabled: true,
-            defaultReminderLeadDays: 1,
-            summaryFrequency: "disabled",
             messageTemplates,
           });
         }}
