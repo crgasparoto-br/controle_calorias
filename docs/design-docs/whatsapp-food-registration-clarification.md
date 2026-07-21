@@ -70,6 +70,8 @@ Erros ortográficos simples conhecidos, como `natual` → `natural`, são aplica
 - pontuação de apresentação no início ou no fim, como `registrar!`, `cancelar.` e `170 g.`, é normalizada antes da compatibilidade;
 - resposta incompatível reapresenta a mesma pergunta e não consome a pendência;
 - novo comando completo marca a pendência anterior como `superseded` e volta ao roteador central;
+- a decisão de que uma descrição alimentar livre é uma nova refeição reutiliza o roteador canônico, evitando uma lista paralela de frases válidas;
+- mensagens alimentares livres, como `arroz com frango`, `jantar: arroz e frango` e `pão com queijo e café`, substituem a pendência anterior e seguem o pipeline normal;
 - uma nova refeição completa, como `200 g de frango` ou `1 banana`, não precisa conter verbo operacional para substituir a pendência anterior;
 - exclusão completa sempre mantém a precedência da #856;
 - claim compare-and-set impede clique, callback ou confirmação repetidos;
@@ -104,6 +106,7 @@ As barreiras são:
 - exclusão durante pendência segue o gate destrutivo;
 - comando isolado, com ou sem pontuação, não chama IA nem persistência;
 - `200 g de frango` e `1 banana` seguem o roteador como novas mensagens completas;
+- `arroz com frango`, `jantar: arroz e frango` e `pão com queijo e café` substituem a pendência e alcançam o parser/fallback canônico uma única vez;
 - frase operacional completa segue o roteador;
 - `foodName: Registrar` é rejeitado pelo schema;
 - reentrega, expiração, cancelamento, callback repetido e isolamento entre usuários são fail-closed;
