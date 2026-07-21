@@ -39,6 +39,7 @@ import {
   _forTestOnly_clearProfessionalSettings,
   getProfessionalSettingsSnapshot,
   listPatientVisibleProfessionalProfiles,
+  ProfessionalSettingsConsistencyError,
   setProfessionalProfileActive,
   updateProfessionalIdentitySettings,
   updateProfessionalPreferencesSettings,
@@ -95,6 +96,7 @@ describe("professional settings service", () => {
     });
     expect(mocks.appendHistory).toHaveBeenCalledWith(
       expect.objectContaining({
+        id: expect.stringMatching(/^settings-/),
         actorUserId: 10,
         eventType: "settings_identity_updated",
         entityType: "professional_settings",
@@ -111,9 +113,9 @@ describe("professional settings service", () => {
     await expect(
       updateProfessionalPreferencesSettings(10, {
         defaultReviewIntervalDays: 30,
-        remindersEnabled: false,
-        defaultReminderLeadDays: 5,
-        summaryFrequency: "weekly",
+        remindersEnabled: true,
+        defaultReminderLeadDays: 1,
+        summaryFrequency: "disabled",
         messageTemplates: [
           {
             title: "Lembrete",
@@ -125,11 +127,8 @@ describe("professional settings service", () => {
     ).rejects.toThrow("audit unavailable");
 
     const snapshot = await getProfessionalSettingsSnapshot(10);
-    expect(snapshot.preferences).toMatchObject({
+    expect(snapshot.preferences).toEqual({
       defaultReviewIntervalDays: null,
-      remindersEnabled: true,
-      defaultReminderLeadDays: 1,
-      summaryFrequency: "disabled",
       messageTemplates: [],
     });
   });
@@ -155,6 +154,22 @@ describe("professional settings service", () => {
     });
   });
 
+  it("surfaces a consistency error when the audit and rollback both fail", async () => {
+    mocks.upsertProfile
+      .mockResolvedValueOnce(canonicalProfile(false))
+      .mockRejectedValueOnce(new Error("rollback unavailable"));
+    mocks.appendHistory.mockRejectedValueOnce(new Error("audit unavailable"));
+
+    await expect(
+      setProfessionalProfileActive(10, false)
+    ).rejects.toBeInstanceOf(ProfessionalSettingsConsistencyError);
+
+    expect(mocks.logPersistenceWarning).toHaveBeenCalledWith(
+      "professional_settings_profile_compensation",
+      expect.any(Error)
+    );
+  });
+
   it("returns only public fields for active approved professional links", async () => {
     await updateProfessionalIdentitySettings(10, {
       displayName: "Nutricionista Ana",
@@ -166,8 +181,8 @@ describe("professional settings service", () => {
     await updateProfessionalPreferencesSettings(10, {
       defaultReviewIntervalDays: 30,
       remindersEnabled: true,
-      defaultReminderLeadDays: 2,
-      summaryFrequency: "weekly",
+      defaultReminderLeadDays: 1,
+      summaryFrequency: "disabled",
       messageTemplates: [
         {
           title: "Privado",
