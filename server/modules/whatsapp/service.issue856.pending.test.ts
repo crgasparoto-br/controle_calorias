@@ -98,37 +98,44 @@ describe("simulateWhatsappInbound destructive precedence #856", () => {
       data: expect.objectContaining({ fallbackBlocked: true }),
     }));
     expect(getWhatsappConversationPendingContext(91)).toBeNull();
-    expect(executeWhatsappMultiActionIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappMultiActionIntentMock).toHaveBeenCalledOnce();
     expect(executeWhatsappDatedFoodAdditionIntentMock).not.toHaveBeenCalled();
     expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(processMealDraftMock).not.toHaveBeenCalled();
   });
 
-  it("aplica o gate destrutivo antes do parser de múltiplas ações", async () => {
-    listMealsMock.mockResolvedValue([legacyRegistrarMeal]);
-    executeWhatsappMultiActionIntentMock.mockReturnValue({
+  it("mantém comando composto no coordenador all-or-nothing sem fallback nutricional", async () => {
+    const multiActionResult = {
       handled: true,
-      action: "multi_action_confirmation_needed",
-      reply: "não deveria ser usado",
-      eventType: "whatsapp.multi_action.confirmation_needed",
-      detail: "não deveria ser usado",
-      data: {},
-    });
+      action: "multi_action_clarification_needed",
+      reply: "Revise as ações antes de continuar.",
+      eventType: "whatsapp.multi_action.clarification_needed",
+      detail: "Comando composto mantido em modo seguro.",
+      data: {
+        actionCount: 2,
+        extractedActions: [
+          { actionType: "excluir_alimento" },
+          { actionType: "adicionar_alimento" },
+        ],
+      },
+    };
+    executeWhatsappMultiActionIntentMock.mockReturnValue(multiActionResult);
 
     const result = await simulateWhatsappInbound(92, {
       text: "Excluir o Registrar e adicionar 100 g de arroz",
       receivedAt: new Date("2026-07-20T15:10:00.000Z"),
-      messageId: "delete-before-multi-action-1",
+      messageId: "compound-destructive-1",
     });
 
     expect(result).toEqual(expect.objectContaining({
-      action: "clarification_needed",
-      data: expect.objectContaining({ fallbackBlocked: true }),
-      eventType: expect.stringMatching(/^whatsapp\.intent\.delete_/),
+      action: "multi_action_clarification_needed",
+      data: expect.objectContaining({ actionCount: 2 }),
     }));
-    expect(executeWhatsappMultiActionIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappMultiActionIntentMock).toHaveBeenCalledTimes(2);
+    expect(listMealsMock).not.toHaveBeenCalled();
     expect(executeWhatsappDatedFoodAdditionIntentMock).not.toHaveBeenCalled();
+    expect(executeWhatsappTextIntentMock).not.toHaveBeenCalled();
     expect(executeWhatsappLlmIntentMock).not.toHaveBeenCalled();
     expect(processMealDraftMock).not.toHaveBeenCalled();
   });
