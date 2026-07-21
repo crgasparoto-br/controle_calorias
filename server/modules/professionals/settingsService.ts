@@ -14,15 +14,13 @@ import {
   type ProfessionalPreferencesSettingsInput,
   type StoredProfessionalSettings,
 } from "./settingsSchemas";
-import {
-  getProfessionalProfile,
-  upsertProfessionalProfile,
-} from "./service";
+import { getProfessionalProfile } from "./service";
 
 export const PROFESSIONAL_SETTINGS_PREFERENCE_KEY =
   "professional_settings_v1";
 
 const memorySettings = new Map<number, StoredProfessionalSettings>();
+const settingsMutationQueues = new Map<number, Promise<unknown>>();
 
 function defaultSettings(): StoredProfessionalSettings {
   return {
@@ -129,6 +127,53 @@ async function appendSettingsHistory(
   });
 }
 
+function serializeSettingsMutation<T>(
+  professionalUserId: number,
+  operation: () => Promise<T>
+) {
+  const previous = settingsMutationQueues.get(professionalUserId) ??
+    Promise.resolve();
+  const current = previous.catch(() => undefined).then(operation);
+  settingsMutationQueues.set(professionalUserId, current);
+  return current.finally(() => {
+    if (settingsMutationQueues.get(professionalUserId) === current) {
+      settingsMutationQueues.delete(professionalUserId);
+    }
+  });
+}
+
+async function persistProfessionalProfile(input: {
+  userId: number;
+  displayName: string;
+  registrationNumber?: string;
+  active: boolean;
+}) {
+  const profile = await professionalRepository.upsertProfile({
+    ...input,
+    now: new Date(),
+  });
+  return {
+    userId: profile.userId,
+    displayName: profile.displayName,
+    registrationNumber: profile.registrationNumber,
+    active: profile.active,
+    createdAt: profile.createdAt.getTime(),
+    updatedAt: profile.updatedAt.getTime(),
+  };
+}
+
+export async function getProfessionalOperationalDefaults(
+  professionalUserId: number
+) {
+  const settings = await readStoredSettings(professionalUserId);
+  return {
+    defaultReviewIntervalDays: settings.defaultReviewIntervalDays,
+    remindersEnabled: settings.remindersEnabled,
+    defaultReminderLeadDays: settings.defaultReminderLeadDays,
+    summaryFrequency: settings.summaryFrequency,
+  };
+}
+
 export async function getProfessionalSettingsSnapshot(
   professionalUserId: number
 ) {
@@ -163,22 +208,60 @@ export async function updateProfessionalIdentitySettings(
   rawInput: ProfessionalIdentitySettingsInput
 ) {
   const input = professionalIdentitySettingsSchema.parse(rawInput);
-  const currentProfile = await getProfessionalProfile(professionalUserId);
-  const profile = await upsertProfessionalProfile(professionalUserId, {
-    displayName: input.displayName,
-    registrationNumber: input.registrationNumber,
-    active: currentProfile?.active ?? true,
+  return serializeSettingsMutation(professionalUserId, async () => {
+    const [currentProfile, currentSettings] = await Promise.all([
+      getProfessionalProfile(professionalUserId),
+      readStoredSettings(professionalUserId),
+    ]);
+    let updatedProfile: Awaited<ReturnType<typeof persistProfessionalProfile>> | null =
+      null;
+
+    try {
+      updatedProfile = await persistProfessionalProfile({
+        userId: professionalUserId,
+        displayName: input.displayName,
+        registrationNumber: input.registrationNumber,
+        active: currentProfile?.active ?? true,
+      });
+      const settings = await writeStoredSettings(professionalUserId, {
+        ...currentSettings,
+        contactEmail: input.contactEmail ?? null,
+        contactPhone: input.contactPhone ?? null,
+        patientFacingBio: input.patientFacingBio ?? null,
+        updatedAt: Date.now(),
+      });
+      await appendSettingsHistory(
+        professionalUserId,
+        "settings_identity_updated"
+      );
+      return { profile: updatedProfile, settings };
+    } catch (error) {
+      const compensations: Promise<unknown>[] = [
+        writeStoredSettings(professionalUserId, currentSettings),
+      ];
+      if (currentProfile) {
+        compensations.push(
+          persistProfessionalProfile({
+            userId: professionalUserId,
+            displayName: currentProfile.displayName,
+            registrationNumber: currentProfile.registrationNumber,
+            active: currentProfile.active,
+          })
+        );
+      } else if (updatedProfile) {
+        compensations.push(
+          persistProfessionalProfile({
+            userId: professionalUserId,
+            displayName: updatedProfile.displayName,
+            registrationNumber: updatedProfile.registrationNumber,
+            active: false,
+          })
+        );
+      }
+      await Promise.allSettled(compensations);
+      throw error;
+    }
   });
-  const current = await readStoredSettings(professionalUserId);
-  const settings = await writeStoredSettings(professionalUserId, {
-    ...current,
-    contactEmail: input.contactEmail ?? null,
-    contactPhone: input.contactPhone ?? null,
-    patientFacingBio: input.patientFacingBio ?? null,
-    updatedAt: Date.now(),
-  });
-  await appendSettingsHistory(professionalUserId, "settings_identity_updated");
-  return { profile, settings };
 }
 
 export async function updateProfessionalPreferencesSettings(
@@ -186,46 +269,69 @@ export async function updateProfessionalPreferencesSettings(
   rawInput: ProfessionalPreferencesSettingsInput
 ) {
   const input = professionalPreferencesSettingsSchema.parse(rawInput);
-  const current = await readStoredSettings(professionalUserId);
-  const settings = await writeStoredSettings(professionalUserId, {
-    ...current,
-    defaultReviewIntervalDays: input.defaultReviewIntervalDays,
-    remindersEnabled: input.remindersEnabled,
-    defaultReminderLeadDays: input.defaultReminderLeadDays,
-    summaryFrequency: input.summaryFrequency,
-    messageTemplates: input.messageTemplates.map(template => ({
-      ...template,
-      id: template.id ?? crypto.randomUUID(),
-    })),
-    updatedAt: Date.now(),
+  return serializeSettingsMutation(professionalUserId, async () => {
+    const current = await readStoredSettings(professionalUserId);
+    const next = storedProfessionalSettingsSchema.parse({
+      ...current,
+      defaultReviewIntervalDays: input.defaultReviewIntervalDays,
+      remindersEnabled: input.remindersEnabled,
+      defaultReminderLeadDays: input.defaultReminderLeadDays,
+      summaryFrequency: input.summaryFrequency,
+      messageTemplates: input.messageTemplates.map(template => ({
+        ...template,
+        id: template.id ?? crypto.randomUUID(),
+      })),
+      updatedAt: Date.now(),
+    });
+
+    await writeStoredSettings(professionalUserId, next);
+    try {
+      await appendSettingsHistory(
+        professionalUserId,
+        "settings_preferences_updated"
+      );
+      return next;
+    } catch (error) {
+      await writeStoredSettings(professionalUserId, current);
+      throw error;
+    }
   });
-  await appendSettingsHistory(
-    professionalUserId,
-    "settings_preferences_updated"
-  );
-  return settings;
 }
 
 export async function setProfessionalProfileActive(
   professionalUserId: number,
   active: boolean
 ) {
-  const profile = await getProfessionalProfile(professionalUserId);
-  if (!profile) {
-    throw new Error(
-      "Cadastre a identificação profissional antes de alterar a disponibilidade da área."
-    );
-  }
-  const updated = await upsertProfessionalProfile(professionalUserId, {
-    displayName: profile.displayName,
-    registrationNumber: profile.registrationNumber,
-    active,
+  return serializeSettingsMutation(professionalUserId, async () => {
+    const profile = await getProfessionalProfile(professionalUserId);
+    if (!profile) {
+      throw new Error(
+        "Cadastre a identificação profissional antes de alterar a disponibilidade da área."
+      );
+    }
+
+    const updated = await persistProfessionalProfile({
+      userId: professionalUserId,
+      displayName: profile.displayName,
+      registrationNumber: profile.registrationNumber,
+      active,
+    });
+    try {
+      await appendSettingsHistory(
+        professionalUserId,
+        active ? "settings_profile_activated" : "settings_profile_deactivated"
+      );
+      return updated;
+    } catch (error) {
+      await persistProfessionalProfile({
+        userId: professionalUserId,
+        displayName: profile.displayName,
+        registrationNumber: profile.registrationNumber,
+        active: profile.active,
+      });
+      throw error;
+    }
   });
-  await appendSettingsHistory(
-    professionalUserId,
-    active ? "settings_profile_activated" : "settings_profile_deactivated"
-  );
-  return updated;
 }
 
 export async function listPatientVisibleProfessionalProfiles(
@@ -262,4 +368,5 @@ export async function listPatientVisibleProfessionalProfiles(
 
 export function _forTestOnly_clearProfessionalSettings() {
   memorySettings.clear();
+  settingsMutationQueues.clear();
 }
