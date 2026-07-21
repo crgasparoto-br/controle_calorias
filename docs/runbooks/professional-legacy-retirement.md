@@ -16,7 +16,7 @@ Encerrar a leitura e a escrita em JSON de perfil, autorizações e sugestões pr
 
 1. Execute `pnpm db:migrate:professionals` no ambiente alvo.
 2. Execute `pnpm db:retire-professional-legacy`. O comando migra novamente de forma idempotente as quatro chaves antigas, compara identidade, campos imutáveis, conteúdo, marcos temporais e progressão de estado e não exclui dados.
-3. Interrompa o rollout se houver preferência inválida ou cobertura canônica ausente, desatualizada ou incompatível. Corrija a origem e repita a verificação.
+3. Interrompa o rollout se houver preferência inválida, cobertura canônica ausente, registro desatualizado ou cópias legadas da mesma versão com conteúdo divergente. Corrija a origem e repita a verificação.
 4. Publique a versão da issue #815, que não possui migração lazy nem dual-write em runtime. Não execute ainda o modo `--apply`.
 5. Execute `pnpm professional-retirement:check` e a matriz de `docs/testing/professional-legacy-retirement-regression.md`; valide perfil profissional, solicitação/aprovação/revogação, carteira, prontuário, metas, alertas, mensagens, relatórios, IA, configurações e a Área do Paciente.
 6. Execute `pnpm db:retire-professional-legacy:apply` somente após a versão canônica estar saudável em produção. Isso evita que instâncias antigas recriem os JSONs durante o rollout.
@@ -32,4 +32,4 @@ Encerrar a leitura e a escrita em JSON de perfil, autorizações e sugestões pr
 
 ## Evidências obrigatórias
 
-Registre a saída JSON dos dois comandos, o SHA publicado, o resultado das validações funcionais e a decisão de prosseguir ou reverter. Nunca execute o modo `--apply` quando a verificação apontar dados inválidos ou cobertura incompleta.
+Registre a saída JSON dos dois comandos, o SHA publicado, o resultado das validações funcionais e a decisão de prosseguir ou reverter. Nunca execute o modo `--apply` quando a verificação apontar dados inválidos, cobertura incompleta ou conflito de mesma versão.
