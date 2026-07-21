@@ -18,11 +18,13 @@ import {
   resolveEffectiveUserTimeZone,
 } from "../timeZone/service";
 import { getNutritionGoalForDate } from "../goals/service";
-import { buildWhatsAppCallbackId } from "../whatsapp/interactiveCallback";
+import { buildWhatsappClosedDecisionReply } from "../whatsapp/interactionPresentation";
+import type { WhatsAppLogicalReply } from "../whatsapp/replyContract";
 import {
-  buttonsReply,
-  type WhatsAppLogicalReply,
-} from "../whatsapp/replyContract";
+  buildProfessionalAccessActions,
+  PROFESSIONAL_ACCESS_AUTHORIZE_ACTION as AUTHORIZE_ACTION,
+  PROFESSIONAL_ACCESS_REJECT_ACTION as REJECT_ACTION,
+} from "./accessInteractionContract";
 import { sendWhatsAppStandaloneLogicalReply } from "../whatsapp/logicalReplyDelivery";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "../whatsapp/replyMessages";
 import {
@@ -42,8 +44,6 @@ import type {
 export const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
 const PENDING_PROFESSIONAL_ACCESS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const PENDING_PROFESSIONAL_ACCESS_ORIGIN = "professionals/service";
-const AUTHORIZE_ACTION = "authorize";
-const REJECT_ACTION = "reject";
 const professionalAccessPendingOperationRepository =
   createDrizzleWhatsAppPendingOperationRepository({
     getDb,
@@ -372,16 +372,11 @@ async function sendProfessionalAccessAuthorizationWhatsapp(
       target: { accessId: access.id },
     });
   const reply: WhatsAppLogicalReply = pendingOperation
-    ? buttonsReply(message, [
-        {
-          id: buildWhatsAppCallbackId(pendingOperation.id, AUTHORIZE_ACTION),
-          title: "Autorizar",
-        },
-        {
-          id: buildWhatsAppCallbackId(pendingOperation.id, REJECT_ACTION),
-          title: "Recusar",
-        },
-      ])
+    ? buildWhatsappClosedDecisionReply({
+        bodyText: message,
+        pendingOperationId: pendingOperation.id,
+        actions: buildProfessionalAccessActions(),
+      })
     : { kind: "functional", messages: [{ type: "text", body: message }] };
   const { result: sendResult } = await sendWhatsAppStandaloneLogicalReply(
     connection.phoneNumber,

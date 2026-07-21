@@ -550,10 +550,15 @@ async function tryHandleTextIntent(
       userTimezone,
       interactiveReplyId,
       sourcePhone,
+      messageId: message.id,
     });
     if (precedenceGate.step !== "continue_pipeline") {
       markTextIntentMessageHandled(message.id);
-      await clearPendingTextIntentContext(userId);
+      const preservePendingAfterReplay =
+        precedenceGate.result.eventType === "whatsapp.interaction.pending_represented";
+      if (!preservePendingAfterReplay) {
+        await clearPendingTextIntentContext(userId);
+      }
       await sendAndLogTextReply({
         userId,
         sourcePhone,

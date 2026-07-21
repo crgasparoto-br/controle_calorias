@@ -1,4 +1,5 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { buildProfessionalAccessActions } from "../professionals/accessInteractionContract";
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import {
   buildDeleteConfirmationActions,
@@ -77,13 +78,6 @@ function foodActions(target: unknown): WhatsappInteractionAction[] {
   return isPendingFoodClarificationTarget(target)
     ? target.actions.map(action => ({ ...action }))
     : [];
-}
-
-export function buildProfessionalAccessActions(): WhatsappInteractionAction[] {
-  return [
-    { id: "authorize", label: "Autorizar", effect: "grant_access" },
-    { id: "reject", label: "Recusar", effect: "reject_access" },
-  ];
 }
 
 export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteraction[] = [
