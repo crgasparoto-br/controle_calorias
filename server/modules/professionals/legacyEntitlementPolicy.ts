@@ -44,11 +44,10 @@ export function createLegacyProfessionalEntitlementPolicy(
 
     const profile = await dependencies.getProfile(ctx.user.id);
     if (!profile?.active) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message:
-          "A Área Profissional está inativa. Reative o perfil para continuar.",
-      });
+      // Os serviços legados já validam perfil ativo. Deixar que eles executem
+      // primeiro preserva a precedência de autorização do paciente e evita
+      // trocar um erro seguro de vínculo por detalhes do estado comercial.
+      return;
     }
 
     try {
