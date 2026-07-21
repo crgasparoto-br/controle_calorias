@@ -15,7 +15,7 @@ import {
 } from "../../repositories/whatsappPendingOperationRepository";
 import { buildWhatsappClosedDecisionReply, type WhatsappClosedDecisionAction } from "./interactionInventory";
 import { WHATSAPP_GENERIC_CLARIFICATION_MESSAGE } from "./replyMessages";
-import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
+import { normalizeWhatsAppShortCommandText } from "./webhookUtils";
 import type { WhatsAppLogicalReply } from "./replyContract";
 
 export const PENDING_INTENT_CLARIFICATION_TYPE = "intent_clarification";
@@ -89,7 +89,7 @@ export function isGenericIntentClarificationResult(result: { reply?: string | nu
 }
 
 function normalizeResponse(text: string) {
-  return collapseWhitespace(stripDiacritics(text.trim().toLowerCase()));
+  return normalizeWhatsAppShortCommandText(text);
 }
 
 /**

@@ -1,7 +1,7 @@
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import { buildWhatsAppCallbackId } from "./interactiveCallback";
 import { buildWhatsappClosedDecisionReply } from "./interactionInventory";
-import { buttonsReply, type WhatsAppLogicalReply } from "./replyContract";
+import type { WhatsAppLogicalReply } from "./replyContract";
 import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "./replyMessages";
 import type { WhatsappDeleteIntentDetection } from "./deleteIntentDetection";
 
@@ -74,10 +74,14 @@ function buildPendingFoodDeleteReply(pending: PendingDeleteIntent, timeZone: str
 }
 
 function buildConfirmCancelButtonsReply(bodyText: string, pendingOperationId: number): WhatsAppLogicalReply {
-  return buttonsReply(bodyText, [
-    { id: buildWhatsAppCallbackId(pendingOperationId, CONFIRM_ACTION), title: "Confirmar" },
-    { id: buildWhatsAppCallbackId(pendingOperationId, CANCEL_ACTION), title: "Cancelar" },
-  ]);
+  return buildWhatsappClosedDecisionReply({
+    bodyText,
+    pendingOperationId,
+    actions: [
+      { action: CONFIRM_ACTION, label: "Confirmar" },
+      { action: CANCEL_ACTION, label: "Cancelar" },
+    ],
+  });
 }
 
 export function buildRoutingData(extra: Record<string, unknown> = {}) {

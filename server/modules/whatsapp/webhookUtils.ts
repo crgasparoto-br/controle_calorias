@@ -84,6 +84,18 @@ export function normalizeWhatsAppIntentText(value: string) {
   return stripDiacritics(value).toLowerCase().trim();
 }
 
+/**
+ * Normalização usada para comparar respostas curtas de texto contra ações
+ * canônicas (comando isolado, seleção numérica, cancelamento): minúsculas,
+ * sem diacríticos, espaços colapsados. Compartilhada entre
+ * `standaloneCommandWords.ts`, `intentClarificationInteraction.ts` e
+ * `interactionReplay.ts` (issue #858) para evitar reimplementar a mesma
+ * função de duas linhas em cada módulo.
+ */
+export function normalizeWhatsAppShortCommandText(value: string) {
+  return collapseWhitespace(stripDiacritics(value.trim().toLowerCase()));
+}
+
 export function getWhatsAppMessageTextBody(message: Pick<WhatsAppWebhookMessage, "text" | "image">) {
   return message.text?.body?.trim() || message.image?.caption?.trim() || "";
 }

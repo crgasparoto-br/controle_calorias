@@ -45,7 +45,7 @@ import {
 import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 import type { WhatsAppLogicalReply } from "./replyContract";
 import { PENDING_CONFIRMATION_TYPE, type PendingWhatsAppConfirmation } from "./webhookTextCommands";
-import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
+import { normalizeWhatsAppShortCommandText } from "./webhookUtils";
 
 export type WhatsappPendingTextResponseClassification =
   /** O texto resolve a pendência; a cadeia existente continua responsável. */
@@ -56,7 +56,7 @@ export type WhatsappPendingTextResponseClassification =
   | "unrelated";
 
 function normalize(text: string) {
-  return collapseWhitespace(stripDiacritics(text.trim().toLowerCase()));
+  return normalizeWhatsAppShortCommandText(text);
 }
 
 const CONFIRM_WORDS = new Set(["sim", "confirmar", "confirma", "confirmo", "pode confirmar", "ok", "pode seguir"]);

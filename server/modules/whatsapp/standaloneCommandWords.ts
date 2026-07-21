@@ -1,4 +1,4 @@
-import { collapseWhitespace, stripDiacritics } from "./webhookUtils";
+import { normalizeWhatsAppShortCommandText } from "./webhookUtils";
 
 /**
  * Palavras que só fazem sentido como resposta a uma pendência ativa
@@ -30,7 +30,7 @@ const STANDALONE_COMMAND_WORDS = new Set([
 ]);
 
 function normalizeStandaloneCandidate(text: string) {
-  return collapseWhitespace(stripDiacritics(text.trim().toLowerCase()));
+  return normalizeWhatsAppShortCommandText(text);
 }
 
 /**
