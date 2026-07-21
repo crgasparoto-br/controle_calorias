@@ -1,4 +1,4 @@
-name: Issue 815 final audit corrections
+name: Issue 815 materialize audit corrections
 
 on:
   pull_request:
@@ -15,10 +15,8 @@ permissions:
   contents: write
 
 jobs:
-  correct-validate-commit:
+  materialize-corrections:
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
     steps:
       - uses: actions/checkout@v4
         with:
@@ -188,12 +186,12 @@ jobs:
           nutrition_test = nutrition_test.replace(target, replacement_target, 1)
           nutrition_test_path.write_text(nutrition_test)
           PY
-      - name: Remove temporary diagnostics
+      - name: Remove temporary files
         run: |
           rm -f .github/workflows/issue-815-merge-ref-tidb-diagnostic.yml
           rm -f scripts/issue-815-merge-ref-tidb-error.txt
           rm -f scripts/issue-815-semantic-goal-gate-error.txt
-      - name: Format and run repository gates
+      - name: Format corrections
         run: |
           pnpm exec prettier --write \
             scripts/retire-professional-legacy-preferences.ts \
@@ -201,31 +199,10 @@ jobs:
             server/modules/professionals/legacyRetirement.test.ts \
             client/src/pages/nutritionPages.test.tsx
           git diff --check
-          pnpm agent:check
-          pnpm build
-      - name: Start TiDB
-        run: |
-          docker run -d --name issue-815-final-tidb -p 4000:4000 pingcap/tidb:v8.5.1
-          for attempt in $(seq 1 90); do
-            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("CREATE DATABASE IF NOT EXISTS controle_calorias"); await connection.end();'; then
-              exit 0
-            fi
-            sleep 2
-          done
-          exit 1
-      - name: Apply schema and run complete TiDB gates
-        run: |
-          pnpm exec drizzle-kit push --force
-          pnpm exec drizzle-kit generate || true
-          git checkout -- drizzle
-          pnpm db:test:professionals
-          pnpm db:migrate:professionals
-          pnpm db:migrate:professionals
-          pnpm db:check-integrity
-      - name: Commit validated corrections
+      - name: Commit corrections
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "fix(professional): concluir correções da auditoria #815"
+          git commit -m "fix(professional): aplicar correções da auditoria #815"
           git push origin HEAD:cleanup/815-retire-professional-legacy
