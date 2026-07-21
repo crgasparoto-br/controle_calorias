@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const composeReplyMock = vi.fn();
+const { composeReplyMock } = vi.hoisted(() => ({
+  composeReplyMock: vi.fn(),
+}));
+
 vi.mock("./mealActionReplyComposer", () => ({
   composeWhatsAppMealActionReply: composeReplyMock,
 }));
