@@ -5,6 +5,7 @@ import {
   PENDING_FOOD_CLARIFICATION_TYPE,
   type WhatsappFoodClarificationResult,
 } from "./foodClarification";
+import { getCurrentInboundExternalMessageId } from "./messageLifecycle";
 import { isStandaloneWhatsappCommandWord } from "./standaloneCommandWords";
 
 const pendingOperationRepository = createDrizzleWhatsAppPendingOperationRepository({
@@ -26,9 +27,13 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   messageId?: string | null;
 }): Promise<WhatsappFoodClarificationResult | null> {
   const active = await pendingOperationRepository.getActivePendingOperation(input.userId, input.receivedAt);
+  const correlatedInput = {
+    ...input,
+    messageId: input.messageId?.trim() || getCurrentInboundExternalMessageId(),
+  };
 
   if (active?.type === PENDING_FOOD_CLARIFICATION_TYPE) {
-    return handleWhatsappFoodClarification(input);
+    return handleWhatsappFoodClarification(correlatedInput);
   }
 
   // Uma resposta curta pertencente a outra pendência deve permanecer sob a
@@ -36,6 +41,6 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   if (active) return null;
 
   return isStandaloneWhatsappCommandWord(input.text)
-    ? handleWhatsappFoodClarification(input)
+    ? handleWhatsappFoodClarification(correlatedInput)
     : null;
 }
