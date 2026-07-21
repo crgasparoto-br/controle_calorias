@@ -92,18 +92,15 @@ for (const [file, forbidden] of [
   forbidText(file, forbidden);
 }
 
-for (const key of [
-  "professional_profile_v1",
-  "professional_accesses_v1",
-  "patient_professional_access_requests_v1",
+for (const contract of [
+  "PROFESSIONAL_PROFILE_PREFERENCE_KEY",
+  "PROFESSIONAL_ACCESSES_PREFERENCE_KEY",
+  "PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY",
+  "PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY",
 ]) {
-  requireText("scripts/retire-professional-legacy-preferences.ts", key);
+  requireText("scripts/retire-professional-legacy-preferences.ts", contract);
 }
 
-requireText(
-  "scripts/retire-professional-legacy-preferences.ts",
-  "PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY"
-);
 requireText(
   "scripts/retire-professional-legacy-preferences.ts",
   "goalSuggestionIsCovered"
