@@ -40,17 +40,14 @@ jobs:
 
           retirement_path = Path('scripts/retire-professional-legacy-preferences.ts')
           text = retirement_path.read_text()
-          old = textwrap.dedent('''
-          const migration = await migrateAllLegacyProfessionalData();
-          const goalSuggestionMigration =
-            await migrateAllLegacyProfessionalGoalSuggestions();
-          const rows = await db
-            .select()
-            .from(userPreferences)
-            .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
-          const verification = await verifyCanonicalCoverage(db, rows);
-          ''').strip()
-          new = textwrap.dedent('''
+          start_marker = '  const migration = await migrateAllLegacyProfessionalData();\n'
+          end_marker = '  const verification = await verifyCanonicalCoverage(db, rows);\n'
+          start = text.find(start_marker)
+          end_start = text.find(end_marker, start)
+          if start < 0 or end_start < 0:
+              raise SystemExit(f'retirement markers not found: start={start}, end={end_start}')
+          end = end_start + len(end_marker)
+          replacement = textwrap.indent(textwrap.dedent('''
           const rowsBeforeMigration = await db
             .select()
             .from(userPreferences)
@@ -70,22 +67,18 @@ jobs:
             .from(userPreferences)
             .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
           const verification = await verifyCanonicalCoverage(db, rows);
-          ''').strip()
-          if old not in text:
-              raise SystemExit('retirement main block not found')
-          retirement_path.write_text(text.replace(old, new, 1))
+          ''').strip() + '\n', '  ')
+          retirement_path.write_text(text[:start] + replacement + text[end:])
 
           test_path = Path('scripts/test-professional-persistence-tidb.ts')
           test = test_path.read_text()
-          old = textwrap.dedent('''
-          assert.throws(
-            () => runLegacyRetirement(true),
-            /preferências profissionais legadas inválidas|Command failed/i,
-            "equal-version conflicting legacy copies must block retirement"
-          );
-          const [rowsAfterEqualVersionConflict] = await connection.query<
-          ''').strip()
-          new = textwrap.dedent('''
+          message_marker = '"equal-version conflicting legacy copies must block retirement"'
+          message_pos = test.find(message_marker)
+          start = test.rfind('    assert.throws(', 0, message_pos)
+          end = test.find('    const [rowsAfterEqualVersionConflict]', message_pos)
+          if message_pos < 0 or start < 0 or end < 0:
+              raise SystemExit(f'equal-version markers not found: message={message_pos}, start={start}, end={end}')
+          replacement = textwrap.indent(textwrap.dedent('''
           assert.throws(
             () => runLegacyRetirement(true),
             /preferências profissionais legadas inválidas|Command failed/i,
@@ -113,11 +106,8 @@ jobs:
             retirementLegacyGoal.rationale,
             "preflight conflict must not mutate the canonical goal suggestion"
           );
-          const [rowsAfterEqualVersionConflict] = await connection.query<
-          ''').strip()
-          if old not in test:
-              raise SystemExit('equal-version assertion block not found')
-          test_path.write_text(test.replace(old, new, 1))
+          ''').strip() + '\n', '    ')
+          test_path.write_text(test[:start] + replacement + test[end:])
           PY
       - name: Remove temporary diagnostics
         run: |
