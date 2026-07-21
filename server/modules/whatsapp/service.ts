@@ -22,6 +22,7 @@ import { executeWhatsappAiQuestionIntent } from "./aiQuestionAssistant";
 import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
+import { handleWhatsappFoodClarification } from "./foodClarification";
 import {
   buildWhatsappDuplicateInboundResult,
   evaluateWhatsappInboundIdempotency,
@@ -291,6 +292,20 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return aiQuestion;
   }
 
+  // A pendência operacional alimentar precisa ser consultada antes do contexto
+  // conversacional em memória, pois respostas curtas como SIM, REGISTRAR ou uma
+  // quantidade pertencem ao registro original persistido (issue #855).
+  const foodClarification = await logAndReturnInterpretedIntent(userId, await handleWhatsappFoodClarification({
+    userId,
+    text,
+    receivedAt,
+    userTimezone,
+    messageId: input.messageId,
+  }), { text, receivedAt });
+  if (foodClarification) {
+    return foodClarification;
+  }
+
   const contextResult = await logAndReturnInterpretedIntent(userId, resolveWhatsappConversationContext(userId, {
     text,
     receivedAt,
@@ -474,6 +489,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       text,
       receivedAt,
       userTimezone,
+      messageId: input.messageId,
     }), { text, receivedAt });
   if (interpreted) {
     return temporalResolution.context
