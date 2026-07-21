@@ -99,3 +99,7 @@ export function transitionCanonicalProfessionalTracking(
 export function migrateLegacyProfessionalDataForUser(userId: number) {
   return professionalRepository.migrateLegacyUser(userId);
 }
+
+export function migrateAllLegacyProfessionalData() {
+  return professionalRepository.migrateAllLegacyData();
+}
