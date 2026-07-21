@@ -8,6 +8,7 @@ import NutritionGoalReportInvalidator from "./components/NutritionGoalReportInva
 import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbed";
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
 import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
+import PatientProfessionalProfilesEmbed from "./components/PatientProfessionalProfilesEmbed";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
 import ProfessionalEntitlementGate, {
   type ProfessionalRouteEntitlement,
@@ -124,6 +125,7 @@ function App() {
     <ProfessionalGoalExceptionSuggestionsEmbed />
     <ProfessionalOperationalAlertsBridge />
     <PatientGoalSuggestionsEmbed />
+    <PatientProfessionalProfilesEmbed />
     <PatientProfessionalGuidancesEmbed />
     <PatientProfessionalMessagesEmbed />
     <Router />
