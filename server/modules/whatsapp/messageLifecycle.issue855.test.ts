@@ -5,14 +5,16 @@ import {
   withMessageLifecycleService,
 } from "./messageLifecycle";
 
-function createLifecycleService() {
+function createLifecycleService(options: { failBegin?: boolean } = {}) {
   let nextMessageId = 1;
   return {
-    beginInboundMessage: vi.fn(async () => ({
-      conversationId: 1,
-      messageId: nextMessageId++,
-      wasNewInsert: true,
-    })),
+    beginInboundMessage: vi.fn(async () => options.failBegin
+      ? null
+      : {
+          conversationId: 1,
+          messageId: nextMessageId++,
+          wasNewInsert: true,
+        }),
     claimMessageForProcessing: vi.fn(async () => true),
     wasMessageAlreadyProcessed: vi.fn(async () => false),
     recordOutboundReply: vi.fn(async () => undefined),
@@ -45,6 +47,22 @@ describe("message lifecycle correlation for issue #855", () => {
         occurredAt: new Date("2026-07-21T20:01:00.000Z"),
       });
       expect(getCurrentInboundExternalMessageId()).toBeNull();
+    });
+  });
+
+  it("mantém o ID externo disponível mesmo quando o repositório não cria o handle", async () => {
+    await withMessageLifecycleService(createLifecycleService({ failBegin: true }), async () => {
+      const handle = await beginInboundMessage({
+        userId: 42,
+        whatsappConnectionId: null,
+        phoneNumber: "5515999999999",
+        externalMessageId: "wamid.persistence-failed.855",
+        contentType: "audio",
+        transcript: "1 iogurte natual desnatado",
+        occurredAt: new Date("2026-07-21T20:02:00.000Z"),
+      });
+      expect(handle).toBeNull();
+      expect(getCurrentInboundExternalMessageId()).toBe("wamid.persistence-failed.855");
     });
   });
 });
