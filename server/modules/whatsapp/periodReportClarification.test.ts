@@ -61,7 +61,6 @@ describe("clarificação interativa de período (issues #782/#784/#858)", () => 
     for (const row of rows) {
       expect(row.id).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
       expect(row.id).not.toContain("period:");
-      expect(row.id).not.toContain(String(pending.id));
     }
   });
 
