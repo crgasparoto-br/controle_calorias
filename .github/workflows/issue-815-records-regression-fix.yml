@@ -61,14 +61,32 @@ jobs:
               raise SystemExit('records gate marker not found')
           check_path.write_text(check.replace(old_marker, new_marker, 1))
           PY
-      - name: Remove temporary workflow
-        run: rm -f .github/workflows/issue-815-records-regression-fix.yml
       - name: Format and validate
         run: |
-          pnpm exec prettier --write client/src/pages/nutritionPages.test.tsx scripts/check-professional-legacy-retirement.ts
-          git diff --check
-          pnpm agent:check
-          pnpm build
+          {
+            pnpm exec prettier --write client/src/pages/nutritionPages.test.tsx scripts/check-professional-legacy-retirement.ts
+            git diff --check
+            pnpm agent:check
+            pnpm build
+          } > /tmp/issue-815-records-validation.log 2>&1 || {
+            cat /tmp/issue-815-records-validation.log
+            exit 1
+          }
+      - name: Persist validation diagnostics
+        if: failure()
+        run: |
+          if [ -f /tmp/issue-815-records-validation.log ]; then
+            cp /tmp/issue-815-records-validation.log scripts/issue-815-records-regression-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add scripts/issue-815-records-regression-error.txt
+            git commit -m "chore: registrar falha da regressão de Registros #815"
+            git push origin HEAD:cleanup/815-retire-professional-legacy
+          fi
+      - name: Remove temporary workflow and diagnostics
+        run: |
+          rm -f .github/workflows/issue-815-records-regression-fix.yml
+          rm -f scripts/issue-815-records-regression-error.txt
       - name: Commit validated correction
         run: |
           git config user.name "github-actions[bot]"
