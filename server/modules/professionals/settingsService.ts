@@ -248,10 +248,15 @@ export async function updateProfessionalIdentitySettings(
       getProfessionalProfile(professionalUserId),
       readStoredSettings(professionalUserId),
     ]);
+    await appendSettingsHistory(
+      professionalUserId,
+      "settings_identity_change_requested",
+      mutationId
+    );
+
     let updatedProfile: Awaited<
       ReturnType<typeof persistProfessionalProfile>
     > | null = null;
-
     try {
       updatedProfile = await persistProfessionalProfile({
         userId: professionalUserId,
@@ -321,6 +326,11 @@ export async function updateProfessionalPreferencesSettings(
       })),
       updatedAt: Date.now(),
     });
+    await appendSettingsHistory(
+      professionalUserId,
+      "settings_preferences_change_requested",
+      mutationId
+    );
 
     await writeStoredSettings(professionalUserId, next);
     try {
@@ -352,6 +362,13 @@ export async function setProfessionalProfileActive(
         "Cadastre a identificação profissional antes de alterar a disponibilidade da área."
       );
     }
+    await appendSettingsHistory(
+      professionalUserId,
+      active
+        ? "settings_profile_activation_requested"
+        : "settings_profile_deactivation_requested",
+      mutationId
+    );
 
     const updated = await persistProfessionalProfile({
       userId: professionalUserId,
