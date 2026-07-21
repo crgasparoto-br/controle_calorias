@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { findCatalogFood } from "../../catalogMatching";
-import { getDb, getHabitSnapshots, logPersistenceWarning } from "../../db";
+import * as dbRuntime from "../../db";
 import { FOOD_CATALOG_REFERENCE } from "../../foodCatalogReference";
 import {
   cleanFoodName,
@@ -9,7 +9,7 @@ import {
   normalizeText,
   parseQuantityUnitFromPortionText,
 } from "../../mealTextParsing";
-import { processMealInput } from "../../nutritionEngine";
+import * as nutritionRuntime from "../../nutritionEngine";
 import type { CatalogFood, MealDraftItem } from "../../nutritionEngineTypes";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
@@ -17,7 +17,7 @@ import {
   type WhatsAppPendingOperationRepository,
 } from "../../repositories/whatsappPendingOperationRepository";
 import { findTacoFood } from "../../tacoLookup";
-import { createManualMeal, listMeals, removeMeal, updateMeal } from "../meals/service";
+import * as mealRuntime from "../meals/service";
 import type { WhatsappIntentResult } from "./intent/types";
 import { composeWhatsAppMealActionReply } from "./mealActionReplyComposer";
 import { consolidateWhatsAppMealAfterSave } from "./mealConsolidationService";
@@ -75,27 +75,27 @@ export type WhatsappFoodClarificationResult = WhatsappIntentResult;
 
 type FoodClarificationDependencies = {
   repository: WhatsAppPendingOperationRepository;
-  processFood: typeof processMealInput;
-  getHabits: typeof getHabitSnapshots;
-  createMeal: typeof createManualMeal;
-  listMeals: typeof listMeals;
-  updateMeal: typeof updateMeal;
-  removeMeal: typeof removeMeal;
+  processFood: typeof nutritionRuntime.processMealInput;
+  getHabits: typeof dbRuntime.getHabitSnapshots;
+  createMeal: typeof mealRuntime.createManualMeal;
+  listMeals: typeof mealRuntime.listMeals;
+  updateMeal: typeof mealRuntime.updateMeal;
+  removeMeal: typeof mealRuntime.removeMeal;
 };
 
 const defaultRepository = createDrizzleWhatsAppPendingOperationRepository({
-  getDb,
-  onWarning: logPersistenceWarning,
+  getDb: dbRuntime.getDb,
+  onWarning: dbRuntime.logPersistenceWarning,
 });
 
 const defaultDependencies: FoodClarificationDependencies = {
   repository: defaultRepository,
-  processFood: processMealInput,
-  getHabits: getHabitSnapshots,
-  createMeal: createManualMeal,
-  listMeals,
-  updateMeal,
-  removeMeal,
+  processFood: input => nutritionRuntime.processMealInput(input),
+  getHabits: userId => dbRuntime.getHabitSnapshots(userId),
+  createMeal: (userId, input) => mealRuntime.createManualMeal(userId, input),
+  listMeals: userId => mealRuntime.listMeals(userId),
+  updateMeal: (userId, input) => mealRuntime.updateMeal(userId, input),
+  removeMeal: (userId, mealId) => mealRuntime.removeMeal(userId, mealId),
 };
 
 const COUNT_WORDS: Record<string, number> = {
@@ -652,7 +652,6 @@ export function createWhatsappFoodClarificationService(overrides: Partial<FoodCl
         });
       }
     } else if (active && isStandaloneWhatsappCommandWord(text)) {
-      // Outra pendência possui precedência própria; não roubar sua resposta curta.
       return null;
     }
 
