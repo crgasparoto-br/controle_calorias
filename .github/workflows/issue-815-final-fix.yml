@@ -1,9 +1,13 @@
 name: Issue 815 final corrections
 
 on:
-  push:
+  pull_request:
     branches:
-      - cleanup/815-retire-professional-legacy
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
     paths:
       - scripts/issue-815-final-fix.mjs.gz.b64
       - .github/workflows/issue-815-final-fix.yml
@@ -12,7 +16,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: issue-815-final-fix
+  group: issue-815-final-fix-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
