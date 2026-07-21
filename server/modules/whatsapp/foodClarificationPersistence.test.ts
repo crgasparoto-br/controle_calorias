@@ -139,4 +139,64 @@ describe("persistResolvedFoodSafely", () => {
     }));
     expect(createMeal).toHaveBeenCalledTimes(1);
   });
+
+  it("persiste a quantidade resultante de uma porção canônica multiunidade", async () => {
+    const { deps, createMeal } = createDependencies();
+    const multiUnitTarget: PendingFoodClarificationTarget = {
+      ...target,
+      originalText: "2 pão integral Wickbold",
+      sanitizedOriginalText: "2 pão integral Wickbold",
+      originalCandidate: "pão integral Wickbold",
+      normalizedCandidate: "pão integral Wickbold",
+      count: 2,
+    };
+    const multiUnitCandidate = {
+      ...candidate,
+      name: "Pão integral Wickbold",
+      servingLabel: "2 fatias",
+      gramsPerServing: 50,
+      brandName: "Wickbold",
+    };
+    const multiUnitItem = {
+      ...processedItem,
+      foodName: "Pão integral Wickbold",
+      canonicalName: "Pão integral Wickbold",
+      brand: "Wickbold",
+      quantity: 4,
+      unit: "fatias",
+      portionText: "4 fatias",
+      servings: 2,
+      estimatedGrams: 100,
+      calories: 248,
+      protein: 10,
+      carbs: 42,
+      fat: 4,
+    };
+    deps.processFood.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "4 fatias de Pão integral Wickbold",
+      confidence: 0.95,
+      needsConfirmation: false,
+      reasoning: "porção canônica preservada",
+      items: [multiUnitItem],
+      totals: { calories: 248, protein: 10, carbs: 42, fat: 4 },
+    });
+
+    const outcome = await persistResolvedFoodSafely(
+      deps,
+      42,
+      multiUnitTarget,
+      multiUnitCandidate,
+      new Date("2026-07-21T15:00:00.000Z"),
+      "America/Sao_Paulo",
+    );
+
+    expect(outcome.status).toBe("success");
+    expect(deps.processFood).toHaveBeenCalledWith(expect.objectContaining({
+      text: "4 fatias de Pão integral Wickbold",
+    }));
+    expect(createMeal).toHaveBeenCalledWith(42, expect.objectContaining({
+      items: [expect.objectContaining({ quantity: 4, unit: "fatias", calories: 248 })],
+    }));
+  });
 });
