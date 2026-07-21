@@ -22,6 +22,7 @@ import { executeWhatsappAiQuestionIntent } from "./aiQuestionAssistant";
 import { executeWhatsappDatedFoodAdditionIntent } from "./datedFoodAdditionIntent";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { executeWhatsAppFoodAssistantIntent } from "./foodAssistant";
+import { resolvePendingWhatsappFoodClarification } from "./foodClarificationGate";
 import {
   buildWhatsappDuplicateInboundResult,
   evaluateWhatsappInboundIdempotency,
@@ -291,6 +292,20 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return aiQuestion;
   }
 
+  // O gate antecipado resolve apenas uma pendência alimentar já persistida ou
+  // bloqueia comando isolado. A criação de uma nova pendência ocorre mais tarde,
+  // no parser textual, depois dos parsers alimentares especializados.
+  const foodClarification = await logAndReturnInterpretedIntent(userId, await resolvePendingWhatsappFoodClarification({
+    userId,
+    text,
+    receivedAt,
+    userTimezone,
+    messageId: input.messageId,
+  }), { text, receivedAt });
+  if (foodClarification) {
+    return foodClarification;
+  }
+
   const contextResult = await logAndReturnInterpretedIntent(userId, resolveWhatsappConversationContext(userId, {
     text,
     receivedAt,
@@ -299,10 +314,6 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
     return contextResult;
   }
 
-  // O coordenador de múltiplas ações é um ramo fail-closed próprio: só existe
-  // quando há duas ou mais ações explícitas e nunca executa domínio diretamente.
-  // Mensagens que não formam um comando composto seguem primeiro para o executor
-  // destrutivo canônico, inclusive respostas inválidas de pendências ativas.
   const multiActionPreview = executeWhatsappMultiActionIntent({ text, temporalContext: null });
   if (multiActionPreview) {
     const pendingWasReplaced = await supersedeActiveWhatsappPendingOperations(userId, receivedAt);
@@ -474,6 +485,7 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
       text,
       receivedAt,
       userTimezone,
+      messageId: input.messageId,
     }), { text, receivedAt });
   if (interpreted) {
     return temporalResolution.context
@@ -482,7 +494,6 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
 
   const llmRaw = await executeWhatsappLlmIntent(userId, { text, receivedAt, messageId: input.messageId, userTimezone });
-  // WhatsappLlmNutritionFallback (handled: false) não é um resultado de intent tratado — ignorar aqui
   const llmInterpreted = await logAndReturnInterpretedIntent(userId, llmRaw && "handled" in llmRaw && !llmRaw.handled ? null : llmRaw as Exclude<typeof llmRaw, { handled: false }>, { text, receivedAt });
   if (llmInterpreted) {
     return temporalResolution.context

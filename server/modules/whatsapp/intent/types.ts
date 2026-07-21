@@ -12,7 +12,15 @@ export type WhatsappIntentResult = {
     | "clarification_needed"
     | "meal_deleted"
     | "meal_item_deleted"
-    | "delete_cancelled";
+    | "delete_cancelled"
+    | "food_clarification_requested"
+    | "food_clarification_completed"
+    | "food_clarification_reprompted"
+    | "food_clarification_cancelled"
+    | "food_clarification_unavailable"
+    | "food_clarification_retryable_failure"
+    | "food_clarification_blocked"
+    | "food_clarification_standalone_command_blocked";
   reply: string;
   eventType: string;
   detail: string;
@@ -25,6 +33,8 @@ export type WhatsappIntentInput = {
   text?: string | null;
   receivedAt?: Date;
   userTimezone?: string | null;
+  /** ID externo do inbound, quando disponível, usado no vínculo idempotente da pendência. */
+  messageId?: string | null;
   /** Identificador sanitizado do wrapper que iniciou o roteamento. */
   entrypoint?: string;
 };

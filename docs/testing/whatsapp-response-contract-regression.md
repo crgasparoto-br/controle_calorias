@@ -18,11 +18,11 @@ Os textos legados descritos aqui **não são contrato permanente**: a coluna "Re
 
 1. correlação de mídia + escopo do lifecycle persistente (`runWithMessageLifecycleRequestScope`);
 2. `handleWhatsAppWebhookWithImageIdempotency` ([server/whatsappImageIdempotencyWebhook.ts](../../server/whatsappImageIdempotencyWebhook.ts)) — onboarding de lead, claim persistente por `message.id`, imagem de água com legenda;
-3. `handleWhatsAppWebhookWithTextIntent` ([server/whatsappIntentWebhook.ts](../../server/whatsappIntentWebhook.ts)) — segurança e gate canônico: callback interativo, pergunta `/`, resposta curta destrutiva, novo comando destrutivo completo, confirmação genérica e só então profissional, peso, água+alimento, listagem, substituição contextual, gramas, intents textuais, LLM, assistente de alimentos e alimento desconhecido;
+3. `handleWhatsAppWebhookWithTextIntent` ([server/whatsappIntentWebhook.ts](../../server/whatsappIntentWebhook.ts)) — segurança e gate canônico: callback interativo, pergunta `/`, resposta curta destrutiva, novo comando destrutivo completo, resolução de pendência alimentar da #855, confirmação genérica e só então profissional, peso, água+alimento, listagem, substituição contextual, gramas, intents textuais, LLM, assistente de alimentos e alimento desconhecido;
 4. `handleWhatsAppWebhookWithAnnotatedImages` ([server/whatsappAnnotatedImageWebhook.ts](../../server/whatsappAnnotatedImageWebhook.ts)) — imagem: read receipt, acknowledgement, inferência, registro, consolidação, resposta funcional, imagem anotada;
 5. `handleWhatsAppWebhook` ([server/whatsappWebhook.ts](../../server/whatsappWebhook.ts)) — fallback nutricional: áudio, multimodal, texto não tratado, água/peso legados, ações genéricas, erros.
 
-Fronteiras de idempotência: `whatsappConversationMessages` + lease por `message.id` (`messageLifecycle.ts`), caches locais como fast-path, `whatsappPendingOperations` com consumo compare-and-set para seleção/confirmação.
+Fronteiras de idempotência: `whatsappConversationMessages` + lease por `message.id` (`messageLifecycle.ts`), caches locais como fast-path, `whatsappPendingOperations` com consumo compare-and-set para seleção/confirmação/quantidade alimentar.
 
 ## Transporte atual (Cloud API)
 
@@ -65,6 +65,11 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 | Exclusão via simulador | pendência conversacional real + `Excluir o Registrar` | `conversationContext` libera comando destrutivo; `simulateWhatsappInbound` chama `deleteIntent` antes dos parsers alimentares | comando destrutivo nunca cai no fallback nutricional nem pede quantidade | executor canônico de `deleteIntent.ts` | 1 seleção/confirmação | paridade com webhook e áudio transcrito | `service.issue856.pending.test.ts`, `service.test.ts` | concluído (#856) |
 | Alimento ausente do catálogo / estimado pela IA | `1 bisnaguinha xpto` | intent webhook / fluxo de registro segue para estimativa da IA | item estimado incluído na refeição e nos totais | `buildWhatsAppFoodLines` inclui `WHATSAPP_ESTIMATED_NUTRITION_WARNING` abaixo de cada item estimado | 1 mensagem | seguir direto para estimativa da IA; aviso individual; totais incluem estimados | `replyMessages.estimatedNutrition.test.ts`, `whatsappIntentWebhook.test.ts` | concluído |
 | Link de edição rápida | refeição registrada/atualizada com CTA disponível | builders de refeição anexam CTA quando o link é gerado | nenhum efeito adicional | CTA opaco com fallback textual | mantido | falha ao gerar não bloqueia a resposta nutricional | `replyMessages.*.test.ts` | fora do escopo da #856 |
+| Contagem com porção canônica segura | `2 kit kat` / alimento naturalmente contável exato | parser especializado → `foodClarification` → catálogo exato → serviço nutricional canônico | registra a contagem uma única vez; converte pela porção exata, nunca por similar | resposta canônica da refeição após recarregar estado | 1 resposta funcional | unidade somente com candidato exato e porção estável | `foodClarification.test.ts`, `foodClarification.lifecycle.test.ts` | concluído (#855) |
+| Contagem sem porção canônica | `1 iogurte natural desnatado` | `foodClarification` antes do parser alimentar genérico | nenhuma mutação; cria `food_registration_clarification` aberta preservando alimento e qualificadores | pergunta específica de peso/tamanho; transporte textual por ser decisão aberta | 1 pergunta + 1 resposta | não assumir `100 g`; `170 g` completa o alimento original | `foodClarification.test.ts`, `foodClarification.lifecycle.test.ts`, `foodClarificationGate.test.ts` | concluído (#855) |
+| Erro ortográfico conservador | `1 iogurte natual desnatado` | normalização preserva texto original e candidato `iogurte natural desnatado` separados | confirmação específica, seleção ou quantidade conforme candidatos/porção | contrato persistido expõe classificação, tipo, ações e instrução para #858 | 1 pergunta específica | nunca perguntar genericamente pela intenção; nunca corrigir ambiguidade silenciosamente | `foodClarification.test.ts` | concluído (#855) |
+| Resposta incompatível à pendência alimentar | quantidade ativa → `registrar` | gate persistente antes de contexto, parsers e LLM | pendência permanece ativa; zero item e zero refeição | mesma instrução específica reapresentada | 1 reapresentação | respostas curtas resolvem somente tipo compatível | `foodClarification.test.ts`, `foodClarificationGate.test.ts` | concluído (#855) |
+| Comando isolado sem pendência | `registrar`, `confirmar`, `cancelar`, `sim`, número isolado | gate antecipado + validação estruturada | zero LLM e zero persistência nutricional; `foodName: Registrar` é rejeitado | esclarecimento seguro; frase completa segue o pipeline | 1 mensagem | pedir comando completo sem criar alimento fantasma | `standaloneCommandWords.test.ts`, `intentSchema.issue855.test.ts`, `foodClarificationGate.test.ts` | concluído (#855) |
 
 ### Resumos, metas, água, peso e exercícios (migração: #784)
 
@@ -120,7 +125,7 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 | `replyMessages.ts` / `replyTemplates.ts` / `domainReplyFormatters.ts` | contrato único: texto, botões, listas, CTA e mídia | concluído — #781 |
 | `sendAndLogTextReply` | delega ao delivery lógico central | concluído — #781 |
 | Builders locais | migrados; `architecture:check` bloqueia caminhos paralelos | concluído — #783–#788 |
-| `whatsappPendingOperations` | confirmação genérica, seleção/confirmação de exclusão, período, autorização e seleção de item | fonte única para texto/callback com validação, expiração, `superseded` e CAS — #782/#783/#856 |
+| `whatsappPendingOperations` | confirmação genérica, seleção/confirmação de exclusão, período, autorização, seleção de item e `food_registration_clarification` da #855 | fonte única para texto/callback com texto original, candidato normalizado, classificação, ações, validação, expiração, `superseded` e CAS — #782/#783/#855/#856 |
 | Acks e read receipts | read receipt separado; ack cancelável | no máximo 1 ack em processamento lento — #785 |
 
 ## Contratos da #756 e riscos para a tela de Relatórios
@@ -143,6 +148,9 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 | Refeições 0/1/N sem escolha silenciosa | `deleteIntent.issue856.test.ts` |
 | Webhook HTTP, áudio transcrito e simulador não chamam fallback | `whatsappIntentWebhook.delete.test.ts`, `whatsappWebhook.audioTranscription.test.ts`, `service.issue856.pending.test.ts` |
 | Isolamento entre usuários nas intents destrutivas | `deleteIntent.test.ts`, `learningSecurity.test.ts` |
+| Clarificação alimentar preserva original/normalizado e rejeita `100 g` implícito | `foodClarification.test.ts`, `foodClarification.lifecycle.test.ts` |
+| Gate alimentar preserva parsers especializados e bloqueia comando isolado | `foodClarificationGate.test.ts`, `standaloneCommandWords.test.ts` |
+| Saída estruturada com comando operacional como alimento é inválida | `intentSchema.issue855.test.ts` |
 
 ## Ordem e dependências da migração
 
@@ -151,6 +159,7 @@ Colunas: entrada representativa → entrypoint/wrappers → efeito de domínio �
 3. #783–#787 migram os fluxos por domínio.
 4. #788 remove legados e adiciona checagem arquitetural.
 5. #856 reforça a precedência destrutiva sem reabrir transporte ou cálculo nutricional.
+6. #855 adiciona o contrato alimentar persistente consumível pela #858 e pela matriz end-to-end #860.
 
 ### Fechamento da auditoria da epic #779
 

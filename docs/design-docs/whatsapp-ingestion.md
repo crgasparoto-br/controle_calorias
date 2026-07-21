@@ -9,6 +9,7 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Webhook HTTP para validação e inbound.
 - Serviço de WhatsApp em `server/modules/whatsapp/service.ts`.
 - Interpretação de comandos de texto em `server/modules/whatsapp/intentActions.ts`.
+- Clarificação persistente de registro alimentar em `server/modules/whatsapp/foodClarification.ts`, com gate de resolução antecipada em `foodClarificationGate.ts` e contrato detalhado em [whatsapp-food-registration-clarification.md](./whatsapp-food-registration-clarification.md).
 - Formatação de respostas nutricionais em `server/modules/whatsapp/replyMessages.ts`.
 - Contrato central de resposta em `server/modules/whatsapp/replyContract.ts` e transporte central em `server/modules/whatsapp/replyTransport.ts` (epic #779, issue #781) — ver seção "Contrato central de resposta" abaixo.
 - Edição rápida pública em `server/modules/quickEdit/*`, com token opaco, hash persistido e rota web `/quick-edit/:token`.
@@ -62,6 +63,10 @@ Receber payloads da Meta, identificar usuário por telefone de origem, processar
 - Relatórios por WhatsApp devem resumir quantidade de refeições, calorias e macronutrientes consumidos, além de comparação simples com a meta estimada do período quando a meta estiver disponível.
 - Quando um exercício novo for importado automaticamente do Strava para um usuário com WhatsApp vinculado, o usuário deve receber a resposta canônica de exercício com atividade, duração, calorias, data, indicação de estimativa quando aplicável e botão `Ver exercício`.
 - Quando o comando não tiver contexto suficiente, o sistema deve pedir esclarecimento em vez de criar ou alterar registro incorreto.
+- Contagens alimentares só podem virar unidade quando o candidato resolvido possui porção canônica exata e estável; uma referência nutricional genérica de `100 g` nunca é uma porção implícita.
+- Clarificações alimentares devem persistir texto original e candidato normalizado separadamente, expor classificação, tipo, ações/opções e instrução textual, e solicitar somente o dado ausente.
+- Respostas curtas só podem resolver pendências compatíveis; resposta incompatível não consome a pendência nem cria alimento.
+- Mensagem formada apenas por comando operacional ou número isolado, sem pendência compatível, nunca pode alcançar LLM, `processMealInput`, `processMealDraft` ou persistência nutricional. Frases completas, como `registrar 100 g de arroz`, continuam válidas.
 - Quando o interpretador de texto tratar a mensagem ou transcrição, o webhook real deve registrar evento de inferência com `origin: "whatsapp"`, responder com a mensagem interpretada e impedir que o mesmo conteúdo crie refeição por fallback.
 - Respostas finais de refeição no WhatsApp devem usar linguagem simples, sem títulos técnicos como `Alimentos e macros`, e devem listar alimentos, porções, calorias, proteína, carboidratos e gorduras por item.
 - Respostas finais de refeição devem mostrar o total da refeição e, quando houver meta disponível, um resumo curto de meta diária com calorias consumidas, meta e quanto falta ou excedeu.
@@ -126,41 +131,45 @@ A epic #779 estende o contrato central para perguntas interativas com botões e 
 ### Retry após mutação
 
 O inbound só é concluído depois que uma resposta funcional primária é entregue e persistida. Se a mutação de domínio terminou mas o envio falhou, os vínculos `mealId`, `waterLogId` e `weightEntryId` permitem reconstruir a resposta a partir do estado persistido, sem repetir a mutação. A chave de idempotência da resposta outbound é derivada do inbound, garantindo no máximo uma resposta funcional armazenada por mensagem.
-- **Despacho por domínio**: `server/modules/whatsapp/messageRouter.ts` reivindica o callback uma única vez e despacha pelo `type` persistido em `whatsappPendingOperations` para o resolvedor do domínio (exclusão, confirmação genérica de reclassificação, autorização profissional), que revalida o recurso atual no banco antes de mutar e nunca consome a pendência de novo. Um recurso que não corresponde mais ao estado esperado (ex.: ação `confirm` sobre uma pendência de seleção já superada) recebe a mensagem central `⚠️ Registro não encontrado`.
-- **Fluxos obrigatórios**: exclusão exibe `Confirmar`/`Cancelar` e nunca executa antes da confirmação; uma seleção ambígua com mais de uma opção usa lista interativa (com linha `Cancelar`) e, ao ser escolhida, avança para a confirmação por botões em vez de excluir silenciosamente; autorização profissional exibe `Autorizar`/`Recusar` vinculados à mesma pendência criada ao notificar o profissional, mantendo o texto `AUTORIZAR <código>`/`NEGAR <código>` como fallback compatível — os dois caminhos resolvem a mesma decisão e a repetição não muda uma decisão já aplicada, pois o recurso (`access.status`) deixa de estar `"pending"` após a primeira aplicação.
-- **Transporte**: `server/modules/whatsapp/webhookUtils.ts` ganhou `sendWhatsAppInteractiveButtonsMessage`/`sendWhatsAppInteractiveListMessage`; o envio efetivo passa por `replyTransport.sendWhatsAppLogicalReply`, que grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica, igual aos demais fluxos migrados ao contrato central.
+- **Despacho por domínio**: `server/modules/whatsapp/messageRouter.ts` reivindica o callback uma única vez e despacha pelo `type` persistido em `whatsappPendingOperations` para o resolvedor do domínio (exclusão, confirmação genérica de reclassificação, autorização profissional e clarificação alimentar), que revalida o recurso atual no banco antes de mutar e nunca consome a pendência de novo. Um recurso que não corresponde mais ao estado esperado recebe a mensagem central `⚠️ Registro não encontrado`.
+- **Fluxos obrigatórios**: exclusão exibe `Confirmar`/`Cancelar` e nunca executa antes da confirmação; uma seleção ambígua com mais de uma opção usa lista interativa; autorização profissional exibe `Autorizar`/`Recusar`; clarificação alimentar fechada expõe ações canônicas e a aberta preserva a mesma instrução textual para resposta de quantidade.
+- **Transporte**: `server/modules/whatsapp/webhookUtils.ts` fornece botões/listas; o envio efetivo passa por `replyTransport.sendWhatsAppLogicalReply`, que grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica.
 
 ### Unificação de refeições e ações sobre alimentos (issue #783)
 
 A epic #779 unifica todos os pontos que registram, atualizam, consultam ou excluem refeições/alimentos por WhatsApp para reutilizar os mesmos blocos de item e total (`buildWhatsAppFoodLines`/`buildWhatsAppMealTotalLines` em `replyTemplates.ts`), acessados via `buildWhatsAppMealActionReplyMessage`/`buildWhatsAppConsolidatedMealReplyMessage`/`buildWhatsAppMealReplyMessage` (`replyMessages.ts`).
 
 - **Fonte de verdade pós-mutação**: `datedFoodAdditionIntent.ts`, `contextualFoodReplacementIntent.ts`, `gramsAdjustmentIntent.ts`, `gramsIncrementIntent.ts` e `deleteIntent.ts` recarregam a refeição (`listMeals`/`updateMeal`/`removeMeal`) antes de montar a resposta; nenhum desses fluxos monta a resposta a partir do payload anterior à mutação.
-- **Builders locais removidos**: `buildMealFullSummary` (duplicado em `whatsappIntentWebhook.ts`, que produzia uma segunda seção "Resumo da refeição" logo abaixo da resposta central de `datedFoodAdditionIntent.ts`) e `formatMealSummary`/`formatTotalsLine` (duplicados em `contextualFoodReplacementIntent.ts`) foram removidos; ambos os fluxos agora produzem uma única seção com os blocos centrais.
+- **Builders locais removidos**: `buildMealFullSummary` e `formatMealSummary`/`formatTotalsLine` foram removidos; os fluxos agora produzem uma única seção com os blocos centrais.
 - **Substituição e ajuste de quantidade diretos**: quando o alvo é inequívoco, a mutação é aplicada sem pedido de confirmação.
-- **Ambiguidade por botões/lista**: `server/modules/whatsapp/mealItemSelectionCallback.ts` generaliza o padrão de seleção ambígua da exclusão (#782) para ajuste de gramas, correção de quantidade em contexto curto e substituição de alimento. Cada candidato preserva `mealId`, rótulo, índice e nome do item; duplicidades na mesma refeição permanecem candidatos distintos.
-- **Encadeamento completo e ordenado**: mensagens com uma ação clara e uma ou mais ações ambíguas não escrevem antes da última escolha. Substituições e ajustes de gramas preservam todas as ações seguintes em `remainingSelections`, incluindo destino, delta e quantidade específicos de cada ação.
-- **Caminhos equivalentes**: `recordAdjustmentIntent.ts`, `gramsAdjustmentIntent.ts` e `gramsIncrementIntent.ts`, inclusive quando exercitados pelo simulador, delegam aos mesmos handlers canônicos e mantêm os metadados de pendência e consulta fresca.
-- **Operações multirrefeição**: `mealBatchMutation.ts` mantém o pipeline canônico de `updateMeal` e aplica compensação em ordem inversa se qualquer atualização falhar. A compensação inclui a chamada que lançou erro, pois ela pode ter persistido a refeição antes de falhar em um efeito complementar. Sucesso só é respondido depois de todas as gravações.
-- **Entrega lógica única**: `logicalReplyDelivery.ts` compõe texto, CTA opaco e imagem auxiliar em uma única `WhatsAppLogicalReply`; os webhooks enviam a resposta funcional pelo transporte central e registram somente o conteúdo primário no lifecycle.
+- **Ambiguidade por botões/lista**: `mealItemSelectionCallback.ts` generaliza o padrão de seleção ambígua da exclusão para ajuste de gramas, correção de quantidade e substituição.
+- **Encadeamento completo e ordenado**: mensagens com ação clara e ações ambíguas não escrevem antes da última escolha.
+- **Caminhos equivalentes**: `recordAdjustmentIntent.ts`, `gramsAdjustmentIntent.ts` e `gramsIncrementIntent.ts`, inclusive no simulador, delegam aos mesmos handlers canônicos.
+- **Operações multirrefeição**: `mealBatchMutation.ts` aplica compensação em ordem inversa se qualquer atualização falhar.
+- **Entrega lógica única**: `logicalReplyDelivery.ts` compõe texto, CTA opaco e imagem auxiliar em uma única `WhatsAppLogicalReply`.
 - **CTA após callbacks**: resultados interativos preservam `data.mealId`; quando a refeição ainda existe, a resposta final mantém a edição rápida.
-- **Exclusão de alimento**: após a confirmação (botões `Confirmar`/`Cancelar` da #782), `deleteIntent.ts` recarrega a refeição e mostra os itens restantes com `buildWhatsAppMealActionReplyMessage`; quando o item excluído era o último, a refeição é removida e a resposta é uma confirmação textual simples (não há refeição para exibir).
-- **Exclusão de refeição**: a confirmação final continua textual, já que não existe registro remanescente para renderizar nos blocos centrais.
-- **Alimento estimado pela IA**: `buildWhatsAppFoodLines` inclui `WHATSAPP_ESTIMATED_NUTRITION_WARNING` (`⚠️ Valores nutricionais estimados pela IA.`) abaixo dos itens `heuristic` e `hybrid`; itens `catalog` não recebem o aviso, e os totais incluem os itens estimados.
-- **Fora de escopo**: seleção temporal, consolidação, catálogo, cálculo nutricional, schema de persistência e a regra de meta ajustada da #756 não foram alterados; o link de edição rápida (já integrado ao contrato central desde #781) foi apenas preservado.
+- **Exclusão de alimento/refeição**: respostas usam o estado recarregado ou confirmação textual quando o recurso deixa de existir.
+- **Alimento estimado pela IA**: itens `heuristic` e `hybrid` recebem aviso individual; itens de catálogo não.
 
 ### Gate destrutivo antes do fallback nutricional (issue #856)
 
-A causa raiz não estava no reconhecimento do verbo. `detectWhatsappDeleteIntent` já reconhecia `Excluir o Registrar`; a regressão estava na composição dos entrypoints e na política das pendências: o simulador possuía uma pendência conversacional em memória antes do executor, o webhook resolvia seleções alimentares antes da exclusão e uma resposta incompatível a confirmação destrutiva podia retornar `null` e continuar para LLM ou persistência nutricional.
+A causa raiz não estava no reconhecimento do verbo. A regressão estava na composição dos entrypoints e na política das pendências. A ordem canônica passou a ser segurança/idempotência → callback interativo → pergunta iniciada por `/` → resposta curta compatível com exclusão pendente → novo comando destrutivo completo → demais pendências e intents → fallback nutricional.
 
-A ordem canônica passou a ser: segurança/idempotência → callback interativo → pergunta iniciada por `/` → resposta curta compatível com exclusão pendente → novo comando destrutivo completo → demais pendências e intents → fallback nutricional. `messageRouter.ts` executa `executeWhatsappDeleteIntent` no gate compartilhado do webhook; `executeWhatsappTextIntent` mantém o mesmo gate para áudio transcrito; `simulateWhatsappInbound` libera comandos destrutivos de `conversationContext` e chama o executor antes dos parsers alimentares.
+Um novo comando destrutivo marca pendências incompatíveis como `superseded`; resposta inválida mantém a pendência ativa e nunca chama parser alimentar, LLM ou persistência nutricional. Alimentos/refeições usam cardinalidade 0/1/N e a mutação continua protegida por claim compare-and-set e revalidação do estado atual.
 
-Um novo comando destrutivo marca pendências operacionais incompatíveis como `superseded` antes de criar a seleção ou confirmação canônica. Uma resposta inválida a seleção/confirmação destrutiva reapresenta a mesma interação, mantém a pendência ativa e nunca chama parser alimentar, LLM, assistente de alimento, `processMealInput`, `processMealDraft` ou persistência nutricional.
+### Clarificação persistente do registro alimentar (issue #855)
 
-Alimentos e refeições usam resolução 0/1/N. Um candidato cria confirmação; múltiplos candidatos, inclusive dois almoços em datas diferentes, criam seleção ordenada por ocorrência e identificador antes da confirmação; nenhum candidato gera esclarecimento específico. A escolha por texto e callback converge para a mesma pendência e a mutação continua protegida por claim compare-and-set e revalidação do estado atual.
+`foodClarification.ts` corrige a perda do alimento original durante perguntas intermediárias. O tipo `food_registration_clarification` reutiliza `whatsappPendingOperations` e persiste contrato versionado com texto original, candidato normalizado, contagem, qualificadores, candidatos, classificação `open`/`closed`, tipo `quantity`/`confirmation`/`selection`, ações/opções ordenadas, instrução textual, vínculo ao inbound e único efeito de domínio permitido.
 
-A comparação disponível cobriu `main`, `develop`, a branch da PR e todos os entrypoints publicados no repositório. Não havia acesso aos logs do ambiente para confirmar o commit efetivamente implantado; por isso a telemetria registra `entrypoint`, executor, quantidade de candidatos, estado da pendência e commit de runtime quando `RENDER_GIT_COMMIT`, `VERCEL_GIT_COMMIT_SHA` ou `GITHUB_SHA` estiver disponível, sem registrar conteúdo sensível.
+A resolução antecipada em `foodClarificationGate.ts` consulta apenas pendência já existente ou bloqueia comando isolado. A criação de uma nova clarificação ocorre em `executeWhatsappTextIntent`, depois dos parsers especializados e antes do parser alimentar genérico. Assim `1 café lor` mantém seu parser específico, enquanto `1 iogurte natural desnatado` sem porção segura pergunta somente peso/tamanho.
 
-Os testes de regressão criam pendências reais em `whatsappPendingOperations` e no contexto conversacional, cobrem substituição por `Excluir o Registrar`, resposta inválida fail-closed, refeições ambíguas, webhook HTTP, simulador, áudio transcrito, texto/callback e idempotência.
+Contagem vira unidade somente para candidato exato com porção canônica estável. `100 g`, candidato aproximado e produto semelhante não são porção implícita. Erros simples como `natual` → `natural` alteram apenas o candidato normalizado; o texto original permanece auditável. Uma resposta incompatível reapresenta a mesma pergunta sem claim; comando completo incompatível marca a pendência como `superseded` e retorna ao roteador central.
+
+Confirmação/seleção usam claim compare-and-set; quantidade exige número e unidade compatíveis. Falha após claim recria a pendência com o texto original. Sucesso usa `processMealInput`, serviços canônicos de refeição, consolidação, recarga do estado e formatter central. O schema estruturado também rejeita `foodName` igual a comando operacional isolado.
+
+A especificação detalhada e o contrato consumível pela #858 estão em [whatsapp-food-registration-clarification.md](./whatsapp-food-registration-clarification.md); cenários executáveis foram adicionados à [matriz de regressão](../testing/whatsapp-response-contract-regression.md).
+
+## Testes obrigatórios
 
 - Testar texto, imagem e áudio mockados.
 - Testar que texto, imagem e áudio inbound são marcados como lidos e recebem resposta inicial de processamento quando seguem para o fluxo nutricional normal.
@@ -174,57 +183,26 @@ Os testes de regressão criam pendências reais em `whatsappPendingOperations` e
 - Testar que texto como `300mo água` é normalizado para `300 ml de água` antes da interpretação e registra hidratação corretamente.
 - Testar que texto como `500 ml de água ontem` registra o consumo no dia anterior em `America/Sao_Paulo`.
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
-- Testar que imagem com apenas água e volume válido (`ml` ou `L`, com ou sem gás, com marca) registra hidratação e não cria rascunho nem refeição.
-- Testar que imagem com água e alimentos registra hidratação separadamente, remove a água da lista de itens e recalcula os totais da refeição apenas com os itens restantes.
-- Testar que imagem com água sem volume válido não cria hidratação nem refeição e pede o volume ao usuário.
-- Testar que múltiplos recipientes de água na mesma imagem somam os volumes em um único registro de hidratação.
-- Testar que `água de coco`, `água tônica` e `água saborizada` identificadas em imagem permanecem como item de refeição, não como hidratação.
-- Testar que falha ao registrar hidratação de água identificada em imagem não gera resposta de sucesso nem cria a refeição associada.
-- Testar que texto como `211g de leite integral` não troca `g` por `ml` diretamente; quando convertido, deve usar densidade confiável e informar a medida interpretada ao usuário.
-- Testar que alimento sólido sem densidade confiável não é convertido automaticamente de `g` para `ml`.
-- Testar que texto como `reduzir 50 g do arroz` ajusta o item compatível da última refeição e recalcula macros proporcionalmente.
-- Testar que texto ou áudio transcrito como `somar 45 g ao arroz` ajusta o item compatível da última refeição e não chama inferência nutricional.
-- Testar que texto como `diminuir 30 g` ajusta o último item da última refeição quando não há alimento explícito.
-- Testar que texto como `Trocar 330ml por 600ml` corrige automaticamente um único item recente compatível e preserva a unidade da resposta.
-- Testar que texto como `Não é 330ml é 600ml` corrige o último item compatível.
-- Testar que correção curta com dois itens de `330ml` pede confirmação com opções numeradas.
-- Testar que correção curta sem item recente de `330ml` pede esclarecimento antes de alterar registro.
-- Testar que texto como `Adicionar 300g de amendoim japonês Elma Chips ao jantar de ontem` adiciona o alimento à refeição indicada no dia relativo e não chama inferência nutricional.
-- Testar que pedido para adicionar alimento em gramas a refeição inexistente pede esclarecimento e não altera registros.
-- Testar que texto como `Adicionar 3 xícaras de café sem açúcar a refeição café da manhã` adiciona café à refeição indicada e não cria uma nova refeição por fallback.
-- Testar que pedido para adicionar café sem refeição ou sem quantidade suficiente pede esclarecimento e não altera registros.
-- Testar que pedido de sugestão de lanche retorna uma sugestão e não chama inferência nutricional.
-- Testar que texto como `Me envie um resumo da semana` retorna relatório do período e não chama inferência nutricional.
-- Testar que pedido de relatório sem período pede esclarecimento antes de executar qualquer ação.
-- Testar que a resposta ao pedido de período, como `Hoje`, mantém o contexto do resumo e não delega para criação de refeição.
-- Testar que mensagem de texto comum de refeição continua delegando para o fluxo normal de inferência nutricional.
-- Testar que áudio transcrito como `500 ml de água ontem` registra hidratação sem chamar inferência nutricional nem criar refeição.
+- Testar que imagem com apenas água e volume válido registra hidratação e não cria refeição.
+- Testar que imagem com água e alimentos registra hidratação separadamente e recalcula os totais.
+- Testar que imagem com água sem volume válido pede o volume.
+- Testar que múltiplos recipientes de água somam os volumes em um único registro.
+- Testar que `água de coco`, `água tônica` e `água saborizada` permanecem como alimento.
+- Testar conversão massa-volume somente com densidade confiável.
+- Testar redução, incremento e correção curta de quantidade sem criar refeição nova.
+- Testar adição de alimento/café a refeição existente e esclarecimento quando ela não existe.
+- Testar sugestões e relatórios sem fallback nutricional.
 - Testar que caption de imagem com texto parecido com comando continua no fluxo multimodal normal.
-- Testar que resposta final de refeição no WhatsApp lista os alimentos com calorias e macros por alimento, além dos totais estimados.
-- Testar que resposta final de imagem no WhatsApp usa o formato simplificado com `Itens`, `Total da refeição` e `Meta de hoje`.
-- Testar que imagem inbound é enviada inline para a IA e que apenas a URL do storage é persistida no rascunho/refeição quando o storage estiver disponível.
-- Testar que imagem inbound pode gerar resposta visual anotada com a foto original, alimentos identificados, calorias e macros por item.
-- Testar que a preferência ausente, inválida, desabilitada ou indisponível impede geração, persistência e envio da imagem anotada sem afetar a mídia original e a resposta textual.
-- Testar que a imagem anotada gerada é vinculada à refeição em `mealMedia`, junto com a imagem original recebida pelo WhatsApp.
-- Testar que falha ao gerar, persistir ou enviar a imagem anotada não impede o registro da refeição nem a resposta textual.
-- Testar que imagem enviada após refeição compatível no mesmo dia é consolidada na refeição lógica existente, e não mantida como novo bloco apenas pelo `occurredAt`.
-- Testar que comando `Excluir o chocolate` após uma foto encontra o item compatível no contexto lógico do dia/refeição, mesmo quando a foto foi a última mensagem processada.
-- Testar que nomes específicos informados pelo usuário em texto são preservados quando a IA ou catálogo usa uma referência nutricional genérica.
-- Testar que áudio inbound é enviado inline para transcrição e que apenas a URL do storage é persistida no rascunho/refeição quando o storage estiver disponível.
-- Testar que falha de leitura, confirmação inicial ou storage não bloqueia o processamento quando a mensagem é válida.
-- Testar token ausente, telefone oficial usado como telefone de usuário e vínculo inexistente.
-- Testar que resposta outbound usa sempre `WHATSAPP_PHONE_NUMBER_ID`.
-- Testar que importação de exercício novo do Strava envia notificação WhatsApp com botão `Ver resumo do dia` quando houver vínculo ativo.
-- Testar que o contrato central rejeita botões acima do máximo suportado ou com título longo demais antes de qualquer chamada de rede.
-- Testar que o transporte central grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica, mesmo com múltiplas mensagens físicas (texto + imagem auxiliar).
-- Testar que acknowledgement nunca é gravado como resposta funcional pelo transporte central, mesmo com envio bem-sucedido.
-- Testar que falha na mensagem primária do transporte central não grava outbound no lifecycle, e que falha apenas na mídia auxiliar não impede a gravação da resposta já entregue.
-- Testar que o transporte central serializa botões e listas no formato interativo esperado pela Cloud API sem chamada real ao provedor.
-- Testar que um callback de botão/lista opaco é validado (dono, estado, expiração) e consumido por compare-and-set antes de qualquer efeito de domínio, e que reentrega, clique duplo ou corrida concorrente resultam em no máximo um consumo bem-sucedido.
-- Testar que um callback de outro usuário, expirado, adulterado ou de pendência inexistente retorna a mensagem central de indisponibilidade sem revelar o estado exato nem IDs internos.
-- Testar que a exclusão por botão só executa após `Confirmar`, que `Cancelar` não altera o domínio, e que uma seleção ambígua por lista avança para confirmação por botões em vez de excluir diretamente.
-- Testar que autorização/recusa profissional por botão aplica a decisão uma única vez e que repetir o clique ou o texto equivalente não muda uma decisão já consumida.
-- Testar que o webhook real reconhece `button_reply` recebido pela Cloud API e resolve a exclusão pendente sem passar pelo fallback nutricional.
+- Testar respostas finais simplificadas, imagem inline, preferência da anotação e consolidação.
+- Testar que nomes específicos informados pelo usuário são preservados quando a referência nutricional é genérica.
+- Testar mídia inline, storage opcional, tokens e número oficial.
+- Testar contratos de transporte, callback opaco, exclusão, autorização e lifecycle exatamente uma vez.
+- Testar `1 iogurte natual desnatado` preservando original/normalizado e criando pergunta específica.
+- Testar alimento contável com e sem porção canônica segura; referência `100 g` nunca vira unidade.
+- Testar `170 g` resolvendo quantidade e `registrar` não consumindo essa pendência.
+- Testar confirmação, seleção, cancelamento, expiração, reentrega, callback repetido e isolamento entre usuários.
+- Testar comando destrutivo durante pendência alimentar, comando operacional isolado sem pendência e frase completa `registrar 100 g de arroz`.
+- Testar saída estruturada com `foodName: Registrar` rejeitada antes da persistência.
 
 ## Invariantes finais da epic #779
 
