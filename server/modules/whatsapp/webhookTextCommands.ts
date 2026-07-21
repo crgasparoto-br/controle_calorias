@@ -238,7 +238,7 @@ export async function handleWhatsAppAction(action: WhatsAppAction, userId: numbe
       target,
     });
     const reply = buildWhatsAppClarificationReplyMessage(
-      `Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer mover somente os registros compatíveis ou todos os registros recentes?\n\nResponda APENAS, TODOS ou CANCELAR.`,
+      `Encontrei registros recentes com classificações diferentes (${recentSummary}). Você quer que eu mova apenas os itens marcados como ${action.fromMealLabel} ou todos os registros recentes para ${action.toMealLabel}?\n\nResponda APENAS, TODOS ou CANCELAR.`,
     );
     return {
       handled: true,
