@@ -63,6 +63,7 @@ jobs:
               server/modules/professionals/service.ts \
               server/modules/professionals/service.test.ts \
               server/modules/professionals/schemas.ts \
+              server/modules/professionals/schemas.test.ts \
               server/modules/professionals/legacyRetirement.test.ts \
               server/nutritionRouter.ts \
               scripts/retire-professional-legacy-preferences.ts \
