@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - cleanup/815-retire-professional-legacy
+  pull_request:
+    branches:
+      - develop
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
@@ -39,7 +43,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Apply retirement transform
-        run: node scripts/issue-815-transform.mjs
+        run: |
+          node scripts/issue-815-transform.mjs
+          node scripts/issue-815-fixup.mjs
 
       - name: Format changed sources
         run: |
@@ -75,7 +81,9 @@ jobs:
       - name: Remove one-shot automation
         run: |
           rm scripts/issue-815-transform.mjs
+          rm scripts/issue-815-fixup.mjs
           rm .github/workflows/issue-815-apply.yml
+          rm .github/issue-815-trigger
 
       - name: Commit implementation
         run: |
