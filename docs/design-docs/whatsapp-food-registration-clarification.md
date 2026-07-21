@@ -45,12 +45,12 @@ Esse contrato é consumível pela #858 sem reimplementar a regra alimentar. A #8
 Uma contagem vira unidade somente quando o candidato é exato e possui porção estável:
 
 - porções como `1 unidade`, `1 fatia`, `1 xícara` ou equivalente são aceitas;
-- porções canônicas multiunidade, como `2 fatias`, preservam o multiplicador: a quantidade final é a contagem informada multiplicada pela quantidade da porção canônica;
+- porções canônicas multiunidade, como `2 fatias`, preservam o multiplicador e são encaminhadas ao domínio pelo peso canônico total, evitando perda de proporcionalidade nutricional;
 - produto exato de marca com embalagem fixa em massa/volume pode ser aceito;
 - referência `100 g` é apenas base nutricional e nunca representa implicitamente uma unidade;
 - candidato aproximado ou produto semelhante nunca fornece porção para o alimento original.
 
-Exemplo: uma porção canônica de `Pão integral Wickbold` equivale a `2 fatias`. Portanto, `1 pão integral Wickbold` registra `2 fatias`, e `2 pão integral Wickbold` registra `4 fatias`, mantendo o peso e os nutrientes proporcionais definidos pelo domínio.
+Exemplo: uma porção canônica de `Pão integral Wickbold` equivale a `2 fatias` e `50 g`. Portanto, `1 pão integral Wickbold` registra `50 g` e `2 pão integral Wickbold` registra `100 g`, equivalentes a duas e quatro fatias, com peso e nutrientes proporcionais definidos pelo domínio.
 
 Quando não existe porção segura, o sistema preserva o alimento e pergunta apenas peso, volume ou tamanho. Exemplo: `1 iogurte natural desnatado` sem produto/porção exatos cria pendência aberta e pede `170 g`, `200 ml` ou equivalente.
 
@@ -98,8 +98,8 @@ As barreiras são:
 
 - `2 bananas` com porção exata registra duas unidades;
 - `3 ovos cozidos` com porção exata registra três unidades;
-- `1 pão integral Wickbold` com porção canônica de `2 fatias` registra duas fatias;
-- `2 pão integral Wickbold` com a mesma porção registra quatro fatias e nutrientes proporcionais;
+- `1 pão integral Wickbold` com porção canônica de `2 fatias / 50 g` registra `50 g`;
+- `2 pão integral Wickbold` com a mesma porção registra `100 g` e nutrientes proporcionais;
 - iogurte exato com embalagem estável registra a porção canônica;
 - iogurte genérico pede peso/tamanho sem assumir `100 g`;
 - `1 iogurte natual desnatado` preserva original e normaliza o candidato;
