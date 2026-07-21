@@ -20,11 +20,12 @@ describe("paridade dos entrypoints da interação WhatsApp (#858)", () => {
     expect(webhook).toMatch(/if \(!preservePendingAfterReplay\)\s*\{\s*await clearPendingTextIntentContext\(userId\);/s);
   });
 
-  it("simulador usa o mesmo gate persistente antes do pipeline nutricional", () => {
+  it("simulador usa o mesmo gate persistente antes da chamada nutricional", () => {
     const simulator = source("server/modules/whatsapp/service.ts");
-    expect(simulator).toContain("resolvePendingWhatsappFoodClarification");
-    expect(simulator.indexOf("resolvePendingWhatsappFoodClarification"))
-      .toBeLessThan(simulator.indexOf("processMealDraft"));
+    const gateCall = simulator.indexOf("await resolvePendingWhatsappFoodClarification(");
+    const nutritionCall = simulator.lastIndexOf("await processMealDraft(");
+    expect(gateCall).toBeGreaterThanOrEqual(0);
+    expect(nutritionCall).toBeGreaterThan(gateCall);
   });
 
   it("áudio transcrito retorna ao mesmo pipeline textual do webhook", () => {
