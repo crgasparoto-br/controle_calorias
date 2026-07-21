@@ -293,7 +293,7 @@ export function buildFoodClarificationPendingData(
 
 function parseCountableServing(candidate: FoodClarificationCandidate) {
   const parsed = parseQuantityUnitFromPortionText(candidate.servingLabel);
-  return parsed && COUNTABLE_SERVING.test(parsed.unit) ? parsed : null;
+  return parsed && parsed.quantity === 1 && COUNTABLE_SERVING.test(parsed.unit) ? parsed : null;
 }
 
 export function buildFoodClarificationRegistrationText(
