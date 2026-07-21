@@ -22,6 +22,11 @@ export const PROFESSIONAL_SETTINGS_PREFERENCE_KEY =
 const memorySettings = new Map<number, StoredProfessionalSettings>();
 const settingsMutationQueues = new Map<number, Promise<unknown>>();
 
+type StoredSettingsState = {
+  settings: StoredProfessionalSettings;
+  persisted: boolean;
+};
+
 export class ProfessionalSettingsConsistencyError extends Error {
   constructor() {
     super(
@@ -53,9 +58,17 @@ function parseSettings(value: string | null | undefined) {
   }
 }
 
-async function readStoredSettings(professionalUserId: number) {
+async function readStoredSettingsState(
+  professionalUserId: number
+): Promise<StoredSettingsState> {
   const db = await getDb();
-  if (!db) return memorySettings.get(professionalUserId) ?? defaultSettings();
+  if (!db) {
+    const settings = memorySettings.get(professionalUserId);
+    return {
+      settings: settings ?? defaultSettings(),
+      persisted: Boolean(settings),
+    };
+  }
 
   try {
     const rows = await db
@@ -71,7 +84,11 @@ async function readStoredSettings(professionalUserId: number) {
         )
       )
       .limit(1);
-    return parseSettings(rows[0]?.preferenceValue) ?? defaultSettings();
+    const parsed = parseSettings(rows[0]?.preferenceValue);
+    return {
+      settings: parsed ?? defaultSettings(),
+      persisted: Boolean(rows[0]),
+    };
   } catch (error) {
     logPersistenceWarning("professional_settings_read", error);
     if (process.env.NODE_ENV === "production") {
@@ -79,8 +96,16 @@ async function readStoredSettings(professionalUserId: number) {
         "As configurações profissionais estão temporariamente indisponíveis."
       );
     }
-    return memorySettings.get(professionalUserId) ?? defaultSettings();
+    const settings = memorySettings.get(professionalUserId);
+    return {
+      settings: settings ?? defaultSettings(),
+      persisted: Boolean(settings),
+    };
   }
+}
+
+async function readStoredSettings(professionalUserId: number) {
+  return (await readStoredSettingsState(professionalUserId)).settings;
 }
 
 async function writeStoredSettings(
@@ -117,6 +142,32 @@ async function writeStoredSettings(
     });
   memorySettings.set(professionalUserId, parsed);
   return parsed;
+}
+
+async function deleteStoredSettings(professionalUserId: number) {
+  const db = await getDb();
+  if (!db) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Não foi possível restaurar as configurações profissionais."
+      );
+    }
+    memorySettings.delete(professionalUserId);
+    return;
+  }
+
+  await db
+    .delete(userPreferences)
+    .where(
+      and(
+        eq(userPreferences.userId, professionalUserId),
+        eq(
+          userPreferences.preferenceKey,
+          PROFESSIONAL_SETTINGS_PREFERENCE_KEY
+        )
+      )
+    );
+  memorySettings.delete(professionalUserId);
 }
 
 function settingsAuditEventId(
@@ -244,10 +295,11 @@ export async function updateProfessionalIdentitySettings(
   const input = professionalIdentitySettingsSchema.parse(rawInput);
   return serializeSettingsMutation(professionalUserId, async () => {
     const mutationId = crypto.randomUUID();
-    const [currentProfile, currentSettings] = await Promise.all([
+    const [currentProfile, currentSettingsState] = await Promise.all([
       getProfessionalProfile(professionalUserId),
-      readStoredSettings(professionalUserId),
+      readStoredSettingsState(professionalUserId),
     ]);
+    const currentSettings = currentSettingsState.settings;
     await appendSettingsHistory(
       professionalUserId,
       "settings_identity_change_requested",
@@ -279,7 +331,9 @@ export async function updateProfessionalIdentitySettings(
       return { profile: updatedProfile, settings };
     } catch (error) {
       const compensations: Promise<unknown>[] = [
-        writeStoredSettings(professionalUserId, currentSettings),
+        currentSettingsState.persisted
+          ? writeStoredSettings(professionalUserId, currentSettings)
+          : deleteStoredSettings(professionalUserId),
       ];
       if (currentProfile) {
         compensations.push(
@@ -424,6 +478,12 @@ export async function listPatientVisibleProfessionalProfiles(
   return visibleProfiles.filter(
     (profile): profile is NonNullable<typeof profile> => Boolean(profile)
   );
+}
+
+export function _forTestOnly_hasProfessionalSettings(
+  professionalUserId: number
+) {
+  return memorySettings.has(professionalUserId);
 }
 
 export function _forTestOnly_clearProfessionalSettings() {
