@@ -128,12 +128,29 @@ jobs:
         run: |
           rm -f .github/workflows/issue-815-merge-ref-tidb-diagnostic.yml
           rm -f scripts/issue-815-merge-ref-tidb-error.txt
+          rm -f scripts/issue-815-semantic-goal-gate-error.txt
       - name: Format and run repository gates
         run: |
-          pnpm exec prettier --write scripts/retire-professional-legacy-preferences.ts scripts/test-professional-persistence-tidb.ts
-          git diff --check
-          pnpm agent:check
-          pnpm build
+          {
+            pnpm exec prettier --write scripts/retire-professional-legacy-preferences.ts scripts/test-professional-persistence-tidb.ts
+            git diff --check
+            pnpm agent:check
+            pnpm build
+          } > /tmp/issue-815-semantic-goal-gate.log 2>&1 || {
+            cat /tmp/issue-815-semantic-goal-gate.log
+            exit 1
+          }
+      - name: Persist repository gate diagnostic
+        if: failure()
+        run: |
+          if [ -f /tmp/issue-815-semantic-goal-gate.log ]; then
+            cp /tmp/issue-815-semantic-goal-gate.log scripts/issue-815-semantic-goal-gate-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add scripts/issue-815-semantic-goal-gate-error.txt
+            git commit -m "chore: registrar falha da comparação semântica #815"
+            git push origin HEAD:cleanup/815-retire-professional-legacy
+          fi
       - name: Start TiDB
         run: |
           docker run -d --name issue-815-semantic-goal-tidb -p 4000:4000 pingcap/tidb:v8.5.1
