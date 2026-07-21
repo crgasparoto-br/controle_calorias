@@ -29,6 +29,7 @@ import {
   type FoodClarificationCandidate,
   type PendingFoodClarificationTarget,
 } from "./foodClarificationContract";
+import { planFoodClarification } from "./foodClarificationPlan";
 import {
   persistResolvedFoodSafely,
   type FoodClarificationDependencies,
@@ -248,12 +249,37 @@ async function resolvePendingText(
 
   const candidate = target.candidates[selectedIndex];
   if (!candidate || !hasSafeCanonicalPortion(candidate)) {
-    return reprompt(
-      pending,
-      target,
-      "whatsapp.food_clarification.canonical_portion_missing",
-      "Candidato sem porção canônica segura não foi tratado como unidade.",
-    );
+    const quantityTarget: PendingFoodClarificationTarget = {
+      ...target,
+      interactionId: randomUUID(),
+      pendingKind: "quantity",
+      classification: "open",
+      selectedCandidateIndex: candidate ? selectedIndex : null,
+      actions: buildFoodClarificationActions("quantity", target.candidates),
+      instructionText: buildQuantityInstruction(target.normalizedCandidate),
+    };
+    const transitioned = await deps.repository.supersedePendingOperation(pending.id);
+    if (!transitioned.superseded) {
+      return unavailable("A seleção não pôde ser convertida em pergunta aberta de quantidade.");
+    }
+    const recreated = await recreatePendingAfterSafeFailure(deps, userId, quantityTarget, occurredAt);
+    if (!recreated) {
+      return result({
+        action: "food_clarification_blocked",
+        reply: buildWhatsAppRecoverableErrorReplyMessage(
+          "Não consegui manter a solicitação de quantidade. Envie novamente a mensagem alimentar completa.",
+        ),
+        eventType: "whatsapp.food_clarification.quantity_restore_failed",
+        detail: "Seleção sem porção segura não conseguiu criar a pendência aberta.",
+      });
+    }
+    return result({
+      action: "food_clarification_reprompted",
+      reply: buildWhatsAppClarificationReplyMessage(quantityTarget.instructionText),
+      eventType: "whatsapp.food_clarification.canonical_portion_missing",
+      detail: "Candidato selecionado não possui porção canônica segura; o sistema pediu quantidade explícita.",
+      data: buildFoodClarificationPendingData(recreated, quantityTarget),
+    });
   }
 
   const claimed = await deps.repository.claimPendingOperation({ id: pending.id, expectedVersion: pending.version });
@@ -382,23 +408,23 @@ export function createWhatsappFoodClarificationService(
     if (!request) return null;
 
     const candidates = resolveFoodClarificationCandidates(request.normalizedCandidate);
-    const safeCandidates = candidates.filter(hasSafeCanonicalPortion);
+    const plan = planFoodClarification(request, candidates);
 
-    if (safeCandidates.length === 1 && !request.normalizationChanged) {
+    if (plan.kind === "register") {
       const target = buildPendingFoodClarificationTarget({
         interactionId: randomUUID(),
         request,
         pendingKind: "confirmation",
-        candidates: safeCandidates,
+        candidates: [plan.candidate],
         selectedCandidateIndex: 0,
-        instructionText: buildConfirmationInstruction(safeCandidates[0].name),
+        instructionText: buildConfirmationInstruction(plan.candidate.name),
         messageId: input.messageId,
       });
       const outcome = await persistResolvedFoodSafely(
         deps,
         input.userId,
         target,
-        safeCandidates[0],
+        plan.candidate,
         occurredAt,
         input.userTimezone,
       );
@@ -406,25 +432,25 @@ export function createWhatsappFoodClarificationService(
       return createPending(deps, input.userId, target, occurredAt);
     }
 
-    if (safeCandidates.length === 1) {
+    if (plan.kind === "confirmation") {
       return createPending(deps, input.userId, buildPendingFoodClarificationTarget({
         interactionId: randomUUID(),
         request,
         pendingKind: "confirmation",
-        candidates: safeCandidates,
+        candidates: [plan.candidate],
         selectedCandidateIndex: 0,
-        instructionText: buildConfirmationInstruction(safeCandidates[0].name),
+        instructionText: buildConfirmationInstruction(plan.candidate.name),
         messageId: input.messageId,
       }), occurredAt);
     }
 
-    if (safeCandidates.length > 1) {
+    if (plan.kind === "selection") {
       return createPending(deps, input.userId, buildPendingFoodClarificationTarget({
         interactionId: randomUUID(),
         request,
         pendingKind: "selection",
-        candidates: safeCandidates,
-        instructionText: buildSelectionInstruction(safeCandidates),
+        candidates: plan.candidates,
+        instructionText: buildSelectionInstruction(plan.candidates),
         messageId: input.messageId,
       }), occurredAt);
     }
@@ -433,8 +459,8 @@ export function createWhatsappFoodClarificationService(
       interactionId: randomUUID(),
       request,
       pendingKind: "quantity",
-      candidates,
-      selectedCandidateIndex: candidates.length === 1 ? 0 : null,
+      candidates: plan.candidates,
+      selectedCandidateIndex: plan.candidates.length === 1 ? 0 : null,
       instructionText: buildQuantityInstruction(request.normalizedCandidate),
       messageId: input.messageId,
     }), occurredAt);
