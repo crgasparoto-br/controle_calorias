@@ -174,6 +174,21 @@ function buildPendingReplacementBlockedResult() {
   };
 }
 
+function buildMultiActionValidationBlockedResult() {
+  return {
+    handled: true as const,
+    action: "clarification_needed",
+    reply: "Não consegui validar todas as ações do comando composto com segurança. Nada foi alterado; envie as ações separadamente.",
+    eventType: "whatsapp.multi_action.validation_blocked",
+    detail: "Comando composto reconhecido na pré-classificação, mas não confirmado na resolução final; fallback nutricional bloqueado.",
+    data: {
+      fallbackBlocked: true,
+      fallbackBlockReason: "multi_action_validation_failed",
+      pendingState: "blocked",
+    },
+  };
+}
+
 function normalizeContextReplyText(value?: string | null) {
   return value
     ?.normalize("NFD")
@@ -289,7 +304,12 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   // Mensagens que não formam um comando composto seguem primeiro para o executor
   // destrutivo canônico, inclusive respostas inválidas de pendências ativas.
   const multiActionPreview = executeWhatsappMultiActionIntent({ text, temporalContext: null });
-  if (!multiActionPreview) {
+  if (multiActionPreview) {
+    const pendingWasReplaced = await supersedeActiveWhatsappPendingOperations(userId, receivedAt);
+    if (!pendingWasReplaced) {
+      return logAndReturnInterpretedIntent(userId, buildPendingReplacementBlockedResult(), { text, receivedAt });
+    }
+  } else {
     const deleteIntentResult = await logAndReturnInterpretedIntent(userId, await executeWhatsappDeleteIntent(userId, {
       text,
       receivedAt,
@@ -315,18 +335,12 @@ export async function simulateWhatsappInbound(userId: number, input: SimulateWha
   }
 
   if (multiActionPreview) {
-    const pendingWasReplaced = await supersedeActiveWhatsappPendingOperations(userId, receivedAt);
-    if (!pendingWasReplaced) {
-      return logAndReturnInterpretedIntent(userId, buildPendingReplacementBlockedResult(), { text, receivedAt });
-    }
-
     const multiAction = await logAndReturnInterpretedIntent(userId, executeWhatsappMultiActionIntent({
       text,
       temporalContext: temporalResolution.context,
     }), { text, receivedAt });
-    if (multiAction) {
-      return multiAction;
-    }
+    return multiAction
+      ?? logAndReturnInterpretedIntent(userId, buildMultiActionValidationBlockedResult(), { text, receivedAt });
   }
 
   const professionalAccessResponse = await handleProfessionalAccessDecision(userId, text);
