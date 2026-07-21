@@ -50,7 +50,7 @@ describe("legacy professional entitlement policy", () => {
     ).toBeNull();
   });
 
-  it("requires an active profile before checking entitlement", async () => {
+  it("defers inactive-profile errors to the domain service", async () => {
     const assertEntitlement = vi.fn();
     const policy = createLegacyProfessionalEntitlementPolicy({
       getProfile: vi.fn().mockResolvedValue({ active: false }),
@@ -59,7 +59,7 @@ describe("legacy professional entitlement policy", () => {
 
     await expect(
       policy({ path: "nutrition.professionals.portfolio", ctx })
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).resolves.toBeUndefined();
     expect(assertEntitlement).not.toHaveBeenCalled();
   });
 
