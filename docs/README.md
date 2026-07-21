@@ -58,6 +58,7 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 
 - `testing/whatsapp-conversation-context-regression.md` — matriz multicanal, profundidade, reinício, múltiplas instâncias, rollout e rollback do contexto persistente.
 - `testing/whatsapp-response-contract-regression.md` — inventário dos pontos de resposta/envio do WhatsApp e baseline de caracterização da migração para o contrato único (epic #779).
+- `testing/professional-legacy-retirement-regression.md` — inventário completo, substituições e matriz reproduzível da regressão final da Área Profissional (#815).
 
 ## Documentação operacional e sensível
 

@@ -19,7 +19,7 @@ import type {
   ProfessionalMealSuggestionStatus,
 } from "../modules/professionals/schemas";
 
-const PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY =
+export const PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY =
   "patient_professional_goal_suggestions_v1";
 const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 200;
@@ -222,9 +222,11 @@ export type ProfessionalContentRepository = {
     userId: number,
     options?: { limit?: number; before?: ProfessionalListCursor }
   ): Promise<ProfessionalHistoryEvent[]>;
-  migrateLegacyGoalSuggestions(
-    patientUserId: number
-  ): Promise<{ migrated: number; invalid: number }>;
+  migrateAllLegacyGoalSuggestions(): Promise<{
+    scannedPreferences: number;
+    migrated: number;
+    invalid: number;
+  }>;
 };
 
 const fallbackComments = new Map<string, ProfessionalComment>();
@@ -387,7 +389,7 @@ function fallbackAppendHistory(
   return event;
 }
 
-function normalizeLegacyGoalSuggestion(
+export function normalizeLegacyGoalSuggestion(
   patientUserId: number,
   value: unknown
 ): CreateProfessionalGoalSuggestionInput | null {
@@ -608,7 +610,6 @@ export function createDrizzleProfessionalContentRepository(deps: {
     if (!saved)
       throw new Error("Não foi possível persistir a sugestão de meta.");
     const result = toGoalSuggestion(saved);
-    await syncLegacyGoalSuggestions(db, input.patientUserId);
     return result;
   }
 
@@ -634,104 +635,120 @@ export function createDrizzleProfessionalContentRepository(deps: {
     return rows.map(toGoalSuggestion);
   }
 
-  async function syncLegacyGoalSuggestions(db: any, patientUserId: number) {
-    try {
-      const rows = await db
-        .select()
-        .from(professionalGoalSuggestions)
-        .where(eq(professionalGoalSuggestions.patientUserId, patientUserId))
-        .orderBy(
-          desc(professionalGoalSuggestions.createdAt),
-          desc(professionalGoalSuggestions.id)
-        );
-      const suggestions = rows.map(toGoalSuggestion);
-      const legacy = suggestions.map(
-        (suggestion: ProfessionalGoalSuggestion) => {
-          const {
-            version: _version,
-            updatedAt: _updatedAt,
-            ...item
-          } = suggestion;
-          return item;
-        }
-      );
-      await db
-        .insert(userPreferences)
-        .values({
-          userId: patientUserId,
-          preferenceKey: PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY,
-          preferenceValue: JSON.stringify(legacy),
-        })
-        .onDuplicateKeyUpdate({
-          set: { preferenceValue: JSON.stringify(legacy) },
-        });
-    } catch (error) {
-      deps.onWarning(
-        "professional.content.legacy_goal_suggestion_dual_write_failed",
-        error
-      );
-    }
-  }
-
-  async function migrateLegacyGoalSuggestions(patientUserId: number) {
+  async function migrateAllLegacyGoalSuggestions() {
     const db = await getProfessionalPersistenceDb(deps.getDb);
-    if (!db) return { migrated: 0, invalid: 0 };
-    const [preference] = await db
+    if (!db) return { scannedPreferences: 0, migrated: 0, invalid: 0 };
+
+    const preferences = await db
       .select()
       .from(userPreferences)
       .where(
-        and(
-          eq(userPreferences.userId, patientUserId),
-          eq(
-            userPreferences.preferenceKey,
-            PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY
-          )
+        eq(
+          userPreferences.preferenceKey,
+          PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY
         )
-      )
-      .limit(1);
-    if (!preference?.preferenceValue) return { migrated: 0, invalid: 0 };
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(preference.preferenceValue);
-    } catch {
-      deps.onWarning(
-        "professional.content.legacy_goal_suggestions_invalid",
-        new Error("invalid_json")
       );
-      return { migrated: 0, invalid: 1 };
-    }
-    if (!Array.isArray(parsed)) {
-      deps.onWarning(
-        "professional.content.legacy_goal_suggestions_invalid",
-        new Error("invalid_shape")
-      );
-      return { migrated: 0, invalid: 1 };
-    }
     let migrated = 0;
     let invalid = 0;
-    for (const item of parsed) {
-      const normalized = normalizeLegacyGoalSuggestion(patientUserId, item);
-      if (!normalized) {
+
+    for (const preference of preferences) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(preference.preferenceValue);
+      } catch {
+        deps.onWarning(
+          "professional.content.legacy_goal_suggestions_invalid",
+          new Error("invalid_json")
+        );
         invalid += 1;
         continue;
       }
-      const [existing] = await db
-        .select({ id: professionalGoalSuggestions.id })
-        .from(professionalGoalSuggestions)
-        .where(eq(professionalGoalSuggestions.id, normalized.id))
-        .limit(1);
-      if (!existing) {
-        await createGoalSuggestion(normalized, { recordHistory: false });
+      if (!Array.isArray(parsed)) {
+        deps.onWarning(
+          "professional.content.legacy_goal_suggestions_invalid",
+          new Error("invalid_shape")
+        );
+        invalid += 1;
+        continue;
+      }
+
+      for (const item of parsed) {
+        const normalized = normalizeLegacyGoalSuggestion(
+          preference.userId,
+          item
+        );
+        if (!normalized) {
+          invalid += 1;
+          continue;
+        }
+        const legacyUpdatedAt = Math.max(
+          normalized.createdAt ?? 0,
+          normalized.sentAt ?? 0,
+          normalized.respondedAt ?? 0
+        );
+        const [existing] = await db
+          .select()
+          .from(professionalGoalSuggestions)
+          .where(eq(professionalGoalSuggestions.id, normalized.id))
+          .limit(1);
+        const existingIsTerminal =
+          existing &&
+          ["accepted", "refused", "cancelled"].includes(existing.status);
+        if (
+          existing &&
+          (existing.updatedAt.getTime() >= legacyUpdatedAt ||
+            (existingIsTerminal && existing.status !== normalized.status))
+        ) {
+          continue;
+        }
+        if (existing) {
+          await db
+            .update(professionalGoalSuggestions)
+            .set({
+              professionalUserId: normalized.professionalUserId,
+              patientUserId: normalized.patientUserId,
+              rationale: normalized.rationale,
+              status: normalized.status,
+              goal: normalized.goal,
+              createdAt: new Date(normalized.createdAt ?? legacyUpdatedAt),
+              sentAt: normalized.sentAt ? new Date(normalized.sentAt) : null,
+              respondedAt: normalized.respondedAt
+                ? new Date(normalized.respondedAt)
+                : null,
+              version: sql`${professionalGoalSuggestions.version} + 1`,
+              updatedAt: new Date(legacyUpdatedAt),
+            })
+            .where(eq(professionalGoalSuggestions.id, normalized.id));
+        } else {
+          await db.insert(professionalGoalSuggestions).values({
+            id: normalized.id,
+            professionalUserId: normalized.professionalUserId,
+            patientUserId: normalized.patientUserId,
+            rationale: normalized.rationale,
+            status: normalized.status,
+            goal: normalized.goal,
+            version: 1,
+            decisionLockId: null,
+            decisionLockedAt: null,
+            createdAt: new Date(normalized.createdAt ?? legacyUpdatedAt),
+            sentAt: normalized.sentAt ? new Date(normalized.sentAt) : null,
+            respondedAt: normalized.respondedAt
+              ? new Date(normalized.respondedAt)
+              : null,
+            updatedAt: new Date(legacyUpdatedAt),
+          });
+        }
         migrated += 1;
       }
     }
+
     if (invalid > 0) {
       deps.onWarning(
         "professional.content.legacy_goal_suggestions_invalid",
         new Error("invalid_items")
       );
     }
-    return { migrated, invalid };
+    return { scannedPreferences: preferences.length, migrated, invalid };
   }
 
   async function listGoalSuggestions(
@@ -751,7 +768,6 @@ export function createDrizzleProfessionalContentRepository(deps: {
         .sort(compareNewest)
         .slice(0, clampLimit(options.limit));
     }
-    await migrateLegacyGoalSuggestions(patientUserId);
     const rows = await db
       .select()
       .from(professionalGoalSuggestions)
@@ -788,7 +804,6 @@ export function createDrizzleProfessionalContentRepository(deps: {
         .sort(compareNewest)
         .slice(0, clampLimit(options.limit));
     }
-    await migrateLegacyGoalSuggestions(patientUserId);
     return readGoalSuggestionsByPatient(db, patientUserId, options);
   }
 
@@ -801,7 +816,6 @@ export function createDrizzleProfessionalContentRepository(deps: {
       const suggestion = fallbackGoalSuggestions.get(suggestionId);
       return suggestion?.patientUserId === patientUserId ? suggestion : null;
     }
-    await migrateLegacyGoalSuggestions(patientUserId);
     const [row] = await db
       .select()
       .from(professionalGoalSuggestions)
@@ -991,7 +1005,6 @@ export function createDrizzleProfessionalContentRepository(deps: {
       input.suggestionId
     );
     if (!updated) throw new Error("Sugestão de meta não encontrada.");
-    await syncLegacyGoalSuggestions(db, input.patientUserId);
     return updated;
   }
 
@@ -1235,6 +1248,6 @@ export function createDrizzleProfessionalContentRepository(deps: {
     listMealSuggestions,
     appendHistory,
     listHistory,
-    migrateLegacyGoalSuggestions,
+    migrateAllLegacyGoalSuggestions,
   };
 }

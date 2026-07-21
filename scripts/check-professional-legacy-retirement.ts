@@ -1,0 +1,112 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+
+const root = process.cwd();
+const failures: string[] = [];
+
+function source(relativePath: string) {
+  const absolute = path.join(root, relativePath);
+  if (!existsSync(absolute)) {
+    failures.push(`Arquivo obrigatório ausente: ${relativePath}`);
+    return "";
+  }
+  return readFileSync(absolute, "utf8");
+}
+
+function requireText(relativePath: string, expected: string) {
+  if (!source(relativePath).includes(expected)) {
+    failures.push(`${relativePath} não contém: ${expected}`);
+  }
+}
+
+function forbidText(relativePath: string, forbidden: string) {
+  if (source(relativePath).includes(forbidden)) {
+    failures.push(`${relativePath} ainda contém legado proibido: ${forbidden}`);
+  }
+}
+
+for (const [file, marker] of [
+  [
+    "client/src/pages/nutritionPages.test.tsx",
+    "renderiza o dashboard com visão diária",
+  ],
+  [
+    "client/src/pages/nutritionPages.test.tsx",
+    "renderiza a página de registro multimodal",
+  ],
+  [
+    "client/src/pages/nutritionPages.test.tsx",
+    "renderiza todos os exercícios do intervalo",
+  ],
+  ["client/src/pages/nutritionPages.test.tsx", "renderiza a página de metas"],
+  [
+    "client/src/pages/nutritionPages.test.tsx",
+    "renderiza a página de relatórios",
+  ],
+  ["client/src/pages/nutritionPages.test.tsx", "renderiza as configurações"],
+  [
+    "client/src/App.professionalNavigation.test.tsx",
+    "redirects an old professional bookmark",
+  ],
+  [
+    "client/src/App.professionalNavigation.test.tsx",
+    "blocks an inactive professional profile",
+  ],
+  [
+    "client/src/App.professionalNavigation.test.tsx",
+    "does not open stale cached access",
+  ],
+  [
+    "client/src/components/ProfessionalAiWorkspace.test.tsx",
+    "keeps an AI draft local until the professional explicitly saves it",
+  ],
+  [
+    "client/src/components/ProfessionalReportsWorkspace.test.tsx",
+    "mostra agregados sem carregar bundle individual antes da seleção",
+  ],
+] as const) {
+  requireText(file, marker);
+}
+
+for (const [file, forbidden] of [
+  ["server/modules/professionals/service.ts", "userPreferences"],
+  ["server/modules/professionals/service.ts", "professional_profile_v1"],
+  ["server/repositories/professionalRepository.ts", "migrateLegacyUser"],
+  [
+    "server/repositories/professionalContentRepository.ts",
+    "syncLegacyGoalSuggestions",
+  ],
+  [
+    "server/repositories/professionalContentRepository.ts",
+    "migrateLegacyGoalSuggestions",
+  ],
+  ["server/nutritionRouter.ts", "askPatientQuestion"],
+  ["client/src/components/ProfessionalLayout.tsx", "Experiência legada"],
+] as const) {
+  forbidText(file, forbidden);
+}
+
+requireText(
+  "scripts/retire-professional-legacy-preferences.ts",
+  "patient_professional_goal_suggestions_v1"
+);
+requireText(
+  "scripts/retire-professional-legacy-preferences.ts",
+  "goalSuggestionIsCovered"
+);
+requireText(
+  "docs/testing/professional-legacy-retirement-regression.md",
+  "Inventário de artefatos legados"
+);
+requireText(
+  "docs/testing/professional-legacy-retirement-regression.md",
+  "Matriz de regressão reproduzível"
+);
+
+if (failures.length) {
+  console.error("Falhas no gate de aposentadoria profissional:");
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
+console.log("Gate de aposentadoria profissional validado com sucesso.");

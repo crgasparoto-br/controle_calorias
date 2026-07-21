@@ -5,6 +5,10 @@ const root = process.cwd();
 const sourcePaths = [
   path.join(root, "server/nutritionRouter.ts"),
   path.join(root, "server/modules/professionals/recordRouter.ts"),
+  path.join(root, "server/modules/professionals/messageRouter.ts"),
+  path.join(root, "server/modules/professionals/operationalAlertsRouter.ts"),
+  path.join(root, "server/modules/professionals/aiRouter.ts"),
+  path.join(root, "server/modules/professionals/settingsRouter.ts"),
   path.join(root, "server/modules/professionals/legacyEntitlementPolicy.ts"),
 ];
 const outputPath = path.join(root, "docs/generated/trpc-routes.md");
@@ -41,6 +45,12 @@ const groupDescriptions: Record<string, string> = {
   admin: "Visão operacional administrativa",
   whatsapp: "Status, vínculo e simulação inbound",
   professionalRecord: "Prontuário, ciclo e metas profissionais oficiais",
+  "professionalRecord.messages":
+    "Mensagens profissionais e histórico do paciente",
+  "professionalRecord.operationalAlerts":
+    "Alertas e solicitações operacionais profissionais",
+  "professionalRecord.ai": "Assistência profissional por IA",
+  "professionalRecord.settings": "Configurações profissionais e entitlements",
 };
 
 let legacyProfessionalEntitledProcedures = new Set<string>();
@@ -203,7 +213,7 @@ function generateMarkdown(groups: GroupInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.",
     "",
-    "Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.",
+    "Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.",
     "",
     "## Grupos",
     "",
@@ -257,7 +267,11 @@ function generateMarkdown(groups: GroupInfo[]) {
 
 const nutritionSource = readRequiredFile(sourcePaths[0]);
 const professionalRecordSource = readRequiredFile(sourcePaths[1]);
-const legacyEntitlementPolicySource = readRequiredFile(sourcePaths[2]);
+const professionalMessageSource = readRequiredFile(sourcePaths[2]);
+const professionalOperationalAlertsSource = readRequiredFile(sourcePaths[3]);
+const professionalAiSource = readRequiredFile(sourcePaths[4]);
+const professionalSettingsSource = readRequiredFile(sourcePaths[5]);
+const legacyEntitlementPolicySource = readRequiredFile(sourcePaths[6]);
 legacyProfessionalEntitledProcedures =
   parseLegacyProfessionalEntitledProcedures(legacyEntitlementPolicySource);
 const generated = generateMarkdown([
@@ -266,6 +280,26 @@ const generated = generateMarkdown([
     professionalRecordSource,
     "professionalRecordRouter",
     "professionalRecord"
+  ),
+  parseTopLevelRouter(
+    professionalMessageSource,
+    "professionalMessageRouter",
+    "professionalRecord.messages"
+  ),
+  parseTopLevelRouter(
+    professionalOperationalAlertsSource,
+    "professionalOperationalAlertsRouter",
+    "professionalRecord.operationalAlerts"
+  ),
+  parseTopLevelRouter(
+    professionalAiSource,
+    "professionalAiRouter",
+    "professionalRecord.ai"
+  ),
+  parseTopLevelRouter(
+    professionalSettingsSource,
+    "professionalSettingsRouter",
+    "professionalRecord.settings"
   ),
 ]);
 

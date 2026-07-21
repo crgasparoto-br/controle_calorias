@@ -30,11 +30,17 @@ const allResources = [
   "professional_settings",
 ];
 const entitlementState = { allowed: true, enabledResources: [...allResources] };
+const authState = { professionalProfileActive: true };
+const profileState = { active: true };
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({
     loading: false,
-    user: { id: 1, name: "Nutricionista", professionalProfileActive: true },
+    user: {
+      id: 1,
+      name: "Nutricionista",
+      professionalProfileActive: authState.professionalProfileActive,
+    },
     refresh,
   }),
 }));
@@ -59,7 +65,7 @@ vi.mock("@/lib/trpc", () => ({
       professionals: {
         profile: {
           useQuery: () => ({
-            data: { active: true },
+            data: { active: profileState.active },
             isLoading: false,
             isError: false,
             isSuccess: true,
@@ -323,6 +329,8 @@ afterEach(cleanup);
 beforeEach(() => {
   entitlementState.allowed = true;
   entitlementState.enabledResources = [...allResources];
+  authState.professionalProfileActive = true;
+  profileState.active = true;
   refresh.mockClear();
   refetch.mockClear();
   invalidate.mockClear();
@@ -353,6 +361,20 @@ describe("App professional navigation", () => {
         name: "Configurações profissionais",
       })
     ).toBeTruthy();
+  });
+  it("blocks an inactive professional profile without loading workspace data", async () => {
+    authState.professionalProfileActive = false;
+    profileState.active = false;
+    window.history.replaceState({}, "", "/professional/legacy");
+    const { default: App } = await import("./App");
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe("/professional"));
+    expect(
+      await screen.findByRole("heading", {
+        name: "Área Profissional indisponível",
+      })
+    ).toBeTruthy();
+    expect(screen.queryByText("Contexto profissional")).toBeNull();
   });
   it("blocks all workspace routes when the backend denies access", async () => {
     entitlementState.allowed = false;

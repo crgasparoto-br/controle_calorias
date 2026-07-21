@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { getDb } from "../server/db";
+import { migrateAllLegacyProfessionalGoalSuggestions } from "../server/modules/professionals/contentPersistenceService";
 import { migrateAllLegacyProfessionalData } from "../server/modules/professionals/persistenceService";
 
 async function main() {
@@ -11,6 +12,7 @@ async function main() {
   }
 
   const result = await migrateAllLegacyProfessionalData();
+  const goalSuggestions = await migrateAllLegacyProfessionalGoalSuggestions();
   console.log(
     JSON.stringify({
       event: "professional.persistence.migration.completed",
@@ -18,6 +20,9 @@ async function main() {
       migratedProfiles: result.migratedProfiles,
       migratedAuthorizations: result.migratedAuthorizations,
       invalidPreferences: result.invalidPreferences,
+      scannedGoalSuggestionPreferences: goalSuggestions.scannedPreferences,
+      migratedGoalSuggestions: goalSuggestions.migrated,
+      invalidGoalSuggestionPreferences: goalSuggestions.invalid,
     })
   );
 }

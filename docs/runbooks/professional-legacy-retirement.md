@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Encerrar a leitura e a escrita em JSON de perfil e autorizações profissionais sem perder histórico, identificadores ou vínculos já migrados para as tabelas canônicas.
+Encerrar a leitura e a escrita em JSON de perfil, autorizações e sugestões profissionais sem perder histórico, identificadores, vínculos ou conteúdo já migrado para as tabelas canônicas.
 
 ## Pré-condições
 
@@ -15,10 +15,10 @@ Encerrar a leitura e a escrita em JSON de perfil e autorizações profissionais 
 ## Rollout
 
 1. Execute `pnpm db:migrate:professionals` no ambiente alvo.
-2. Execute `pnpm db:retire-professional-legacy`. O comando migra novamente de forma idempotente, compara versão, identidade e estado dos registros canônicos e não exclui dados.
+2. Execute `pnpm db:retire-professional-legacy`. O comando migra novamente de forma idempotente as quatro chaves antigas, compara identidade, campos imutáveis, conteúdo, marcos temporais e progressão de estado e não exclui dados.
 3. Interrompa o rollout se houver preferência inválida ou cobertura canônica ausente, desatualizada ou incompatível. Corrija a origem e repita a verificação.
 4. Publique a versão da issue #815, que não possui migração lazy nem dual-write em runtime. Não execute ainda o modo `--apply`.
-5. Valide perfil profissional, solicitação/aprovação/revogação, carteira, prontuário, metas, alertas, mensagens, relatórios, IA e configurações.
+5. Execute `pnpm professional-retirement:check` e a matriz de `docs/testing/professional-legacy-retirement-regression.md`; valide perfil profissional, solicitação/aprovação/revogação, carteira, prontuário, metas, alertas, mensagens, relatórios, IA, configurações e a Área do Paciente.
 6. Execute `pnpm db:retire-professional-legacy:apply` somente após a versão canônica estar saudável em produção. Isso evita que instâncias antigas recriem os JSONs durante o rollout.
 7. Execute novamente `pnpm db:retire-professional-legacy:apply` após encerrar todas as instâncias da versão anterior e confirme `legacyRowsRemaining: 0`.
 8. Monitore erros de autorização, falhas de persistência e tentativas de acesso a `/professional/legacy`.

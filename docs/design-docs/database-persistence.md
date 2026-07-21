@@ -85,23 +85,15 @@ O router de integrações grava os registros retornados por `sync`, consulta pri
 
 A migration `0026_professional_persistence_foundation.sql` cria o modelo canônico de perfil, autorização, acompanhamento e eventos de transição.
 
-Durante o rollout, `server/repositories/professionalRepository.ts` mantém compatibilidade com as preferências legadas `professional_profile_v1`, `professional_accesses_v1` e `patient_professional_access_requests_v1`:
+Durante a fundação iniciada pela migration `0026_professional_persistence_foundation.sql`, perfil, autorizações e acompanhamento foram migrados de quatro preferências JSON temporárias para estruturas canônicas. A janela de compatibilidade foi encerrada pela issue #815:
 
-- `server/modules/professionals/service.ts` escreve todo perfil e autorização no repository canônico (`upsertProfile`/`upsertAuthorization`/`transitionAuthorization`), que faz dual-write síncrono no JSON legado;
-- a leitura do perfil profissional consulta primeiro o repository canônico, com fallback para a preferência legada quando ainda não migrada;
-- a leitura de vínculos usa o repository canônico; preferências legadas são apenas origem de migração e espelho temporário de compatibilidade;
-- pausar, retomar e encerrar o acompanhamento (`professionals.transitionTracking`) é exposto somente pelo repository canônico, sem espelho em preferência JSON;
-- a leitura canônica importa preferências mais recentes de forma idempotente;
-- cada vínculo legado usa sua própria versão (`sourceUpdatedAt` quando disponível ou o maior timestamp do próprio vínculo); o `updatedAt` global da preferência não participa da precedência, evitando que uma alteração alheia ressuscite autorização antiga;
-- estados terminais canônicos, especialmente `revoked`, prevalecem sobre cópias legadas divergentes e não podem regredir durante reconciliação;
-- escritas canônicas fazem dual-write temporário no JSON para consumidores ainda não migrados;
-- vínculos assimétricos são reconciliados nos dois sentidos: cópia exclusiva do profissional ou cópia exclusiva do paciente;
-- JSON inválido é ignorado com evento sanitizado, sem registrar o conteúdo bruto;
-- uma chave única para o par profissional-paciente impede solicitações equivalentes concorrentes enquanto o vínculo está pendente ou aprovado;
-- aprovação atualiza a autorização e cria acompanhamento/evento na mesma transação;
-- rejeição e revogação liberam o par para um convite posterior, preservando o histórico anterior;
-- pausa, retomada e encerramento usam atualização otimista e evento auditável transacional;
-- em produção, ausência de conexão com o banco interrompe operações profissionais com erro sanitizado; o fallback volátil permanece restrito a testes e desenvolvimento permitido.
+- runtime profissional lê e escreve somente `professionalProfiles`, `professionalPatientAuthorizations`, `professionalPatientTrackings` e `professionalGoalSuggestions`;
+- as chaves `professional_profile_v1`, `professional_accesses_v1`, `patient_professional_access_requests_v1` e `patient_professional_goal_suggestions_v1` não são consultadas nem atualizadas por fluxos web, WhatsApp ou tRPC;
+- maps em memória permanecem apenas como fallback de teste/desenvolvimento quando não existe conexão; produção falha com erro sanitizado;
+- migração e remoção das preferências antigas existem somente nos comandos operacionais explícitos;
+- o modo de aplicação destrutiva compara identidade, campos imutáveis, marcos temporais, progressão de estado e conteúdo das sugestões antes de excluir qualquer linha;
+- divergência, JSON inválido ou cobertura incompleta interrompe a operação sem remover dados;
+- a ordem de rollout e rollback está em `docs/runbooks/professional-legacy-retirement.md` e o inventário verificável em `docs/testing/professional-legacy-retirement-regression.md`.
 
 A migration `0028_professional_actor_deletion_safety.sql` altera as referências de ator das transições para `ON DELETE SET NULL`: a autoria é preservada enquanto a conta existir, e a exclusão do titular não fica bloqueada por eventos históricos.
 

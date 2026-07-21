@@ -6,3 +6,7 @@ export const professionalContentRepository =
     getDb,
     onWarning: logPersistenceWarning,
   });
+
+export function migrateAllLegacyProfessionalGoalSuggestions() {
+  return professionalContentRepository.migrateAllLegacyGoalSuggestions();
+}

@@ -16,6 +16,9 @@ describe("professional legacy retirement architecture", () => {
     const migration = source(
       "scripts/retire-professional-legacy-preferences.ts"
     );
+    const contentRepository = source(
+      "server/repositories/professionalContentRepository.ts"
+    );
 
     expect(repository).not.toContain("writeLegacyProfile");
     expect(repository).not.toContain("writeLegacyAuthorization");
@@ -29,6 +32,13 @@ describe("professional legacy retirement architecture", () => {
     expect(service).not.toContain("professional_profile_v1");
     expect(migration).toContain("migrateAllLegacyProfessionalData");
     expect(migration).toContain("--apply");
+    expect(migration).toContain("patient_professional_goal_suggestions_v1");
+    expect(contentRepository).not.toContain("syncLegacyGoalSuggestions");
+    expect(contentRepository).not.toContain(
+      "await migrateLegacyGoalSuggestions"
+    );
+    expect(contentRepository).not.toContain("migrateLegacyGoalSuggestions");
+    expect(contentRepository).toContain("migrateAllLegacyGoalSuggestions");
   });
 
   it("does not expose the retired page or legacy professional AI endpoint", () => {
@@ -44,5 +54,19 @@ describe("professional legacy retirement architecture", () => {
         path.join(process.cwd(), "client/src/pages/ProfessionalPage.tsx")
       )
     ).toBe(false);
+  });
+
+  it("keeps a versioned inventory and reproducible regression gate", () => {
+    const inventory = source(
+      "docs/testing/professional-legacy-retirement-regression.md"
+    );
+    const gate = source("scripts/check-professional-legacy-retirement.ts");
+
+    expect(inventory).toContain("patient_professional_goal_suggestions_v1");
+    expect(inventory).toContain("nutrition.professionals.askPatientQuestion");
+    expect(inventory).toContain("Área do Paciente");
+    expect(inventory).toContain("Área Profissional");
+    expect(gate).toContain("App.professionalNavigation.test.tsx");
+    expect(gate).toContain("nutritionPages.test.tsx");
   });
 });

@@ -194,6 +194,86 @@ async function main() {
       [8067, "professional_profile_v1", "{sensitive-invalid-json"]
     );
 
+    const retirementLegacyGoal = {
+      id: "legacy-goal-retirement-815",
+      professionalUserId: 8061,
+      patientUserId: 8062,
+      rationale: "Sugestão legada coberta pelo gate final",
+      status: "sent",
+      goal: {
+        defaultGoal: {
+          calories: 1850,
+          proteinGrams: 125,
+          carbsGrams: 195,
+          fatGrams: 58,
+        },
+        exceptions: [],
+      },
+      createdAt: Date.parse("2026-07-14T20:04:00.000Z"),
+      sentAt: Date.parse("2026-07-14T20:05:00.000Z"),
+      respondedAt: null,
+    };
+    await connection.query(
+      "INSERT INTO userPreferences (userId, preferenceKey, preferenceValue, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
+      [
+        8062,
+        "patient_professional_goal_suggestions_v1",
+        JSON.stringify([retirementLegacyGoal]),
+        new Date("2026-07-14T20:04:00.000Z"),
+        new Date("2026-07-14T20:05:00.000Z"),
+      ]
+    );
+    assert.equal(
+      (await contentRepository.listGoalSuggestionsByPatient(8062)).some(
+        item => item.id === retirementLegacyGoal.id
+      ),
+      false,
+      "runtime reads must not lazily consume legacy goal suggestions"
+    );
+    const firstGoalSuggestionBackfill =
+      await contentRepository.migrateAllLegacyGoalSuggestions();
+    assert.equal(firstGoalSuggestionBackfill.migrated, 1);
+    assert.equal(
+      (await contentRepository.listGoalSuggestionsByPatient(8062)).some(
+        item => item.id === retirementLegacyGoal.id
+      ),
+      true,
+      "explicit backfill must migrate legacy goal suggestions"
+    );
+    const secondGoalSuggestionBackfill =
+      await contentRepository.migrateAllLegacyGoalSuggestions();
+    assert.equal(secondGoalSuggestionBackfill.migrated, 0);
+    await contentRepository.createGoalSuggestion({
+      id: "canonical-only-goal-815",
+      professionalUserId: 8061,
+      patientUserId: 8062,
+      rationale: "Não deve voltar ao JSON legado",
+      status: "sent",
+      goal: {
+        defaultGoal: {
+          calories: 1900,
+          proteinGrams: 130,
+          carbsGrams: 200,
+          fatGrams: 60,
+        },
+        exceptions: [],
+      },
+    });
+    const [legacyGoalPreferenceRows] = await connection.query<
+      mysql.RowDataPacket[]
+    >(
+      "SELECT preferenceValue FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
+      [8062, "patient_professional_goal_suggestions_v1"]
+    );
+    const legacyGoalPreference = JSON.parse(
+      String(legacyGoalPreferenceRows[0]?.preferenceValue ?? "[]")
+    ) as Array<{ id?: string }>;
+    assert.equal(
+      legacyGoalPreference.some(item => item.id === "canonical-only-goal-815"),
+      false,
+      "canonical writes must not dual-write legacy goal suggestion JSON"
+    );
+
     const professionalReadBeforeBackfill =
       await repository.listAuthorizationsByProfessional(8061);
     assert.equal(
@@ -254,6 +334,43 @@ async function main() {
       "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
       [8067, "professional_profile_v1"]
     );
+
+    await connection.query(
+      "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",
+      [
+        "Registro canônico propositalmente incompleto",
+        new Date("2026-07-15T00:00:00.000Z"),
+        untouched.id,
+      ]
+    );
+    assert.throws(
+      () => runLegacyRetirement(true),
+      /Command failed|cobertura canônica está incompleta/i,
+      "retirement apply must fail when a newer canonical row lost immutable legacy data"
+    );
+    const [retainedLegacyRows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT COUNT(*) AS total FROM userPreferences WHERE preferenceKey IN (?, ?, ?, ?)",
+      [
+        "professional_profile_v1",
+        "professional_accesses_v1",
+        "patient_professional_access_requests_v1",
+        "patient_professional_goal_suggestions_v1",
+      ]
+    );
+    assert.equal(
+      Number(retainedLegacyRows[0]?.total) > 0,
+      true,
+      "failed coverage verification must retain every legacy preference"
+    );
+    await connection.query(
+      "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",
+      [
+        untouched.reason,
+        new Date(untouched.approvedAt ?? untouched.requestedAt),
+        untouched.id,
+      ]
+    );
+
     const retirementDryRun = runLegacyRetirement();
     assert.equal(retirementDryRun.apply, false);
     assert.equal(retirementDryRun.legacyRowsBeforeCleanup > 0, true);
@@ -268,11 +385,12 @@ async function main() {
     const [legacyRowsAfterRetirement] = await connection.query<
       mysql.RowDataPacket[]
     >(
-      "SELECT COUNT(*) AS total FROM userPreferences WHERE preferenceKey IN (?, ?, ?)",
+      "SELECT COUNT(*) AS total FROM userPreferences WHERE preferenceKey IN (?, ?, ?, ?)",
       [
         "professional_profile_v1",
         "professional_accesses_v1",
         "patient_professional_access_requests_v1",
+        "patient_professional_goal_suggestions_v1",
       ]
     );
     assert.equal(
@@ -462,9 +580,9 @@ async function main() {
       ]
     );
     const firstLegacyContent =
-      await contentRepository.migrateLegacyGoalSuggestions(8062);
+      await contentRepository.migrateAllLegacyGoalSuggestions();
     const secondLegacyContent =
-      await contentRepository.migrateLegacyGoalSuggestions(8062);
+      await contentRepository.migrateAllLegacyGoalSuggestions();
     assert.equal(firstLegacyContent.migrated, 1);
     assert.equal(secondLegacyContent.migrated, 0);
     assert.equal(

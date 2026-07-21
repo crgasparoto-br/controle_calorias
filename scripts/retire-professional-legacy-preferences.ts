@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { inArray } from "drizzle-orm";
 import {
+  professionalGoalSuggestions,
   professionalPatientAuthorizations,
   professionalProfiles,
 } from "../drizzle/professional-schema";
@@ -16,12 +17,19 @@ import {
   type CanonicalProfessionalAuthorization,
   type LegacyProfessionalAccess,
 } from "../server/modules/professionals/persistence";
+import { migrateAllLegacyProfessionalGoalSuggestions } from "../server/modules/professionals/contentPersistenceService";
+import {
+  normalizeLegacyGoalSuggestion,
+  PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY,
+  type ProfessionalGoalSuggestion,
+} from "../server/repositories/professionalContentRepository";
 import { migrateAllLegacyProfessionalData } from "../server/modules/professionals/persistenceService";
 
 const legacyKeys = [
   PROFESSIONAL_PROFILE_PREFERENCE_KEY,
   PROFESSIONAL_ACCESSES_PREFERENCE_KEY,
   PATIENT_ACCESS_REQUESTS_PREFERENCE_KEY,
+  PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY,
 ] as const;
 
 function sameInstant(
@@ -29,6 +37,29 @@ function sameInstant(
   right: Date | string | number
 ) {
   return new Date(left).getTime() === new Date(right).getTime();
+}
+
+function sameNullableInstant(
+  left: Date | string | number | null,
+  right: Date | string | number | null
+) {
+  if (left === null || right === null) return left === right;
+  return sameInstant(left, right);
+}
+
+function canonicalInstantPreserves(
+  canonical: Date | string | number | null,
+  legacy: Date | string | number | null
+) {
+  if (legacy === null) return true;
+  return (
+    canonical !== null &&
+    new Date(canonical).getTime() >= new Date(legacy).getTime()
+  );
+}
+
+function sameGoal(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function authorizationStatusCovers(
@@ -46,19 +77,126 @@ function authorizationIsCovered(
   legacy: LegacyProfessionalAccess
 ) {
   const expected = legacyAccessToCanonical(legacy);
-  return (
+  const sameVersion =
+    canonical.sourceUpdatedAt.getTime() === expected.sourceUpdatedAt.getTime();
+  const immutableFieldsMatch =
     canonical.id === expected.id &&
     canonical.professionalUserId === expected.professionalUserId &&
     canonical.patientUserId === expected.patientUserId &&
-    sameInstant(canonical.requestedAt, expected.requestedAt) &&
-    canonical.sourceUpdatedAt.getTime() >= expected.sourceUpdatedAt.getTime() &&
-    authorizationStatusCovers(canonical.status, expected.status)
+    canonical.reason === expected.reason &&
+    sameInstant(canonical.requestedAt, expected.requestedAt);
+  if (!immutableFieldsMatch) return false;
+  if (
+    canonical.sourceUpdatedAt.getTime() < expected.sourceUpdatedAt.getTime()
+  ) {
+    return false;
+  }
+  if (!authorizationStatusCovers(canonical.status, expected.status))
+    return false;
+
+  if (sameVersion) {
+    return (
+      canonical.status === expected.status &&
+      sameNullableInstant(canonical.approvedAt, expected.approvedAt) &&
+      sameNullableInstant(canonical.rejectedAt, expected.rejectedAt) &&
+      sameNullableInstant(canonical.revokedAt, expected.revokedAt) &&
+      sameNullableInstant(canonical.respondedAt, expected.respondedAt) &&
+      canonical.responseOrigin === expected.responseOrigin &&
+      canonical.responseDecision === expected.responseDecision &&
+      canonical.authorizationMessageStatus ===
+        expected.authorizationMessageStatus &&
+      sameNullableInstant(
+        canonical.authorizationMessageSentAt,
+        expected.authorizationMessageSentAt
+      ) &&
+      canonical.authorizationMessageError === expected.authorizationMessageError
+    );
+  }
+
+  const lifecycleIsCovered =
+    canonical.status === expected.status
+      ? sameNullableInstant(canonical.approvedAt, expected.approvedAt) &&
+        sameNullableInstant(canonical.rejectedAt, expected.rejectedAt) &&
+        sameNullableInstant(canonical.revokedAt, expected.revokedAt) &&
+        sameNullableInstant(canonical.respondedAt, expected.respondedAt) &&
+        canonical.responseOrigin === expected.responseOrigin &&
+        canonical.responseDecision === expected.responseDecision
+      : canonicalInstantPreserves(canonical.approvedAt, expected.approvedAt) &&
+        canonicalInstantPreserves(canonical.rejectedAt, expected.rejectedAt) &&
+        canonicalInstantPreserves(canonical.revokedAt, expected.revokedAt) &&
+        canonicalInstantPreserves(
+          canonical.respondedAt,
+          expected.respondedAt
+        ) &&
+        (expected.responseDecision === null ||
+          (canonical.responseDecision !== null &&
+            canonical.responseOrigin !== null));
+  const messageStateIsCovered =
+    canonical.authorizationMessageStatus === expected.authorizationMessageStatus
+      ? sameNullableInstant(
+          canonical.authorizationMessageSentAt,
+          expected.authorizationMessageSentAt
+        ) &&
+        canonical.authorizationMessageError ===
+          expected.authorizationMessageError
+      : (expected.authorizationMessageStatus === null ||
+          canonical.authorizationMessageStatus !== null) &&
+        canonicalInstantPreserves(
+          canonical.authorizationMessageSentAt,
+          expected.authorizationMessageSentAt
+        ) &&
+        (expected.authorizationMessageStatus !== "failed" ||
+          canonical.authorizationMessageStatus !== "failed" ||
+          canonical.authorizationMessageError !== null);
+
+  return lifecycleIsCovered && messageStateIsCovered;
+}
+
+function goalSuggestionStatusCovers(
+  canonical: ProfessionalGoalSuggestion["status"],
+  legacy: ProfessionalGoalSuggestion["status"]
+) {
+  if (canonical === legacy) return true;
+  if (legacy === "draft") return true;
+  if (legacy === "sent") {
+    return ["accepted", "refused", "cancelled"].includes(canonical);
+  }
+  return false;
+}
+
+function goalSuggestionIsCovered(
+  canonical: ProfessionalGoalSuggestion,
+  legacy: NonNullable<ReturnType<typeof normalizeLegacyGoalSuggestion>>
+) {
+  return (
+    canonical.id === legacy.id &&
+    canonical.professionalUserId === legacy.professionalUserId &&
+    canonical.patientUserId === legacy.patientUserId &&
+    canonical.rationale === legacy.rationale &&
+    sameGoal(canonical.goal, legacy.goal) &&
+    canonical.createdAt === legacy.createdAt &&
+    goalSuggestionStatusCovers(canonical.status, legacy.status) &&
+    (legacy.sentAt === null ||
+      (canonical.sentAt !== null && canonical.sentAt >= legacy.sentAt)) &&
+    (legacy.respondedAt === null ||
+      (canonical.respondedAt !== null &&
+        canonical.respondedAt >= legacy.respondedAt)) &&
+    canonical.updatedAt >=
+      Math.max(
+        legacy.createdAt ?? 0,
+        legacy.sentAt ?? 0,
+        legacy.respondedAt ?? 0
+      )
   );
 }
 
 async function verifyCanonicalCoverage(db: any, rows: any[]) {
   const staleOrMissingProfiles: number[] = [];
   const expectedAuthorizations = new Map<string, LegacyProfessionalAccess>();
+  const expectedGoalSuggestions = new Map<
+    string,
+    NonNullable<ReturnType<typeof normalizeLegacyGoalSuggestion>>
+  >();
   let invalidPreferences = 0;
 
   for (const row of rows) {
@@ -103,6 +241,44 @@ async function verifyCanonicalCoverage(db: any, rows: any[]) {
       continue;
     }
 
+    if (row.preferenceKey === PATIENT_GOAL_SUGGESTIONS_PREFERENCE_KEY) {
+      let parsedGoalSuggestions: unknown;
+      try {
+        parsedGoalSuggestions = JSON.parse(row.preferenceValue);
+      } catch {
+        invalidPreferences += 1;
+        continue;
+      }
+      if (!Array.isArray(parsedGoalSuggestions)) {
+        invalidPreferences += 1;
+        continue;
+      }
+      for (const item of parsedGoalSuggestions) {
+        const normalized = normalizeLegacyGoalSuggestion(row.userId, item);
+        if (!normalized) {
+          invalidPreferences += 1;
+          continue;
+        }
+        const previous = expectedGoalSuggestions.get(normalized.id);
+        const normalizedVersion = Math.max(
+          normalized.createdAt ?? 0,
+          normalized.sentAt ?? 0,
+          normalized.respondedAt ?? 0
+        );
+        const previousVersion = previous
+          ? Math.max(
+              previous.createdAt ?? 0,
+              previous.sentAt ?? 0,
+              previous.respondedAt ?? 0
+            )
+          : -1;
+        if (!previous || previousVersion < normalizedVersion) {
+          expectedGoalSuggestions.set(normalized.id, normalized);
+        }
+      }
+      continue;
+    }
+
     const parsed = parseLegacyProfessionalAccesses(
       row.userId,
       row.preferenceKey,
@@ -142,10 +318,43 @@ async function verifyCanonicalCoverage(db: any, rows: any[]) {
     return !canonical || !legacy || !authorizationIsCovered(canonical, legacy);
   });
 
+  const goalSuggestionIds = [...expectedGoalSuggestions.keys()];
+  const canonicalGoalSuggestions = new Map<
+    string,
+    ProfessionalGoalSuggestion
+  >();
+  if (goalSuggestionIds.length) {
+    const suggestions = await db
+      .select()
+      .from(professionalGoalSuggestions)
+      .where(inArray(professionalGoalSuggestions.id, goalSuggestionIds));
+    for (const suggestion of suggestions) {
+      canonicalGoalSuggestions.set(suggestion.id, {
+        id: suggestion.id,
+        professionalUserId: suggestion.professionalUserId,
+        patientUserId: suggestion.patientUserId,
+        rationale: suggestion.rationale,
+        status: suggestion.status,
+        goal: suggestion.goal as ProfessionalGoalSuggestion["goal"],
+        version: suggestion.version,
+        createdAt: suggestion.createdAt.getTime(),
+        sentAt: suggestion.sentAt?.getTime() ?? null,
+        respondedAt: suggestion.respondedAt?.getTime() ?? null,
+        updatedAt: suggestion.updatedAt.getTime(),
+      });
+    }
+  }
+  const staleOrMissingGoalSuggestions = goalSuggestionIds.filter(id => {
+    const canonical = canonicalGoalSuggestions.get(id);
+    const legacy = expectedGoalSuggestions.get(id);
+    return !canonical || !legacy || !goalSuggestionIsCovered(canonical, legacy);
+  });
+
   return {
     invalidPreferences,
     staleOrMissingProfiles,
     staleOrMissingAuthorizations,
+    staleOrMissingGoalSuggestions,
   };
 }
 
@@ -159,23 +368,30 @@ async function main() {
   }
 
   const migration = await migrateAllLegacyProfessionalData();
+  const goalSuggestionMigration =
+    await migrateAllLegacyProfessionalGoalSuggestions();
   const rows = await db
     .select()
     .from(userPreferences)
     .where(inArray(userPreferences.preferenceKey, [...legacyKeys]));
   const verification = await verifyCanonicalCoverage(db, rows);
 
-  if (migration.invalidPreferences > 0 || verification.invalidPreferences > 0) {
+  if (
+    migration.invalidPreferences > 0 ||
+    goalSuggestionMigration.invalid > 0 ||
+    verification.invalidPreferences > 0
+  ) {
     throw new Error(
       "Existem preferências profissionais legadas inválidas; nenhuma exclusão foi executada."
     );
   }
   if (
     verification.staleOrMissingProfiles.length ||
-    verification.staleOrMissingAuthorizations.length
+    verification.staleOrMissingAuthorizations.length ||
+    verification.staleOrMissingGoalSuggestions.length
   ) {
     throw new Error(
-      `A cobertura canônica está incompleta: perfis=${verification.staleOrMissingProfiles.length}, autorizações=${verification.staleOrMissingAuthorizations.length}.`
+      `A cobertura canônica está incompleta: perfis=${verification.staleOrMissingProfiles.length}, autorizações=${verification.staleOrMissingAuthorizations.length}, sugestões=${verification.staleOrMissingGoalSuggestions.length}.`
     );
   }
 
@@ -204,6 +420,11 @@ async function main() {
       scannedPreferences: migration.scannedPreferences,
       migratedProfiles: migration.migratedProfiles,
       migratedAuthorizations: migration.migratedAuthorizations,
+      invalidPreferences: migration.invalidPreferences,
+      scannedGoalSuggestionPreferences:
+        goalSuggestionMigration.scannedPreferences,
+      migratedGoalSuggestions: goalSuggestionMigration.migrated,
+      invalidGoalSuggestionPreferences: goalSuggestionMigration.invalid,
       legacyRowsBeforeCleanup: rows.length,
       legacyRowsRemaining: remaining.length,
     })
