@@ -16,9 +16,7 @@ import {
   PENDING_INTENT_CLARIFICATION_TYPE,
   resolveWhatsappIntentClarificationText,
 } from "./intentClarificationInteraction";
-import {
-  claimWhatsAppTextPendingOperation,
-} from "./interactiveCallback";
+import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import {
   findWhatsappRegisteredInteraction,
   rebuildWhatsappRegisteredInteraction,
@@ -36,12 +34,13 @@ import {
   isStandaloneWhatsappCancellationWord,
   isStandaloneWhatsappCommandWord,
   isStandaloneWhatsappConfirmationWord,
+  normalizeStandaloneWhatsappCommand,
 } from "./standaloneCommandWords";
 import {
   handlePendingWhatsAppConfirmation,
   PENDING_CONFIRMATION_TYPE,
 } from "./webhookTextCommands";
-import { normalizeWhatsAppShortCommandText, type WhatsAppWebhookMessage } from "./webhookUtils";
+import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
 
@@ -61,7 +60,7 @@ const pendingOperationRepository = createDrizzleWhatsAppPendingOperationReposito
 });
 
 function parseBareIndex(text: string) {
-  const normalized = normalizeWhatsAppShortCommandText(text);
+  const normalized = normalizeStandaloneWhatsappCommand(text);
   const ordinalWords: Record<string, number> = {
     primeiro: 0,
     primeira: 0,
@@ -80,7 +79,7 @@ function parseBareIndex(text: string) {
 }
 
 function parsePeriodAction(text: string) {
-  const normalized = normalizeWhatsAppShortCommandText(text);
+  const normalized = normalizeStandaloneWhatsappCommand(text);
   if (isStandaloneWhatsappCancellationWord(normalized)) return "cancel";
   return WHATSAPP_PERIOD_REPORT_OPTIONS.find(option => {
     const token = option.action.replace("period:", "");
@@ -91,7 +90,7 @@ function parsePeriodAction(text: string) {
 }
 
 function parseScopeAction(text: string) {
-  const normalized = normalizeWhatsAppShortCommandText(text);
+  const normalized = normalizeStandaloneWhatsappCommand(text);
   if (isStandaloneWhatsappCancellationWord(normalized)) return "cancel";
   if (/^(?:apenas|somente|so)(?:\s+compativeis)?$/.test(normalized) || normalized === "1") return "confirm";
   if (/^(?:todos|todas)(?:\s+recentes)?$/.test(normalized) || normalized === "2") return "confirm_all";
@@ -99,7 +98,7 @@ function parseScopeAction(text: string) {
 }
 
 function shouldCreateGenericIntentClarification(text?: string | null) {
-  const normalized = normalizeWhatsAppShortCommandText(text ?? "");
+  const normalized = normalizeStandaloneWhatsappCommand(text ?? "");
   return ["registrar", "registre", "registra", "corrigir", "corrija", "corrige", "consultar", "consulte", "consulta"]
     .includes(normalized);
 }
@@ -109,7 +108,7 @@ function classifyPendingText(
   text?: string | null,
 ): "resolve" | "invalid" | "new_command" {
   const raw = text?.trim() ?? "";
-  const normalized = normalizeWhatsAppShortCommandText(raw);
+  const normalized = normalizeStandaloneWhatsappCommand(raw);
 
   if (isCompleteWhatsappCommand(raw)) return "new_command";
 
