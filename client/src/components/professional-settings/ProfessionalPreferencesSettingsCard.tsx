@@ -10,11 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Save, Trash2 } from "lucide-react";
 import React from "react";
 
-export type SummaryFrequency =
-  | "disabled"
-  | "weekly"
-  | "biweekly"
-  | "monthly";
 export type MessageType =
   | "guidance"
   | "reminder"
@@ -31,15 +26,9 @@ export type TemplateDraft = {
 
 type Props = {
   defaultReviewIntervalDays: string;
-  remindersEnabled: boolean;
-  defaultReminderLeadDays: string;
-  summaryFrequency: SummaryFrequency;
   messageTemplates: TemplateDraft[];
   saving: boolean;
   onDefaultReviewIntervalDaysChange: (value: string) => void;
-  onRemindersEnabledChange: (value: boolean) => void;
-  onDefaultReminderLeadDaysChange: (value: string) => void;
-  onSummaryFrequencyChange: (value: SummaryFrequency) => void;
   onMessageTemplatesChange: (value: TemplateDraft[]) => void;
   onSave: () => void;
 };
@@ -53,24 +42,11 @@ const messageTypeLabels: Record<MessageType, string> = {
   follow_up_summary: "Resumo de acompanhamento",
 };
 
-const frequencyLabels: Record<SummaryFrequency, string> = {
-  disabled: "Sem resumo automático",
-  weekly: "Semanal",
-  biweekly: "Quinzenal",
-  monthly: "Mensal",
-};
-
 export default function ProfessionalPreferencesSettingsCard({
   defaultReviewIntervalDays,
-  remindersEnabled,
-  defaultReminderLeadDays,
-  summaryFrequency,
   messageTemplates,
   saving,
   onDefaultReviewIntervalDaysChange,
-  onRemindersEnabledChange,
-  onDefaultReminderLeadDaysChange,
-  onSummaryFrequencyChange,
   onMessageTemplatesChange,
   onSave,
 }: Props) {
@@ -91,67 +67,26 @@ export default function ProfessionalPreferencesSettingsCard({
       <CardHeader>
         <CardTitle>Preferências operacionais</CardTitle>
         <CardDescription>
-          Estes valores servem como padrão para novos acompanhamentos. Eles não
-          alteram registros clínicos já existentes.
+          Somente padrões já consumidos pelos fluxos profissionais podem ser
+          alterados aqui. Lembretes são definidos por paciente na central de
+          acompanhamento; resumos automáticos ainda não estão habilitados.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="grid gap-1 text-sm">
-            <span className="font-medium">Revisão padrão (dias)</span>
-            <Input
-              type="number"
-              min={1}
-              max={365}
-              value={defaultReviewIntervalDays}
-              onChange={event =>
-                onDefaultReviewIntervalDaysChange(event.target.value)
-              }
-              placeholder="Sem padrão"
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="font-medium">Antecedência do lembrete</span>
-            <Input
-              type="number"
-              min={0}
-              max={30}
-              disabled={!remindersEnabled}
-              value={defaultReminderLeadDays}
-              onChange={event =>
-                onDefaultReminderLeadDaysChange(event.target.value)
-              }
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="font-medium">Frequência de resumo</span>
-            <select
-              className="h-10 rounded-md border bg-background px-3 text-sm"
-              value={summaryFrequency}
-              onChange={event =>
-                onSummaryFrequencyChange(event.target.value as SummaryFrequency)
-              }
-            >
-              {Object.entries(frequencyLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <label className="flex items-center gap-3 rounded-xl border p-4 text-sm">
-          <input
-            type="checkbox"
-            checked={remindersEnabled}
-            onChange={event => onRemindersEnabledChange(event.target.checked)}
+        <label className="grid max-w-sm gap-1 text-sm">
+          <span className="font-medium">Revisão padrão (dias)</span>
+          <Input
+            type="number"
+            min={1}
+            max={365}
+            value={defaultReviewIntervalDays}
+            onChange={event =>
+              onDefaultReviewIntervalDaysChange(event.target.value)
+            }
+            placeholder="Sem padrão"
           />
-          <span>
-            <strong className="block">Habilitar lembretes operacionais</strong>
-            <span className="text-muted-foreground">
-              Nenhuma mensagem será enviada sem o fluxo explícito de envio.
-            </span>
+          <span className="text-xs text-muted-foreground">
+            Aplicada somente a novas avaliações sem data explícita de revisão.
           </span>
         </label>
 
