@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:trpc`. Não edite manualmente.
 
-Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.
+Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*Router.ts` e `server/modules/professionals/legacyEntitlementPolicy.ts`.
 
 ## Grupos
 
@@ -12,7 +12,7 @@ Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.
 | `assistant` | 1 | 0 | 1 | protected | Sugestões alimentares assistidas |
 | `foodPhotoAnalysis` | 4 | 1 | 3 | protected | Análise, consulta, rejeição e confirmação de fotos |
 | `healthIntegrations` | 5 | 2 | 3 | protected | Conexão, desconexão e sincronização de integrações de saúde |
-| `professionals` | 19 | 9 | 10 | professional-entitled | Perfil profissional, acessos, pacientes, comentários e sugestões |
+| `professionals` | 18 | 9 | 9 | professional-entitled | Perfil profissional, acessos, pacientes, comentários e sugestões |
 | `onboarding` | 3 | 2 | 1 | protected | Conclusão de onboarding nutricional |
 | `whatsappPreferences` | 2 | 1 | 1 | protected | Grupo de procedures tRPC |
 | `mealSchedules` | 3 | 2 | 1 | protected | Grupo de procedures tRPC |
@@ -27,6 +27,10 @@ Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.
 | `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
 | `professionalRecord` | 12 | 4 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
+| `professionalRecord.messages` | 4 | 2 | 2 | professional-entitled | Mensagens profissionais e histórico do paciente |
+| `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
+| `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
+| `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
 
 ## Procedures por grupo
 
@@ -83,7 +87,6 @@ Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.
 | `addComment` | mutation | professional-entitled |
 | `suggestGoalAdjustment` | mutation | professional-entitled |
 | `suggestMealPlan` | mutation | professional-entitled |
-| `askPatientQuestion` | mutation | professional-entitled |
 | `history` | query | professional-entitled |
 
 ### onboarding
@@ -232,6 +235,45 @@ Fontes: `server/nutritionRouter.ts`, `server/modules/professionals/recordRouter.
 | `patientState` | query | protected |
 | `requestReview` | mutation | protected |
 | `adoptAsPersonal` | mutation | protected |
+
+### professionalRecord.messages
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `list` | query | professional-entitled |
+| `create` | mutation | professional-entitled |
+| `retry` | mutation | professional-entitled |
+| `patientList` | query | protected |
+
+### professionalRecord.operationalAlerts
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `list` | query | professional-entitled |
+| `evaluate` | mutation | professional-entitled |
+| `close` | mutation | professional-entitled |
+| `createRequest` | mutation | professional-entitled |
+| `respondRequest` | mutation | protected |
+| `cancelRequest` | mutation | professional-entitled |
+| `registerReviewSignal` | mutation | professional-entitled |
+
+### professionalRecord.ai
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `priorities` | query | professional-entitled |
+| `generate` | mutation | professional-entitled |
+
+### professionalRecord.settings
+
+| Procedure | Operação | Escopo |
+|---|---|---|
+| `get` | query | professional-entitled |
+| `entitlements` | query | protected |
+| `updateIdentity` | mutation | professional-entitled |
+| `updatePreferences` | mutation | professional-entitled |
+| `setActive` | mutation | professional-entitled |
+| `patientVisible` | query | protected |
 
 ## Regras para novas procedures
 

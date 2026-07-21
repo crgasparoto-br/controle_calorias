@@ -40,7 +40,9 @@ export const professionalRepository = {
     return profile;
   },
   deleteProfile: deleteProfessionalProfile,
-  async transitionAuthorization(input: TransitionProfessionalAuthorizationInput) {
+  async transitionAuthorization(
+    input: TransitionProfessionalAuthorizationInput
+  ) {
     const current = await baseProfessionalRepository.getAuthorizationById(
       input.authorizationId
     );
@@ -134,10 +136,6 @@ export function transitionCanonicalProfessionalTracking(
   input: TransitionProfessionalTrackingInput
 ) {
   return professionalRepository.transitionTracking(input);
-}
-
-export function migrateLegacyProfessionalDataForUser(userId: number) {
-  return professionalRepository.migrateLegacyUser(userId);
 }
 
 export function migrateAllLegacyProfessionalData() {

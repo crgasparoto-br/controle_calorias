@@ -125,7 +125,9 @@ export default function ProfessionalLayout({
     async (patientId: number) => {
       await Promise.all([
         utils.nutrition.professionals.patientTimeZone.invalidate({ patientId }),
-        utils.nutrition.professionals.patientDashboard.invalidate({ patientId }),
+        utils.nutrition.professionals.patientDashboard.invalidate({
+          patientId,
+        }),
         utils.nutrition.professionals.patientPeriodBundle.invalidate(),
       ]);
     },
@@ -242,7 +244,8 @@ export default function ProfessionalLayout({
             Não foi possível confirmar seu acesso
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Verifique sua conexão e tente novamente. Nenhum dado profissional foi exibido.
+            Verifique sua conexão e tente novamente. Nenhum dado profissional
+            foi exibido.
           </p>
           <Button className="mt-6" onClick={() => void profile.refetch()}>
             <RefreshCw className="h-4 w-4" />
@@ -293,7 +296,9 @@ export default function ProfessionalLayout({
                 <BriefcaseMedical className="h-5 w-5" />
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="truncate text-sm font-semibold">Área Profissional</p>
+                <p className="truncate text-sm font-semibold">
+                  Área Profissional
+                </p>
                 <p className="truncate text-xs text-sidebar-foreground/70">
                   Gestão de pacientes
                 </p>
@@ -361,16 +366,6 @@ export default function ProfessionalLayout({
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                className="shrink-0"
-                onClick={() => {
-                  clearPatient();
-                  setLocation("/professional/legacy");
-                }}
-              >
-                Experiência legada
-              </Button>
             </div>
           </header>
           <main
@@ -392,7 +387,8 @@ export default function ProfessionalLayout({
                   Não foi possível confirmar a autorização do paciente
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  O contexto foi protegido. Tente novamente antes de continuar o acompanhamento.
+                  O contexto foi protegido. Tente novamente antes de continuar o
+                  acompanhamento.
                 </p>
                 <Button
                   className="mt-4"

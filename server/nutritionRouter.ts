@@ -201,7 +201,6 @@ import {
   professionalCommentSchema,
   professionalGoalSuggestionSchema,
   professionalMealSuggestionSchema,
-  professionalPatientQuestionSchema,
   professionalPortfolioSchema,
   professionalProfileSchema,
   professionalTrackingTransitionSchema,
@@ -209,7 +208,6 @@ import {
 } from "./modules/professionals/schemas";
 import {
   addProfessionalComment,
-  answerProfessionalPatientQuestion,
   approvePatientAccess,
   getProfessionalPatientDashboard,
   getProfessionalPatientPeriodBundle,
@@ -519,11 +517,6 @@ export const nutritionRouter = router({
     suggestMealPlan: protectedProcedure
       .input(professionalMealSuggestionSchema)
       .mutation(async ({ ctx, input }) => suggestMealPlan(ctx.user.id, input)),
-    askPatientQuestion: protectedProcedure
-      .input(professionalPatientQuestionSchema)
-      .mutation(async ({ ctx, input }) =>
-        answerProfessionalPatientQuestion(ctx.user.id, input)
-      ),
     history: protectedProcedure.query(async ({ ctx }) =>
       listProfessionalHistory(ctx.user.id)
     ),
