@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { buildWhatsAppClarificationReplyMessage } from "./replyMessages";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
@@ -41,6 +42,20 @@ function withCanonicalGramsMetadata(result: WhatsappIntentResult): WhatsappInten
       ? result.detail
       : `${result.detail} Escopo da busca: nas refeições do dia.`,
   };
+}
+
+function resolveInboundCorrelationId(
+  userId: number,
+  text: string,
+  receivedAt: Date,
+  messageId?: string | null,
+) {
+  if (messageId?.trim()) return messageId.trim();
+  const digest = createHash("sha256")
+    .update(`${userId}|${receivedAt.toISOString()}|${text}`)
+    .digest("hex")
+    .slice(0, 32);
+  return `derived:${digest}`;
 }
 
 export async function executeWhatsappTextIntent(userId: number, input: WhatsappIntentInput): Promise<WhatsappIntentResult | null> {
@@ -101,13 +116,14 @@ export async function executeWhatsappTextIntent(userId: number, input: WhatsappI
   // A clarificação persistente antecede o parser alimentar genérico. Assim uma
   // contagem sem porção canônica segura preserva o alimento original e pede
   // somente o dado ausente, enquanto frases completas com unidade continuam no
-  // pipeline normal.
+  // pipeline normal. Quando o wrapper não repassa o ID externo, a chave derivada
+  // mantém um vínculo idempotente estável com o inbound real ou transcrito.
   const foodClarification = await handleWhatsappFoodClarification({
     userId,
     text,
     receivedAt,
     userTimezone: userTimeZone,
-    messageId: input.messageId,
+    messageId: resolveInboundCorrelationId(userId, text, receivedAt, input.messageId),
   });
   if (foodClarification) {
     return foodClarification;
