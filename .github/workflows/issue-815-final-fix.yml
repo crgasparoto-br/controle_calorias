@@ -54,6 +54,11 @@ jobs:
             git commit -m "chore: registrar diagnóstico da correção #815"
             git push origin HEAD:cleanup/815-retire-professional-legacy
           fi
+      - name: Remove temporary automation
+        run: |
+          rm -f scripts/issue-815-final-fix.mjs.gz.b64
+          rm -f scripts/issue-815-final-fix-error.txt
+          rm -f .github/workflows/issue-815-final-fix.yml
       - name: Format changed sources
         run: |
           pnpm exec prettier --write \
