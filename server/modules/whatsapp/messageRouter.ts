@@ -26,7 +26,14 @@ import {
   isExpectedWhatsappPeriodReportAction,
   PENDING_PERIOD_REPORT_TYPE,
 } from "./periodReportClarification";
-import { handleWhatsappFoodClarification, type WhatsappFoodClarificationResult } from "./foodClarification";
+import {
+  completeClaimedWhatsappFoodClarificationCallback,
+  handleWhatsappFoodClarification,
+  isExpectedWhatsappFoodClarificationAction,
+  isPendingFoodClarificationTarget,
+  PENDING_FOOD_CLARIFICATION_TYPE,
+  type WhatsappFoodClarificationResult,
+} from "./foodClarification";
 import { buildWhatsAppCallbackUnavailableReplyMessage } from "./replyMessages";
 import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
@@ -77,14 +84,19 @@ async function resolveWhatsAppInteractiveCallback(
     PENDING_CONFIRMATION_TYPE,
     PENDING_PROFESSIONAL_ACCESS_TYPE,
     PENDING_PERIOD_REPORT_TYPE,
+    PENDING_FOOD_CLARIFICATION_TYPE,
   ] as const;
   const claim = await claimWhatsAppInteractiveCallback(userId, interactiveReplyId, receivedAt, {
     sourcePhone,
     expectedTypes,
-    isExpectedAction: (type, action) => {
+    isExpectedAction: (type, action, pendingOperation) => {
       if (type === PENDING_PROFESSIONAL_ACCESS_TYPE) return action === "authorize" || action === "reject";
       if (type === PENDING_CONFIRMATION_TYPE) return action === "confirm" || action === "cancel";
       if (type === PENDING_PERIOD_REPORT_TYPE) return isExpectedWhatsappPeriodReportAction(action);
+      if (type === PENDING_FOOD_CLARIFICATION_TYPE) {
+        return isPendingFoodClarificationTarget(pendingOperation.target)
+          && isExpectedWhatsappFoodClarificationAction(pendingOperation.target, action);
+      }
       if (type === PENDING_DELETE_TYPE || type === PENDING_MEAL_ITEM_SELECTION_TYPE) {
         return action === "confirm" || action === "cancel" || /^select:\d+$/.test(action);
       }
@@ -104,6 +116,14 @@ async function resolveWhatsAppInteractiveCallback(
       return completeWhatsappGenericConfirmationCallback(userId, claim.pendingOperation, claim.action);
     case PENDING_PERIOD_REPORT_TYPE:
       return completeWhatsappPeriodReportCallback(userId, claim.action, receivedAt);
+    case PENDING_FOOD_CLARIFICATION_TYPE:
+      return completeClaimedWhatsappFoodClarificationCallback({
+        userId,
+        pendingOperation: claim.pendingOperation,
+        action: claim.action,
+        receivedAt,
+        userTimezone,
+      });
     case PENDING_PROFESSIONAL_ACCESS_TYPE: {
       const { completeWhatsAppProfessionalAccessCallback } = await import("../professionals/service");
       return completeWhatsAppProfessionalAccessCallback(userId, claim.pendingOperation, claim.action);
