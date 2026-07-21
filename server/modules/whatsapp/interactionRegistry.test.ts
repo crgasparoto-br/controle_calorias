@@ -104,7 +104,7 @@ describe("registro executável transversal de interações", () => {
     const mealSelection = {
       targetFood: "pão",
       contextLabel: "na última refeição",
-      action: { kind: "grams_absolute", grams: 100 },
+      action: { kind: "grams_absolute" as const, grams: 100 },
       resultTitle: "Ajuste",
       candidates: [
         { mealId: 1, mealLabel: "Almoço", itemIndex: 0, itemName: "Pão francês" },
@@ -114,7 +114,11 @@ describe("registro executável transversal de interações", () => {
     expect(findWhatsappRegisteredInteraction("meal_item_selection", mealSelection)?.actions(mealSelection))
       .toEqual(buildMealItemSelectionActions(mealSelection.candidates));
 
-    const generic = { action: { kind: "reclassify_recent_meals", fromMealLabel: "Lanche", toMealLabel: "Jantar" }, mealIds: [1], summary: "Lanche → Jantar" };
+    const generic = {
+      action: { kind: "reclassify_recent_meals" as const, fromMealLabel: "Lanche", toMealLabel: "Jantar" },
+      mealIds: [1],
+      summary: "Lanche → Jantar",
+    };
     expect(findWhatsappRegisteredInteraction("confirmation", generic)?.actions(generic))
       .toEqual(buildGenericConfirmationActions(generic));
     const scope = { ...generic, allMealIds: [1, 2], decision: "reclassify_scope" as const };
@@ -123,43 +127,40 @@ describe("registro executável transversal de interações", () => {
 
     expect(findWhatsappRegisteredInteraction("period_report_clarification", { kind: "period_report" })?.actions({}))
       .toEqual(buildWhatsappPeriodReportActions());
-    expect(findWhatsappRegisteredInteraction("intent_clarification", {
-      contractVersion: 1,
-      interactionId: "intent_clarification.generic",
-      kind: "intent_clarification",
+    const intentClarification = {
+      contractVersion: 1 as const,
+      interactionId: "intent_clarification.generic" as const,
+      kind: "intent_clarification" as const,
       originalText: "registrar",
       actions: [...INTENT_CLARIFICATION_ACTIONS],
-    })?.actions({
-      contractVersion: 1,
-      interactionId: "intent_clarification.generic",
-      kind: "intent_clarification",
-      originalText: "registrar",
-      actions: [...INTENT_CLARIFICATION_ACTIONS],
-    })).toEqual([...INTENT_CLARIFICATION_ACTIONS]);
+    };
+    expect(findWhatsappRegisteredInteraction("intent_clarification", intentClarification)?.actions(intentClarification))
+      .toEqual([...INTENT_CLARIFICATION_ACTIONS]);
   });
 
   it("registra separadamente os contratos alimentares abertos e fechados da #855", () => {
-    const base = {
+    const request = {
       originalText: "1 iogurte natural",
-      sanitizedOriginalText: "1 iogurte natural",
       originalCandidate: "iogurte natural",
       normalizedCandidate: "iogurte natural",
       normalizationChanged: false,
       count: 1,
-      qualifiers: [],
-      candidates: [],
-      selectedCandidateIndex: null,
-      inboundMessageId: "wamid-1",
     };
     const quantity = buildPendingFoodClarificationTarget({
-      ...base,
+      interactionId: "food_clarification.quantity",
+      request,
       pendingKind: "quantity",
+      candidates: [],
       instructionText: "Qual o peso?",
+      messageId: "wamid-1",
     });
     const confirmation = buildPendingFoodClarificationTarget({
-      ...base,
+      interactionId: "food_clarification.confirmation",
+      request,
       pendingKind: "confirmation",
+      candidates: [],
       instructionText: "Confirmar?",
+      messageId: "wamid-1",
     });
     expect(findWhatsappRegisteredInteraction("food_registration_clarification", quantity)?.classification).toBe("open");
     expect(findWhatsappRegisteredInteraction("food_registration_clarification", confirmation)?.classification).toBe("closed");
