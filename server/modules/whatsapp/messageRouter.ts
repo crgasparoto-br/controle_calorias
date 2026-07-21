@@ -1,28 +1,23 @@
 /**
- * Ponto único de roteamento por precedência do WhatsApp (issue #766).
+ * Ponto único de roteamento por precedência do WhatsApp.
  *
- * Centraliza os passos 2 e 3 da ordem obrigatória do épico #762 (a segurança/
- * idempotência, passo 1, já é resolvida antes deste ponto por cada webhook via
- * inspectWhatsAppUserContentSafety/dedup guards existentes):
- *
- *   2. comando explícito `/` tem precedência definida;
- *   3. pendência operacional ativa e ainda válida;
- *   (4-7: classificação da intenção atual, contexto conversacional, banco como
- *    fonte de verdade e clarificação continuam na cadeia existente de cada
- *    webhook, que é chamada quando este gate devolve `continue_pipeline`.)
- *
- * Antes desta issue, o comando `/` e a confirmação genérica de ação
- * (pendingWhatsAppConfirmations) só eram checados em whatsappWebhook.ts, o
- * último fallback da cadeia — ou seja, rodavam por último, não primeiro. Este
- * módulo resolve isso: é chamado no topo de cada entrypoint antes de qualquer
- * outra classificação.
+ * Ordem efetiva:
+ * 1. callback interativo válido;
+ * 2. pergunta explícita iniciada por `/`;
+ * 3. resposta curta compatível com pendência destrutiva;
+ * 4. novo comando destrutivo completo, que substitui pendência incompatível;
+ * 5. confirmação genérica e demais intents.
  */
 import { getDb, logPersistenceWarning } from "../../db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../../repositories/whatsappPendingOperationRepository";
 import { executeWhatsappAiQuestionIntent, isWhatsappAiQuestionText } from "./aiQuestionAssistant";
 import { handlePendingWhatsAppConfirmation, completeWhatsappGenericConfirmationCallback, PENDING_CONFIRMATION_TYPE } from "./webhookTextCommands";
 import { claimWhatsAppInteractiveCallback } from "./interactiveCallback";
-import { completeWhatsappDeleteInteractiveCallback, PENDING_DELETE_TYPE } from "./deleteIntent";
+import {
+  completeWhatsappDeleteInteractiveCallback,
+  executeWhatsappDeleteIntent,
+  PENDING_DELETE_TYPE,
+} from "./deleteIntent";
 import { completeMealItemSelectionInteractiveCallback, PENDING_MEAL_ITEM_SELECTION_TYPE } from "./mealItemSelectionCallback";
 import {
   completeWhatsappPeriodReportCallback,
@@ -52,6 +47,7 @@ export type WhatsAppInteractiveCallbackResult = {
 export type WhatsAppPrecedenceGateResult =
   | { step: "ai_question"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappAiQuestionIntent>>> }
   | { step: "interactive_callback"; result: WhatsAppInteractiveCallbackResult }
+  | { step: "delete_intent"; result: NonNullable<Awaited<ReturnType<typeof executeWhatsappDeleteIntent>>> }
   | { step: "generic_confirmation"; result: NonNullable<Awaited<ReturnType<typeof handlePendingWhatsAppConfirmation>>> }
   | { step: "continue_pipeline" };
 
@@ -64,12 +60,6 @@ function buildUnavailableInteractiveCallbackResult(): WhatsAppInteractiveCallbac
   };
 }
 
-/**
- * Ponto único de resolução de botões/listas (issue #782): reivindica a
- * pendência referenciada pelo ID opaco do callback e despacha para o
- * resolvedor do domínio correspondente ao `type` persistido em
- * `whatsappPendingOperations`. Nenhum domínio consome a pendência de novo.
- */
 async function resolveWhatsAppInteractiveCallback(
   userId: number,
   interactiveReplyId: string,
@@ -119,28 +109,22 @@ async function resolveWhatsAppInteractiveCallback(
   }
 }
 
-/**
- * Resolve os passos 2 e 3 da ordem de precedência. Deve ser chamado antes de
- * qualquer classificação de intenção (delete/gramas/substituição/LLM/etc).
- *
- * Importante (clarificação #6 da issue): se existir uma pendência destrutiva
- * ativa (ex.: exclusão) e a mensagem for um comando `/`, a pendência NÃO é
- * tocada aqui — o `/` sempre responde primeiro, mas o passo 3 (pendência) só é
- * resolvido nas mensagens que não são `/`, então uma pendência de exclusão
- * nunca é consumida como efeito colateral de uma pergunta com `/`.
- */
 export async function resolveWhatsAppPrecedenceGate(input: {
   userId: number;
   text?: string | null;
   receivedAt?: Date;
   userTimezone?: string | null;
-  /** ID opaco de `button_reply`/`list_reply` (issue #782). Resolvido antes de qualquer outra precedência: um clique nunca é reinterpretado como texto livre nem cai no fallback nutricional. */
   interactiveReplyId?: string | null;
-  /** Telefone de origem validado contra a conexão ativa antes de consumir callback. */
   sourcePhone?: string | null;
 }): Promise<WhatsAppPrecedenceGateResult> {
   if (input.interactiveReplyId) {
-    const result = await resolveWhatsAppInteractiveCallback(input.userId, input.interactiveReplyId, input.receivedAt, input.sourcePhone, input.userTimezone);
+    const result = await resolveWhatsAppInteractiveCallback(
+      input.userId,
+      input.interactiveReplyId,
+      input.receivedAt,
+      input.sourcePhone,
+      input.userTimezone,
+    );
     return { step: "interactive_callback", result };
   }
 
@@ -155,8 +139,21 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     }
   }
 
+  // O executor destrutivo também resolve respostas curtas de uma pendência de
+  // exclusão. Quando o texto é um novo comando destrutivo, ele substitui de forma
+  // atômica qualquer pendência incompatível antes dos parsers alimentares (#856).
+  const deleteIntent = await executeWhatsappDeleteIntent(input.userId, {
+    text: input.text,
+    receivedAt: input.receivedAt,
+    timeZone: input.userTimezone,
+    entrypoint: "messageRouter.precedenceGate",
+  });
+  if (deleteIntent) {
+    return { step: "delete_intent", result: deleteIntent };
+  }
+
   const pending = await pendingOperationRepository.getActivePendingOperation(input.userId, input.receivedAt);
-  if (pending && pending.type === "confirmation") {
+  if (pending && pending.type === PENDING_CONFIRMATION_TYPE) {
     const message: WhatsAppWebhookMessage = { text: { body: input.text ?? "" } };
     const result = await handlePendingWhatsAppConfirmation(message, input.userId);
     if (result) {
