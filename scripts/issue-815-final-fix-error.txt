@@ -1,0 +1,14 @@
+file:///tmp/issue-815-final-fix.mjs:18
+  if (first < 0) throw new Error(`Missing replacement anchor: ${label}`);
+                       ^
+
+Error: Missing replacement anchor: retirement goal output
+    at replaceOnce (file:///tmp/issue-815-final-fix.mjs:18:24)
+    at file:///tmp/issue-815-final-fix.mjs:431:10
+    at transform (file:///tmp/issue-815-final-fix.mjs:36:16)
+    at file:///tmp/issue-815-final-fix.mjs:230:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v20.20.2
