@@ -36,7 +36,7 @@ for (const [file, marker] of [
   ],
   [
     "client/src/pages/nutritionPages.test.tsx",
-    "renderiza todos os exercícios do intervalo",
+    "renderiza registros de refeições e todos os exercícios do intervalo",
   ],
   ["client/src/pages/nutritionPages.test.tsx", "renderiza a página de metas"],
   [
@@ -82,18 +82,12 @@ for (const [file, forbidden] of [
   ],
   ["server/nutritionRouter.ts", "askPatientQuestion"],
   ["client/src/components/ProfessionalLayout.tsx", "Experiência legada"],
-  [
-    "docs/design-docs/database-persistence.md",
-    "recebe dual-write temporário",
-  ],
+  ["docs/design-docs/database-persistence.md", "recebe dual-write temporário"],
   [
     "docs/design-docs/database-persistence.md",
     "manter a importação lazy e o dual-write",
   ],
-  [
-    "docs/design-docs/database-persistence.md",
-    "três chaves JSON antigas",
-  ],
+  ["docs/design-docs/database-persistence.md", "três chaves JSON antigas"],
 ] as const) {
   forbidText(file, forbidden);
 }
