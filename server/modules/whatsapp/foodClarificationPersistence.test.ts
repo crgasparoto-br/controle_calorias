@@ -140,7 +140,7 @@ describe("persistResolvedFoodSafely", () => {
     expect(createMeal).toHaveBeenCalledTimes(1);
   });
 
-  it("persiste a quantidade resultante de uma porção canônica multiunidade", async () => {
+  it("persiste porção canônica multiunidade com peso e nutrientes proporcionais", async () => {
     const { deps, createMeal } = createDependencies();
     const multiUnitTarget: PendingFoodClarificationTarget = {
       ...target,
@@ -162,9 +162,9 @@ describe("persistResolvedFoodSafely", () => {
       foodName: "Pão integral Wickbold",
       canonicalName: "Pão integral Wickbold",
       brand: "Wickbold",
-      quantity: 4,
-      unit: "fatias",
-      portionText: "4 fatias",
+      quantity: 100,
+      unit: "g",
+      portionText: "100 g",
       servings: 2,
       estimatedGrams: 100,
       calories: 248,
@@ -174,7 +174,7 @@ describe("persistResolvedFoodSafely", () => {
     };
     deps.processFood.mockResolvedValueOnce({
       detectedMealLabel: "Lanche",
-      sourceText: "4 fatias de Pão integral Wickbold",
+      sourceText: "100 g de Pão integral Wickbold",
       confidence: 0.95,
       needsConfirmation: false,
       reasoning: "porção canônica preservada",
@@ -193,10 +193,10 @@ describe("persistResolvedFoodSafely", () => {
 
     expect(outcome.status).toBe("success");
     expect(deps.processFood).toHaveBeenCalledWith(expect.objectContaining({
-      text: "4 fatias de Pão integral Wickbold",
+      text: "100 g de Pão integral Wickbold",
     }));
     expect(createMeal).toHaveBeenCalledWith(42, expect.objectContaining({
-      items: [expect.objectContaining({ quantity: 4, unit: "fatias", calories: 248 })],
+      items: [expect.objectContaining({ quantity: 100, unit: "g", estimatedGrams: 100, calories: 248 })],
     }));
   });
 });
