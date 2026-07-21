@@ -23,7 +23,9 @@ export type PendingDeleteIntent = {
 
 export type PendingDeleteSelection = {
   kind: "selection";
-  targetFoodName: string;
+  targetLabel: string;
+  /** Compatibilidade com consumidores anteriores e contrato da #858. */
+  targetFoodName?: string;
   candidates: PendingDeleteIntent[];
 };
 
@@ -144,6 +146,32 @@ export function buildPendingResult(
   };
 }
 
+export function buildPendingReminderResult(
+  pending: PendingDeleteIntent,
+  pendingOperationId: number,
+  timeZone: string,
+): WhatsappDeleteIntentResult {
+  const result = buildPendingResult(pending, pendingOperationId, timeZone);
+  return {
+    ...result,
+    eventType: pending.kind === "delete_meal"
+      ? "whatsapp.intent.delete_meal_confirmation_still_pending"
+      : "whatsapp.intent.delete_food_confirmation_still_pending",
+    detail: "Resposta incompatível com a confirmação destrutiva ativa; a pendência foi preservada e o fallback nutricional permaneceu bloqueado.",
+  };
+}
+
+export function buildPendingReplacementBlockedResult(): WhatsappDeleteIntentResult {
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: "Não consegui substituir a ação pendente com segurança. Nada foi excluído ou registrado. Cancele a ação anterior e envie novamente o pedido de exclusão.",
+    eventType: "whatsapp.intent.delete_pending_replacement_blocked",
+    detail: "Nova intenção destrutiva bloqueada porque a pendência anterior não pôde ser marcada como substituída.",
+    data: buildRoutingData({ destructiveActionBlocked: true, pendingState: "blocked" }),
+  };
+}
+
 export function buildCallbackResourceNotFoundResult(): WhatsappDeleteIntentResult {
   return {
     handled: true,
@@ -196,17 +224,29 @@ function truncateListRowTitle(title: string) {
   return title.length > MAX_LIST_ROW_TITLE_LENGTH ? `${title.slice(0, MAX_LIST_ROW_TITLE_LENGTH - 1)}…` : title;
 }
 
+function selectionRowTitle(candidate: PendingDeleteIntent, index: number) {
+  const label = candidate.kind === "delete_meal" ? candidate.mealLabel : candidate.itemName ?? "Alimento";
+  return truncateListRowTitle(`${index + 1}. ${label}`);
+}
+
+function selectionRowDescription(candidate: PendingDeleteIntent, timeZone: string) {
+  return candidate.kind === "delete_meal"
+    ? formatMealReference(candidate, timeZone)
+    : candidate.mealLabel;
+}
+
 export function buildSelectionListReply(
   bodyText: string,
   pendingOperationId: number,
   candidates: PendingDeleteIntent[],
+  timeZone: string,
 ): WhatsAppLogicalReply {
   return listReply(bodyText, "Ver opções", [
     {
       rows: candidates.map((candidate, index) => ({
         id: buildWhatsAppCallbackId(pendingOperationId, `${SELECT_ACTION_PREFIX}${index}`),
-        title: truncateListRowTitle(`${index + 1}. ${candidate.itemName ?? "Alimento"}`),
-        description: candidate.mealLabel,
+        title: selectionRowTitle(candidate, index),
+        description: selectionRowDescription(candidate, timeZone),
       })),
     },
     { rows: [{ id: buildWhatsAppCallbackId(pendingOperationId, CANCEL_ACTION), title: "Cancelar" }] },
@@ -214,34 +254,47 @@ export function buildSelectionListReply(
 }
 
 export function buildSelectionResult(input: {
-  targetFoodName: string;
+  targetLabel: string;
+  targetFoodName?: string;
   candidates: PendingDeleteIntent[];
   pendingOperationId?: number;
   reply: string;
+  timeZone: string;
 }): WhatsappDeleteIntentResult {
+  const selectionKind = input.candidates.every(candidate => candidate.kind === "delete_meal")
+    ? "delete_meal"
+    : "delete_food_from_meal";
   return {
     handled: true,
     action: "clarification_needed",
     reply: input.reply,
     ...(input.pendingOperationId
-      ? { interactiveReply: buildSelectionListReply(input.reply, input.pendingOperationId, input.candidates) }
+      ? { interactiveReply: buildSelectionListReply(input.reply, input.pendingOperationId, input.candidates, input.timeZone) }
       : {}),
-    eventType: "whatsapp.intent.delete_food_selection_requested",
-    detail: "Seleção destrutiva persistida antes da confirmação; nenhum item foi removido.",
+    eventType: selectionKind === "delete_meal"
+      ? "whatsapp.intent.delete_meal_selection_requested"
+      : "whatsapp.intent.delete_food_selection_requested",
+    detail: selectionKind === "delete_meal"
+      ? "Seleção de refeição persistida antes da confirmação; nenhuma refeição foi removida."
+      : "Seleção de alimento persistida antes da confirmação; nenhum item foi removido.",
     data: buildRoutingData({
+      deleteIntentKind: selectionKind,
       destructiveActionBlocked: true,
       candidateCount: input.candidates.length,
       pendingOperationId: input.pendingOperationId ?? null,
       pendingType: "selection",
       pendingState: "open",
-      targetFoodName: input.targetFoodName,
+      targetLabel: input.targetLabel,
+      targetFoodName: input.targetFoodName ?? null,
       interaction: {
         id: input.pendingOperationId ?? null,
         state: "open",
         type: "selection",
-        targetFoodName: input.targetFoodName,
+        targetLabel: input.targetLabel,
+        targetFoodName: input.targetFoodName ?? null,
         candidates: input.candidates.map((candidate, index) => ({
           order: index + 1,
+          kind: candidate.kind,
           mealId: candidate.mealId,
           mealLabel: candidate.mealLabel,
           mealOccurredAt: candidate.mealOccurredAt,
