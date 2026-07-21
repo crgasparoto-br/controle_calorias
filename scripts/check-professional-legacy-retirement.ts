@@ -82,14 +82,31 @@ for (const [file, forbidden] of [
   ],
   ["server/nutritionRouter.ts", "askPatientQuestion"],
   ["client/src/components/ProfessionalLayout.tsx", "Experiência legada"],
+  [
+    "docs/design-docs/database-persistence.md",
+    "recebe dual-write temporário",
+  ],
+  [
+    "docs/design-docs/database-persistence.md",
+    "manter a importação lazy e o dual-write",
+  ],
+  [
+    "docs/design-docs/database-persistence.md",
+    "três chaves JSON antigas",
+  ],
 ] as const) {
   forbidText(file, forbidden);
 }
 
-requireText(
-  "scripts/retire-professional-legacy-preferences.ts",
-  "patient_professional_goal_suggestions_v1"
-);
+for (const key of [
+  "professional_profile_v1",
+  "professional_accesses_v1",
+  "patient_professional_access_requests_v1",
+  "patient_professional_goal_suggestions_v1",
+]) {
+  requireText("scripts/retire-professional-legacy-preferences.ts", key);
+  requireText("docs/design-docs/database-persistence.md", key);
+}
 requireText(
   "scripts/retire-professional-legacy-preferences.ts",
   "goalSuggestionIsCovered"
