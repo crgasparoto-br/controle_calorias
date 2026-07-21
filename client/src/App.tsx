@@ -9,7 +9,9 @@ import PatientGoalSuggestionsEmbed from "./components/PatientGoalSuggestionsEmbe
 import PatientProfessionalGuidancesEmbed from "./components/PatientProfessionalGuidancesEmbed";
 import PatientProfessionalMessagesEmbed from "./components/PatientProfessionalMessagesEmbed";
 import ProfessionalAnalyzeTabBridge from "./components/ProfessionalAnalyzeTabBridge";
-import ProfessionalEntitlementGate from "./components/ProfessionalEntitlementGate";
+import ProfessionalEntitlementGate, {
+  type ProfessionalRouteEntitlement,
+} from "./components/ProfessionalEntitlementGate";
 import ProfessionalGoalExceptionSuggestionsEmbed from "./components/ProfessionalGoalExceptionSuggestionsEmbed";
 import ProfessionalOperationalAlertsBridge from "./components/ProfessionalOperationalAlertsBridge";
 import ProfileWhatsappGreetingVisibility from "./components/ProfileWhatsappGreetingVisibility";
@@ -46,9 +48,28 @@ function LegacyProfessionalRedirect() {
   return <PageLoadingFallback />;
 }
 
+export function professionalResourceForPath(
+  location: string
+): ProfessionalRouteEntitlement {
+  if (location.startsWith("/professional/patients")) {
+    return "professional_portfolio";
+  }
+  if (location.startsWith("/professional/follow-up")) {
+    return "professional_record";
+  }
+  if (location.startsWith("/professional/messages")) {
+    return "professional_messages";
+  }
+  if (location.startsWith("/professional/reports")) {
+    return "professional_reports";
+  }
+  return "professional_dashboard";
+}
+
 function ProfessionalWorkspaceRoute() {
+  const [location] = useLocation();
   return (
-    <ProfessionalEntitlementGate>
+    <ProfessionalEntitlementGate resource={professionalResourceForPath(location)}>
       <ProfessionalWorkspacePage />
     </ProfessionalEntitlementGate>
   );
