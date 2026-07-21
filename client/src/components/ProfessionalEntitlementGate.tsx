@@ -11,10 +11,19 @@ import { AlertTriangle, RefreshCw, Settings } from "lucide-react";
 import React, { type ReactNode } from "react";
 import { useLocation } from "wouter";
 
+export type ProfessionalRouteEntitlement =
+  | "professional_dashboard"
+  | "professional_portfolio"
+  | "professional_record"
+  | "professional_messages"
+  | "professional_reports";
+
 export default function ProfessionalEntitlementGate({
   children,
+  resource,
 }: {
   children: ReactNode;
+  resource: ProfessionalRouteEntitlement;
 }) {
   const [, setLocation] = useLocation();
   const query = trpc.professionalRecord.settings.entitlements.useQuery(
@@ -66,25 +75,28 @@ export default function ProfessionalEntitlementGate({
     );
   }
 
-  if (!query.data?.allowed) {
+  const resourceEnabled = Boolean(
+    query.data?.allowed && query.data.enabledResources.includes(resource)
+  );
+
+  if (!resourceEnabled) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader>
             <CardTitle role="heading" aria-level={1}>
-              Acesso profissional indisponível
+              Recurso profissional indisponível
             </CardTitle>
             <CardDescription>
-              O contrato central de acesso não liberou os recursos
-              profissionais. Seus pacientes, prontuários e histórico foram
-              preservados.
+              O contrato central de acesso não liberou este recurso. Seus
+              pacientes, prontuários e histórico foram preservados.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Situação: {query.data?.planName ?? "Elegibilidade indisponível"}
             </p>
-            <Button onClick={() => setLocation("/professional/settings")}>
+            <Button onClick={() => setLocation("/professional/settings")}> 
               <Settings className="h-4 w-4" />
               Ver configurações e acesso
             </Button>
