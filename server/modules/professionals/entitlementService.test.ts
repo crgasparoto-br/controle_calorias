@@ -6,6 +6,7 @@ import {
   ProfessionalCapacityExceededError,
   ProfessionalCapacityUnavailableError,
   PROFESSIONAL_ENTITLEMENT_RESOURCES,
+  releaseProfessionalCapacityReservation,
   withProfessionalCapacityReservation,
 } from "./entitlementService";
 
@@ -47,13 +48,34 @@ describe("professional entitlement service", () => {
     });
   });
 
+  it("keeps open access when the provider explicitly reports no subscription", async () => {
+    process.env.BILLING_ACCESS_MODE = "open_access";
+    _forTestOnly_setProfessionalEntitlementProvider(async () => ({
+      allowed: false,
+      reason: "no_access",
+      planCode: null,
+      planName: "Sem assinatura",
+      entitlements: [],
+      capacity: { limit: 2, used: 2 },
+    }));
+
+    const snapshot = await getProfessionalEntitlements(102);
+
+    expect(snapshot.allowed).toBe(true);
+    expect(snapshot.reason).toBe("free_access");
+    expect(snapshot.mode).toBe("open_access");
+    expect(snapshot.planName).toBe("Sem assinatura");
+    expect(snapshot.enabledResources).toEqual(PROFESSIONAL_ENTITLEMENT_RESOURCES);
+    expect(snapshot.capacity).toMatchObject({ limit: 2, used: 2 });
+  });
+
   it("uses the open-mode fallback when the provider fails", async () => {
     process.env.BILLING_ACCESS_MODE = "open_access";
     _forTestOnly_setProfessionalEntitlementProvider(async () => {
       throw new Error("provider unavailable");
     });
 
-    const snapshot = await getProfessionalEntitlements(102);
+    const snapshot = await getProfessionalEntitlements(103);
 
     expect(snapshot.allowed).toBe(true);
     expect(snapshot.fallbackUsed).toBe(true);
@@ -63,7 +85,7 @@ describe("professional entitlement service", () => {
   it("fails closed in enforced mode when the provider is unavailable", async () => {
     process.env.BILLING_ACCESS_MODE = "enforced";
 
-    const snapshot = await getProfessionalEntitlements(103);
+    const snapshot = await getProfessionalEntitlements(104);
 
     expect(snapshot.allowed).toBe(false);
     expect(snapshot.commercialState).toBe("unavailable");
@@ -76,7 +98,7 @@ describe("professional entitlement service", () => {
       enabledResult({ capacity: { limit: 5 } })
     );
 
-    const snapshot = await getProfessionalEntitlements(104);
+    const snapshot = await getProfessionalEntitlements(105);
 
     expect(snapshot.capacity.limit).toBe(5);
     expect(snapshot.capacity.used).toBeNull();
@@ -90,9 +112,39 @@ describe("professional entitlement service", () => {
       enabledResult({ capacity: { limit: 5, used: 5 } })
     );
 
-    await expect(assertProfessionalCapacityAvailable(105)).rejects.toBeInstanceOf(
+    await expect(assertProfessionalCapacityAvailable(106)).rejects.toBeInstanceOf(
       ProfessionalCapacityExceededError
     );
+  });
+
+  it("does not enforce finite capacity while the rollout remains open", async () => {
+    process.env.BILLING_ACCESS_MODE = "open_access";
+    const reserveCapacity = vi.fn();
+    const operation = vi.fn().mockResolvedValue("approved");
+    _forTestOnly_setProfessionalEntitlementProvider({
+      getEntitlements: async () => ({
+        ...enabledResult(),
+        allowed: false,
+        reason: "no_access",
+        entitlements: [],
+        capacity: { limit: 1, used: 1 },
+      }),
+      reserveCapacity,
+    });
+
+    await expect(
+      withProfessionalCapacityReservation(
+        {
+          professionalUserId: 107,
+          patientUserId: 207,
+          coverageKey: "authorization:open-mode",
+        },
+        operation
+      )
+    ).resolves.toBe("approved");
+
+    expect(operation).toHaveBeenCalledTimes(1);
+    expect(reserveCapacity).not.toHaveBeenCalled();
   });
 
   it("filters unknown resources returned by a provider", async () => {
@@ -104,7 +156,7 @@ describe("professional entitlement service", () => {
       capacity: null,
     }));
 
-    const snapshot = await getProfessionalEntitlements(106);
+    const snapshot = await getProfessionalEntitlements(108);
 
     expect(snapshot.enabledResources).toEqual(["professional_settings"]);
   });
@@ -119,7 +171,7 @@ describe("professional entitlement service", () => {
       })
     );
 
-    const snapshot = await getProfessionalEntitlements(107);
+    const snapshot = await getProfessionalEntitlements(109);
 
     expect(snapshot.allowed).toBe(false);
     expect(snapshot.reason).toBe("no_access");
@@ -138,8 +190,8 @@ describe("professional entitlement service", () => {
     await expect(
       withProfessionalCapacityReservation(
         {
-          professionalUserId: 108,
-          patientUserId: 208,
+          professionalUserId: 110,
+          patientUserId: 210,
           coverageKey: "authorization:a",
         },
         async () => "should-not-run"
@@ -169,16 +221,16 @@ describe("professional entitlement service", () => {
     const results = await Promise.allSettled([
       withProfessionalCapacityReservation(
         {
-          professionalUserId: 109,
-          patientUserId: 209,
+          professionalUserId: 111,
+          patientUserId: 211,
           coverageKey: "authorization:first",
         },
         async () => "first"
       ),
       withProfessionalCapacityReservation(
         {
-          professionalUserId: 109,
-          patientUserId: 210,
+          professionalUserId: 111,
+          patientUserId: 212,
           coverageKey: "authorization:second",
         },
         async () => "second"
@@ -210,8 +262,8 @@ describe("professional entitlement service", () => {
     await expect(
       withProfessionalCapacityReservation(
         {
-          professionalUserId: 110,
-          patientUserId: 211,
+          professionalUserId: 112,
+          patientUserId: 213,
           coverageKey: "authorization:failure",
         },
         async () => {
@@ -221,9 +273,49 @@ describe("professional entitlement service", () => {
     ).rejects.toThrow("transition failed");
 
     expect(releaseCapacity).toHaveBeenCalledWith({
-      professionalUserId: 110,
+      professionalUserId: 112,
+      patientUserId: 213,
       reservationId: "reservation-1",
       coverageKey: "authorization:failure",
     });
+  });
+
+  it("releases an approved coverage later by its idempotent key", async () => {
+    const releaseCapacity = vi.fn().mockResolvedValue(undefined);
+    _forTestOnly_setProfessionalEntitlementProvider({
+      getEntitlements: async () => enabledResult(),
+      releaseCapacity,
+    });
+
+    await expect(
+      releaseProfessionalCapacityReservation({
+        professionalUserId: 113,
+        patientUserId: 214,
+        coverageKey: "professional-authorization:authorization-1",
+      })
+    ).resolves.toEqual({ released: true });
+
+    expect(releaseCapacity).toHaveBeenCalledWith({
+      professionalUserId: 113,
+      patientUserId: 214,
+      coverageKey: "professional-authorization:authorization-1",
+    });
+  });
+
+  it("does not block patient revocation when central release is unavailable", async () => {
+    _forTestOnly_setProfessionalEntitlementProvider({
+      getEntitlements: async () => enabledResult(),
+      releaseCapacity: async () => {
+        throw new Error("billing unavailable");
+      },
+    });
+
+    await expect(
+      releaseProfessionalCapacityReservation({
+        professionalUserId: 114,
+        patientUserId: 215,
+        coverageKey: "professional-authorization:authorization-2",
+      })
+    ).resolves.toEqual({ released: false, reason: "unavailable" });
   });
 });
