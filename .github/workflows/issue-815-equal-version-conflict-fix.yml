@@ -35,15 +35,21 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'{label} anchor not found')
+              return text.replace(old, new, 1)
+
           retirement_path = Path('scripts/retire-professional-legacy-preferences.ts')
           text = retirement_path.read_text()
-
-          old = '''function sameGoal(left: unknown, right: unknown) {
+          text = replace_once(
+              text,
+              '''function sameGoal(left: unknown, right: unknown) {
             return JSON.stringify(left) === JSON.stringify(right);
           }
 
-          function authorizationStatusCovers('''
-          new = '''function sameGoal(left: unknown, right: unknown) {
+          function authorizationStatusCovers(''',
+              '''function sameGoal(left: unknown, right: unknown) {
             return JSON.stringify(left) === JSON.stringify(right);
           }
 
@@ -91,139 +97,133 @@ jobs:
             });
           }
 
-          function authorizationStatusCovers('''
-          if old not in text:
-              raise SystemExit('signature helper anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''        if (!previous || previousVersion < normalizedVersion) {
-                  expectedGoalSuggestions.set(normalized.id, normalized);
-                }
-          '''
-          new = '''        if (!previous || previousVersion < normalizedVersion) {
-                  expectedGoalSuggestions.set(normalized.id, normalized);
-                } else if (
-                  previousVersion === normalizedVersion &&
-                  legacyGoalSuggestionSignature(previous) !==
-                    legacyGoalSuggestionSignature(normalized)
-                ) {
-                  invalidPreferences += 1;
-                }
-          '''
-          if old not in text:
-              raise SystemExit('goal conflict anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''        if (
-                  !previous ||
-                  legacyAccessToCanonical(previous).sourceUpdatedAt.getTime() <
-                    legacyAccessToCanonical(access).sourceUpdatedAt.getTime()
-                ) {
-                  expectedAuthorizations.set(access.id, access);
-                }
-          '''
-          new = '''        const previousVersion = previous
-                  ? legacyAccessToCanonical(previous).sourceUpdatedAt.getTime()
-                  : -1;
-                const accessVersion =
-                  legacyAccessToCanonical(access).sourceUpdatedAt.getTime();
-                if (!previous || previousVersion < accessVersion) {
-                  expectedAuthorizations.set(access.id, access);
-                } else if (
-                  previousVersion === accessVersion &&
-                  legacyAuthorizationSignature(previous) !==
-                    legacyAuthorizationSignature(access)
-                ) {
-                  invalidPreferences += 1;
-                }
-          '''
-          if old not in text:
-              raise SystemExit('authorization conflict anchor not found')
-          text = text.replace(old, new, 1)
+          function authorizationStatusCovers(''',
+              'signature helper'
+          )
+          text = replace_once(
+              text,
+              '''        if (!previous || previousVersion < normalizedVersion) {
+            expectedGoalSuggestions.set(normalized.id, normalized);
+          }''',
+              '''        if (!previous || previousVersion < normalizedVersion) {
+            expectedGoalSuggestions.set(normalized.id, normalized);
+          } else if (
+            previousVersion === normalizedVersion &&
+            legacyGoalSuggestionSignature(previous) !==
+              legacyGoalSuggestionSignature(normalized)
+          ) {
+            invalidPreferences += 1;
+          }''',
+              'goal conflict'
+          )
+          text = replace_once(
+              text,
+              '''      if (
+            !previous ||
+            legacyAccessToCanonical(previous).sourceUpdatedAt.getTime() <
+              legacyAccessToCanonical(access).sourceUpdatedAt.getTime()
+          ) {
+            expectedAuthorizations.set(access.id, access);
+          }''',
+              '''      const previousVersion = previous
+            ? legacyAccessToCanonical(previous).sourceUpdatedAt.getTime()
+            : -1;
+          const accessVersion =
+            legacyAccessToCanonical(access).sourceUpdatedAt.getTime();
+          if (!previous || previousVersion < accessVersion) {
+            expectedAuthorizations.set(access.id, access);
+          } else if (
+            previousVersion === accessVersion &&
+            legacyAuthorizationSignature(previous) !==
+              legacyAuthorizationSignature(access)
+          ) {
+            invalidPreferences += 1;
+          }''',
+              'authorization conflict'
+          )
           retirement_path.write_text(text)
 
           test_path = Path('scripts/test-professional-persistence-tidb.ts')
           test = test_path.read_text()
-          old = '''    await connection.query(
-                "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
-                [8067, "professional_profile_v1"]
-              );
+          test = replace_once(
+              test,
+              '''    await connection.query(
+            "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
+            [8067, "professional_profile_v1"]
+          );
 
-              await connection.query(
-                "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",'''
-          new = '''    await connection.query(
-                "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
-                [8067, "professional_profile_v1"]
-              );
+          await connection.query(
+            "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",''',
+              '''    await connection.query(
+            "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
+            [8067, "professional_profile_v1"]
+          );
 
-              const sameVersionAccessConflict = {
-                ...untouched,
-                reason: "Conflito legado com a mesma versão",
-              };
-              const sameVersionGoalConflict = {
-                ...retirementLegacyGoal,
-                rationale: "Conflito de sugestão com a mesma versão",
-              };
-              await connection.query(
-                "INSERT INTO userPreferences (userId, preferenceKey, preferenceValue, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
-                [
-                  8066,
-                  "patient_professional_access_requests_v1",
-                  JSON.stringify([sameVersionAccessConflict]),
-                  new Date("2026-07-14T20:00:00.000Z"),
-                  new Date("2026-07-14T20:03:00.000Z"),
-                ]
-              );
-              await connection.query(
-                "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
-                [
-                  JSON.stringify([
-                    retirementLegacyGoal,
-                    sameVersionGoalConflict,
-                  ]),
-                  8062,
-                  "patient_professional_goal_suggestions_v1",
-                ]
-              );
-              assert.throws(
-                () => runLegacyRetirement(true),
-                /preferências profissionais legadas inválidas|Command failed/i,
-                "equal-version conflicting legacy copies must block retirement"
-              );
-              const [rowsAfterEqualVersionConflict] = await connection.query<
-                mysql.RowDataPacket[]
-              >(
-                "SELECT COUNT(*) AS total FROM userPreferences WHERE preferenceKey IN (?, ?, ?, ?)",
-                [
-                  "professional_profile_v1",
-                  "professional_accesses_v1",
-                  "patient_professional_access_requests_v1",
-                  "patient_professional_goal_suggestions_v1",
-                ]
-              );
-              assert.equal(
-                Number(rowsAfterEqualVersionConflict[0]?.total) > 0,
-                true,
-                "equal-version conflicts must preserve every legacy preference"
-              );
-              await connection.query(
-                "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
-                [8066, "patient_professional_access_requests_v1"]
-              );
-              await connection.query(
-                "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
-                [
-                  JSON.stringify([retirementLegacyGoal]),
-                  8062,
-                  "patient_professional_goal_suggestions_v1",
-                ]
-              );
+          const sameVersionAccessConflict = {
+            ...untouched,
+            reason: "Conflito legado com a mesma versão",
+          };
+          const sameVersionGoalConflict = {
+            ...retirementLegacyGoal,
+            rationale: "Conflito de sugestão com a mesma versão",
+          };
+          await connection.query(
+            "INSERT INTO userPreferences (userId, preferenceKey, preferenceValue, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
+            [
+              8066,
+              "patient_professional_access_requests_v1",
+              JSON.stringify([sameVersionAccessConflict]),
+              new Date("2026-07-14T20:00:00.000Z"),
+              new Date("2026-07-14T20:03:00.000Z"),
+            ]
+          );
+          await connection.query(
+            "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
+            [
+              JSON.stringify([retirementLegacyGoal, sameVersionGoalConflict]),
+              8062,
+              "patient_professional_goal_suggestions_v1",
+            ]
+          );
+          assert.throws(
+            () => runLegacyRetirement(true),
+            /preferências profissionais legadas inválidas|Command failed/i,
+            "equal-version conflicting legacy copies must block retirement"
+          );
+          const [rowsAfterEqualVersionConflict] = await connection.query<
+            mysql.RowDataPacket[]
+          >(
+            "SELECT COUNT(*) AS total FROM userPreferences WHERE preferenceKey IN (?, ?, ?, ?)",
+            [
+              "professional_profile_v1",
+              "professional_accesses_v1",
+              "patient_professional_access_requests_v1",
+              "patient_professional_goal_suggestions_v1",
+            ]
+          );
+          assert.equal(
+            Number(rowsAfterEqualVersionConflict[0]?.total) > 0,
+            true,
+            "equal-version conflicts must preserve every legacy preference"
+          );
+          await connection.query(
+            "DELETE FROM userPreferences WHERE userId = ? AND preferenceKey = ?",
+            [8066, "patient_professional_access_requests_v1"]
+          );
+          await connection.query(
+            "UPDATE userPreferences SET preferenceValue = ? WHERE userId = ? AND preferenceKey = ?",
+            [
+              JSON.stringify([retirementLegacyGoal]),
+              8062,
+              "patient_professional_goal_suggestions_v1",
+            ]
+          );
 
-              await connection.query(
-                "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",'''
-          if old not in test:
-              raise SystemExit('TiDB conflict test anchor not found')
-          test_path.write_text(test.replace(old, new, 1))
+          await connection.query(
+            "UPDATE professionalPatientAuthorizations SET reason = ?, sourceUpdatedAt = ? WHERE id = ?",''',
+              'TiDB conflict test'
+          )
+          test_path.write_text(test)
           PY
       - name: Remove temporary workflow
         run: rm -f .github/workflows/issue-815-equal-version-conflict-fix.yml
