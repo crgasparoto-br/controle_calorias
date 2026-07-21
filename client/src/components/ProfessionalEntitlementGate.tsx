@@ -16,7 +16,8 @@ export type ProfessionalRouteEntitlement =
   | "professional_portfolio"
   | "professional_record"
   | "professional_messages"
-  | "professional_reports";
+  | "professional_reports"
+  | "professional_settings";
 
 export default function ProfessionalEntitlementGate({
   children,
@@ -80,6 +81,7 @@ export default function ProfessionalEntitlementGate({
   );
 
   if (!resourceEnabled) {
+    const settingsDenied = resource === "professional_settings";
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-lg">
@@ -96,9 +98,15 @@ export default function ProfessionalEntitlementGate({
             <p className="text-sm text-muted-foreground">
               Situação: {query.data?.planName ?? "Elegibilidade indisponível"}
             </p>
-            <Button onClick={() => setLocation("/professional/settings")}> 
+            <Button
+              onClick={() =>
+                setLocation(settingsDenied ? "/settings" : "/professional/settings")
+              }
+            >
               <Settings className="h-4 w-4" />
-              Ver configurações e acesso
+              {settingsDenied
+                ? "Voltar às configurações pessoais"
+                : "Ver configurações e acesso"}
             </Button>
           </CardContent>
         </Card>
