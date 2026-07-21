@@ -49,9 +49,11 @@ jobs:
           set -o pipefail
           (
             set -e
-            node scripts/issue-815-bootstrap-fix.mjs
-            node scripts/issue-815-transform.mjs
-            node scripts/issue-815-fixup.mjs
+            if [ ! -f .github/issue-815-checkpoint ]; then
+              node scripts/issue-815-bootstrap-fix.mjs
+              node scripts/issue-815-transform.mjs
+              node scripts/issue-815-fixup.mjs
+            fi
             pnpm exec prettier --write \
               client/src/App.tsx \
               client/src/App.professionalNavigation.test.tsx \
@@ -77,7 +79,7 @@ jobs:
             pnpm build
           ) 2>&1 | tee .github/issue-815-pipeline.log
 
-      - name: Publish pipeline diagnostics
+      - name: Publish pipeline diagnostics and checkpoint
         if: steps.pipeline.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -89,12 +91,20 @@ jobs:
             tail -n 240 .github/issue-815-pipeline.log
             echo '```'
           } > /tmp/issue-815-pipeline-comment.md
+          rm -f .github/issue-815-pipeline.log
+          touch .github/issue-815-checkpoint
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: checkpoint issue 815 implementation diagnostics"
+          git push origin HEAD:cleanup/815-retire-professional-legacy
           gh pr comment 864 --body-file /tmp/issue-815-pipeline-comment.md
           exit 1
 
       - name: Remove one-shot automation
         run: |
           rm -f .github/issue-815-pipeline.log
+          rm -f .github/issue-815-checkpoint
           rm scripts/issue-815-bootstrap-fix.mjs
           rm scripts/issue-815-transform.mjs
           rm scripts/issue-815-fixup.mjs
